@@ -870,22 +870,24 @@ export async function fetchCaRequestById(requestId: string, accessToken: string)
 export interface ApiKmsKey {
   id: string;
   name?: string;
+  name?: string;
   algorithm: string;
-  size: string;
+  size: number;
   public_key: string;
   status: string;
   creation_ts: string;
 }
 
-export interface ApiKmsKeyListResponse {
-  next: string | null;
-  list: ApiKmsKey[];
+interface ApiKmsKeyListResponse {
+    next: string | null;
+    list: ApiKmsKey[];
 }
 
-
-export async function fetchKmsKeys(accessToken: string, apiQueryString?: string): Promise<ApiKmsKeyListResponse> {
-    const url = `${get_CA_API_BASE_URL()}/kms/keys?${apiQueryString || ''}`;
-    const response = await fetch(url, {
+export async function fetchKmsKeys(accessToken: string, params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
+    const url = new URL(`${get_CA_API_BASE_URL()}/kms/keys`);
+    params.forEach((value, key) => url.searchParams.append(key, value));
+    
+    const response = await fetch(url.toString(), {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
@@ -1026,8 +1028,8 @@ export interface ApiSigningProfile {
 		organization?: string;
 		organizational_unit?: string;
 		country?: string;
-		locality?: string;
 		state?: string;
+		locality?: string;
 	};
 	honor_extensions: boolean;
     crypto_enforcement: {
