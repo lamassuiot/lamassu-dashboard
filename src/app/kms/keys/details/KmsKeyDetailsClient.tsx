@@ -635,7 +635,10 @@ export default function KmsKeyDetailsClient() {
           <TabsContent value="overview">
             <Card>
               <CardHeader>
-                <CardTitle>Key Overview</CardTitle>
+                <CardTitle className="flex items-center">
+                  <Info className="mr-2 h-5 w-5 text-primary" />
+                  Key Overview
+                </CardTitle>
                 <CardDescription>General information about this KMS key.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -669,11 +672,22 @@ export default function KmsKeyDetailsClient() {
           </TabsContent>
 
           <TabsContent value="public-key">
-            <KmsPublicKeyPemTabContent
-              publicKeyPem={keyDetails.publicKeyPem}
-              itemName={keyDetails.alias}
-              toast={toast}
-            />
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                        <FileText className="mr-2 h-5 w-5 text-primary" />
+                        Public Key Data
+                    </CardTitle>
+                     <CardDescription>View the public key component in PEM format.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <KmsPublicKeyPemTabContent
+                    publicKeyPem={keyDetails.publicKeyPem}
+                    itemName={keyDetails.alias}
+                    toast={toast}
+                    />
+                </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="sign-verify">
