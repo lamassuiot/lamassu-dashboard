@@ -118,9 +118,9 @@ export default function CreateKmsKeyPage() {
         }
 
         try {
-            let size = '';
+            let size: number | string = 0; // Use number type
             if (keyType === 'RSA') {
-                size = rsaKeySize;
+                size = parseInt(rsaKeySize, 10);
             } else if (keyType === 'ECDSA') {
                 size = ecdsaCurve.replace('P-', '');
             } else if (keyType === 'ML-DSA') {
