@@ -141,14 +141,18 @@ export default function KmsKeyDetailsClient() {
     setError(null);
 
     try {
-      const [allKeys, allEnginesData] = await Promise.all([
-        fetchKmsKeys(user.access_token),
+      const filterParams = new URLSearchParams();
+      filterParams.set('filter', `id[equal]${keyId}`);
+      filterParams.set('page_size', '1');
+
+      const [keysResponse, allEnginesData] = await Promise.all([
+        fetchKmsKeys(user.access_token, filterParams),
         fetchCryptoEngines(user.access_token)
       ]);
 
       setAllCryptoEngines(allEnginesData);
-
-      const apiKey = allKeys.find(k => k.id === keyId);
+      
+      const apiKey = keysResponse.list?.[0];
 
       if (apiKey) {
         let pem = '';
@@ -166,7 +170,7 @@ export default function KmsKeyDetailsClient() {
         const algorithm = apiKey.algorithm.toUpperCase() as KmsKeyDetailed['algorithm'];
         const detailedKey: KmsKeyDetailed = {
           id: apiKey.id,
-          alias: apiKey.id,
+          alias: apiKey.name || apiKey.id,
           keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
           algorithm: ['RSA', 'ECDSA', 'ML-DSA'].includes(algorithm) ? algorithm : 'Unknown',
           keySize: apiKey.size,
@@ -183,15 +187,15 @@ export default function KmsKeyDetailsClient() {
           setCsrSignAlgorithm('RSASSA_PKCS1_V1_5_SHA_256');
         } else if (detailedKey.algorithm === 'ECDSA') {
           let defaultEcdsaAlgo = 'ECDSA_SHA_256';
-          if (detailedKey.keySize === '384') defaultEcdsaAlgo = 'ECDSA_SHA_384';
-          if (detailedKey.keySize === '521') defaultEcdsaAlgo = 'ECDSA_SHA_512';
+          if (detailedKey.keySize === 384) defaultEcdsaAlgo = 'ECDSA_SHA_384';
+          if (detailedKey.keySize === 521) defaultEcdsaAlgo = 'ECDSA_SHA_512';
           
           setSignAlgorithm(defaultEcdsaAlgo);
           setVerifyAlgorithm(defaultEcdsaAlgo);
           setCsrSignAlgorithm(defaultEcdsaAlgo);
         } else if (detailedKey.algorithm === 'ML-DSA') {
-          const defaultMlDsaAlgo = detailedKey.keySize === 'ML-DSA-44' ? 'ML-DSA-44' :
-            detailedKey.keySize === 'ML-DSA-87' ? 'ML-DSA-87' : 'ML-DSA-65';
+          const defaultMlDsaAlgo = detailedKey.keySize === 44 ? 'ML-DSA-44' :
+            detailedKey.keySize === 87 ? 'ML-DSA-87' : 'ML-DSA-65';
           setSignAlgorithm(defaultMlDsaAlgo);
           setVerifyAlgorithm(defaultMlDsaAlgo);
           setCsrSignAlgorithm(defaultMlDsaAlgo);
@@ -546,11 +550,13 @@ export default function KmsKeyDetailsClient() {
     }
     if (keyDetails.algorithm === 'ECDSA') {
       if (!algo.startsWith('ECDSA')) return true;
-
-      switch (keyDetails.keySize) {
-        case '256': return algo !== 'ECDSA_SHA_256';
-        case '384': return algo !== 'ECDSA_SHA_384';
-        case '521': return algo !== 'ECDSA_SHA_512';
+      
+      const keySizeNumber = typeof keyDetails.keySize === 'string' ? parseInt(keyDetails.keySize) : keyDetails.keySize;
+      
+      switch (keySizeNumber) {
+        case 256: return algo !== 'ECDSA_SHA_256';
+        case 384: return algo !== 'ECDSA_SHA_384';
+        case 521: return algo !== 'ECDSA_SHA_512';
         default: return true;
       }
     }
@@ -611,7 +617,7 @@ export default function KmsKeyDetailsClient() {
                   {keyDetails.alias}
                 </h1>
               </div>
-              <p className="text-sm text-muted-foreground mt-1.5">
+              <p className="text-sm text-muted-foreground mt-1.5 break-all">
                 Key ID: {keyDetails.id}
               </p>
             </div>
