@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -237,7 +238,7 @@ export default function CreateCaGeneratePage() {
     const payload: CreateCaPayload = {
       parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
       id: caId,
-      engine_id: cryptoEngineId, 
+      engine_id: cryptoEngineId,
       subject: {
         country: country || undefined,
         state_province: stateProvince || undefined,
@@ -346,6 +347,7 @@ export default function CreateCaGeneratePage() {
                   </Select>
                 </div>
                 {caType === 'intermediate' && (
+                    <>
                   <div>
                     <Label htmlFor="parentCa">Parent Certification Authority</Label>
                     <Button
@@ -365,6 +367,7 @@ export default function CreateCaGeneratePage() {
                     )}
                     {!selectedParentCa && <p className="text-xs text-destructive mt-1">A parent Certification Authority must be selected for intermediate CAs.</p>}
                   </div>
+                  </>
                 )}
                 {caType === 'root' && (
                   <div>

@@ -101,3 +101,8 @@ header button[aria-label="Toggle theme"] svg {
 .dark header button[aria-label="Toggle theme"] svg {
   filter: none;
 }
+
+.lamassu-logo-theme-filter {
+  /* For light theme: change SVG to hsl(0, 84%, 60%) (vivid red) */
+  filter: invert(41%) sepia(97%) saturate(7497%) hue-rotate(349deg) brightness(101%) contrast(101%);
+}

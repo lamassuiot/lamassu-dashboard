@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile } from '@/lib/ca-data';
+import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile, type ApiSigningProfileListResponse } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -21,9 +21,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 export default function SigningProfilesPage() {
