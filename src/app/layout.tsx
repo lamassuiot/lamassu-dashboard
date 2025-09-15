@@ -499,7 +499,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script src="/config.js" strategy="beforeInteractive" />
+        <script src="/config.js"></script>
         <title>LamassuIoT Certificate Manager</title>
         <meta name="description" content="Manage and verify your X.509 certificates with LamassuIoT." />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
