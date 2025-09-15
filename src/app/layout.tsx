@@ -345,7 +345,7 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
                   />
                 </div>
               </SidebarHeader>
-              <SidebarContent className="p-2">
+              <SidebarContent className="p-2" data-tour="navigation">
                 <SidebarMenu>
                   {navigationConfig.map((group, groupIndex) => {
                     if (group.devOnly && !(process.env.NODE_ENV == 'development' ||  process.env.NEXT_FORCE_DEV_OPTIONS)) {
