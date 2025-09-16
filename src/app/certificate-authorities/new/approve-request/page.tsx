@@ -7,13 +7,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, PlusCircle, ShieldCheck, Loader2, AlertTriangle, FileSignature, CalendarDays } from "lucide-react";
+import { ArrowLeft, PlusCircle, ShieldCheck, Loader2, AlertTriangle, FileSignature, CalendarDays, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Certificate as PkijsCertificate, BasicConstraints as PkijsBasicConstraints } from "pkijs";
 import * as asn1js from "asn1js";
 import { format as formatDate, parseISO, formatISO } from 'date-fns';
 import { DetailItem } from '@/components/shared/DetailItem';
+import { SectionHeader } from '@/components/shared/FormComponents';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
@@ -217,8 +218,9 @@ export default function ApproveCaRequestPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><FileSignature className="mr-2 h-5 w-5 text-muted-foreground" />Selected Request Details</h3>
+            <Card>
+              <SectionHeader icon={FileSignature} title="Selected Request Details" />
+              <CardContent>
                {isLoadingRequest || authLoading ? (
                     <div className="flex items-center space-x-2 p-4 border rounded-md bg-muted/50 text-sm text-muted-foreground mt-1">
                         <Loader2 className="h-5 w-5 animate-spin" />
@@ -236,11 +238,12 @@ export default function ApproveCaRequestPage() {
                  ) : (
                     <Alert variant="warning" className="mt-1">Request not found.</Alert>
                  )}
-            </section>
+              </CardContent>
+            </Card>
             
-            <section>
-                <h3 className="text-lg font-semibold mb-3">Import Signed Certificate</h3>
-                <div className="space-y-4">
+            <Card>
+                <SectionHeader icon={Upload} title="Import Signed Certificate" />
+                <CardContent className="space-y-4">
                     <div>
                         <Label htmlFor="certificatePem">Certification Authority Certificate (PEM)</Label>
                         <Textarea id="certificatePem" value={certificatePem} onChange={(e) => {setCertificatePem(e.target.value); parseCertificatePem(e.target.value);}} placeholder="Paste the signed certificate from the external CA..." rows={6} required className="mt-1 font-mono"/>
@@ -260,11 +263,12 @@ export default function ApproveCaRequestPage() {
                         <Label htmlFor="chainPem">CA Certificate Chain (Optional, PEM format)</Label>
                         <Textarea id="chainPem" value={chainPem} onChange={(e) => setChainPem(e.target.value)} placeholder="Paste intermediate CA certificates if needed..." rows={4} className="mt-1 font-mono"/>
                     </div>
-                </div>
-            </section>
+                </CardContent>
+            </Card>
 
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />Expiration Settings</h3>
+            <Card>
+              <SectionHeader icon={CalendarDays} title="Expiration Settings" />
+              <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <ExpirationInput 
                     idPrefix="issuance-exp" 
@@ -273,7 +277,8 @@ export default function ApproveCaRequestPage() {
                     onValueChange={setIssuanceExpiration} 
                 />
               </div>
-            </section>
+              </CardContent>
+            </Card>
 
             <div className="flex justify-end pt-4">
               <Button type="submit" size="lg" disabled={isSubmitting || isLoadingRequest || !request || !certificatePem}>

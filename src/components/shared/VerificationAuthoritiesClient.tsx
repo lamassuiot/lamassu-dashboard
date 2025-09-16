@@ -23,6 +23,7 @@ import { format, parseISO } from 'date-fns';
 import { DetailItem } from './DetailItem';
 import { cn } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
+import { SectionHeader, SwitchFormField } from '@/components/shared/FormComponents';
 
 
 const getDefaultVAConfig = (caId: string): VAConfig => ({
@@ -389,38 +390,45 @@ export function VerificationAuthoritiesClient() { // Renamed component
                   <p className="text-xs text-muted-foreground mt-1">Certificate whose public key corresponds to the SubjectKeyIdentifier in generated CRLs.</p>
                 </div>
 
-                <div>
-                  <h4 className="text-md font-medium text-muted-foreground mb-2 flex items-center justify-between">
-                    <span className="flex items-center">
-                      <FileText className="mr-2 h-5 w-5" />
-                      Latest Generated CRL
-                    </span>
+                <Card>
+                  <SectionHeader icon={FileText} title="Latest Generated CRL" />
+                  <CardContent className="flex justify-between items-start">
+                    <div className="flex-1">
                     {latestCrl && (
-                      <Button variant="outline" size="sm" onClick={handleDownloadCrl} disabled={isDownloadingCrl}>
+                      <Button variant="outline" size="sm" onClick={handleDownloadCrl} disabled={isDownloadingCrl} className="mb-4">
                         {isDownloadingCrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                         Download CRL
                       </Button>
                     )}
-                  </h4>
                   {latestCrl ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 pl-2 border rounded-md p-3 bg-muted/20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 border rounded-md p-3 bg-muted/20">
                       <DetailItem label="Version" value={String(latestCrl.version)} className="py-1" />
                       <DetailItem label="Valid From" value={format(parseISO(latestCrl.valid_from), 'PPpp')} className="py-1" />
                       <DetailItem label="Valid Until" value={format(parseISO(latestCrl.valid_until), 'PPpp')} className="py-1" />
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground pl-2 italic">No CRL has been generated for this VA role yet.</p>
+                    <p className="text-sm text-muted-foreground italic">No CRL has been generated for this VA role yet.</p>
                   )}
-                </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="va-regenerateOnRevoke" className="flex items-center">
+                      <RefreshCw className="mr-2 h-4 w-4 text-muted-foreground" />
+                      Regenerate CRL Immediately on Revocation
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      When enabled, a new CRL will be generated immediately whenever a certificate is revoked.
+                    </p>
+                  </div>
                   <Switch
                     id="va-regenerateOnRevoke"
                     checked={config.regenerateOnRevoke}
                     onCheckedChange={() => handleSwitchChange('regenerateOnRevoke')}
                     disabled={isSubmitting}
                   />
-                  <Label htmlFor="va-regenerateOnRevoke">Regenerate CRL Immediately on Revocation</Label>
                 </div>
 
                 <CertificateSelectorModal
