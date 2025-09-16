@@ -6,6 +6,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { DeviceStatusChartCard } from '@/components/home/DeviceStatusChartCard';
 import { CaExpiryTimeline } from '@/components/home/CaExpiryTimeline';
 import { SummaryStatsCard } from '@/components/home/SummaryStatsCard';
+import { TourOverlay } from '@/components/ui/tour-overlay';
+import { TourControl } from '@/components/ui/tour-control';
+import { useHomeTour } from '@/hooks/use-home-tour';
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, fetchCryptoEngines, fetchCaStatsSummary } from '@/lib/ca-data';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,6 +46,13 @@ interface SummaryStats {
 
 export default function HomePage() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { 
+    isTourVisible, 
+    tourSteps, 
+    completeTour, 
+    skipTour,
+    startTour
+  } = useHomeTour({ isAuthenticated: isAuthenticated(), authLoading });
 
   // State for timeline
   const [allCAs, setAllCAs] = useState<CA[]>([]);
@@ -143,55 +153,73 @@ export default function HomePage() {
   const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats || authLoading;
 
   return (
-    <div className="w-full space-y-8">
-      <div className="flex items-center justify-end">
-        <Button onClick={loadInitialData} variant="outline" disabled={isReloading}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <div className="lg:col-span-1">
-          <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats || authLoading} />
+    <>
+      <div className="w-full space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <TourControl showText={true} onStartTour={startTour} />
+          </div>
+          <Button 
+            onClick={loadInitialData} 
+            variant="outline" 
+            disabled={isReloading}
+            data-tour="refresh-button"
+          >
+              <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
+          </Button>
         </div>
-        <div className="lg:col-span-1">
-          <div className="max-w-lg">
-            <DeviceStatusChartCard />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          <div className="lg:col-span-1" data-tour="summary-stats">
+            <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats || authLoading} />
+          </div>
+          <div className="lg:col-span-1">
+            <div className="max-w-lg" data-tour="device-chart">
+              <DeviceStatusChartCard />
+            </div>
           </div>
         </div>
+        <div data-tour="ca-timeline">
+          {anyTimelineLoading && !anyTimelineError ? (
+            <Card className="shadow-lg w-full bg-card">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-center h-[200px] md:h-[250px] p-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="ml-3 text-muted-foreground">Loading Certification Authority timeline data...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : anyTimelineError ? (
+            <Card className="shadow-lg w-full bg-card">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Error Loading Timeline Data</AlertTitle>
+                  <AlertDescription>
+                    {anyTimelineError}
+                    <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80 focus:text-destructive">Try again?</Button>
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+          ) : (
+            <CaExpiryTimeline cas={allCAs} allCryptoEngines={allCryptoEngines} />
+          )}
+        </div>
       </div>
-      <div>
-        {anyTimelineLoading && !anyTimelineError ? (
-          <Card className="shadow-lg w-full bg-card">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center h-[200px] md:h-[250px] p-4">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-3 text-muted-foreground">Loading Certification Authority timeline data...</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : anyTimelineError ? (
-          <Card className="shadow-lg w-full bg-card">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Error Loading Timeline Data</AlertTitle>
-                <AlertDescription>
-                  {anyTimelineError}
-                  <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80 focus:text-destructive">Try again?</Button>
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-        ) : (
-          <CaExpiryTimeline cas={allCAs} allCryptoEngines={allCryptoEngines} />
-        )}
-      </div>
-    </div>
+      
+      {/* Tour Overlay */}
+      <TourOverlay
+        steps={tourSteps}
+        isVisible={isTourVisible}
+        onComplete={completeTour}
+        onSkip={skipTour}
+      />
+    </>
   );
 }
