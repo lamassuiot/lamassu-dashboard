@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { createOrUpdateRa, fetchRaById, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
+import { SectionHeader, SwitchFormField } from '@/components/shared/FormComponents';
 
 
 const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];
@@ -431,12 +432,17 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         </div>
         <div className="p-6 pt-0"> 
           <form onSubmit={handleSubmit}>
-              <h3 className={cn(sectionHeadingStyle)}><Settings className="mr-2 h-5 w-5 text-muted-foreground"/>General RA Settings</h3>
-              <Card className="border-border shadow-sm rounded-md"><CardContent className="p-4"><div className="space-y-4"><div><Label htmlFor="raName">RA Name</Label><Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required className="mt-1" />{!raName.trim() && <p className="text-xs text-destructive mt-1">RA Name is required.</p>}</div><div><Label htmlFor="raId">RA ID</Label><Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} className="mt-1" />{!raId.trim() && !isEditMode && <p className="text-xs text-destructive mt-1">RA ID is required.</p>}</div></div></CardContent></Card>
+              <Card className="border-border shadow-sm rounded-md">
+                <SectionHeader icon={Settings} title="General RA Settings" />
+                <CardContent className="space-y-4">
+                  <div><Label htmlFor="raName">RA Name</Label><Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required className="mt-1" />{!raName.trim() && <p className="text-xs text-destructive mt-1">RA Name is required.</p>}</div>
+                  <div><Label htmlFor="raId">RA ID</Label><Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} className="mt-1" />{!raId.trim() && !isEditMode && <p className="text-xs text-destructive mt-1">RA ID is required.</p>}</div>
+                </CardContent>
+              </Card>
               <Separator className="my-6"/>
-              <h3 className={cn(sectionHeadingStyle)}><Cpu className="mr-2 h-5 w-5 text-muted-foreground" /> Enrollment Device Registration</h3>
-              <Card className="border-border shadow-sm rounded-md"><CardContent className="p-4">
-              <div className="space-y-4">
+              <Card className="border-border shadow-sm rounded-md">
+                <SectionHeader icon={Cpu} title="Enrollment Device Registration" />
+                <CardContent className="space-y-4">
                   <div>
                   <Label htmlFor="registrationMode">Registration Mode</Label>
                   <Select value={registrationMode} onValueChange={setRegistrationMode}>
@@ -465,11 +471,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">Default icon and colors for devices registered through this RA.</p>
-              </div>
-              </CardContent></Card>
+                </CardContent>
+              </Card>
               <Separator className="my-6"/>
-              <h3 className={cn(sectionHeadingStyle)}><Key className="mr-2 h-5 w-5 text-muted-foreground"/>Enrollment Settings</h3>
-              <Card className="border-border shadow-sm rounded-md"><CardContent className="p-4"><div className="space-y-4"><div><Label htmlFor="protocol">Protocol</Label><Select value={protocol} onValueChange={setProtocol}><SelectTrigger id="protocol" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EST">EST</SelectItem><SelectItem value="CMP">CMP</SelectItem></SelectContent></Select></div>
+              <Card className="border-border shadow-sm rounded-md">
+                <SectionHeader icon={Key} title="Enrollment Settings" />
+                <CardContent className="space-y-4">
+                  <div><Label htmlFor="protocol">Protocol</Label><Select value={protocol} onValueChange={setProtocol}><SelectTrigger id="protocol" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EST">EST</SelectItem><SelectItem value="CMP">CMP</SelectItem></SelectContent></Select></div>
               <div>
                 <Label htmlFor="enrollmentCa">Enrollment CA</Label>
                 <Button type="button" variant="outline" onClick={() => setIsEnrollmentCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}</Button>
@@ -572,25 +580,90 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                       )}
                   </div>
               )}
-
-              </div></CardContent></Card>
+                </CardContent>
+              </Card>
               <Separator className="my-6"/>
-              <h3 className={cn(sectionHeadingStyle)}><PackageCheck className="mr-2 h-5 w-5 text-muted-foreground"/>Re-Enrollment Settings</h3>
-              <Card className="border-border shadow-sm rounded-md"><CardContent className="p-4"><div className="space-y-4">
-                  <div className="flex items-center space-x-2"><Switch id="revokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} /><Label htmlFor="revokeOnReEnroll">Revoke On Re-Enroll</Label></div>
-                  <div className="flex items-center space-x-2"><Switch id="allowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} /><Label htmlFor="allowExpiredRenewal">Allow Expired Renewal</Label></div>
+              <Card className="border-border shadow-sm rounded-md">
+                <SectionHeader icon={PackageCheck} title="Re-Enrollment Settings" />
+                <CardContent className="space-y-4">
+                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="revokeOnReEnroll" className="flex items-center">
+                        <PackageCheck className="mr-2 h-4 w-4 text-muted-foreground" />
+                        Revoke On Re-Enroll
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically revoke the old certificate when a new one is issued during re-enrollment.
+                      </p>
+                    </div>
+                    <Switch id="revokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} />
+                  </div>
+                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="allowExpiredRenewal" className="flex items-center">
+                        <AlertTriangle className="mr-2 h-4 w-4 text-muted-foreground" />
+                        Allow Expired Renewal
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Permit renewal of certificates that have already expired.
+                      </p>
+                    </div>
+                    <Switch id="allowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
+                  </div>
                   <DurationInput id="allowedRenewalDelta" label="Allowed Renewal Delta" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Max time after expiry a cert can be renewed."/>
                   <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry to start allowing renewals."/>
                   <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when renewal is critical."/>
                   <div><Label htmlFor="additionalValidationCAs">Additional Validation CAs (for re-enrollment)</Label><Button type="button" variant="outline" onClick={() => setIsAdditionalValidationCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : additionalValidationCAs.length > 0 ? `Selected ${additionalValidationCAs.length} CA(s)` : "Select CAs..."}</Button>{additionalValidationCAs.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{additionalValidationCAs.map(ca => <CaVisualizerCard key={ca.id} ca={ca} className="shadow-none border-border max-w-xs" allCryptoEngines={allCryptoEngines}/>)}</div>}</div>
-              </div>
-              </CardContent></Card>
+                </CardContent>
+              </Card>
               <Separator className="my-6"/>
-              <h3 className={cn(sectionHeadingStyle)}><Server className="mr-2 h-5 w-5 text-muted-foreground"/>Server Key Generation</h3>
-              <Card className="border-border shadow-sm rounded-md"><CardContent className="p-4"><div className="space-y-4"><div className="flex items-center space-x-2"><Switch id="enableKeyGeneration" checked={enableKeyGeneration} onCheckedChange={setEnableKeyGeneration} /><Label htmlFor="enableKeyGeneration">Enable Server-Side Key Generation</Label></div>{enableKeyGeneration && (<div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2"><div><Label htmlFor="serverKeygenType">Key Type</Label><Select value={serverKeygenType} onValueChange={setServerKeygenType}><SelectTrigger id="serverKeygenType" className="mt-1"><SelectValue/></SelectTrigger><SelectContent>{serverKeygenTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor="serverKeygenSpec">{serverKeygenType === 'RSA' ? 'Key Bits' : 'Curve'}</Label><Select value={serverKeygenSpec} onValueChange={setServerKeygenSpec}><SelectTrigger id="serverKeygenSpec" className="mt-1"><SelectValue/></SelectTrigger><SelectContent>{currentServerKeygenSpecOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div></div>)}</div></CardContent></Card>
+              <Card className="border-border shadow-sm rounded-md">
+                <SectionHeader icon={Server} title="Server Key Generation" />
+                <CardContent className="space-y-4">
+                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableKeyGeneration" className="flex items-center">
+                        <Server className="mr-2 h-4 w-4 text-muted-foreground" />
+                        Enable Server-Side Key Generation
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Generate cryptographic keys on the server instead of requiring client-side generation.
+                      </p>
+                    </div>
+                    <Switch id="enableKeyGeneration" checked={enableKeyGeneration} onCheckedChange={setEnableKeyGeneration} />
+                  </div>{enableKeyGeneration && (<div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2"><div><Label htmlFor="serverKeygenType">Key Type</Label><Select value={serverKeygenType} onValueChange={setServerKeygenType}><SelectTrigger id="serverKeygenType" className="mt-1"><SelectValue/></SelectTrigger><SelectContent>{serverKeygenTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor="serverKeygenSpec">{serverKeygenType === 'RSA' ? 'Key Bits' : 'Curve'}</Label><Select value={serverKeygenSpec} onValueChange={setServerKeygenSpec}><SelectTrigger id="serverKeygenSpec" className="mt-1"><SelectValue/></SelectTrigger><SelectContent>{currentServerKeygenSpecOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div></div>)}
+                </CardContent>
+              </Card>
               <Separator className="my-6"/>
-              <h3 className={cn(sectionHeadingStyle)}><AlertTriangle className="mr-2 h-5 w-5 text-muted-foreground"/>CA Distribution</h3>
-              <Card className="border-border shadow-sm rounded-md"><CardContent className="p-4"><div className="space-y-4"><div className="flex items-center space-x-2"><Switch id="includeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} /><Label htmlFor="includeDownstreamCA">Include 'Downstream' CA</Label></div><div className="flex items-center space-x-2"><Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} /><Label htmlFor="includeEnrollmentCA">Include Enrollment CA</Label></div><div><Label htmlFor="managedCAs">Managed CAs</Label><Button type="button" variant="outline" onClick={() => setIsManagedCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : managedCAs.length > 0 ? `Selected ${managedCAs.length} CA(s)` : "Select CAs..."}</Button>{managedCAs.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{managedCAs.map(ca => (<CaVisualizerCard key={ca.id} ca={ca} className="shadow-none border-border max-w-xs" allCryptoEngines={allCryptoEngines}/>))}</div>}</div></div></CardContent></Card>
+              <Card className="border-border shadow-sm rounded-md">
+                <SectionHeader icon={AlertTriangle} title="CA Distribution" />
+                <CardContent className="space-y-4">
+                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="includeDownstreamCA" className="flex items-center">
+                        <AlertTriangle className="mr-2 h-4 w-4 text-muted-foreground" />
+                        Include 'Downstream' CA
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Include downstream Certificate Authorities in the distribution.
+                      </p>
+                    </div>
+                    <Switch id="includeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
+                  </div>
+                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="includeEnrollmentCA" className="flex items-center">
+                        <Key className="mr-2 h-4 w-4 text-muted-foreground" />
+                        Include Enrollment CA
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Include the enrollment Certificate Authority in the distribution.
+                      </p>
+                    </div>
+                    <Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
+                  </div><div><Label htmlFor="managedCAs">Managed CAs</Label><Button type="button" variant="outline" onClick={() => setIsManagedCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : managedCAs.length > 0 ? `Selected ${managedCAs.length} CA(s)` : "Select CAs..."}</Button>{managedCAs.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{managedCAs.map(ca => (<CaVisualizerCard key={ca.id} ca={ca} className="shadow-none border-border max-w-xs" allCryptoEngines={allCryptoEngines}/>))}</div>}</div>
+                </CardContent>
+              </Card>
               <div className="flex justify-end space-x-2 pt-8">
                   <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
                   <Button type="submit" disabled={isSubmitting}>

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
+import { SectionHeader } from '@/components/shared/FormComponents';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchCryptoEngines, createCaRequest, type CreateCaRequestPayload } from '@/lib/ca-data';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/key-spec-constants';
@@ -165,9 +166,9 @@ export default function RequestCaCsrPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><KeyRound className="mr-2 h-5 w-5 text-muted-foreground" />KMS: New Key Pair Generation settings</h3>
-              <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={KeyRound} title="KMS: New Key Pair Generation settings" />
+              <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="cryptoEngine">Crypto Engine</Label>
                   <CryptoEngineSelector
@@ -197,12 +198,12 @@ export default function RequestCaCsrPage() {
                     </Select>
                   </div>
                 </div>
-              </div>
-            </section>
+              </CardContent>
+            </Card>
 
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><Settings className="mr-2 h-5 w-5 text-muted-foreground" />CA Settings</h3>
-              <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={Settings} title="CA Settings" />
+              <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="caId">CA Request ID (generated)</Label>
                   <Input id="caId" value={caId} readOnly className="mt-1 bg-muted/50" />
@@ -212,12 +213,12 @@ export default function RequestCaCsrPage() {
                   <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required className="mt-1" />
                   {!caName.trim() && <p className="text-xs text-destructive mt-1">CA Name (Common Name) cannot be empty.</p>}
                 </div>
-              </div>
-            </section>
+              </CardContent>
+            </Card>
 
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><Info className="mr-2 h-5 w-5 text-muted-foreground" />Subject Distinguished Name (DN)</h3>
-              <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={Info} title="Subject Distinguished Name (DN)" />
+              <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="country">Country (C)</Label>
@@ -243,8 +244,8 @@ export default function RequestCaCsrPage() {
                   <Input id="organizationalUnit" value={organizationalUnit} onChange={e => setOrganizationalUnit(e.target.value)} placeholder="e.g., Secure Devices Division" className="mt-1" />
                 </div>
                 <p className="text-xs text-muted-foreground">The "CA Name" entered in CA Settings will be used as the Common Name (CN) for the subject.</p>
-              </div>
-            </section>
+              </CardContent>
+            </Card>
 
             <div className="flex justify-end pt-4">
               <Button type="submit" size="lg" disabled={isSubmitting}>

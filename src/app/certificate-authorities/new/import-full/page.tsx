@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, PlusCircle, UploadCloud, Loader2, Settings, AlertTriangle } from "lucide-react";
+import { ArrowLeft, PlusCircle, UploadCloud, Loader2, Settings, AlertTriangle, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import * as pkijs from "pkijs";
@@ -19,6 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
+import { SectionHeader } from '@/components/shared/FormComponents';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { Separator } from '@/components/ui/separator';
 import { importCa, type ImportCaPayload, ab2hex } from '@/lib/ca-data';
@@ -187,9 +188,9 @@ export default function CreateCaImportFullPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><Settings className="mr-2 h-5 w-5 text-muted-foreground"/>Import Settings</h3>
-               <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={Settings} title="Import Settings" />
+              <CardContent className="space-y-4">
                   <div>
                     <Label htmlFor="caId">New Certification Authority ID (generated)</Label>
                     <Input id="caId" value={caId} readOnly className="mt-1 bg-muted/50" />
@@ -210,14 +211,14 @@ export default function CreateCaImportFullPage() {
                       value={issuanceExpiration} 
                       onValueChange={setIssuanceExpiration}
                    />
-               </div>
-            </section>
+               </CardContent>
+            </Card>
             
             <Separator/>
             
-            <section>
-              <h3 className="text-lg font-semibold mb-3">Certification Authority Details</h3>
-              <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={FileText} title="Certification Authority Details" />
+              <CardContent className="space-y-4">
                  <div>
                    <Label htmlFor="importedCaCertPem">Certification Authority Certificate (PEM)</Label>
                     <Textarea 
@@ -268,8 +269,8 @@ export default function CreateCaImportFullPage() {
                     />
                    <p className="text-xs text-muted-foreground mt-1">Concatenated PEM files of the issuing Certification Authorities, from immediate issuer to root.</p>
                 </div>
-              </div>
-            </section>
+              </CardContent>
+            </Card>
 
             <div className="flex justify-end pt-4">
               <Button type="submit" size="lg" disabled={isSubmitting}>

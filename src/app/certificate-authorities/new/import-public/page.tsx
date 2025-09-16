@@ -18,6 +18,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { importCa, type ImportCaPayload, ab2hex } from '@/lib/ca-data';
+import { SectionHeader } from '@/components/shared/FormComponents';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -143,9 +144,9 @@ export default function CreateCaImportPublicPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <section>
-              <h3 className="text-lg font-semibold mb-3">Certification Authority Details</h3>
-              <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={FileText} title="Certification Authority Details" />
+              <CardContent className="space-y-4">
                  <div>
                    <Label htmlFor="importedCaCertPem">Certification Authority Certificate (PEM)</Label>
                     <Textarea 
@@ -180,8 +181,8 @@ export default function CreateCaImportPublicPage() {
                         </CardContent>
                     </Card>
                 )}
-              </div>
-            </section>
+              </CardContent>
+            </Card>
             
             <div className="flex justify-end pt-4">
               <Button type="submit" size="lg" disabled={isSubmitting || !importedCaCertPem.trim()}>

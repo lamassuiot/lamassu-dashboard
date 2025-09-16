@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, Download as DownloadIcon, X as XIcon, Settings2, BookText } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, Download as DownloadIcon, X as XIcon, Settings2, BookText, KeyRound } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +34,7 @@ import { formatISO, add, parseISO, isAfter } from 'date-fns';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
+import { SectionHeader } from '@/components/shared/FormComponents';
 
 
 // This specific date string is used to represent "indefinite validity" (no expiration) in the API.
@@ -567,7 +568,9 @@ export default function IssueCertificateFormClient() {
                             </Select>
                             
                             {/* --- Subject & SANs section --- */}
-                            <h3 className="font-medium text-lg border-t pt-4">Certificate Subject {issuanceMode === 'upload' && '(from CSR)'}</h3>
+                            <Card>
+                                <SectionHeader icon={BookText} title={`Certificate Subject ${issuanceMode === 'upload' ? '(from CSR)' : ''}`} />
+                                <CardContent className="space-y-4">
                             {issuanceMode === 'generate' ? (
                             <div className="space-y-4">
                                 {/* Row 1: CN */}
@@ -689,11 +692,14 @@ export default function IssueCertificateFormClient() {
                                 )}
                             </div>
                             )}
+                                </CardContent>
+                            </Card>
 
                             {/* --- Key Generation section (generate mode only) --- */}
                             {issuanceMode === 'generate' && (
-                                <>
-                                <h3 className="font-medium text-lg border-t pt-4">Key Generation Details</h3>
+                                <Card>
+                                    <SectionHeader icon={KeyRound} title="Key Generation Details" />
+                                    <CardContent>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1"><Label htmlFor="keyAlgorithm">Algorithm</Label><Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{KEY_TYPE_OPTIONS.map(a=><SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent></Select></div>
                                     {selectedAlgorithm === 'RSA' ? (
@@ -702,11 +708,14 @@ export default function IssueCertificateFormClient() {
                                     <div className="space-y-1"><Label htmlFor="ecdsaCurve">ECDSA Curve</Label><Select value={selectedEcdsaCurve} onValueChange={setSelectedEcdsaCurve}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ECDSA_CURVE_OPTIONS.map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
                                     )}
                                 </div>
-                                </>
+                                    </CardContent>
+                                </Card>
                             )}
                             
                             {/* --- Configuration section (both modes) --- */}
-                            <h3 className="font-medium text-lg border-t pt-4">Certificate Configuration</h3>
+                            <Card>
+                                <SectionHeader icon={Settings2} title="Certificate Configuration" />
+                                <CardContent>
                              <SigningProfileSelector
                                 profileMode={profileMode}
                                 onProfileModeChange={setProfileMode}
@@ -723,6 +732,8 @@ export default function IssueCertificateFormClient() {
                                 extendedKeyUsages={extendedKeyUsages}
                                 onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
                             />
+                                </CardContent>
+                            </Card>
                         </div>
                     )}
 

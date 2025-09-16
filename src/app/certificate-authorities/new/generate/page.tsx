@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2 } from "lucide-react";
+import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2, Shield } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, fetchCryptoEngines, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -22,6 +22,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
+import { SectionHeader } from '@/components/shared/FormComponents';
 
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
@@ -258,9 +259,9 @@ export default function CreateCaGeneratePage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><KeyRound className="mr-2 h-5 w-5 text-muted-foreground" />KMS: New Key Pair Generation settings</h3>
-              <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={KeyRound} title="KMS: New Key Pair Generation settings" />
+              <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="cryptoEngine">Crypto Engine</Label>
                   <CryptoEngineSelector
@@ -290,12 +291,12 @@ export default function CreateCaGeneratePage() {
                     </Select>
                   </div>
                 </div>
-              </div>
-            </section>
+              </CardContent>
+            </Card>
 
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><Settings className="mr-2 h-5 w-5 text-muted-foreground" />CA Settings</h3>
-              <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={Settings} title="CA Settings" />
+              <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="caType">CA Type</Label>
                   <Select value={caType} onValueChange={handleCaTypeChange}>
@@ -343,12 +344,12 @@ export default function CreateCaGeneratePage() {
                   <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required className="mt-1" />
                   {!caName.trim() && <p className="text-xs text-destructive mt-1">Certification Authority Name (Common Name) cannot be empty.</p>}
                 </div>
-              </div>
-            </section>
+              </CardContent>
+            </Card>
 
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><Info className="mr-2 h-5 w-5 text-muted-foreground" />Subject Distinguished Name (DN)</h3>
-              <div className="space-y-4">
+            <Card>
+              <SectionHeader icon={Info} title="Subject Distinguished Name (DN)" />
+              <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="country">Country (C)</Label>
@@ -374,18 +375,19 @@ export default function CreateCaGeneratePage() {
                   <Input id="organizationalUnit" value={organizationalUnit} onChange={e => setOrganizationalUnit(e.target.value)} placeholder="e.g., Secure Devices Division" className="mt-1" />
                 </div>
                 <p className="text-xs text-muted-foreground">The "Certification Authority Name" entered in CA Settings will be used as the Common Name (CN) for the subject.</p>
-              </div>
-            </section>
+              </CardContent>
+            </Card>
             
-            <section>
-              <h3 className="text-lg font-semibold mb-3 flex items-center"><CalendarDays className="mr-2 h-5 w-5 text-muted-foreground" />Expiration Settings</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <SectionHeader icon={CalendarDays} title="Expiration Settings" />
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <ExpirationInput idPrefix="ca-exp" label="CA Certificate Expiration" value={caExpiration} onValueChange={setCaExpiration} />
-              </div>
-            </section>
+              </CardContent>
+            </Card>
             
-            <section>
-              <h3 className="text-lg font-semibold mb-3">Default Issuance Profile</h3>
+            <Card>
+              <SectionHeader icon={Shield} title="Default Issuance Profile" />
+              <CardContent>
                <SigningProfileSelector
                     profileMode={profileMode}
                     onProfileModeChange={setProfileMode}
@@ -397,7 +399,8 @@ export default function CreateCaGeneratePage() {
                     createModeEnabled={true}
                     onProfileCreated={handleProfileCreated}
                />
-            </section>
+              </CardContent>
+            </Card>
 
             <div className="flex justify-end pt-4">
               <Button type="submit" size="lg" disabled={isSubmitting}>

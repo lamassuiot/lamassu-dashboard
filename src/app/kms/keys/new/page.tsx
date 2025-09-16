@@ -9,12 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { KEY_TYPE_OPTIONS_POST_QUANTUM, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS } from '@/lib/key-spec-constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
+import { SectionHeader } from '@/components/shared/FormComponents';
 import { createKmsKey } from '@/lib/ca-data';
 
 const creationModes = [
@@ -245,9 +246,9 @@ export default function CreateKmsKeyPage() {
           <form onSubmit={handleSubmit} className="space-y-8">
             
             {selectedMode === 'newKeyPair' && (
-              <section>
-                <h3 className="text-lg font-semibold mb-3 flex items-center"><KeyRound className="mr-2 h-5 w-5 text-muted-foreground" />Key Generation Parameters</h3>
-                <div className="space-y-4">
+              <Card>
+                <SectionHeader icon={KeyRound} title="Key Generation Parameters" />
+                <CardContent className="space-y-4">
                   <div>
                     <Label htmlFor="cryptoEngine">Crypto Engine</Label>
                     <CryptoEngineSelector
@@ -277,14 +278,14 @@ export default function CreateKmsKeyPage() {
                       </Select>
                     </div>
                   </div>
-                </div>
-              </section>
+                </CardContent>
+              </Card>
             )}
 
             {selectedMode === 'importKeyPair' && (
-              <section>
-                <h3 className="text-lg font-semibold mb-3 flex items-center"><FileKey className="mr-2 h-5 w-5 text-muted-foreground" />Import Key Pair Material</h3>
-                <div className="space-y-4">
+              <Card>
+                <SectionHeader icon={FileKey} title="Import Key Pair Material" />
+                <CardContent className="space-y-4">
                   <div>
                     <Label htmlFor="privateKeyPem">Private Key (PEM format)</Label>
                     <Textarea
@@ -321,14 +322,14 @@ export default function CreateKmsKeyPage() {
                       className="mt-1"
                     />
                   </div>
-                </div>
-              </section>
+                </CardContent>
+              </Card>
             )}
 
             {selectedMode === 'importPublicKey' && (
-              <section>
-                <h3 className="text-lg font-semibold mb-3 flex items-center"><FileText className="mr-2 h-5 w-5 text-muted-foreground" />Import Public Key Material</h3>
-                <div className="space-y-4">
+              <Card>
+                <SectionHeader icon={FileText} title="Import Public Key Material" />
+                <CardContent className="space-y-4">
                   <div>
                     <Label htmlFor="publicKeyPem">Public Key (PEM format)</Label>
                     <Textarea
@@ -342,8 +343,8 @@ export default function CreateKmsKeyPage() {
                     />
                     {!publicKeyPem.trim() && <p className="text-xs text-destructive mt-1">Public Key (PEM) is required.</p>}
                   </div>
-                </div>
-              </section>
+                </CardContent>
+              </Card>
             )}
 
             <div className="flex justify-end pt-4">
