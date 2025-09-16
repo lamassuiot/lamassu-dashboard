@@ -1,5 +1,5 @@
 import type { CertificateData } from '@/types/certificate';
-import { CA_API_BASE_URL } from './api-domains';
+import { get_CA_API_BASE_URL } from './api-domains';
 import { parseCertificatePemDetails } from './ca-data';
 
 
@@ -129,8 +129,8 @@ export async function fetchIssuedCertificates(
   const { accessToken, apiQueryString, forCaId } = params;
   
   const baseUrl = forCaId
-    ? `${CA_API_BASE_URL}/cas/${forCaId}/certificates`
-    : `${CA_API_BASE_URL}/certificates`;
+    ? `${get_CA_API_BASE_URL()}/cas/${forCaId}/certificates`
+    : `${get_CA_API_BASE_URL()}/certificates`;
   
   const finalQueryString = apiQueryString || 'sort_by=valid_from&sort_mode=desc&page_size=10';
 
@@ -195,7 +195,7 @@ export async function updateCertificateStatus({
   // The API endpoint expects the serial number with hyphens instead of colons.
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
   
-  const response = await fetch(`${CA_API_BASE_URL}/certificates/${apiFormattedSerialNumber}/status`, {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -218,7 +218,7 @@ export async function updateCertificateStatus({
 
 export async function updateCertificateMetadata(serialNumber: string, metadata: object, accessToken: string): Promise<void> {
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
-  const response = await fetch(`${CA_API_BASE_URL}/certificates/${apiFormattedSerialNumber}/metadata`, {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

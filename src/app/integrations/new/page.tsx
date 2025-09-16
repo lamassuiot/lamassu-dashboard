@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, PlusCircle, AlertTriangle, Loader2, Network } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfig, getConfigValue } from '@/contexts/ConfigContext';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from "@/components/ui/alert";
@@ -16,6 +17,7 @@ import { fetchAllRegistrationAuthorities, updateRaMetadata, type ApiRaItem } fro
 export default function CreateIntegrationPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { config } = useConfig();
   const { toast } = useToast();
 
   const [ras, setRas] = useState<ApiRaItem[]>([]);
@@ -28,19 +30,20 @@ export default function CreateIntegrationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // This effect runs on the client after hydration, so `window` is available.
-    if (typeof window !== 'undefined') {
-        const configConnectors = (window as any).lamassuConfig?.LAMASSU_CONNECTORS;
-        if (Array.isArray(configConnectors)) {
-            setConnectors(configConnectors);
-        } else {
-            const envConnectors = process.env.NEXT_PUBLIC_CONNECTORS;
-            if (typeof envConnectors === 'string') {
-                setConnectors(envConnectors.split(',').map(c => c.trim()));
-            }
+    // Load connectors from config when available
+    if (config) {
+      const configConnectors = config.LAMASSU_CONNECTORS;
+      if (Array.isArray(configConnectors)) {
+        setConnectors(configConnectors);
+      } else {
+        // Fallback to environment variable
+        const envConnectors = process.env.NEXT_PUBLIC_CONNECTORS;
+        if (typeof envConnectors === 'string') {
+          setConnectors(envConnectors.split(',').map(c => c.trim()));
         }
+      }
     }
-  }, []);
+  }, [config]);
 
   const loadRAs = useCallback(async () => {
     if (!isAuthenticated() || !user?.access_token) return;
@@ -83,7 +86,7 @@ export default function CreateIntegrationPage() {
       const existingMetadata = selectedRa.metadata || {};
 
       if (existingMetadata[newIntegrationKey]) {
-          toast({ title: "Integration Exists", description: `An integration for '${selectedConnectorId}' already exists on this RA.`, variant: "warning" });
+          toast({ title: "Integration Exists", description: `An integration for '${selectedConnectorId}' already exists on this RA.`, variant: "destructive" });
           setIsSubmitting(false);
           return;
       }

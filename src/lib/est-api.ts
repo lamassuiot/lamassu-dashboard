@@ -1,6 +1,6 @@
 'use client';
 
-import { EST_API_BASE_URL } from './api-domains';
+import { get_EST_API_BASE_URL } from './api-domains';
 
 /**
  * Fetches CA certificates from the EST endpoint for a given RA.
@@ -14,7 +14,7 @@ export async function fetchEstCaCerts(
     format: 'pkcs7-mime' | 'x-pem-file',
     accessToken?: string
 ): Promise<{ data: ArrayBuffer | string, contentType: string }> {
-    const url = `${EST_API_BASE_URL}/${raId}/cacerts`;
+    const url = `${get_EST_API_BASE_URL()}/${raId}/cacerts`;
 
     const headers: HeadersInit = {
         'Accept': `application/${format}`,
