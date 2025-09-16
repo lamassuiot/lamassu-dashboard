@@ -1,7 +1,8 @@
 
 // src/lib/dms-api.ts
 
-import { DMS_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
+import { get_DMS_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
+import type { CA } from './ca-data';
 
 // --- Interfaces ---
 
@@ -83,7 +84,7 @@ export interface RaCreationPayload {
 // --- API Functions ---
 
 export async function fetchRegistrationAuthorities(accessToken: string, params?: URLSearchParams): Promise<ApiRaListResponse> {
-    const url = new URL(`${DMS_MANAGER_API_BASE_URL}/dms`);
+    const url = new URL(`${get_DMS_MANAGER_API_BASE_URL()}/dms`);
     if (params) {
         params.forEach((value, key) => url.searchParams.append(key, value));
     }
@@ -122,7 +123,7 @@ export async function fetchAllRegistrationAuthorities(accessToken: string): Prom
 }
 
 export async function fetchRaById(raId: string, accessToken: string): Promise<ApiRaItem> {
-    const response = await fetch(`${DMS_MANAGER_API_BASE_URL}/dms/${raId}`, {
+    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleApiError(response, 'Failed to fetch RA details');
@@ -135,8 +136,8 @@ export async function createOrUpdateRa(
     raId?: string | null,
 ): Promise<void> {
     const url = isEditMode
-        ? `${DMS_MANAGER_API_BASE_URL}/dms/${raId}`
-        : `${DMS_MANAGER_API_BASE_URL}/dms`;
+        ? `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`
+        : `${get_DMS_MANAGER_API_BASE_URL()}/dms`;
     const method = isEditMode ? 'PUT' : 'POST';
 
     const response = await fetch(url, {
@@ -159,7 +160,7 @@ export async function createOrUpdateRa(
 
 
 export async function bindIdentityToDevice(deviceId: string, certificateSerialNumber: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${DMS_MANAGER_API_BASE_URL}/dms/bind-identity`, {
+    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/bind-identity`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -177,7 +178,7 @@ export async function bindIdentityToDevice(deviceId: string, certificateSerialNu
 
 
 export async function fetchDmsStats(accessToken: string): Promise<{ total: number }> {
-    const response = await fetch(`${DMS_MANAGER_API_BASE_URL}/stats`, { 
+    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/stats`, { 
         headers: { 'Authorization': `Bearer ${accessToken}` } 
     });
     return handleApiError(response, 'Failed to fetch RA stats');

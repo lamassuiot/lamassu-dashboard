@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert';
 import { CodeBlock } from './CodeBlock';
-import { EST_API_BASE_URL } from '@/lib/api-domains';
+import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/key-spec-constants';
 import { Switch } from '@/components/ui/switch';
@@ -162,7 +162,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({ isOpen, onOp
     
     const curlValidationFlag = validateServerCert ? '--cacert root-ca.pem' : '-k';
     const finalReEnrollCommand = [
-      `echo "Performing re-enrollment..."\ncurl -v --cert ${finalDeviceId}.existing.crt --key ${finalDeviceId}.existing.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.new.stripped.csr -o ${finalDeviceId}.new.p7 "${EST_API_BASE_URL}/${ra?.id}/simplereenroll"`,
+      `echo "Performing re-enrollment..."\ncurl -v --cert ${finalDeviceId}.existing.crt --key ${finalDeviceId}.existing.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.new.stripped.csr -o ${finalDeviceId}.new.p7 "${get_EST_API_BASE_URL()}/${ra?.id}/simplereenroll"`,
       `echo "Extracting new certificate..."\nopenssl base64 -d -in ${finalDeviceId}.new.p7 | openssl pkcs7 -inform DER -outform PEM -print_certs -out ${finalDeviceId}.new.crt`,
       `echo "Verifying new certificate..."\nopenssl x509 -text -noout -in ${finalDeviceId}.new.crt`
     ].join('\n\n');

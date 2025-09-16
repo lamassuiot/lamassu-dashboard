@@ -4,7 +4,7 @@
 import * as asn1js from "asn1js";
 import { Certificate, CRLDistributionPoints, BasicConstraints, ExtKeyUsage, RelativeDistinguishedNames, PublicKeyInfo, AuthorityKeyIdentifier } from "pkijs";
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { CA_API_BASE_URL, DEV_MANAGER_API_BASE_URL, handleApiError } from "./api-domains";
+import { get_CA_API_BASE_URL, get_DEV_MANAGER_API_BASE_URL, handleApiError } from "./api-domains";
 
 // API Response Structures
 interface ApiKeyMetadata {
@@ -454,7 +454,7 @@ export async function fetchAndProcessCAs(accessToken: string, apiQueryString?: s
     let hasNextPage = true;
     
     // Base URL setup
-    const baseUrl = `${CA_API_BASE_URL}/cas`;
+    const baseUrl = `${get_CA_API_BASE_URL()}/cas`;
     const initialParams = new URLSearchParams(apiQueryString);
     initialParams.set('page_size', '25');
 
@@ -535,7 +535,7 @@ export function findCaByCommonName(commonName: string | undefined | null, cas: C
 }
 
 export async function fetchCryptoEngines(accessToken: string): Promise<ApiCryptoEngine[]> {
-    const response = await fetch(`${CA_API_BASE_URL}/engines`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/engines`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
@@ -580,7 +580,7 @@ export interface CreateCaPayload {
 }
 
 export async function createCa(payload: CreateCaPayload, accessToken: string): Promise<void> {
-  const response = await fetch(`${CA_API_BASE_URL}/cas`, {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/cas`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -623,7 +623,7 @@ export interface CreateCaRequestPayload {
 }
 
 export async function createCaRequest(payload: CreateCaRequestPayload, accessToken: string): Promise<void> {
-  const response = await fetch(`${CA_API_BASE_URL}/cas/requests`, {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -659,7 +659,7 @@ export interface CACertificateRequest {
 }
 
 export async function fetchCaRequests(params: URLSearchParams, accessToken: string): Promise<{ list: CACertificateRequest[]; next: string | null }> {
-    const url = `${CA_API_BASE_URL}/cas/requests?${params.toString()}`;
+    const url = `${get_CA_API_BASE_URL()}/cas/requests?${params.toString()}`;
     const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -676,7 +676,7 @@ export async function fetchCaRequests(params: URLSearchParams, accessToken: stri
 }
 
 export async function deleteCaRequest(requestId: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${CA_API_BASE_URL}/cas/requests/${requestId}`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests/${requestId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -707,7 +707,7 @@ export interface ImportCaPayload {
 }
 
 export async function importCa(payload: ImportCaPayload, accessToken: string): Promise<void> {
-  const response = await fetch(`${CA_API_BASE_URL}/cas/import`, {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/cas/import`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -736,7 +736,7 @@ export interface PatchOperation {
 }
 
 export async function updateCaMetadata(caId: string, patchOperations: PatchOperation[], accessToken: string): Promise<void> {
-  const response = await fetch(`${CA_API_BASE_URL}/cas/${caId}/metadata`, {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/metadata`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -761,7 +761,7 @@ interface CaStats {
   REVOKED: number;
 }
 export async function fetchCaStats(caId: string, accessToken: string): Promise<CaStats> {
-    const response = await fetch(`${CA_API_BASE_URL}/stats/${caId}`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/stats/${caId}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
@@ -780,7 +780,7 @@ export async function updateCaStatus(caId: string, status: 'ACTIVE' | 'REVOKED',
     if (status === 'REVOKED' && reason) {
         body.revocation_reason = reason;
     }
-    const response = await fetch(`${CA_API_BASE_URL}/cas/${caId}/status`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/status`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -800,7 +800,7 @@ export async function updateCaStatus(caId: string, status: 'ACTIVE' | 'REVOKED',
 }
 
 export async function revokeCa(caId: string, reason: string, accessToken: string): Promise<void> {
-  const response = await fetch(`${CA_API_BASE_URL}/cas/${caId}/status`, {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/status`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -822,7 +822,7 @@ export async function revokeCa(caId: string, reason: string, accessToken: string
 
 
 export async function deleteCa(caId: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${CA_API_BASE_URL}/cas/${caId}`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -839,7 +839,7 @@ export async function deleteCa(caId: string, accessToken: string): Promise<void>
 }
 
 export async function signCertificate(caId: string, payload: any, accessToken: string): Promise<any> {
-    const response = await fetch(`${CA_API_BASE_URL}/cas/${caId}/certificates/sign`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/certificates/sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
         body: JSON.stringify(payload)
@@ -852,7 +852,7 @@ export async function signCertificate(caId: string, payload: any, accessToken: s
 }
 
 export async function fetchCaRequestById(requestId: string, accessToken: string): Promise<any> {
-    const response = await fetch(`${CA_API_BASE_URL}/cas/requests?filter=id[equal]${requestId}`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests?filter=id[equal]${requestId}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) throw new Error("Failed to fetch CA request details.");
@@ -869,9 +869,19 @@ export interface ApiKmsKey {
   algorithm: string;
   size: string;
   public_key: string;
+  status: string;
+  creation_ts: string;
 }
-export async function fetchKmsKeys(accessToken: string): Promise<ApiKmsKey[]> {
-    const response = await fetch(`${CA_API_BASE_URL}/kms/keys`, {
+
+export interface ApiKmsKeyListResponse {
+  next: string | null;
+  list: ApiKmsKey[];
+}
+
+
+export async function fetchKmsKeys(accessToken: string, apiQueryString?: string): Promise<ApiKmsKeyListResponse> {
+    const url = `${get_CA_API_BASE_URL()}/kms/keys?${apiQueryString || ''}`;
+    const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
@@ -887,7 +897,7 @@ export async function fetchKmsKeys(accessToken: string): Promise<ApiKmsKey[]> {
 }
 
 export async function signWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<any> {
-    const response = await fetch(`${CA_API_BASE_URL}/kms/keys/${encodeURIComponent(keyId)}/sign`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/sign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -903,7 +913,7 @@ export async function signWithKmsKey(keyId: string, payload: any, accessToken: s
 }
 
 export async function verifyWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<{ valid: boolean }> {
-    const response = await fetch(`${CA_API_BASE_URL}/kms/keys/${encodeURIComponent(keyId)}/verify`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -926,8 +936,8 @@ export async function verifyWithKmsKey(keyId: string, payload: any, accessToken:
 }
 
 
-export async function createKmsKey(payload: any, accessToken: string): Promise<void> {
-    const response = await fetch(`${CA_API_BASE_URL}/kms/keys`, {
+export async function createKmsKey(payload: { engine_id: string; algorithm: string; size: number; name: string }, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -946,8 +956,8 @@ export async function createKmsKey(payload: any, accessToken: string): Promise<v
     }
 }
 
-export async function updateCaIssuanceExpiration(caId: string, payload: any, accessToken: string): Promise<void> {
-    const response = await fetch(`${CA_API_BASE_URL}/cas/${caId}/issuance-expiration`, {
+export async function updateCaDefaultProfileId(caId: string, profileId: string | null, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/issuance-profile`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -973,14 +983,14 @@ export interface CaStatsSummaryResponse {
 }
 
 export async function fetchCaStatsSummary(accessToken: string): Promise<CaStatsSummaryResponse> {
-    const response = await fetch(`${CA_API_BASE_URL}/stats`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/stats`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     return handleApiError(response, 'Failed to fetch CA stats');
 }
 
 export async function fetchDevManagerStats(accessToken: string): Promise<{ total: number }> {
-    const response = await fetch(`${DEV_MANAGER_API_BASE_URL}/stats`, { 
+    const response = await fetch(`${get_DEV_MANAGER_API_BASE_URL()}/stats`, { 
         headers: { 'Authorization': `Bearer ${accessToken}` } 
     });
     return handleApiError(response, 'Failed to fetch Device stats');
@@ -1020,8 +1030,18 @@ export interface ApiSigningProfile {
     };
 }
 
-export async function fetchSigningProfiles(accessToken: string): Promise<ApiSigningProfile[]> {
-    const response = await fetch(`${CA_API_BASE_URL}/profiles`, {
+export interface ApiSigningProfileListResponse {
+  next: string | null;
+  list: ApiSigningProfile[];
+}
+
+export async function fetchSigningProfiles(accessToken: string, params?: URLSearchParams): Promise<ApiSigningProfileListResponse> {
+    const url = new URL(`${get_CA_API_BASE_URL()}/profiles`);
+    if (params) {
+        params.forEach((value, key) => url.searchParams.append(key, value));
+    }
+    
+    const response = await fetch(url.toString(), {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
@@ -1067,8 +1087,8 @@ export interface CreateSigningProfilePayload {
     };
 }
 
-export async function createSigningProfile(payload: CreateSigningProfilePayload, accessToken: string): Promise<void> {
-    const response = await fetch(`${CA_API_BASE_URL}/profiles`, {
+export async function createSigningProfile(payload: CreateSigningProfilePayload, accessToken: string): Promise<ApiSigningProfile> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/profiles`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1088,7 +1108,7 @@ export async function createSigningProfile(payload: CreateSigningProfilePayload,
 }
 
 export async function fetchSigningProfileById(profileId: string, accessToken: string): Promise<ApiSigningProfile> {
-    const response = await fetch(`${CA_API_BASE_URL}/profiles/${profileId}`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/profiles/${profileId}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
@@ -1104,7 +1124,7 @@ export async function fetchSigningProfileById(profileId: string, accessToken: st
 }
 
 export async function updateSigningProfile(profileId: string, payload: CreateSigningProfilePayload, accessToken: string): Promise<void> {
-    const response = await fetch(`${CA_API_BASE_URL}/profiles/${profileId}`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/profiles/${profileId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -1124,7 +1144,7 @@ export async function updateSigningProfile(profileId: string, payload: CreateSig
 }
 
 export async function deleteSigningProfile(profileId: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${CA_API_BASE_URL}/profiles/${profileId}`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/profiles/${profileId}`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${accessToken}`

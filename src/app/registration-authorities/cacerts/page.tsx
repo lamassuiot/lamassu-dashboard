@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
 import { CodeBlock } from '@/components/shared/CodeBlock';
-import { EST_API_BASE_URL } from '@/lib/api-domains';
+import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { fetchEstCaCerts } from '@/lib/est-api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -128,8 +128,8 @@ export default function EstCaCertsPage() {
         fetchData();
     }, [fetchData]);
 
-    const curlPkcs7 = `curl ${EST_API_BASE_URL}/${raId}/cacerts \\ \n  -H "Accept: application/pkcs7-mime"`;
-    const curlPem = `curl ${EST_API_BASE_URL}/${raId}/cacerts \\ \n  -H "Accept: application/x-pem-file"`;
+    const curlPkcs7 = `curl ${get_EST_API_BASE_URL()}/${raId}/cacerts \\ \n  -H "Accept: application/pkcs7-mime"`;
+    const curlPem = `curl ${get_EST_API_BASE_URL()}/${raId}/cacerts \\ \n  -H "Accept: application/x-pem-file"`;
 
     if (isLoading || authLoading) {
         return (

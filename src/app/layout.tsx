@@ -4,6 +4,7 @@
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ConfigProvider } from '@/contexts/ConfigContext';
 import Script from 'next/script';
 
 import React, { useState, useEffect } from 'react';
@@ -25,6 +26,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { useConfig } from '@/contexts/ConfigContext';
 import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary } from 'lucide-react';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
@@ -83,54 +85,54 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
 };
 
 interface NavItem {
-    href: string;
-    label: string;
-    icon: React.ElementType;
-    devOnly?: boolean;
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  devOnly?: boolean;
 }
 
 interface NavGroup {
-    label?: string;
-    items: NavItem[];
-    devOnly?: boolean;
+  label?: string;
+  items: NavItem[];
+  devOnly?: boolean;
 }
 
 const navigationConfig: NavGroup[] = [
-    { items: [{ href: '/', label: 'Home', icon: HomeIcon }] },
-    {
-        label: 'KMS',
-        items: [
-            { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: true },
-            { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
-        ],
-    },
-    {
-        label: 'PKI',
-        items: [
-            { href: '/certificates', label: 'Certificates', icon: FileText },
-            { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
-            { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, devOnly: true },
-            { href: '/registration-authorities', label: 'Registration Authorities', icon: Users },
-            { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck, devOnly: true },
-        ],
-    },
-    {
-        label: 'IoT',
-        items: [
-            { href: '/devices', label: 'Devices', icon: Router },
-            { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
-        ],
-    },
-    {
-        label: 'NOTIFICATIONS',
-        items: [{ href: '/alerts', label: 'Alerts', icon: Info }],
-    },
-    {
-        label: 'TOOLS',
-        items: [
-            { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
-        ],
-    },
+  { items: [{ href: '/', label: 'Home', icon: HomeIcon }] },
+  {
+    label: 'KMS',
+    items: [
+      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: true },
+      { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
+    ],
+  },
+  {
+    label: 'PKI',
+    items: [
+      { href: '/certificates', label: 'Certificates', icon: FileText },
+      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
+      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, devOnly: true },
+      { href: '/registration-authorities', label: 'Registration Authorities', icon: Users },
+      { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck, devOnly: true },
+    ],
+  },
+  {
+    label: 'IoT',
+    items: [
+      { href: '/devices', label: 'Devices', icon: Router },
+      { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
+    ],
+  },
+  {
+    label: 'NOTIFICATIONS',
+    items: [{ href: '/alerts', label: 'Alerts', icon: Info }],
+  },
+  {
+    label: 'TOOLS',
+    items: [
+      { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
+    ],
+  },
 ];
 
 function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): BreadcrumbItem[] {
@@ -181,27 +183,26 @@ const LoadingState = () => (
 );
 
 const CustomFooter = () => {
-  const [showFooter, setShowFooter] = useState(false);
+  const { config } = useConfig();
   const [footerContent, setFooterContent] = useState('');
+  const [showFooter, setShowFooter] = useState(false);
 
   useEffect(() => {
-    // This runs only on the client, after hydration
-    const footerEnabled = (window as any).lamassuConfig?.LAMASSU_FOOTER_ENABLED === true;
-    
-    if (footerEnabled) {
-      setShowFooter(true);
-      fetch('/footer.html')
-        .then(response => {
-          if (response.ok) return response.text();
-          throw new Error('Could not load footer content.');
-        })
-        .then(html => setFooterContent(html))
-        .catch(error => {
-          console.error("Footer load error:", error);
-          setFooterContent('<p style="color: red; text-align: center;">Error: footer.html not found or failed to load.</p>');
-        });
+    if (config) {
+      const footerEnabled = config.LAMASSU_FOOTER_ENABLED === true;
+      setShowFooter(footerEnabled);
+
+      if (footerEnabled) {
+        fetch('/footer.html')
+          .then(response => response.text())
+          .then(html => setFooterContent(html))
+          .catch(error => {
+            console.error("Footer load error:", error);
+            setFooterContent('<p style="color: red; text-align: center;">Error: footer.html not found or failed to load.</p>');
+          });
+      }
     }
-  }, []); // Empty dependency array ensures this runs once after the initial render
+  }, [config]);
 
   if (!showFooter) {
     return null;
@@ -216,12 +217,17 @@ const CustomFooter = () => {
 };
 
 const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
+  console.log("MainLayoutContent: Rendering main layout content");
+  useEffect(() => {
+    console.log("MainLayoutContent: Mounted");
+  }, []);
+
   const { isAuthenticated, user, login, logout } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-  
+
   const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
   let userRoles: string[] = [];
   if (isAuthenticated() && user?.access_token) {
@@ -243,15 +249,15 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
             {isAuthenticated() && (
               <SidebarTrigger className="md:hidden text-header-foreground hover:bg-header/80 hover:text-header-foreground" />
             )}
-             <div className="secondary-logo-container">
-               <div
-                  className="secondary-logo h-full w-auto aspect-[200/60]"
-                  data-ai-hint="logo"
-                  role="img"
-                  aria-label="Secondary Logo"
-                />
-               <Separator orientation="vertical" className="h-full bg-header-foreground/30" />
-              </div>
+            <div className="secondary-logo-container">
+              <div
+                className="secondary-logo h-full w-auto aspect-[200/60]"
+                data-ai-hint="logo"
+                role="img"
+                aria-label="Secondary Logo"
+              />
+              <Separator orientation="vertical" className="h-full bg-header-foreground/30" />
+            </div>
             <Image
               src={LogoFullWhite}
               height={60}
@@ -274,8 +280,8 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center gap-2 p-1 h-auto text-header-foreground hover:bg-header/80 hover:text-header-foreground">
-                    <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
-                       <div className='flex items-center justify-center bg-header-foreground/20 rounded-full h-8 w-8'>
+                      <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
+                      <div className='flex items-center justify-center bg-header-foreground/20 rounded-full h-8 w-8'>
                         <User className="h-5 w-5 text-header-foreground" />
                       </div>
                     </Button>
@@ -319,9 +325,9 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
             <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
               <SidebarHeader className="p-4">
                 <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                   <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
-                     <div className="secondary-logo h-[30px] w-auto aspect-[200/60]"/>
-                   </div>
+                  <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
+                    <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
+                  </div>
                   <Image
                     src={LogoFullBlue}
                     height={30}
@@ -329,7 +335,7 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
                     alt="LamassuIoT Logo"
                     className="group-data-[collapsible=icon]:hidden dark:hidden"
                   />
-                   <Image
+                  <Image
                     src={LogoFullWhite}
                     height={30}
                     width={140}
@@ -348,40 +354,40 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
               <SidebarContent className="p-2">
                 <SidebarMenu>
                   {navigationConfig.map((group, groupIndex) => {
-                    if (group.devOnly && !(process.env.NODE_ENV == 'development' ||  process.env.NEXT_FORCE_DEV_OPTIONS)) {
-                        return null;
+                    if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                      return null;
                     }
-                    
-                    const filteredItems = group.items.filter(item => 
-                        !(item.devOnly && !(process.env.NODE_ENV == 'development' ||  process.env.NEXT_FORCE_DEV_OPTIONS))
+
+                    const filteredItems = group.items.filter(item =>
+                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
                     );
 
                     if (filteredItems.length === 0) {
-                        return null;
+                      return null;
                     }
 
                     return (
-                        <React.Fragment key={group.label || `group-${groupIndex}`}>
-                            {group.label && (
-                                <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0">
-                                    {group.label}
-                                </SidebarGroupLabel>
-                            )}
-                            {filteredItems.map(item => (
-                                <SidebarMenuItem key={item.href}>
-                                    <SidebarMenuButton
-                                        asChild
-                                        isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
-                                        tooltip={{ children: item.label, side: 'right', align: 'center' }}
-                                    >
-                                        <Link href={item.href} className="flex items-center w-full justify-start">
-                                            <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
-                                            <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
-                                        </Link>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-                            ))}
-                        </React.Fragment>
+                      <React.Fragment key={group.label || `group-${groupIndex}`}>
+                        {group.label && (
+                          <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0">
+                            {group.label}
+                          </SidebarGroupLabel>
+                        )}
+                        {filteredItems.map(item => (
+                          <SidebarMenuItem key={item.href}>
+                            <SidebarMenuButton
+                              asChild
+                              isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
+                              tooltip={{ children: item.label, side: 'right', align: 'center' }}
+                            >
+                              <Link href={item.href} className="flex items-center w-full justify-start">
+                                <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
+                                <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </React.Fragment>
                     );
                   })}
                 </SidebarMenu>
@@ -389,12 +395,12 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
               <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
                 <CustomSidebarToggle />
                 <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-                    
+
                 </div>
               </SidebarFooter>
             </Sidebar>
 
-            <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6">
+            <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
               {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
               {children}
               <CustomFooter />
@@ -442,9 +448,9 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
             <div>
               <h4 className="text-sm font-semibold text-muted-foreground mb-2">ID Token Claims</h4>
               <ScrollArea className="h-60 w-full rounded-md border p-4 bg-muted/30">
-                  <pre className="text-xs whitespace-pre-wrap break-all">
+                <pre className="text-xs whitespace-pre-wrap break-all">
                   {user ? JSON.stringify(user.profile, null, 2) : "No user profile data available."}
-                  </pre>
+                </pre>
               </ScrollArea>
             </div>
           </div>
@@ -462,6 +468,11 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
 
 
 const InnerLayout = ({ children }: { children: React.ReactNode }) => {
+  console.log("InnerLayout: Rendering layout component");
+  useEffect(() => {
+    console.log("InnerLayout: Mounted");
+  }, []);
+
   const { isLoading: authIsLoading } = useAuth();
   const [clientMounted, setClientMounted] = React.useState(false);
   const pathname = usePathname();
@@ -482,9 +493,9 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
   if (!clientMounted) {
     return <LoadingState />;
   }
-  
+
   if (authIsLoading) {
-      return <LoadingState />;
+    return <LoadingState />;
   }
 
   return <MainLayoutContent>{children}</MainLayoutContent>;
@@ -508,12 +519,14 @@ export default function RootLayout({
         <link rel="stylesheet" href="/custom-theme.css"></link>
       </head>
       <body className="font-body antialiased">
-        <AuthProvider>
-          <React.Suspense fallback={<LoadingState />}>
-            <InnerLayout>{children}</InnerLayout>
-          </React.Suspense>
-          <Toaster />
-        </AuthProvider>
+        <ConfigProvider>
+          <AuthProvider>
+            <React.Suspense fallback={<LoadingState />}>
+              <InnerLayout>{children}</InnerLayout>
+            </React.Suspense>
+            <Toaster />
+          </AuthProvider>
+        </ConfigProvider>
       </body>
     </html>
   );
@@ -521,7 +534,7 @@ export default function RootLayout({
 
 function CustomSidebarToggle() {
   const { open, toggleSidebar, isMobile } = useSidebar();
-  
+
   if (isMobile) {
     return null;
   }

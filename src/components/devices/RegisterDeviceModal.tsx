@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { Separator } from '../ui/separator';
-import { DMS_MANAGER_API_BASE_URL } from '@/lib/api-domains';
+import { get_DMS_MANAGER_API_BASE_URL } from '@/lib/api-domains';
 import { registerDevice } from '@/lib/devices-api';
 
 // Re-defining RA types here to avoid complex imports, but ideally these would be shared
@@ -98,7 +98,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
     setIsLoadingRas(true);
     setErrorRas(null);
     try {
-      const response = await fetch(`${DMS_MANAGER_API_BASE_URL}/dms?page_size=100`, {
+      const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms?page_size=100`, {
         headers: { 'Authorization': `Bearer ${user.access_token}` },
       });
       if (!response.ok) {
