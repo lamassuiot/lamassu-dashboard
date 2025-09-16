@@ -1,7 +1,7 @@
 
 
 // src/lib/devices-api.ts
-import { DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
+import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 
 // Interfaces based on usage in components
 export interface ApiDeviceIdentity {
@@ -52,7 +52,7 @@ export interface PatchOperation {
 
 
 export async function fetchDevices(accessToken: string, params: URLSearchParams): Promise<ApiResponse> {
-    const url = `${DEV_MANAGER_API_BASE_URL}/devices?${params.toString()}`;
+    const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices?${params.toString()}`;
     const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -60,7 +60,7 @@ export async function fetchDevices(accessToken: string, params: URLSearchParams)
 }
 
 export async function fetchDeviceById(deviceId: string, accessToken: string): Promise<ApiDevice> {
-    const url = `${DEV_MANAGER_API_BASE_URL}/devices/${deviceId}`;
+    const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}`;
     const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -68,7 +68,7 @@ export async function fetchDeviceById(deviceId: string, accessToken: string): Pr
 }
 
 export async function decommissionDevice(deviceId: string, accessToken: string): Promise<void> {
-    const url = `${DEV_MANAGER_API_BASE_URL}/devices/${deviceId}/decommission`;
+    const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/decommission`;
     const response = await fetch(url, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -79,7 +79,7 @@ export async function decommissionDevice(deviceId: string, accessToken: string):
 }
 
 export async function registerDevice(payload: any, accessToken: string): Promise<void> {
-    const url = `${DEV_MANAGER_API_BASE_URL}/devices`;
+    const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices`;
     const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -94,14 +94,14 @@ export async function registerDevice(payload: any, accessToken: string): Promise
 }
 
 export async function fetchDeviceStats(accessToken: string): Promise<DeviceStats> {
-  const response = await fetch(`${DEV_MANAGER_API_BASE_URL}/stats`, {
+  const response = await fetch(`${get_DEV_MANAGER_API_BASE_URL()}/stats`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
   return handleApiError(response, 'Failed to fetch device stats');
 }
 
 export async function updateDeviceMetadata(deviceId: string, patchOperations: PatchOperation[], accessToken: string): Promise<void> {
-  const response = await fetch(`${DEV_MANAGER_API_BASE_URL}/devices/${deviceId}/metadata`, {
+  const response = await fetch(`${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/metadata`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',

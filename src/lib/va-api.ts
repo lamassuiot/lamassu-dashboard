@@ -1,6 +1,6 @@
 
 // src/lib/va-api.ts
-import { VA_API_BASE_URL, VA_CORE_API_BASE_URL, handleApiError } from './api-domains';
+import { get_VA_API_BASE_URL, get_VA_CORE_API_BASE_URL, handleApiError } from './api-domains';
 
 export interface VAConfig {
   caId: string;
@@ -39,7 +39,7 @@ export interface VaUpdatePayload {
  * Throws an error for other failures.
  */
 export async function fetchVaConfig(ski: string, accessToken: string): Promise<VaApiResponse | null> {
-    const response = await fetch(`${VA_API_BASE_URL}/roles/${ski}`, {
+    const response = await fetch(`${get_VA_API_BASE_URL()}/roles/${ski}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
 
@@ -55,7 +55,7 @@ export async function fetchVaConfig(ski: string, accessToken: string): Promise<V
  * Creates or updates the VA configuration for a given CA Subject Key ID (SKI).
  */
 export async function updateVaConfig(ski: string, payload: VaUpdatePayload, accessToken: string): Promise<void> {
-    const response = await fetch(`${VA_API_BASE_URL}/roles/${ski}`, {
+    const response = await fetch(`${get_VA_API_BASE_URL()}/roles/${ski}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ export async function updateVaConfig(ski: string, payload: VaUpdatePayload, acce
  * Returns the CRL data as an ArrayBuffer.
  */
 export async function downloadCrl(ski: string, accessToken: string): Promise<ArrayBuffer> {
-    const response = await fetch(`${VA_CORE_API_BASE_URL}/crl/${ski}`, {
+    const response = await fetch(`${get_VA_CORE_API_BASE_URL()}/crl/${ski}`, {
         headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Accept': 'application/pkix-crl',

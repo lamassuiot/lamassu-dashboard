@@ -8,11 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  CA_API_BASE_URL,
-  DEV_MANAGER_API_BASE_URL,
-  DMS_MANAGER_API_BASE_URL,
-  ALERTS_API_BASE_URL,
-  VA_API_BASE_URL
+  get_CA_API_BASE_URL,
+  get_DEV_MANAGER_API_BASE_URL,
+  get_DMS_MANAGER_API_BASE_URL,
+  get_ALERTS_API_BASE_URL,
+  get_VA_API_BASE_URL
 } from '@/lib/api-domains';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
@@ -34,11 +34,11 @@ interface ServiceStatus {
 }
 
 const servicesToCheck = [
-    { name: 'CA Service', url: CA_API_BASE_URL },
-    { name: 'Device Manager', url: DEV_MANAGER_API_BASE_URL },
-    { name: 'DMS Manager', url: DMS_MANAGER_API_BASE_URL },
-    { name: 'Alerts Service', url: ALERTS_API_BASE_URL },
-    { name: 'Validation Authority', url: VA_API_BASE_URL }
+    { name: 'CA Service', url: get_CA_API_BASE_URL() },
+    { name: 'Device Manager', url: get_DEV_MANAGER_API_BASE_URL() },
+    { name: 'DMS Manager', url: get_DMS_MANAGER_API_BASE_URL() },
+    { name: 'Alerts Service', url: get_ALERTS_API_BASE_URL() },
+    { name: 'Validation Authority', url: get_VA_API_BASE_URL() }
 ];
 
 export const BackendStatusDialog: React.FC<BackendStatusDialogProps> = ({ isOpen, onOpenChange }) => {

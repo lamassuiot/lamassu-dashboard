@@ -16,7 +16,7 @@ import { DurationInput } from './DurationInput';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert';
 import { CodeBlock } from './CodeBlock';
-import { EST_API_BASE_URL } from '@/lib/api-domains';
+import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/key-spec-constants';
 import { useAuth } from '@/contexts/AuthContext';
@@ -321,7 +321,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
     
     const finalEnrollCommand = [
       `echo "Performing enrollment..."`,
-      `curl -v --cert bootstrap.cert --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.stripped.csr   -o ${finalDeviceId}.p7 "${EST_API_BASE_URL}/${ra?.id}/simpleenroll"`,
+      `curl -v --cert bootstrap.cert --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.stripped.csr   -o ${finalDeviceId}.p7 "${get_EST_API_BASE_URL()}/${ra?.id}/simpleenroll"`,
       `echo "Extracting new certificate..."`,
       `openssl base64 -d -in ${finalDeviceId}.p7 | openssl pkcs7 -inform DER -outform PEM -print_certs -out ${finalDeviceId}.crt`,
       `echo "Verifying new certificate..."`,
@@ -333,7 +333,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
     const dummyStripCommand = `cat dummy.csr | sed '/-----BEGIN CERTIFICATE REQUEST-----/d'  | sed '/-----END CERTIFICATE REQUEST-----/d'> dummy.stripped.csr`;
     const dummyCombinedCommand = `${dummyKeygenCommand}\n\n# Strip header/footer from CSR for cURL\n${dummyStripCommand}`;
     
-    const serverKeygenCurlCommand = `curl -v --cert bootstrap.cert --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @dummy.stripped.csr -o ${finalDeviceId}.multipart "${EST_API_BASE_URL}/${ra?.id}/serverkeygen"`;
+    const serverKeygenCurlCommand = `curl -v --cert bootstrap.cert --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @dummy.stripped.csr -o ${finalDeviceId}.multipart "${get_EST_API_BASE_URL()}/${ra?.id}/serverkeygen"`;
     
     const serverKeygenParseCommands = [
         `# 3. Extract Private Key`,
