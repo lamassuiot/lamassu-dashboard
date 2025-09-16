@@ -175,7 +175,7 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
           className="absolute border-2 border-primary rounded-lg shadow-lg transition-all duration-300 ease-in-out"
           style={{
             ...getHighlightStyle(),
-            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)',
+            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.8)',
             backgroundColor: 'transparent',
             zIndex: 51,
           }}
