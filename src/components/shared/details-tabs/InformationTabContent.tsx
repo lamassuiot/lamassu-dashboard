@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
+import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 
 
 interface CaStats {
@@ -89,7 +90,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
 
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   // State for profile editing
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
@@ -104,8 +105,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
       if (user?.access_token) {
         setIsLoadingProfiles(true);
         try {
-          const profiles = await fetchSigningProfiles(user.access_token);
-          setAvailableProfiles(profiles);
+          const profilesResponse = await fetchSigningProfiles(user.access_token);
+          setAvailableProfiles(profilesResponse.list);
         } catch (err) {
           console.error("Failed to load signing profiles:", err);
           toast({ title: "Error", description: "Could not load issuance profiles.", variant: "destructive" });
@@ -115,13 +116,14 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
       }
     };
 
-    if (isEditingProfile) {
-        loadProfiles();
+    // Load profiles on component mount for CA details, and when editing starts
+    if (itemType === 'ca') {
+      loadProfiles();
     }
-    
+
     // Set initial selected profile ID from the CA item
     if (itemType === 'ca') {
-        setSelectedProfileId((item as CA).defaultProfileId || null);
+      setSelectedProfileId((item as CA).defaultProfileId || null);
     }
   }, [item, itemType, isEditingProfile, user?.access_token, toast]);
 
@@ -131,25 +133,25 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
     const caDetails = item as CA;
     setIsSubmitting(true);
     try {
-        await updateCaDefaultProfileId(caDetails.id, selectedProfileId, user.access_token);
-        toast({ title: "Success", description: "Default issuance profile updated." });
-        onUpdateSuccess?.(); // Re-fetch parent data
-        setIsEditingProfile(false);
+      await updateCaDefaultProfileId(caDetails.id, selectedProfileId, user.access_token);
+      toast({ title: "Success", description: "Default issuance profile updated." });
+      onUpdateSuccess?.(); // Re-fetch parent data
+      setIsEditingProfile(false);
     } catch (e: any) {
-        toast({ title: "Update Failed", description: e.message, variant: "destructive" });
+      toast({ title: "Update Failed", description: e.message, variant: "destructive" });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
-  
+
   const handleCancelEdit = () => {
-      setIsEditingProfile(false);
-      // Reset selected profile to the original one from the `item` prop
-      if (itemType === 'ca') {
-          setSelectedProfileId((item as CA).defaultProfileId || null);
-      }
+    setIsEditingProfile(false);
+    // Reset selected profile to the original one from the `item` prop
+    if (itemType === 'ca') {
+      setSelectedProfileId((item as CA).defaultProfileId || null);
+    }
   };
-  
+
   const selectedProfileForDisplay = React.useMemo(() => {
     return availableProfiles.find(p => p.id === selectedProfileId);
   }, [selectedProfileId, availableProfiles]);
@@ -157,7 +159,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
 
   if (itemType === 'ca' && caSpecific) {
     const caDetails = item as CA;
-    
+
     return (
       <Accordion type="multiple" defaultValue={['general', 'hierarchy']} className="w-full space-y-3">
         <AccordionItem value="general" className="border-b-0">
@@ -169,47 +171,48 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <DetailItem label="CA ID" value={<Badge variant="outline">{caDetails.id}</Badge>} />
             <DetailItem label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
             <DetailItem label="Expires On" value={format(parseISO(caDetails.expires), 'PPpp')} />
-            
-             <div className="py-2 grid grid-cols-1 gap-x-4 items-start">
+            <DetailItem label="Serial Number" value={<span className="font-mono text-sm">{caDetails.serialNumber}</span>} />
+
+            <div className="py-2 grid grid-cols-1 gap-x-4 items-start">
               <dt className="text-sm font-medium text-muted-foreground mb-2">Default Issuance Profile</dt>
               <dd className="mt-1 sm:mt-0 flex flex-col gap-2">
                 {!isEditingProfile ? (
-                   <>
-                    {caDetails.defaultProfileId ? (
-                        <p className="text-sm text-foreground">{caDetails.defaultProfileId}</p>
-                    ): (
-                        <p className="text-sm text-muted-foreground italic">Not Set</p>
+                  <>
+                    {caDetails.defaultProfileId && selectedProfileForDisplay ? (
+                      <IssuanceProfileCard profile={selectedProfileForDisplay} />
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Not Set</p>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => setIsEditingProfile(true)} className="w-fit">Edit</Button>
+                    <Button variant="outline" size="sm" onClick={() => setIsEditingProfile(true)} className="w-fit">
+                      {caDetails.defaultProfileId ? 'Change Profile' : 'Set Profile'}
+                    </Button>
                   </>
                 ) : (
                   <div className='w-full'>
                     <SigningProfileSelector
-                        profileMode={profileMode}
-                        onProfileModeChange={setProfileMode}
-                        availableProfiles={availableProfiles}
-                        isLoadingProfiles={isLoadingProfiles}
-                        selectedProfileId={selectedProfileId}
-                        onProfileIdChange={setSelectedProfileId}
-                        inlineModeEnabled={false} // Inline mode not applicable here
-                        createModeEnabled={true}  // Allow creating a new profile
+                      profileMode={profileMode}
+                      onProfileModeChange={setProfileMode}
+                      availableProfiles={availableProfiles}
+                      isLoadingProfiles={isLoadingProfiles}
+                      selectedProfileId={selectedProfileId}
+                      onProfileIdChange={setSelectedProfileId}
+                      inlineModeEnabled={false} // Inline mode not applicable here
+                      createModeEnabled={true}  // Allow creating a new profile
                     />
                     <div className="flex justify-end space-x-2 mt-4">
-                        <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSubmitting}>Cancel</Button>
-                        <Button size="sm" onClick={handleSaveProfile} disabled={isSubmitting || isLoadingProfiles}>
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                            Save
-                        </Button>
+                      <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSubmitting}>Cancel</Button>
+                      <Button size="sm" onClick={handleSaveProfile} disabled={isSubmitting || isLoadingProfiles}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save
+                      </Button>
                     </div>
                   </div>
                 )}
               </dd>
             </div>
-            
-            <DetailItem label="Serial Number" value={<span className="font-mono text-sm">{caDetails.serialNumber}</span>} />
           </AccordionContent>
         </AccordionItem>
-        
+
         <AccordionItem value="keyInfo" className="border-b-0">
           <AccordionTrigger className={cn(accordionTriggerStyle)}>
             <KeyRound className="mr-2 h-5 w-5" /> Key & Signature Information
@@ -237,14 +240,14 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               (caDetails.keyUsage && caDetails.keyUsage.length > 0) || (caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0) ? (
                 <div className="space-y-2">
                   {caDetails.keyUsage && caDetails.keyUsage.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                          {caDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
-                      </div>
+                    <div className="flex flex-wrap gap-1">
+                      {caDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                    </div>
                   )}
                   {caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                          {caDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
-                      </div>
+                    <div className="flex flex-wrap gap-1">
+                      {caDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                    </div>
                   )}
                 </div>
               ) : ("Not Specified")
@@ -257,14 +260,14 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <LinkIcon className="mr-2 h-5 w-5" /> Distribution Points
           </AccordionTrigger>
           <AccordionContent className="space-y-3 px-4 pt-3">
-             {renderUrlList(caDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
-             {caDetails.crlDistributionPoints && (caDetails.ocspUrls || caDetails.caIssuersUrls) && <Separator/>}
-             {renderUrlList(caDetails.ocspUrls, 'OCSP Responders (from AIA)')}
-             {caDetails.ocspUrls && caDetails.caIssuersUrls && <Separator/>}
-             {renderUrlList(caDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
-             {(!caDetails.crlDistributionPoints || caDetails.crlDistributionPoints.length === 0) && (!caDetails.ocspUrls || caDetails.ocspUrls.length === 0) && (!caDetails.caIssuersUrls || caDetails.caIssuersUrls.length === 0) && (
-                <p className="text-sm text-muted-foreground">No distribution points specified in certificate.</p>
-             )}
+            {renderUrlList(caDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
+            {caDetails.crlDistributionPoints && (caDetails.ocspUrls || caDetails.caIssuersUrls) && <Separator />}
+            {renderUrlList(caDetails.ocspUrls, 'OCSP Responders (from AIA)')}
+            {caDetails.ocspUrls && caDetails.caIssuersUrls && <Separator />}
+            {renderUrlList(caDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
+            {(!caDetails.crlDistributionPoints || caDetails.crlDistributionPoints.length === 0) && (!caDetails.ocspUrls || caDetails.ocspUrls.length === 0) && (!caDetails.caIssuersUrls || caDetails.caIssuersUrls.length === 0) && (
+              <p className="text-sm text-muted-foreground">No distribution points specified in certificate.</p>
+            )}
           </AccordionContent>
         </AccordionItem>
 
@@ -335,55 +338,55 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <DetailItem label="SHA-256 Fingerprint" value={certDetails.fingerprintSha256 || 'N/A (Generate if needed)'} isMono />
             {certDetails.rawApiData?.subject_key_id && <DetailItem label="Subject Key ID (SKI)" value={certDetails.rawApiData.subject_key_id} isMono />}
             <DetailItem
-                label="Authority Key Identifier (AKI)"
-                value={
-                    certDetails.rawApiData?.authority_key_id && onAkiClick ? (
-                        <Button
-                            variant="link"
-                            className="p-0 h-auto font-mono text-xs text-left whitespace-normal break-all"
-                            onClick={() => onAkiClick(certDetails.rawApiData.authority_key_id)}
-                            title="Find Issuer CA by AKI"
-                        >
-                            {certDetails.rawApiData.authority_key_id}
-                        </Button>
-                    ) : (
-                        <span className="font-mono text-xs">{certDetails.rawApiData?.authority_key_id || 'N/A'}</span>
-                    )
-                }
+              label="Authority Key Identifier (AKI)"
+              value={
+                certDetails.rawApiData?.authority_key_id && onAkiClick ? (
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto font-mono text-xs text-left whitespace-normal break-all"
+                    onClick={() => onAkiClick(certDetails.rawApiData.authority_key_id)}
+                    title="Find Issuer CA by AKI"
+                  >
+                    {certDetails.rawApiData.authority_key_id}
+                  </Button>
+                ) : (
+                  <span className="font-mono text-xs">{certDetails.rawApiData?.authority_key_id || 'N/A'}</span>
+                )
+              }
             />
           </AccordionContent>
         </AccordionItem>
-        
+
         <AccordionItem value="extensions" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-                <Lock className="mr-2 h-5 w-5" /> Certificate Extensions
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 px-4 pt-3">
-                <DetailItem label="Subject Alternative Names" value={
-                    certDetails.sans && certDetails.sans.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                            {certDetails.sans.map((san, index) => <Badge key={index} variant="secondary">{san}</Badge>)}
-                        </div>
-                    ) : ("Not Specified")
-                }/>
-                <Separator/>
-                <DetailItem label="Key Usages" value={
-                    (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
-                        <div className="space-y-2">
-                            {certDetails.keyUsage && certDetails.keyUsage.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                    {certDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
-                                </div>
-                            )}
-                            {certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                    {certDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
-                                </div>
-                            )}
-                        </div>
-                    ) : ("Not Specified")
-                }/>
-            </AccordionContent>
+          <AccordionTrigger className={cn(accordionTriggerStyle)}>
+            <Lock className="mr-2 h-5 w-5" /> Certificate Extensions
+          </AccordionTrigger>
+          <AccordionContent className="space-y-3 px-4 pt-3">
+            <DetailItem label="Subject Alternative Names" value={
+              certDetails.sans && certDetails.sans.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {certDetails.sans.map((san, index) => <Badge key={index} variant="secondary">{san}</Badge>)}
+                </div>
+              ) : ("Not Specified")
+            } />
+            <Separator />
+            <DetailItem label="Key Usages" value={
+              (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
+                <div className="space-y-2">
+                  {certDetails.keyUsage && certDetails.keyUsage.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {certDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                    </div>
+                  )}
+                  {certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {certDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                    </div>
+                  )}
+                </div>
+              ) : ("Not Specified")
+            } />
+          </AccordionContent>
         </AccordionItem>
 
         {(certDetails.crlDistributionPoints || certDetails.ocspUrls || certDetails.caIssuersUrls) && (
@@ -392,10 +395,10 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               <LinkIcon className="mr-2 h-5 w-5" /> Distribution Points
             </AccordionTrigger>
             <AccordionContent className="space-y-3 px-4 pt-3">
-               {renderUrlList(certDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
-               {(certDetails.crlDistributionPoints && certDetails.crlDistributionPoints.length > 0) && (certDetails.ocspUrls || certDetails.caIssuersUrls) && <Separator/>}
-               {renderUrlList(certDetails.ocspUrls, 'OCSP Responders (from AIA)')}
-               {renderUrlList(certDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
+              {renderUrlList(certDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
+              {(certDetails.crlDistributionPoints && certDetails.crlDistributionPoints.length > 0) && (certDetails.ocspUrls || certDetails.caIssuersUrls) && <Separator />}
+              {renderUrlList(certDetails.ocspUrls, 'OCSP Responders (from AIA)')}
+              {renderUrlList(certDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
             </AccordionContent>
           </AccordionItem>
         )}

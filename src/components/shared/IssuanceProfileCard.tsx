@@ -80,7 +80,20 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
           )}
         </CardHeader>
         <CardContent className="space-y-2 text-sm flex-grow pt-0">
-          <DetailRow icon={Clock} label="Validity Duration" value={profile.validity?.duration || 'Not specified'} />
+          <DetailRow icon={Clock} label="Validity" value={(() => {
+            if (!profile.validity) return "Not specified";
+            
+            switch (profile.validity.type) {
+              case 'Duration':
+                return profile.validity.duration ? `Duration: ${profile.validity.duration}` : "Not specified";
+              case 'Date':
+                return profile.validity.time ? `Until: ${new Date(profile.validity.time).toLocaleDateString()}` : "Not specified";
+              case 'Indefinite':
+                return "Indefinite";
+              default:
+                return "Not specified";
+            }
+          })()} />
           <DetailRow icon={Fingerprint} label="Subject Policy" value={subjectPolicy} />
           <DetailRow icon={BookText} label="Extensions Policy" value={extensionsPolicy} />
           <DetailRow

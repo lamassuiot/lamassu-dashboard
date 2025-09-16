@@ -962,8 +962,8 @@ export async function createKmsKey(payload: { engine_id: string; algorithm: stri
 }
 
 export async function updateCaDefaultProfileId(caId: string, profileId: string | null, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/issuance-profile`, {
-        method: 'PUT',
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/profile`, {
+        method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`
