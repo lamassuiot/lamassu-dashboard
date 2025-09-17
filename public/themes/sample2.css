@@ -1,0 +1,75 @@
+/*
+  Sample Theme 2: High-contrast theme with dark sidebar/header and light content area.
+  Based on the user-provided image.
+*/
+
+:root {
+  /* Base Theme: Light content area */
+  --background: 220 13% 96%; /* #F5F6F7 Light Gray */
+  --foreground: 240 10% 4%;  /* #0A0A0A Near Black */
+
+  --card: 0 0% 100%; /* White */
+  --card-foreground: 240 10% 4%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 4%;
+
+  --primary: 240 10% 4%; /* Black for buttons */
+  --primary-foreground: 0 0% 98%; /* White text on buttons */
+
+  --secondary: 220 13% 91%; /* #E8EAEF Gray for secondary elements */
+  --secondary-foreground: 240 10% 4%;
+
+  --muted: 220 13% 91%;
+  --muted-foreground: 220 9% 45%; /* #696D77 Muted Gray */
+
+  --accent: 220 13% 91%;
+  --accent-foreground: 240 10% 4%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 220 13% 88%; /* #DCE0E5 */
+  --input: 220 13% 88%;
+  --ring: 240 10% 4%; /* Black for focus rings */
+
+  --radius: 0.5rem;
+  
+  /* --- Custom Header --- */
+  --header-background: 0 0% 100%; /* White */
+  --header-foreground: 240 10% 4%;  /* Black */
+  --header-height: 4rem;
+  
+  /* Show and set the secondary logo */
+  --secondary-logo-display: flex;
+  /* You can replace this placeholder with the actual path to your 'CAF' logo */
+  --secondary-logo-url: url('https://placehold.co/100x40/000000/FFFFFF/png?text=CAF'); 
+
+  /* --- Custom Sidebar --- */
+  --sidebar-background: 220 10% 20%; /* #2D3036 Dark Charcoal */
+  --sidebar-foreground: 0 0% 98%;    /* White text */
+  
+  /* Sidebar active item */
+  --sidebar-primary: 220 10% 30%; /* #434750 Lighter Charcoal */
+  --sidebar-primary-foreground: 0 0% 98%;
+  
+  /* Sidebar hover item */
+  --sidebar-accent: 220 10% 25%; /* #383B43 */
+  --sidebar-accent-foreground: 0 0% 98%;
+  
+  --sidebar-border: 220 10% 25%;
+  --sidebar-ring: 0 0% 98%;
+
+  /* Chart Colors (using a standard palette) */
+  --chart-1: 220 90% 60%;
+  --chart-2: 0 70% 60%;
+  --chart-3: 45 80% 55%;
+  --chart-4: 150 70% 70%;
+  --chart-5: 260 70% 70%;
+
+}
+
+/* Dark theme variables are inherited but can be overridden if needed */
+.dark {
+  /* Keeping the dark theme consistent with the base theme for this specific design */
+}
