@@ -699,15 +699,14 @@ export async function deleteCaRequest(requestId: string, accessToken: string): P
 
 // Function and type for importing a CA
 export interface ImportCaPayload {
-  request_id?: string;
-  id?: string;
-  engine_id?: string;
-  private_key?: string; // base64 encoded
-  ca: string; // base64 encoded
-  ca_chain?: string[]; // array of base64 encoded certs
-  ca_type: "MANAGED" | "IMPORTED" | "EXTERNAL_PUBLIC";
-  issuance_expiration?: { type: string; duration?: string; time?: string };
-  parent_id?: string;
+  id: string;
+  engine_id: string;
+  private_key: string;
+  ca: string;
+  ca_chain: string[];
+  ca_type: string;
+  profile_id?: string;
+  parent_id: string;
 }
 
 export async function importCa(payload: ImportCaPayload, accessToken: string): Promise<void> {

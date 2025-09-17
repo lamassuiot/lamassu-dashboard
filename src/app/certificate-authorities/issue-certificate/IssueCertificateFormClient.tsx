@@ -239,7 +239,7 @@ export default function IssueCertificateFormClient() {
         setIsLoadingProfiles(true);
         try {
             const profiles = await fetchSigningProfiles(user.access_token!);
-            setSigningProfiles(profiles);
+            setSigningProfiles(profiles.list);
         } catch (error: any) {
             toast({
                 title: "Error loading profiles",
