@@ -1,0 +1,120 @@
+:root {
+    /* sample2 Theme - High Contrast Professional */
+
+    /* Base Theme Colors */
+    --background: 240 5% 96%; /* Light Gray */
+    --foreground: 240 10% 4%; /* Near Black */
+
+    --primary: 240 10% 4%; /* Near Black for buttons */
+    --primary-foreground: 0 0% 98%; /* White text on black buttons */
+    
+    /* Header uses a light background */
+    --header-background: 0 0% 100%; /* White */
+    --header-foreground: 240 10% 4%;    /* Near Black text */
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    /* Standard ShadCN UI Colors (derived) */
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 240 10% 4%; 
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 4%;
+
+    --secondary: 240 5% 96%; /* Light Gray */
+    --secondary-foreground: 240 10% 4%;
+
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 240 10% 4%;
+
+    --radius: 0.5rem;
+    
+    /* Chart Colors - Can be adjusted to fit the new aesthetic */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 40 80% 55%;
+    --chart-4: 0 70% 50%;
+    --chart-5: 280 60% 55%;
+
+    /* Sidebar - Dark theme */
+    --sidebar-background: 240 10% 12%; /* Dark Gray */
+    --sidebar-foreground: 0 0% 98%;    /* White text */
+    
+    --sidebar-primary: 0 0% 98%; /* White for active item background */
+    --sidebar-primary-foreground: 240 10% 4%; /* Black for active item text */
+    
+    --sidebar-accent: 240 10% 20%; /* Slightly lighter gray for hover */
+    --sidebar-accent-foreground: 0 0% 98%; /* White text on hover */
+    
+    --sidebar-border: 240 10% 25%;
+    --sidebar-ring: 0 0% 98%;
+
+    /* Secondary Logo Config */
+    --secondary-logo-url: url('https://placehold.co/120x40/ef4444/FFFFFF/png?text=SMPL');
+    --secondary-logo-display: flex;
+}
+
+.dark {
+    /* For dark mode, we can choose to keep the dark sidebar or invert it */
+    /* This example keeps the dark sidebar consistent across both modes */
+    --background: 240 10% 10%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 14%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 12%;
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 0 0% 98%; /* White buttons in dark mode */
+    --primary-foreground: 240 10% 4%;
+
+    --header-background: 240 10% 12%;
+    --header-foreground: 0 0% 98%;
+
+    --secondary: 240 10% 18%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 10% 18%;
+    --muted-foreground: 240 4% 65%;
+
+    --border: 240 10% 25%;
+    --input: 240 10% 25%;
+    --ring: 0 0% 98%;
+
+    /* Sidebar remains the same in dark mode */
+    --sidebar-background: 240 10% 12%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 240 10% 4%;
+    --sidebar-accent: 240 10% 20%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 10% 25%;
+    --sidebar-ring: 0 0% 98%;
+}
+
+/* Invert Lamassu logo color to black for light header */
+header img[alt="LamassuIoT Logo"] {
+    filter: invert(1) brightness(0);
+}
+
+/* In dark mode, revert the filter to show the white logo */
+.dark header img[alt="LamassuIoT Logo"] {
+    filter: none;
+}
+
+header button[aria-label="Toggle theme"] svg {
+  filter: invert(1) brightness(0) sepia(1) saturate(0) hue-rotate(0deg) brightness(0.2);
+}
+
+.dark header button[aria-label="Toggle theme"] svg {
+  filter: none;
+}
