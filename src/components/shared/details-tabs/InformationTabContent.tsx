@@ -104,8 +104,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
       if (user?.access_token) {
         setIsLoadingProfiles(true);
         try {
-          const profiles = await fetchSigningProfiles(user.access_token);
-          setAvailableProfiles(profiles);
+          const profilesResponse = await fetchSigningProfiles(user.access_token);
+          setAvailableProfiles(profilesResponse.list);
         } catch (err) {
           console.error("Failed to load signing profiles:", err);
           toast({ title: "Error", description: "Could not load issuance profiles.", variant: "destructive" });

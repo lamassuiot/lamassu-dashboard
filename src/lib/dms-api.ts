@@ -34,6 +34,7 @@ export interface ApiRaEnrollmentSettings {
     enrollment_ca: string;
     protocol: string;
     enable_replaceable_enrollment: boolean;
+    verify_csr_signature?: boolean; // Optional field for backwards compatibility
     issuance_profile_id?: string; // Newly added field
     est_rfc7030_settings?: ApiRaEstSettings;
     device_provisioning_profile: {

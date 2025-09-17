@@ -71,6 +71,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [issuanceProfileId, setIssuanceProfileId] = useState<string | null>(null);
   const [enrollmentCa, setEnrollmentCa] = useState<CA | null>(null);
   const [allowOverrideEnrollment, setAllowOverrideEnrollment] = useState(true);
+  const [verifyCsrSignature, setVerifyCsrSignature] = useState(true);
   const [authMode, setAuthMode] = useState('Client Certificate');
   const [validationCAs, setValidationCAs] = useState<CA[]>([]);
   const [allowExpiredAuth, setAllowExpiredAuth] = useState(true);
@@ -119,22 +120,28 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   // MOVED HOOKS TO TOP LEVEL
   const selectedProfileForDisplay = useMemo(() => {
-    return availableProfiles.find(p => p.id === issuanceProfileId);
+    return Array.isArray(availableProfiles) ? availableProfiles.find(p => p.id === issuanceProfileId) : undefined;
   }, [issuanceProfileId, availableProfiles]);
+
+  // Get the enrollment CA's default profile when no specific profile is selected
+  const enrollmentCaDefaultProfile = useMemo(() => {
+    if (!enrollmentCa?.defaultProfileId || !Array.isArray(availableProfiles)) return undefined;
+    return availableProfiles.find(p => p.id === enrollmentCa.defaultProfileId);
+  }, [enrollmentCa?.defaultProfileId, availableProfiles]);
 
   const loadDependencies = useCallback(async () => {
     if (!isAuthenticated() || !user?.access_token) return;
     setIsLoadingDependencies(true);
     setErrorDependencies(null);
     try {
-        const [cas, enginesData, profiles] = await Promise.all([
+        const [cas, enginesData, profilesResponse] = await Promise.all([
             fetchAndProcessCAs(user.access_token),
             fetchCryptoEngines(user.access_token),
             fetchSigningProfiles(user.access_token)
         ]);
         setAvailableCAsForSelection(cas);
         setAllCryptoEngines(enginesData);
-        setAvailableProfiles(profiles);
+        setAvailableProfiles(profilesResponse.list);
     } catch (err: any) {
         setErrorDependencies(err.message || 'Failed to load dependencies');
     } finally {
@@ -178,6 +185,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setIssuanceProfileId(enrollment_settings.issuance_profile_id || null);
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
         setAllowOverrideEnrollment(enrollment_settings.enable_replaceable_enrollment);
+        setVerifyCsrSignature(enrollment_settings.verify_csr_signature ?? true); // Default to true if not set
 
         const authSettings = enrollment_settings.est_rfc7030_settings;
         if (authSettings) {
@@ -327,6 +335,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           enrollment_ca: enrollmentCa.id,
           protocol: protocolMapping[protocol as keyof typeof protocolMapping],
           enable_replaceable_enrollment: allowOverrideEnrollment,
+          verify_csr_signature: verifyCsrSignature,
           issuance_profile_id: issuanceProfileId || undefined,
           est_rfc7030_settings: estSettings,
           device_provisioning_profile: {
@@ -500,13 +509,60 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                             <IssuanceProfileCard profile={selectedProfileForDisplay} />
                           </div>
                         ) : (
-                          <Alert className="mt-2" variant="warning"><AlertTriangle className="h-4 w-4"/><AlertTitle>Using Default</AlertTitle><AlertDescription>No profile selected. The Enrollment CA's default issuance profile will be used to sign certificates.</AlertDescription></Alert>
+                          <div className="mt-2 space-y-2">
+                            <Alert variant="warning">
+                              <AlertTriangle className="h-4 w-4"/>
+                              <AlertTitle>Using Default</AlertTitle>
+                              <AlertDescription>
+                                No profile selected. The Enrollment CA's default issuance profile will be used to sign certificates.
+                              </AlertDescription>
+                            </Alert>
+                            {enrollmentCaDefaultProfile && (
+                              <div>
+                                <p className="text-sm text-muted-foreground mb-2">CA Default Profile:</p>
+                                <IssuanceProfileCard profile={enrollmentCaDefaultProfile} />
+                              </div>
+                            )}
+                            {!enrollmentCaDefaultProfile && enrollmentCa && (
+                              <Alert variant="warning">
+                                <AlertTriangle className="h-4 w-4"/>
+                                <AlertTitle>Warning</AlertTitle>
+                                <AlertDescription>
+                                  The selected Enrollment CA does not have a default profile configured.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </div>
                         )}
                     </div>
                   </div>
                 }
               </div>
-              <div className="flex items-center space-x-2 pt-2"><Switch id="allowOverrideEnrollment" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} /><Label htmlFor="allowOverrideEnrollment">Allow Override Enrollment</Label></div><div><Label htmlFor="authMode">Authentication Mode</Label><Select value={authMode} onValueChange={setAuthMode}><SelectTrigger id="authMode" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Client Certificate">Client Certificate</SelectItem><SelectItem value="External Webhook">External Webhook</SelectItem><SelectItem value="No Auth">No Auth</SelectItem></SelectContent></Select></div>
+              <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                <div className="space-y-0.5">
+                  <Label htmlFor="allowOverrideEnrollment" className="flex items-center">
+                    <Settings className="mr-2 h-4 w-4 text-muted-foreground" />
+                    Allow Override Enrollment
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Allow clients to override the default enrollment certificate during enrollment.
+                  </p>
+                </div>
+                <Switch id="allowOverrideEnrollment" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
+              </div>
+              <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                <div className="space-y-0.5">
+                  <Label htmlFor="verifyCsrSignature" className="flex items-center">
+                    <PackageCheck className="mr-2 h-4 w-4 text-muted-foreground" />
+                    Verify CSR Signature
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Verify the cryptographic signature of Certificate Signing Requests during enrollment.
+                  </p>
+                </div>
+                <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
+              </div>
+              <div><Label htmlFor="authMode">Authentication Mode</Label><Select value={authMode} onValueChange={setAuthMode}><SelectTrigger id="authMode" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Client Certificate">Client Certificate</SelectItem><SelectItem value="External Webhook">External Webhook</SelectItem><SelectItem value="No Auth">No Auth</SelectItem></SelectContent></Select></div>
               
               {authMode === 'Client Certificate' && (
                   <div className="space-y-4 pt-2 border-t mt-4">
