@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Settings2, Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash2, Eye } from "lucide-react";
+import { Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash2, Eye } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';

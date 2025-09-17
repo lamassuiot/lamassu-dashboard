@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2, Shield } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, fetchCryptoEngines, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';

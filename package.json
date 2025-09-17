@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "fix": "next fix",
+    "fix": "next lint --fix",
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package"
   },

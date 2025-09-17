@@ -2,9 +2,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';

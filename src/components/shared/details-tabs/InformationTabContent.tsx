@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
-import { getCaDisplayName, fetchSigningProfileById, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
+import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { format, parseISO } from 'date-fns';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
