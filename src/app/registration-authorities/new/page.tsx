@@ -127,14 +127,14 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     setIsLoadingDependencies(true);
     setErrorDependencies(null);
     try {
-        const [cas, enginesData, profiles] = await Promise.all([
+        const [cas, enginesData, profilesResponse] = await Promise.all([
             fetchAndProcessCAs(user.access_token),
             fetchCryptoEngines(user.access_token),
             fetchSigningProfiles(user.access_token)
         ]);
         setAvailableCAsForSelection(cas);
         setAllCryptoEngines(enginesData);
-        setAvailableProfiles(profiles);
+        setAvailableProfiles(profilesResponse.list);
     } catch (err: any) {
         setErrorDependencies(err.message || 'Failed to load dependencies');
     } finally {

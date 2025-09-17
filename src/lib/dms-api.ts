@@ -226,7 +226,7 @@ export async function deleteRaIntegration(raId: string, integrationKey: string, 
 }
 
 export async function deleteRa(raId: string, accessToken: string): Promise<void> {
-    const url = `${DMS_MANAGER_API_BASE_URL}/dms/${raId}`;
+    const url = `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`;
     const response = await fetch(url, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },

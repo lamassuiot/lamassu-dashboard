@@ -82,16 +82,16 @@ export default function CreateCaGeneratePage() {
     setIsLoadingDependencies(true);
     setErrorDependencies(null);
     try {
-        const [fetchedCAs, enginesData, profilesData] = await Promise.all([
+        const [fetchedCAs, enginesData, profilesResponse] = await Promise.all([
             fetchAndProcessCAs(user.access_token),
             fetchCryptoEngines(user.access_token),
             fetchSigningProfiles(user.access_token),
         ]);
         setAvailableParentCAs(fetchedCAs); 
         setAllCryptoEngines(enginesData);
-        setAvailableProfiles(profilesData);
-        if(profilesData.length > 0) {
-            setSelectedProfileId(profilesData[0].id);
+        setAvailableProfiles(profilesResponse.list);
+        if(profilesResponse.list.length > 0) {
+            setSelectedProfileId(profilesResponse.list[0].id);
             setProfileMode('reuse');
         } else {
             setProfileMode('create');
