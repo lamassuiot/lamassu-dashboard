@@ -110,3 +110,11 @@ header img[alt="LamassuIoT Logo"] {
 .dark header img[alt="LamassuIoT Logo"] {
     filter: none;
 }
+
+header button[aria-label="Toggle theme"] svg {
+  filter: invert(1) brightness(0) sepia(1) saturate(0) hue-rotate(0deg) brightness(0.2);
+}
+
+.dark header button[aria-label="Toggle theme"] svg {
+  filter: none;
+}
