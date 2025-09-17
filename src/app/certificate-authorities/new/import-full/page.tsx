@@ -20,9 +20,10 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
-import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
+import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
+import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { Separator } from '@/components/ui/separator';
-import { importCa, type ImportCaPayload, ab2hex } from '@/lib/ca-data';
+import { importCa, type ImportCaPayload, ab2hex, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -59,7 +60,12 @@ export default function CreateCaImportFullPage() {
 
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
   const [caChainPem, setCaChainPem] = useState('');
-  const [issuanceExpiration, setIssuanceExpiration] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '1y' });
+  
+  // Profile state
+  const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
+  const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
   
   // Set up pkijs engine
   useEffect(() => {
@@ -71,6 +77,30 @@ export default function CreateCaImportFullPage() {
   useEffect(() => {
     setCaId(crypto.randomUUID());
   }, []);
+
+  // Load signing profiles
+  useEffect(() => {
+    const loadProfiles = async () => {
+      if (user?.access_token) {
+        setIsLoadingProfiles(true);
+        try {
+          const profilesResponse = await fetchSigningProfiles(user.access_token);
+          setAvailableProfiles(profilesResponse.list);
+          if (profilesResponse.list.length > 0) {
+            setSelectedProfileId(profilesResponse.list[0].id);
+          }
+        } catch (error) {
+          console.error('Failed to load signing profiles:', error);
+        } finally {
+          setIsLoadingProfiles(false);
+        }
+      }
+    };
+    
+    if (!authLoading) {
+      loadProfiles();
+    }
+  }, [user?.access_token, authLoading]);
 
   
   const parseCertificatePem = async (pem: string) => {
@@ -105,14 +135,6 @@ export default function CreateCaImportFullPage() {
     }
     parseCertificatePem(pem);
   };
-  
-  const formatExpirationForApi = (config: ExpirationConfig): { type: string; duration?: string; time?: string } => {
-    if (config.type === "Duration") return { type: "Duration", duration: config.durationValue };
-    if (config.type === "Date" && config.dateValue) return { type: "Date", time: config.dateValue.toISOString() };
-    if (config.type === "Indefinite") return { type: "Date", time: INDEFINITE_DATE_API_VALUE };
-    return { type: "Duration", duration: "1y" }; 
-  };
-
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -149,7 +171,7 @@ export default function CreateCaImportFullPage() {
       ca: window.btoa(importedCaCertPem),
       ca_chain: caChainPems.map(cert => window.btoa(cert)),
       ca_type: "IMPORTED",
-      issuance_expiration: formatExpirationForApi(issuanceExpiration),
+      profile_id: selectedProfileId || undefined,
       parent_id: "",
     };
     
@@ -166,6 +188,12 @@ export default function CreateCaImportFullPage() {
     } finally {
         setIsSubmitting(false);
     }
+  };
+
+  const handleProfileCreated = (newProfile: ApiSigningProfile) => {
+    setAvailableProfiles(prev => [...prev, newProfile]);
+    setSelectedProfileId(newProfile.id);
+    setProfileMode('reuse');
   };
 
   return (
@@ -205,12 +233,20 @@ export default function CreateCaImportFullPage() {
                     />
                     <p className="text-xs text-muted-foreground mt-1">Select the KMS engine where the imported private key will be stored.</p>
                   </div>
-                   <ExpirationInput 
-                      idPrefix="issuance-exp" 
-                      label="Default End-Entity Certificate Issuance Expiration" 
-                      value={issuanceExpiration} 
-                      onValueChange={setIssuanceExpiration}
-                   />
+                  <div>
+                    <Label htmlFor="profile-selector">Default Issuance Profile</Label>
+                    <SigningProfileSelector
+                      profileMode={profileMode}
+                      onProfileModeChange={setProfileMode}
+                      availableProfiles={availableProfiles}
+                      isLoadingProfiles={isLoadingProfiles}
+                      selectedProfileId={selectedProfileId}
+                      onProfileIdChange={setSelectedProfileId}
+                      inlineModeEnabled={true}
+                      createModeEnabled={true}
+                      onProfileCreated={handleProfileCreated}
+                    />
+                  </div>
                </CardContent>
             </Card>
             

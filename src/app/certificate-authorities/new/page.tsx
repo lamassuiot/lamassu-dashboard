@@ -21,7 +21,7 @@ const creationModes: CreationMode[] = [
   {
     id: 'generate',
     href: '/certificate-authorities/new/generate',
-    title: 'Create New CA (Server-side Key)',
+    title: 'Create New CA (New Key Pair)',
     description: 'Provision a new Root or Intermediate Certification Authority directly. A new key is generated and managed by the KMS.',
     icon: <KeyRound className="h-8 w-8 text-primary" />,
   },
