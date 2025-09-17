@@ -1,0 +1,55 @@
+/*
+  Sample 2 Theme
+  - Dark sidebar and header
+  - Light content area
+  - Black primary buttons
+*/
+:root {
+  --header-background: 255 100% 100%; /* White */
+  --header-foreground: 0 0% 0%; /* Black */
+
+  --sidebar-background: 240 10% 15%; /* Dark Gray/Blue */
+  --sidebar-foreground: 0 0% 100%; /* White */
+
+  --primary: 0 0% 0%; /* Black for buttons */
+  --primary-foreground: 0 0% 100%; /* White for button text */
+
+  /* Ensure card header in sidebar is also dark */
+  --sidebar-card-header-bg: 240 10% 18%;
+
+  /* Adjustments for content area to be light */
+  --background: 0 0% 95%; /* Light Gray */
+  --foreground: 0 0% 0%;   /* Black */
+  --card: 0 0% 100%;       /* White */
+  --card-foreground: 0 0% 0%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --secondary: 0 0% 93%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 0 0% 93%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 0 0% 93%;
+  --accent-foreground: 0 0% 10%;
+  --border: 0 0% 87%;
+  --input: 0 0% 87%;
+  --ring: 0 0% 10%;
+  
+  --secondary-logo-display: block; /* Show the CAF logo */
+}
+
+/* Make main Lamassu logo in header black */
+header .group-data-\[collapsible=icon\]\:hidden:not(.secondary-logo-container *) {
+  filter: invert(1);
+}
+header .hidden.group-data-\[collapsible=icon\]\:block {
+   filter: invert(1);
+}
+
+/* Make the theme toggle icon in the header black */
+header button[aria-label="Toggle theme"] {
+    color: hsl(var(--header-foreground)) !important;
+}
+header button[aria-label="Toggle theme"]:hover {
+    background-color: hsl(var(--header-background) / 0.8) !important;
+    color: hsl(var(--header-foreground)) !important;
+}
