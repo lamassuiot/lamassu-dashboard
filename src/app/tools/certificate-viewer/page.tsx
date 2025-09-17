@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
 import { getCrypto, setEngine } from 'pkijs';
-import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, type CA, ab2hex } from '@/lib/ca-data';
+import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, type CA } from '@/lib/ca-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';

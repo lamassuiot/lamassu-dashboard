@@ -23,7 +23,7 @@ import { format, parseISO } from 'date-fns';
 import { DetailItem } from './DetailItem';
 import { cn } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
-import { SectionHeader, SwitchFormField } from '@/components/shared/FormComponents';
+import { SectionHeader } from '@/components/shared/FormComponents';
 
 
 const getDefaultVAConfig = (caId: string): VAConfig => ({

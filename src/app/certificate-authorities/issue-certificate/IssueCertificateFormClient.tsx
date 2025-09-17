@@ -10,12 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, Download as DownloadIcon, X as XIcon, Settings2, BookText, KeyRound } from "lucide-react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import {
   CertificationRequest, AttributeTypeAndValue, Attribute, Extensions,
@@ -25,11 +24,10 @@ import {
 import * as asn1js from "asn1js";
 import { useAuth } from '@/contexts/AuthContext';
 import { parseCsr, type DecodedCsrInfo } from '@/lib/csr-utils';
-import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
+import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/shared/Stepper';
-import { ExpirationInput } from '@/components/shared/ExpirationInput';
 import { formatISO, add, parseISO, isAfter } from 'date-fns';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';

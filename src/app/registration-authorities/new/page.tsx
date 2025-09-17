@@ -8,12 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit, BookText } from "lucide-react";
+import { ArrowLeft, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, findCaById, fetchCryptoEngines, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal'; 
 import { SelectableCaTreeItem } from '@/components/shared/SelectableCaTreeItem'; 
@@ -29,7 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { createOrUpdateRa, fetchRaById, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
-import { SectionHeader, SwitchFormField } from '@/components/shared/FormComponents';
+import { SectionHeader } from '@/components/shared/FormComponents';
 
 
 const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];

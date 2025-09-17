@@ -5,14 +5,13 @@ import React from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { Checkbox } from "@/components/ui/checkbox";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Settings2, KeyRound, ListChecks, Info, Shield } from "lucide-react";
-import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
+import { Card, CardContent } from "@/components/ui/card";
+import { ExpirationInput } from '@/components/shared/ExpirationInput';
 import { SectionHeader, SwitchFormField } from '@/components/shared/FormComponents';
 
 // Constants for better maintainability

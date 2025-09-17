@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, PlusCircle, AlertTriangle, Loader2, Network } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
-import { useConfig, getConfigValue } from '@/contexts/ConfigContext';
+import { useConfig } from '@/contexts/ConfigContext';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from "@/components/ui/alert";
