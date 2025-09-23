@@ -45,7 +45,6 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
           <DetailItem label="Build Time" value={format(parseISO(versionInfo.buildTime), 'PPpp')} />
           <DetailItem label="Git Branch" value={versionInfo.branch} />
           <DetailItem label="Git Commit" value={<span className="font-mono text-xs">{versionInfo.shortCommit}</span>} />
-          <DetailItem label="Node Version" value={versionInfo.nodeVersion} />
           <DetailItem label="Dirty Build" value={versionInfo.isDirty ? 'Yes' : 'No'} />
         </div>
         <DialogFooter>

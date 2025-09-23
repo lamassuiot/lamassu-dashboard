@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -30,7 +31,6 @@ function generateVersionInfo() {
   const packageJson = require('../package.json');
   const gitInfo = getGitInfo();
   const buildTime = new Date().toISOString();
-  const nodeVersion = process.version;
   
   // Generate build number from timestamp (YYYYMMDD.HHMMSS format)
   const now = new Date();
@@ -52,7 +52,6 @@ function generateVersionInfo() {
     shortCommit: gitInfo.shortCommit,
     branch: gitInfo.branch,
     isDirty: gitInfo.isDirty,
-    nodeVersion,
     appName: 'LamassuIoT Dashboard'
   };
 
@@ -71,7 +70,6 @@ export interface VersionInfo {
   shortCommit: string;
   branch: string;
   isDirty: boolean;
-  nodeVersion: string;
   appName: string;
 }
 
