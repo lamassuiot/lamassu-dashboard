@@ -40,11 +40,10 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
           <DialogDescription>{versionInfo.appName}</DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-2">
-          <DetailItem label="Version" value={<Badge variant="secondary">{versionInfo.version}</Badge>} />
+          <DetailItem label="Version" value={<Badge variant="secondary">{`${versionInfo.version}-${versionInfo.shortCommit}`}</Badge>} />
           <DetailItem label="Build Number" value={versionInfo.buildNumber} />
           <DetailItem label="Build Time" value={format(parseISO(versionInfo.buildTime), 'PPpp')} />
           <DetailItem label="Git Branch" value={versionInfo.branch} />
-          <DetailItem label="Git Commit" value={<span className="font-mono text-xs">{versionInfo.shortCommit}</span>} />
           <DetailItem label="Dirty Build" value={versionInfo.isDirty ? 'Yes' : 'No'} />
         </div>
         <DialogFooter>
