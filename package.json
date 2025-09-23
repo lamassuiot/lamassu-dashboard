@@ -1,15 +1,17 @@
 {
   "name": "nextn",
-  "version": "0.1.0",
+  "version": "4.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
+    "prebuild": "node scripts/generate-version.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "fix": "next lint --fix",
     "typecheck": "tsc --noEmit",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "version:generate": "node scripts/generate-version.js"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.3",
