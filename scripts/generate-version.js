@@ -9,6 +9,10 @@ function getGitInfo() {
     const shortCommit = commit.substring(0, 8);
     const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
     const isDirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim().length > 0;
+    if (isDirty) {
+      console.warn('⚠️  Warning: Git working directory is dirty. Uncommitted changes may not be reflected in the build.');
+      console.warn(execSync('git status --porcelain', { encoding: 'utf8' }));
+    }
     
     return {
       commit,
