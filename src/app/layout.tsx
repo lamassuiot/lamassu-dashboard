@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit } from 'lucide-react';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +55,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { BackendStatusDialog } from '@/components/shared/BackendStatusDialog';
+import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
+import { VERSION_INFO } from '@/lib/version';
 
 
 interface DecodedAccessToken {
@@ -227,6 +229,7 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
   const searchParams = useSearchParams();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
 
   const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
   let userRoles: string[] = [];
@@ -299,6 +302,10 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
                     <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
                       <User className="mr-2 h-4 w-4" />
                       <span>Profile / Token Claims</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setIsVersionModalOpen(true)}>
+                      <GitCommit className="mr-2 h-4 w-4" />
+                      <span>Version Info</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setIsStatusModalOpen(true)}>
                       <Info className="mr-2 h-4 w-4" />
@@ -462,6 +469,7 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
         </DialogContent>
       </Dialog>
       <BackendStatusDialog isOpen={isStatusModalOpen} onOpenChange={setIsStatusModalOpen} />
+      <VersionInfoDialog isOpen={isVersionModalOpen} onOpenChange={setIsVersionModalOpen} versionInfo={VERSION_INFO} />
     </SidebarProvider>
   );
 };
