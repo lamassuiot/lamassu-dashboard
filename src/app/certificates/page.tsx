@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { CertificateList } from '@/components/CertificateList';
 import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import type { CertificateData } from '@/types/certificate';
-import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X, Upload } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchAndProcessCAs, fetchCryptoEngines, type CA, findCaById } from '@/lib/ca-data';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -233,6 +233,9 @@ export default function CertificatesPage() {
         <div className="flex items-center space-x-2 self-start sm:self-center">
             <Button onClick={refreshCertificates} variant="outline" disabled={isLoadingApi && certificates.length > 0}>
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && certificates.length > 0 && "animate-spin")} /> Refresh List
+            </Button>
+            <Button onClick={() => router.push('/certificates/import')} variant="outline">
+                <Upload className="mr-2 h-4 w-4" /> Import Certificate
             </Button>
             <Button onClick={() => handleOpenCaSelector('issue')} variant="default">
                 <PlusCircle className="mr-2 h-4 w-4" /> Issue Certificate
