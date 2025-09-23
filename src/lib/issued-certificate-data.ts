@@ -236,3 +236,29 @@ export async function updateCertificateMetadata(serialNumber: string, metadata: 
     throw new Error(`Failed to update certificate metadata: ${errorBody} (Status: ${response.status})`);
   }
 }
+
+// Import Certificate Types
+export interface ImportCertificateBody {
+  metadata: Record<string, any>;
+  certificate: string; // Base64 encoded certificate
+}
+
+export async function importCertificate(payload: ImportCertificateBody, accessToken: string): Promise<void> {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/import`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorBody = 'Request failed.';
+    try {
+      const errJson = await response.json();
+      errorBody = errJson.err || errJson.message || errorBody;
+    } catch (e) { /* Ignore parsing error */ }
+    throw new Error(`Failed to import certificate: ${errorBody} (Status: ${response.status})`);
+  }
+}
