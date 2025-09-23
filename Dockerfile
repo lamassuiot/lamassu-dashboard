@@ -4,6 +4,8 @@ FROM node:20-alpine AS builder
 # Set working directory
 WORKDIR /app
 
+RUN apk add --no-cache git
+
 # Copy package.json and package-lock.json (or yarn.lock)
 COPY package*.json ./
 
