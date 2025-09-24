@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ import { ExpirationInput, type ExpirationConfig } from '@/components/shared/Expi
 import { formatISO } from 'date-fns';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
+import { KEY_TYPE_OPTIONS_POST_QUANTUM, MLDSA_SECURITY_LEVEL_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/key-spec-constants';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
@@ -41,7 +41,7 @@ export default function CreateCaGeneratePage() {
   const [caName, setCaName] = useState('');
 
   const [keyType, setKeyType] = useState('RSA');
-  const [keySize, setKeySize] = useState('2048');
+  const [keySpec, setKeySpec] = useState('');
 
   const [country, setCountry] = useState('');
   const [stateProvince, setStateProvince] = useState('');
@@ -112,6 +112,44 @@ export default function CreateCaGeneratePage() {
     }
   }, [loadDependencies, authLoading]);
 
+  const selectedEngine = useMemo(() => allCryptoEngines.find(e => e.id === cryptoEngineId), [allCryptoEngines, cryptoEngineId]);
+
+  const currentKeySpecOptions = useMemo(() => {
+    if (!selectedEngine) return [];
+    
+    const keyTypeDetails = selectedEngine.supported_key_types.find(kt => kt.type.toUpperCase() === keyType.toUpperCase());
+    if (!keyTypeDetails) return [];
+    
+    return keyTypeDetails.sizes.map(size => {
+        if(keyType === 'ECDSA') {
+            const curve = ECDSA_CURVE_OPTIONS.find(c => c.value.includes(String(size)));
+            return curve || { value: String(size), label: `Unknown Curve ${size}`};
+        }
+        return { value: String(size), label: `${size} bit`};
+    });
+  }, [selectedEngine, keyType]);
+  
+  const keySpecLabel = useMemo(() => {
+    if (keyType === 'RSA') return 'RSA Key Size';
+    if (keyType === 'ECDSA') return 'ECDSA Curve';
+    return 'Key Specification';
+  }, [keyType]);
+
+  // Effect to update keySpec when options change
+  useEffect(() => {
+    if(currentKeySpecOptions.length > 0) {
+        const defaultSpec = keyType === 'RSA' ? '2048' : keyType === 'ECDSA' ? 'P-256' : currentKeySpecOptions[0].value;
+        if(currentKeySpecOptions.some(opt => opt.value === defaultSpec)) {
+             setKeySpec(defaultSpec);
+        } else {
+             setKeySpec(currentKeySpecOptions[0].value);
+        }
+    } else {
+        setKeySpec('');
+    }
+  }, [currentKeySpecOptions, keyType]);
+
+
   const handleCaTypeChange = (value: string) => {
     setCaType(value);
     setSelectedParentCa(null);
@@ -124,14 +162,8 @@ export default function CreateCaGeneratePage() {
 
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
-    if (value === 'RSA') {
-      setKeySize('2048');
-    } else if (value === 'ECDSA') {
-      setKeySize('P-256');
-    }
+    // Key spec will be reset by the useEffect above
   };
-
-  const currentKeySizeOptions = keyType === 'RSA' ? RSA_KEY_SIZE_OPTIONS : ECDSA_CURVE_OPTIONS;
 
   const handleParentCaSelectFromModal = (ca: CA) => {
     if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
@@ -144,15 +176,6 @@ export default function CreateCaGeneratePage() {
     }
     setSelectedParentCa(ca);
     setIsParentCaModalOpen(false);
-  };
-
-  const mapEcdsaCurveToBits = (curveName: string): number => {
-    switch (curveName) {
-      case 'P-256': return 256;
-      case 'P-384': return 384;
-      case 'P-521': return 521;
-      default: return 256; 
-    }
   };
   
   const formatExpirationForApi = (config: ExpirationConfig): { type: string; duration?: string; time?: string } => {
@@ -187,6 +210,11 @@ export default function CreateCaGeneratePage() {
       setIsSubmitting(false);
       return;
     }
+     if (!keySpec) {
+      toast({ title: "Validation Error", description: "Please select a Key Specification.", variant: "destructive" });
+      setIsSubmitting(false);
+      return;
+    }
     if (profileMode === 'reuse' && !selectedProfileId) {
         toast({ title: "Validation Error", description: "An issuance profile must be selected.", variant: "destructive" });
         setIsSubmitting(false);
@@ -197,6 +225,14 @@ export default function CreateCaGeneratePage() {
         setIsSubmitting(false);
         return;
     }
+    
+    let keyBits: number;
+    if (keyType === 'ECDSA') {
+        keyBits = parseInt(keySpec.replace('P-', ''), 10);
+    } else {
+        keyBits = parseInt(keySpec, 10);
+    }
+
 
     const payload: CreateCaPayload = {
       parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
@@ -212,7 +248,7 @@ export default function CreateCaGeneratePage() {
       },
       key_metadata: {
         type: keyType,
-        bits: keyType === 'RSA' ? parseInt(keySize) : mapEcdsaCurveToBits(keySize),
+        bits: keyBits,
       },
       ca_expiration: formatExpirationForApi(caExpiration),
       profile_id: selectedProfileId,
@@ -267,26 +303,28 @@ export default function CreateCaGeneratePage() {
                   <CryptoEngineSelector
                     value={cryptoEngineId}
                     onValueChange={setCryptoEngineId}
-                    disabled={authLoading}
+                    disabled={authLoading || isSubmitting}
                     className="mt-1"
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="keyType">Key Type</Label>
-                    <Select value={keyType} onValueChange={handleKeyTypeChange}>
+                    <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
                       <SelectTrigger id="keyType"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {KEY_TYPE_OPTIONS.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
+                        {selectedEngine?.supported_key_types.map(kt => (
+                            <SelectItem key={kt.type} value={kt.type}>{kt.type}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="keySize">{keyType === 'ECDSA' ? 'ECDSA Curve' : 'Key Size'}</Label>
-                    <Select value={keySize} onValueChange={setKeySize}>
-                      <SelectTrigger id="keySize"><SelectValue /></SelectTrigger>
+                    <Label htmlFor="keySpec">{keySpecLabel}</Label>
+                    <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
+                      <SelectTrigger id="keySpec"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {currentKeySizeOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
+                        {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -299,7 +337,7 @@ export default function CreateCaGeneratePage() {
               <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="caType">CA Type</Label>
-                  <Select value={caType} onValueChange={handleCaTypeChange}>
+                  <Select value={caType} onValueChange={handleCaTypeChange} disabled={isSubmitting}>
                     <SelectTrigger id="caType"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="root">Root CA</SelectItem>
@@ -316,7 +354,7 @@ export default function CreateCaGeneratePage() {
                       onClick={() => setIsParentCaModalOpen(true)}
                       className="w-full justify-start text-left font-normal mt-1"
                       id="parentCa"
-                      disabled={isLoadingDependencies || authLoading}
+                      disabled={isLoadingDependencies || authLoading || isSubmitting}
                     >
                       {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
                     </Button>
@@ -341,7 +379,7 @@ export default function CreateCaGeneratePage() {
                 </div>
                 <div>
                   <Label htmlFor="caName">Certification Authority Name (Subject Common Name)</Label>
-                  <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required className="mt-1" />
+                  <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required className="mt-1" disabled={isSubmitting}/>
                   {!caName.trim() && <p className="text-xs text-destructive mt-1">Certification Authority Name (Common Name) cannot be empty.</p>}
                 </div>
               </CardContent>
@@ -353,26 +391,26 @@ export default function CreateCaGeneratePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="country">Country (C)</Label>
-                    <Input id="country" value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g., US (2-letter code)" maxLength={2} className="mt-1" />
+                    <Input id="country" value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g., US (2-letter code)" maxLength={2} className="mt-1" disabled={isSubmitting}/>
                   </div>
                   <div>
                     <Label htmlFor="stateProvince">State / Province (ST)</Label>
-                    <Input id="stateProvince" value={stateProvince} onChange={e => setStateProvince(e.target.value)} placeholder="e.g., California" className="mt-1" />
+                    <Input id="stateProvince" value={stateProvince} onChange={e => setStateProvince(e.target.value)} placeholder="e.g., California" className="mt-1" disabled={isSubmitting}/>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="locality">Locality (L)</Label>
-                    <Input id="locality" value={locality} onChange={e => setLocality(e.target.value)} placeholder="e.g., San Francisco" className="mt-1" />
+                    <Input id="locality" value={locality} onChange={e => setLocality(e.target.value)} placeholder="e.g., San Francisco" className="mt-1" disabled={isSubmitting}/>
                   </div>
                   <div>
                     <Label htmlFor="organization">Organization (O)</Label>
-                    <Input id="organization" value={organization} onChange={e => setOrganization(e.target.value)} placeholder="e.g., LamassuIoT Corp" className="mt-1" />
+                    <Input id="organization" value={organization} onChange={e => setOrganization(e.target.value)} placeholder="e.g., LamassuIoT Corp" className="mt-1" disabled={isSubmitting}/>
                   </div>
                 </div>
                 <div>
                   <Label htmlFor="organizationalUnit">Organizational Unit (OU)</Label>
-                  <Input id="organizationalUnit" value={organizationalUnit} onChange={e => setOrganizationalUnit(e.target.value)} placeholder="e.g., Secure Devices Division" className="mt-1" />
+                  <Input id="organizationalUnit" value={organizationalUnit} onChange={e => setOrganizationalUnit(e.target.value)} placeholder="e.g., Secure Devices Division" className="mt-1" disabled={isSubmitting}/>
                 </div>
                 <p className="text-xs text-muted-foreground">The "Certification Authority Name" entered in CA Settings will be used as the Common Name (CN) for the subject.</p>
               </CardContent>
