@@ -941,7 +941,7 @@ export default function DeviceDetailsClient() {
       <ForceUpdateModal
         isOpen={isForceUpdateModalOpen}
         onOpenChange={setIsForceUpdateModalOpen}
-        onConfirm={(actions) => handleForceUpdateConfirm(activeIntegration!.configKey, actions)}
+        onConfirm={(configKey,actions) => handleForceUpdateConfirm(configKey, actions)}
         device={device}
         ra={raForIntegration}
         availableIntegrations={availableIntegrations}
