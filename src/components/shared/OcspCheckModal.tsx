@@ -138,11 +138,19 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
 
     useEffect(() => {
         if (isOpen && certificate?.ocspUrls && certificate.ocspUrls.length > 0) {
-            setOcspUrl(certificate.ocspUrls[0]);
+            const initialUrl = certificate.ocspUrls[0];
+            if (initialUrl.startsWith('http://')) {
+                setOcspUrl(initialUrl.replace('http://', 'https://'));
+                setShowHttpWarning(true);
+            } else {
+                setOcspUrl(initialUrl);
+                setShowHttpWarning(false);
+            }
         } else {
             setOcspUrl('');
+            setShowHttpWarning(false);
         }
-        setResponseDetails(null); // Reset on open
+        setResponseDetails(null);
         setRequestDer(null);
         setResponseDer(null);
         setRequestPemCopied(false);
@@ -150,7 +158,12 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
     }, [isOpen, certificate]);
 
     useEffect(() => {
-        setShowHttpWarning(ocspUrl.startsWith('http://'));
+        // This effect will only update the warning if the user manually types a URL.
+        if (ocspUrl.startsWith('http://')) {
+            setShowHttpWarning(true);
+        } else {
+            setShowHttpWarning(false);
+        }
     }, [ocspUrl]);
     
     const handleCopyPem = async (derBuffer: ArrayBuffer | null, type: 'OCSP REQUEST' | 'OCSP RESPONSE', setCopied: (isCopied: boolean) => void) => {
@@ -171,6 +184,11 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
         if (!ocspUrl || !certificate || !issuerCertificate?.pemData) {
             setResponseDetails({ status: 'error', statusText: 'Missing Information', errorDetails: 'OCSP URL, target certificate, or issuer certificate is missing.' });
             return;
+        }
+        
+        let urlToFetch = ocspUrl;
+        if (urlToFetch.startsWith('http://')) {
+            urlToFetch = urlToFetch.replace('http://', 'https://');
         }
 
         setIsLoading(true);
@@ -221,7 +239,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
             const requestBody = ocspReq.toSchema(true).toBER(false);
             setRequestDer(requestBody);
 
-            const response = await fetch(ocspUrl, {
+            const response = await fetch(urlToFetch, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/ocsp-request' },
                 body: requestBody
