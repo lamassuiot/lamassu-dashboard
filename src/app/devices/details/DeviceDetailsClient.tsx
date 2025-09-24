@@ -26,7 +26,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
-import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation } from '@/lib/devices-api';
+import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
+import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
@@ -90,10 +91,15 @@ export default function DeviceDetailsClient() {
   // State for decommissioning
   const [isDecommissionModalOpen, setIsDecommissionModalOpen] = useState(false);
   const [isDecommissioning, setIsDecommissioning] = useState(false);
+
+  // State for permanent deletion
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // State for integrations and force update
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
   const [availableIntegrations, setAvailableIntegrations] = useState<DiscoveredIntegration[]>([]);
+  const [activeIntegration, setActiveIntegration] = useState<DiscoveredIntegration | null>(null);
   const [raForIntegration, setRaForIntegration] = useState<ApiRaItem | null>(null);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
 
@@ -125,14 +131,21 @@ export default function DeviceDetailsClient() {
             fetchRaById(dmsOwnerId, user.access_token)
         ]);
         
-        // Filter integrations relevant to this device's RA
-        const relevantIntegrations = discovered.filter(int => int.raId === dmsOwnerId);
-        setAvailableIntegrations(relevantIntegrations);
+        const integrationsForRa = discovered.filter(int => int.raId === dmsOwnerId);
+        setAvailableIntegrations(integrationsForRa);
 
+        if (integrationsForRa.length > 0) {
+            setActiveIntegration(integrationsForRa[0]); // Default to the first one
+        } else {
+            setActiveIntegration(null);
+        }
+        
         setRaForIntegration(raDetails);
+
     } catch(err) {
         console.error("Failed to load integrations for device details page:", err);
         setAvailableIntegrations([]);
+        setActiveIntegration(null);
         setRaForIntegration(null);
     }
   }, [user?.access_token]);
@@ -168,6 +181,7 @@ export default function DeviceDetailsClient() {
             fetchIntegrationData(data.dms_owner);
         } else {
             setAvailableIntegrations([]);
+            setActiveIntegration(null);
             setRaForIntegration(null);
         }
 
@@ -519,8 +533,7 @@ export default function DeviceDetailsClient() {
             description: "Device has been successfully decommissioned.",
         });
         setIsDecommissionModalOpen(false);
-        routerHook.push('/devices'); // Redirect to the list page
-
+        fetchDeviceDetails(); // Re-fetch details to show updated status
     } catch (e: any) {
         toast({
             title: "Decommission Failed",
@@ -531,9 +544,38 @@ export default function DeviceDetailsClient() {
         setIsDecommissioning(false);
     }
   };
+
+  const handleDeleteConfirm = async () => {
+    if (!deviceId || !user?.access_token) {
+        toast({
+            title: "Error",
+            description: "Cannot delete device. Device ID or authentication is missing.",
+            variant: "destructive"
+        });
+        return;
+    }
+    setIsDeleting(true);
+    try {
+        await deleteDevice(deviceId, user.access_token);
+        toast({
+            title: "Success!",
+            description: "Device has been permanently deleted.",
+        });
+        setIsDeleteModalOpen(false);
+        routerHook.push('/devices'); // Redirect to the list page
+    } catch (e: any) {
+        toast({
+            title: "Deletion Failed",
+            description: e.message,
+            variant: "destructive"
+        });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
   
   const handleForceUpdateConfirm = async (configKey: string, actions: string[]) => {
-    if (!device?.dms_owner || !deviceId || !user?.access_token) {
+    if (!device?.dms_owner || !deviceId || !user?.access_token || !activeIntegration) {
         toast({ title: "Error", description: "Missing data required for force update.", variant: "destructive" });
         return;
     }
@@ -627,7 +669,7 @@ export default function DeviceDetailsClient() {
               </div>
             </div>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
             {availableIntegrations.length > 0 && (
               <Button variant="outline" onClick={() => setIsForceUpdateModalOpen(true)}>
@@ -640,6 +682,12 @@ export default function DeviceDetailsClient() {
             <Button variant="destructive" onClick={() => setIsDecommissionModalOpen(true)} disabled={device.status === 'DECOMMISSIONED'}>
               <Trash2 className="mr-2 h-4 w-4" /> Decommission
             </Button>
+            {device.status === 'DECOMMISSIONED' && (
+                <Button variant="destructive" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
+                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+                    {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+                </Button>
+            )}
           </div>
         </div>
         {device.tags && device.tags.length > 0 && (
@@ -882,13 +930,22 @@ export default function DeviceDetailsClient() {
         deviceName={device.id}
         isDecommissioning={isDecommissioning}
       />
+      <DeleteDeviceModal
+        isOpen={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleDeleteConfirm}
+        deviceName={device.id}
+        isDeleting={isDeleting}
+       />
       <ForceUpdateModal
         isOpen={isForceUpdateModalOpen}
         onOpenChange={setIsForceUpdateModalOpen}
-        onConfirm={handleForceUpdateConfirm}
+        onConfirm={(actions) => handleForceUpdateConfirm(activeIntegration!.configKey, actions)}
         device={device}
         ra={raForIntegration}
         availableIntegrations={availableIntegrations}
+        activeIntegration={activeIntegration}
+        setActiveIntegration={setActiveIntegration}
         isUpdating={isForcingUpdate}
       />
     </div>
