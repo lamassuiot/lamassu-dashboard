@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -92,7 +93,7 @@ export default function DeviceDetailsClient() {
   
   // State for integrations and force update
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
-  const [activeIntegration, setActiveIntegration] = useState<DiscoveredIntegration | null>(null);
+  const [availableIntegrations, setAvailableIntegrations] = useState<DiscoveredIntegration[]>([]);
   const [raForIntegration, setRaForIntegration] = useState<ApiRaItem | null>(null);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
 
@@ -123,12 +124,15 @@ export default function DeviceDetailsClient() {
             discoverIntegrations(user.access_token),
             fetchRaById(dmsOwnerId, user.access_token)
         ]);
-        const integration = discovered.find(int => int.raId === dmsOwnerId && int.type === 'AWS_IOT_CORE');
-        setActiveIntegration(integration || null);
+        
+        // Filter integrations relevant to this device's RA
+        const relevantIntegrations = discovered.filter(int => int.raId === dmsOwnerId);
+        setAvailableIntegrations(relevantIntegrations);
+
         setRaForIntegration(raDetails);
     } catch(err) {
         console.error("Failed to load integrations for device details page:", err);
-        setActiveIntegration(null);
+        setAvailableIntegrations([]);
         setRaForIntegration(null);
     }
   }, [user?.access_token]);
@@ -163,7 +167,7 @@ export default function DeviceDetailsClient() {
         if (data.dms_owner) {
             fetchIntegrationData(data.dms_owner);
         } else {
-            setActiveIntegration(null);
+            setAvailableIntegrations([]);
             setRaForIntegration(null);
         }
 
@@ -528,8 +532,8 @@ export default function DeviceDetailsClient() {
     }
   };
   
-  const handleForceUpdateConfirm = async (actions: string[]) => {
-    if (!device?.dms_owner || !deviceId || !user?.access_token || !activeIntegration) {
+  const handleForceUpdateConfirm = async (configKey: string, actions: string[]) => {
+    if (!device?.dms_owner || !deviceId || !user?.access_token) {
         toast({ title: "Error", description: "Missing data required for force update.", variant: "destructive" });
         return;
     }
@@ -537,7 +541,7 @@ export default function DeviceDetailsClient() {
     try {
         const patch: PatchOperation = {
             op: 'add', // or 'replace' if the key might exist
-            path: `/${activeIntegration.configKey.replace(/\//g, '~1')}`,
+            path: `/${configKey.replace(/\//g, '~1')}`,
             value: { actions }
         };
         await updateDeviceMetadata(deviceId, [patch], user.access_token);
@@ -625,7 +629,7 @@ export default function DeviceDetailsClient() {
           </div>
           <div className="flex space-x-2">
             <Button variant="outline" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
-            {activeIntegration && (
+            {availableIntegrations.length > 0 && (
               <Button variant="outline" onClick={() => setIsForceUpdateModalOpen(true)}>
                 <Zap className="mr-2 h-4 w-4" /> Force Update
               </Button>
@@ -884,7 +888,7 @@ export default function DeviceDetailsClient() {
         onConfirm={handleForceUpdateConfirm}
         device={device}
         ra={raForIntegration}
-        integration={activeIntegration}
+        availableIntegrations={availableIntegrations}
         isUpdating={isForcingUpdate}
       />
     </div>

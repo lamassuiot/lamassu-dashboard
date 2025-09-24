@@ -1,7 +1,8 @@
 
+
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -20,14 +21,15 @@ import type { ApiRaItem } from '@/lib/dms-api';
 import type { DiscoveredIntegration } from '@/lib/integrations-api';
 import { DetailItem } from './DetailItem';
 import { IntegrationIcon } from '@/app/integrations/page';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface ForceUpdateModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onConfirm: (actions: string[]) => void;
+  onConfirm: (configKey: string, actions: string[]) => void;
   device: ApiDevice | null;
   ra: ApiRaItem | null;
-  integration: DiscoveredIntegration | null;
+  availableIntegrations: DiscoveredIntegration[];
   isUpdating: boolean;
 }
 
@@ -37,20 +39,29 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
   onConfirm,
   device,
   ra,
-  integration,
+  availableIntegrations,
   isUpdating,
 }) => {
+  const [selectedIntegrationKey, setSelectedIntegrationKey] = useState<string>('');
   const [updateTrustAnchor, setUpdateTrustAnchor] = useState(true);
   const [updateCertificate, setUpdateCertificate] = useState(true);
+
+  useEffect(() => {
+    if (isOpen && availableIntegrations.length > 0) {
+      setSelectedIntegrationKey(availableIntegrations[0].configKey);
+    }
+  }, [isOpen, availableIntegrations]);
 
   const handleConfirm = () => {
     const actions: string[] = [];
     if (updateTrustAnchor) actions.push('UPDATE_TRUST_ANCHOR_LIST');
     if (updateCertificate) actions.push('UPDATE_CERTIFICATE');
-    onConfirm(actions);
+    onConfirm(selectedIntegrationKey, actions);
   };
 
-  if (!device || !ra || !integration) return null;
+  if (!device || !ra || availableIntegrations.length === 0) return null;
+
+  const selectedIntegration = availableIntegrations.find(int => int.configKey === selectedIntegrationKey);
 
   const getConnectorId = (configKey: string) => {
     const prefix = "lamassu.io/iot/";
@@ -59,8 +70,6 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
     }
     return configKey;
   };
-  const connectorId = getConnectorId(integration.configKey);
-
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -79,19 +88,40 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
           <div className="p-3 border rounded-md bg-muted/50 space-y-2">
             <DetailItem label="Device ID" value={device.id} className="py-1" isMono/>
             <DetailItem label="Registration Authority" value={ra.name} className="py-1" />
-            <DetailItem
-                label="Platform Integration"
-                value={
-                    <div className="flex items-center gap-2">
-                        <IntegrationIcon type={integration.type} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="integration-select">Platform Integration</Label>
+            {availableIntegrations.length > 1 ? (
+                <Select value={selectedIntegrationKey} onValueChange={setSelectedIntegrationKey}>
+                    <SelectTrigger id="integration-select">
+                        <SelectValue placeholder="Select an integration..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {availableIntegrations.map(int => (
+                            <SelectItem key={int.configKey} value={int.configKey}>
+                                <div className="flex items-center gap-2">
+                                    <IntegrationIcon type={int.type} />
+                                    <div className="flex flex-col">
+                                        <span>{int.typeName}</span>
+                                        <span className="text-xs text-muted-foreground font-mono">{getConnectorId(int.configKey)}</span>
+                                    </div>
+                                </div>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            ) : (
+                selectedIntegration && (
+                    <div className="flex items-center gap-2 p-2 border rounded-md">
+                        <IntegrationIcon type={selectedIntegration.type} />
                         <div className="flex flex-col">
-                            <span className="font-semibold">{integration.typeName}</span>
-                            <span className="text-xs text-muted-foreground font-mono">{connectorId}</span>
+                            <span className="font-semibold text-sm">{selectedIntegration.typeName}</span>
+                            <span className="text-xs text-muted-foreground font-mono">{getConnectorId(selectedIntegration.configKey)}</span>
                         </div>
                     </div>
-                }
-                className="py-1"
-            />
+                )
+            )}
           </div>
 
           <div className="space-y-3">
@@ -135,7 +165,7 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
           <Button
             type="button"
             onClick={handleConfirm}
-            disabled={isUpdating || (!updateCertificate && !updateTrustAnchor)}
+            disabled={isUpdating || (!updateCertificate && !updateTrustAnchor) || !selectedIntegrationKey}
           >
             {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Confirm Update
