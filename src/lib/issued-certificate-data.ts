@@ -1,3 +1,4 @@
+
 import type { CertificateData } from '@/types/certificate';
 import { get_CA_API_BASE_URL } from './api-domains';
 import { parseCertificatePemDetails } from './ca-data';
@@ -264,8 +265,7 @@ export async function importCertificate(payload: ImportCertificateBody, accessTo
 }
 
 export async function deleteCertificate(serialNumber: string, accessToken: string): Promise<void> {
-    const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
-    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${serialNumber}`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
