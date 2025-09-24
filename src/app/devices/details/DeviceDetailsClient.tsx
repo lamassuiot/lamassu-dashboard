@@ -311,7 +311,7 @@ export default function DeviceDetailsClient() {
             let versionToFind: string | null = null;
             if (rawEvent.type === 'PROVISIONED') {
                 versionToFind = '0';
-            } else if (rawEvent.type === 'RE-PROVISIONED' || (rawEvent.type === 'EVENT' && rawEvent.description.startsWith('New Active Version'))) {
+            } else if (rawEvent.type === 'RENEWED' || (rawEvent.type === 'EVENT' && rawEvent.description.startsWith('New Active Version'))) {
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
             }
@@ -374,8 +374,8 @@ export default function DeviceDetailsClient() {
             if (rawEvent.type === 'PROVISIONED') {
                 versionToFind = '0';
                 if (!rawEvent.description) title = 'Device Provisioned with Initial Certificate';
-            } else if (rawEvent.type === 'RE-PROVISIONED' || (rawEvent.type === 'EVENT' && rawEvent.description.startsWith('New Active Version'))) {
-                eventType = 'RE-PROVISIONED'; // Normalize event type for display
+            } else if (rawEvent.type === 'RENEWED' || (rawEvent.type === 'EVENT' && rawEvent.description.startsWith('New Active Version'))) {
+                eventType = 'RENEWED'; // Normalize event type for display
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
             }

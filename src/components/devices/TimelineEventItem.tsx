@@ -51,7 +51,7 @@ const eventTypeVisuals: Record<string, { display: string; colorClass: string; Ic
   'CREATED': { display: 'Created', colorClass: 'bg-green-500', Icon: CheckCircle },
   'STATUS-UPDATED': { display: 'Status Update', colorClass: 'bg-blue-500', Icon: Edit },
   'PROVISIONED': { display: 'Provisioned', colorClass: 'bg-emerald-500', Icon: CheckCircle },
-  'RE-PROVISIONED': { display: 'Re-Provisioned', colorClass: 'bg-purple-500', Icon: History },
+  'RENEWED': { display: 'Renewed', colorClass: 'bg-purple-500', Icon: History },
   'DELETED': { display: 'Deleted', colorClass: 'bg-red-500', Icon: XCircle },
   'ERROR': { display: 'Error', colorClass: 'bg-orange-500', Icon: AlertTriangle },
   'DEFAULT': { display: 'Event', colorClass: 'bg-gray-400', Icon: Info },
@@ -91,7 +91,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
                 <Badge variant="secondary" className={cn("text-xs font-semibold", visuals.colorClass, "text-white dark:text-white")}>
                     {visuals.display.toUpperCase()}
                 </Badge>
-                {event.eventType === 'RE-PROVISIONED' && (
+                {event.eventType === 'RENEWED' && (
                     <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" title="Device identity was updated with a new certificate version."/>
                 )}
             </div>
