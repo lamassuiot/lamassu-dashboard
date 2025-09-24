@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -304,9 +304,7 @@ export default function DevicesPage() {
 
 
   const handleRefresh = () => {
-    if (currentPageIndex < bookmarkStack.length) {
-      fetchData(bookmarkStack[currentPageIndex]);
-    }
+    fetchData(bookmarkStack[currentPageIndex]);
   };
 
   const handleNextPage = () => {
