@@ -126,6 +126,7 @@ const formatResponderId = (responderID: any): string => {
 
 export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose, certificate, issuerCertificate }) => {
     const { toast } = useToast();
+    const [selectedDisplayUrl, setSelectedDisplayUrl] = useState<string>('');
     const [ocspUrl, setOcspUrl] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
     const [responseDetails, setResponseDetails] = useState<OcspResponseDetails | null>(null);
@@ -139,14 +140,12 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
     useEffect(() => {
         if (isOpen && certificate?.ocspUrls && certificate.ocspUrls.length > 0) {
             const initialUrl = certificate.ocspUrls[0];
-            if (initialUrl.startsWith('http://')) {
-                setOcspUrl(initialUrl.replace('http://', 'https://'));
-                setShowHttpWarning(true);
-            } else {
-                setOcspUrl(initialUrl);
-                setShowHttpWarning(false);
-            }
+            setSelectedDisplayUrl(initialUrl);
+            const urlForFetch = initialUrl.startsWith('http://') ? initialUrl.replace('http://', 'https://') : initialUrl;
+            setOcspUrl(urlForFetch);
+            setShowHttpWarning(initialUrl.startsWith('http://'));
         } else {
+            setSelectedDisplayUrl('');
             setOcspUrl('');
             setShowHttpWarning(false);
         }
@@ -156,27 +155,12 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
         setRequestPemCopied(false);
         setResponsePemCopied(false);
     }, [isOpen, certificate]);
-
-    useEffect(() => {
-        // This effect will only update the warning if the user manually types a URL.
-        if (ocspUrl.startsWith('http://')) {
-            setShowHttpWarning(true);
-        } else {
-            setShowHttpWarning(false);
-        }
-    }, [ocspUrl]);
     
-    const handleCopyPem = async (derBuffer: ArrayBuffer | null, type: 'OCSP REQUEST' | 'OCSP RESPONSE', setCopied: (isCopied: boolean) => void) => {
-        if (!derBuffer) return;
-        const pemString = formatAsPem(arrayBufferToBase64(derBuffer), type);
-        try {
-          await navigator.clipboard.writeText(pemString);
-          setCopied(true);
-          toast({ title: "Copied!", description: `${type} PEM copied to clipboard.` });
-          setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-          toast({ title: "Copy Failed", description: `Could not copy ${type} PEM.`, variant: "destructive" });
-        }
+    const handleUrlChange = (newUrl: string) => {
+        setSelectedDisplayUrl(newUrl);
+        const urlForFetch = newUrl.startsWith('http://') ? newUrl.replace('http://', 'https://') : newUrl;
+        setOcspUrl(urlForFetch);
+        setShowHttpWarning(newUrl.startsWith('http://'));
     };
 
 
@@ -184,11 +168,6 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
         if (!ocspUrl || !certificate || !issuerCertificate?.pemData) {
             setResponseDetails({ status: 'error', statusText: 'Missing Information', errorDetails: 'OCSP URL, target certificate, or issuer certificate is missing.' });
             return;
-        }
-        
-        let urlToFetch = ocspUrl;
-        if (urlToFetch.startsWith('http://')) {
-            urlToFetch = urlToFetch.replace('http://', 'https://');
         }
 
         setIsLoading(true);
@@ -239,7 +218,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
             const requestBody = ocspReq.toSchema(true).toBER(false);
             setRequestDer(requestBody);
 
-            const response = await fetch(urlToFetch, {
+            const response = await fetch(ocspUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/ocsp-request' },
                 body: requestBody
@@ -335,7 +314,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                     <div className="space-y-3">
                         <div>
                             <Label htmlFor="ocsp-url-select">Select a discovered URL</Label>
-                            <Select value={ocspUrl} onValueChange={setOcspUrl} disabled={isLoading || !certificate?.ocspUrls?.length}>
+                            <Select value={selectedDisplayUrl} onValueChange={handleUrlChange} disabled={isLoading || !certificate?.ocspUrls?.length}>
                                 <SelectTrigger id="ocsp-url-select">
                                     <SelectValue placeholder="Select from certificate's AIA..." />
                                 </SelectTrigger>
@@ -364,8 +343,8 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                                 id="ocsp-url-input"
                                 type="text"
                                 placeholder="http://ocsp.example.com"
-                                value={ocspUrl}
-                                onChange={(e) => setOcspUrl(e.target.value)}
+                                value={selectedDisplayUrl}
+                                onChange={(e) => handleUrlChange(e.target.value)}
                                 disabled={isLoading}
                                 className="mt-1"
                             />
@@ -376,8 +355,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                             <AlertTriangle className="h-4 w-4" />
                             <AlertTitle>Insecure URL Warning</AlertTitle>
                             <AlertDescription>
-                                The provided URL uses 'http'. Modern browsers may upgrade this request to 'https' due to Content-Security-Policy.
-                                This may cause the request to fail if the server does not support HTTPS on this endpoint.
+                                The provided URL uses 'http'. The request will be sent to 'https' for security reasons. This may fail if the server does not support HTTPS on this endpoint.
                             </AlertDescription>
                         </Alert>
                     )}
