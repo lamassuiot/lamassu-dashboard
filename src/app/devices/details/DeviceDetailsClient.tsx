@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -312,7 +311,7 @@ export default function DeviceDetailsClient() {
             let versionToFind: string | null = null;
             if (rawEvent.type === 'PROVISIONED') {
                 versionToFind = '0';
-            } else if (rawEvent.type === 'RE-PROVISIONED') {
+            } else if (rawEvent.type === 'RENEWED' || (rawEvent.type === 'EVENT' && rawEvent.description.startsWith('New Active Version'))) {
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
             }
@@ -370,11 +369,13 @@ export default function DeviceDetailsClient() {
             let detailsNode: React.ReactNode = null;
             let certificateInfo: CertificateHistoryEntry | undefined = undefined;
             let versionToFind: string | null = null;
+            let eventType = rawEvent.type;
 
             if (rawEvent.type === 'PROVISIONED') {
                 versionToFind = '0';
                 if (!rawEvent.description) title = 'Device Provisioned with Initial Certificate';
-            } else if (rawEvent.type === 'RE-PROVISIONED') {
+            } else if (rawEvent.type === 'RENEWED' || (rawEvent.type === 'EVENT' && rawEvent.description.startsWith('New Active Version'))) {
+                eventType = 'RENEWED'; // Normalize event type for display
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
             }
@@ -393,7 +394,7 @@ export default function DeviceDetailsClient() {
 
             const prevTimestamp = index < allRawEvents.length - 1 ? parseISO(allRawEvents[index + 1].timestampStr) : null;
             
-            return { id: rawEvent.timestampStr, timestamp, eventType: rawEvent.type, title, details: detailsNode, certificate: certificateInfo, relativeTime: formatDistanceToNowStrict(timestamp) + ' ago', secondaryRelativeTime: prevTimestamp ? formatDistanceStrict(timestamp, prevTimestamp) + ' later' : undefined };
+            return { id: rawEvent.timestampStr, timestamp, eventType: eventType, title, details: detailsNode, certificate: certificateInfo, relativeTime: formatDistanceToNowStrict(timestamp) + ' ago', secondaryRelativeTime: prevTimestamp ? formatDistanceStrict(timestamp, prevTimestamp) + ' later' : undefined };
         });
 
         setTimelineEvents(processedTimelineEvents);
@@ -951,3 +952,5 @@ export default function DeviceDetailsClient() {
     </div>
   );
 }
+
+    
