@@ -76,6 +76,17 @@ function formatAsPem(base64String: string, type: 'PRIVATE KEY' | 'PUBLIC KEY' | 
   return `${header}\n${body}\n${footer}`;
 }
 
+function encodeToBase64(pemContent: string): string {
+  if (!pemContent.trim()) return '';
+  try {
+    // Convert string to base64 using btoa, but handle potential unicode issues
+    return btoa(unescape(encodeURIComponent(pemContent)));
+  } catch (error) {
+    console.error('Error encoding to base64:', error);
+    return '';
+  }
+}
+
 
 export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenChange, ra, initialDeviceId }) => {
     const { toast } = useToast();
@@ -321,7 +332,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
     
     const finalEnrollCommand = [
       `echo "Performing enrollment..."`,
-      `curl -v --cert bootstrap.cert --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.stripped.csr   -o ${finalDeviceId}.p7 "${get_EST_API_BASE_URL()}/${ra?.id}/simpleenroll"`,
+      `curl -v --cert bootstrap.crt --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @${finalDeviceId}.stripped.csr   -o ${finalDeviceId}.p7 "${get_EST_API_BASE_URL()}/${ra?.id}/simpleenroll"`,
       `echo "Extracting new certificate..."`,
       `openssl base64 -d -in ${finalDeviceId}.p7 | openssl pkcs7 -inform DER -outform PEM -print_certs -out ${finalDeviceId}.crt`,
       `echo "Verifying new certificate..."`,
@@ -333,7 +344,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
     const dummyStripCommand = `cat dummy.csr | sed '/-----BEGIN CERTIFICATE REQUEST-----/d'  | sed '/-----END CERTIFICATE REQUEST-----/d'> dummy.stripped.csr`;
     const dummyCombinedCommand = `${dummyKeygenCommand}\n\n# Strip header/footer from CSR for cURL\n${dummyStripCommand}`;
     
-    const serverKeygenCurlCommand = `curl -v --cert bootstrap.cert --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @dummy.stripped.csr -o ${finalDeviceId}.multipart "${get_EST_API_BASE_URL()}/${ra?.id}/serverkeygen"`;
+    const serverKeygenCurlCommand = `curl -v --cert bootstrap.crt --key bootstrap.key ${curlValidationFlag} -H "Content-Type: application/pkcs10" --data-binary @dummy.stripped.csr -o ${finalDeviceId}.multipart "${get_EST_API_BASE_URL()}/${ra?.id}/serverkeygen"`;
     
     const serverKeygenParseCommands = [
         `# 3. Extract Private Key`,
@@ -517,7 +528,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
                             <div className="space-y-4">
                                 <div>
                                     <Label>Bootstrap Certificate</Label>
-                                    <CodeBlock content={bootstrapCertificate} showDownload downloadFilename="bootstrap.cert" textareaClassName="h-48" />
+                                    <CodeBlock content={bootstrapCertificate} showDownload downloadFilename="bootstrap.crt" textareaClassName="h-48" />
                                 </div>
                                 <div>
                                     <Label>Bootstrap Private Key</Label>
@@ -527,6 +538,16 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
                                         <AlertDescUI>This is your only chance to save the private key. It will not be stored and cannot be recovered.</AlertDescUI>
                                     </Alert>
                                     <CodeBlock content={bootstrapPrivateKey} showDownload downloadFilename="bootstrap.key" textareaClassName="h-48"/>
+                                </div>
+                                <div>
+                                    <Label>Base64 Encoded Bootstrap Commands</Label>
+                                    <p className="text-sm text-muted-foreground mb-2">
+                                        Copy and paste these commands to quickly create your bootstrap files:
+                                    </p>
+                                    <CodeBlock 
+                                        content={`echo "${encodeToBase64(bootstrapCertificate)}" | base64 -d > bootstrap.crt\necho "${encodeToBase64(bootstrapPrivateKey)}" | base64 -d > bootstrap.key`} 
+                                        textareaClassName="h-24" 
+                                    />
                                 </div>
                             </div>
                         )}
@@ -576,7 +597,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
                                 )}
 
                                 <p className="text-sm text-muted-foreground">
-                                    {`Note: This command assumes you have the required files (\`bootstrap.cert\`, \`bootstrap.key\`, \`${finalDeviceId}.stripped.csr\`, and optionally \`root-ca.pem\`) in the same directory.`}
+                                    {`Note: This command assumes you have the required files (\`bootstrap.crt\`, \`bootstrap.key\`, \`${finalDeviceId}.stripped.csr\`, and optionally \`root-ca.pem\`) in the same directory.`}
                                 </p>
                             </div>
                         )}
