@@ -1,3 +1,4 @@
+
 import type { CertificateData } from '@/types/certificate';
 import { get_CA_API_BASE_URL } from './api-domains';
 import { parseCertificatePemDetails } from './ca-data';
@@ -192,8 +193,7 @@ export async function updateCertificateStatus({
     body.revocation_reason = reason;
   }
   
-  // The API endpoint expects the serial number with hyphens instead of colons.
-  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
+  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
   
   const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
     method: 'PUT',
@@ -217,7 +217,7 @@ export async function updateCertificateStatus({
 }
 
 export async function updateCertificateMetadata(serialNumber: string, metadata: object, accessToken: string): Promise<void> {
-  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
+  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
   const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
     method: 'PUT',
     headers: {
@@ -261,4 +261,23 @@ export async function importCertificate(payload: ImportCertificateBody, accessTo
     } catch (e) { /* Ignore parsing error */ }
     throw new Error(`Failed to import certificate: ${errorBody} (Status: ${response.status})`);
   }
+}
+
+export async function deleteCertificate(serialNumber: string, accessToken: string): Promise<void> {
+    const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
+    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
+
+    if (!response.ok) {
+        let errorBody = 'Request failed.';
+        try {
+            const errJson = await response.json();
+            errorBody = errJson.err || errJson.message || errorBody;
+        } catch (e) { /* Ignore */ }
+        throw new Error(`Failed to delete certificate: ${errorBody} (Status: ${response.status})`);
+    }
 }

@@ -4,14 +4,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2 } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { CertificateData } from '@/types/certificate';
 import type { CA } from '@/lib/ca-data';
-import { fetchIssuedCertificates, updateCertificateStatus, updateCertificateMetadata } from '@/lib/issued-certificate-data';
+import { fetchIssuedCertificates, updateCertificateStatus, updateCertificateMetadata, deleteCertificate } from '@/lib/issued-certificate-data';
 import { fetchAndProcessCAs, findCaById, fetchCryptoEngines, parseCertificatePemDetails } from '@/lib/ca-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -21,7 +21,14 @@ import { InformationTabContent } from '@/components/shared/details-tabs/Informat
 import { PemTabContent } from '@/components/shared/details-tabs/PemTabContent';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
+import { fetchDeviceById } from '@/lib/devices-api';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
+
+const getCertSubjectCommonName = (subject: string): string => {
+  const cnMatch = subject.match(/CN=([^,]+)/);
+  return cnMatch ? cnMatch[1] : subject;
+};
 
 const buildCertificateChainPem = (
   targetCert: CertificateData | null,
@@ -72,6 +79,14 @@ export default function CertificateDetailsClient() { // Renamed component
   
   const [isAkiModalOpen, setIsAkiModalOpen] = useState(false);
   const [akiToSearch, setAkiToSearch] = useState<string | null>(null);
+  
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // State to determine if delete action is allowed
+  const [canDelete, setCanDelete] = useState(false);
+  const [isCheckingUsage, setIsCheckingUsage] = useState(true);
+
 
   const fullChainPemString = useMemo(() => {
     if (certificateDetails && allCAs.length > 0) {
@@ -120,7 +135,7 @@ export default function CertificateDetailsClient() { // Renamed component
     try {
       // Use a specific filter to fetch only the requested certificate by its serial number.
       // The API expects the serial number with hyphens instead of colons.
-      const apiFormattedSerialNumber = certificateId.replace(/:/g, '-');
+      const apiFormattedSerialNumber = certificateId.replace(/:/g, '');
       const { certificates: certList } = await fetchIssuedCertificates({ 
           accessToken: user.access_token, 
           apiQueryString: `filter=serial_number[equal]${apiFormattedSerialNumber}&page_size=1`
@@ -176,6 +191,54 @@ export default function CertificateDetailsClient() { // Renamed component
     }
 
   }, [certificateId, user?.access_token, isAuthenticated, authLoading, loadCertificate]);
+
+  // Effect to check if the certificate can be deleted
+  useEffect(() => {
+    const checkDeletionCriteria = async () => {
+        if (!certificateDetails || !user?.access_token || allCAs.length === 0) {
+            setCanDelete(false);
+            if(certificateDetails && allCAs.length > 0) setIsCheckingUsage(false);
+            return;
+        }
+
+        setIsCheckingUsage(true);
+
+        // Condition 1: Issuer CA must not exist in the system
+        const issuerCaExists = certificateDetails.issuerCaId ? findCaById(certificateDetails.issuerCaId, allCAs) : false;
+        
+        // Condition 2: Certificate must not be in use by a device
+        const commonName = getCertSubjectCommonName(certificateDetails.subject);
+        let certIsInUse = true; // Assume it's in use until proven otherwise
+        if (commonName) {
+            try {
+                await fetchDeviceById(commonName, user.access_token);
+                // If this succeeds, the device exists, so cert is in use.
+                certIsInUse = true;
+            } catch (error: any) {
+                // A 404 error means the device does not exist, so the cert is NOT in use.
+                if (error.message && (error.message.includes('404') || error.message.toLowerCase().includes('not found'))) {
+                    certIsInUse = false;
+                } else {
+                    // Another error occurred, assume it's in use to be safe.
+                    console.error("Error checking device usage:", error);
+                    certIsInUse = true;
+                }
+            }
+        } else {
+            // If there's no CN, we can't check, so we can't delete.
+            certIsInUse = true;
+        }
+
+        setCanDelete(!issuerCaExists && !certIsInUse);
+        setIsCheckingUsage(false);
+    };
+
+    // Run this check only when the core data is available
+    if (!isLoadingCert && !isLoadingDependencies) {
+        checkDeletionCriteria();
+    }
+  }, [certificateDetails, allCAs, user?.access_token, isLoadingCert, isLoadingDependencies]);
+
 
   const handleOpenRevokeModal = () => {
     if (certificateDetails) {
@@ -265,6 +328,24 @@ export default function CertificateDetailsClient() { // Renamed component
     await updateCertificateMetadata(serialNumber, metadata, user.access_token);
   };
 
+  const handleConfirmDelete = async () => {
+    if (!certificateDetails || !user?.access_token) {
+        toast({ title: "Error", description: "Certificate details or authentication missing.", variant: "destructive" });
+        return;
+    }
+    setIsDeleting(true);
+    try {
+        await deleteCertificate(certificateDetails.serialNumber, user.access_token);
+        toast({ title: "Certificate Deleted", description: "The certificate has been permanently removed.", variant: "default" });
+        setIsDeleteModalOpen(false);
+        routerHook.push('/certificates');
+    } catch (error: any) {
+        toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+        setIsDeleting(false);
+    }
+  };
+
+
   if (authLoading || isLoadingCert || isLoadingDependencies) {
     return (
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
@@ -338,7 +419,7 @@ export default function CertificateDetailsClient() { // Renamed component
               <div className="flex items-center space-x-3">
                 <FileText className="h-8 w-8 text-primary" />
                 <h1 className="text-2xl font-headline font-semibold truncate" title={certificateDetails.subject}>
-                  {certificateDetails.subject || `Certificate: ${certificateDetails.serialNumber}`}
+                  {getCertSubjectCommonName(certificateDetails.subject) || `Certificate: ${certificateDetails.serialNumber}`}
                 </h1>
               </div>
               <p className="text-sm text-muted-foreground mt-1.5">
@@ -365,6 +446,12 @@ export default function CertificateDetailsClient() { // Renamed component
               {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
               {isRevoking ? 'Revoking...' : 'Revoke Certificate'}
             </Button>
+          )}
+          {canDelete && (
+             <Button variant="destructive" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
+                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+                {isDeleting ? 'Deleting...' : 'Delete Certificate'}
+             </Button>
           )}
         </div>
 
@@ -403,7 +490,7 @@ export default function CertificateDetailsClient() { // Renamed component
           <TabsContent value="metadata">
             <MetadataTabContent
               rawJsonData={certificateDetails.rawApiData?.metadata}
-              itemName={certificateDetails.subject || certificateDetails.serialNumber}
+              itemName={getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
               tabTitle="Certificate Metadata"
               toast={toast}
               isEditable={true}
@@ -422,7 +509,7 @@ export default function CertificateDetailsClient() { // Renamed component
             setCertificateToRevoke(null);
           }}
           onConfirm={handleConfirmRevocation}
-          itemName={certificateToRevoke.subject}
+          itemName={getCertSubjectCommonName(certificateToRevoke.subject)}
           itemType="Certificate"
           isConfirming={isRevoking}
         />
@@ -433,6 +520,27 @@ export default function CertificateDetailsClient() { // Renamed component
         aki={akiToSearch}
         allCryptoEngines={allCryptoEngines}
       />
+      <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the certificate for "<strong>{getCertSubjectCommonName(certificateDetails.subject)}</strong>". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}
+              disabled={isDeleting}
+            >
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
