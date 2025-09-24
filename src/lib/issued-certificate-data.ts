@@ -265,7 +265,8 @@ export async function importCertificate(payload: ImportCertificateBody, accessTo
 }
 
 export async function deleteCertificate(serialNumber: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${serialNumber}`, {
+    const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
+    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
