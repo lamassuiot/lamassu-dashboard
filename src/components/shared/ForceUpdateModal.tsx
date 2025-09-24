@@ -49,6 +49,8 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
   useEffect(() => {
     if (isOpen && availableIntegrations.length > 0) {
       setSelectedIntegrationKey(availableIntegrations[0].configKey);
+    } else {
+      setSelectedIntegrationKey('');
     }
   }, [isOpen, availableIntegrations]);
 
