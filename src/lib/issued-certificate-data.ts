@@ -193,8 +193,7 @@ export async function updateCertificateStatus({
     body.revocation_reason = reason;
   }
   
-  // The API endpoint expects the serial number with hyphens instead of colons.
-  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
+  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
   
   const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
     method: 'PUT',
@@ -218,7 +217,7 @@ export async function updateCertificateStatus({
 }
 
 export async function updateCertificateMetadata(serialNumber: string, metadata: object, accessToken: string): Promise<void> {
-  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
+  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
   const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
     method: 'PUT',
     headers: {
