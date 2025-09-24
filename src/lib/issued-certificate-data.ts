@@ -262,3 +262,22 @@ export async function importCertificate(payload: ImportCertificateBody, accessTo
     throw new Error(`Failed to import certificate: ${errorBody} (Status: ${response.status})`);
   }
 }
+
+export async function deleteCertificate(serialNumber: string, accessToken: string): Promise<void> {
+    const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
+    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
+
+    if (!response.ok) {
+        let errorBody = 'Request failed.';
+        try {
+            const errJson = await response.json();
+            errorBody = errJson.err || errJson.message || errorBody;
+        } catch (e) { /* Ignore */ }
+        throw new Error(`Failed to delete certificate: ${errorBody} (Status: ${response.status})`);
+    }
+}
