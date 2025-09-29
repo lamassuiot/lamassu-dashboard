@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useMemo, useState } from 'react';
@@ -94,6 +93,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
                     <MultiSelectDropdown
                         id="modal-status-filter"
                         options={STATUS_OPTIONS}
+                        allOptionValues={STATUS_OPTIONS.map(o => o.value)}
                         selectedValues={selectedStatuses}
                         onChange={setSelectedStatuses as (selected: string[]) => void}
                         buttonText="Filter by status..."
