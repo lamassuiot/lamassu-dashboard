@@ -106,7 +106,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [isEnrollmentCaModalOpen, setIsEnrollmentCaModalOpen] = useState(false);
   const [isValidationCaModalOpen, setIsValidationCaModalOpen] = useState(false);
   const [isAdditionalValidationCaModalOpen, setIsAdditionalValidationCaModalOpen] = useState(false);
-  const [setIsManagedCaModalOpen] = useState(false);
+  const [isManagedCaModalOpen, setIsManagedCaModalOpen] = useState(false);
   const [availableCAsForSelection, setAvailableCAsForSelection] = useState<CA[]>([]);
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
@@ -152,7 +152,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     } catch (err: any) {
        toast({ title: "Operation Failed", description: err.message, variant: "destructive" });
     }
-  }, [raIdFromQuery, user?.access_token, isAuthenticated]);
+  }, [raIdFromQuery, user?.access_token, isAuthenticated, toast]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -392,6 +392,18 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const handleRemoveAdditionalValidationCa = (caId: string) => {
     setAdditionalValidationCAs(prev => prev.filter(vca => vca.id !== caId));
   }
+
+  const handleAddManagedCa = (ca: CA) => {
+    if (!managedCAs.some(mca => mca.id === ca.id)) {
+        setManagedCAs(prev => [...prev, ca]);
+    }
+    setIsManagedCaModalOpen(false);
+  };
+
+  const handleRemoveManagedCa = (caId: string) => {
+    setManagedCAs(prev => prev.filter(mca => mca.id !== caId));
+  };
+
 
   const currentServerKeygenSpecOptions = serverKeygenType === 'RSA' ? serverKeygenRsaBits : serverKeygenEcdsaCurves;
 
@@ -735,7 +747,27 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                       </p>
                     </div>
                     <Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
-                  </div><div><Label htmlFor="managedCAs">Managed CAs</Label><Button type="button" variant="outline" onClick={() => setIsManagedCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : managedCAs.length > 0 ? `Selected ${managedCAs.length} CA(s)` : "Select CAs..."}</Button>{managedCAs.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{managedCAs.map(ca => (<CaVisualizerCard key={ca.id} ca={ca} className="shadow-none border-border max-w-xs" allCryptoEngines={allCryptoEngines}/>))}</div>}</div>
+                  </div>
+                  <div>
+                    <Label>Managed CAs</Label>
+                    <div className="mt-2 space-y-2">
+                        {managedCAs.length > 0 ? (
+                            managedCAs.map(ca => (
+                                <div key={ca.id} className="flex items-center gap-2 group">
+                                    <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-muted-foreground italic text-center p-2">No managed CAs selected.</p>
+                        )}
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setIsManagedCaModalOpen(true)} className="mt-2">
+                       <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
               <div className="flex justify-end space-x-2 pt-8">
@@ -774,6 +806,19 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
       />
+      <CaSelectorModal
+        isOpen={isManagedCaModalOpen}
+        onOpenChange={setIsManagedCaModalOpen}
+        title="Add Managed CA"
+        description="Select a CA to include in the distribution list."
+        availableCAs={availableCAsForSelection}
+        isLoadingCAs={isLoadingDependencies}
+        errorCAs={errorDependencies}
+        loadCAsAction={loadDependencies}
+        onCaSelected={handleAddManagedCa}
+        isAuthLoading={authLoading}
+        allCryptoEngines={allCryptoEngines}
+      />
       <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setEnrollmentCa(ca); setIsEnrollmentCaModalOpen(false); }} currentSelectedCaId={enrollmentCa?.id} isAuthLoading={authLoading} allCryptoEngines={allCryptoEngines} />
       <DeviceIconSelectorModal
         isOpen={isDeviceIconModalOpen}
@@ -787,4 +832,5 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     </div>
   );
 }
+
 
