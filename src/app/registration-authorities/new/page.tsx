@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -180,7 +181,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         
         const { enrollment_settings, reenrollment_settings, server_keygen_settings, ca_distribution_settings } = settings;
         setRegistrationMode(enrollment_settings.registration_mode);
-        setProtocol(enrollment_settings.protocol === 'EST_RFC7030' ? 'EST' : 'CMP');
+        setProtocol(enrollment_settings.protocol === 'EST_RFC7030' ? 'EST' : 'None');
         setIssuanceProfileId(enrollment_settings.issuance_profile_id || null);
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
         setAllowOverrideEnrollment(enrollment_settings.enable_replaceable_enrollment);
@@ -283,7 +284,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         return;
     }
     
-    const protocolMapping = { 'EST': 'EST_RFC7030', 'CMP': 'CMP_RFC4210' };
+    const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'None': '' };
     const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE' };
     
     const estSettings: any = {
@@ -332,7 +333,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       settings: {
         enrollment_settings: {
           enrollment_ca: enrollmentCa.id,
-          protocol: protocolMapping[protocol as keyof typeof protocolMapping],
+          protocol: protocolMapping[protocol],
           enable_replaceable_enrollment: allowOverrideEnrollment,
           verify_csr_signature: verifyCsrSignature,
           issuance_profile_id: issuanceProfileId || undefined,
@@ -485,7 +486,16 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               <Card className="border-border shadow-sm rounded-md">
                 <SectionHeader icon={Key} title="Enrollment Settings" />
                 <CardContent className="space-y-4">
-                  <div><Label htmlFor="protocol">Protocol</Label><Select value={protocol} onValueChange={setProtocol}><SelectTrigger id="protocol" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EST">EST</SelectItem><SelectItem value="CMP">CMP</SelectItem></SelectContent></Select></div>
+                  <div>
+                    <Label htmlFor="protocol">Protocol</Label>
+                    <Select value={protocol} onValueChange={setProtocol}>
+                        <SelectTrigger id="protocol" className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="EST">EST</SelectItem>
+                            <SelectItem value="None">None</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  </div>
               <div>
                 <Label htmlFor="enrollmentCa">Enrollment CA</Label>
                 <Button type="button" variant="outline" onClick={() => setIsEnrollmentCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}</Button>
@@ -745,3 +755,4 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     </div>
   );
 }
+
