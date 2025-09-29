@@ -87,9 +87,12 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
               case 'Duration':
                 return profile.validity.duration ? `Duration: ${profile.validity.duration}` : "Not specified";
               case 'Date':
+                 if (profile.validity.time?.startsWith('9999-12-31')) {
+                    return "Never Expires";
+                 }
                 return profile.validity.time ? `Until: ${new Date(profile.validity.time).toLocaleDateString()}` : "Not specified";
               case 'Indefinite':
-                return "Indefinite";
+                return "Never Expires";
               default:
                 return "Not specified";
             }
