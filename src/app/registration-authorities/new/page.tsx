@@ -56,8 +56,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [raData, setRaData] = useState<ApiRaItem | null>(null);
-  const [isLoadingRA, setIsLoadingRA] = useState(isEditMode);
-  const [errorRA, setErrorRA] = useState<string | null>(null);
 
   // Form State
   const [raName, setRaName] = useState('');
@@ -108,7 +106,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [isEnrollmentCaModalOpen, setIsEnrollmentCaModalOpen] = useState(false);
   const [isValidationCaModalOpen, setIsValidationCaModalOpen] = useState(false);
   const [isAdditionalValidationCaModalOpen, setIsAdditionalValidationCaModalOpen] = useState(false);
-  const [isManagedCaModalOpen, setIsManagedCaModalOpen] = useState(false);
+  const [setIsManagedCaModalOpen] = useState(false);
   const [availableCAsForSelection, setAvailableCAsForSelection] = useState<CA[]>([]);
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
@@ -148,15 +146,11 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const fetchRaDetails = useCallback(async () => {
     if (!raIdFromQuery || !isAuthenticated() || !user?.access_token) return;
-    setIsLoadingRA(true);
-    setErrorRA(null);
     try {
         const data = await fetchRaById(raIdFromQuery, user.access_token);
         setRaData(data);
     } catch (err: any) {
-        setErrorRA(err.message);
-    } finally {
-        setIsLoadingRA(false);
+       toast({ title: "Operation Failed", description: err.message, variant: "destructive" });
     }
   }, [raIdFromQuery, user?.access_token, isAuthenticated]);
 
@@ -320,7 +314,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     if (enableKeyGeneration) {
         const bits = serverKeygenType === 'ECDSA' 
             ? ({ 'P-256': 256, 'P-384': 384, 'P-521': 521 }[serverKeygenSpec] || 256)
-            : parseInt(serverKeygenSpec, 10);
+            : Number.parseInt(serverKeygenSpec, 10);
         keySettings = { type: serverKeygenType, bits };
     }
     const payload: RaCreationPayload = {
@@ -378,7 +372,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   };
 
   const handleAddValidationCa = (ca: CA) => {
-    if (!validationCAs.find(vca => vca.id === ca.id)) {
+    if (!validationCAs.some(vca => vca.id === ca.id)) {
         setValidationCAs(prev => [...prev, ca]);
     }
     setIsValidationCaModalOpen(false);
@@ -387,6 +381,20 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const handleRemoveValidationCa = (caId: string) => {
     setValidationCAs(prev => prev.filter(vca => vca.id !== caId));
   }
+
+  const handleAddAdditionalValidationCa = (ca: CA) => {
+    if (!additionalValidationCAs.some(vca => vca.id === ca.id)) {
+        setAdditionalValidationCAs(prev => [...prev, ca]);
+    }
+    setIsAdditionalValidationCaModalOpen(false);
+  }
+
+  const handleRemoveAdditionalValidationCa = (caId: string) => {
+    setAdditionalValidationCAs(prev => prev.filter(vca => vca.id !== caId));
+  }
+
+  const currentServerKeygenSpecOptions = serverKeygenType === 'RSA' ? serverKeygenRsaBits : serverKeygenEcdsaCurves;
+
 
   const PageIcon = isEditMode ? Edit : PlusCircle;
 
@@ -560,7 +568,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                         </Button>
                       </div>
                       <div className="flex items-center space-x-2 pt-2"><Switch id="allowExpiredAuth" checked={allowExpiredAuth} onCheckedChange={setAllowExpiredAuth} /><Label htmlFor="allowExpiredAuth">Allow Authenticating Expired Certificates</Label></div>
-                      <div><Label htmlFor="chainValidationLevel" className="flex items-center">Chain Validation Level<TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>-1 equals full chain validation.</p></TooltipContent></Tooltip></TooltipProvider></Label><Input id="chainValidationLevel" type="number" value={chainValidationLevel} onChange={(e) => setChainValidationLevel(parseInt(e.target.value))} className="mt-1" /></div>
+                      <div><Label htmlFor="chainValidationLevel" className="flex items-center">Chain Validation Level<TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>-1 equals full chain validation.</p></TooltipContent></Tooltip></TooltipProvider></Label><Input id="chainValidationLevel" type="number" value={chainValidationLevel} onChange={(e) => setChainValidationLevel(Number.parseInt(e.target.value))} className="mt-1" /></div>
                   </div>
               )}
 
@@ -660,7 +668,26 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   <DurationInput id="allowedRenewalDelta" label="Allowed Renewal Delta" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Max time after expiry a cert can be renewed."/>
                   <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry to start allowing renewals."/>
                   <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when renewal is critical."/>
-                  <div><Label htmlFor="additionalValidationCAs">Additional Validation CAs (for re-enrollment)</Label><Button type="button" variant="outline" onClick={() => setIsAdditionalValidationCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : additionalValidationCAs.length > 0 ? `Selected ${additionalValidationCAs.length} CA(s)` : "Select CAs..."}</Button>{additionalValidationCAs.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{additionalValidationCAs.map(ca => (<CaVisualizerCard key={ca.id} ca={ca} className="shadow-none border-border max-w-xs" allCryptoEngines={allCryptoEngines}/>))}</div>}</div>
+                  <div>
+                    <Label htmlFor="additionalValidationCAs">Additional Validation CAs (for re-enrollment)</Label>
+                    <div className="mt-2 space-y-2">
+                            {additionalValidationCAs.length > 0 ? (
+                                additionalValidationCAs.map(ca => (
+                                    <div key={ca.id} className="flex items-center gap-2 group">
+                                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-muted-foreground italic text-center p-2">No additional validation CAs selected.</p>
+                            )}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setIsAdditionalValidationCaModalOpen(true)} className="mt-2">
+                           <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
+                        </Button>
+                  </div>
                 </CardContent>
               </Card>
               <Separator className="my-6"/>
@@ -731,6 +758,19 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         errorCAs={errorDependencies} 
         loadCAsAction={loadDependencies} 
         onCaSelected={handleAddValidationCa}
+        isAuthLoading={authLoading}
+        allCryptoEngines={allCryptoEngines}
+      />
+      <CaSelectorModal
+        isOpen={isAdditionalValidationCaModalOpen}
+        onOpenChange={setIsAdditionalValidationCaModalOpen}
+        title="Add Additional Validation CA"
+        description="Select a CA to add for re-enrollment validation."
+        availableCAs={availableCAsForSelection}
+        isLoadingCAs={isLoadingDependencies}
+        errorCAs={errorDependencies}
+        loadCAsAction={loadDependencies}
+        onCaSelected={handleAddAdditionalValidationCa}
         isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
       />
