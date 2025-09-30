@@ -1,4 +1,3 @@
-
 // src/components/iot/update-pack-form.tsx
 "use client";
 
@@ -27,6 +26,9 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, CheckCircle, XCircle, HelpCircle, PackageCheck, FileUp, Settings2, Rocket, FileText } from 'lucide-react';
 import { useDms } from '@/contexts/DmsContext';
+import { get_UPDATES_API_BASE_URL } from '@/lib/api-domains';
+import { useAuth } from '@/contexts/AuthContext';
+
 
 const updatePackFormSchema = z.object({
   name: z.string().min(3, "Pack name must be at least 3 characters."),
@@ -71,6 +73,7 @@ export function UpdatePackForm({
   onSwuGenerated,
 }: UpdatePackFormProps) {
   const { selectedDms } = useDms();
+  const { user } = useAuth();
   const [binaryFile, setBinaryFile] = useState<File | null>(null);
   const [descriptorFile, setDescriptorFile] = useState<File | null>(null);
   const [descriptorFileContent, setDescriptorFileContent] = useState<string | null>(null);
@@ -215,28 +218,34 @@ export function UpdatePackForm({
 
     const packDetails = form.getValues();
     const apiPackName = packDetails.name; 
+    
+    if (!user?.access_token) {
+        setGenerationError("Authentication token not found.");
+        setIsProcessingSwu(false);
+        return;
+    }
 
     try {
       updateStepStatus(1, 'in-progress', 'Processing metadata...');
       setOverallProgress(10);
       let createPackResponse;
+      const updatesApiBaseUrl = get_UPDATES_API_BASE_URL();
 
       if (formModeActual === 'newVersion' && selectedBasePackIdProp) {
         const basePackNameForApi = availableBasePacks.find(p => p.id === selectedBasePackIdProp)?.name || apiPackName;
-        createPackResponse = await fetch(`/api/dms/${dmsId}/updatepacks/${basePackNameForApi}/new`, {
+        createPackResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${basePackNameForApi}/new`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.access_token}` },
         });
       } else { 
         const createPayload: ApiCreateUpdatePackPayload = {
           name: packDetails.name,
           version: packDetails.version,
-          type: packDetails.type,
           dms_id: dmsId
         };
-        createPackResponse = await fetch(`/api/dms/${dmsId}/updatepacks`, {
+        createPackResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.access_token}` },
           body: JSON.stringify(createPayload),
         });
       }
@@ -254,8 +263,9 @@ export function UpdatePackForm({
       updateStepStatus(2, 'in-progress', `Uploading ${binaryFile.name}...`);
       const binaryFormData = new FormData();
       binaryFormData.append('file', binaryFile);
-      const uploadBinaryResponse = await fetch(`/api/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
+      const uploadBinaryResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${user.access_token}` },
         body: binaryFormData,
       });
       if (!uploadBinaryResponse.ok) {
@@ -271,8 +281,9 @@ export function UpdatePackForm({
         updateStepStatus(3, 'in-progress', `Uploading ${descriptorFile.name}...`);
         const descriptorFormData = new FormData();
         descriptorFormData.append('file', descriptorFile);
-        const uploadDescriptorResponse = await fetch(`/api/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
+        const uploadDescriptorResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
           method: 'POST',
+          headers: { 'Authorization': `Bearer ${user.access_token}` },
           body: descriptorFormData,
         });
         if (!uploadDescriptorResponse.ok) {
@@ -288,8 +299,9 @@ export function UpdatePackForm({
       setOverallProgress(75);
 
       updateStepStatus(4, 'in-progress', 'Triggering .swu file generation...');
-      const generateSwuResponse = await fetch(`/api/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/swu`, {
+      const generateSwuResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/swu`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${user.access_token}` },
       });
       if (!generateSwuResponse.ok) {
         const errorData = await generateSwuResponse.json().catch(() => ({ details: `Status: ${generateSwuResponse.status} - ${generateSwuResponse.statusText}` }));
@@ -498,7 +510,7 @@ export function UpdatePackForm({
                 isProcessingSwu ||
                 (formModeActual === 'newVersion' && !selectedBasePackIdProp) ||
                 !binaryFile || // Disable if binary file is not uploaded
-                ((formModeActual === 'new' || (formModeActual === 'newVersion' && selectedBasePackIdProp)) && !descriptorFile) // Disable if descriptor is required but not uploaded
+                ((formModeActual === 'new' && (formModeActual === 'newVersion' && selectedBasePackIdProp)) && !descriptorFile) // Disable if descriptor is required but not uploaded
               }
               className="w-full bg-primary hover:bg-primary/90"
             >
