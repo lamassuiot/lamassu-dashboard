@@ -37,7 +37,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { UpdatePackForm } from '@/components/iot/update-pack-form';
-import { fetchUpdatePacks, deleteUpdatePackApi, DMS_ID_FOR_API } from '@/lib/iot-api';
+import { fetchUpdatePacks, deleteUpdatePackApi } from '@/lib/iot-api';
+import { useDms } from '@/contexts/DmsContext';
 
 interface DisplayUpdatePack extends UpdatePack {
   formattedCreatedAt?: string;
@@ -98,6 +99,7 @@ function ExistingUpdatePacks({
   const [packToDelete, setPackToDelete] = React.useState<UpdatePack | null>(null);
   const [packForDescriptorView, setPackForDescriptorView] = React.useState<UpdatePack | null>(null);
   const { user } = useAuth();
+  const { selectedDms } = useDms();
 
   React.useEffect(() => {
     if (data) {
@@ -118,13 +120,13 @@ function ExistingUpdatePacks({
   }, [data]);
 
   const deleteMutation = useMutation({
-    mutationFn: (packName: string) => deleteUpdatePackApi({ dmsId: DMS_ID_FOR_API, packName, accessToken: user!.access_token! }),
+    mutationFn: (packName: string) => deleteUpdatePackApi({ dmsId: selectedDms!.id, packName, accessToken: user!.access_token! }),
     onSuccess: (data, packName) => {
       toast({
         title: "Update Pack Deleted",
         description: `Pack "${packName}" has been successfully deleted. ${data?.message || ''}`,
       });
-      queryClient.invalidateQueries({ queryKey: ['updatePacks', DMS_ID_FOR_API] });
+      queryClient.invalidateQueries({ queryKey: ['updatePacks', selectedDms?.id] });
     },
     onError: (error: Error, packName) => {
       toast({
@@ -268,7 +270,7 @@ function ExistingUpdatePacks({
           </Table>
         ) : (
           <p className="text-muted-foreground text-center py-4">
-            No update packs found for DMS ID: {DMS_ID_FOR_API}.
+            No update packs found for DMS ID: {selectedDms?.id}.
           </p>
         )}
       </CardContent>
@@ -309,16 +311,18 @@ export default function UpdatePacksPage() {
   type FormMode = 'new' | 'newVersion' | 'edit'; 
   type TabValue = 'new' | 'newVersion';
 
-  const queryClient = useQueryClient();
+  const { selectedDms } = useDms();
   const { user } = useAuth();
+  
+  const queryClient = useQueryClient();
+
   const { data: fetchedUpdatePacks, error: fetchError, isLoading: isFetching, refetch } = useQuery<UpdatePack[], Error>({
-    queryKey: ['updatePacks', DMS_ID_FOR_API],
-    queryFn: () => fetchUpdatePacks({ dmsId: DMS_ID_FOR_API, accessToken: user!.access_token! }),
-    enabled: !!user?.access_token,
+    queryKey: ['updatePacks', selectedDms?.id],
+    queryFn: () => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }),
+    enabled: !!selectedDms && !!user?.access_token,
     select: (data) => { 
       return data.map(pack => {
         if (pack.descriptorFileName) {
-          // Add mock descriptor content for prototyping
           return {
             ...pack,
             descriptorContent: JSON.stringify({
@@ -380,19 +384,17 @@ export default function UpdatePacksPage() {
     refetch();
     handleTabChange('new'); // Reset to the 'new' tab after success
   };
+  
+  if (!selectedDms) {
+    return (
+        <div className="flex items-center justify-center p-8">
+            <p className="text-muted-foreground">Please select a Device Management System above to manage update packs.</p>
+        </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center space-x-3">
-        <PackagePlus className="h-8 w-8 text-primary" />
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Update Pack Management</h2>
-          <p className="text-muted-foreground">
-            Generate .swu firmware update packs.
-          </p>
-        </div>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Create Update Pack</CardTitle>

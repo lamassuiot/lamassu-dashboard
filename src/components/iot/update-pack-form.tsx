@@ -1,3 +1,4 @@
+
 // src/components/iot/update-pack-form.tsx
 "use client";
 
@@ -20,12 +21,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { UpdatePack, ApiCreateUpdatePackPayload } from '@/types/iot';
 import { FileUpload } from '@/components/iot/file-upload';
-import { DMS_ID_FOR_API } from '@/lib/iot-api';
 import { toast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, CheckCircle, XCircle, HelpCircle, PackageCheck, FileUp, Settings2, Rocket, FileText } from 'lucide-react';
+import { useDms } from '@/contexts/DmsContext';
 
 const updatePackFormSchema = z.object({
   name: z.string().min(3, "Pack name must be at least 3 characters."),
@@ -47,7 +48,7 @@ interface ProgressStep {
 const initialProgressSteps: ProgressStep[] = [
   { id: 1, title: "Initialize Pack Metadata", icon: Settings2, status: 'pending', message: "Waiting to start..." },
   { id: 2, title: "Upload Binary Artifact", icon: FileUp, status: 'pending', message: "Waiting for metadata..." },
-  { id: 3, title: "Upload Descriptor File", icon: FileUp, status: 'pending', message: "Waiting for binary..." },
+  { id: 3, title: "Upload Descriptor File", icon: FileUp, status: 'pending', message: "Waiting for files..." },
   { id: 4, title: "Generate .swu File", icon: Rocket, status: 'pending', message: "Waiting for files..." },
 ];
 
@@ -69,6 +70,7 @@ export function UpdatePackForm({
   onBasePackSelect,
   onSwuGenerated,
 }: UpdatePackFormProps) {
+  const { selectedDms } = useDms();
   const [binaryFile, setBinaryFile] = useState<File | null>(null);
   const [descriptorFile, setDescriptorFile] = useState<File | null>(null);
   const [descriptorFileContent, setDescriptorFileContent] = useState<string | null>(null);
@@ -176,7 +178,12 @@ export function UpdatePackForm({
     setProgressSteps(initialProgressSteps.map(s => ({ ...s })));
     setOverallProgress(0);
 
-    const dmsId = DMS_ID_FOR_API;
+    if (!selectedDms) {
+        setGenerationError("No Device Management System is selected.");
+        setIsProcessingSwu(false);
+        return;
+    }
+    const dmsId = selectedDms.id;
 
     const isValid = await form.trigger();
     if (!isValid) {

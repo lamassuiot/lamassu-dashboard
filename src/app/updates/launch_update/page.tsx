@@ -1,3 +1,4 @@
+
 // src/app/updates/launch_update/page.tsx
 "use client";
 
@@ -26,8 +27,8 @@ import {
   triggerGlobalLaunchApi, 
   triggerItemRollout,
   fetchDeviceJobsForLaunch,
-  DMS_ID_FOR_API
 } from '@/lib/iot-api';
+import { useDms } from '@/contexts/DmsContext';
 
 // Helper function to format workflow type
 const formatWorkflowType = (workflowType?: ApiGlobalStrategy['workflow_type']) => {
@@ -41,24 +42,26 @@ function EditableGlobalStrategyDisplay() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = React.useState(false);
   const { user } = useAuth();
+  const { selectedDms } = useDms();
+  const dmsId = selectedDms?.id;
 
   const { data: globalStrategy, isLoading: isLoadingStrategy, error: globalStrategyError, refetch: refetchStrategy } = useQuery<ApiGlobalStrategy | null, Error>({
-    queryKey: ['globalStrategy', DMS_ID_FOR_API],
-    queryFn: () => fetchGlobalStrategy({ dmsId: DMS_ID_FOR_API, accessToken: user!.access_token! }),
-    enabled: !!user?.access_token,
+    queryKey: ['globalStrategy', dmsId],
+    queryFn: () => fetchGlobalStrategy({ dmsId: dmsId!, accessToken: user!.access_token! }),
+    enabled: !!dmsId && !!user?.access_token,
   });
 
   const { data: updatePacks = [], isLoading: isLoadingPacks, error: updatePacksError } = useQuery<UpdatePack[], Error>({
-    queryKey: ['updatePacks', DMS_ID_FOR_API],
-    queryFn: () => fetchUpdatePacks({ dmsId: DMS_ID_FOR_API, accessToken: user!.access_token! }),
-    enabled: !!user?.access_token,
+    queryKey: ['updatePacks', dmsId],
+    queryFn: () => fetchUpdatePacks({ dmsId: dmsId!, accessToken: user!.access_token! }),
+    enabled: !!dmsId && !!user?.access_token,
   });
 
   const strategyMutation = useMutation({
-    mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy({dmsId: DMS_ID_FOR_API, strategyData, accessToken: user!.access_token!}),
+    mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy({dmsId: dmsId!, strategyData, accessToken: user!.access_token!}),
     onSuccess: () => {
       toast({ title: "Global Strategy Updated", description: "The global strategy has been successfully updated." });
-      queryClient.invalidateQueries({ queryKey: ['globalStrategy', DMS_ID_FOR_API] });
+      queryClient.invalidateQueries({ queryKey: ['globalStrategy', dmsId] });
       setIsEditing(false);
     },
     onError: (err: Error) => {
@@ -67,10 +70,10 @@ function EditableGlobalStrategyDisplay() {
   });
 
   const globalLaunchMutation = useMutation({
-    mutationFn: () => triggerGlobalLaunchApi({dmsId: DMS_ID_FOR_API, accessToken: user!.access_token!}),
+    mutationFn: () => triggerGlobalLaunchApi({dmsId: dmsId!, accessToken: user!.access_token!}),
     onSuccess: (data) => {
       toast({ title: "Launch Prepared", description: data.message || "Successfully prepared launch based on global strategy." });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID_FOR_API] });
+      queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: "Launch Preparation Failed", description: err.message });
@@ -362,8 +365,10 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
   const queryClient = useQueryClient();
   const [isRefreshingJobs, setIsRefreshingJobs] = React.useState(false);
   const { user } = useAuth();
+  const { selectedDms } = useDms();
+  const dmsId = selectedDms?.id;
 
-  if (!launchItem) return null;
+  if (!launchItem || !dmsId) return null;
 
   const allDeviceIds = Array.from(new Set([...launchItem.devices_with_job, ...launchItem.devices_without_job]));
 
@@ -373,10 +378,10 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
     toast({ title: "Refreshing Job Statuses...", description: `For launch: ${launchItem.name}` });
     try {
       allDeviceIds.forEach(deviceId => {
-        queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID_FOR_API, deviceId, launchItem.id] });
+        queryClient.invalidateQueries({ queryKey: ['deviceJobs', dmsId, deviceId, launchItem.id] });
       });
-      queryClient.invalidateQueries({ queryKey: ['launchJobStats', DMS_ID_FOR_API, launchItem.id, ...launchItem.devices_with_job] });
-      await queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID_FOR_API] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStats', dmsId, launchItem.id, ...launchItem.devices_with_job] });
+      await queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
 
       toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for launch: ${launchItem.name}`});
     } catch (error) {
@@ -433,7 +438,7 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
                     {allDeviceIds.map(deviceId => (
                       <DeviceJobStatusRow
                         key={deviceId}
-                        dmsId={DMS_ID_FOR_API}
+                        dmsId={dmsId}
                         deviceId={deviceId}
                         targetLaunchId={launchItem.id}
                         accessToken={user?.access_token || null}
@@ -767,25 +772,27 @@ export default function RolloutsPage() {
   const [selectedLaunchForDialog, setSelectedLaunchForDialog] = React.useState<LaunchItem | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = React.useState(false);
   const { user } = useAuth();
+  const { selectedDms } = useDms();
+  const dmsId = selectedDms?.id;
 
 
   const { data: allLaunches = [], isLoading, error: launchesError, refetch } = useQuery<LaunchItem[], Error>({
-    queryKey: ['currentLaunches', DMS_ID_FOR_API], // This key fetches ALL launches
-    queryFn: () => fetchCurrentLaunches({dmsId: DMS_ID_FOR_API, accessToken: user!.access_token!}),
-    enabled: !!user?.access_token,
+    queryKey: ['currentLaunches', dmsId], // This key fetches ALL launches for the selected DMS
+    queryFn: () => fetchCurrentLaunches({dmsId: dmsId!, accessToken: user!.access_token!}),
+    enabled: !!dmsId && !!user?.access_token,
   });
 
   const itemRolloutMutation = useMutation({
-    mutationFn: (launchId: string) => triggerItemRollout({ dmsId: DMS_ID_FOR_API, launchId, accessToken: user!.access_token! }),
+    mutationFn: (launchId: string) => triggerItemRollout({ dmsId: dmsId!, launchId, accessToken: user!.access_token! }),
     onSuccess: (data, launchId) => {
       toast({ title: "Rollout Triggered", description: data.message || `Rollout for item ${launchId} started.` });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID_FOR_API] });
-      queryClient.invalidateQueries({ queryKey: ['launchJobStats', DMS_ID_FOR_API, launchId] });
-      queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID_FOR_API] }); 
+      queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStats', dmsId, launchId] });
+      queryClient.invalidateQueries({ queryKey: ['deviceJobs', dmsId] }); 
       const launch = allLaunches.find(l => l.id === launchId);
       if (launch) {
         launch.devices_with_job.forEach(deviceId => {
-            queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID_FOR_API, deviceId, launchId] });
+            queryClient.invalidateQueries({ queryKey: ['deviceJobs', dmsId, deviceId, launchId] });
         });
       }
     },
@@ -802,19 +809,16 @@ export default function RolloutsPage() {
   const currentLaunchesList = allLaunches.filter(l => l.devices_without_job.length > 0);
   const launchHistoryList = allLaunches.filter(l => l.devices_without_job.length === 0);
 
+  if (!selectedDms) {
+    return (
+        <div className="flex items-center justify-center p-8">
+            <p className="text-muted-foreground">Please select a Device Management System above to manage launches.</p>
+        </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-3 mb-4">
-        <Rocket className="h-8 w-8 text-primary"/>
-        <div>
-            <h2 className="text-2xl font-bold tracking-tight">Rollout Management</h2>
-            <p className="text-muted-foreground">
-            View the current global update strategy and manage launches.
-            </p>
-        </div>
-      </div>
-
       <EditableGlobalStrategyDisplay />
 
       <Card className="shadow-md">
@@ -825,7 +829,7 @@ export default function RolloutsPage() {
         <CardContent>
           <LaunchTable
             launches={currentLaunchesList}
-            dmsId={DMS_ID_FOR_API}
+            dmsId={dmsId!}
             itemRolloutMutation={itemRolloutMutation}
             openDetailsDialog={openDetailsDialog}
             showExecuteButton={true}
@@ -844,7 +848,7 @@ export default function RolloutsPage() {
         <CardContent>
            <LaunchTable
             launches={launchHistoryList}
-            dmsId={DMS_ID_FOR_API}
+            dmsId={dmsId!}
             itemRolloutMutation={itemRolloutMutation} 
             openDetailsDialog={openDetailsDialog}
             showExecuteButton={false} 
