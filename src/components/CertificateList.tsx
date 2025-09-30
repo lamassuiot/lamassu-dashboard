@@ -63,7 +63,6 @@ export function CertificateList({
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
   const [certificateToRevoke, setCertificateToRevoke] = useState<CertificateData | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
-
   const [isOcspModalOpen, setIsOcspModalOpen] = useState(false);
   const [certForOcsp, setCertForOcsp] = useState<CertificateData | null>(null);
   const [issuerForOcsp, setIssuerForOcsp] = useState<CA | null>(null);
@@ -134,7 +133,6 @@ export function CertificateList({
       toast({ title: "Error", description: "Authentication token not found.", variant: "destructive" });
       return;
     }
-
     setIsRevocationModalOpen(false);
 
     try {
@@ -144,7 +142,6 @@ export function CertificateList({
         reason: reason,
         accessToken: accessToken,
       });
-
       onCertificateUpdated({ ...certificateToRevoke, apiStatus: 'REVOKED', revocationReason: reason });
       toast({
         title: "Certificate Revoked",
@@ -174,7 +171,6 @@ export function CertificateList({
         status: 'ACTIVE',
         accessToken: accessToken,
       });
-
       onCertificateUpdated({ ...certificate, apiStatus: 'ACTIVE', revocationReason: undefined });
       toast({
         title: "Certificate Re-activated",
@@ -225,7 +221,6 @@ export function CertificateList({
       description: `The certificate for "${getCommonName(certificate.subject)}" has been downloaded.`,
     });
   };
-
   if (certificates.length === 0 && !isLoading) {
     return null; // The parent CertificatesPage will show "No certificates" message
   }

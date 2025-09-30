@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -51,7 +50,6 @@ export default function CreateCaGeneratePage() {
   const [organizationalUnit, setOrganizationalUnit] = useState('');
 
   const [caExpiration, setCaExpiration] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '10y' });
-
   // Profile state
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
@@ -178,7 +176,6 @@ export default function CreateCaGeneratePage() {
     setSelectedParentCa(ca);
     setIsParentCaModalOpen(false);
   };
-
   const formatExpirationForApi = (config: ExpirationConfig): { type: string; duration?: string; time?: string } => {
     if (config.type === "Duration") {
       return { type: "Duration", duration: config.durationValue };
@@ -418,7 +415,6 @@ export default function CreateCaGeneratePage() {
                 <p className="text-xs text-muted-foreground">The "Certification Authority Name" entered in CA Settings will be used as the Common Name (CN) for the subject.</p>
               </CardContent>
             </Card>
-
             <Card>
               <SectionHeader icon={CalendarDays} title="Expiration Settings" />
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -452,7 +448,6 @@ export default function CreateCaGeneratePage() {
           </form>
         </CardContent>
       </Card>
-
       <CaSelectorModal
         isOpen={isParentCaModalOpen}
         onOpenChange={setIsParentCaModalOpen}

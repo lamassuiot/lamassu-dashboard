@@ -427,7 +427,6 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
   };
 }
 
-
 // Helper to build hierarchy from a flat list of CAs
 function buildCaHierarchy(flatCaList: Omit<CA, 'children'>[]): CA[] {
   const caMap: Record<string, CA> = {};
@@ -551,7 +550,6 @@ export function findCaByCommonName(commonName: string | undefined | null, cas: C
   }
   return null;
 }
-
 
 
 // Function to create a CA

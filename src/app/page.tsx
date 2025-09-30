@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils';
 import { fetchDmsStats } from '@/lib/dms-api';
 import { fetchDeviceStats } from '@/lib/devices-api';
 
-
 // Helper function from old page.tsx
 function flattenCAs(cas: CA[]): CA[] {
   const flatList: CA[] = [];

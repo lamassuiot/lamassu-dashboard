@@ -61,7 +61,6 @@
 
     --radius: 0.5rem;
     /* Default border radius */
-
     /* Homepage Specific Colors */
     --homepage-card-background: hsl(var(--primary));
 
@@ -209,7 +208,6 @@
     /* Darker input border */
     --ring: 217 80% 65%;
     /* Primary variant for dark rings */
-
     /* Homepage Specific Colors */
     --homepage-card-background: hsl(var(--primary));
 
