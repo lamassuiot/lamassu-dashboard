@@ -34,6 +34,7 @@ const updatePackFormSchema = z.object({
 });
 
 type UpdatePackFormValues = z.infer<typeof updatePackFormSchema>;
+type FormMode = 'new' | 'newVersion' | 'edit';
 
 interface ProgressStep {
   id: number;
@@ -52,7 +53,7 @@ const initialProgressSteps: ProgressStep[] = [
 
 
 interface UpdatePackFormProps {
-  formModeActual: 'new' | 'newVersion' | 'edit';
+  formModeActual: FormMode;
   initialPackData?: UpdatePack;
   availableBasePacks?: UpdatePack[];
   selectedBasePackIdProp?: string;
@@ -88,18 +89,20 @@ export function UpdatePackForm({
     setDescriptorFile(null);
     setDescriptorFileContent(null);
 
+    const typeValue = initialPackData?.type as UpdatePackFormValues['type'] || 'rawfile';
+
     if (formModeActual === 'new') {
       form.reset({
         name: initialPackData?.name || "",
         version: initialPackData?.version || 1,
-        type: initialPackData?.type || "rawfile",
+        type: typeValue,
       });
     } else if (formModeActual === 'newVersion') {
       if (initialPackData && initialPackData.name) {
         form.reset({
           name: initialPackData.name,
           version: initialPackData.version,
-          type: initialPackData.type || "rawfile",
+          type: typeValue,
         });
       } else {
         form.reset({ name: "", version: 0, type: "rawfile" });
@@ -108,7 +111,7 @@ export function UpdatePackForm({
       form.reset({
         name: initialPackData.name,
         version: initialPackData.version,
-        type: initialPackData.type || "rawfile",
+        type: typeValue,
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -575,5 +578,3 @@ export function UpdatePackForm({
     </>
   );
 }
-
-    
