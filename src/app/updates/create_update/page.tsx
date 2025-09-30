@@ -1,15 +1,15 @@
 
-// src/app/(app)/update-packs/page.tsx
+// src/app/updates/create_update/page.tsx
 "use client";
-import React from 'react';
-import { UpdatePackForm } from '@/components/iot/update-pack-form';
+
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Package, MoreVertical, GitFork, Download, Trash2, FileText } from 'lucide-react';
+import { Package, MoreVertical, GitFork, Download, Trash2, FileText, PlusCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import type { UpdatePack } from '@/types/iot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,7 +24,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -35,39 +35,14 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuth } from '@/contexts/AuthContext';
+import { UpdatePackForm } from '@/components/iot/update-pack-form';
+import { fetchUpdatePacks, deleteUpdatePackApi } from '@/lib/iot-api';
 
-
-export const DMS_ID_FOR_API = 'ECS_DEMO'; 
+export const DMS_ID_FOR_API = 'ECS_DEMO';
 
 interface DisplayUpdatePack extends UpdatePack {
   formattedCreatedAt?: string;
-}
-
-// Service function to fetch update packs
-async function fetchUpdatePacks(dmsId: string): Promise<UpdatePack[]> {
-  const response = await fetch(`/api/dms/${dmsId}/updatepacks`);
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Network response was not ok' }));
-    throw new Error(errorData.message || 'Failed to fetch update packs');
-  }
-  return response.json();
-}
-
-// Service function to delete an update pack
-async function deleteUpdatePackApi({ dmsId, packName }: { dmsId: string; packName: string }): Promise<any> {
-  const response = await fetch(`/api/dms/${dmsId}/updatepacks/${packName}`, {
-    method: 'DELETE',
-  });
-  if (!response.ok) {
-    const errorBody = await response.text().catch(() => `Failed to read error body`);
-    let errorDetails = errorBody;
-    try {
-        const parsedError = JSON.parse(errorBody);
-        errorDetails = parsedError.message || parsedError.details || errorBody;
-    } catch (e) { /* ignore */ }
-    throw new Error(errorDetails || `Failed to delete pack ${packName}`);
-  }
-  return response.json();
 }
 
 interface DescriptorViewDialogProps {
@@ -112,16 +87,19 @@ function ExistingUpdatePacks({
   isLoading,
   error,
   data,
+  refetch,
 }: {
   onInitiateNewVersionFromTable: (pack: UpdatePack) => void;
   isLoading: boolean;
   error: Error | null;
   data: UpdatePack[] | undefined;
+  refetch: () => void;
 }) {
   const queryClient = useQueryClient();
   const [displayPacks, setDisplayPacks] = React.useState<DisplayUpdatePack[]>([]);
   const [packToDelete, setPackToDelete] = React.useState<UpdatePack | null>(null);
   const [packForDescriptorView, setPackForDescriptorView] = React.useState<UpdatePack | null>(null);
+  const { user } = useAuth();
 
   React.useEffect(() => {
     if (data) {
@@ -142,19 +120,19 @@ function ExistingUpdatePacks({
   }, [data]);
 
   const deleteMutation = useMutation({
-    mutationFn: deleteUpdatePackApi,
-    onSuccess: (data, variables) => {
+    mutationFn: (packName: string) => deleteUpdatePackApi({ dmsId: DMS_ID_FOR_API, packName, accessToken: user!.access_token! }),
+    onSuccess: (data, packName) => {
       toast({
         title: "Update Pack Deleted",
-        description: `Pack "${variables.packName}" has been successfully deleted. ${data?.message || ''}`,
+        description: `Pack "${packName}" has been successfully deleted. ${data?.message || ''}`,
       });
       queryClient.invalidateQueries({ queryKey: ['updatePacks', DMS_ID_FOR_API] });
     },
-    onError: (error: Error, variables) => {
+    onError: (error: Error, packName) => {
       toast({
         variant: "destructive",
         title: "Deletion Failed",
-        description: `Could not delete pack "${variables.packName}". ${error.message}`,
+        description: `Could not delete pack "${packName}". ${error.message}`,
       });
     },
     onSettled: () => {
@@ -164,7 +142,7 @@ function ExistingUpdatePacks({
 
   const handleDeleteConfirm = () => {
     if (packToDelete) {
-      deleteMutation.mutate({ dmsId: DMS_ID_FOR_API, packName: packToDelete.name });
+      deleteMutation.mutate(packToDelete.name);
     }
   };
 
@@ -210,9 +188,12 @@ function ExistingUpdatePacks({
   return (
     <>
     <Card>
-      <CardHeader>
-        <CardTitle>Existing Update Packs</CardTitle>
-        <CardDescription>List of update packs. Select an action or use the tabs above.</CardDescription>
+      <CardHeader className="flex flex-row justify-between items-center">
+        <div>
+          <CardTitle>Existing Update Packs</CardTitle>
+          <CardDescription>List of update packs. Select an action or use the tabs above.</CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-4 w-4 mr-2"/>Refresh</Button>
       </CardHeader>
       <CardContent>
         {displayPacks.length > 0 ? (
@@ -331,9 +312,11 @@ export default function UpdatePacksPage() {
   type TabValue = 'new' | 'newVersion';
 
   const queryClient = useQueryClient();
-  const { data: fetchedUpdatePacks, error: fetchError, isLoading: isFetching, refetch } = useQuery<UpdatePack[], Error, UpdatePack[]>({
+  const { user } = useAuth();
+  const { data: fetchedUpdatePacks, error: fetchError, isLoading: isFetching, refetch } = useQuery<UpdatePack[], Error>({
     queryKey: ['updatePacks', DMS_ID_FOR_API],
-    queryFn: () => fetchUpdatePacks(DMS_ID_FOR_API),
+    queryFn: () => fetchUpdatePacks({ dmsId: DMS_ID_FOR_API, accessToken: user!.access_token! }),
+    enabled: !!user?.access_token,
     select: (data) => { 
       return data.map(pack => {
         if (pack.descriptorFileName) {
@@ -359,95 +342,28 @@ export default function UpdatePacksPage() {
       });
     }
   });
+
+  const [activeTab, setActiveTab] = useState<TabValue>('new');
+  const [formMode, setFormMode] = useState<FormMode>('new');
+  const [packForForm, setPackForForm] = useState<UpdatePack | undefined>(undefined);
+  const [selectedBasePackId, setSelectedBasePackId] = useState<string | undefined>(undefined);
   
-  // Target states for pending transitions
-  const [targetTab, setTargetTab] = React.useState<TabValue>('new');
-  const [targetSelectedBasePackId, setTargetSelectedBasePackId] = React.useState<string | undefined>(undefined);
-  const [targetPackForForm, setTargetPackForForm] = React.useState<UpdatePack | undefined>(undefined);
-  const [targetFormMode, setTargetFormMode] = React.useState<FormMode>('new');
-  
-  // Animation and form instance key
-  const [currentAnimationClass, setCurrentAnimationClass] = React.useState<string>('');
-  const [formInstanceKey, setFormInstanceKey] = React.useState<number>(Date.now()); 
-  
-  // Active states driving the form
-  const [activeFormMode, setActiveFormMode] = React.useState<FormMode>('new');
-  const [activePackForForm, setActivePackForForm] = React.useState<UpdatePack | undefined>(undefined);
-  const [activeSelectedBasePackId, setActiveSelectedBasePackId] = React.useState<string | undefined>(undefined);
-  
-  const prevActiveFormModeRef = React.useRef<FormMode>(activeFormMode);
-
-  const [tabsComponentValue, setTabsComponentValue] = React.useState<TabValue>('new');
-
-
-  React.useEffect(() => {
-    // Initialize based on target states or defaults
-    const initialAnimation = tabsComponentValue === 'newVersion' ? 'animate-slide-in-from-right' : 'animate-slide-in-from-left';
-    setCurrentAnimationClass(initialAnimation); // Apply initial animation
-    
-    setActiveFormMode(targetFormMode); 
-    setActivePackForForm(targetPackForForm); 
-    setActiveSelectedBasePackId(targetSelectedBasePackId); 
-    
-    prevActiveFormModeRef.current = targetFormMode; // Update ref for next transition logic
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount to set up initial state
-
-
-  const triggerFormTransition = (newTab: TabValue, newMode: FormMode, newPackData?: UpdatePack, newBaseId?: string) => {
-    // Determine slide-out direction based on current tab (tabsComponentValue, which reflects the "from" state)
-    let slideOutAnimation = 'animate-slide-out-to-left'; // Default for 'new' tab or initial
-    if (tabsComponentValue === 'newVersion') { // If currently on 'newVersion' tab, slide out to right
-        slideOutAnimation = 'animate-slide-out-to-right';
+  const handleTabChange = useCallback((newTab: TabValue) => {
+    setActiveTab(newTab);
+    if (newTab === 'new') {
+        setFormMode('new');
+        setPackForForm(undefined);
+        setSelectedBasePackId(undefined);
+    } else { // newVersion
+        setFormMode('newVersion');
+        setPackForForm(undefined);
+        setSelectedBasePackId(undefined);
     }
-    
-    setCurrentAnimationClass(slideOutAnimation);
-
-    // After slide-out animation (or immediately if no duration)
-    setTimeout(() => {
-      setTabsComponentValue(newTab); // Update tab visual state first
-      
-      setActiveFormMode(newMode);
-      setActivePackForForm(newPackData);
-      setActiveSelectedBasePackId(newBaseId);
-      
-      // Determine slide-in direction based on the newTab (the "to" state)
-      let slideInAnimation = 'animate-slide-in-from-left'; // Default for 'new' tab
-      if (newTab === 'newVersion') { // If moving to 'newVersion' tab, slide in from right
-        slideInAnimation = 'animate-slide-in-from-right';
-      }
-      
-      setCurrentAnimationClass(slideInAnimation);
-      setFormInstanceKey(Date.now()); // Force re-render of form for clean state
-      prevActiveFormModeRef.current = newMode; // Update ref for future transitions
-    }, 0); // Timeout 0 to allow DOM to update from slide-out before slide-in
-  };
-  
-
-  const handleTabChangeRequest = (newTabValue: TabValue) => {
-    if (newTabValue === tabsComponentValue) {
-        // If clicking the same tab, reset its form to default (unless it's already in default new/newVersion state)
-        if (newTabValue === 'new' && activeFormMode === 'new') return; // Already on 'new' default
-        if (newTabValue === 'newVersion' && activeFormMode === 'newVersion' && !activeSelectedBasePackId) return; // Already on 'newVersion' default
-    }
-    
-    setTargetTab(newTabValue); 
-    if (newTabValue === 'new') {
-      setTargetSelectedBasePackId(undefined);
-      setTargetPackForForm(undefined);
-      setTargetFormMode('new');
-      triggerFormTransition(newTabValue, 'new', undefined, undefined);
-    } else { // newTabValue === 'newVersion'
-      setTargetPackForForm(undefined); 
-      setTargetFormMode('newVersion');
-      setTargetSelectedBasePackId(undefined); // Reset selected base pack when tab is clicked directly
-      triggerFormTransition(newTabValue, 'newVersion', undefined, undefined);
-    }
-  };
+  }, []);
   
   const handleInitiateNewVersionFromTable = (basePack: UpdatePack) => {
-    setTargetTab('newVersion');
-    setTargetFormMode('newVersion');
+    setActiveTab('newVersion');
+    setFormMode('newVersion');
     const newVersionPackData = {
       ...basePack,
       version: (Number(basePack.version) || 0) + 1,
@@ -455,110 +371,69 @@ export default function UpdatePacksPage() {
       createdAt: new Date().toISOString(),
       binaryFileName: undefined,
       descriptorFileName: undefined,
-      descriptorContent: undefined, // Clear descriptor content for new version
+      descriptorContent: undefined,
       uri: undefined, 
     };
-    setTargetPackForForm(newVersionPackData); 
-    setTargetSelectedBasePackId(basePack.id); 
-    triggerFormTransition('newVersion', 'newVersion', newVersionPackData, basePack.id);
+    setPackForForm(newVersionPackData); 
+    setSelectedBasePackId(basePack.id); 
   };
   
-  // This handler is called by the form itself when base pack selection changes
-  const handleBasePackSelectInForm = (basePackId: string | undefined) => {
-    setActiveSelectedBasePackId(basePackId); // Update active state directly
-
-    if (basePackId && activeFormMode === 'newVersion') {
-      const basePack = (fetchedUpdatePacks || []).find(p => p.id === basePackId); 
-      if (basePack) {
-        const newVersionPackData = {
-          ...basePack,
-          version: (Number(basePack.version) || 0) + 1,
-          id: '', 
-          createdAt: new Date().toISOString(),
-          binaryFileName: undefined,
-          descriptorFileName: undefined,
-          descriptorContent: undefined, // Clear descriptor content for new version
-          uri: undefined,
-        };
-        setActivePackForForm(newVersionPackData); 
-      } else {
-         setActivePackForForm(undefined); 
-      }
-    } else if (!basePackId && activeFormMode === 'newVersion') {
-      setActivePackForForm(undefined); 
-    }
-    // No need to call triggerFormTransition here, as this is an internal form state change
-  };
-
   const handleSwuGenerated = () => {
-    refetch(); 
-    // Optionally, reset the form to the 'new' tab/state after successful generation
-    // handleTabChangeRequest('new');
+    refetch();
+    handleTabChange('new'); // Reset to the 'new' tab after success
   };
-
-  // Determine if the form should be shown based on active states
-  const showForm = activeFormMode === 'new' || 
-                   (activeFormMode === 'newVersion'); 
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Update Pack Management</h2>
-        <p className="text-muted-foreground">
-          Generate .swu firmware update packs. Use tabs to choose an action.
-        </p>
+      <div className="flex items-center space-x-3">
+        <PackagePlus className="h-8 w-8 text-primary" />
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Update Pack Management</h2>
+          <p className="text-muted-foreground">
+            Generate .swu firmware update packs.
+          </p>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Choose Action</CardTitle>
+          <CardTitle>Create Update Pack</CardTitle>
+          <CardDescription>
+            Choose to create a brand new pack or a new version of an existing one.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs 
-            value={tabsComponentValue} // Controlled by state for animation
-            onValueChange={(value) => handleTabChangeRequest(value as TabValue)}
-          >
+          <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as TabValue)}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="new">Create New Pack</TabsTrigger>
               <TabsTrigger value="newVersion">Create New Version</TabsTrigger>
             </TabsList>
-            <TabsContent value="new" className="pt-4">
-              <p className="text-sm text-muted-foreground">
-                Use the form below to define details for a brand new update pack and generate its .swu file.
-              </p>
-            </TabsContent>
-            <TabsContent value="newVersion" className="pt-4">
-              <p className="text-sm text-muted-foreground">
-                Use the form below to select a base pack, create its next version, and generate its .swu file.
-                Alternatively, select "Create New Version" from the table for a specific pack.
-              </p>
-            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
-
-      {showForm && (
-         <div className="overflow-hidden"> {/* Container to clip animations */}
-            <div key={formInstanceKey} className={currentAnimationClass}> {/* Apply animation class here */}
-              <UpdatePackForm
-                formModeActual={activeFormMode}
-                initialPackData={activePackForForm}
-                availableBasePacks={fetchedUpdatePacks || []} 
-                selectedBasePackIdProp={activeSelectedBasePackId} 
-                onBasePackSelect={handleBasePackSelectInForm} 
-                onSwuGenerated={handleSwuGenerated}
-              />
-            </div>
-         </div>
-      )}
-
+      
+      <UpdatePackForm
+        formModeActual={formMode}
+        initialPackData={packForForm}
+        availableBasePacks={fetchedUpdatePacks || []}
+        selectedBasePackIdProp={selectedBasePackId}
+        onBasePackSelect={(id) => {
+            setSelectedBasePackId(id);
+            const basePack = (fetchedUpdatePacks || []).find(p => p.id === id);
+            if(basePack) handleInitiateNewVersionFromTable(basePack);
+            else setPackForForm(undefined);
+        }}
+        onSwuGenerated={handleSwuGenerated}
+      />
+      
       <ExistingUpdatePacks
         onInitiateNewVersionFromTable={handleInitiateNewVersionFromTable}
         isLoading={isFetching}
         error={fetchError}
         data={fetchedUpdatePacks}
+        refetch={refetch}
       />
     </div>
   );
 }
-    
+

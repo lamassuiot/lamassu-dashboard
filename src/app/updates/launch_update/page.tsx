@@ -1,16 +1,16 @@
 
-// src/app/(app)/rollouts/page.tsx
+// src/app/updates/launch_update/page.tsx
 "use client";
 
 import React from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, Settings2, Pencil, X, PackageCheck, AlertTriangle, RefreshCw, Eye, Info, CheckCircle, Loader2, Clock, Package } from 'lucide-react';
+import { PlayCircle, Settings2, Pencil, X, PackageCheck, AlertTriangle, RefreshCw, Eye, Info, CheckCircle, Loader2, Clock, Package, Rocket } from 'lucide-react';
 import type { UpdateStrategy, LaunchItem, ApiGlobalStrategy, UpdatePack, DeviceJob } from '@/types/iot';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
-import { toast } from '@/hooks/use-toast';
+import { toast } from "@/hooks/use-toast";
 import { UpdateStrategyForm } from '@/components/iot/update-strategy-form';
 import { useQuery, useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +18,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/contexts/AuthContext';
+import { 
+  fetchGlobalStrategy, 
+  updateGlobalStrategy, 
+  fetchUpdatePacks, 
+  fetchCurrentLaunches, 
+  triggerGlobalLaunchApi, 
+  triggerItemRollout,
+  fetchDeviceJobsForLaunch
+} from '@/lib/iot-api';
 
 const DMS_ID = 'ECS_DEMO'; // Centralized DMS ID
 
@@ -29,141 +39,25 @@ const formatWorkflowType = (workflowType?: ApiGlobalStrategy['workflow_type']) =
   return String(workflowType);
 };
 
-// --- API Service Functions ---
-async function fetchGlobalStrategy(dmsId: string): Promise<ApiGlobalStrategy | null> {
-  const response = await fetch(`/api/dms/${dmsId}/strategy`);
-  if (!response.ok) {
-    if (response.status === 404) {
-      return null;
-    }
-    const errorData = await response.json().catch(() => ({ message: 'Network response was not ok' }));
-    throw new Error(errorData.message || 'Failed to fetch global strategy');
-  }
-  return response.json();
-}
-
-async function fetchUpdatePacks(dmsId: string): Promise<UpdatePack[]> {
-  const response = await fetch(`/api/dms/${dmsId}/updatepacks`);
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Network response was not ok' }));
-    throw new Error(errorData.message || 'Failed to fetch update packs');
-  }
-  return response.json();
-}
-
-async function updateGlobalStrategy(dmsId: string, strategyData: Partial<ApiGlobalStrategy>): Promise<ApiGlobalStrategy> {
-  const response = await fetch(`/api/dms/${dmsId}/strategy`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(strategyData),
-  });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Network response was not ok' }));
-    throw new Error(errorData.message || 'Failed to update global strategy');
-  }
-  return response.json();
-}
-
-async function fetchCurrentLaunches(dmsId: string): Promise<LaunchItem[]> {
-  const response = await fetch(`/api/dms/${dmsId}/launch`);
-
-  if (!response.ok) {
-    let errorDetails = `Failed to fetch launches from Next.js API route. Status: ${response.status}`;
-    try {
-      const errorData = await response.json();
-      errorDetails += ` - Message: ${errorData.message || errorData.details || JSON.stringify(errorData)}`;
-    } catch (e) {
-      try {
-        const errorText = await response.text();
-        if (errorText) errorDetails += ` - Body: ${errorText}`;
-      } catch (textE) {
-        // Fallback
-      }
-    }
-    console.error(`fetchCurrentLaunches error (client-side): ${errorDetails}`);
-    throw new Error(errorDetails);
-  }
-
-  try {
-    const data = await response.json();
-    if (!Array.isArray(data)) {
-      console.error('Data fetched from /api/dms/.../launch is not an array:', data);
-      if (typeof data === 'object' && data !== null && Array.isArray(data.list)) {
-        return data.list;
-      }
-      if (typeof data === 'object' && data !== null && data.list === null) {
-         console.log("fetchCurrentLaunches: API returned { list: null }, treating as empty array.");
-        return [];
-      }
-      throw new Error('Received non-array data for launches from Next.js API route.');
-    }
-    return data;
-  } catch (e) {
-    console.error('Error parsing JSON from /api/dms/.../launch or data is not an array (client-side):', e);
-    throw new Error('Failed to parse launch data or unexpected format received from Next.js API route.');
-  }
-}
-
-
-async function triggerGlobalLaunchApi(dmsId: string): Promise<any> {
-  const response = await fetch(`/api/dms/${dmsId}/launch`, { method: 'POST' });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Network response was not ok' }));
-    throw new Error(errorData.message || 'Failed to trigger global launch');
-  }
-  return response.json();
-}
-
-async function triggerItemRollout({ dmsId, launchId }: { dmsId: string, launchId: string }): Promise<any> {
-  const response = await fetch(`/api/dms/${dmsId}/launch/${launchId}/rollout`, { method: 'POST' });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Network response was not ok' }));
-    throw new Error(errorData.message || `Failed to trigger rollout for item ${launchId}`);
-  }
-  return response.json();
-}
-
-async function fetchDeviceJobsForLaunch(dmsId: string, deviceIds: string[]): Promise<DeviceJob[]> {
-  if (!deviceIds || deviceIds.length === 0) {
-    return [];
-  }
-  const jobPromises = deviceIds.map(deviceId =>
-    fetch(`/api/dms/${dmsId}/device/${deviceId}/jobs`)
-      .then(res => {
-        if (!res.ok) throw new Error(`Failed to fetch jobs for ${deviceId}`);
-        return res.json();
-      })
-      .then((jobs: DeviceJob[]) => jobs)
-      .catch(err => {
-        console.error(`Error fetching jobs for device ${deviceId}:`, err);
-        return [];
-      })
-  );
-  const results = await Promise.allSettled(jobPromises);
-  return results
-    .filter(result => result.status === 'fulfilled')
-    .flatMap(result => (result as PromiseFulfilledResult<DeviceJob[]>).value);
-}
-
-
-// --- End API Service Functions ---
-
 function EditableGlobalStrategyDisplay() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = React.useState(false);
+  const { user } = useAuth();
 
   const { data: globalStrategy, isLoading: isLoadingStrategy, error: globalStrategyError, refetch: refetchStrategy } = useQuery<ApiGlobalStrategy | null, Error>({
     queryKey: ['globalStrategy', DMS_ID],
-    queryFn: () => fetchGlobalStrategy(DMS_ID),
+    queryFn: () => fetchGlobalStrategy({ dmsId: DMS_ID, accessToken: user!.access_token! }),
+    enabled: !!user?.access_token,
   });
 
   const { data: updatePacks = [], isLoading: isLoadingPacks, error: updatePacksError } = useQuery<UpdatePack[], Error>({
     queryKey: ['updatePacks', DMS_ID],
-    queryFn: () => fetchUpdatePacks(DMS_ID),
+    queryFn: () => fetchUpdatePacks({ dmsId: DMS_ID, accessToken: user!.access_token! }),
+    enabled: !!user?.access_token,
   });
 
   const strategyMutation = useMutation({
-    mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy(DMS_ID, strategyData),
+    mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy({dmsId: DMS_ID, strategyData, accessToken: user!.access_token!}),
     onSuccess: () => {
       toast({ title: "Global Strategy Updated", description: "The global strategy has been successfully updated." });
       queryClient.invalidateQueries({ queryKey: ['globalStrategy', DMS_ID] });
@@ -175,7 +69,7 @@ function EditableGlobalStrategyDisplay() {
   });
 
   const globalLaunchMutation = useMutation({
-    mutationFn: () => triggerGlobalLaunchApi(DMS_ID),
+    mutationFn: () => triggerGlobalLaunchApi({dmsId: DMS_ID, accessToken: user!.access_token!}),
     onSuccess: (data) => {
       toast({ title: "Launch Prepared", description: data.message || "Successfully prepared launch based on global strategy." });
       queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID] });
@@ -382,12 +276,14 @@ interface DeviceJobStatusRowProps {
   dmsId: string;
   deviceId: string;
   targetLaunchId: string;
+  accessToken: string | null;
 }
 
-function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId }: DeviceJobStatusRowProps) {
+function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: DeviceJobStatusRowProps) {
   const { data: jobs, isLoading, error } = useQuery<DeviceJob[], Error>({
     queryKey: ['deviceJobs', dmsId, deviceId, targetLaunchId],
-    queryFn: () => fetchDeviceJobsForLaunch(dmsId, [deviceId]),
+    queryFn: () => fetchDeviceJobsForLaunch({ dmsId, deviceIds: [deviceId], accessToken: accessToken! }),
+    enabled: !!accessToken,
   });
 
   if (isLoading) {
@@ -467,6 +363,7 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId }: DeviceJobStatus
 function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: LaunchItem | null; isOpen: boolean; onOpenChange: (open: boolean) => void; }) {
   const queryClient = useQueryClient();
   const [isRefreshingJobs, setIsRefreshingJobs] = React.useState(false);
+  const { user } = useAuth();
 
   if (!launchItem) return null;
 
@@ -541,6 +438,7 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
                         dmsId={DMS_ID}
                         deviceId={deviceId}
                         targetLaunchId={launchItem.id}
+                        accessToken={user?.access_token || null}
                       />
                     ))}
                   </TableBody>
@@ -564,15 +462,16 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
 interface LaunchNameCellProps {
   launch: LaunchItem;
   dmsId: string;
+  accessToken: string | null;
 }
 
-function LaunchNameCell({ launch, dmsId }: LaunchNameCellProps) {
+function LaunchNameCell({ launch, dmsId, accessToken }: LaunchNameCellProps) {
   const firstDeviceIdWithJob = launch.devices_with_job[0];
 
   const { data: jobs, isLoading: isLoadingJobVersion, isFetched: isJobVersionFetched } = useQuery<DeviceJob[], Error>({
     queryKey: ['deviceJobsForVersion', dmsId, firstDeviceIdWithJob, launch.id],
-    queryFn: () => fetchDeviceJobsForLaunch(dmsId, [firstDeviceIdWithJob!]),
-    enabled: !!firstDeviceIdWithJob,
+    queryFn: () => fetchDeviceJobsForLaunch({ dmsId, deviceIds: [firstDeviceIdWithJob!], accessToken: accessToken! }),
+    enabled: !!firstDeviceIdWithJob && !!accessToken,
   });
 
   let versionToDisplay: string | null = null;
@@ -608,15 +507,16 @@ function LaunchNameCell({ launch, dmsId }: LaunchNameCellProps) {
 interface JobExecutionProgressCellProps {
   dmsId: string;
   launchItem: LaunchItem;
+  accessToken: string | null;
 }
 
-function JobExecutionProgressCell({ dmsId, launchItem }: JobExecutionProgressCellProps) {
+function JobExecutionProgressCell({ dmsId, launchItem, accessToken }: JobExecutionProgressCellProps) {
   const totalDevicesInLaunch = launchItem.devices_with_job.length + launchItem.devices_without_job.length;
 
   const { data: allJobs, isLoading, error } = useQuery<DeviceJob[], Error>({
-    queryKey: ['launchJobStats', DMS_ID, launchItem.id, ...launchItem.devices_with_job],
-    queryFn: () => fetchDeviceJobsForLaunch(DMS_ID, launchItem.devices_with_job),
-    enabled: launchItem.devices_with_job.length > 0,
+    queryKey: ['launchJobStats', dmsId, launchItem.id, ...launchItem.devices_with_job],
+    queryFn: () => fetchDeviceJobsForLaunch({ dmsId, deviceIds: launchItem.devices_with_job, accessToken: accessToken! }),
+    enabled: launchItem.devices_with_job.length > 0 && !!accessToken,
   });
 
 
@@ -750,6 +650,7 @@ function LaunchTable({
   launchesError,
   refetchLaunches
 }: LaunchTableProps) {
+  const { user } = useAuth();
 
   if (isLoadingLaunches) {
     return <Skeleton className="h-40 w-full" />;
@@ -785,7 +686,7 @@ function LaunchTable({
           {launches.map(l => (
             <TableRow key={l.id}>
               <TableCell className="font-medium">
-                <LaunchNameCell launch={l} dmsId={dmsId} />
+                <LaunchNameCell launch={l} dmsId={dmsId} accessToken={user?.access_token || null} />
               </TableCell>
               <TableCell>{l.exec_date ? format(parseISO(l.exec_date), "Pp") : 'N/A'}</TableCell>
               <TableCell>
@@ -816,7 +717,7 @@ function LaunchTable({
                 })()}
               </TableCell>
               <TableCell>
-                <JobExecutionProgressCell dmsId={dmsId} launchItem={l} />
+                <JobExecutionProgressCell dmsId={dmsId} launchItem={l} accessToken={user?.access_token || null} />
               </TableCell>
               <TableCell className="text-xs">
                 {l.devices_with_job.length} w/ Job
@@ -867,15 +768,17 @@ export default function RolloutsPage() {
   const queryClient = useQueryClient();
   const [selectedLaunchForDialog, setSelectedLaunchForDialog] = React.useState<LaunchItem | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = React.useState(false);
+  const { user } = useAuth();
 
 
   const { data: allLaunches = [], isLoading, error: launchesError, refetch } = useQuery<LaunchItem[], Error>({
     queryKey: ['currentLaunches', DMS_ID], // This key fetches ALL launches
-    queryFn: () => fetchCurrentLaunches(DMS_ID),
+    queryFn: () => fetchCurrentLaunches({dmsId: DMS_ID, accessToken: user!.access_token!}),
+    enabled: !!user?.access_token,
   });
 
   const itemRolloutMutation = useMutation({
-    mutationFn: (launchId: string) => triggerItemRollout({ dmsId: DMS_ID, launchId }),
+    mutationFn: (launchId: string) => triggerItemRollout({ dmsId: DMS_ID, launchId, accessToken: user!.access_token! }),
     onSuccess: (data, launchId) => {
       toast({ title: "Rollout Triggered", description: data.message || `Rollout for item ${launchId} started.` });
       queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID] });
@@ -904,11 +807,14 @@ export default function RolloutsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-4">
-        <h2 className="text-2xl font-bold tracking-tight">Rollout Management</h2>
-        <p className="text-muted-foreground">
-          View the current global update strategy and manage launches.
-        </p>
+      <div className="flex items-center space-x-3 mb-4">
+        <Rocket className="h-8 w-8 text-primary"/>
+        <div>
+            <h2 className="text-2xl font-bold tracking-tight">Rollout Management</h2>
+            <p className="text-muted-foreground">
+            View the current global update strategy and manage launches.
+            </p>
+        </div>
       </div>
 
       <EditableGlobalStrategyDisplay />
