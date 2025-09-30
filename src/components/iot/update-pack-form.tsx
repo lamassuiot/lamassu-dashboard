@@ -1,4 +1,3 @@
-
 // src/components/iot/update-pack-form.tsx
 "use client";
 
@@ -21,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { UpdatePack, ApiCreateUpdatePackPayload } from '@/types/iot';
 import { FileUpload } from '@/components/iot/file-upload';
-import { DMS_ID_FOR_API } from '@/app/(app)/update-packs/page';
+import { DMS_ID_FOR_API } from '@/lib/iot-api';
 import { toast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";

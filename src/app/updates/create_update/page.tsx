@@ -6,10 +6,10 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Package, MoreVertical, GitFork, Download, Trash2, FileText, PlusCircle, RefreshCw } from 'lucide-react';
+import { Package, MoreVertical, GitFork, Download, Trash2, FileText, PlusCircle, RefreshCw, PackagePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import type { UpdatePack } from '@/types/iot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -37,9 +37,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { UpdatePackForm } from '@/components/iot/update-pack-form';
-import { fetchUpdatePacks, deleteUpdatePackApi } from '@/lib/iot-api';
-
-export const DMS_ID_FOR_API = 'ECS_DEMO';
+import { fetchUpdatePacks, deleteUpdatePackApi, DMS_ID_FOR_API } from '@/lib/iot-api';
 
 interface DisplayUpdatePack extends UpdatePack {
   formattedCreatedAt?: string;
@@ -436,4 +434,3 @@ export default function UpdatePacksPage() {
     </div>
   );
 }
-

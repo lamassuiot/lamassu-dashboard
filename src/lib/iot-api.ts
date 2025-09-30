@@ -4,6 +4,8 @@
 import { get_DMS_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 import type { UpdatePack, ApiGlobalStrategy, LaunchItem, DeviceJob } from '@/types/iot';
 
+export const DMS_ID_FOR_API = 'ECS_DEMO';
+
 interface ApiParams {
     dmsId: string;
     accessToken: string;

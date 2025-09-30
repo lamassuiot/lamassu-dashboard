@@ -1,4 +1,3 @@
-
 // src/app/updates/launch_update/page.tsx
 "use client";
 
@@ -7,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { PlayCircle, Settings2, Pencil, X, PackageCheck, AlertTriangle, RefreshCw, Eye, Info, CheckCircle, Loader2, Clock, Package, Rocket } from 'lucide-react';
 import type { UpdateStrategy, LaunchItem, ApiGlobalStrategy, UpdatePack, DeviceJob } from '@/types/iot';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
@@ -26,10 +25,9 @@ import {
   fetchCurrentLaunches, 
   triggerGlobalLaunchApi, 
   triggerItemRollout,
-  fetchDeviceJobsForLaunch
+  fetchDeviceJobsForLaunch,
+  DMS_ID_FOR_API
 } from '@/lib/iot-api';
-
-const DMS_ID = 'ECS_DEMO'; // Centralized DMS ID
 
 // Helper function to format workflow type
 const formatWorkflowType = (workflowType?: ApiGlobalStrategy['workflow_type']) => {
@@ -45,22 +43,22 @@ function EditableGlobalStrategyDisplay() {
   const { user } = useAuth();
 
   const { data: globalStrategy, isLoading: isLoadingStrategy, error: globalStrategyError, refetch: refetchStrategy } = useQuery<ApiGlobalStrategy | null, Error>({
-    queryKey: ['globalStrategy', DMS_ID],
-    queryFn: () => fetchGlobalStrategy({ dmsId: DMS_ID, accessToken: user!.access_token! }),
+    queryKey: ['globalStrategy', DMS_ID_FOR_API],
+    queryFn: () => fetchGlobalStrategy({ dmsId: DMS_ID_FOR_API, accessToken: user!.access_token! }),
     enabled: !!user?.access_token,
   });
 
   const { data: updatePacks = [], isLoading: isLoadingPacks, error: updatePacksError } = useQuery<UpdatePack[], Error>({
-    queryKey: ['updatePacks', DMS_ID],
-    queryFn: () => fetchUpdatePacks({ dmsId: DMS_ID, accessToken: user!.access_token! }),
+    queryKey: ['updatePacks', DMS_ID_FOR_API],
+    queryFn: () => fetchUpdatePacks({ dmsId: DMS_ID_FOR_API, accessToken: user!.access_token! }),
     enabled: !!user?.access_token,
   });
 
   const strategyMutation = useMutation({
-    mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy({dmsId: DMS_ID, strategyData, accessToken: user!.access_token!}),
+    mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy({dmsId: DMS_ID_FOR_API, strategyData, accessToken: user!.access_token!}),
     onSuccess: () => {
       toast({ title: "Global Strategy Updated", description: "The global strategy has been successfully updated." });
-      queryClient.invalidateQueries({ queryKey: ['globalStrategy', DMS_ID] });
+      queryClient.invalidateQueries({ queryKey: ['globalStrategy', DMS_ID_FOR_API] });
       setIsEditing(false);
     },
     onError: (err: Error) => {
@@ -69,10 +67,10 @@ function EditableGlobalStrategyDisplay() {
   });
 
   const globalLaunchMutation = useMutation({
-    mutationFn: () => triggerGlobalLaunchApi({dmsId: DMS_ID, accessToken: user!.access_token!}),
+    mutationFn: () => triggerGlobalLaunchApi({dmsId: DMS_ID_FOR_API, accessToken: user!.access_token!}),
     onSuccess: (data) => {
       toast({ title: "Launch Prepared", description: data.message || "Successfully prepared launch based on global strategy." });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID] });
+      queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID_FOR_API] });
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: "Launch Preparation Failed", description: err.message });
@@ -375,10 +373,10 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
     toast({ title: "Refreshing Job Statuses...", description: `For launch: ${launchItem.name}` });
     try {
       allDeviceIds.forEach(deviceId => {
-        queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID, deviceId, launchItem.id] });
+        queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID_FOR_API, deviceId, launchItem.id] });
       });
-      queryClient.invalidateQueries({ queryKey: ['launchJobStats', DMS_ID, launchItem.id, ...launchItem.devices_with_job] });
-      await queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStats', DMS_ID_FOR_API, launchItem.id, ...launchItem.devices_with_job] });
+      await queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID_FOR_API] });
 
       toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for launch: ${launchItem.name}`});
     } catch (error) {
@@ -435,7 +433,7 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
                     {allDeviceIds.map(deviceId => (
                       <DeviceJobStatusRow
                         key={deviceId}
-                        dmsId={DMS_ID}
+                        dmsId={DMS_ID_FOR_API}
                         deviceId={deviceId}
                         targetLaunchId={launchItem.id}
                         accessToken={user?.access_token || null}
@@ -772,22 +770,22 @@ export default function RolloutsPage() {
 
 
   const { data: allLaunches = [], isLoading, error: launchesError, refetch } = useQuery<LaunchItem[], Error>({
-    queryKey: ['currentLaunches', DMS_ID], // This key fetches ALL launches
-    queryFn: () => fetchCurrentLaunches({dmsId: DMS_ID, accessToken: user!.access_token!}),
+    queryKey: ['currentLaunches', DMS_ID_FOR_API], // This key fetches ALL launches
+    queryFn: () => fetchCurrentLaunches({dmsId: DMS_ID_FOR_API, accessToken: user!.access_token!}),
     enabled: !!user?.access_token,
   });
 
   const itemRolloutMutation = useMutation({
-    mutationFn: (launchId: string) => triggerItemRollout({ dmsId: DMS_ID, launchId, accessToken: user!.access_token! }),
+    mutationFn: (launchId: string) => triggerItemRollout({ dmsId: DMS_ID_FOR_API, launchId, accessToken: user!.access_token! }),
     onSuccess: (data, launchId) => {
       toast({ title: "Rollout Triggered", description: data.message || `Rollout for item ${launchId} started.` });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID] });
-      queryClient.invalidateQueries({ queryKey: ['launchJobStats', DMS_ID, launchId] });
-      queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID] }); 
+      queryClient.invalidateQueries({ queryKey: ['currentLaunches', DMS_ID_FOR_API] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStats', DMS_ID_FOR_API, launchId] });
+      queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID_FOR_API] }); 
       const launch = allLaunches.find(l => l.id === launchId);
       if (launch) {
         launch.devices_with_job.forEach(deviceId => {
-            queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID, deviceId, launchId] });
+            queryClient.invalidateQueries({ queryKey: ['deviceJobs', DMS_ID_FOR_API, deviceId, launchId] });
         });
       }
     },
@@ -827,7 +825,7 @@ export default function RolloutsPage() {
         <CardContent>
           <LaunchTable
             launches={currentLaunchesList}
-            dmsId={DMS_ID}
+            dmsId={DMS_ID_FOR_API}
             itemRolloutMutation={itemRolloutMutation}
             openDetailsDialog={openDetailsDialog}
             showExecuteButton={true}
@@ -846,7 +844,7 @@ export default function RolloutsPage() {
         <CardContent>
            <LaunchTable
             launches={launchHistoryList}
-            dmsId={DMS_ID}
+            dmsId={DMS_ID_FOR_API}
             itemRolloutMutation={itemRolloutMutation} 
             openDetailsDialog={openDetailsDialog}
             showExecuteButton={false} 
