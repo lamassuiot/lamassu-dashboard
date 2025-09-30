@@ -1,4 +1,3 @@
-
 // src/app/updates/launch_update/page.tsx
 "use client";
 
@@ -707,7 +706,7 @@ function LaunchTable({
                           <div className="relative h-2.5 w-full">
                             <Progress value={assignedPercent} className="h-full bg-accent/20" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-xs font-medium text-accent-foreground leading-none">
+                              <span className="text-xs font-medium text-primary-foreground leading-none">
                                 {`${assignedPercent.toFixed(0)}%`}
                               </span>
                             </div>
