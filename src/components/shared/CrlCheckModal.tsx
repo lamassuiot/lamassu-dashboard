@@ -17,6 +17,7 @@ import { DetailItem } from './DetailItem';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { revocationReasons } from '@/lib/revocation-reasons';
+import { CRL_BASE_PATH } from '@/lib/va-api';
 
 interface CrlCheckModalProps {
   isOpen: boolean;
@@ -60,8 +61,16 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
     const [showHttpWarning, setShowHttpWarning] = useState(false);
 
     useEffect(() => {
-        if (isOpen && ca?.crlDistributionPoints && ca.crlDistributionPoints.length > 0) {
-            setCrlUrl(ca.crlDistributionPoints[0]);
+        if (isOpen && ca?.subjectKeyId) {
+            // Construct CRL URL using LAMASSU_PUBLIC_API if defined, otherwise current UI host
+            let baseUrl = '';
+            if (typeof window !== 'undefined') {
+                // Check for LAMASSU_PUBLIC_API in config first
+                const publicApi = (window as any).lamassuConfig?.LAMASSU_PUBLIC_API;
+                baseUrl = publicApi || window.location.origin;
+            }
+            const constructedCrlUrl = `${baseUrl}${CRL_BASE_PATH}/${ca.subjectKeyId}`;
+            setCrlUrl(constructedCrlUrl);
         } else {
             setCrlUrl('');
         }
@@ -141,32 +150,29 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
                 <DialogHeader>
                     <DialogTitle className="flex items-center"><FileText className="mr-2 h-6 w-6 text-primary"/>CRL Viewer</DialogTitle>
                     <DialogDescription>
-                        Fetch and parse a Certificate Revocation List for CA: <span className="font-mono text-xs">{ca?.name}</span>.
+                        Fetch and parse the Certificate Revocation List issued by CA: <span className="font-mono text-xs">{ca?.name}</span>.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="py-2 space-y-4">
                     <div className="space-y-3">
                         <div>
-                            <Label htmlFor="crl-url-select">Select a discovered URL</Label>
-                            <Select value={crlUrl} onValueChange={setCrlUrl} disabled={isLoading || !ca?.crlDistributionPoints?.length}>
-                                <SelectTrigger id="crl-url-select">
-                                    <SelectValue placeholder="Select from certificate's CDP..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {ca?.crlDistributionPoints?.map(url => (
-                                        <SelectItem key={url} value={url}>{url}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
-                        </div>
-                        <div>
-                            <Label htmlFor="crl-url-input">Enter URL manually</Label>
-                            <Input id="crl-url-input" type="text" placeholder="http://crl.example.com/ca.crl" value={crlUrl} onChange={(e) => setCrlUrl(e.target.value)} disabled={isLoading} className="mt-1"/>
+                            <Label htmlFor="crl-url-input">CRL URL</Label>
+                            <Input 
+                                id="crl-url-input" 
+                                type="text" 
+                                placeholder="Enter CRL URL" 
+                                value={crlUrl} 
+                                onChange={(e) => setCrlUrl(e.target.value)} 
+                                disabled={isLoading} 
+                                className="mt-1 font-mono text-xs"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {ca?.subjectKeyId 
+                                    ? `Auto-generated URL using ${(typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_PUBLIC_API) ? 'LAMASSU_PUBLIC_API' : 'current domain'} + CA's SKI: ${ca.subjectKeyId}` 
+                                    : 'Enter the CRL URL manually'
+                                }
+                            </p>
                         </div>
                     </div>
                     {showHttpWarning && (
