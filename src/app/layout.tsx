@@ -29,7 +29,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Shield,PlaySquare } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -89,6 +89,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'alerts': "Alerts",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
+  'security-access-policies': "Security Access & Policies",
 };
 
 interface NavItem {
@@ -138,6 +139,12 @@ const navigationConfig: NavGroup[] = [
     label: 'TOOLS',
     items: [
       { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
+    ],
+  },
+  {
+    label: 'ADMINISTRATION',
+    items: [
+      { href: '/security-access-policies', label: 'Security Access & Policies', icon: Shield },
     ],
   },
 ];
