@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -10,13 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
-import { KEY_TYPE_OPTIONS_POST_QUANTUM, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS } from '@/lib/key-spec-constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
-import { createKmsKey } from '@/lib/ca-data';
+import { createKmsKey, importKmsKey, fetchCryptoEngines } from '@/lib/ca-data';
+import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
 const creationModes = [
   {
@@ -36,6 +37,7 @@ const creationModes = [
     title: 'Import Public Key Only',
     description: 'Import an existing public key for verification or trust purposes. The private key will not be managed.',
     icon: <FileText className="h-8 w-8 text-primary" />,
+    badge: 'Coming Soon',
   },
 ];
 
@@ -54,31 +56,94 @@ export default function CreateKmsKeyPage() {
   const [mlDsaSecurityLevel, setMlDsaSecurityLevel] = useState('ML-DSA-65');
 
   // Import Key Pair mode fields
+  const [importKeyName, setImportKeyName] = useState('');
   const [privateKeyPem, setPrivateKeyPem] = useState('');
-  const [publicKeyPemForImport, setPublicKeyPemForImport] = useState('');
-  const [passphrase, setPassphrase] = useState('');
 
   // Import Public Key mode fields
   const [publicKeyPem, setPublicKeyPem] = useState('');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Crypto engines state
+  const [cryptoEngines, setCryptoEngines] = useState<ApiCryptoEngine[]>([]);
+  const [isLoadingEngines, setIsLoadingEngines] = useState(true);
+
+  // Load crypto engines on component mount
+  useEffect(() => {
+    const loadCryptoEngines = async () => {
+      if (!user?.access_token) {
+        setIsLoadingEngines(false);
+        return;
+      }
+
+      try {
+        const engines = await fetchCryptoEngines(user.access_token);
+        setCryptoEngines(engines);
+        
+        // Set default engine if available
+        if (!cryptoEngineId && engines.length > 0) {
+          const defaultEngine = engines.find(e => e.default);
+          if (defaultEngine) {
+            setCryptoEngineId(defaultEngine.id);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load crypto engines:', error);
+      } finally {
+        setIsLoadingEngines(false);
+      }
+    };
+
+    if (user?.access_token) {
+      loadCryptoEngines();
+    }
+  }, [user?.access_token, cryptoEngineId]);
+
+  // Get supported key types from selected crypto engine
+  const selectedEngine = cryptoEngines.find(engine => engine.id === cryptoEngineId);
+  const supportedKeyTypes = selectedEngine?.supported_key_types || [];
+
+  // Get available key type options based on selected engine
+  const availableKeyTypeOptions = supportedKeyTypes.map(keyType => ({
+    value: keyType.type,
+    label: keyType.type
+  }));
+
+  // Reset key type if current selection is not supported by selected engine
+  useEffect(() => {
+    if (selectedEngine && keyType) {
+      const isKeyTypeSupported = supportedKeyTypes.some(kt => kt.type === keyType);
+      if (!isKeyTypeSupported && supportedKeyTypes.length > 0) {
+        setKeyType(supportedKeyTypes[0].type);
+      }
+    }
+  }, [selectedEngine, keyType, supportedKeyTypes]);
+
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
-    if (value === 'RSA') {
-      setRsaKeySize('2048');
-    } else if (value === 'ECDSA') {
-      setEcdsaCurve('P-256');
-    } else if (value === 'ML-DSA') {
-      setMlDsaSecurityLevel('ML-DSA-65');
+    // Reset size/curve to first available option for the new key type
+    const keyTypeDetail = supportedKeyTypes.find(kt => kt.type === value);
+    if (keyTypeDetail && keyTypeDetail.sizes.length > 0) {
+      const firstSize = keyTypeDetail.sizes[0];
+      if (value === 'RSA') {
+        setRsaKeySize(firstSize.toString());
+      } else if (value === 'ECDSA') {
+        setEcdsaCurve(firstSize.toString());
+      } else if (value === 'ML-DSA') {
+        setMlDsaSecurityLevel(firstSize.toString());
+      }
     }
   };
 
+  // Get current key spec options based on selected key type and engine
   const currentKeySpecOptions = (() => {
-    if (keyType === 'RSA') return RSA_KEY_SIZE_OPTIONS;
-    if (keyType === 'ECDSA') return ECDSA_CURVE_OPTIONS;
-    if (keyType === 'ML-DSA') return MLDSA_SECURITY_LEVEL_OPTIONS;
-    return [];
+    const keyTypeDetail = supportedKeyTypes.find(kt => kt.type === keyType);
+    if (!keyTypeDetail) return [];
+    
+    return keyTypeDetail.sizes.map(size => ({
+      value: size.toString(),
+      label: size.toString()
+    }));
   })();
 
   const keySpecLabel = (() => {
@@ -124,20 +189,38 @@ export default function CreateKmsKeyPage() {
         }
 
         try {
-            let size: number = 0;
+            // Get the current size/spec value based on key type
+            let sizeValue: number;
             if (keyType === 'RSA') {
-                size = parseInt(rsaKeySize, 10);
+                sizeValue = parseInt(rsaKeySize, 10);
             } else if (keyType === 'ECDSA') {
-                size = parseInt(ecdsaCurve.replace('P-', ''), 10);
+                // For ECDSA, we might have curve names like 'P-256' or just numbers
+                if (ecdsaCurve.includes('P-')) {
+                    sizeValue = parseInt(ecdsaCurve.replace('P-', ''), 10);
+                } else {
+                    // If it's already a number, parse it
+                    sizeValue = parseInt(ecdsaCurve, 10);
+                }
             } else if (keyType === 'ML-DSA') {
-                size = parseInt(mlDsaSecurityLevel.replace('ML-DSA-', ''), 10);
+                // For ML-DSA, extract the number or parse as number
+                if (mlDsaSecurityLevel.includes('ML-DSA-')) {
+                    sizeValue = parseInt(mlDsaSecurityLevel.replace('ML-DSA-', ''), 10);
+                } else {
+                    sizeValue = parseInt(mlDsaSecurityLevel, 10);
+                }
+            } else {
+                // For other key types, try to parse as number
+                sizeValue = parseInt(currentKeySpecValue, 10);
+                if (isNaN(sizeValue)) {
+                    sizeValue = 0; // fallback
+                }
             }
 
             const payload = {
                 engine_id: cryptoEngineId,
                 name: keyName.trim(),
                 algorithm: keyType,
-                size: size,
+                size: sizeValue,
             };
             
             await createKmsKey(payload, user.access_token);
@@ -155,18 +238,45 @@ export default function CreateKmsKeyPage() {
         }
 
     } else if (selectedMode === 'importKeyPair') {
+      if (!cryptoEngineId) {
+        toast({ title: "Validation Error", description: "Please select a Crypto Engine.", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
+      if (!importKeyName.trim()) {
+        toast({ title: "Validation Error", description: "Key Name / Alias is required.", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
       if (!privateKeyPem.trim()) {
         toast({ title: "Validation Error", description: "Private Key (PEM) is required for import.", variant: "destructive"});
         setIsSubmitting(false);
         return;
       }
-      console.log(`Mock Creating KMS Key (Mode: ${selectedMode})`);
-      toast({
-        title: "KMS Key Import Mocked",
-        description: `Key import submitted. Check console.`,
-      });
-      router.push('/kms/keys');
-      setIsSubmitting(false);
+
+      try {
+        // Convert PEM to base64
+        const privateKeyBase64 = btoa(privateKeyPem.trim());
+        
+        const payload = {
+          private_key: privateKeyBase64,
+          engine_id: cryptoEngineId,
+          name: importKeyName.trim(),
+        };
+        
+        await importKmsKey(payload, user.access_token);
+
+        toast({
+          title: "Key Pair Imported",
+          description: `Key pair with name "${importKeyName.trim()}" has been successfully imported.`,
+        });
+        router.push('/kms/keys');
+
+      } catch (error: any) {
+        toast({ title: "Import Failed", description: error.message, variant: "destructive" });
+      } finally {
+        setIsSubmitting(false);
+      }
 
     } else if (selectedMode === 'importPublicKey') {
       if (!publicKeyPem.trim()) {
@@ -200,21 +310,39 @@ export default function CreateKmsKeyPage() {
           {creationModes.map(mode => (
             <Card 
               key={mode.id} 
-              className="hover:shadow-lg transition-shadow cursor-pointer flex flex-col group"
-              onClick={() => setSelectedMode(mode.id)}
+              className={`transition-shadow flex flex-col group ${
+                mode.badge ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-lg cursor-pointer'
+              }`}
+              onClick={() => !mode.badge && setSelectedMode(mode.id)}
             >
               <CardHeader className="flex-grow">
                 <div className="flex items-start space-x-4">
                   <div className="mt-1">{mode.icon}</div>
-                  <div>
-                    <CardTitle className="text-xl group-hover:text-primary transition-colors">{mode.title}</CardTitle>
+                  <div className="flex-grow">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className={`text-xl transition-colors ${
+                        mode.badge ? 'text-muted-foreground' : 'group-hover:text-primary'
+                      }`}>
+                        {mode.title}
+                      </CardTitle>
+                      {mode.badge && (
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          {mode.badge}
+                        </Badge>
+                      )}
+                    </div>
                     <CardDescription className="mt-1 text-sm">{mode.description}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardFooter>
-                  <Button variant="default" className="w-full">
-                      Select & Continue <ChevronRight className="ml-2 h-4 w-4" />
+                  <Button 
+                    variant="default" 
+                    className="w-full" 
+                    disabled={!!mode.badge}
+                  >
+                      {mode.badge ? mode.badge : 'Select & Continue'} 
+                      {!mode.badge && <ChevronRight className="ml-2 h-4 w-4" />}
                   </Button>
               </CardFooter>
             </Card>
@@ -271,7 +399,26 @@ export default function CreateKmsKeyPage() {
                     <Label htmlFor="cryptoEngine">Crypto Engine</Label>
                     <CryptoEngineSelector
                       value={cryptoEngineId}
-                      onValueChange={setCryptoEngineId}
+                      onValueChange={(engineId) => {
+                        setCryptoEngineId(engineId);
+                        // Reset key type when engine changes
+                        const newEngine = cryptoEngines.find(e => e.id === engineId);
+                        if (newEngine && newEngine.supported_key_types.length > 0) {
+                          const firstSupportedType = newEngine.supported_key_types[0];
+                          setKeyType(firstSupportedType.type);
+                          // Set default size for the first supported type
+                          if (firstSupportedType.sizes.length > 0) {
+                            const firstSize = firstSupportedType.sizes[0];
+                            if (firstSupportedType.type === 'RSA') {
+                              setRsaKeySize(firstSize.toString());
+                            } else if (firstSupportedType.type === 'ECDSA') {
+                              setEcdsaCurve(firstSize.toString());
+                            } else if (firstSupportedType.type === 'ML-DSA') {
+                              setMlDsaSecurityLevel(firstSize.toString());
+                            }
+                          }
+                        }
+                      }}
                       disabled={isSubmitting}
                       className="mt-1"
                     />
@@ -279,21 +426,27 @@ export default function CreateKmsKeyPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="keyType">Key Type</Label>
-                      <Select value={keyType} onValueChange={handleKeyTypeChange}>
-                        <SelectTrigger id="keyType" className="mt-1"><SelectValue /></SelectTrigger>
+                      <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={isSubmitting || isLoadingEngines || !selectedEngine}>
+                        <SelectTrigger id="keyType" className="mt-1"><SelectValue placeholder="Select key type" /></SelectTrigger>
                         <SelectContent>
-                          {KEY_TYPE_OPTIONS_POST_QUANTUM.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
+                          {availableKeyTypeOptions.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
+                      {!selectedEngine && !isLoadingEngines && (
+                        <p className="text-sm text-muted-foreground mt-1">Please select a crypto engine first</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="keySpec">{keySpecLabel}</Label>
-                      <Select value={currentKeySpecValue} onValueChange={handleKeySpecChange}>
-                        <SelectTrigger id="keySpec" className="mt-1"><SelectValue /></SelectTrigger>
+                      <Select value={currentKeySpecValue} onValueChange={handleKeySpecChange} disabled={isSubmitting || isLoadingEngines || !keyType}>
+                        <SelectTrigger id="keySpec" className="mt-1"><SelectValue placeholder="Select key specification" /></SelectTrigger>
                         <SelectContent>
                           {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
+                      {!keyType && (
+                        <p className="text-sm text-muted-foreground mt-1">Please select a key type first</p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -305,40 +458,39 @@ export default function CreateKmsKeyPage() {
                 <SectionHeader icon={FileKey} title="Import Key Pair Material" />
                 <CardContent className="space-y-4">
                   <div>
+                    <Label htmlFor="importKeyName">Key Name / Alias</Label>
+                    <Input
+                      id="importKeyName"
+                      value={importKeyName}
+                      onChange={(e) => setImportKeyName(e.target.value)}
+                      placeholder="Enter a name for the imported key"
+                      required
+                      className="mt-1"
+                    />
+                    {!importKeyName.trim() && <p className="text-xs text-destructive mt-1">Key name is required.</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="importCryptoEngine">Crypto Engine</Label>
+                    <CryptoEngineSelector
+                      value={cryptoEngineId}
+                      onValueChange={setCryptoEngineId}
+                      disabled={isSubmitting}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
                     <Label htmlFor="privateKeyPem">Private Key (PEM format)</Label>
                     <Textarea
                       id="privateKeyPem"
                       value={privateKeyPem}
                       onChange={(e) => setPrivateKeyPem(e.target.value)}
                       placeholder="-----BEGIN PRIVATE KEY-----\n..."
-                      rows={6}
+                      rows={8}
                       required
                       className="mt-1 font-mono"
                     />
                     {!privateKeyPem.trim() && <p className="text-xs text-destructive mt-1">Private Key (PEM) is required.</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="publicKeyPemForImport">Public Key (PEM format) - Optional</Label>
-                    <Textarea
-                      id="publicKeyPemForImport"
-                      value={publicKeyPemForImport}
-                      onChange={(e) => setPublicKeyPemForImport(e.target.value)}
-                      placeholder="-----BEGIN PUBLIC KEY-----\n... (Optional, can be derived if private key is unencrypted)"
-                      rows={4}
-                      className="mt-1 font-mono"
-                    />
-                     <p className="text-xs text-muted-foreground mt-1">If the private key is encrypted, the public key might be needed or cannot be derived.</p>
-                  </div>
-                  <div>
-                    <Label htmlFor="passphrase">Passphrase (if private key is encrypted)</Label>
-                    <Input
-                      id="passphrase"
-                      type="password"
-                      value={passphrase}
-                      onChange={(e) => setPassphrase(e.target.value)}
-                      placeholder="Enter passphrase for encrypted private key"
-                      className="mt-1"
-                    />
+                    <p className="text-xs text-muted-foreground mt-1">Paste your private key in PEM format. The public key will be automatically derived.</p>
                   </div>
                 </CardContent>
               </Card>

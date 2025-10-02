@@ -59,6 +59,19 @@ const SIGNATURE_OID_MAP: Record<string, string> = {
   "ML-DSA-87": "1.3.6.1.4.1.2.267.7.8.7", // Example OID for Dilithium5
 };
 
+const ECDSA_RAW_SIGNATURE_LENGTHS: Record<string, number> = {
+  ECDSA_SHA_256: 64,
+  ECDSA_SHA_384: 96,
+  ECDSA_SHA_512: 132,
+};
+
+const KNOWN_ECDSA_RAW_SIG_LENGTHS = new Set(Object.values(ECDSA_RAW_SIGNATURE_LENGTHS));
+
+interface EcdsaDerConversionResult {
+  der: ArrayBuffer;
+  format: 'der' | 'raw';
+}
+
 const PSS_ALGO_PARAMS: Record<string, { shaOid: string; saltLength: number }> = {
   RSASSA_PSS_SHA_256: { shaOid: "2.16.840.1.101.3.4.2.1", saltLength: 32 },
   RSASSA_PSS_SHA_384: { shaOid: "2.16.840.1.101.3.4.2.2", saltLength: 48 },
@@ -328,25 +341,114 @@ export default function KmsKeyDetailsClient() {
     }
   };
 
+  function rawEcdsaSigToDer(rawSig: Uint8Array, expectedRawLength?: number): EcdsaDerConversionResult {
+    const DER_SEQUENCE_TAG = 0x30;
 
-  function rawEcdsaSigToDer(rawSig: Uint8Array) {
+    if (rawSig.length >= 2 && rawSig[0] === DER_SEQUENCE_TAG) {
+      const lengthByte = rawSig[1];
+      let sequenceLength = 0;
+      let headerLength = 2;
+
+      if ((lengthByte & 0x80) === 0) {
+        sequenceLength = lengthByte;
+      } else {
+        const lengthBytesCount = lengthByte & 0x7f;
+        if (rawSig.length < headerLength + lengthBytesCount) {
+          throw new Error('Invalid DER-encoded ECDSA signature length.');
+        }
+        sequenceLength = 0;
+        for (let i = 0; i < lengthBytesCount; i += 1) {
+          sequenceLength = (sequenceLength << 8) | rawSig[headerLength + i];
+        }
+        headerLength += lengthBytesCount;
+      }
+
+      if (headerLength + sequenceLength <= rawSig.length) {
+        const derView = rawSig.slice(0, headerLength + sequenceLength);
+        return { der: derView.buffer, format: 'der' };
+      }
+    }
+
+    const expectedLength = expectedRawLength ?? (KNOWN_ECDSA_RAW_SIG_LENGTHS.has(rawSig.length) ? rawSig.length : undefined);
+
+    if (!expectedLength || rawSig.length !== expectedLength) {
+      throw new Error(`Unexpected ECDSA signature length: ${rawSig.length} bytes`);
+    }
+
     const half = rawSig.length / 2;
     let r = rawSig.slice(0, half);
     let s = rawSig.slice(half);
 
-    // Trim leading zeros
-    while (r.length > 1 && r[0] === 0) r = r.slice(1);
-    while (s.length > 1 && s[0] === 0) s = s.slice(1);
+    while (r.length > 1 && r[0] === 0) {
+      r = r.slice(1);
+    }
+    while (s.length > 1 && s[0] === 0) {
+      s = s.slice(1);
+    }
 
-    // Ensure positive integers by prefixing 0x00 if high bit is set
-    if (r[0] & 0x80) r = Uint8Array.from([0, ...r]);
-    if (s[0] & 0x80) s = Uint8Array.from([0, ...s]);
+    if (r[0] & 0x80) {
+      const prefixed = new Uint8Array(r.length + 1);
+      prefixed.set(r, 1);
+      r = prefixed;
+    }
+    if (s[0] & 0x80) {
+      const prefixed = new Uint8Array(s.length + 1);
+      prefixed.set(s, 1);
+      s = prefixed;
+    }
 
     const rAsn1 = new asn1js.Integer({ valueHex: r.buffer });
     const sAsn1 = new asn1js.Integer({ valueHex: s.buffer });
 
     const sequence = new asn1js.Sequence({ value: [rAsn1, sAsn1] });
-    return sequence.toBER(false);
+    return { der: sequence.toBER(false), format: 'raw' };
+  }
+
+  function derEcdsaSigToRaw(derSig: Uint8Array, expectedRawLength?: number): Uint8Array | null {
+    const asn1 = asn1js.fromBER(derSig);
+    if (asn1.offset === -1 || !(asn1.result instanceof asn1js.Sequence)) {
+      return null;
+    }
+
+    const sequence = asn1.result as asn1js.Sequence;
+    const values = sequence.valueBlock.value;
+
+    if (!Array.isArray(values) || values.length !== 2) {
+      return null;
+    }
+
+    const rBlock = values[0] as asn1js.Integer;
+    const sBlock = values[1] as asn1js.Integer;
+
+    const rBytes = new Uint8Array(rBlock.valueBlock.valueHexView);
+    const sBytes = new Uint8Array(sBlock.valueBlock.valueHexView);
+
+    const componentLength = expectedRawLength ? expectedRawLength / 2 : Math.max(rBytes.length, sBytes.length);
+
+    const normalize = (component: Uint8Array) => {
+      let view = component;
+      while (view.length > 1 && view[0] === 0) {
+        view = view.slice(1);
+      }
+      if (view.length > componentLength) {
+        view = view.slice(view.length - componentLength);
+      }
+      if (view.length < componentLength) {
+        const padded = new Uint8Array(componentLength);
+        padded.set(view, componentLength - view.length);
+        return padded;
+      }
+      return view;
+    };
+
+    const normalizedR = normalize(rBytes);
+    const normalizedS = normalize(sBytes);
+
+    const raw = new Uint8Array(normalizedR.length + normalizedS.length);
+    raw.set(normalizedR, 0);
+    raw.set(normalizedS, normalizedR.length);
+
+    return raw;
   }
 
 
@@ -495,7 +597,7 @@ export default function KmsKeyDetailsClient() {
         });
       }
 
-      const tbs = pkcs10.encodeTBS().toBER(false);
+      const tbs = (pkcs10 as any).encodeTBS().toBER(false);
       pkcs10.tbs = tbs;
 
       const tbsB64 = arrayBufferToBase64(tbs);
@@ -511,11 +613,36 @@ export default function KmsKeyDetailsClient() {
       const signatureBase64 = signResult.signature;
       const rawSignature = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0));
 
+      let signatureFormatLabel = 'rsa';
+      let expectedEcdsaLength: number | undefined;
 
       if (!csrSignAlgorithm.startsWith('RSA')) {
-        // Convert raw ECDSA signature (r||s) to ASN.1 DER encoded format
-        const derEncodedSignature = rawEcdsaSigToDer(rawSignature);
-        pkcs10.signatureValue = new asn1js.BitString({ valueHex: derEncodedSignature });
+        expectedEcdsaLength = ECDSA_RAW_SIGNATURE_LENGTHS[csrSignAlgorithm];
+        const conversionResult = rawEcdsaSigToDer(rawSignature, expectedEcdsaLength);
+        signatureFormatLabel = conversionResult.format;
+        const finalDerSignature = conversionResult.der;
+
+        pkcs10.signatureValue = new asn1js.BitString({ valueHex: finalDerSignature });
+
+        const verificationResults: Record<string, boolean> = {};
+        verificationResults[signatureFormatLabel] = await pkcs10.verify();
+
+        if (signatureFormatLabel === 'der' && expectedEcdsaLength) {
+          const rawRoundTrip = derEcdsaSigToRaw(new Uint8Array(finalDerSignature), expectedEcdsaLength);
+          if (rawRoundTrip) {
+            const reconversion = rawEcdsaSigToDer(rawRoundTrip, expectedEcdsaLength);
+            pkcs10.signatureValue = new asn1js.BitString({ valueHex: reconversion.der });
+            verificationResults['raw'] = await pkcs10.verify();
+            pkcs10.signatureValue = new asn1js.BitString({ valueHex: finalDerSignature });
+          }
+        } else if (signatureFormatLabel === 'raw') {
+          const derDetection = rawEcdsaSigToDer(new Uint8Array(finalDerSignature), expectedEcdsaLength);
+          pkcs10.signatureValue = new asn1js.BitString({ valueHex: derDetection.der });
+          verificationResults['der'] = await pkcs10.verify();
+          pkcs10.signatureValue = new asn1js.BitString({ valueHex: finalDerSignature });
+        }
+
+        console.log('CSR Verification Regression Checks:', verificationResults);
       } else {
         // For RSA, we can directly use the raw signature as DER
         pkcs10.signatureValue = new asn1js.BitString({ valueHex: rawSignature });
@@ -524,8 +651,10 @@ export default function KmsKeyDetailsClient() {
       const finalCsrDer = pkcs10.toSchema().toBER(false);
       const finalCsrPem = formatAsPem(arrayBufferToBase64(finalCsrDer), 'CERTIFICATE REQUEST');
 
-      const ok = await pkcs10.verify();
-      console.log("CSR Verification Result:", ok);
+      if (csrSignAlgorithm.startsWith('RSA')) {
+        const ok = await pkcs10.verify();
+        console.log('CSR Verification Result (RSA):', ok);
+      }
 
       setGeneratedCsr(finalCsrPem);
       toast({ title: "CSR Generated Successfully", description: "The CSR has been signed by the KMS key." });

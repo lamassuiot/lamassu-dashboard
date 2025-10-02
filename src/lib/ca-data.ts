@@ -870,7 +870,6 @@ export async function fetchCaRequestById(requestId: string, accessToken: string)
 export interface ApiKmsKey {
   id: string;
   name?: string;
-  name?: string;
   algorithm: string;
   size: number;
   public_key: string;
@@ -947,6 +946,13 @@ export interface CreateKmsKeyPayload {
     algorithm: string;
     size: number;
 }
+
+export interface ImportKmsKeyPayload {
+    private_key: string; // Base64 encoded PEM
+    engine_id: string;
+    name: string;
+}
+
 export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: string): Promise<void> {
     const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys`, {
         method: 'POST',
@@ -962,6 +968,43 @@ export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: st
         try {
             errorJson = await response.json();
             errorMessage = `Key creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
+
+export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/import`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to import key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key import failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
+
+export async function deleteKmsKey(keyId: string, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to delete KMS key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
         } catch (e) { /* ignore json parse error */ }
         throw new Error(errorMessage);
     }

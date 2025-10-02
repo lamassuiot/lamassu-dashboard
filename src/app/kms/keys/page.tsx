@@ -8,7 +8,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, ShieldCheck, Trash2, AlertTriangle, Cpu, Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -16,7 +15,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { fetchCryptoEngines, fetchKmsKeys, type ApiKmsKey } from '@/lib/ca-data';
+import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey, type ApiKmsKey } from '@/lib/ca-data';
+import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -44,6 +44,7 @@ export default function KmsKeysPage() {
   
   const [keyToDelete, setKeyToDelete] = useState<KmsKey | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Pagination State
   const [pageSize, setPageSize] = useState('10');
@@ -152,16 +153,35 @@ export default function KmsKeysPage() {
     setIsDeleteDialogOpen(true);
   };
 
-  const handleDeleteKey = () => {
-    if (keyToDelete) {
-      setKeys(prevKeys => prevKeys.filter(k => k.id !== keyToDelete.id));
-      toast({
-        title: "Key Deleted (Mock)",
-        description: `Key "${keyToDelete.alias}" has been removed from the list. This is a mock action.`,
-      });
+  const handleDeleteKey = async () => {
+    if (!keyToDelete || !user?.access_token) {
+      setIsDeleteDialogOpen(false);
+      setKeyToDelete(null);
+      return;
     }
-    setIsDeleteDialogOpen(false);
-    setKeyToDelete(null);
+
+    setIsDeleting(true);
+    try {
+      await deleteKmsKey(keyToDelete.id, user.access_token);
+      
+      // Remove from local state after successful deletion
+      setKeys(prevKeys => prevKeys.filter(k => k.id !== keyToDelete.id));
+      
+      toast({
+        title: "Key Deleted",
+        description: `Key "${keyToDelete.alias}" has been successfully deleted.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Deletion Failed",
+        description: error.message || "An error occurred while deleting the key.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setKeyToDelete(null);
+    }
   };
 
   const handleViewDetails = (keyIdValue: string) => {
@@ -277,6 +297,7 @@ export default function KmsKeysPage() {
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => confirmDeleteKey(key)}
+                              disabled={isDeleting}
                               className="text-destructive focus:text-destructive focus:bg-destructive/10"
                             >
                               <Trash2 className="mr-2 h-4 w-4" /> Delete Key
@@ -313,25 +334,19 @@ export default function KmsKeysPage() {
           </div>
         </div>
       )}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center">
-              <AlertTriangle className="mr-2 h-6 w-6 text-destructive" />
-              Confirm Deletion
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete the key "<strong>{keyToDelete?.alias}</strong>"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setKeyToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteKey} className={cn(buttonVariants({ variant: "destructive" }))}>
-              Delete Key
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {keyToDelete && (
+        <DeleteKmsKeyModal
+          isOpen={isDeleteDialogOpen}
+          onOpenChange={(open) => {
+            setIsDeleteDialogOpen(open);
+            if (!open) setKeyToDelete(null);
+          }}
+          onConfirm={handleDeleteKey}
+          keyName={keyToDelete.alias}
+          keyId={keyToDelete.id}
+          isDeleting={isDeleting}
+        />
+      )}
 
     </div>
   );
