@@ -221,7 +221,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
             const response = await fetch(ocspUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/ocsp-request',
-                    'Acept': 'application/ocsp-response'
+                    'Accept': 'application/ocsp-response'
                  },
                 body: requestBody
             });
