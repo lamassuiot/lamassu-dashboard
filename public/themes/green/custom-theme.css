@@ -97,3 +97,8 @@ header img[alt="LamassuIoT Logo"] {
 .dark header img[alt="LamassuIoT Logo"] {
     filter: none; /* Revert to the original white logo on dark theme */
 }
+
+.lamassu-logo-theme-filter {
+    /* For light theme: change SVG to #6cc24a (green) */
+    filter: invert(66%) sepia(24%) saturate(1102%) hue-rotate(61deg) brightness(92%) contrast(92%);
+  }

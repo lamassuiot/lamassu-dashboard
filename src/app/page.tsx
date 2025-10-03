@@ -3,6 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DeviceStatusChartCard } from '@/components/home/DeviceStatusChartCard';
 import { CaExpiryTimeline } from '@/components/home/CaExpiryTimeline';
 import { SummaryStatsCard } from '@/components/home/SummaryStatsCard';
@@ -17,6 +18,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
 import { fetchDmsStats } from '@/lib/dms-api';
 import { fetchDeviceStats } from '@/lib/devices-api';
+
 
 // Helper function from old page.tsx
 function flattenCAs(cas: CA[]): CA[] {
@@ -43,6 +45,7 @@ interface SummaryStats {
 
 export default function HomePage() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const searchParams = useSearchParams();
 
   // State for timeline
   const [allCAs, setAllCAs] = useState<CA[]>([]);
@@ -141,6 +144,7 @@ export default function HomePage() {
   const anyTimelineError = errorCAs || errorEngines;
   const anyTimelineLoading = isLoadingCAs || isLoadingEngines || authLoading;
   const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats || authLoading;
+  
 
   return (
     <div className="w-full space-y-8">

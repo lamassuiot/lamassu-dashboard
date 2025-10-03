@@ -330,4 +330,14 @@
     gap: 1rem;
     height: 100%;
   }
+
+  /* New styles for theming the logo */
+  .lamassu-logo-theme-filter {
+    /* For light theme: change blue SVG to primary color */
+    filter: invert(36%) sepia(91%) saturate(3011%) hue-rotate(205deg) brightness(101%) contrast(106%);
+  }
+  .dark .lamassu-logo-theme-filter {
+    /* For dark theme: change blue SVG to foreground color */
+    filter: invert(99%) sepia(4%) saturate(301%) hue-rotate(190deg) brightness(118%) contrast(85%);
+  }
 }

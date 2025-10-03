@@ -231,8 +231,7 @@ export async function deleteRa(raId: string, accessToken: string): Promise<void>
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
-
     if (!response.ok) {
-        await handleApiError(response, 'Failed to delete Registration Authority');
+        await handleApiError(response, 'Failed to delete RA');
     }
 }
