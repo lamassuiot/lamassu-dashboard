@@ -89,7 +89,11 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
                 setEngine("webcrypto", getCrypto());
             }
 
-            const response = await fetch(crlUrl);
+            const response = await fetch(crlUrl,{
+                headers: {
+                    'Accept': 'application/pkix-crl, */*',
+                },
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch CRL. Server responded with HTTP ${response.status}`);
             }
