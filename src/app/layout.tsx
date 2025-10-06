@@ -396,7 +396,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                       return (
                           <React.Fragment key={group.label || `group-${groupIndex}`}>
                               {group.label && (
-                                  <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0">
+                                  <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
                                       {group.label}
                                   </SidebarGroupLabel>
                               )}
