@@ -201,7 +201,6 @@ export default function SigningProfilesPage() {
                 </div>
             </div>
             <div className="flex items-center space-x-2">
-                 <Label>View As</Label>
                 <ToggleGroup
                     type="single"
                     value={viewMode}
