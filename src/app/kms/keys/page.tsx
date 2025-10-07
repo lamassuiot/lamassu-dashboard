@@ -6,9 +6,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, ShieldCheck, Trash2, AlertTriangle, Cpu, Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, ShieldCheck, Trash2, AlertTriangle, Cpu, Loader2, RefreshCw, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -52,6 +53,21 @@ export default function KmsKeysPage() {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
 
+  // Filter State
+  const [aliasSearchTerm, setAliasSearchTerm] = useState<string>('');
+  const [debouncedAliasSearchTerm, setDebouncedAliasSearchTerm] = useState<string>('');
+
+  // Debounce effect for alias search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (aliasSearchTerm !== debouncedAliasSearchTerm) {
+        setDebouncedAliasSearchTerm(aliasSearchTerm);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [aliasSearchTerm, debouncedAliasSearchTerm]);
+
 
   const loadData = useCallback(async (bookmark: string | null) => {
     if (authLoading || !isAuthenticated() || !user?.access_token) {
@@ -75,6 +91,11 @@ export default function KmsKeysPage() {
       const params = new URLSearchParams({ page_size: pageSize });
       if (bookmark) {
         params.set('bookmark', bookmark);
+      }
+
+      // Add alias filter if search term is provided
+      if (debouncedAliasSearchTerm.trim() !== '') {
+        params.append('filter', `name[contains]${debouncedAliasSearchTerm.trim()}`);
       }
 
       const keysResponse = await fetchKmsKeys(user.access_token, params);
@@ -106,13 +127,19 @@ export default function KmsKeysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, authLoading, isAuthenticated, allCryptoEngines, pageSize]);
+  }, [user?.access_token, authLoading, isAuthenticated, allCryptoEngines, pageSize, debouncedAliasSearchTerm]);
   
   useEffect(() => {
     // Reset pagination when page size changes
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
   }, [pageSize]);
+
+  useEffect(() => {
+    // Reset pagination when alias search term changes
+    setCurrentPageIndex(0);
+    setBookmarkStack([null]);
+  }, [debouncedAliasSearchTerm]);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated()) {
@@ -226,6 +253,68 @@ export default function KmsKeysPage() {
         </Alert>
       )}
 
+      {/* Filter Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+        <div className="space-y-1">
+          <Label htmlFor="aliasSearchInput">Filter by Alias</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+            <Input
+              id="aliasSearchInput"
+              type="text"
+              placeholder="Search by key alias..."
+              value={aliasSearchTerm}
+              onChange={(e) => setAliasSearchTerm(e.target.value)}
+              className="w-full pl-10"
+              disabled={isLoading}
+            />
+            {aliasSearchTerm && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                onClick={() => setAliasSearchTerm('')}
+                disabled={isLoading}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="pageSizeSelect">Items per page</Label>
+          <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading}>
+            <SelectTrigger id="pageSizeSelect" className="w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Active Filters Indicator */}
+      {debouncedAliasSearchTerm && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Active filter:</span>
+          <Badge variant="secondary" className="text-xs">
+            Alias contains "{debouncedAliasSearchTerm}"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
+              onClick={() => setAliasSearchTerm('')}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        </div>
+      )}
+
       {!isLoading && !error && keys.length === 0 ? (
         <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
             <h3 className="text-lg font-semibold text-muted-foreground">No KMS Keys Found</h3>
@@ -255,7 +344,13 @@ export default function KmsKeysPage() {
                   return (
                     <TableRow key={key.id}>
                       <TableCell className="font-medium">
-                        <p className="truncate max-w-[250px] sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl" title={key.alias}>{key.name}</p>
+                        <button
+                          onClick={() => handleViewDetails(key.id)}
+                          className="text-left truncate max-w-[250px] sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline"
+                          title={key.alias}
+                        >
+                          {key.name}
+                        </button>
                       </TableCell>
                       <TableCell>{key.keyTypeDisplay}</TableCell>
                       <TableCell>
@@ -312,16 +407,8 @@ export default function KmsKeysPage() {
             </Table>
           </div>
           <div className="flex justify-between items-center mt-4">
-              <div className="flex items-center space-x-2">
-                  <Label htmlFor="pageSizeSelect" className="text-sm text-muted-foreground">Page Size:</Label>
-                  <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading}>
-                      <SelectTrigger id="pageSizeSelect" className="w-[80px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="25">25</SelectItem>
-                          <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                  </Select>
+              <div className="text-sm text-muted-foreground">
+                  Page {currentPageIndex + 1}
               </div>
               <div className="flex items-center space-x-2">
                   <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline" size="sm">

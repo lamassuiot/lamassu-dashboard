@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Copy, Check } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,8 +26,32 @@ import { CertificationRequest, AlgorithmIdentifier } from 'pkijs';
 import { fetchCryptoEngines, fetchKmsKeys, signWithKmsKey, verifyWithKmsKey } from '@/lib/ca-data';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
+import { SectionHeader } from '@/components/shared/FormComponents';
 
 // --- Helper Functions ---
+function ipToBuffer(ip: string): ArrayBuffer | null {
+  // Simplified IPv4 and IPv6 to buffer conversion
+  const parts = ip.split('.');
+  if (parts.length === 4 && parts.every(part => !isNaN(parseInt(part, 10)) && parseInt(part, 10) >= 0 && parseInt(part, 10) <= 255)) {
+    return new Uint8Array(parts.map(p => parseInt(p, 10))).buffer;
+  }
+  if (ip.includes(':')) {
+    // Basic IPv6 support
+    const hexGroups = ip.split(':').map(group => group.padStart(4, '0'));
+    if (hexGroups.length === 8) {
+      const buffer = new Uint8Array(16);
+      let offset = 0;
+      for (const group of hexGroups) {
+        const value = parseInt(group, 16);
+        buffer[offset++] = (value >> 8) & 0xFF;
+        buffer[offset++] = value & 0xFF;
+      }
+      return buffer.buffer;
+    }
+  }
+  return null;
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
   const bytes = new Uint8Array(buffer);
@@ -116,7 +140,7 @@ export default function KmsKeyDetailsClient() {
   const [isSigning, setIsSigning] = useState(false);
   const [signAlgorithm, setSignAlgorithm] = useState(signatureAlgorithms[3]);
   const [signMessageType, setSignMessageType] = useState('RAW');
-  const [signPayloadEncoding, setSignPayloadEncoding] = useState('BASE64');
+  const [signPayloadEncoding, setSignPayloadEncoding] = useState('PLAIN_TEXT');
   const [payloadToSign, setPayloadToSign] = useState('');
   const [generatedSignature, setGeneratedSignature] = useState('');
 
@@ -127,13 +151,41 @@ export default function KmsKeyDetailsClient() {
   const [verifyPayloadEncoding, setVerifyPayloadEncoding] = useState('PLAIN_TEXT');
   const [unsignedPayload, setUnsignedPayload] = useState('');
   const [signatureToVerify, setSignatureToVerify] = useState('');
+  const [verificationResult, setVerificationResult] = useState<{valid: boolean; message: string} | null>(null);
 
   // State for CSR Tab
   const [csrCommonName, setCsrCommonName] = useState('');
   const [csrOrganization, setCsrOrganization] = useState('');
+  const [csrOrganizationalUnit, setCsrOrganizationalUnit] = useState('');
+  const [csrCountry, setCsrCountry] = useState('');
+  const [csrStateProvince, setCsrStateProvince] = useState('');
+  const [csrLocality, setCsrLocality] = useState('');
   const [csrSignAlgorithm, setCsrSignAlgorithm] = useState('');
   const [generatedCsr, setGeneratedCsr] = useState('');
   const [isGeneratingCsr, setIsGeneratingCsr] = useState(false);
+  
+  // SANs state for CSR
+  const [csrSans, setCsrSans] = useState<{type: 'DNS' | 'IP' | 'Email' | 'URI'; value: string}[]>([]);
+  const [csrCurrentSanType, setCsrCurrentSanType] = useState<'DNS' | 'IP' | 'Email' | 'URI'>('DNS');
+  const [csrCurrentSanValue, setCsrCurrentSanValue] = useState('');
+
+  // --- CSR SAN Handlers ---
+  const handleAddCsrSan = () => {
+    if (!csrCurrentSanValue.trim()) return;
+    setCsrSans(prev => [...prev, { type: csrCurrentSanType, value: csrCurrentSanValue.trim() }]);
+    setCsrCurrentSanValue('');
+  };
+
+  const handleRemoveCsrSan = (index: number) => {
+    setCsrSans(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddCsrSanOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddCsrSan();
+    }
+  };
 
   const fetchKeyData = useCallback(async () => {
     if (!keyId) {
@@ -298,6 +350,7 @@ export default function KmsKeyDetailsClient() {
     }
 
     setIsVerifying(true);
+    setVerificationResult(null); // Clear previous result
 
     try {
       let encodedUnsignedPayload: string;
@@ -327,15 +380,17 @@ export default function KmsKeyDetailsClient() {
 
       const result = await verifyWithKmsKey(keyId, payload, user.access_token);
 
-      toast({
-        title: "Verification Result",
-        description: `Signature is ${result.valid ? 'VALID' : 'INVALID'}.`,
-        variant: result.valid ? "default" : "destructive",
+      setVerificationResult({
+        valid: result.valid,
+        message: `Signature is ${result.valid ? 'VALID' : 'INVALID'}.`
       });
 
     } catch (error: any) {
       console.error("Verification Error:", error);
-      toast({ title: "Verification Error", description: error.message, variant: "destructive" });
+      setVerificationResult({
+        valid: false,
+        message: `Verification Error: ${error.message}`
+      });
     } finally {
       setIsVerifying(false);
     }
@@ -470,13 +525,47 @@ export default function KmsKeyDetailsClient() {
     setGeneratedCsr('');
 
     try {
+      const subjectFields = [
+        new pkijs.AttributeTypeAndValue({
+          type: "2.5.4.3", // Common Name (CN)
+          value: new asn1js.Utf8String({ value: csrCommonName.trim() }),
+        }),
+      ];
+
+      // Add optional subject fields
+      if (csrOrganization.trim()) {
+        subjectFields.push(new pkijs.AttributeTypeAndValue({
+          type: "2.5.4.10", // Organization (O)
+          value: new asn1js.Utf8String({ value: csrOrganization.trim() }),
+        }));
+      }
+      if (csrOrganizationalUnit.trim()) {
+        subjectFields.push(new pkijs.AttributeTypeAndValue({
+          type: "2.5.4.11", // Organizational Unit (OU)
+          value: new asn1js.Utf8String({ value: csrOrganizationalUnit.trim() }),
+        }));
+      }
+      if (csrLocality.trim()) {
+        subjectFields.push(new pkijs.AttributeTypeAndValue({
+          type: "2.5.4.7", // Locality (L)
+          value: new asn1js.Utf8String({ value: csrLocality.trim() }),
+        }));
+      }
+      if (csrStateProvince.trim()) {
+        subjectFields.push(new pkijs.AttributeTypeAndValue({
+          type: "2.5.4.8", // State/Province (ST)
+          value: new asn1js.Utf8String({ value: csrStateProvince.trim() }),
+        }));
+      }
+      if (csrCountry.trim()) {
+        subjectFields.push(new pkijs.AttributeTypeAndValue({
+          type: "2.5.4.6", // Country (C)
+          value: new asn1js.PrintableString({ value: csrCountry.trim() }),
+        }));
+      }
+
       const subject = new pkijs.RelativeDistinguishedNames({
-        typesAndValues: [
-          new pkijs.AttributeTypeAndValue({
-            type: "2.5.4.3", // Common Name (CN)
-            value: new asn1js.Utf8String({ value: csrCommonName.trim() }),
-          }),
-        ],
+        typesAndValues: subjectFields,
       });
 
       const pkcs10 = new CertificationRequest({
@@ -562,6 +651,41 @@ export default function KmsKeyDetailsClient() {
       )
 
       await pkcs10.subjectPublicKeyInfo.importKey(publicKey!);
+
+      // Add Subject Alternative Names (SANs) if any
+      if (csrSans.length > 0) {
+        const generalNamesArray: pkijs.GeneralName[] = csrSans.map(san => {
+          switch (san.type) {
+            case 'Email':
+              return new pkijs.GeneralName({ type: 1, value: san.value.trim() });
+            case 'DNS':
+              return new pkijs.GeneralName({ type: 2, value: san.value.trim() });
+            case 'URI':
+              return new pkijs.GeneralName({ type: 6, value: san.value.trim() });
+            case 'IP':
+              const ipBuffer = ipToBuffer(san.value.trim());
+              return ipBuffer ? new pkijs.GeneralName({ type: 7, value: new asn1js.OctetString({ valueHex: ipBuffer }) }) : null;
+            default:
+              return null;
+          }
+        }).filter((n): n is pkijs.GeneralName => n !== null);
+
+        if (generalNamesArray.length > 0) {
+          const extensions = new pkijs.Extensions({
+            extensions: [
+              new pkijs.Extension({
+                extnID: "2.5.29.17", // id-ce-subjectAltName
+                critical: false,
+                extnValue: new pkijs.GeneralNames({ names: generalNamesArray }).toSchema().toBER(false)
+              })
+            ]
+          });
+          pkcs10.attributes = [new pkijs.Attribute({
+            type: "1.2.840.113549.1.9.14", // id-pkcs9-at-extensionRequest
+            values: [extensions.toSchema()]
+          })];
+        }
+      }
 
       console.log(csrSignAlgorithm);
       console.log(SIGNATURE_OID_MAP);
@@ -822,10 +946,7 @@ export default function KmsKeyDetailsClient() {
           <TabsContent value="sign-verify">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center"><PenTool className="mr-2 h-5 w-5 text-primary" />Sign Data</CardTitle>
-                  <CardDescription>Perform cryptographic sign operations using this key.</CardDescription>
-                </CardHeader>
+                <SectionHeader icon={PenTool} title="Sign Data" />
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -861,8 +982,8 @@ export default function KmsKeyDetailsClient() {
                       <Select value={signPayloadEncoding} onValueChange={v => setSignPayloadEncoding(v as any)} disabled={isSigning}>
                         <SelectTrigger id="signPayloadEncoding"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="BASE64">Base64</SelectItem>
                           <SelectItem value="PLAIN_TEXT">Plain Text (UTF-8)</SelectItem>
+                          <SelectItem value="BASE64">Base64</SelectItem>
                           <SelectItem value="HEX">Hexadecimal</SelectItem>
                         </SelectContent>
                       </Select>
@@ -885,10 +1006,7 @@ export default function KmsKeyDetailsClient() {
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center"><ShieldCheck className="mr-2 h-5 w-5 text-primary" />Verify Signature</CardTitle>
-                  <CardDescription>Verify a signature using this key's public component.</CardDescription>
-                </CardHeader>
+                <SectionHeader icon={ShieldCheck} title="Verify Signature" />
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -940,49 +1058,194 @@ export default function KmsKeyDetailsClient() {
                     {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Verify
                   </Button>
+                  {verificationResult && (
+                    <Alert variant={verificationResult.valid ? "success" : "destructive"}>
+                      <ShieldCheck className="h-4 w-4" />
+                      <AlertTitle variant={verificationResult.valid ? "success" : undefined}>Verification Result</AlertTitle>
+                      <AlertDescription>{verificationResult.message}</AlertDescription>
+                    </Alert>
+                  )}
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
           <TabsContent value="generate-csr">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center"><FileSignature className="mr-2 h-5 w-5 text-primary" />Generate Certificate Signing Request (CSR)</CardTitle>
-                <CardDescription>Create a CSR using this key pair to request a certificate from a CA.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="csrCommonName">Common Name (CN)</Label>
-                  <Input id="csrCommonName" value={csrCommonName} onChange={e => setCsrCommonName(e.target.value)} placeholder="e.g., mydevice.example.com" required />
-                </div>
-                <div>
-                  <Label htmlFor="csrOrganization">Organization (O)</Label>
-                  <Input id="csrOrganization" value={csrOrganization} onChange={e => setCsrOrganization(e.target.value)} placeholder="e.g., LamassuIoT Corp" />
-                </div>
-                <div>
-                  <Label htmlFor="csrSignAlgorithm">Signature Algorithm</Label>
-                  <Select value={csrSignAlgorithm} onValueChange={setCsrSignAlgorithm} disabled={isGeneratingCsr}>
-                    <SelectTrigger id="csrSignAlgorithm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {signatureAlgorithms.map(algo => (
-                        <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{algo}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={handleGenerateCsr} className="w-full sm:w-auto" disabled={isGeneratingCsr}>
-                  {isGeneratingCsr && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isGeneratingCsr ? 'Generating...' : 'Generate CSR'}
-                </Button>
-                {generatedCsr && (
-                  <div className="mt-4">
-                    <Label htmlFor="generatedCsrPem">Generated CSR (PEM)</Label>
-                    <Textarea id="generatedCsrPem" value={generatedCsr} readOnly rows={10} className="font-mono bg-muted/50" />
+            <div className="space-y-6">
+              {/* Section 1: Signature Algorithm */}
+              <Card>
+                <SectionHeader icon={FileSignature} title="Signature Algorithm" />
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="csrSignAlgorithm">Signature Algorithm</Label>
+                      <Select value={csrSignAlgorithm} onValueChange={setCsrSignAlgorithm} disabled={isGeneratingCsr}>
+                        <SelectTrigger id="csrSignAlgorithm"><SelectValue placeholder="Select signature algorithm" /></SelectTrigger>
+                        <SelectContent>
+                          {signatureAlgorithms.map(algo => (
+                            <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{algo}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {/* Section 2: Certificate Subject */}
+              <Card>
+                <SectionHeader icon={BookText} title="Certificate Subject" />
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Row 1: CN */}
+                    <div className="space-y-1">
+                      <Label htmlFor="csrCommonName">Common Name (CN)</Label>
+                      <Input
+                        id="csrCommonName"
+                        value={csrCommonName || ''}
+                        onChange={e => setCsrCommonName(e.target.value)}
+                        placeholder="e.g., mydevice.example.com"
+                        required
+                      />
+                    </div>
+
+                    {/* Row 2: OU, O */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="csrOrganizationalUnit">Organizational Unit (OU)</Label>
+                        <Input 
+                          id="csrOrganizationalUnit" 
+                          value={csrOrganizationalUnit || ''} 
+                          onChange={e => setCsrOrganizationalUnit(e.target.value)} 
+                          placeholder="e.g., Engineering"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="csrOrganization">Organization (O)</Label>
+                        <Input 
+                          id="csrOrganization" 
+                          value={csrOrganization || ''} 
+                          onChange={e => setCsrOrganization(e.target.value)} 
+                          placeholder="e.g., LamassuIoT Corp"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 3: L, ST, C */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="csrLocality">Locality (L)</Label>
+                        <Input 
+                          id="csrLocality" 
+                          value={csrLocality || ''} 
+                          onChange={e => setCsrLocality(e.target.value)} 
+                          placeholder="e.g., San Francisco"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="csrStateProvince">State/Province (ST)</Label>
+                        <Input 
+                          id="csrStateProvince" 
+                          value={csrStateProvince || ''} 
+                          onChange={e => setCsrStateProvince(e.target.value)} 
+                          placeholder="e.g., California"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="csrCountry">Country (C)</Label>
+                        <Input 
+                          id="csrCountry" 
+                          value={csrCountry || ''} 
+                          onChange={e => setCsrCountry(e.target.value)} 
+                          placeholder="e.g. US" 
+                          maxLength={2} 
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* SANs Section */}
+                    <div className="border-t pt-4 mt-2">
+                      <h4 className="font-medium mb-2">Subject Alternative Names (SANs)</h4>
+                      
+                      <div className="flex items-end gap-2">
+                        <div className="w-40 flex-none">
+                          <Label htmlFor="csr-san-type">Type</Label>
+                          <Select value={csrCurrentSanType} onValueChange={(v) => setCsrCurrentSanType(v as any)}>
+                            <SelectTrigger id="csr-san-type"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="DNS">DNS</SelectItem>
+                              <SelectItem value="IP">IP Address</SelectItem>
+                              <SelectItem value="Email">Email</SelectItem>
+                              <SelectItem value="URI">URI</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex-grow">
+                          <Label htmlFor="csr-san-value">Value</Label>
+                          <Input 
+                            id="csr-san-value" 
+                            value={csrCurrentSanValue} 
+                            onChange={(e) => setCsrCurrentSanValue(e.target.value)} 
+                            onKeyDown={handleAddCsrSanOnEnter}
+                            placeholder={
+                              csrCurrentSanType === 'DNS' ? 'e.g., example.com' :
+                              csrCurrentSanType === 'IP' ? 'e.g., 192.168.1.1' :
+                              csrCurrentSanType === 'Email' ? 'e.g., security@example.com' :
+                              'e.g., https://device.id/info'
+                            }
+                          />
+                        </div>
+                        <Button type="button" onClick={handleAddCsrSan}>Add</Button>
+                      </div>
+
+                      {csrSans.length > 0 && (
+                        <div className="mt-4 p-3 border rounded-md bg-muted/30">
+                          <div className="flex flex-wrap gap-2">
+                            {csrSans.map((san, index) => (
+                              <Badge key={index} variant="secondary" className="pl-2 pr-1 py-1 text-sm">
+                                <span className="font-semibold mr-1.5">{san.type}:</span>
+                                <span className="font-normal">{san.value}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 ml-1.5 opacity-60 hover:opacity-100 hover:bg-transparent p-0"
+                                  onClick={() => handleRemoveCsrSan(index)}
+                                  aria-label={`Remove SAN ${san.value}`}
+                                >
+                                  <XIcon className="h-3.5 w-3.5" />
+                                </Button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Generate CSR Button and Result */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="space-y-4">
+                    <Button onClick={handleGenerateCsr} className="w-full sm:w-auto" disabled={isGeneratingCsr}>
+                      {isGeneratingCsr && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {isGeneratingCsr ? 'Generating...' : 'Generate CSR'}
+                    </Button>
+                    {generatedCsr && (
+                      <CodeBlock
+                        content={generatedCsr}
+                        title="Generated CSR (PEM)"
+                        showDownload={true}
+                        downloadFilename="certificate-request.csr"
+                        downloadMimeType="application/pkcs10"
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
