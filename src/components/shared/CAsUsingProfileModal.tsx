@@ -22,6 +22,23 @@ interface CAsUsingProfileModalProps {
   onUsageLoaded?: (count: number) => void; // New callback prop
 }
 
+const flattenCaTree = (cas: CA[]): CA[] => {
+  const flatList: CA[] = [];
+  function recurse(items: CA[]) {
+    for (const item of items) {
+      // Add the parent but without its children to avoid duplication in the flat list
+      const { children, ...rest } = item;
+      flatList.push(rest as CA);
+      if (children) {
+        recurse(children);
+      }
+    }
+  }
+  recurse(cas);
+  return flatList;
+};
+
+
 export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
   isOpen,
   onOpenChange,
@@ -51,9 +68,10 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
         fetchAndProcessCAs(user.access_token, `filter=profile_id[equal]${profileId}`),
         fetchCryptoEngines(user.access_token) // Fetch engines for the visualizer cards
       ]);
-      setCas(casData);
+      const flatCas = flattenCaTree(casData);
+      setCas(flatCas);
       setAllCryptoEngines(enginesData);
-      onUsageLoaded?.(casData.length); // Call the callback with the count
+      onUsageLoaded?.(flatCas.length); // Call the callback with the count
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred while searching for CAs.');
     } finally {
