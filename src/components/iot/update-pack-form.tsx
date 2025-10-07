@@ -26,7 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, CheckCircle, XCircle, HelpCircle, PackageCheck, FileUp, Settings2, Rocket, FileText } from 'lucide-react';
 import { useDms } from '@/contexts/DmsContext';
-import { get_UPDATES_API_BASE_URL } from '@/lib/api-domains';
+import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { useAuth } from '@/contexts/AuthContext';
 
 
@@ -229,7 +229,7 @@ export function UpdatePackForm({
       updateStepStatus(1, 'in-progress', 'Processing metadata...');
       setOverallProgress(10);
       let createPackResponse;
-      const updatesApiBaseUrl = get_UPDATES_API_BASE_URL();
+      const updatesApiBaseUrl = get_CLIENT_UPDATES_API_BASE_URL();
 
       if (formModeActual === 'newVersion' && selectedBasePackIdProp) {
         const basePackNameForApi = availableBasePacks.find(p => p.id === selectedBasePackIdProp)?.name || apiPackName;
@@ -241,7 +241,7 @@ export function UpdatePackForm({
         const createPayload: ApiCreateUpdatePackPayload = {
           name: packDetails.name,
           version: packDetails.version,
-          type: packDetails.type,   // 👈 aquí lo agregas
+          type: packDetails.type,
           dms_id: dmsId
         };
         createPackResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks`, {

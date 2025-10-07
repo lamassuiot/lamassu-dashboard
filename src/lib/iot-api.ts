@@ -1,8 +1,7 @@
-
 // src/lib/iot-api.ts
 'use client';
 
-import { get_UPDATES_API_BASE_URL, handleApiError } from './api-domains';
+import { get_CLIENT_UPDATES_API_BASE_URL, handleApiError } from './api-domains';
 import type { UpdatePack, ApiGlobalStrategy, LaunchItem, DeviceJob } from '@/types/iot';
 
 
@@ -12,7 +11,7 @@ export interface ApiParams {
 }
 
 export async function fetchUpdatePacks({ dmsId, accessToken }: ApiParams): Promise<UpdatePack[]> {
-  const response = await fetch(`${get_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks`, {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
   const data = await handleApiError(response, 'Failed to fetch update packs');
@@ -20,7 +19,7 @@ export async function fetchUpdatePacks({ dmsId, accessToken }: ApiParams): Promi
 }
 
 export async function deleteUpdatePackApi({ dmsId, packName, accessToken }: ApiParams & { packName: string }): Promise<any> {
-  const response = await fetch(`${get_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}`, {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}`, {
     method: 'DELETE',
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
@@ -28,7 +27,7 @@ export async function deleteUpdatePackApi({ dmsId, packName, accessToken }: ApiP
 }
 
 export async function fetchGlobalStrategy({ dmsId, accessToken }: ApiParams): Promise<ApiGlobalStrategy | null> {
-  const response = await fetch(`${get_UPDATES_API_BASE_URL()}/dms/${dmsId}/strategy`, {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/strategy`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
   if (response.status === 404) {
@@ -38,7 +37,7 @@ export async function fetchGlobalStrategy({ dmsId, accessToken }: ApiParams): Pr
 }
 
 export async function updateGlobalStrategy({ dmsId, strategyData, accessToken }: ApiParams & { strategyData: Partial<ApiGlobalStrategy> }): Promise<ApiGlobalStrategy> {
-  const response = await fetch(`${get_UPDATES_API_BASE_URL()}/dms/${dmsId}/strategy`, {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/strategy`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -50,7 +49,7 @@ export async function updateGlobalStrategy({ dmsId, strategyData, accessToken }:
 }
 
 export async function fetchCurrentLaunches({ dmsId, accessToken }: ApiParams): Promise<LaunchItem[]> {
-  const response = await fetch(`${get_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch`, {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
   const data = await handleApiError(response, 'Failed to fetch launches');
@@ -58,7 +57,7 @@ export async function fetchCurrentLaunches({ dmsId, accessToken }: ApiParams): P
 }
 
 export async function triggerGlobalLaunchApi({ dmsId, accessToken }: ApiParams): Promise<any> {
-  const response = await fetch(`${get_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch`, {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
@@ -66,7 +65,7 @@ export async function triggerGlobalLaunchApi({ dmsId, accessToken }: ApiParams):
 }
 
 export async function triggerItemRollout({ dmsId, launchId, accessToken }: ApiParams & { launchId: string }): Promise<any> {
-  const response = await fetch(`${get_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/rollout`, {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/rollout`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
@@ -78,7 +77,7 @@ export async function fetchDeviceJobsForLaunch({ dmsId, deviceIds, accessToken }
     return [];
   }
   const jobPromises = deviceIds.map(deviceId =>
-    fetch(`${get_UPDATES_API_BASE_URL()}/dms/${dmsId}/device/${deviceId}/jobs`, {
+    fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/device/${deviceId}/jobs`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
     })
       .then(res => handleApiError(res, `Failed to fetch jobs for ${deviceId}`))

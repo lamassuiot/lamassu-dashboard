@@ -1,4 +1,3 @@
-
 // src/lib/api-domains.ts
 const getApiBaseUrl = (): string => {
     // 1. Check for configuration from config.js on the window object
@@ -32,7 +31,7 @@ export const get_ALERTS_API_BASE_URL = () => `${getApiBaseUrl()}/alerts/v1`;
 export const get_VA_CORE_API_BASE_URL = () => `${getApiBaseUrl()}/va`;
 export const get_VA_API_BASE_URL = () => `${get_VA_CORE_API_BASE_URL()}/v1`;
 export const get_UPDATES_API_BASE_URL = () => `${getApiBaseUrl()}/updates/v1`;
-
+export const get_CLIENT_UPDATES_API_BASE_URL = () => `/api/updates`;
 
 // These endpoints now use the potentially overridden base URL
 export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/est`;
