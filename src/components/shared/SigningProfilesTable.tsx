@@ -44,6 +44,7 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
             <TableHead>Name</TableHead>
             <TableHead className="hidden md:table-cell">Description</TableHead>
             <TableHead>Validity</TableHead>
+            <TableHead className="hidden lg:table-cell">Policies</TableHead>
             <TableHead className="hidden lg:table-cell">Usages</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -56,6 +57,14 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
                 {profile.description}
               </TableCell>
               <TableCell>{validityToString(profile.validity)}</TableCell>
+              <TableCell className="hidden lg:table-cell">
+                <div className="flex flex-wrap gap-1">
+                  {profile.sign_as_ca && <Badge variant="default" className="bg-green-600/90 text-white">CA</Badge>}
+                  {profile.honor_subject && <Badge variant="outline">Honor Subject</Badge>}
+                  {profile.honor_key_usage && <Badge variant="outline">Honor KU</Badge>}
+                  {profile.honor_extended_key_usages && <Badge variant="outline">Honor EKU</Badge>}
+                </div>
+              </TableCell>
               <TableCell className="hidden lg:table-cell">
                 <div className="flex flex-wrap gap-1">
                   {profile.key_usage.slice(0, 2).map(usage => (
