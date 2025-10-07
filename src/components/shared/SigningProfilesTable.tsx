@@ -1,0 +1,99 @@
+
+'use client';
+
+import React from 'react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreVertical, Edit, Trash2 } from "lucide-react";
+import type { ApiSigningProfile } from '@/lib/ca-data';
+
+interface SigningProfilesTableProps {
+  profiles: ApiSigningProfile[];
+  onEdit: (profileId: string) => void;
+  onDelete: (profile: ApiSigningProfile) => void;
+}
+
+const validityToString = (validity: ApiSigningProfile['validity']): string => {
+  if (!validity) return "Not Specified";
+  switch (validity.type) {
+    case 'Duration':
+      return validity.duration ? `Duration: ${validity.duration}` : "Not Specified";
+    case 'Date':
+      if (validity.time?.startsWith('9999-12-31')) return "Never Expires";
+      return validity.time ? `Until: ${new Date(validity.time).toLocaleDateString()}` : "Not Specified";
+    case 'Indefinite':
+      return "Never Expires";
+    default:
+      return "Not Specified";
+  }
+};
+
+export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ profiles, onEdit, onDelete }) => {
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead className="hidden md:table-cell">Description</TableHead>
+            <TableHead>Validity</TableHead>
+            <TableHead className="hidden lg:table-cell">Usages</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {profiles.map((profile) => (
+            <TableRow key={profile.id}>
+              <TableCell className="font-medium">{profile.name}</TableCell>
+              <TableCell className="hidden md:table-cell text-muted-foreground truncate max-w-xs">
+                {profile.description}
+              </TableCell>
+              <TableCell>{validityToString(profile.validity)}</TableCell>
+              <TableCell className="hidden lg:table-cell">
+                <div className="flex flex-wrap gap-1">
+                  {profile.key_usage.slice(0, 2).map(usage => (
+                    <Badge key={usage} variant="secondary" className="text-xs">{usage}</Badge>
+                  ))}
+                  {profile.extended_key_usages.slice(0, 2).map(eku => (
+                    <Badge key={eku} variant="secondary" className="text-xs">{eku}</Badge>
+                  ))}
+                  {(profile.key_usage.length + profile.extended_key_usages.length) > 4 && (
+                    <Badge variant="outline">...</Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">More actions for {profile.name}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onEdit(profile.id)}>
+                      <Edit className="mr-2 h-4 w-4" /> Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onDelete(profile)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};

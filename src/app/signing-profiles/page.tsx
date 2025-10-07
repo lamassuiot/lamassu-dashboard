@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
@@ -24,6 +24,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
 
 
 export default function SigningProfilesPage() {
@@ -34,6 +36,7 @@ export default function SigningProfilesPage() {
   const [profiles, setProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Filtering, Sorting, Pagination State
   const [searchTerm, setSearchTerm] = useState('');
@@ -183,7 +186,7 @@ export default function SigningProfilesPage() {
         Manage templates that define how certificates are signed, including duration, subject attributes, and extensions.
       </p>
 
-       <div className="flex flex-col md:flex-row gap-4 items-end mb-4 p-4 border rounded-lg bg-muted/30">
+       <div className="flex flex-col sm:flex-row gap-4 items-end mb-4 p-4 border rounded-lg bg-muted/30">
             <div className="flex-grow w-full space-y-1.5">
                 <Label htmlFor="profile-filter">Filter by Name</Label>
                 <div className="relative">
@@ -197,6 +200,18 @@ export default function SigningProfilesPage() {
                     />
                 </div>
             </div>
+            <div className="flex items-center space-x-2">
+                 <Label>View As</Label>
+                <ToggleGroup
+                    type="single"
+                    value={viewMode}
+                    onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
+                    variant="outline"
+                >
+                    <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
+                    <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
+                </ToggleGroup>
+            </div>
        </div>
 
       {error && (
@@ -208,16 +223,24 @@ export default function SigningProfilesPage() {
       )}
 
       {!isLoading && !error && profiles.length > 0 ? (
-        <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
-          {profiles.map((profile) => (
-            <IssuanceProfileCard
-              key={profile.id}
-              profile={profile}
-              onEdit={() => handleEditProfile(profile.id)}
-              onDelete={() => handleDeleteProfileClick(profile)}
+          viewMode === 'grid' ? (
+            <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
+              {profiles.map((profile) => (
+                <IssuanceProfileCard
+                  key={profile.id}
+                  profile={profile}
+                  onEdit={() => handleEditProfile(profile.id)}
+                  onDelete={() => handleDeleteProfileClick(profile)}
+                />
+              ))}
+            </div>
+          ) : (
+             <SigningProfilesTable 
+                profiles={profiles} 
+                onEdit={handleEditProfile} 
+                onDelete={handleDeleteProfileClick} 
             />
-          ))}
-        </div>
+          )
       ) : (
          !isLoading && !error && (
             <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
