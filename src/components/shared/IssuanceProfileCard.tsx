@@ -31,6 +31,7 @@ interface IssuanceProfileCardProps {
 export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profile, className, onEdit, onDelete }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
+  const [usageCount, setUsageCount] = useState<number | null>(null);
 
   const allowedKeyTypes = [];
   if (profile.crypto_enforcement?.allow_rsa_keys) allowedKeyTypes.push('RSA');
@@ -57,6 +58,11 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
       extensionsPolicy += `Enforces EKU: ${profile.extended_key_usages?.join(', ') || 'None'}.`;
   }
 
+  const handleViewUsage = () => {
+    setUsageCount(null); // Reset count before opening modal
+    setIsUsageModalOpen(true);
+  };
+
   return (
     <>
       <Card
@@ -78,9 +84,16 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
               <CardDescription className="text-xs pt-1 text-muted-foreground max-w-xs line-clamp-2">{profile.description}</CardDescription>
             </div>
           </div>
-          {profile.sign_as_ca && (
-            <Badge variant="default" className="ml-2 text-xs px-2 py-1 bg-green-600/90 text-white">CA</Badge>
-          )}
+          <div className="flex items-center space-x-1">
+            {usageCount !== null && (
+                <Badge variant="secondary" className="text-xs px-2 py-1">
+                    {usageCount} CA{usageCount !== 1 ? 's' : ''}
+                </Badge>
+            )}
+            {profile.sign_as_ca && (
+              <Badge variant="default" className="text-xs px-2 py-1 bg-green-600/90 text-white">CA</Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-2 text-sm flex-grow pt-0">
           <DetailRow icon={Clock} label="Validity" value={(() => {
@@ -128,7 +141,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
                 <Button variant="outline" size="sm" onClick={() => setIsDetailsModalOpen(true)}>
                     <Eye className="mr-1.5 h-3.5 w-3.5"/> View Raw
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsUsageModalOpen(true)}>
+                <Button variant="outline" size="sm" onClick={handleViewUsage}>
                     <Users className="mr-1.5 h-3.5 w-3.5"/> View Usage
                 </Button>
             </div>
@@ -163,6 +176,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
         onOpenChange={setIsUsageModalOpen}
         profileId={profile.id}
         profileName={profile.name}
+        onUsageLoaded={setUsageCount}
       />
     </>
   );

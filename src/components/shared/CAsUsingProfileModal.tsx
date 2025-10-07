@@ -19,6 +19,7 @@ interface CAsUsingProfileModalProps {
   onOpenChange: (isOpen: boolean) => void;
   profileId: string;
   profileName: string;
+  onUsageLoaded?: (count: number) => void; // New callback prop
 }
 
 export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
@@ -26,6 +27,7 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
   onOpenChange,
   profileId,
   profileName,
+  onUsageLoaded,
 }) => {
   const router = useRouter();
   const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
@@ -51,12 +53,13 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
       ]);
       setCas(casData);
       setAllCryptoEngines(enginesData);
+      onUsageLoaded?.(casData.length); // Call the callback with the count
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred while searching for CAs.');
     } finally {
       setIsLoading(false);
     }
-  }, [profileId, isOpen, isAuthenticated, user?.access_token]);
+  }, [profileId, isOpen, isAuthenticated, user?.access_token, onUsageLoaded]);
 
   useEffect(() => {
     fetchCAs();
