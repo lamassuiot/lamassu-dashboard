@@ -241,6 +241,7 @@ export function UpdatePackForm({
         const createPayload: ApiCreateUpdatePackPayload = {
           name: packDetails.name,
           version: packDetails.version,
+          type: packDetails.type,   // 👈 aquí lo agregas
           dms_id: dmsId
         };
         createPackResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks`, {

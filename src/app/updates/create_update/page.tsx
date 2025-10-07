@@ -322,25 +322,29 @@ export default function UpdatePacksPage() {
     enabled: !!selectedDms && !!user?.access_token,
     select: (data) => { 
       return data.map(pack => {
-        if (pack.descriptorFileName) {
-          return {
-            ...pack,
-            descriptorContent: JSON.stringify({
-              packName: pack.name,
-              version: pack.version,
-              type: pack.type,
-              descriptorFile: pack.descriptorFileName,
-              files: [
-                pack.binaryFileName || "firmware.bin",
-                "config.json",
-                "metadata.xml"
-              ],
-              signature: "mock-signature-value-for-" + pack.name,
-              checksum: "mock-checksum-" + Math.random().toString(36).substring(7)
-            }, null, 2)
-          };
-        }
-        return pack;
+        return {
+          ...pack,
+          type: pack.type && pack.type.trim() !== "" ? pack.type : "rawfile", // 👈 fallback por defecto
+          descriptorContent: pack.descriptorFileName
+            ? JSON.stringify(
+                {
+                  packName: pack.name,
+                  version: pack.version,
+                  type: pack.type || "rawfile",
+                  descriptorFile: pack.descriptorFileName,
+                  files: [
+                    pack.binaryFileName || "firmware.bin",
+                    "config.json",
+                    "metadata.xml"
+                  ],
+                  signature: "mock-signature-value-for-" + pack.name,
+                  checksum: "mock-checksum-" + Math.random().toString(36).substring(7)
+                },
+                null,
+                2
+              )
+            : undefined
+        };
       });
     }
   });

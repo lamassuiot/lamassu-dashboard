@@ -88,6 +88,9 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'alerts': "Alerts",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
+  'updates': "Updates",
+  'create_update': "Create Update",
+  'launch_update': "Launch Update",
 };
 
 interface NavItem {
@@ -119,7 +122,7 @@ const navigationConfig: NavGroup[] = [
       { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
       { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon },
       { href: '/registration-authorities', label: 'Registration Authorities', icon: Users },
-      { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck },
+      { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck }
     ],
   },
   {
@@ -127,6 +130,7 @@ const navigationConfig: NavGroup[] = [
     items: [
       { href: '/devices', label: 'Devices', icon: Router },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
+      {href : '/updates', label: 'Updates', icon: Upload, devOnly: true}
     ],
   },
   {

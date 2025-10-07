@@ -72,9 +72,9 @@ function UpdatesNavigation() {
     };
     
     const getCurrentTab = () => {
-        if (pathname.includes('/launch_update')) return 'launch_update';
-        if (pathname.includes('/create_update')) return 'create_update';
-        return 'create_update'; // Default tab
+        if (pathname.includes('/launch_update')) return 'Launch Update';
+        if (pathname.includes('/create_update')) return 'Create Update';
+        return 'Create Update'; // Default tab
     }
 
     return (
