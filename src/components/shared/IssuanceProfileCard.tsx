@@ -4,11 +4,12 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash2, Eye } from "lucide-react";
+import { Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash2, Eye, Users } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { MetadataViewerModal } from './MetadataViewerModal';
+import { CAsUsingProfileModal } from './CAsUsingProfileModal';
 
 const DetailRow: React.FC<{ icon: React.ElementType, label: string, value: string | React.ReactNode }> = ({ icon: Icon, label, value }) => (
   <div className="flex items-start space-x-2 py-1">
@@ -29,6 +30,8 @@ interface IssuanceProfileCardProps {
 
 export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profile, className, onEdit, onDelete }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
+
   const allowedKeyTypes = [];
   if (profile.crypto_enforcement?.allow_rsa_keys) allowedKeyTypes.push('RSA');
   if (profile.crypto_enforcement?.allow_ecdsa_keys) allowedKeyTypes.push('ECDSA');
@@ -121,14 +124,14 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
         </CardContent>
         {onEdit && onDelete && (
           <CardFooter className="border-t pt-2 pb-2 bg-muted/30 flex justify-end gap-2 min-h-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="mr-auto"
-              onClick={() => setIsDetailsModalOpen(true)}
-            >
-              <Eye className="mr-1.5 h-3.5 w-3.5"/> View Raw
-            </Button>
+            <div className="mr-auto flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setIsDetailsModalOpen(true)}>
+                    <Eye className="mr-1.5 h-3.5 w-3.5"/> View Raw
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setIsUsageModalOpen(true)}>
+                    <Users className="mr-1.5 h-3.5 w-3.5"/> View Usage
+                </Button>
+            </div>
             <Button
               variant="destructive"
               size="sm"
@@ -154,6 +157,12 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
         title={`Raw Profile Data: ${profile.name}`}
         data={profile}
         isEditable={false}
+      />
+      <CAsUsingProfileModal
+        isOpen={isUsageModalOpen}
+        onOpenChange={setIsUsageModalOpen}
+        profileId={profile.id}
+        profileName={profile.name}
       />
     </>
   );
