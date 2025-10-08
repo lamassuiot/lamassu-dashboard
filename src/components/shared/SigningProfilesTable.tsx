@@ -10,14 +10,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2 } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Users } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
 
 interface SigningProfilesTableProps {
   profiles: ApiSigningProfile[];
   onEdit: (profileId: string) => void;
   onDelete: (profile: ApiSigningProfile) => void;
+  onViewUsage: (profile: ApiSigningProfile) => void;
 }
 
 const validityToString = (validity: ApiSigningProfile['validity']): string => {
@@ -35,7 +37,7 @@ const validityToString = (validity: ApiSigningProfile['validity']): string => {
   }
 };
 
-export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ profiles, onEdit, onDelete }) => {
+export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ profiles, onEdit, onDelete, onViewUsage }) => {
   return (
     <div className="border rounded-lg">
       <Table>
@@ -90,6 +92,10 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
                     <DropdownMenuItem onClick={() => onEdit(profile.id)}>
                       <Edit className="mr-2 h-4 w-4" /> Edit
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onViewUsage(profile)}>
+                      <Users className="mr-2 h-4 w-4" /> Show Usage
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => onDelete(profile)}
                       className="text-destructive focus:text-destructive"

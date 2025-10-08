@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
+import { CAsUsingProfileModal } from '@/components/shared/CAsUsingProfileModal';
 
 
 export default function SigningProfilesPage() {
@@ -49,6 +50,9 @@ export default function SigningProfilesPage() {
   // State for deletion
   const [profileToDelete, setProfileToDelete] = useState<ApiSigningProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // State for usage modal
+  const [profileForUsage, setProfileForUsage] = useState<ApiSigningProfile | null>(null);
 
   // Debounce search term
   useEffect(() => {
@@ -133,6 +137,10 @@ export default function SigningProfilesPage() {
 
   const handleDeleteProfileClick = (profile: ApiSigningProfile) => {
     setProfileToDelete(profile);
+  };
+
+  const handleViewUsageClick = (profile: ApiSigningProfile) => {
+    setProfileForUsage(profile);
   };
   
   const handleConfirmDelete = async () => {
@@ -230,6 +238,7 @@ export default function SigningProfilesPage() {
                   profile={profile}
                   onEdit={() => handleEditProfile(profile.id)}
                   onDelete={() => handleDeleteProfileClick(profile)}
+                  onViewUsage={() => handleViewUsageClick(profile)}
                 />
               ))}
             </div>
@@ -238,6 +247,7 @@ export default function SigningProfilesPage() {
                 profiles={profiles} 
                 onEdit={handleEditProfile} 
                 onDelete={handleDeleteProfileClick} 
+                onViewUsage={handleViewUsageClick}
             />
           )
       ) : (
@@ -303,6 +313,15 @@ export default function SigningProfilesPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+
+    {profileForUsage && (
+        <CAsUsingProfileModal
+            isOpen={!!profileForUsage}
+            onOpenChange={(isOpen) => !isOpen && setProfileForUsage(null)}
+            profileId={profileForUsage.id}
+            profileName={profileForUsage.name}
+        />
+    )}
     </>
   );
 }
