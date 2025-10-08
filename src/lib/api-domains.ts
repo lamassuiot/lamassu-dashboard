@@ -24,6 +24,14 @@ export const getPublicAPIUrl = (): string => {
 }
 
 export const get_KMS_API_BASE_URL = () => `${getApiBaseUrl()}/kms/v1`;
+export const get_CLIENT_UPDATES_API_BASE_URL = (): string => {
+    if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_UPDATES_API) {
+        return (window as any).lamassuConfig.LAMASSU_UPDATES_API;
+    }
+    return '/api/updates'; // Default fallback
+};
+
+
 export const get_CA_API_BASE_URL = () => `${getApiBaseUrl()}/ca/v1`;
 export const get_DEV_MANAGER_API_BASE_URL = () => `${getApiBaseUrl()}/devmanager/v1`;
 export const get_DMS_MANAGER_API_BASE_URL = () => `${getApiBaseUrl()}/dmsmanager/v1`;
@@ -31,7 +39,7 @@ export const get_ALERTS_API_BASE_URL = () => `${getApiBaseUrl()}/alerts/v1`;
 export const get_VA_CORE_API_BASE_URL = () => `${getApiBaseUrl()}/va`;
 export const get_VA_API_BASE_URL = () => `${get_VA_CORE_API_BASE_URL()}/v1`;
 export const get_UPDATES_API_BASE_URL = () => `${getApiBaseUrl()}/updates/v1`;
-export const get_CLIENT_UPDATES_API_BASE_URL = () => `/api/updates`;
+
 
 // These endpoints now use the potentially overridden base URL
 export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/est`;

@@ -72,6 +72,10 @@ window.lamassuConfig = {
   // If not provided, these endpoints will be based on the LAMASSU_API value.
   // Useful if validation/enrollment services are hosted on a separate public domain.
   LAMASSU_PUBLIC_API: "https://your-public-endpoint.example.com",
+  
+  // (Optional) An override URL for the client-side Updates API proxy.
+  // If not provided, defaults to '/api/updates'.
+  LAMASSU_UPDATES_API: "/api/updates",
 
   // --- Authentication ---
   // Set to `false` to disable OIDC authentication for local development.
