@@ -6,7 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn } from '@/lib/utils';
+import { cn, getCookie, setCookie } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
@@ -37,7 +37,7 @@ export default function SigningProfilesPage() {
   const [profiles, setProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>();
 
   // Filtering, Sorting, Pagination State
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +67,19 @@ export default function SigningProfilesPage() {
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
   }, [pageSize, debouncedSearchTerm]);
+
+  // Load view mode from cookie on component mount
+  useEffect(() => {
+    const savedViewMode = getCookie('user-view-mode');
+    if (savedViewMode === 'grid' || savedViewMode === 'list') {
+      setViewMode(savedViewMode);
+    }
+  }, []);
+
+  // Save view mode to cookie when it changes
+  useEffect(() => {
+    setCookie('user-view-mode', viewMode);
+  }, [viewMode]);
 
 
   const fetchProfiles = useCallback(async (bookmarkToFetch: string | null) => {
