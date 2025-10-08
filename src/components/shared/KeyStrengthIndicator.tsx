@@ -31,10 +31,6 @@ const getStrengthDetails = (algorithm?: string, size?: string | number) => {
     if (s.includes('256')) return STRENGTH_LEVELS.MEDIUM;
     return STRENGTH_LEVELS.STRONG;
   }
-  if (algo === 'ML-DSA') {
-    if (s.includes('44')) return STRENGTH_LEVELS.MEDIUM; // Corresponds to NIST Level 2
-    return STRENGTH_LEVELS.STRONG; // Corresponds to NIST Level 5
-  }
 
   // Default for unknown or other types
   return STRENGTH_LEVELS.MEDIUM;
