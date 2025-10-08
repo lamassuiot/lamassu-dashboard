@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React from 'react';
@@ -12,11 +13,15 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, Users } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Users, ChevronsUpDown, ArrowUpZA, ArrowDownAZ } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
+import type { ProfileSortConfig, SortableProfileColumn } from '@/app/signing-profiles/page';
+import { cn } from '@/lib/utils';
 
 interface SigningProfilesTableProps {
   profiles: ApiSigningProfile[];
+  sortConfig: ProfileSortConfig | null;
+  requestSort: (column: SortableProfileColumn) => void;
   onEdit: (profileId: string) => void;
   onDelete: (profile: ApiSigningProfile) => void;
   onViewUsage: (profile: ApiSigningProfile) => void;
@@ -37,13 +42,34 @@ const validityToString = (validity: ApiSigningProfile['validity']): string => {
   }
 };
 
-export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ profiles, onEdit, onDelete, onViewUsage }) => {
+const SortableTableHeader: React.FC<{
+    column: SortableProfileColumn;
+    title: string;
+    onSort: (column: SortableProfileColumn) => void;
+    sortConfig: ProfileSortConfig | null;
+    className?: string;
+}> = ({ column, title, onSort, sortConfig, className }) => {
+    const isSorted = sortConfig?.column === column;
+    const Icon = isSorted ? (sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ) : ChevronsUpDown;
+    
+    return (
+        <TableHead className={cn("cursor-pointer hover:bg-muted/50", className)} onClick={() => onSort(column)}>
+            <div className="flex items-center gap-2">
+                {title}
+                <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
+            </div>
+        </TableHead>
+    );
+};
+
+
+export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ profiles, sortConfig, requestSort, onEdit, onDelete, onViewUsage }) => {
   return (
     <div className="border rounded-lg">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
+            <SortableTableHeader column="name" title="Name" onSort={requestSort} sortConfig={sortConfig} />
             <TableHead className="hidden md:table-cell">Description</TableHead>
             <TableHead>Validity</TableHead>
             <TableHead className="hidden lg:table-cell">Policies</TableHead>

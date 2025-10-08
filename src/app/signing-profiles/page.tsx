@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -28,6 +29,13 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
 import { CAsUsingProfileModal } from '@/components/shared/CAsUsingProfileModal';
 
+export type SortableProfileColumn = 'name';
+export type SortDirection = 'asc' | 'desc';
+
+export interface ProfileSortConfig {
+  column: SortableProfileColumn;
+  direction: SortDirection;
+}
 
 export default function SigningProfilesPage() {
   const router = useRouter();
@@ -46,6 +54,7 @@ export default function SigningProfilesPage() {
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<ProfileSortConfig | null>({ column: 'name', direction: 'asc' });
 
   // State for deletion
   const [profileToDelete, setProfileToDelete] = useState<ApiSigningProfile | null>(null);
@@ -66,19 +75,23 @@ export default function SigningProfilesPage() {
   useEffect(() => {
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
-  }, [pageSize, debouncedSearchTerm]);
+  }, [pageSize, debouncedSearchTerm, sortConfig]);
 
   // Load view mode from cookie on component mount
   useEffect(() => {
     const savedViewMode = getCookie('user-view-mode');
     if (savedViewMode === 'grid' || savedViewMode === 'list') {
       setViewMode(savedViewMode);
+    } else {
+      setViewMode('grid'); // Default to grid
     }
   }, []);
 
   // Save view mode to cookie when it changes
   useEffect(() => {
-    setCookie('user-view-mode', viewMode);
+    if (viewMode) {
+      setCookie('user-view-mode', viewMode);
+    }
   }, [viewMode]);
 
 
@@ -92,8 +105,14 @@ export default function SigningProfilesPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      params.append('sort_by', 'name');
-      params.append('sort_mode', 'asc');
+      if (sortConfig) {
+        params.append('sort_by', sortConfig.column);
+        params.append('sort_mode', sortConfig.direction);
+      } else {
+        params.append('sort_by', 'name');
+        params.append('sort_mode', 'asc');
+      }
+      
       params.append('page_size', pageSize);
       if (bookmarkToFetch) {
         params.append('bookmark', bookmarkToFetch);
@@ -112,7 +131,7 @@ export default function SigningProfilesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.access_token, authLoading, pageSize, debouncedSearchTerm]);
+  }, [isAuthenticated, user?.access_token, authLoading, pageSize, debouncedSearchTerm, sortConfig]);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated()) {
@@ -173,6 +192,14 @@ export default function SigningProfilesPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+  
+  const requestSort = (column: SortableProfileColumn) => {
+    let direction: SortDirection = 'asc';
+    if (sortConfig && sortConfig.column === column && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ column, direction });
   };
   
   const hasActiveFilters = !!debouncedSearchTerm;
@@ -258,6 +285,8 @@ export default function SigningProfilesPage() {
           ) : (
              <SigningProfilesTable 
                 profiles={profiles} 
+                sortConfig={sortConfig}
+                requestSort={requestSort}
                 onEdit={handleEditProfile} 
                 onDelete={handleDeleteProfileClick} 
                 onViewUsage={handleViewUsageClick}
