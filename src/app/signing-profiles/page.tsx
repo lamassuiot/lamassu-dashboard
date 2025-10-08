@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile, type ApiSigningProfileListResponse } from '@/lib/ca-data';
+import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -194,7 +194,7 @@ export default function SigningProfilesPage() {
         Manage templates that define how certificates are signed, including duration, subject attributes, and extensions.
       </p>
 
-       <div className="flex flex-col sm:flex-row gap-4 items-end mb-4 p-4 border rounded-lg bg-muted/30">
+       <div className="flex flex-col sm:flex-row gap-4 items-end mb-4">
             <div className="flex-grow w-full space-y-1.5">
                 <Label htmlFor="profile-filter">Filter by Name</Label>
                 <div className="relative">
