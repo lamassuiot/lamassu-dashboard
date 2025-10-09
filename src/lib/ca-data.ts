@@ -875,21 +875,22 @@ export interface ApiKmsKey {
   id: string;
   name?: string;
   algorithm: string;
-  size: string;
+  size: number;
   public_key: string;
   status: string;
   creation_ts: string;
 }
 
-export interface ApiKmsKeyListResponse {
-  next: string | null;
-  list: ApiKmsKey[];
+interface ApiKmsKeyListResponse {
+    next: string | null;
+    list: ApiKmsKey[];
 }
 
-
-export async function fetchKmsKeys(accessToken: string, apiQueryString?: string): Promise<ApiKmsKeyListResponse> {
-    const url = `${get_CA_API_BASE_URL()}/kms/keys?${apiQueryString || ''}`;
-    const response = await fetch(url, {
+export async function fetchKmsKeys(accessToken: string, params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
+    const url = new URL(`${get_CA_API_BASE_URL()}/kms/keys`);
+    params.forEach((value, key) => url.searchParams.append(key, value));
+    
+    const response = await fetch(url.toString(), {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
@@ -943,8 +944,20 @@ export async function verifyWithKmsKey(keyId: string, payload: any, accessToken:
     return response.json();
 }
 
+export interface CreateKmsKeyPayload {
+    engine_id: string;
+    name: string;
+    algorithm: string;
+    size: number;
+}
 
-export async function createKmsKey(payload: { engine_id: string; algorithm: string; size: number; name: string }, accessToken: string): Promise<void> {
+export interface ImportKmsKeyPayload {
+    private_key: string; // Base64 encoded PEM
+    engine_id: string;
+    name: string;
+}
+
+export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: string): Promise<void> {
     const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys`, {
         method: 'POST',
         headers: {
@@ -959,6 +972,43 @@ export async function createKmsKey(payload: { engine_id: string; algorithm: stri
         try {
             errorJson = await response.json();
             errorMessage = `Key creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
+
+export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/import`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to import key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key import failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
+
+export async function deleteKmsKey(keyId: string, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to delete KMS key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
         } catch (e) { /* ignore json parse error */ }
         throw new Error(errorMessage);
     }
@@ -1025,8 +1075,8 @@ export interface ApiSigningProfile {
 		organization?: string;
 		organizational_unit?: string;
 		country?: string;
-		locality?: string;
 		state?: string;
+		locality?: string;
 	};
 	honor_extensions: boolean;
     crypto_enforcement: {

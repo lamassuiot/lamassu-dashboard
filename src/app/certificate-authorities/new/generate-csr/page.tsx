@@ -15,7 +15,7 @@ import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchCryptoEngines, createCaRequest, type CreateCaRequestPayload } from '@/lib/ca-data';
-import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/key-spec-constants';
+import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 
 export default function RequestCaCsrPage() {
   const router = useRouter();
