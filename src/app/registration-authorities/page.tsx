@@ -28,11 +28,13 @@ import {
   Server,
   Search,
   X,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format, parseISO } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { cn, getCookie, setCookie } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs } from '@/lib/ca-data';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
@@ -56,6 +58,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RegistrationAuthoritiesTable } from '@/components/ra/RegistrationAuthoritiesTable';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 
 const DetailRow: React.FC<{ icon: React.ElementType, label: string, value: React.ReactNode }> = ({ icon: Icon, label, value }) => (
@@ -77,6 +81,9 @@ export default function RegistrationAuthoritiesPage() {
   const [allCAs, setAllCAs] = useState<CA[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>();
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,6 +115,25 @@ export default function RegistrationAuthoritiesPage() {
   useEffect(() => {
     setIsClientMounted(true);
   }, []);
+
+  // Load view mode from cookie
+  useEffect(() => {
+    if (isClientMounted) {
+      const savedViewMode = getCookie('user-view-mode');
+      if (savedViewMode === 'grid' || savedViewMode === 'list') {
+        setViewMode(savedViewMode);
+      } else {
+        setViewMode('grid'); // Default to grid
+      }
+    }
+  }, [isClientMounted]);
+
+  // Save view mode to cookie
+  useEffect(() => {
+    if (viewMode && isClientMounted) {
+      setCookie('user-view-mode', viewMode);
+    }
+  }, [viewMode, isClientMounted]);
   
   // Debounce search term
   useEffect(() => {
@@ -165,7 +191,7 @@ export default function RegistrationAuthoritiesPage() {
   useEffect(() => {
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
-  }, [pageSize, debouncedSearchTerm]);
+  }, [pageSize, debouncedSearchTerm, caFilterId]);
 
   useEffect(() => {
     // Gate fetching until the component is mounted and auth is resolved
@@ -279,6 +305,8 @@ export default function RegistrationAuthoritiesPage() {
     );
   }
 
+  const hasActiveFilters = searchTerm || caFilterId;
+
   return (
     <>
     <div className="space-y-6 w-full pb-8">
@@ -300,7 +328,7 @@ export default function RegistrationAuthoritiesPage() {
         Manage policies for device enrollment and certificate issuance.
       </p>
 
-      <div className="flex flex-col md:flex-row gap-4 items-end mb-4">
+      <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-grow w-full space-y-1.5">
           <Label htmlFor="ra-name-filter">Filter by Name</Label>
           <div className="relative">
@@ -315,7 +343,7 @@ export default function RegistrationAuthoritiesPage() {
             />
           </div>
         </div>
-         <div className="flex-grow w-full space-y-1.5">
+        <div className="flex-grow w-full space-y-1.5">
           <Label htmlFor="ca-filter-button">Filter by CA</Label>
           <div className="flex items-center gap-2">
             <Button
@@ -340,6 +368,17 @@ export default function RegistrationAuthoritiesPage() {
             )}
            </div>
         </div>
+        <div className="flex items-center space-x-2">
+            <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
+                variant="outline"
+            >
+                <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
+                <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
+            </ToggleGroup>
+        </div>
       </div>
 
       {error && (
@@ -350,17 +389,26 @@ export default function RegistrationAuthoritiesPage() {
         </Alert>
       )}
 
-      {!isLoading && !error && filteredRas.length === 0 && (
+      {!isLoading && !error && filteredRas.length === 0 ? (
         <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-            <h3 className="text-lg font-semibold text-muted-foreground">{searchTerm || caFilterId ? "No Matching RAs Found" : "No Registration Authorities Found"}</h3>
-            <p className="text-sm text-muted-foreground">{searchTerm || caFilterId ? "Try a different search term or filter." : "Get started by creating a new RA to define an enrollment policy."}</p>
+            <h3 className="text-lg font-semibold text-muted-foreground">{hasActiveFilters ? "No Matching RAs Found" : "No Registration Authorities Found"}</h3>
+            <p className="text-sm text-muted-foreground">{hasActiveFilters ? "Try a different search term or filter." : "Get started by creating a new RA to define an enrollment policy."}</p>
             <Button onClick={handleCreateNewRAClick} className="mt-4">
               <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
             </Button>
         </div>
-      )}
-
-      {!error && filteredRas.length > 0 && (
+      ) : viewMode === 'list' ? (
+        <RegistrationAuthoritiesTable
+            ras={filteredRas}
+            getCaNameById={getCaNameById}
+            onEdit={(raId) => router.push(`/registration-authorities/new?raId=${raId}`)}
+            onViewDevices={(raId) => router.push(`/devices?dms_owner=${raId}`)}
+            onShowMetadata={handleShowMetadata}
+            onOpenEnrollModal={handleOpenEnrollModal}
+            onOpenReEnrollModal={handleOpenReEnrollModal}
+            onDelete={setRaToDelete}
+        />
+      ) : (
         <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
             {filteredRas.map(ra => {
                 const profile = ra.settings.enrollment_settings.device_provisioning_profile;
@@ -617,6 +665,3 @@ export default function RegistrationAuthoritiesPage() {
     </>
   );
 }
-
-
-    
