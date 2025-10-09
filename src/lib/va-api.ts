@@ -2,9 +2,6 @@
 // src/lib/va-api.ts
 import { get_VA_API_BASE_URL, get_VA_CORE_API_BASE_URL, handleApiError } from './api-domains';
 
-// CRL base path for constructing CRL URLs
-export const CRL_BASE_PATH = '/va/crl';
-
 export interface VAConfig {
   caId: string;
   refreshInterval: string;

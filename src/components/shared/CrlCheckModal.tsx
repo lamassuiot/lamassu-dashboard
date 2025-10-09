@@ -17,7 +17,7 @@ import { DetailItem } from './DetailItem';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { revocationReasons } from '@/lib/revocation-reasons';
-import { CRL_BASE_PATH } from '@/lib/va-api';
+import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
 
 interface CrlCheckModalProps {
   isOpen: boolean;
@@ -63,13 +63,8 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
     useEffect(() => {
         if (isOpen && ca?.subjectKeyId) {
             // Construct CRL URL using LAMASSU_PUBLIC_API if defined, otherwise current UI host
-            let baseUrl = '';
-            if (typeof window !== 'undefined') {
-                // Check for LAMASSU_PUBLIC_API in config first
-                const publicApi = (window as any).lamassuConfig?.LAMASSU_PUBLIC_API;
-                baseUrl = publicApi || window.location.origin;
-            }
-            const constructedCrlUrl = `${baseUrl}${CRL_BASE_PATH}/${ca.subjectKeyId}`;
+            let baseUrl = get_VA_CORE_API_BASE_URL();
+            const constructedCrlUrl = `${baseUrl}/crl/${ca.subjectKeyId}`;
             setCrlUrl(constructedCrlUrl);
         } else {
             setCrlUrl('');
