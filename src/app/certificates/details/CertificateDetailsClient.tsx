@@ -426,9 +426,16 @@ export default function CertificateDetailsClient() { // Renamed component
                 Serial Number: {certificateDetails.serialNumber}
               </p>
             </div>
-            <Badge variant={statusVariant} className={cn("text-sm self-start sm:self-auto mt-2 sm:mt-0", statusVariant !== 'outline' ? statusColorClass : '')}>
+            <div className="flex items-center gap-2 self-start sm:self-auto mt-2 sm:mt-0">
+              <Badge variant={statusVariant} className={cn("text-sm", statusVariant !== 'outline' ? statusColorClass : '')}>
                 {statusText}
-            </Badge>
+              </Badge>
+              {statusText === 'REVOKED' && certificateDetails.revocationReason && (
+                <Badge variant="outline" className="text-sm text-muted-foreground">
+                  {certificateDetails.revocationReason}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
