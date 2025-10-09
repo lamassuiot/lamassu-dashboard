@@ -106,7 +106,7 @@ interface JobWorkflowGraphProps {
 }
 
 export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jobHistory }) => {
-    const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(() => {
+    const { nodes, edges } = useMemo(() => {
 
         let workflowToRender: DeviceJobWorkflow = workflow;
         if (!workflow || !workflow.states || workflow.states.length === 0) {
@@ -149,31 +149,13 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
             target: trans.to,
             animated: historyStates.includes(trans.from) && historyStates.includes(trans.to),
             style: {
-                strokeWidth: 2.5,
+                strokeWidth: 2,
                 stroke: (historyStates.includes(trans.from) && historyStates.includes(trans.to)) ? 'hsl(var(--primary))' : 'hsl(var(--border))',
             }
         }));
         
         return getLayoutedElements(initialNodes, initialEdges);
     }, [workflow, jobHistory]);
-
-    const [nodes, setNodes] = React.useState<Node[]>(layoutedNodes);
-    const [edges, setEdges] = React.useState<Edge[]>(layoutedEdges);
-    
-    // Update state when layoutedElements change
-    React.useEffect(() => {
-        setNodes(layoutedNodes);
-        setEdges(layoutedEdges);
-    }, [layoutedNodes, layoutedEdges]);
-
-    const onNodesChange: OnNodesChange = useCallback(
-        (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-        [setNodes]
-    );
-    const onEdgesChange: OnEdgesChange = useCallback(
-        (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-        [setEdges]
-    );
 
     const defaultEdgeOptions: DefaultEdgeOptions = {
         type: 'smoothstep',
@@ -187,8 +169,6 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
         <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
             nodeTypes={nodeTypes}
             defaultEdgeOptions={defaultEdgeOptions}
             fitView
