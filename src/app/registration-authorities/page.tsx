@@ -300,7 +300,7 @@ export default function RegistrationAuthoritiesPage() {
         Manage policies for device enrollment and certificate issuance.
       </p>
 
-      <div className="flex flex-col md:flex-row gap-4 items-end mb-4 p-4 border rounded-lg bg-muted/30">
+      <div className="flex flex-col md:flex-row gap-4 items-end mb-4">
         <div className="flex-grow w-full space-y-1.5">
           <Label htmlFor="ra-name-filter">Filter by Name</Label>
           <div className="relative">
