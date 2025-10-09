@@ -9,6 +9,10 @@ import { Info, AlertTriangle, Workflow } from 'lucide-react';
 import type { DeviceJob } from '@/types/iot';
 import { JobWorkflowGraph } from './JobWorkflowGraph';
 import { format, parseISO, isValid } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+import { fetchDeviceJobsForLaunch } from '@/lib/iot-api';
+import { Loader2 } from 'lucide-react';
+import { Button } from '../ui/button';
 
 interface UpdateStatusTabProps {
   allRawEvents: any[];
@@ -45,7 +49,7 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
                     const existingJob = jobMap.get(job.id);
                     if (existingJob) {
                         // Ensure mtime is valid before comparing
-                        if (isValid(parseISO(eventTime)) && isValid(parseISO(existingJob.mtime)) && parseISO(eventTime) > parseISO(existingJob.mtime)) {
+                        if (isValid(parseISO(eventTime)) && (!existingJob.mtime || !isValid(parseISO(existingJob.mtime)) || parseISO(eventTime) > parseISO(existingJob.mtime))) {
                            existingJob.status = job.status;
                            existingJob.mtime = eventTime;
                         }

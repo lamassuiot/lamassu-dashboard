@@ -106,18 +106,23 @@ interface JobWorkflowGraphProps {
 
 export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jobHistory }) => {
     
-    const { initialNodes, initialEdges } = useMemo(() => {
+    const [nodes, setNodes] = useState<Node[]>([]);
+    const [edges, setEdges] = useState<Edge[]>([]);
+
+    useEffect(() => {
         let workflowToRender: DeviceJobWorkflow = workflow;
         if (!workflow || !workflow.states || workflow.states.length === 0) {
-            if (workflow.name === 'wfx.workflow.dau.direct') {
+            if (workflow?.name === 'wfx.workflow.dau.direct') {
                 workflowToRender = directWorkflow as DeviceJobWorkflow;
-            } else if (workflow.name === 'wfx.workflow.dau.phased') {
+            } else if (workflow?.name === 'wfx.workflow.dau.phased') {
                 workflowToRender = phasedWorkflow as DeviceJobWorkflow;
             }
         }
         
         if (!workflowToRender || !workflowToRender.states) {
-            return { initialNodes: [], initialEdges: [] };
+            setNodes([]);
+            setEdges([]);
+            return;
         }
         
         const historyStates = jobHistory.map(h => h.status.state);
@@ -126,7 +131,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
             lastEventByState.set(event.status.state, event);
         });
 
-        const nodes: Node[] = workflowToRender.states.map((state: DeviceJobWorkflowState) => {
+        const initialNodes: Node[] = workflowToRender.states.map((state: DeviceJobWorkflowState) => {
             const isVisited = historyStates.includes(state.name);
             const isTerminal = state.name === "ACTIVATED" || state.name === "INSTALLED";
             const isError = state.name === "TERMINATED";
@@ -141,13 +146,13 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
             };
         });
 
-        const edges: Edge[] = workflowToRender.transitions.map((trans: DeviceJobWorkflowTransition) => ({
+        const initialEdges: Edge[] = workflowToRender.transitions.map((trans: DeviceJobWorkflowTransition) => ({
             id: `e-${trans.from}-${trans.to}`,
             source: trans.from,
             target: trans.to,
             animated: historyStates.includes(trans.from) && historyStates.includes(trans.to),
             style: {
-                strokeWidth: 2.5,
+                strokeWidth: 2,
                 stroke: (historyStates.includes(trans.from) && historyStates.includes(trans.to)) ? 'hsl(var(--primary))' : 'hsl(var(--border))',
             },
             type: 'smoothstep',
@@ -156,24 +161,22 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
                 color: (historyStates.includes(trans.from) && historyStates.includes(trans.to)) ? 'hsl(var(--primary))' : 'hsl(var(--border))',
             },
         }));
-        
-        return getLayoutedElements(nodes, edges);
-    }, [workflow, jobHistory]);
 
-    const [nodes, setNodes, onNodesChange] = useState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useState(initialEdges);
+        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(initialNodes, initialEdges);
+
+        setNodes(layoutedNodes);
+        setEdges(layoutedEdges);
+    }, [workflow, jobHistory]);
     
-    useEffect(() => {
-        setNodes(initialNodes);
-        setEdges(initialEdges);
-    }, [initialNodes, initialEdges]);
+    const onNodesChange: OnNodesChange = useCallback((changes) => setNodes((nds) => applyNodeChanges(changes, nds)), [setNodes]);
+    const onEdgesChange: OnEdgesChange = useCallback((changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), [setEdges]);
 
     return (
         <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange as OnNodesChange}
-            onEdgesChange={onEdgesChange as OnEdgesChange}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
             nodeTypes={nodeTypes}
             fitView
             nodesDraggable={false}
@@ -181,7 +184,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
             elementsSelectable={false}
             proOptions={{ hideAttribution: true }}
         >
-            <Controls />
+            <Controls showInteractive={false} />
             <Background />
         </ReactFlow>
     );
