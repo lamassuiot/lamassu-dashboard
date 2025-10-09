@@ -254,7 +254,7 @@ export default function KmsKeysPage() {
       )}
 
       {/* Filter Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+      <div className="grid grid-cols-1 gap-4 items-end">
         <div className="space-y-1">
           <Label htmlFor="aliasSearchInput">Filter by Alias</Label>
           <div className="relative">
@@ -280,20 +280,6 @@ export default function KmsKeysPage() {
               </Button>
             )}
           </div>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="pageSizeSelect">Items per page</Label>
-          <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading}>
-            <SelectTrigger id="pageSizeSelect" className="w-[150px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -407,15 +393,30 @@ export default function KmsKeysPage() {
             </Table>
           </div>
           <div className="flex justify-between items-center mt-4">
-              <div className="text-sm text-muted-foreground">
-                  Page {currentPageIndex + 1}
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="pageSizeSelectKmsList" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
+                <Select
+                  value={pageSize}
+                  onValueChange={(value) => { setPageSize(value); }}
+                  disabled={isLoading || authLoading}
+                >
+                  <SelectTrigger id="pageSizeSelectKmsList" className="w-[80px]">
+                    <SelectValue placeholder="Page size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center space-x-2">
-                  <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline" size="sm">
-                      <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+                  <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
+                      <ChevronLeft className="mr-2 h-4 w-4" /> Previous
                   </Button>
-                  <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline" size="sm">
-                      Next <ChevronRight className="ml-1 h-4 w-4" />
+                  <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
+                      Next <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
               </div>
           </div>
