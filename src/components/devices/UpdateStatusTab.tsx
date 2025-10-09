@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info, AlertTriangle, Workflow } from 'lucide-react';
 import type { DeviceJob } from '@/types/iot';
 import { JobWorkflowGraph } from './JobWorkflowGraph';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 
 interface UpdateStatusTabProps {
   allRawEvents: any[];
@@ -44,8 +44,8 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
 
                     const existingJob = jobMap.get(job.id);
                     if (existingJob) {
-                        // Append to history and update status if this event is newer
-                        if (parseISO(eventTime) > parseISO(existingJob.mtime)) {
+                        // Ensure mtime is valid before comparing
+                        if (isValid(parseISO(eventTime)) && isValid(parseISO(existingJob.mtime)) && parseISO(eventTime) > parseISO(existingJob.mtime)) {
                            existingJob.status = job.status;
                            existingJob.mtime = eventTime;
                         }
@@ -54,8 +54,9 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
                         existingJob.history.sort((a,b) => parseISO(a.mtime).getTime() - parseISO(b.mtime).getTime());
 
                     } else {
-                        // Create new job entry with initial history
+                        // Create new job entry with initial history and valid mtime
                         job.history = [historyEntry];
+                        job.mtime = eventTime; // Set initial mtime
                         jobMap.set(job.id, job);
                     }
                 }
@@ -66,9 +67,11 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
     });
 
     // Sort jobs by the most recent event timestamp (which is the job's last mtime)
-    return Array.from(jobMap.values()).sort((a, b) => 
-        parseISO(b.mtime).getTime() - parseISO(a.mtime).getTime()
-    );
+    return Array.from(jobMap.values())
+        .filter(job => job.mtime && isValid(parseISO(job.mtime))) // Ensure jobs have a valid mtime
+        .sort((a, b) => 
+            parseISO(b.mtime).getTime() - parseISO(a.mtime).getTime()
+        );
   }, [allRawEvents]);
 
   useEffect(() => {
