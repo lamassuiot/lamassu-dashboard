@@ -112,7 +112,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
         if (!workflow || !workflow.states || workflow.states.length === 0) {
             if (workflow.name === 'wfx.workflow.dau.direct') {
                 workflowToRender = directWorkflow as DeviceJobWorkflow;
-            } else if (workflow.name === 'wfx.workflow.dau.phased') {
+            } else if (workflow.name === 'wfx.workflow.phased.rollout') {
                 workflowToRender = phasedWorkflow as DeviceJobWorkflow;
             }
         }
@@ -159,6 +159,12 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
 
     const [nodes, setNodes] = React.useState<Node[]>(layoutedNodes);
     const [edges, setEdges] = React.useState<Edge[]>(layoutedEdges);
+    
+    // Update state when layoutedElements change
+    React.useEffect(() => {
+        setNodes(layoutedNodes);
+        setEdges(layoutedEdges);
+    }, [layoutedNodes, layoutedEdges]);
 
     const onNodesChange: OnNodesChange = useCallback(
         (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
