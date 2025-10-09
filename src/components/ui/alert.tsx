@@ -54,12 +54,22 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
       onClick?.(e);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setIsExpanded(!isExpanded);
+        console.log('Alert activated via keyboard, isExpanded:', !isExpanded); // Debug log
+      }
+    };
+
     return (
       <div
         ref={ref}
-        role="alert"
+        role="button"
+        tabIndex={0}
         className={cn(alertVariants({ variant }), "cursor-pointer hover:bg-muted/70", className)}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         {...props}
       >
         <div className="flex items-center justify-between p-4">
@@ -153,11 +163,19 @@ AlertDescription.displayName = "AlertDescription"
 const AlertExpandableContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->(({ className, onClick, ...props }, ref) => {
+>(({ className, onClick, onKeyDown, ...props }, ref) => {
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Prevent event bubbling to avoid collapsing the alert when clicking inside the content
     e.stopPropagation();
     onClick?.(e);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Prevent event bubbling for keyboard interactions too
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.stopPropagation();
+    }
+    onKeyDown?.(e);
   };
 
   return (
@@ -165,6 +183,7 @@ const AlertExpandableContent = React.forwardRef<
       ref={ref}
       className={cn("space-y-4", className)}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       {...props}
     />
   );
