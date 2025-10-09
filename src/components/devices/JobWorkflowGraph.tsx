@@ -16,7 +16,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { DeviceJobWorkflow, DeviceJobWorkflowState, DeviceJobWorkflowTransition } from '@/types/iot';
-import dagre from 'dagre';
+import dagre from '@dagrejs/dagre';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Play, CheckCircle, AlertTriangle } from 'lucide-react';
