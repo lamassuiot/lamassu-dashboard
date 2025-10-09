@@ -175,7 +175,7 @@ export function DeviceStatusChartCard() {
               </PieChart>
             </ResponsiveContainer>
             {totalDevices !== null && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center pointer-events-none">
+                <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center pointer-events-none" style={{ top: 'calc(50% - 15px)', transform: 'translateX(-50%) translateY(-50%)' }}>
                     <span className="text-3xl font-bold text-primary-foreground">{totalDevices}</span>
                     <span className="text-sm text-primary-foreground/80">Total Devices</span>
                 </div>

@@ -460,11 +460,14 @@ export async function fetchAndProcessCAs(accessToken: string, apiQueryString?: s
     // Base URL setup
     const baseUrl = `${get_CA_API_BASE_URL()}/cas`;
     const initialParams = new URLSearchParams(apiQueryString);
-    initialParams.set('page_size', '25');
+    if (!initialParams.has('page_size')) {
+        initialParams.set('page_size', '100');
+    }
 
     while (hasNextPage) {
         const url = new URL(baseUrl);
         initialParams.forEach((value, key) => {
+            // Do not copy the bookmark from the initial string, we manage it ourselves.
             if(key !== 'bookmark') url.searchParams.append(key, value);
         });
 
@@ -566,6 +569,7 @@ export interface CreateCaPayload {
   parent_id: string | null;
   id: string;
   engine_id: string;
+  profile_id?: string;
   subject: {
     country?: string;
     state_province?: string;
@@ -1067,7 +1071,7 @@ export interface ApiSigningProfile {
 	honor_extended_key_usages: boolean;
 	extended_key_usages: string[];
 	honor_subject: boolean;
-	subject: {
+	subject?: {
 		organization?: string;
 		organizational_unit?: string;
 		country?: string;
@@ -1085,8 +1089,8 @@ export interface ApiSigningProfile {
 }
 
 export interface ApiSigningProfileListResponse {
-  next: string | null;
-  list: ApiSigningProfile[];
+    next: string | null;
+    list: ApiSigningProfile[];
 }
 
 export async function fetchSigningProfiles(accessToken: string, params?: URLSearchParams): Promise<ApiSigningProfileListResponse> {
@@ -1098,19 +1102,12 @@ export async function fetchSigningProfiles(accessToken: string, params?: URLSear
     const response = await fetch(url.toString(), {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch signing profiles. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Failed to fetch profiles: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore */}
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    
+    return handleApiError(response, 'Failed to fetch signing profiles');
 }
 
 export interface CreateSigningProfilePayload {
+    id?: string;
     name: string;
     description?: string;
     validity: {

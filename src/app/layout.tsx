@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import './globals.css';
@@ -7,7 +8,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
 import Script from 'next/script';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams }
   from 'next/navigation';
@@ -27,7 +28,7 @@ import {
 } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare } from 'lucide-react';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +58,8 @@ import { Separator } from '@/components/ui/separator';
 import { BackendStatusDialog } from '@/components/shared/BackendStatusDialog';
 import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
+import { InitializationWizard } from '@/components/home/InitializationWizard';
+import { fetchCaStatsSummary } from '@/lib/ca-data';
 
 
 interface DecodedAccessToken {
@@ -218,12 +221,7 @@ const CustomFooter = () => {
   );
 };
 
-const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
-  console.log("MainLayoutContent: Rendering main layout content");
-  useEffect(() => {
-    console.log("MainLayoutContent: Mounted");
-  }, []);
-
+const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
   const { isAuthenticated, user, login, logout } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -243,6 +241,16 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
       console.error("Error decoding access token:", error);
     }
   }
+
+  const handleRunWizard = () => {
+    if (typeof document !== 'undefined') {
+        // Clear completion cookie
+        document.cookie = 'lamassu_wizard_completed=; path=/; max-age=0';
+        // Set a short-lived cookie to force the wizard to open
+        document.cookie = 'force_wizard_open=true; path=/; max-age=5'; // Expires in 5 seconds
+        window.location.reload();
+    }
+  };
 
   return (
     <SidebarProvider defaultOpen>
@@ -311,6 +319,10 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
                       <Info className="mr-2 h-4 w-4" />
                       <span>Backend Services</span>
                     </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={handleRunWizard}>
+                        <PlaySquare className="mr-2 h-4 w-4" />
+                        <span>Run Setup Wizard</span>
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={logout}>
                       <LogOut className="mr-2 h-4 w-4" />
@@ -320,99 +332,108 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
                 </DropdownMenu>
               </>
             ) : (
-              <Button variant="ghost" size="sm" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
-                <LogIn className="mr-0 sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">Login</span>
-              </Button>
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <Button variant="ghost" size="sm" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
+                  <LogIn className="mr-0 sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">Login</span>
+                </Button>
+              </div>
             )}
           </div>
         </header>
 
         {isAuthenticated() ? (
-          <div className="flex flex-1 overflow-hidden">
-            <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
-              <SidebarHeader className="p-4">
-                <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                  <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
-                    <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
-                  </div>
-                  <Image
-                    src={LogoFullBlue}
-                    height={30}
-                    width={140}
-                    alt="LamassuIoT Logo"
-                    className="group-data-[collapsible=icon]:hidden dark:hidden"
-                  />
-                  <Image
-                    src={LogoFullWhite}
-                    height={30}
-                    width={140}
-                    alt="LamassuIoT Logo"
-                    className="group-data-[collapsible=icon]:hidden hidden dark:block"
-                  />
-                  <Image
-                    src={LogoBlue}
-                    height={30}
-                    width={30}
-                    alt="LamassuIoT Logo"
-                    className="hidden group-data-[collapsible=icon]:block"
-                  />
-                </div>
-              </SidebarHeader>
-              <SidebarContent className="p-2">
-                <SidebarMenu>
-                  {navigationConfig.map((group, groupIndex) => {
-                    if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
-                      return null;
-                    }
-
-                    const filteredItems = group.items.filter(item =>
-                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
-                    );
-
-                    if (filteredItems.length === 0) {
-                      return null;
-                    }
-
-                    return (
-                      <React.Fragment key={group.label || `group-${groupIndex}`}>
-                        {group.label && (
-                          <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0">
-                            {group.label}
-                          </SidebarGroupLabel>
-                        )}
-                        {filteredItems.map(item => (
-                          <SidebarMenuItem key={item.href}>
-                            <SidebarMenuButton
-                              asChild
-                              isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
-                              tooltip={{ children: item.label, side: 'right', align: 'center' }}
-                            >
-                              <Link href={item.href} className="flex items-center w-full justify-start">
-                                <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
-                                <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
-                              </Link>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
-                      </React.Fragment>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarContent>
-              <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
-                <CustomSidebarToggle />
-                <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-
-                </div>
-              </SidebarFooter>
-            </Sidebar>
-
-            <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
-              {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
+          isWizardMode ? (
+            <div className="flex-1 overflow-y-auto">
               {children}
-              <CustomFooter />
-            </SidebarInset>
-          </div>
+            </div>
+          ) : (
+            <div className="flex flex-1 overflow-hidden">
+              <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
+                <SidebarHeader className="p-4">
+                  <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+                     <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
+                       <div className="secondary-logo h-[30px] w-auto aspect-[200/60]"/>
+                     </div>
+                    <Image
+                      src={LogoFullBlue}
+                      height={30}
+                      width={140}
+                      alt="LamassuIoT Logo"
+                      className="group-data-[collapsible=icon]:hidden dark:hidden"
+                    />
+                     <Image
+                      src={LogoFullWhite}
+                      height={30}
+                      width={140}
+                      alt="LamassuIoT Logo"
+                      className="group-data-[collapsible=icon]:hidden hidden dark:block"
+                    />
+                    <Image
+                      src={LogoBlue}
+                      height={30}
+                      width={30}
+                      alt="LamassuIoT Logo"
+                      className="hidden group-data-[collapsible=icon]:block"
+                    />
+                  </div>
+                </SidebarHeader>
+                <SidebarContent className="p-2">
+                  <SidebarMenu>
+                    {navigationConfig.map((group, groupIndex) => {
+                      if (group.devOnly && !(process.env.NODE_ENV == 'development' ||  process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                          return null;
+                      }
+                      
+                      const filteredItems = group.items.filter(item => 
+                          !(item.devOnly && !(process.env.NODE_ENV == 'development' ||  process.env.NEXT_FORCE_DEV_OPTIONS))
+                      );
+
+                      if (filteredItems.length === 0) {
+                          return null;
+                      }
+
+                      return (
+                          <React.Fragment key={group.label || `group-${groupIndex}`}>
+                              {group.label && (
+                                  <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
+                                      {group.label}
+                                  </SidebarGroupLabel>
+                              )}
+                              {filteredItems.map(item => (
+                                  <SidebarMenuItem key={item.href}>
+                                      <SidebarMenuButton
+                                          asChild
+                                          isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
+                                          tooltip={{ children: item.label, side: 'right', align: 'center' }}
+                                      >
+                                          <Link href={item.href} className="flex items-center w-full justify-start">
+                                              <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
+                                              <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
+                                          </Link>
+                                      </SidebarMenuButton>
+                                  </SidebarMenuItem>
+                              ))}
+                          </React.Fragment>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarContent>
+                <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
+                  <CustomSidebarToggle />
+                  <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                      
+                  </div>
+                </SidebarFooter>
+              </Sidebar>
+
+              <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
+                {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
+                {children}
+                <CustomFooter />
+              </SidebarInset>
+            </div>
+          )
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
             <Image
@@ -420,10 +441,11 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
               height={75}
               width={75}
               alt="LamassuIoT Logo"
+              className="lamassu-logo-theme-filter"
             />
             <h1 className="text-3xl font-bold mt-3 mb-3">Welcome to LamassuIoT</h1>
             <p className="text-lg text-muted-foreground mb-8 max-w-md">
-              Securely manage your X.509 certificates and IoT device identities. Please log in to access the dashboard.
+              Securely manage your X.509 certificates and IoT device identities. Please log in to access the system.
             </p>
             <Button onClick={login} size="lg" className="px-8 py-6 text-lg">
               <LogIn className="mr-2 h-5 w-5" /> Login with Lamassu Identity
@@ -476,18 +498,72 @@ const MainLayoutContent = ({ children }: { children: React.ReactNode }) => {
 
 
 const InnerLayout = ({ children }: { children: React.ReactNode }) => {
-  console.log("InnerLayout: Rendering layout component");
-  useEffect(() => {
-    console.log("InnerLayout: Mounted");
-  }, []);
-
-  const { isLoading: authIsLoading } = useAuth();
+  const { isLoading: authIsLoading, user } = useAuth();
   const [clientMounted, setClientMounted] = React.useState(false);
   const pathname = usePathname();
 
-  React.useEffect(() => {
-    setClientMounted(true);
-  }, []);
+  // State to determine if the wizard should be shown
+  const [isWizardMode, setIsWizardMode] = useState(false);
+  const [isCheckingSystem, setIsCheckingSystem] = useState(true);
+
+  const checkSystemStatus = useCallback(async () => {
+    if (!user?.access_token) {
+        setIsCheckingSystem(false);
+        return;
+    }
+
+    // Check for the force-open cookie first
+    const forceOpen = document.cookie.includes('force_wizard_open=true');
+    if (forceOpen) {
+        document.cookie = 'force_wizard_open=; path=/; max-age=0'; // Delete the cookie after reading
+        setIsWizardMode(true);
+        setIsCheckingSystem(false);
+        return;
+    }
+
+    // Only check CA stats on the homepage
+    if (pathname !== '/') {
+        setIsWizardMode(false);
+        setIsCheckingSystem(false);
+        return;
+    }
+
+    // Check if the completion cookie is set
+    const wizardCompleted = document.cookie.includes('lamassu_wizard_completed=true');
+    if (wizardCompleted) {
+        setIsWizardMode(false);
+        setIsCheckingSystem(false);
+        return;
+    }
+    
+    try {
+        const stats = await fetchCaStatsSummary(user.access_token);
+        if (stats.cas.total === 0) {
+            setIsWizardMode(true);
+        } else {
+            // If CAs exist, set the completion cookie and don't show the wizard.
+            document.cookie = "lamassu_wizard_completed=true; path=/; max-age=315360000"; // 10 years
+            setIsWizardMode(false);
+        }
+    } catch (error) {
+        console.error("Failed to fetch system stats for wizard check:", error);
+        setIsWizardMode(false); // Default to showing dashboard on error
+    } finally {
+        setIsCheckingSystem(false);
+    }
+  }, [user?.access_token, pathname]);
+
+  useEffect(() => {
+      setClientMounted(true);
+      if (!authIsLoading && user) {
+          checkSystemStatus();
+      } else if (!authIsLoading && !user) {
+          // If not authenticated, not in wizard mode and not checking
+          setIsWizardMode(false);
+          setIsCheckingSystem(false);
+      }
+  }, [authIsLoading, user, checkSystemStatus]);
+
 
   const isCallbackPage =
     pathname === '/signin-callback' ||
@@ -501,9 +577,13 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
   if (!clientMounted) {
     return <LoadingState />;
   }
-
-  if (authIsLoading) {
-    return <LoadingState />;
+  
+  if (authIsLoading || isCheckingSystem) {
+      return <LoadingState />;
+  }
+  
+  if (isWizardMode) {
+      return <MainLayoutContent isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
   }
 
   return <MainLayoutContent>{children}</MainLayoutContent>;

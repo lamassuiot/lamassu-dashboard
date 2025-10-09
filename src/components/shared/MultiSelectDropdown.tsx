@@ -48,7 +48,7 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
   };
 
   const handleSelectAll = () => {
-    onChange(allOptionValues);
+    onChange(allOptionValues.length > 0 ? allOptionValues : options.map(o => o.value));
   };
 
   const handleClear = () => {

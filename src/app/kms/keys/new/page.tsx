@@ -53,7 +53,6 @@ export default function CreateKmsKeyPage() {
   const [keyType, setKeyType] = useState('RSA');
   const [rsaKeySize, setRsaKeySize] = useState('2048');
   const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
-  const [mlDsaSecurityLevel, setMlDsaSecurityLevel] = useState('ML-DSA-65');
 
   // Import Key Pair mode fields
   const [importKeyName, setImportKeyName] = useState('');
@@ -129,8 +128,6 @@ export default function CreateKmsKeyPage() {
         setRsaKeySize(firstSize.toString());
       } else if (value === 'ECDSA') {
         setEcdsaCurve(firstSize.toString());
-      } else if (value === 'ML-DSA') {
-        setMlDsaSecurityLevel(firstSize.toString());
       }
     }
   };
@@ -149,21 +146,18 @@ export default function CreateKmsKeyPage() {
   const keySpecLabel = (() => {
     if (keyType === 'RSA') return 'RSA Key Size';
     if (keyType === 'ECDSA') return 'ECDSA Curve';
-    if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
     return 'Key Specification';
   })();
 
   const currentKeySpecValue = (() => {
     if (keyType === 'RSA') return rsaKeySize;
     if (keyType === 'ECDSA') return ecdsaCurve;
-    if (keyType === 'ML-DSA') return mlDsaSecurityLevel;
     return '';
   })();
 
   const handleKeySpecChange = (value: string) => {
     if (keyType === 'RSA') setRsaKeySize(value);
     else if (keyType === 'ECDSA') setEcdsaCurve(value);
-    else if (keyType === 'ML-DSA') setMlDsaSecurityLevel(value);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -200,13 +194,6 @@ export default function CreateKmsKeyPage() {
                 } else {
                     // If it's already a number, parse it
                     sizeValue = parseInt(ecdsaCurve, 10);
-                }
-            } else if (keyType === 'ML-DSA') {
-                // For ML-DSA, extract the number or parse as number
-                if (mlDsaSecurityLevel.includes('ML-DSA-')) {
-                    sizeValue = parseInt(mlDsaSecurityLevel.replace('ML-DSA-', ''), 10);
-                } else {
-                    sizeValue = parseInt(mlDsaSecurityLevel, 10);
                 }
             } else {
                 // For other key types, try to parse as number
@@ -413,8 +400,6 @@ export default function CreateKmsKeyPage() {
                               setRsaKeySize(firstSize.toString());
                             } else if (firstSupportedType.type === 'ECDSA') {
                               setEcdsaCurve(firstSize.toString());
-                            } else if (firstSupportedType.type === 'ML-DSA') {
-                              setMlDsaSecurityLevel(firstSize.toString());
                             }
                           }
                         }

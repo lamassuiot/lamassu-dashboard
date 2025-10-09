@@ -79,9 +79,6 @@ const SIGNATURE_OID_MAP: Record<string, string> = {
   "ECDSA_SHA_256": "1.2.840.10045.4.3.2",
   "ECDSA_SHA_384": "1.2.840.10045.4.3.3",
   "ECDSA_SHA_512": "1.2.840.10045.4.3.4",
-  "ML-DSA-44": "1.3.6.1.4.1.2.267.7.4.4", // Example OID for Dilithium2
-  "ML-DSA-65": "1.3.6.1.4.1.2.267.7.6.5", // Example OID for Dilithium3
-  "ML-DSA-87": "1.3.6.1.4.1.2.267.7.8.7", // Example OID for Dilithium5
 };
 
 const ECDSA_RAW_SIGNATURE_LENGTHS: Record<string, number> = {
@@ -108,7 +105,7 @@ interface KmsKeyDetailed {
   id: string;
   alias: string;
   keyTypeDisplay: string;
-  algorithm: 'RSA' | 'ECDSA' | 'ML-DSA' | 'Unknown';
+  algorithm: 'RSA' | 'ECDSA' | 'Unknown';
   keySize?: string | number;
   hasPrivateKey: boolean;
   publicKeyPem?: string;
@@ -119,7 +116,6 @@ const signatureAlgorithms = [
   'RSASSA_PSS_SHA_256', 'RSASSA_PSS_SHA_384', 'RSASSA_PSS_SHA_512',
   'RSASSA_PKCS1_V1_5_SHA_256', 'RSASSA_PKCS1_V1_5_SHA_384', 'RSASSA_PKCS1_V1_5_SHA_512',
   'ECDSA_SHA_256', 'ECDSA_SHA_384', 'ECDSA_SHA_512',
-  'ML-DSA-44', 'ML-DSA-65', 'ML-DSA-87'
 ];
 
 export default function KmsKeyDetailsClient() {
@@ -250,7 +246,7 @@ export default function KmsKeyDetailsClient() {
           id: apiKey.id,
           alias: apiKey.name || apiKey.id,
           keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
-          algorithm: ['RSA', 'ECDSA', 'ML-DSA'].includes(algorithm) ? algorithm : 'Unknown',
+          algorithm: ['RSA', 'ECDSA'].includes(algorithm) ? algorithm : 'Unknown',
           keySize: apiKey.size,
           hasPrivateKey: apiKey.id.includes('type=private'),
           publicKeyPem: pem,
@@ -271,12 +267,6 @@ export default function KmsKeyDetailsClient() {
           setSignAlgorithm(defaultEcdsaAlgo);
           setVerifyAlgorithm(defaultEcdsaAlgo);
           setCsrSignAlgorithm(defaultEcdsaAlgo);
-        } else if (detailedKey.algorithm === 'ML-DSA') {
-          const defaultMlDsaAlgo = detailedKey.keySize === 44 ? 'ML-DSA-44' :
-            detailedKey.keySize === 87 ? 'ML-DSA-87' : 'ML-DSA-65';
-          setSignAlgorithm(defaultMlDsaAlgo);
-          setVerifyAlgorithm(defaultMlDsaAlgo);
-          setCsrSignAlgorithm(defaultMlDsaAlgo);
         }
 
       } else {
@@ -810,9 +800,6 @@ export default function KmsKeyDetailsClient() {
 
     if (keyDetails.algorithm === 'RSA') {
       return !algo.startsWith('RSASSA');
-    }
-    if (keyDetails.algorithm === 'ML-DSA') {
-      return !algo.startsWith('ML-DSA');
     }
     if (keyDetails.algorithm === 'ECDSA') {
       if (!algo.startsWith('ECDSA')) return true;
