@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React from 'react';
@@ -6,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ } from "lucide-react";
+import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp10, ArrowDown01 } from "lucide-react";
 import type { ApiRaItem } from '@/lib/dms-api';
 import { cn } from '@/lib/utils';
 import type { SortableColumn, SortConfig } from '@/app/registration-authorities/page';
@@ -34,7 +35,15 @@ const SortableTableHeader: React.FC<{
     className?: string;
 }> = ({ column, title, onSort, sortConfig, className }) => {
     const isSorted = sortConfig?.column === column;
-    const Icon = isSorted ? (sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ) : ChevronsUpDown;
+    
+    let Icon = ChevronsUpDown;
+    if (isSorted) {
+      if (column === 'creation_ts') {
+        Icon = sortConfig?.direction === 'asc' ? ArrowUp01 : ArrowDown10;
+      } else {
+        Icon = sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ;
+      }
+    }
     
     return (
         <TableHead className={cn("cursor-pointer hover:bg-muted/50", className)} onClick={() => onSort(column)}>

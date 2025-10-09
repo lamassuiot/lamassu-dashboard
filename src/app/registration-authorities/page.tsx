@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -44,7 +45,7 @@ import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
 import { fetchRegistrationAuthorities, updateRaMetadata, type ApiRaItem, deleteRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { useToast } from '@/hooks/use-toast';
@@ -166,7 +167,11 @@ export default function RegistrationAuthoritiesPage() {
     try {
         const params = new URLSearchParams();
         if (sortConfig) {
-            params.append('sort_by', sortConfig.column);
+            let apiSortColumn = sortConfig.column as string;
+            if (apiSortColumn === 'creation_ts') {
+                apiSortColumn = 'creation_timestamp';
+            }
+            params.append('sort_by', apiSortColumn);
             params.append('sort_mode', sortConfig.direction);
         } else {
             params.append('sort_by', 'name');
@@ -433,6 +438,7 @@ export default function RegistrationAuthoritiesPage() {
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
+            router={router}
         />
       ) : (
         <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
