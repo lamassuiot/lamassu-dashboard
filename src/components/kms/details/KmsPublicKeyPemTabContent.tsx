@@ -4,9 +4,8 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Check, FileText, Hash, Key, Info, Copy } from "lucide-react";
+import { Check, FileText, Key, Info, Copy } from "lucide-react";
 import { CodeBlock } from "@/components/shared/CodeBlock";
 import type { ToastProps } from '@/components/ui/toast';
 

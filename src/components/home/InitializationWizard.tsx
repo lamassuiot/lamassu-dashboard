@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Rocket, ShieldCheck, FilePlus2, ArrowRight, ArrowLeft, Loader2, CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
 import { BackendStatusCheck } from './BackendStatusCheck';
@@ -20,7 +19,6 @@ import {
   deleteCa,
   createSigningProfile,
   deleteSigningProfile,
-  type ApiSigningProfile,
   fetchSigningProfiles,
   signCertificate,
   fetchCaStatsSummary,
