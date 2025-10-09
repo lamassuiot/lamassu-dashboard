@@ -20,11 +20,10 @@ import { ExpirationInput, type ExpirationConfig } from '@/components/shared/Expi
 import { formatISO } from 'date-fns';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { ECDSA_CURVE_OPTIONS } from '@/lib/key-spec-constants';
+import { ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
-
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 

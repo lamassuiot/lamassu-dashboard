@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
-import { KEY_TYPE_OPTIONS_POST_QUANTUM, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS } from '@/lib/key-spec-constants';
+import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { createKmsKey } from '@/lib/ca-data';
@@ -50,7 +50,6 @@ export default function CreateKmsKeyPage() {
   const [keyType, setKeyType] = useState('RSA');
   const [rsaKeySize, setRsaKeySize] = useState('2048');
   const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
-  const [mlDsaSecurityLevel, setMlDsaSecurityLevel] = useState('ML-DSA-65');
 
   // Import Key Pair mode fields
   const [privateKeyPem, setPrivateKeyPem] = useState('');
@@ -68,36 +67,30 @@ export default function CreateKmsKeyPage() {
       setRsaKeySize('2048');
     } else if (value === 'ECDSA') {
       setEcdsaCurve('P-256');
-    } else if (value === 'ML-DSA') {
-      setMlDsaSecurityLevel('ML-DSA-65');
     }
   };
 
   const currentKeySpecOptions = (() => {
     if (keyType === 'RSA') return RSA_KEY_SIZE_OPTIONS;
     if (keyType === 'ECDSA') return ECDSA_CURVE_OPTIONS;
-    if (keyType === 'ML-DSA') return MLDSA_SECURITY_LEVEL_OPTIONS;
     return [];
   })();
 
   const keySpecLabel = (() => {
     if (keyType === 'RSA') return 'RSA Key Size';
     if (keyType === 'ECDSA') return 'ECDSA Curve';
-    if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
     return 'Key Specification';
   })();
 
   const currentKeySpecValue = (() => {
     if (keyType === 'RSA') return rsaKeySize;
     if (keyType === 'ECDSA') return ecdsaCurve;
-    if (keyType === 'ML-DSA') return mlDsaSecurityLevel;
     return '';
   })();
 
   const handleKeySpecChange = (value: string) => {
     if (keyType === 'RSA') setRsaKeySize(value);
     else if (keyType === 'ECDSA') setEcdsaCurve(value);
-    else if (keyType === 'ML-DSA') setMlDsaSecurityLevel(value);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -129,9 +122,6 @@ export default function CreateKmsKeyPage() {
             } else if (keyType === 'ECDSA') {
                 const sizeMap: { [key: string]: number } = { 'P-256': 256, 'P-384': 384, 'P-521': 521 };
                 size = sizeMap[ecdsaCurve];
-            } else if (keyType === 'ML-DSA') {
-                const sizeMap: { [key: string]: number } = { 'ML-DSA-44': 44, 'ML-DSA-65': 65, 'ML-DSA-87': 87 };
-                size = sizeMap[mlDsaSecurityLevel];
             }
 
             const payload = {
@@ -283,7 +273,7 @@ export default function CreateKmsKeyPage() {
                       <Select value={keyType} onValueChange={handleKeyTypeChange}>
                         <SelectTrigger id="keyType" className="mt-1"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {KEY_TYPE_OPTIONS_POST_QUANTUM.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
+                          {KEY_TYPE_OPTIONS.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>

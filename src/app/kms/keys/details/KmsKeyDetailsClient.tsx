@@ -936,8 +936,7 @@ export default function KmsKeyDetailsClient() {
                           <span className="font-medium">{keyDetails.algorithm}</span>
                           <Badge variant="secondary" className="ml-auto">
                             {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : 
-                             keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : 
-                             keyDetails.algorithm === 'ML-DSA' ? 'Post-Quantum' : 'Other'}
+                             keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : 'Other'}
                           </Badge>
                         </div>
                       </div>

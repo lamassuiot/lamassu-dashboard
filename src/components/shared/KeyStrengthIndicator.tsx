@@ -65,25 +65,6 @@ const getStrengthDetails = (algorithm?: string, size?: string | number) => {
     return STRENGTH_LEVELS.UNKNOWN;
   }
 
-  // Post-Quantum: ML-DSA (Dilithium)
-  if (algo === 'ML-DSA' || algo?.includes('DILITHIUM')) {
-    // ML-DSA-87 provides 256-bit security (NIST Level 5)
-    if (String(size).includes('87')) return STRENGTH_LEVELS.EXCELLENT;
-    // ML-DSA-65 provides 192-bit security (NIST Level 3) 
-    if (String(size).includes('65')) return STRENGTH_LEVELS.GOOD;
-    // ML-DSA-44 provides 128-bit security (NIST Level 2)
-    if (String(size).includes('44')) return STRENGTH_LEVELS.ACCEPTABLE;
-    return STRENGTH_LEVELS.ACCEPTABLE; // Default for ML-DSA
-  }
-
-  // Post-Quantum: ML-KEM (Kyber)
-  if (algo === 'ML-KEM' || algo?.includes('KYBER')) {
-    if (String(size).includes('1024')) return STRENGTH_LEVELS.EXCELLENT; // 256-bit security
-    if (String(size).includes('768')) return STRENGTH_LEVELS.GOOD; // 192-bit security
-    if (String(size).includes('512')) return STRENGTH_LEVELS.ACCEPTABLE; // 128-bit security
-    return STRENGTH_LEVELS.ACCEPTABLE; // Default for ML-KEM
-  }
-
   // 3TDEA (Triple DES)
   if (algo === '3TDEA' || algo === '3DES' || algo?.includes('TDEA')) {
     return STRENGTH_LEVELS.DEPRECATED; // 112-bit security
