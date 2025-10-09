@@ -11,7 +11,6 @@ import ReactFlow, {
   type Edge,
   type OnNodesChange,
   type OnEdgesChange,
-  type DefaultEdgeOptions,
   type NodeTypes,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -23,7 +22,7 @@ import { Play, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 
-// Import the workflow definitions
+// Import the workflow definitions from the new JSON files
 import directWorkflow from '@/lib/workflows/direct.json';
 import phasedWorkflow from '@/lib/workflows/phased.json';
 
@@ -106,12 +105,13 @@ interface JobWorkflowGraphProps {
 }
 
 export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jobHistory }) => {
+    
     const { initialNodes, initialEdges } = useMemo(() => {
         let workflowToRender: DeviceJobWorkflow = workflow;
         if (!workflow || !workflow.states || workflow.states.length === 0) {
             if (workflow.name === 'wfx.workflow.dau.direct') {
                 workflowToRender = directWorkflow as DeviceJobWorkflow;
-            } else if (workflow.name === 'wfx.workflow.phased.rollout') {
+            } else if (workflow.name === 'wfx.workflow.dau.phased') {
                 workflowToRender = phasedWorkflow as DeviceJobWorkflow;
             }
         }
@@ -147,51 +147,39 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
             target: trans.to,
             animated: historyStates.includes(trans.from) && historyStates.includes(trans.to),
             style: {
-                strokeWidth: 2,
+                strokeWidth: 2.5,
                 stroke: (historyStates.includes(trans.from) && historyStates.includes(trans.to)) ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-            }
+            },
+            type: 'smoothstep',
+            markerEnd: {
+                type: 'arrowclosed',
+                color: (historyStates.includes(trans.from) && historyStates.includes(trans.to)) ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+            },
         }));
         
         return getLayoutedElements(nodes, edges);
     }, [workflow, jobHistory]);
 
-    const [nodes, setNodes] = useState<Node[]>(initialNodes);
-    const [edges, setEdges] = useState<Edge[]>(initialEdges);
+    const [nodes, setNodes, onNodesChange] = useState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useState(initialEdges);
     
     useEffect(() => {
         setNodes(initialNodes);
         setEdges(initialEdges);
     }, [initialNodes, initialEdges]);
 
-    const onNodesChange: OnNodesChange = useCallback(
-      (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-      [setNodes]
-    );
-    const onEdgesChange: OnEdgesChange = useCallback(
-      (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-      [setEdges]
-    );
-
-    const defaultEdgeOptions: DefaultEdgeOptions = {
-        type: 'smoothstep',
-        markerEnd: {
-            type: 'arrowclosed',
-            color: 'hsl(var(--primary))',
-        },
-    };
-
     return (
         <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
+            onNodesChange={onNodesChange as OnNodesChange}
+            onEdgesChange={onEdgesChange as OnEdgesChange}
             nodeTypes={nodeTypes}
-            defaultEdgeOptions={defaultEdgeOptions}
             fitView
             nodesDraggable={false}
             nodesConnectable={false}
             elementsSelectable={false}
+            proOptions={{ hideAttribution: true }}
         >
             <Controls />
             <Background />
