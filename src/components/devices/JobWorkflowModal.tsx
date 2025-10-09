@@ -33,48 +33,51 @@ export const JobWorkflowModal: React.FC<JobWorkflowModalProps> = ({
     if (isOpen) {
       // Process all events to construct the job list
       const jobMap = new Map<string, DeviceJob>();
+      
+      // Safeguard: Only proceed if allDeviceEvents is an array
+      if (Array.isArray(allDeviceEvents)) {
+        allDeviceEvents.forEach(event => {
+          if (event.type === 'STATUS-UPDATED') {
+            try {
+              const parsedData = JSON.parse(event.description);
+              if (parsedData.data?.job) {
+                const job = parsedData.data.job as DeviceJob;
+                const eventTime = event.timestampStr || new Date().toISOString();
+                
+                const historyEntry: JobHistoryEntry = {
+                  mtime: eventTime,
+                  status: {
+                    clientId: job.clientId,
+                    definitionHash: job.status.definitionHash,
+                    state: job.status.state,
+                    message: job.status.message,
+                    progress: job.status.progress,
+                    context: job.status.context,
+                  },
+                };
 
-      allDeviceEvents.forEach(event => {
-        if (event.type === 'STATUS-UPDATED') {
-          try {
-            const parsedData = JSON.parse(event.description);
-            if (parsedData.data?.job) {
-              const job = parsedData.data.job as DeviceJob;
-              const eventTime = event.timestampStr || new Date().toISOString();
-              
-              const historyEntry: JobHistoryEntry = {
-                mtime: eventTime,
-                status: {
-                  clientId: job.clientId,
-                  definitionHash: job.status.definitionHash,
-                  state: job.status.state,
-                  message: job.status.message,
-                  progress: job.status.progress,
-                  context: job.status.context,
-                },
-              };
-
-              const existingJob = jobMap.get(job.id);
-              if (existingJob) {
-                if (isValid(parseISO(eventTime)) && (!existingJob.mtime || !isValid(parseISO(existingJob.mtime)) || parseISO(eventTime) > parseISO(existingJob.mtime))) {
-                   existingJob.status = job.status;
-                   existingJob.mtime = eventTime;
+                const existingJob = jobMap.get(job.id);
+                if (existingJob) {
+                  if (isValid(parseISO(eventTime)) && (!existingJob.mtime || !isValid(parseISO(existingJob.mtime)) || parseISO(eventTime) > parseISO(existingJob.mtime))) {
+                     existingJob.status = job.status;
+                     existingJob.mtime = eventTime;
+                  }
+                  // Check for duplicates before pushing
+                  if (!existingJob.history.some(h => h.mtime === historyEntry.mtime && h.status.state === historyEntry.status.state)) {
+                    existingJob.history.push(historyEntry);
+                  }
+                } else {
+                  job.history = [historyEntry];
+                  job.mtime = eventTime;
+                  jobMap.set(job.id, job);
                 }
-                // Check for duplicates before pushing
-                if (!existingJob.history.some(h => h.mtime === historyEntry.mtime && h.status.state === historyEntry.status.state)) {
-                  existingJob.history.push(historyEntry);
-                }
-              } else {
-                job.history = [historyEntry];
-                job.mtime = eventTime;
-                jobMap.set(job.id, job);
               }
+            } catch {
+              // Ignore non-JSON descriptions
             }
-          } catch {
-            // Ignore non-JSON descriptions
           }
-        }
-      });
+        });
+      }
       
       const jobsFromEvents = Array.from(jobMap.values())
         .sort((a, b) => parseISO(b.mtime).getTime() - parseISO(a.mtime).getTime());
@@ -122,7 +125,7 @@ export const JobWorkflowModal: React.FC<JobWorkflowModalProps> = ({
             <Alert variant="default">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>No Update Jobs</AlertTitle>
-              <AlertDescription>No update jobs found in this device's history.</AlertDescription>
+              <AlertDescription>No update jobs found in this device's event history.</AlertDescription>
             </Alert>
           )}
 
