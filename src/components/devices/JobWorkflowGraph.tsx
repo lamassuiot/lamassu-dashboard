@@ -13,8 +13,8 @@ import ReactFlow, {
   type OnEdgesChange,
   type DefaultEdgeOptions,
   type NodeTypes,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import type { DeviceJobWorkflow, DeviceJobWorkflowState, DeviceJobWorkflowTransition } from '@/types/iot';
 import dagre from 'dagre';
 import { cn } from '@/lib/utils';
@@ -115,8 +115,8 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, hi
         return getLayoutedElements(initialNodes, initialEdges);
     }, [workflow, historyStates]);
 
-    const [nodes, setNodes] = useState<Node[]>(layoutedNodes);
-    const [edges, setEdges] = useState<Edge[]>(layoutedEdges);
+    const [nodes, setNodes] = React.useState<Node[]>(layoutedNodes);
+    const [edges, setEdges] = React.useState<Edge[]>(layoutedEdges);
 
     const onNodesChange: OnNodesChange = useCallback(
         (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
