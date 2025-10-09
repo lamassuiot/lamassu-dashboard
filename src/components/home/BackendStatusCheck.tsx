@@ -25,13 +25,16 @@ interface ServiceStatus {
     errorDetails?: string;
 }
 
-const servicesToCheck = [
+export function servicesToCheck() 
+{ 
+    return [
     { name: 'CA Service', url: get_CA_API_BASE_URL() },
     { name: 'Device Manager', url: get_DEV_MANAGER_API_BASE_URL() },
     { name: 'DMS Manager', url: get_DMS_MANAGER_API_BASE_URL() },
     { name: 'Alerts Service', url: get_ALERTS_API_BASE_URL() },
     { name: 'Validation Authority', url: get_VA_API_BASE_URL() }
-];
+]
+};
 
 export const BackendStatusCheck: React.FC = () => {
     const { user } = useAuth();
@@ -42,9 +45,9 @@ export const BackendStatusCheck: React.FC = () => {
         if (!user?.access_token) return;
 
         setIsLoading(true);
-        setStatuses(servicesToCheck.map(s => ({ ...s, status: 'loading' })));
+        setStatuses(servicesToCheck().map(s => ({ ...s, status: 'loading' })));
 
-        const statusPromises = servicesToCheck.map(async (service): Promise<ServiceStatus> => {
+        const statusPromises = servicesToCheck().map(async (service): Promise<ServiceStatus> => {
             try {
                 const healthCheckUrl = `${service.url.substring(0, service.url.lastIndexOf('/'))}/health`;
                 
