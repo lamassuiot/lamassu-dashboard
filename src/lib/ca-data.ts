@@ -460,11 +460,14 @@ export async function fetchAndProcessCAs(accessToken: string, apiQueryString?: s
     // Base URL setup
     const baseUrl = `${get_CA_API_BASE_URL()}/cas`;
     const initialParams = new URLSearchParams(apiQueryString);
-    initialParams.set('page_size', '25');
+    if (!initialParams.has('page_size')) {
+        initialParams.set('page_size', '100');
+    }
 
     while (hasNextPage) {
         const url = new URL(baseUrl);
         initialParams.forEach((value, key) => {
+            // Do not copy the bookmark from the initial string, we manage it ourselves.
             if(key !== 'bookmark') url.searchParams.append(key, value);
         });
 
