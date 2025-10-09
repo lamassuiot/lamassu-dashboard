@@ -6,8 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, Users, BookText, TerminalSquare, Router as RouterIcon } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Users, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ } from "lucide-react";
 import type { ApiRaItem } from '@/lib/dms-api';
+import { cn } from '@/lib/utils';
+import type { SortableColumn, SortConfig } from '@/app/registration-authorities/page';
 
 interface RegistrationAuthoritiesTableProps {
   ras: ApiRaItem[];
@@ -18,7 +20,30 @@ interface RegistrationAuthoritiesTableProps {
   onOpenEnrollModal: (ra: ApiRaItem) => void;
   onOpenReEnrollModal: (ra: ApiRaItem) => void;
   onDelete: (ra: ApiRaItem) => void;
+  sortConfig: SortConfig | null;
+  requestSort: (column: SortableColumn) => void;
 }
+
+const SortableTableHeader: React.FC<{
+    column: SortableColumn;
+    title: string;
+    onSort: (column: SortableColumn) => void;
+    sortConfig: SortConfig | null;
+    className?: string;
+}> = ({ column, title, onSort, sortConfig, className }) => {
+    const isSorted = sortConfig?.column === column;
+    const Icon = isSorted ? (sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ) : ChevronsUpDown;
+    
+    return (
+        <TableHead className={cn("cursor-pointer hover:bg-muted/50", className)} onClick={() => onSort(column)}>
+            <div className="flex items-center gap-2">
+                {title}
+                <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
+            </div>
+        </TableHead>
+    );
+};
+
 
 export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTableProps> = ({
   ras,
@@ -28,14 +53,16 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
   onShowMetadata,
   onOpenEnrollModal,
   onOpenReEnrollModal,
-  onDelete
+  onDelete,
+  sortConfig,
+  requestSort,
 }) => {
   return (
     <div className="border rounded-lg">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
+            <SortableTableHeader column="name" title="Name" onSort={requestSort} sortConfig={sortConfig} />
             <TableHead>Registration Mode</TableHead>
             <TableHead>Enrollment CA</TableHead>
             <TableHead>Auth Mode</TableHead>

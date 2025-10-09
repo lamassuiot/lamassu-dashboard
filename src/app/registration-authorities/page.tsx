@@ -72,6 +72,14 @@ const DetailRow: React.FC<{ icon: React.ElementType, label: string, value: React
     </div>
 );
 
+// Add SortConfig type
+export type SortableColumn = 'name' | 'creation_ts';
+export type SortDirection = 'asc' | 'desc';
+interface SortConfig {
+  column: SortableColumn;
+  direction: SortDirection;
+}
+
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -95,6 +103,9 @@ export default function RegistrationAuthoritiesPage() {
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
+  
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ column: 'name', direction: 'asc' });
 
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [selectedRaForEnroll, setSelectedRaForEnroll] = useState<ApiRaItem | null>(null);
@@ -154,10 +165,15 @@ export default function RegistrationAuthoritiesPage() {
     setError(null);
     try {
         const params = new URLSearchParams();
-        params.append('sort_by', 'name');
-        params.append('sort_mode', 'asc');
-        params.append('page_size', pageSize);
+        if (sortConfig) {
+            params.append('sort_by', sortConfig.column);
+            params.append('sort_mode', sortConfig.direction);
+        } else {
+            params.append('sort_by', 'name');
+            params.append('sort_mode', 'asc');
+        }
 
+        params.append('page_size', pageSize);
         if (bookmarkToFetch) {
             params.append('bookmark', bookmarkToFetch);
         }
@@ -184,14 +200,14 @@ export default function RegistrationAuthoritiesPage() {
     } finally {
         setIsLoading(false);
     }
-  }, [user, isAuthenticated, authLoading, pageSize, allCAs.length, debouncedSearchTerm]);
+  }, [user, isAuthenticated, authLoading, pageSize, allCAs.length, debouncedSearchTerm, sortConfig]);
 
 
   // Reset pagination when page size or filter changes
   useEffect(() => {
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
-  }, [pageSize, debouncedSearchTerm, caFilterId]);
+  }, [pageSize, debouncedSearchTerm, caFilterId, sortConfig]);
 
   useEffect(() => {
     // Gate fetching until the component is mounted and auth is resolved
@@ -219,6 +235,14 @@ export default function RegistrationAuthoritiesPage() {
   const getCaNameById = (caId: string) => {
     const ca = findCaById(caId, allCAs);
     return ca ? ca.name : caId;
+  };
+  
+  const requestSort = (column: SortableColumn) => {
+    let direction: SortDirection = 'asc';
+    if (sortConfig && sortConfig.column === column && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ column, direction });
   };
 
   const handleNextPage = () => {
@@ -407,6 +431,8 @@ export default function RegistrationAuthoritiesPage() {
             onOpenEnrollModal={handleOpenEnrollModal}
             onOpenReEnrollModal={handleOpenReEnrollModal}
             onDelete={setRaToDelete}
+            sortConfig={sortConfig}
+            requestSort={requestSort}
         />
       ) : (
         <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
@@ -450,11 +476,11 @@ export default function RegistrationAuthoritiesPage() {
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => router.push(`/devices?dms_owner=${ra.id}`)}>
                                             <RouterIcon className="mr-2 h-4 w-4" />
-                                            <span>Go to DMS owned devices</span>
+                                            <span>View Devices</span>
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => handleShowMetadata(ra)}>
                                             <BookText className="mr-2 h-4 w-4" />
-                                            <span>Show/Edit Metadata</span>
+                                            <span>Show Metadata</span>
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuSub>
@@ -479,7 +505,7 @@ export default function RegistrationAuthoritiesPage() {
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
                                             onClick={() => setRaToDelete(ra)}
-                                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                            className="text-destructive focus:text-destructive"
                                         >
                                             <Trash2 className="mr-2 h-4 w-4" />
                                             <span>Delete</span>
