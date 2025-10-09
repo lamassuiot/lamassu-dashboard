@@ -21,6 +21,10 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Play, CheckCircle, AlertTriangle } from 'lucide-react';
 
+// Import the workflow definitions
+import directWorkflow from '@/lib/workflows/direct.json';
+import phasedWorkflow from '@/lib/workflows/phased.json';
+
 
 const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -87,7 +91,18 @@ interface JobWorkflowGraphProps {
 
 export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, historyStates }) => {
     const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(() => {
-        const initialNodes: Node[] = workflow.states.map((state: DeviceJobWorkflowState) => {
+
+        let workflowToRender: DeviceJobWorkflow = workflow;
+        if (!workflow || !workflow.states || workflow.states.length === 0) {
+            if (workflow.name === 'wfx.workflow.dau.direct') {
+                workflowToRender = directWorkflow as DeviceJobWorkflow;
+            } else if (workflow.name === 'wfx.workflow.dau.phased') {
+                workflowToRender = phasedWorkflow as DeviceJobWorkflow;
+            }
+        }
+
+
+        const initialNodes: Node[] = workflowToRender.states.map((state: DeviceJobWorkflowState) => {
             const isVisited = historyStates.includes(state.name);
             const isTerminal = state.name === "ACTIVATED" || state.name === "INSTALLED";
             const isError = state.name === "TERMINATED";
@@ -101,7 +116,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, hi
             };
         });
 
-        const initialEdges: Edge[] = workflow.transitions.map((trans: DeviceJobWorkflowTransition) => ({
+        const initialEdges: Edge[] = workflowToRender.transitions.map((trans: DeviceJobWorkflowTransition) => ({
             id: `e-${trans.from}-${trans.to}`,
             source: trans.from,
             target: trans.to,
