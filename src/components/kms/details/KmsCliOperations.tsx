@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { CodeBlock } from '@/components/shared/CodeBlock';
-import { Terminal, AlertTriangle, AlertCircleIcon } from 'lucide-react';
+import { Terminal, AlertCircleIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertExpandableContent, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 
