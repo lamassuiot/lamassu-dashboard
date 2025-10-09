@@ -51,6 +51,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
   });
 
   edges.forEach((edge) => {
+    // ensure source & target nodes exist
     if (dagreGraph.hasNode(edge.source) && dagreGraph.hasNode(edge.target)) {
       dagreGraph.setEdge(edge.source, edge.target);
     }
@@ -60,22 +61,24 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
 
   const layoutedNodes: Node[] = nodes.map((node) => {
     const dagreNode = dagreGraph.node(node.id);
-    if (!dagreNode) {
-      console.warn('No layout position found for node:', node.id);
-      return { ...node, position: { x: 0, y: 0 } } as Node;
-    }
     return {
       ...node,
-      targetPosition: 'top' as Position,
+      position: { x: dagreNode.x - nodeWidth / 2, y: dagreNode.y - nodeHeight / 2 },
       sourcePosition: 'bottom' as Position,
-      position: {
-        x: dagreNode.x - nodeWidth / 2,
-        y: dagreNode.y - nodeHeight / 2,
-      },
-    } as Node;
+      targetPosition: 'top' as Position,
+    };
   });
 
-  return { nodes: layoutedNodes, edges };
+  // **Important:** edges don’t need positions in React Flow; they use node IDs
+  const layoutedEdges: Edge[] = edges.map((edge) => ({
+    ...edge,
+    source: edge.source.trim(),
+    target: edge.target.trim(),
+    type: 'smoothstep',
+    markerEnd: { type: MarkerType.ArrowClosed },
+  }));
+
+  return { nodes: layoutedNodes, edges: layoutedEdges };
 };
 
 const CustomNode = ({
