@@ -1,3 +1,4 @@
+
 // src/components/devices/JobWorkflowModal.tsx
 'use client';
 
@@ -9,7 +10,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import type { DeviceJob } from '@/types/iot';
-import { format, parseISO } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchDeviceJobsForLaunch } from '@/lib/iot-api';
 
@@ -95,7 +96,7 @@ export const JobWorkflowModal: React.FC<JobWorkflowModalProps> = ({
                     <SelectContent>
                         {allJobsForDevice.map(job => (
                             <SelectItem key={job.id} value={job.id}>
-                                {job.id} ({format(parseISO(job.stime), 'PPp')}) - {job.workflow.name}
+                                {job.id} ({job.stime && isValid(parseISO(job.stime)) ? format(parseISO(job.stime), 'PPp') : 'No start time'}) - {job.workflow.name}
                             </SelectItem>
                         ))}
                     </SelectContent>
