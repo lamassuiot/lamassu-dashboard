@@ -169,7 +169,7 @@ export default function RegistrationAuthoritiesPage() {
         if (sortConfig) {
             let apiSortColumn = sortConfig.column as string;
             if (apiSortColumn === 'creation_ts') {
-                apiSortColumn = 'creation_timestamp';
+                apiSortColumn = 'creation_date';
             }
             params.append('sort_by', apiSortColumn);
             params.append('sort_mode', sortConfig.direction);
