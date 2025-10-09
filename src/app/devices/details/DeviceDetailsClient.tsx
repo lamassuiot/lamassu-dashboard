@@ -33,6 +33,8 @@ import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrat
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { JobWorkflowModal } from '@/components/devices/JobWorkflowModal';
+import { UpdateStatusTab } from '@/components/devices/UpdateStatusTab';
+
 
 interface CertificateHistoryEntry {
   version: string;
@@ -736,8 +738,13 @@ export default function DeviceDetailsClient() {
         <TabsList>
           <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
           <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
+          <TabsTrigger value="updateStatus"><Workflow className="mr-2 h-4 w-4" />Update Status</TabsTrigger>
           <TabsTrigger value="metadata"><SlidersHorizontal className="mr-2 h-4 w-4" />Metadata</TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="updateStatus">
+          <UpdateStatusTab allRawEvents={allRawEvents} />
+        </TabsContent>
 
         <TabsContent value="timeline">
           <Card>

@@ -100,6 +100,10 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, hi
                 workflowToRender = phasedWorkflow as DeviceJobWorkflow;
             }
         }
+        
+        if (!workflowToRender || !workflowToRender.states) {
+            return { nodes: [], edges: [] };
+        }
 
 
         const initialNodes: Node[] = workflowToRender.states.map((state: DeviceJobWorkflowState) => {
