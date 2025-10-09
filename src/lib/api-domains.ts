@@ -3,7 +3,6 @@
 const getApiBaseUrl = (): string => {
     // 1. Check for configuration from config.js on the window object
     if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_API) {
-        console.log('Using LAMASSU_API from window.lamassuConfig');
         return (window as any).lamassuConfig.LAMASSU_API;
     }
     // 2. Fallback to the Next.js public environment variable

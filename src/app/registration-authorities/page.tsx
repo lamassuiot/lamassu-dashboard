@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -44,7 +45,7 @@ import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
 import { fetchRegistrationAuthorities, updateRaMetadata, type ApiRaItem, deleteRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { useToast } from '@/hooks/use-toast';
@@ -80,6 +81,9 @@ interface SortConfig {
   direction: SortDirection;
 }
 
+const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
+const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
+
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -99,7 +103,7 @@ export default function RegistrationAuthoritiesPage() {
   const [caFilterId, setCaFilterId] = useState<string | null>(null);
 
   // Pagination State
-  const [pageSize, setPageSize] = useState('6');
+  const [pageSize, setPageSize] = useState(GRID_PAGE_SIZES[0]);
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
@@ -131,20 +135,24 @@ export default function RegistrationAuthoritiesPage() {
   useEffect(() => {
     if (isClientMounted) {
       const savedViewMode = getCookie('user-view-mode');
-      if (savedViewMode === 'grid' || savedViewMode === 'list') {
-        setViewMode(savedViewMode);
-      } else {
-        setViewMode('grid'); // Default to grid
-      }
+      const newViewMode = (savedViewMode === 'grid' || savedViewMode === 'list') ? savedViewMode : 'grid';
+      setViewMode(newViewMode);
+      setPageSize(newViewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0]);
     }
   }, [isClientMounted]);
 
-  // Save view mode to cookie
+  // Save view mode to cookie when it changes and adjust page size
   useEffect(() => {
     if (viewMode && isClientMounted) {
       setCookie('user-view-mode', viewMode);
+      const newPageSize = viewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0];
+      // Only change page size if it's not already in the correct set for the view mode
+      const currentOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
+      if (!currentOptions.includes(pageSize)) {
+          setPageSize(newPageSize);
+      }
     }
-  }, [viewMode, isClientMounted]);
+  }, [viewMode, isClientMounted, pageSize]);
   
   // Debounce search term
   useEffect(() => {
@@ -166,7 +174,11 @@ export default function RegistrationAuthoritiesPage() {
     try {
         const params = new URLSearchParams();
         if (sortConfig) {
-            params.append('sort_by', sortConfig.column);
+            let apiSortColumn = sortConfig.column as string;
+            if (apiSortColumn === 'creation_ts') {
+                apiSortColumn = 'creation_date';
+            }
+            params.append('sort_by', apiSortColumn);
             params.append('sort_mode', sortConfig.direction);
         } else {
             params.append('sort_by', 'name');
@@ -330,6 +342,7 @@ export default function RegistrationAuthoritiesPage() {
   }
 
   const hasActiveFilters = searchTerm || caFilterId;
+  const pageSizeOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
 
   return (
     <>
@@ -433,6 +446,7 @@ export default function RegistrationAuthoritiesPage() {
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
+            router={router}
         />
       ) : (
         <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
@@ -611,13 +625,14 @@ export default function RegistrationAuthoritiesPage() {
               <div className="flex items-center space-x-2">
                 <Label htmlFor="pageSizeSelectRaList" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
                 <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading || authLoading}>
-                  <SelectTrigger id="pageSizeSelectRaList" className="w-[80px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="6">6</SelectItem>
-                    <SelectItem value="9">9</SelectItem>
-                    <SelectItem value="15">15</SelectItem>
-                    <SelectItem value="30">30</SelectItem>
-                  </SelectContent>
+                    <SelectTrigger id="pageSizeSelectRaList" className="w-[80px]">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {pageSizeOptions.map(size => (
+                            <SelectItem key={size} value={size}>{size}</SelectItem>
+                        ))}
+                    </SelectContent>
                 </Select>
               </div>
               <div className="flex items-center space-x-2">
