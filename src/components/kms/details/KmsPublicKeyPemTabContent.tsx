@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Check, FileText, Hash, Key, Info } from "lucide-react";
+import { Check, FileText, Hash, Key, Info, Copy } from "lucide-react";
 import { CodeBlock } from "@/components/shared/CodeBlock";
 import type { ToastProps } from '@/components/ui/toast';
 
@@ -118,20 +118,20 @@ export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps>
               <div>
                 <Label className="text-sm font-medium text-muted-foreground mb-2 block">SHA256 Fingerprint</Label>
                 <div className="space-y-2">
-                  <div className="p-3 bg-background rounded-lg border">
-                    <code className="text-xs text-foreground break-all leading-relaxed">
+                  <div className="relative p-3 bg-background rounded-lg border">
+                    <code className="text-xs text-foreground break-all leading-relaxed pr-10">
                       {keyFingerprint.sha256}
                     </code>
+                     <Button
+                        onClick={handleCopySha256}
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-1/2 -translate-y-1/2 right-1.5 h-7 w-7"
+                        title="Copy fingerprint"
+                      >
+                        {sha256Copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                      </Button>
                   </div>
-                  <Button
-                    onClick={handleCopySha256}
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                  >
-                    {sha256Copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Hash className="mr-2 h-4 w-4" />}
-                    {sha256Copied ? 'Copied!' : 'Copy Fingerprint'}
-                  </Button>
                 </div>
               </div>
             )}
