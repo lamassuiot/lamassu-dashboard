@@ -36,7 +36,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
     // It populates the hiddenItemsRef with the rendered DOM nodes.
     return (
       <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', zIndex: -1 }}>
-        {cas.map(ca => (
+        {cas && cas.map(ca => (
           <div
             key={`vis-item-for-${ca.id}`}
             ref={el => {
@@ -57,7 +57,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
   // This effect runs after every render to check if our refs are ready.
   // It's lightweight and safer than the previous `setRenderedCount` approach.
   useEffect(() => {
-    if (cas.length > 0 && hiddenItemsRef.current.size === cas.length) {
+    if (cas && cas.length > 0 && hiddenItemsRef.current.size === cas.length) {
       if (!isReadyForTimeline) setIsReadyForTimeline(true);
     } else {
       if (isReadyForTimeline) setIsReadyForTimeline(false);
@@ -121,7 +121,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
         start: subMonths(new Date(), 1),
         end: addMonths(new Date(), 3),
         zoomMin: 1000 * 60 * 60 * 24,
-        zoomMax: 1000 * 60 * 60 * 24 * 365 * 50,
+        zoomMax: 1000 * 60 * 60 * 24 * 50,
       };
       
       timelineInstance.current = new Timeline(timelineRef.current, new DataSet(), options);
@@ -137,7 +137,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
 
 
   useEffect(() => {
-    if (isReadyForTimeline && timelineInstance.current) {
+    if (isReadyForTimeline && timelineInstance.current && Array.isArray(cas)) {
       const sortedCAs = [...cas].sort((a, b) => parseISO(a.expires).getTime() - parseISO(b.expires).getTime());
       
       const itemsData = sortedCAs.map(ca => {
