@@ -328,7 +328,7 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedPem
             if (skiExtension?.parsedValue) {
                 const ski = skiExtension.parsedValue;
                 if (ski.valueBlock?.valueHex) {
-                    defaultResult.subjectKeyId = ab2hex(ski.valueBlock.valueHex, ':');
+                    defaultResult.subjectKeyId = ab2hex(ski.valueBlock.valueHex);
                 }
             }
         } catch(e) { console.error("Failed to parse Subject Key Identifier:", e); }
