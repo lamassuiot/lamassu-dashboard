@@ -6,10 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, Users, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ } from "lucide-react";
+import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ } from "lucide-react";
 import type { ApiRaItem } from '@/lib/dms-api';
 import { cn } from '@/lib/utils';
 import type { SortableColumn, SortConfig } from '@/app/registration-authorities/page';
+import { format, parseISO } from 'date-fns';
 
 interface RegistrationAuthoritiesTableProps {
   ras: ApiRaItem[];
@@ -22,6 +23,7 @@ interface RegistrationAuthoritiesTableProps {
   onDelete: (ra: ApiRaItem) => void;
   sortConfig: SortConfig | null;
   requestSort: (column: SortableColumn) => void;
+  router: any; // Add router prop
 }
 
 const SortableTableHeader: React.FC<{
@@ -36,7 +38,7 @@ const SortableTableHeader: React.FC<{
     
     return (
         <TableHead className={cn("cursor-pointer hover:bg-muted/50", className)} onClick={() => onSort(column)}>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
                 {title}
                 <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
             </div>
@@ -56,6 +58,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
   onDelete,
   sortConfig,
   requestSort,
+  router,
 }) => {
   return (
     <div className="border rounded-lg">
@@ -66,13 +69,14 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
             <TableHead>Registration Mode</TableHead>
             <TableHead>Enrollment CA</TableHead>
             <TableHead>Auth Mode</TableHead>
+            <SortableTableHeader column="creation_ts" title="Created At" onSort={requestSort} sortConfig={sortConfig} />
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {ras.map((ra) => (
             <TableRow key={ra.id}>
-              <TableCell className="font-medium">{ra.name}</TableCell>
+              <TableCell className="font-medium truncate max-w-xs">{ra.name}</TableCell>
               <TableCell>
                 <Badge variant="outline">{ra.settings.enrollment_settings.registration_mode}</Badge>
               </TableCell>
@@ -83,6 +87,9 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
               </TableCell>
               <TableCell>
                 <Badge variant="secondary">{ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode?.replace('_', ' ') || 'N/A'}</Badge>
+              </TableCell>
+              <TableCell>
+                {format(parseISO(ra.creation_ts), 'MMM dd, yyyy HH:mm')}
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
