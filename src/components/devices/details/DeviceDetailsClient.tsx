@@ -1,3 +1,4 @@
+
 // src/app/devices/details/DeviceDetailsClient.tsx
 'use client';
 
@@ -30,7 +31,6 @@ import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIden
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
-import { JobWorkflowModal } from '@/components/devices/JobWorkflowModal';
 import { UpdateStatusTab } from '@/components/devices/UpdateStatusTab';
 
 
@@ -64,6 +64,7 @@ export default function DeviceDetailsClient() {
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
   const [errorDevice, setErrorDevice] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('certificatesHistory');
   
   const [fullCertificateIdentityList, setFullCertificateIdentityList] = useState<{ version: string; serialNumber: string }[]>([]);
   
@@ -104,11 +105,6 @@ export default function DeviceDetailsClient() {
   const [activeIntegration, setActiveIntegration] = useState<DiscoveredIntegration | null>(null);
   const [raForIntegration, setRaForIntegration] = useState<ApiRaItem | null>(null);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
-
-  // State for Workflow Modal
-  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
-  const [workflowJobs, setWorkflowJobs] = useState<DeviceJob[]>([]);
-  const [selectedEventForWorkflow, setSelectedEventForWorkflow] = useState<any>(null);
 
 
   const fetchCertificateHistoryData = useCallback(async (identity: ApiDeviceIdentity) => {
@@ -618,8 +614,7 @@ export default function DeviceDetailsClient() {
 
   const handleOpenWorkflowModal = (eventData: any) => {
     if (eventData?.job) {
-      setSelectedEventForWorkflow(eventData);
-      setIsWorkflowModalOpen(true);
+        setActiveTab("updateStatus");
     }
   };
 
@@ -722,7 +717,7 @@ export default function DeviceDetailsClient() {
         )}
       </div>
 
-      <Tabs defaultValue="certificatesHistory" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
           <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
@@ -978,13 +973,6 @@ export default function DeviceDetailsClient() {
         activeIntegration={activeIntegration}
         setActiveIntegration={setActiveIntegration}
         isUpdating={isForcingUpdate}
-      />
-       <JobWorkflowModal
-        isOpen={isWorkflowModalOpen}
-        onOpenChange={setIsWorkflowModalOpen}
-        deviceId={deviceId || ''}
-        allDeviceEvents={allRawEvents}
-        initialEventData={selectedEventForWorkflow}
       />
     </div>
   );

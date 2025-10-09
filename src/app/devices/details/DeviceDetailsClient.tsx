@@ -66,6 +66,7 @@ export default function DeviceDetailsClient() {
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
   const [errorDevice, setErrorDevice] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('certificatesHistory');
   
   const [fullCertificateIdentityList, setFullCertificateIdentityList] = useState<{ version: string; serialNumber: string }[]>([]);
   
@@ -106,10 +107,6 @@ export default function DeviceDetailsClient() {
   const [activeIntegration, setActiveIntegration] = useState<DiscoveredIntegration | null>(null);
   const [raForIntegration, setRaForIntegration] = useState<ApiRaItem | null>(null);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
-
-  // State for Workflow Modal
-  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
-  const [workflowJobs, setWorkflowJobs] = useState<DeviceJob[]>([]);
 
 
   const fetchCertificateHistoryData = useCallback(async (identity: ApiDeviceIdentity) => {
@@ -617,18 +614,8 @@ export default function DeviceDetailsClient() {
     }
   };
 
-  const handleOpenWorkflowModal = (eventData: any) => {
-    if (eventData?.job) {
-      // Find all jobs with the same ID to pass to the modal
-      const jobsForId = allRawEvents
-          .filter(e => e.type === 'STATUS-UPDATED' && JSON.parse(e.description)?.data?.job?.id === eventData.job.id)
-          .map(e => JSON.parse(e.description).data.job)
-          // A simple mock for the full DeviceJob structure if needed, or adjust modal
-          .map(job => ({ ...job, id: job.id, definition: job.definition || {}, workflow: job.workflow || {} } as DeviceJob));
-        
-      setWorkflowJobs(jobsForId);
-      setIsWorkflowModalOpen(true);
-    }
+  const handleOpenWorkflowModal = () => {
+      setActiveTab("updateStatus");
   };
 
   const handleLoadMoreTimeline = () => {
@@ -734,7 +721,7 @@ export default function DeviceDetailsClient() {
         )}
       </div>
 
-      <Tabs defaultValue="certificatesHistory" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
           <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
@@ -990,12 +977,6 @@ export default function DeviceDetailsClient() {
         activeIntegration={activeIntegration}
         setActiveIntegration={setActiveIntegration}
         isUpdating={isForcingUpdate}
-      />
-       <JobWorkflowModal
-        isOpen={isWorkflowModalOpen}
-        onOpenChange={setIsWorkflowModalOpen}
-        deviceId={deviceId || ''}
-        initialJobs={workflowJobs}
       />
     </div>
   );
