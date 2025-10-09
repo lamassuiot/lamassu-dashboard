@@ -1,7 +1,7 @@
 // src/components/devices/JobWorkflowGraph.tsx
 'use client';
 
-import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Controls,
   Background,
@@ -152,15 +152,18 @@ const nodeTypes: NodeTypes = {
 
 interface JobWorkflowGraphProps {
   workflow: DeviceJobWorkflow;
-  jobHistory: JobHistoryEntry[];
+  jobHistory?: JobHistoryEntry[];
 }
 
 export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({
   workflow,
-  jobHistory,
+  jobHistory = [],
 }) => {
-  const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(() => {
-     let workflowDefinition: DeviceJobWorkflow | null = workflow;
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
+
+  const layoutElements = useMemo(() => {
+    let workflowDefinition: DeviceJobWorkflow | null = workflow;
     if (!workflowDefinition || !workflowDefinition.states?.length) {
       if (workflow.name === 'wfx.workflow.dau.direct') {
         workflowDefinition = directWorkflow as DeviceJobWorkflow;
@@ -239,20 +242,17 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({
     return getLayoutedElements(initialNodes, initialEdges);
   }, [workflow, jobHistory]);
 
-  const [nodes, setNodes, onNodesChange] = useState<Node[]>([]);
-  const [edges, setEdges, onEdgesChange] = useState<Edge[]>([]);
-
   useEffect(() => {
-    setNodes(layoutedNodes);
-    setEdges(layoutedEdges);
-  }, [layoutedNodes, layoutedEdges]);
+    setNodes(layoutElements.nodes);
+    setEdges(layoutElements.edges);
+  }, [layoutElements]);
 
   return (
     <ReactFlow
       nodes={nodes}
       edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
+      onNodesChange={applyNodeChanges}
+      onEdgesChange={applyEdgeChanges}
       nodeTypes={nodeTypes}
       fitView
       nodesDraggable={false}

@@ -1,4 +1,3 @@
-
 // src/components/devices/JobWorkflowModal.tsx
 'use client';
 
@@ -96,7 +95,7 @@ export const JobWorkflowModal: React.FC<JobWorkflowModalProps> = ({
                     <SelectContent>
                         {allJobsForDevice.map(job => (
                             <SelectItem key={job.id} value={job.id}>
-                                {job.id} ({job.stime && isValid(parseISO(job.stime)) ? format(parseISO(job.stime), 'PPp') : 'No start time'}) - {job.workflow.name}
+                                Job ID: {job.id} (Last updated: {job.stime && isValid(parseISO(job.stime)) ? format(parseISO(job.stime), 'PPp') : 'No start time'}) - {job.workflow.name}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -107,7 +106,7 @@ export const JobWorkflowModal: React.FC<JobWorkflowModalProps> = ({
             {selectedJob ? (
               <JobWorkflowGraph 
                 workflow={selectedJob.workflow}
-                jobHistory={selectedJob.history}
+                jobHistory={selectedJob.history || []}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
