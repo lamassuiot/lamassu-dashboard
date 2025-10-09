@@ -1,4 +1,5 @@
 
+
 export interface Device {
   id: string;
   name: string;
@@ -129,6 +130,7 @@ export interface DeviceJob { // This is one item from the /api/dms/[dmsId]/devic
   stime: string; // ISO Date string
   tags: string[];
   workflow: DeviceJobWorkflow;
+  // REMOVED 'history' from here as it's not part of the direct API response
 }
 
 export interface DeviceJobListResponse {
@@ -169,10 +171,10 @@ export interface JobHistoryEntry { // One entry in the 'history' array of a job
   status: JobHistoryStatus;
 }
 
-export interface JobDetail { // One job object from the history list
+export interface JobDetail { // A composite object representing a job with its complete history
   clientId: string;
   definition: DeviceJobDefinition;
-  history: JobHistoryEntry[];
+  history: JobHistoryEntry[]; // The history is now explicitly part of this type
   id: string; // Job ID
   mtime: string; // Job's last modification time
   status: DeviceJobStatus; // Job's overall current status

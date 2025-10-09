@@ -5,14 +5,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info, AlertTriangle, Workflow } from 'lucide-react';
-import type { DeviceJob } from '@/types/iot';
+import { Info, Workflow } from 'lucide-react';
+import type { DeviceJob, JobDetail, JobHistoryEntry } from '@/types/iot';
 import { JobWorkflowGraph } from './JobWorkflowGraph';
 import { format, parseISO, isValid } from 'date-fns';
-import { useAuth } from '@/contexts/AuthContext';
-import { fetchDeviceJobsForLaunch } from '@/lib/iot-api';
-import { Loader2 } from 'lucide-react';
-import { Button } from '../ui/button';
 
 interface UpdateStatusTabProps {
   allRawEvents: any[];
@@ -21,47 +17,48 @@ interface UpdateStatusTabProps {
 export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }) => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  const jobs: DeviceJob[] = useMemo(() => {
+  const jobs: JobDetail[] = useMemo(() => {
     if (!allRawEvents) return [];
     
-    const jobMap = new Map<string, DeviceJob>();
+    const jobMap = new Map<string, JobDetail>();
 
     allRawEvents.forEach(event => {
         if (event.type === 'STATUS-UPDATED') {
             try {
                 const parsedData = JSON.parse(event.description);
                 if (parsedData.data?.job) {
-                    const job = parsedData.data.job as DeviceJob;
+                    const jobData = parsedData.data.job as DeviceJob;
                     const eventTime = event.timestampStr || new Date().toISOString();
                     
-                    const historyEntry = {
+                    const historyEntry: JobHistoryEntry = {
                         mtime: eventTime,
                         status: {
-                          state: job.status.state,
-                          message: job.status.message,
-                          clientId: job.clientId,
-                          definitionHash: job.status.definitionHash,
-                          progress: job.status.progress,
-                          context: job.status.context,
+                          state: jobData.status.state,
+                          message: jobData.status.message,
+                          clientId: jobData.clientId,
+                          definitionHash: jobData.status.definitionHash,
+                          progress: jobData.status.progress,
+                          context: jobData.status.context,
                         }
                     };
 
-                    const existingJob = jobMap.get(job.id);
-                    if (existingJob) {
-                        // Ensure mtime is valid before comparing
-                        if (isValid(parseISO(eventTime)) && (!existingJob.mtime || !isValid(parseISO(existingJob.mtime)) || parseISO(eventTime) > parseISO(existingJob.mtime))) {
-                           existingJob.status = job.status;
-                           existingJob.mtime = eventTime;
-                        }
-                        existingJob.history.push(historyEntry);
-                        // Re-sort history to ensure it's always chronological
-                        existingJob.history.sort((a,b) => parseISO(a.mtime).getTime() - parseISO(b.mtime).getTime());
+                    let jobDetail = jobMap.get(jobData.id);
 
+                    if (jobDetail) {
+                        // Update mtime if this event is newer
+                        if (isValid(parseISO(eventTime)) && (!jobDetail.mtime || !isValid(parseISO(jobDetail.mtime)) || parseISO(eventTime) > parseISO(jobDetail.mtime))) {
+                           jobDetail.status = jobData.status;
+                           jobDetail.mtime = eventTime;
+                        }
+                        jobDetail.history.push(historyEntry);
                     } else {
-                        // Create new job entry with initial history and valid mtime
-                        job.history = [historyEntry];
-                        job.mtime = eventTime; // Set initial mtime
-                        jobMap.set(job.id, job);
+                        // Create new JobDetail entry
+                        jobDetail = {
+                            ...jobData,
+                            history: [historyEntry],
+                            mtime: eventTime, // Set initial mtime
+                        };
+                        jobMap.set(jobData.id, jobDetail);
                     }
                 }
             } catch {
@@ -70,17 +67,27 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
         }
     });
 
-    // Sort jobs by the most recent event timestamp (which is the job's last mtime)
-    return Array.from(jobMap.values())
-        .filter(job => job.mtime && isValid(parseISO(job.mtime))) // Ensure jobs have a valid mtime
-        .sort((a, b) => 
-            parseISO(b.mtime).getTime() - parseISO(a.mtime).getTime()
-        );
+    // Sort history for each job and then sort jobs by most recent event
+    const jobArray = Array.from(jobMap.values());
+    jobArray.forEach(job => {
+        job.history.sort((a,b) => parseISO(a.mtime).getTime() - parseISO(b.mtime).getTime());
+    });
+    
+    return jobArray.sort((a, b) => 
+        parseISO(b.mtime).getTime() - parseISO(a.mtime).getTime()
+    );
+
   }, [allRawEvents]);
 
   useEffect(() => {
+    // Select the most recent job by default when the jobs list is populated
     if (jobs.length > 0 && !selectedJobId) {
       setSelectedJobId(jobs[0].id);
+    } else if (jobs.length > 0 && selectedJobId && !jobs.find(j => j.id === selectedJobId)) {
+      // If the previously selected job is no longer in the list, select the new first one
+      setSelectedJobId(jobs[0].id);
+    } else if (jobs.length === 0) {
+      setSelectedJobId(null);
     }
   }, [jobs, selectedJobId]);
 
@@ -114,7 +121,7 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
               {selectedJob ? (
                 <JobWorkflowGraph 
                   workflow={selectedJob.workflow}
-                  jobHistory={selectedJob.history}
+                  jobHistory={selectedJob.history} // Now correctly passing the history array
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
