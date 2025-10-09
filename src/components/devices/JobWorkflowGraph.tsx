@@ -1,7 +1,8 @@
+
 // src/components/devices/JobWorkflowGraph.tsx
 'use client';
 
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Controls,
   Background,
@@ -22,7 +23,7 @@ import { Play, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 
-// Import the workflow definitions from the new JSON files
+// Import the workflow definitions from the JSON files
 import directWorkflow from '@/lib/workflows/direct.json';
 import phasedWorkflow from '@/lib/workflows/phased.json';
 
@@ -105,33 +106,37 @@ interface JobWorkflowGraphProps {
 }
 
 export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jobHistory }) => {
-    
     const [nodes, setNodes] = useState<Node[]>([]);
     const [edges, setEdges] = useState<Edge[]>([]);
 
+    const onNodesChange: OnNodesChange = useCallback((changes) => setNodes((nds) => applyNodeChanges(changes, nds)), [setNodes]);
+    const onEdgesChange: OnEdgesChange = useCallback((changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), [setEdges]);
+
     useEffect(() => {
-        let workflowToRender: DeviceJobWorkflow = workflow;
-        if (!workflow || !workflow.states || workflow.states.length === 0) {
-            if (workflow?.name === 'wfx.workflow.dau.direct') {
-                workflowToRender = directWorkflow as DeviceJobWorkflow;
-            } else if (workflow?.name === 'wfx.workflow.dau.phased') {
-                workflowToRender = phasedWorkflow as DeviceJobWorkflow;
+        let workflowDefinition: DeviceJobWorkflow | null = workflow;
+        if (!workflowDefinition || !workflowDefinition.states || workflowDefinition.states.length === 0) {
+            if (workflow.name === 'wfx.workflow.dau.direct') {
+                workflowDefinition = directWorkflow as DeviceJobWorkflow;
+            } else if (workflow.name === 'wfx.workflow.dau.phased') {
+                workflowDefinition = phasedWorkflow as DeviceJobWorkflow;
+            } else {
+                workflowDefinition = null; // No matching workflow found
             }
         }
         
-        if (!workflowToRender || !workflowToRender.states) {
+        if (!workflowDefinition) {
             setNodes([]);
             setEdges([]);
             return;
         }
-        
+
         const historyStates = jobHistory.map(h => h.status.state);
         const lastEventByState = new Map<string, JobHistoryEntry>();
         jobHistory.forEach(event => {
             lastEventByState.set(event.status.state, event);
         });
 
-        const initialNodes: Node[] = workflowToRender.states.map((state: DeviceJobWorkflowState) => {
+        const initialNodes: Node[] = workflowDefinition.states.map((state: DeviceJobWorkflowState) => {
             const isVisited = historyStates.includes(state.name);
             const isTerminal = state.name === "ACTIVATED" || state.name === "INSTALLED";
             const isError = state.name === "TERMINATED";
@@ -142,11 +147,11 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
                 id: state.name,
                 type: 'custom',
                 data: { label: state.name, icon: Icon, isVisited, isTerminal, isError, lastEvent },
-                position: { x: 0, y: 0 },
+                position: { x: 0, y: 0 }, // Position will be set by layout
             };
         });
 
-        const initialEdges: Edge[] = workflowToRender.transitions.map((trans: DeviceJobWorkflowTransition) => ({
+        const initialEdges: Edge[] = workflowDefinition.transitions.map((trans: DeviceJobWorkflowTransition) => ({
             id: `e-${trans.from}-${trans.to}`,
             source: trans.from,
             target: trans.to,
@@ -163,13 +168,11 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
         }));
 
         const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(initialNodes, initialEdges);
-
         setNodes(layoutedNodes);
         setEdges(layoutedEdges);
+
     }, [workflow, jobHistory]);
-    
-    const onNodesChange: OnNodesChange = useCallback((changes) => setNodes((nds) => applyNodeChanges(changes, nds)), [setNodes]);
-    const onEdgesChange: OnEdgesChange = useCallback((changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), [setEdges]);
+
 
     return (
         <ReactFlow
