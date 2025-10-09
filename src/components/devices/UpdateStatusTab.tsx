@@ -6,7 +6,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info, AlertTriangle, Workflow } from 'lucide-react';
-import type { DeviceJob, JobHistoryEntry } from '@/types/iot';
+import type { DeviceJob } from '@/types/iot';
 import { JobWorkflowGraph } from './JobWorkflowGraph';
 import { format, parseISO } from 'date-fns';
 
@@ -28,17 +28,31 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
                 const parsedData = JSON.parse(event.description);
                 if (parsedData.data?.job) {
                     const job = parsedData.data.job as DeviceJob;
-                    // Add a history entry to the job
-                    const historyEntry: JobHistoryEntry = {
-                        mtime: event.timestampStr,
-                        status: job.status,
-                    };
+                    const eventTime = event.timestampStr || new Date().toISOString();
                     
-                    if (jobMap.has(job.id)) {
-                        const existingJob = jobMap.get(job.id)!;
-                        // Update with latest status and append history
-                        existingJob.status = job.status;
+                    const historyEntry = {
+                        mtime: eventTime,
+                        status: {
+                          state: job.status.state,
+                          message: job.status.message,
+                          clientId: job.clientId,
+                          definitionHash: job.status.definitionHash,
+                          progress: job.status.progress,
+                          context: job.status.context,
+                        }
+                    };
+
+                    const existingJob = jobMap.get(job.id);
+                    if (existingJob) {
+                        // Append to history and update status if this event is newer
+                        if (parseISO(eventTime) > parseISO(existingJob.mtime)) {
+                           existingJob.status = job.status;
+                           existingJob.mtime = eventTime;
+                        }
                         existingJob.history.push(historyEntry);
+                        // Re-sort history to ensure it's always chronological
+                        existingJob.history.sort((a,b) => parseISO(a.mtime).getTime() - parseISO(b.mtime).getTime());
+
                     } else {
                         // Create new job entry with initial history
                         job.history = [historyEntry];
@@ -53,7 +67,7 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
 
     // Sort jobs by the most recent event timestamp (which is the job's last mtime)
     return Array.from(jobMap.values()).sort((a, b) => 
-        parseISO(b.history[b.history.length-1].mtime).getTime() - parseISO(a.history[a.history.length-1].mtime).getTime()
+        parseISO(b.mtime).getTime() - parseISO(a.mtime).getTime()
     );
   }, [allRawEvents]);
 
@@ -64,13 +78,6 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
   }, [jobs, selectedJobId]);
 
   const selectedJob = jobs.find(job => job.id === selectedJobId);
-
-  const stateHistory = useMemo(() => {
-    if (!selectedJob) return [];
-    // Collect all unique states from the job's history
-    return [...new Set(selectedJob.history.map(h => h.status.state))];
-  }, [selectedJob]);
-
 
   return (
     <Card>
@@ -90,7 +97,7 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
               <SelectContent>
                 {jobs.map(job => (
                   <SelectItem key={job.id} value={job.id}>
-                    Job ID: {job.id} (Last updated: {format(parseISO(job.history[job.history.length-1].mtime), 'PPp')})
+                    Job ID: {job.id} (Last updated: {format(parseISO(job.mtime), 'PPp')})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -100,7 +107,7 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ allRawEvents }
               {selectedJob ? (
                 <JobWorkflowGraph 
                   workflow={selectedJob.workflow}
-                  historyStates={stateHistory}
+                  jobHistory={selectedJob.history}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">

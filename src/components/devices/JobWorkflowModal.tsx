@@ -8,7 +8,7 @@ import { JobWorkflowGraph } from './JobWorkflowGraph';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-import type { DeviceJob, JobHistoryEntry } from '@/types/iot';
+import type { DeviceJob } from '@/types/iot';
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchDeviceJobsForLaunch } from '@/lib/iot-api';
@@ -64,10 +64,6 @@ export const JobWorkflowModal: React.FC<JobWorkflowModalProps> = ({
   }, [isOpen, initialJobs, deviceId, user?.access_token]);
 
   const selectedJob = allJobsForDevice.find(job => job.id === selectedJobId);
-  
-  const stateHistory = selectedJob?.history
-    .map((entry: JobHistoryEntry) => entry.status.state)
-    .filter((state, index, self) => self.indexOf(state) === index) || [];
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -110,7 +106,7 @@ export const JobWorkflowModal: React.FC<JobWorkflowModalProps> = ({
             {selectedJob ? (
               <JobWorkflowGraph 
                 workflow={selectedJob.workflow}
-                historyStates={stateHistory}
+                jobHistory={selectedJob.history}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
