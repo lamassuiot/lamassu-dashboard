@@ -1,4 +1,4 @@
-
+// src/components/devices/TimelineEventItem.tsx
 'use client';
 
 import React from 'react';
@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { CheckCircle, XCircle, AlertTriangle, History, Edit, Info, HelpCircle, FileText, ShieldAlert, ShieldCheck, Landmark } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, History, Edit, Info, HelpCircle, FileText, ShieldAlert, ShieldCheck, Landmark, Workflow } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import { IdentifierDisplay } from '../shared/IdentifierDisplay';
@@ -35,6 +35,7 @@ export interface TimelineEventDisplayData {
   eventType: string;
   title: string;
   details?: React.ReactNode;
+  data?: any;
   relativeTime: string;
   secondaryRelativeTime?: string;
   certificate?: CertificateHistoryEntry;
@@ -45,6 +46,7 @@ interface TimelineEventItemProps {
     isLastItem: boolean;
     onRevoke: (certInfo: CertificateHistoryEntry) => void;
     onReactivate: (certInfo: CertificateHistoryEntry) => void;
+    onViewWorkflow: (eventData: any) => void;
 }
 
 
@@ -59,12 +61,14 @@ const eventTypeVisuals: Record<string, { display: string; colorClass: string; Ic
 };
 
 
-export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isLastItem, onRevoke, onReactivate }) => {
+export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isLastItem, onRevoke, onReactivate, onViewWorkflow }) => {
   const router = useRouter();
   const visuals = eventTypeVisuals[event.eventType] || eventTypeVisuals['DEFAULT'];
 
   const isRevoked = event.certificate?.apiStatus === 'REVOKED';
   const isOnHold = isRevoked && event.certificate?.revocationReason === 'CertificateHold';
+
+  const isWorkflowEvent = event.eventType === 'STATUS-UPDATED' && event.data?.job;
 
   return (
     <li className="flex gap-4 py-3 relative">
@@ -94,6 +98,11 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
                 </Badge>
                 {event.eventType === 'RENEWED' && (
                     <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" title="Device identity was updated with a new certificate version."/>
+                )}
+                 {isWorkflowEvent && (
+                    <Button variant="outline" size="sm" className="h-auto px-2 py-0.5 text-xs gap-1" onClick={() => onViewWorkflow(event.data)}>
+                        <Workflow className="h-3 w-3" /> View Workflow
+                    </Button>
                 )}
             </div>
         </div>
@@ -185,5 +194,3 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
     </li>
   );
 };
-
-    

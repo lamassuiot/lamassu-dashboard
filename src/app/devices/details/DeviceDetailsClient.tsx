@@ -1,4 +1,4 @@
-
+// src/app/devices/details/DeviceDetailsClient.tsx
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap } from 'lucide-react';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap, Workflow } from 'lucide-react';
 import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/app/devices/page';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
@@ -27,11 +27,12 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
-import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
+import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice, type DeviceJob } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { JobWorkflowModal } from '@/components/devices/JobWorkflowModal';
 
 interface CertificateHistoryEntry {
   version: string;
@@ -103,6 +104,10 @@ export default function DeviceDetailsClient() {
   const [activeIntegration, setActiveIntegration] = useState<DiscoveredIntegration | null>(null);
   const [raForIntegration, setRaForIntegration] = useState<ApiRaItem | null>(null);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
+
+  // State for Workflow Modal
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [workflowJobs, setWorkflowJobs] = useState<DeviceJob[]>([]);
 
 
   const fetchCertificateHistoryData = useCallback(async (identity: ApiDeviceIdentity) => {
@@ -216,7 +221,7 @@ export default function DeviceDetailsClient() {
   useEffect(() => {
     if (!device) return;
 
-    const combinedRawEvents: { timestampStr: string; type: string; description: string; source: 'device' | 'identity' }[] = [];
+    const combinedRawEvents: { timestampStr: string; type: string; description: string; data?: any; source: 'device' | 'identity' }[] = [];
     Object.entries(device.events || {}).forEach(([ts, event]) => {
       combinedRawEvents.push({ timestampStr: ts, ...(event as any), source: 'device' });
     });
@@ -372,6 +377,7 @@ export default function DeviceDetailsClient() {
             let certificateInfo: CertificateHistoryEntry | undefined = undefined;
             let versionToFind: string | null = null;
             let eventType = rawEvent.type;
+            let eventData: any = null;
 
             if (rawEvent.type === 'PROVISIONED') {
                 versionToFind = '0';
@@ -380,6 +386,18 @@ export default function DeviceDetailsClient() {
                 eventType = 'RENEWED'; // Normalize event type for display
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
+            } else if (rawEvent.type === 'STATUS-UPDATED') {
+                try {
+                    const parsedData = JSON.parse(rawEvent.description);
+                    if (parsedData.data?.job) {
+                        eventData = parsedData.data;
+                        title = `Job Status: ${eventData.job.status.state}`;
+                        detailsNode = <p className="text-xs text-muted-foreground">Job ID: <span className="font-mono">{eventData.job.id}</span></p>;
+                    }
+                } catch {
+                    // It's not JSON, so treat it as a plain string.
+                    title = rawEvent.description;
+                }
             }
             
             if (versionToFind && device.identity?.versions[versionToFind]) {
@@ -390,13 +408,9 @@ export default function DeviceDetailsClient() {
                 }
             }
 
-            if (rawEvent.type === 'STATUS-UPDATED' && rawEvent.description) {
-                title = rawEvent.description;
-            }
-
             const prevTimestamp = index < allRawEvents.length - 1 ? parseISO(allRawEvents[index + 1].timestampStr) : null;
             
-            return { id: rawEvent.timestampStr, timestamp, eventType: eventType, title, details: detailsNode, certificate: certificateInfo, relativeTime: formatDistanceToNowStrict(timestamp) + ' ago', secondaryRelativeTime: prevTimestamp ? formatDistanceStrict(timestamp, prevTimestamp) + ' later' : undefined };
+            return { id: rawEvent.timestampStr, timestamp, eventType: eventType, title, details: detailsNode, data: eventData, certificate: certificateInfo, relativeTime: formatDistanceToNowStrict(timestamp) + ' ago', secondaryRelativeTime: prevTimestamp ? formatDistanceStrict(timestamp, prevTimestamp) + ' later' : undefined };
         });
 
         setTimelineEvents(processedTimelineEvents);
@@ -404,7 +418,7 @@ export default function DeviceDetailsClient() {
     };
 
     processAndFetchForTimeline();
-}, [device, allRawEvents, timelineDisplayCount, user?.access_token, toast, timelineFetchedCerts]);
+  }, [device, allRawEvents, timelineDisplayCount, user?.access_token, toast, timelineFetchedCerts]);
   
   
   const handleOpenRevokeModal = (certInfo: CertificateHistoryEntry) => {
@@ -601,6 +615,20 @@ export default function DeviceDetailsClient() {
     }
   };
 
+  const handleOpenWorkflowModal = (eventData: any) => {
+    if (eventData?.job) {
+      // Find all jobs with the same ID to pass to the modal
+      const jobsForId = allRawEvents
+          .filter(e => e.type === 'STATUS-UPDATED' && JSON.parse(e.description)?.data?.job?.id === eventData.job.id)
+          .map(e => JSON.parse(e.description).data.job)
+          // A simple mock for the full DeviceJob structure if needed, or adjust modal
+          .map(job => ({ ...job, id: job.id, definition: job.definition || {}, workflow: job.workflow || {} } as DeviceJob));
+        
+      setWorkflowJobs(jobsForId);
+      setIsWorkflowModalOpen(true);
+    }
+  };
+
   const handleLoadMoreTimeline = () => {
     setTimelineDisplayCount(prev => prev + 5);
   };
@@ -731,6 +759,7 @@ export default function DeviceDetailsClient() {
                         isLastItem={index === timelineEvents.length -1} 
                         onRevoke={handleOpenRevokeModal}
                         onReactivate={handleReactivateCertificate}
+                        onViewWorkflow={handleOpenWorkflowModal}
                       />
                     ))}
                   </ul>
@@ -955,8 +984,12 @@ export default function DeviceDetailsClient() {
         setActiveIntegration={setActiveIntegration}
         isUpdating={isForcingUpdate}
       />
+       <JobWorkflowModal
+        isOpen={isWorkflowModalOpen}
+        onOpenChange={setIsWorkflowModalOpen}
+        deviceId={deviceId || ''}
+        initialJobs={workflowJobs}
+      />
     </div>
   );
 }
-
-    

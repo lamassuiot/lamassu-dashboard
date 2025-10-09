@@ -1,6 +1,6 @@
-
 // src/lib/devices-api.ts
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
+import type { DeviceJob } from '@/types/iot'; // Import DeviceJob
 
 // Interfaces based on usage in components
 export interface ApiDeviceIdentity {
@@ -8,7 +8,7 @@ export interface ApiDeviceIdentity {
   active_version: number;
   type: string;
   versions: Record<string, string>;
-  events?: Record<string, { type: string; description: string }>;
+  events?: Record<string, { type: string; description: string; data?: any; }>;
 }
 
 export interface ApiDevice {
@@ -22,7 +22,7 @@ export interface ApiDevice {
   dms_owner: string;
   identity: ApiDeviceIdentity | null;
   slots: Record<string, any>;
-  events?: Record<string, { type: string; description: string }>;
+  events?: Record<string, { type: string; description: string; data?: any; }>;
 }
 
 export interface ApiResponse {
@@ -124,3 +124,5 @@ export async function deleteDevice(deviceId: string, accessToken: string): Promi
         await handleApiError(response, 'Failed to delete device');
     }
 }
+
+export { type DeviceJob };
