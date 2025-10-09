@@ -12,6 +12,8 @@ import ReactFlow, {
   type OnNodesChange,
   type OnEdgesChange,
   type NodeTypes,
+  type Position,
+  MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type {
@@ -56,26 +58,25 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
 
   dagre.layout(dagreGraph);
 
-  const layoutedNodes = nodes.map((node) => {
+  const layoutedNodes: Node[] = nodes.map((node) => {
     const dagreNode = dagreGraph.node(node.id);
     if (!dagreNode) {
       console.warn('No layout position found for node:', node.id);
-      return { ...node, position: { x: 0, y: 0 }};
+      return { ...node, position: { x: 0, y: 0 } } as Node;
     }
     return {
       ...node,
-      targetPosition: 'top',
-      sourcePosition: 'bottom',
+      targetPosition: 'top' as Position,
+      sourcePosition: 'bottom' as Position,
       position: {
         x: dagreNode.x - nodeWidth / 2,
         y: dagreNode.y - nodeHeight / 2,
       },
-    };
+    } as Node;
   });
 
   return { nodes: layoutedNodes, edges };
 };
-
 
 const CustomNode = ({
   data,
@@ -158,20 +159,8 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({
   workflow,
   jobHistory,
 }) => {
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
-
-  const onNodesChange: OnNodesChange = useCallback(
-    (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
-  );
-  const onEdgesChange: OnEdgesChange = useCallback(
-    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    []
-  );
-
-  useEffect(() => {
-    let workflowDefinition: DeviceJobWorkflow | null = workflow;
+  const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(() => {
+     let workflowDefinition: DeviceJobWorkflow | null = workflow;
     if (!workflowDefinition || !workflowDefinition.states?.length) {
       if (workflow.name === 'wfx.workflow.dau.direct') {
         workflowDefinition = directWorkflow as DeviceJobWorkflow;
@@ -181,11 +170,9 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({
         workflowDefinition = null;
       }
     }
-
+    
     if (!workflowDefinition) {
-      setNodes([]);
-      setEdges([]);
-      return;
+      return { nodes: [], edges: [] };
     }
 
     const historyStates = jobHistory.map((h) => h.status.state);
@@ -195,7 +182,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({
     });
 
     const initialNodes: Node[] = workflowDefinition.states.map(
-      (state: DeviceJobWorkflowState) => {
+      (state: DeviceJobWorkflowState): Node => {
         const isVisited = historyStates.includes(state.name);
         const isTerminal =
           state.name === 'ACTIVATED' || state.name === 'INSTALLED';
@@ -214,13 +201,15 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({
             isError,
             lastEvent,
           },
-          position: { x: 0, y: 0 }, // Position will be set by layout
-        };
+          position: { x: 0, y: 0 },
+          sourcePosition: 'bottom' as Position,
+          targetPosition: 'top' as Position,
+        } as Node;
       }
     );
 
     const initialEdges: Edge[] = workflowDefinition.transitions.map(
-      (trans: DeviceJobWorkflowTransition) => ({
+      (trans: DeviceJobWorkflowTransition): Edge => ({
         id: `e-${trans.from}-${trans.to}`,
         source: trans.from.trim(),
         target: trans.to.trim(),
@@ -237,7 +226,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({
         },
         type: 'smoothstep',
         markerEnd: {
-          type: 'arrowclosed',
+          type: MarkerType.ArrowClosed,
           color:
             historyStates.includes(trans.from) &&
             historyStates.includes(trans.to)
@@ -247,15 +236,16 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({
       })
     );
 
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-      initialNodes,
-      initialEdges
-    );
-    
+    return getLayoutedElements(initialNodes, initialEdges);
+  }, [workflow, jobHistory]);
+
+  const [nodes, setNodes, onNodesChange] = useState<Node[]>([]);
+  const [edges, setEdges, onEdgesChange] = useState<Edge[]>([]);
+
+  useEffect(() => {
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
-
-  }, [workflow, jobHistory]);
+  }, [layoutedNodes, layoutedEdges]);
 
   return (
     <ReactFlow
