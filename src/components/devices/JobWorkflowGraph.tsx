@@ -149,8 +149,8 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
             target: trans.to,
             animated: historyStates.includes(trans.from) && historyStates.includes(trans.to),
             style: {
-                strokeWidth: 2,
-                stroke: (historyStates.includes(trans.from) && historyStates.includes(trans.to)) ? '#0f67ff' : '#cccccc',
+                strokeWidth: 2.5,
+                stroke: (historyStates.includes(trans.from) && historyStates.includes(trans.to)) ? 'hsl(var(--primary))' : 'hsl(var(--border))',
             }
         }));
         
@@ -179,7 +179,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
         type: 'smoothstep',
         markerEnd: {
             type: 'arrowclosed',
-            color: '#0f67ff',
+            color: 'hsl(var(--primary))',
         },
     };
 
@@ -192,6 +192,9 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
             nodeTypes={nodeTypes}
             defaultEdgeOptions={defaultEdgeOptions}
             fitView
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
         >
             <Controls />
             <Background />
