@@ -464,3 +464,56 @@
 .dark .text-primary {
   color: hsl(217 100% 70%);
 }
+
+/* Edge continuous pulse animation for current state */
+@keyframes currentEdgePulse {
+  0% {
+    stroke: #999;
+  }
+  50% {
+    stroke: #3b82f6;
+  }
+  100% {
+    stroke: #999;
+  }
+}
+
+/* Arrow marker animation - same colors as edge */
+@keyframes currentMarkerPulse {
+  0% {
+    fill: #999;
+    stroke: #999;
+  }
+  50% {
+    fill: #3b82f6;
+    stroke: #3b82f6;
+  }
+  100% {
+    fill: #999;
+    stroke: #999;
+  }
+}
+
+/* Tooltip smooth slide-in animation from right */
+@keyframes tooltipSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(8px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Tooltip slide-out animation */
+@keyframes tooltipSlideOut {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(8px) scale(0.95);
+  }
+}

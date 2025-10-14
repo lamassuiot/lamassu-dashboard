@@ -1,7 +1,7 @@
 // src/app/devices/details/DeviceDetailsClient.tsx
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap, Workflow } from 'lucide-react';
 import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/app/devices/page';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
+import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict, isValid } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CompactDateDisplay, DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -100,6 +100,84 @@ export default function DeviceDetailsClient() {
   // State for permanent deletion
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // State for workflow selection (shared between tabs)
+  const [selectedWorkflowName, setSelectedWorkflowName] = useState<string>('');
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+
+  // Process jobs from raw events for the selectors
+  const jobs = useMemo(() => {
+    if (!allRawEvents) return [];
+    
+    const jobMap = new Map();
+
+    allRawEvents.forEach(event => {
+        if (event.type === 'STATUS-UPDATED') {
+            try {
+                const parsedData = JSON.parse(event.description);
+                if (parsedData.data?.job) {
+                    const jobData = parsedData.data.job;
+                    const eventTime = event.timestampStr || new Date().toISOString();
+                    
+                    const historyEntry = {
+                        mtime: eventTime,
+                        status: {
+                          state: jobData.status.state,
+                          message: jobData.status.message,
+                          clientId: jobData.clientId,
+                          definitionHash: jobData.status.definitionHash,
+                          progress: jobData.status.progress,
+                          context: jobData.status.context,
+                        }
+                    };
+
+                    let jobDetail = jobMap.get(jobData.id);
+
+                    if (jobDetail) {
+                        // Update mtime if this event is newer
+                        const eventDate = parseISO(eventTime);
+                        const currentDate = parseISO(jobDetail.mtime);
+                        if (isValid(eventDate) && (!jobDetail.mtime || !isValid(currentDate) || eventDate > currentDate)) {
+                           jobDetail.status = jobData.status;
+                           jobDetail.mtime = eventTime;
+                        }
+                        jobDetail.history.push(historyEntry);
+                    } else {
+                        // Create new JobDetail entry
+                        jobDetail = {
+                            ...jobData,
+                            history: [historyEntry],
+                            mtime: eventTime,
+                        };
+                        jobMap.set(jobData.id, jobDetail);
+                    }
+                }
+            } catch {
+                // Ignore non-JSON or malformed descriptions
+            }
+        }
+    });
+
+    // Sort history for each job and then sort jobs by most recent event
+    const jobArray = Array.from(jobMap.values());
+    jobArray.forEach((job: any) => {
+        job.history.sort((a: any, b: any) => parseISO(a.mtime).getTime() - parseISO(b.mtime).getTime());
+    });
+    
+    return jobArray.sort((a: any, b: any) => 
+        parseISO(b.mtime).getTime() - parseISO(a.mtime).getTime()
+    );
+  }, [allRawEvents]);
+
+  // Auto-select first workflow if none selected and jobs are available
+  useEffect(() => {
+    if (!selectedWorkflowName && jobs.length > 0) {
+      const firstWorkflow = jobs[0].workflow?.name;
+      if (firstWorkflow) {
+        setSelectedWorkflowName(firstWorkflow);
+      }
+    }
+  }, [jobs, selectedWorkflowName]);
   
   // State for integrations and force update
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
@@ -614,8 +692,11 @@ export default function DeviceDetailsClient() {
     }
   };
 
-  const handleOpenWorkflowModal = () => {
-      setActiveTab("updateStatus");
+  const handleOpenWorkflowModal = (eventData: any) => {
+    if (eventData?.job?.workflow?.name) {
+      setSelectedWorkflowName(eventData.job.workflow.name);
+      setSelectedJobId(eventData.job.id);
+    }
   };
 
   const handleLoadMoreTimeline = () => {
@@ -722,56 +803,128 @@ export default function DeviceDetailsClient() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList>
-          <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
-          <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
-          <TabsTrigger value="updateStatus"><Workflow className="mr-2 h-4 w-4" />Update Status</TabsTrigger>
-          <TabsTrigger value="metadata"><SlidersHorizontal className="mr-2 h-4 w-4" />Metadata</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <TabsList>
+            <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
+            <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
+            <TabsTrigger value="updateStatus"><Workflow className="mr-2 h-4 w-4" />Update Status</TabsTrigger>
+            <TabsTrigger value="metadata"><SlidersHorizontal className="mr-2 h-4 w-4" />Metadata</TabsTrigger>
+          </TabsList>
+          
+          {/* Workflow Selectors - Only show when on timeline or updateStatus tabs */}
+          {(activeTab === 'timeline' || activeTab === 'updateStatus') && (
+            <div className="inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
+              <Select value={selectedWorkflowName || ''} onValueChange={setSelectedWorkflowName}>
+                <SelectTrigger className="inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-medium transition-all border-0 bg-transparent shadow-none focus:ring-0 h-8">
+                  <SelectValue>
+                    Workflow: {selectedWorkflowName === 'wfx.workflow.dau.direct' ? 'Direct Update' : 
+                              selectedWorkflowName === 'wfx.workflow.dau.phased' ? 'Phased Update' : 
+                              selectedWorkflowName || 'None Selected'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {[...new Set(jobs.map(job => job.workflow?.name).filter(Boolean))].map(workflowName => (
+                    <SelectItem key={workflowName} value={workflowName}>
+                      {workflowName === 'wfx.workflow.dau.direct' ? 'Direct Update' : 
+                       workflowName === 'wfx.workflow.dau.phased' ? 'Phased Update' : 
+                       workflowName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select 
+                value={selectedJobId || 'latest'} 
+                onValueChange={setSelectedJobId}
+                disabled={jobs.length === 0}
+              >
+                <SelectTrigger className="inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-medium transition-all border-l border-border/50 border-t-0 border-r-0 border-b-0 bg-transparent shadow-none focus:ring-0 h-8">
+                  <SelectValue>
+                    Job: {(() => {
+                      if (selectedJobId === 'latest' || !selectedJobId) return 'Latest Job';
+                      const selectedJob = jobs.find(job => job.id === selectedJobId);
+                      return selectedJob ? `Job ${selectedJob.id.slice(-8)} - ${selectedJob.status?.state || 'Unknown'}` : 'None Selected';
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="latest">Latest Job</SelectItem>
+                  {jobs
+                    .filter(job => !selectedWorkflowName || job.workflow?.name === selectedWorkflowName)
+                    .slice(0, 10) // Limit to 10 jobs for dropdown performance
+                    .map(job => (
+                      <SelectItem key={job.id} value={job.id}>
+                        Job {job.id.slice(-8)} - {job.status?.state || 'Unknown'}
+                      </SelectItem>
+                    ))
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
         
         <TabsContent value="updateStatus">
-          <UpdateStatusTab allRawEvents={allRawEvents} />
+          <UpdateStatusTab 
+            allRawEvents={allRawEvents} 
+            selectedWorkflowName={selectedWorkflowName}
+            selectedJobId={selectedJobId}
+            onWorkflowChange={setSelectedWorkflowName}
+            onJobChange={setSelectedJobId}
+          />
         </TabsContent>
 
         <TabsContent value="timeline">
-          <Card>
-            <CardHeader>
-                <CardTitle>Device Event Timeline</CardTitle>
-                <CardDescription>Chronological record of significant events for this device and its identity.</CardDescription>
-            </CardHeader>
-            <CardContent className="px-0 sm:px-2 md:px-4 lg:px-6">
-              {timelineEvents.length > 0 ? (
-                <>
-                <div className="relative pl-4"> 
-                  <div className="absolute left-[calc(0.75rem-1px)] top-2 bottom-2 w-0.5 bg-border -translate-x-1/2 z-0"></div>
-                  
-                  <ul className="space-y-0">
-                    {timelineEvents.map((event, index) => (
-                      <TimelineEventItem 
-                        key={event.id} 
-                        event={event} 
-                        isLastItem={index === timelineEvents.length -1} 
-                        onRevoke={handleOpenRevokeModal}
-                        onReactivate={handleReactivateCertificate}
-                        onViewWorkflow={handleOpenWorkflowModal}
-                      />
-                    ))}
-                  </ul>
-                </div>
-                {allRawEvents.length > timelineDisplayCount && (
-                  <div className="flex justify-center mt-4">
-                      <Button onClick={handleLoadMoreTimeline} variant="outline" disabled={isTimelineLoading}>
-                          {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                          Load More Events
-                      </Button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Timeline Section - Left Side */}
+            <Card>
+              <CardHeader>
+                  <CardTitle>Device Event Timeline</CardTitle>
+                  <CardDescription>Chronological record of significant events for this device and its identity.</CardDescription>
+              </CardHeader>
+              <CardContent className="px-0 sm:px-2 md:px-4 lg:px-6">
+                {timelineEvents.length > 0 ? (
+                  <>
+                  <div className="relative pl-4"> 
+                    <div className="absolute left-[calc(0.75rem-1px)] top-2 bottom-2 w-0.5 bg-border -translate-x-1/2 z-0"></div>
+                    
+                    <ul className="space-y-0">
+                      {timelineEvents.map((event, index) => (
+                        <TimelineEventItem 
+                          key={event.id} 
+                          event={event} 
+                          isLastItem={index === timelineEvents.length -1} 
+                          onRevoke={handleOpenRevokeModal}
+                          onReactivate={handleReactivateCertificate}
+                          onViewWorkflow={handleOpenWorkflowModal}
+                        />
+                      ))}
+                    </ul>
                   </div>
+                  {allRawEvents.length > timelineDisplayCount && (
+                    <div className="flex justify-center mt-4">
+                        <Button onClick={handleLoadMoreTimeline} variant="outline" disabled={isTimelineLoading}>
+                            {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                            Load More Events
+                        </Button>
+                    </div>
+                  )}
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">No events recorded for this device.</p>
                 )}
-                </>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">No events recorded for this device.</p>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            {/* Workflow Visualization Section - Right Side */}
+            <UpdateStatusTab 
+              allRawEvents={allRawEvents} 
+              selectedWorkflowName={selectedWorkflowName}
+              selectedJobId={selectedJobId}
+              onWorkflowChange={setSelectedWorkflowName}
+              onJobChange={setSelectedJobId}
+            />
+          </div>
         </TabsContent>
         
         <TabsContent value="certificatesHistory">
