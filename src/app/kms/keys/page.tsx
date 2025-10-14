@@ -21,6 +21,9 @@ import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TourOverlay } from '@/components/ui/tour-overlay';
+import { TourControl } from '@/components/ui/tour-control';
+import { useKmsTour } from '@/hooks/use-kms-tour';
 
 interface KmsKey {
   id: string;
@@ -37,6 +40,18 @@ export default function KmsKeysPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+
+  // KMS Tour
+  const {
+    isTourVisible,
+    tourSteps,
+    startTour,
+    completeTour,
+    skipTour,
+  } = useKmsTour({
+    isAuthenticated: isAuthenticated(),
+    authLoading,
+  });
 
   const [keys, setKeys] = useState<KmsKey[]>([]);
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
@@ -228,15 +243,29 @@ export default function KmsKeysPage() {
   return (
     <div className="space-y-6 w-full pb-8">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3" data-tour="kms-page-header">
           <KeyRound className="h-8 w-8 text-primary" />
           <h1 className="text-2xl font-headline font-semibold">Key Management Service - Asymmetric Keys</h1>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
+          <TourControl
+            variant="outline"
+            size="sm"
+            showText={false}
+            onStartTour={startTour}
+          />
+          <Button 
+            onClick={handleRefresh} 
+            variant="outline" 
+            disabled={isLoading}
+            data-tour="kms-refresh-button"
+          >
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
-          <Button onClick={handleCreateNewKey}>
+          <Button 
+            onClick={handleCreateNewKey}
+            data-tour="create-key-button"
+          >
             <PlusCircle className="mr-2 h-4 w-4" /> Create New Key
           </Button>
         </div>
@@ -254,7 +283,7 @@ export default function KmsKeysPage() {
       )}
 
       {/* Filter Section */}
-      <div className="grid grid-cols-1 gap-4 items-end">
+      <div className="grid grid-cols-1 gap-4 items-end" data-tour="kms-filter-section">
         <div className="space-y-1">
           <Label htmlFor="aliasSearchInput">Filter by Alias</Label>
           <div className="relative">
@@ -313,15 +342,15 @@ export default function KmsKeysPage() {
         </div>
       ) : (
         <div className={cn("space-y-4", isLoading && "opacity-50 pointer-events-none")}>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" data-tour="kms-keys-table">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Alias</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Strength</TableHead>
-                  <TableHead><div className="flex items-center"><Cpu className="mr-1.5 h-4 w-4 text-muted-foreground"/>Crypto Engine</div></TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead data-tour="kms-crypto-engine"><div className="flex items-center"><Cpu className="mr-1.5 h-4 w-4 text-muted-foreground"/>Crypto Engine</div></TableHead>
+                  <TableHead className="text-right" data-tour="kms-key-actions">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -392,7 +421,7 @@ export default function KmsKeysPage() {
               </TableBody>
             </Table>
           </div>
-          <div className="flex justify-between items-center mt-4">
+          <div className="flex justify-between items-center mt-4" data-tour="kms-pagination">
               <div className="flex items-center space-x-2">
                 <Label htmlFor="pageSizeSelectKmsList" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
                 <Select
@@ -436,6 +465,12 @@ export default function KmsKeysPage() {
         />
       )}
 
+      <TourOverlay
+        steps={tourSteps}
+        isVisible={isTourVisible}
+        onComplete={completeTour}
+        onSkip={skipTour}
+      />
     </div>
   );
 }
