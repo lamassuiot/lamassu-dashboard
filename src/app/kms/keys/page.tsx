@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, Cpu, Loader2, RefreshCw, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, Cpu, Loader2, RefreshCw, ChevronLeft, ChevronRight, Search, X, PlaySquare } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TourOverlay } from '@/components/ui/tour-overlay';
 import { TourControl } from '@/components/ui/tour-control';
 import { useKmsTour } from '@/hooks/use-kms-tour';
+import { useInteractiveKmsTour } from '@/hooks/use-interactive-kms-tour';
 
 interface KmsKey {
   id: string;
@@ -49,6 +50,21 @@ export default function KmsKeysPage() {
     completeTour,
     skipTour,
   } = useKmsTour({
+    isAuthenticated: isAuthenticated(),
+    authLoading,
+  });
+
+  // Interactive KMS Tour
+  const {
+    isTourVisible: isInteractiveTourVisible,
+    tourSteps: interactiveTourSteps,
+    currentStep,
+    startTour: startInteractiveTour,
+    completeTour: completeInteractiveTour,
+    skipTour: skipInteractiveTour,
+    nextStep,
+    prevStep,
+  } = useInteractiveKmsTour({
     isAuthenticated: isAuthenticated(),
     authLoading,
   });
@@ -254,6 +270,15 @@ export default function KmsKeysPage() {
             showText={false}
             onStartTour={startTour}
           />
+          <Button
+            onClick={startInteractiveTour}
+            variant="outline"
+            size="sm"
+            className="text-xs"
+          >
+            <PlaySquare className="mr-1 h-3 w-3" />
+            Interactive Tour
+          </Button>
           <Button 
             onClick={handleRefresh} 
             variant="outline" 

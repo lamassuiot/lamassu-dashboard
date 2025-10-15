@@ -13,6 +13,18 @@ export interface TourStep {
     content: string;
     position?: 'top' | 'bottom' | 'left' | 'right';
     offset?: { x: number; y: number };
+    targetPadding?: number; // Extra padding around the highlighted element
+    interactive?: {
+        type: 'click' | 'form' | 'wait' | 'navigate';
+        action?: string; // CSS selector for element to interact with
+        waitForSelector?: string; // Wait for this element to appear
+        waitForNavigation?: string; // Wait for navigation to this path
+        formFields?: { selector: string; value?: string; type?: 'input' | 'select' | 'textarea' }[];
+        skipNextButton?: boolean; // Hide next button - user must complete action
+        completionText?: string; // Text to show when action is completed
+        autoAdvance?: boolean; // Automatically advance to next step when action is completed
+        autoAdvanceDelay?: number; // Delay in ms before auto-advancing (default: 1500ms)
+    };
 }
 
 interface TourOverlayProps {
@@ -20,6 +32,9 @@ interface TourOverlayProps {
     isVisible: boolean;
     onComplete: () => void;
     onSkip: () => void;
+    currentStep?: number; // External step control
+    onNextStep?: () => void; // External next step handler
+    onPrevStep?: () => void; // External previous step handler
 }
 
 export const TourOverlay: React.FC<TourOverlayProps> = ({
@@ -27,11 +42,22 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
     isVisible,
     onComplete,
     onSkip,
+    currentStep: externalCurrentStep,
+    onNextStep,
+    onPrevStep,
 }) => {
-    const [currentStep, setCurrentStep] = useState(0);
+    const [internalCurrentStep, setInternalCurrentStep] = useState(0);
     const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
     const [tooltipSize, setTooltipSize] = useState({ width: 350, height: 220 });
+    
+    // Interactive tour state
+    const [isWaitingForAction, setIsWaitingForAction] = useState(false);
+    const [actionCompleted, setActionCompleted] = useState(false);
+    const [interactiveMessage, setInteractiveMessage] = useState('');
+
+    // Use external step control if provided, otherwise use internal
+    const currentStep = externalCurrentStep !== undefined ? externalCurrentStep : internalCurrentStep;
 
     const calculateTooltipPosition = useCallback((element: HTMLElement, step: TourStep) => {
         const tooltip = tooltipSize; // Use dynamic tooltip size
@@ -137,29 +163,280 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
         return () => window.removeEventListener('resize', handleResize);
     }, [targetElement, currentStep, steps, calculateTooltipPosition]);
 
-    const nextStep = () => {
-        if (currentStep < steps.length - 1) {
-            setCurrentStep(currentStep + 1);
-        } else {
-            onComplete();
-        }
-    };
+    // Step navigation functions (defined early to avoid circular dependency)
+    const nextStep = useCallback(() => {
+        // Reset interactive state when moving to next step
+        setIsWaitingForAction(false);
+        setActionCompleted(false);
+        setInteractiveMessage('');
 
-    const prevStep = () => {
-        if (currentStep > 0) {
-            setCurrentStep(currentStep - 1);
+        if (onNextStep) {
+            // Use external step handler
+            onNextStep();
+        } else {
+            // Use internal step management
+            if (currentStep < steps.length - 1) {
+                setInternalCurrentStep(currentStep + 1);
+            } else {
+                onComplete();
+            }
         }
-    };
+    }, [onNextStep, currentStep, steps.length, onComplete]);
+
+    const prevStep = useCallback(() => {
+        if (onPrevStep) {
+            // Use external step handler
+            onPrevStep();
+        } else {
+            // Use internal step management
+            if (currentStep > 0) {
+                setInternalCurrentStep(currentStep - 1);
+            }
+        }
+    }, [onPrevStep, currentStep]);
+
+    // Helper function to handle action completion with auto-advance
+    const handleActionCompletion = useCallback((step: TourStep, completionMessage?: string) => {
+        setActionCompleted(true);
+        const message = completionMessage || step.interactive?.completionText || 'Action completed!';
+        setInteractiveMessage(message);
+
+        // Auto-advance if enabled
+        if (step.interactive?.autoAdvance) {
+            const delay = step.interactive.autoAdvanceDelay || 1500; // Default 1.5 seconds
+            setTimeout(() => {
+                nextStep();
+            }, delay);
+        }
+    }, [nextStep]);
+
+    // Interactive tour handlers
+    const setupInteractiveStep = useCallback((step: TourStep) => {
+        if (!step.interactive) return;
+
+        setIsWaitingForAction(true);
+        setActionCompleted(false);
+        setInteractiveMessage('');
+
+        const { type, action, waitForSelector, waitForNavigation, formFields } = step.interactive;
+
+        if (type === 'click' && action) {
+            // Set up click listener
+            const handleClick = (event: Event) => {
+                const target = event.target as HTMLElement;
+                const actionElement = document.querySelector(action);
+                if (actionElement && (target === actionElement || actionElement.contains(target))) {
+                    handleActionCompletion(step);
+                    document.removeEventListener('click', handleClick, true);
+                }
+            };
+            document.addEventListener('click', handleClick, true);
+
+            // Cleanup function
+            return () => document.removeEventListener('click', handleClick, true);
+        }
+
+        if (type === 'wait' && waitForSelector) {
+            // Wait for element to appear
+            const observer = new MutationObserver(() => {
+                if (document.querySelector(waitForSelector)) {
+                    handleActionCompletion(step, 'Element appeared!');
+                    observer.disconnect();
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+
+            // Cleanup function
+            return () => observer.disconnect();
+        }
+
+        if (type === 'navigate' && waitForNavigation) {
+            // Wait for navigation
+            const checkNavigation = () => {
+                if (window.location.pathname === waitForNavigation) {
+                    handleActionCompletion(step, 'Navigation completed!');
+                    return true;
+                }
+                return false;
+            };
+
+            // Check immediately
+            if (!checkNavigation()) {
+                // Poll for navigation change
+                const interval = setInterval(() => {
+                    if (checkNavigation()) {
+                        clearInterval(interval);
+                    }
+                }, 500);
+
+                // Cleanup function
+                return () => clearInterval(interval);
+            }
+        }
+
+        if (type === 'form' && formFields) {
+            // Track which fields have been interacted with
+            const fieldInteractions = new Set<string>();
+            
+            // Monitor form fields
+            const checkFormCompletion = () => {
+                const allFieldsCompleted = formFields.every(field => {
+                    const element = document.querySelector(field.selector) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+                    if (!element) {
+                        console.warn(`Tour: Form element not found for selector: ${field.selector}`);
+                        return false;
+                    }
+                    
+                    // Check if field has expected value (if specified) or just non-empty value
+                    if (field.value !== undefined) {
+                        const matches = element.value === field.value;
+                        if (!matches) {
+                            console.log(`Tour: Field ${field.selector} has value "${element.value}", expected "${field.value}"`);
+                        }
+                        return matches;
+                    } else {
+                        // For fields without expected values, require both a value AND user interaction
+                        const hasValue = element.value.trim() !== '';
+                        const hasInteraction = fieldInteractions.has(field.selector);
+                        console.log(`Tour: Field ${field.selector} has value "${element.value}", non-empty: ${hasValue}, interacted: ${hasInteraction}`);
+                        return hasValue && hasInteraction;
+                    }
+                });
+
+                if (allFieldsCompleted) {
+                    handleActionCompletion(step, 'Form completed!');
+                    return true;
+                }
+                return false;
+            };
+
+            // Check immediately
+            if (!checkFormCompletion()) {
+                // Set up listeners for form changes
+                const handleFormChange = (field: typeof formFields[0]) => () => {
+                    // Mark this field as interacted with
+                    fieldInteractions.add(field.selector);
+                    
+                    // Small delay to allow React state updates to complete
+                    setTimeout(() => {
+                        checkFormCompletion();
+                    }, 100);
+                };
+
+                // For fields without expected values, also set up periodic checking
+                const fieldsWithoutExpectedValues = formFields.filter(f => f.value === undefined);
+                let periodicCheck: NodeJS.Timeout | null = null;
+                
+                if (fieldsWithoutExpectedValues.length > 0) {
+                    periodicCheck = setInterval(() => {
+                        // Check if any field without expected value now has a value
+                        let hasNewValue = false;
+                        fieldsWithoutExpectedValues.forEach(field => {
+                            const element = document.querySelector(field.selector) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+                            if (element && element.value.trim() !== '' && !fieldInteractions.has(field.selector)) {
+                                console.log(`Tour: Detected value change in ${field.selector}: "${element.value}"`);
+                                fieldInteractions.add(field.selector);
+                                hasNewValue = true;
+                            }
+                        });
+                        
+                        if (hasNewValue) {
+                            checkFormCompletion();
+                        }
+                    }, 500);
+                }
+
+                formFields.forEach(field => {
+                    const element = document.querySelector(field.selector);
+                    if (element) {
+                        const changeHandler = handleFormChange(field);
+                        
+                        // Standard form events
+                        element.addEventListener('input', changeHandler);
+                        element.addEventListener('change', changeHandler);
+                        
+                        // For ShadCN Select components, listen to more events
+                        element.addEventListener('click', changeHandler);
+                        element.addEventListener('focus', changeHandler);
+                        element.addEventListener('mousedown', changeHandler);
+                        
+                        // Also try to find associated select elements or hidden inputs
+                        const parentContainer = element.closest('[role="combobox"]') || element.closest('.relative');
+                        if (parentContainer) {
+                            const hiddenInput = parentContainer.querySelector('input[type="hidden"]');
+                            const selectElement = parentContainer.querySelector('select');
+                            
+                            if (hiddenInput) {
+                                hiddenInput.addEventListener('input', changeHandler);
+                                hiddenInput.addEventListener('change', changeHandler);
+                            }
+                            if (selectElement) {
+                                selectElement.addEventListener('input', changeHandler);
+                                selectElement.addEventListener('change', changeHandler);
+                            }
+                        }
+                        
+                        // Listen for ShadCN Select value changes using MutationObserver
+                        const observer = new MutationObserver(() => {
+                            setTimeout(changeHandler, 50);
+                        });
+                        observer.observe(element, { 
+                            attributes: true, 
+                            attributeFilter: ['data-state', 'data-placeholder', 'aria-expanded'],
+                            subtree: true,
+                            childList: true
+                        });
+                    }
+                });
+
+                // Cleanup function
+                return () => {
+                    if (periodicCheck) {
+                        clearInterval(periodicCheck);
+                    }
+                    formFields.forEach(field => {
+                        const element = document.querySelector(field.selector);
+                        if (element) {
+                            const changeHandler = handleFormChange(field);
+                            element.removeEventListener('input', changeHandler);
+                            element.removeEventListener('change', changeHandler);
+                            element.removeEventListener('click', changeHandler);
+                            element.removeEventListener('focus', changeHandler);
+                            element.removeEventListener('mousedown', changeHandler);
+                        }
+                    });
+                };
+            }
+        }
+    }, [handleActionCompletion]);
+
+    // Set up interactive step when step changes
+    useEffect(() => {
+        if (isVisible && steps[currentStep]) {
+            const step = steps[currentStep];
+            if (step.interactive) {
+                const cleanup = setupInteractiveStep(step);
+                return cleanup;
+            } else {
+                setIsWaitingForAction(false);
+                setActionCompleted(false);
+                setInteractiveMessage('');
+            }
+        }
+    }, [currentStep, isVisible, steps, setupInteractiveStep]);
 
     const getHighlightStyle = () => {
         if (!targetElement) return {};
 
         const rect = targetElement.getBoundingClientRect();
+        const currentStepData = steps[currentStep];
+        const padding = currentStepData?.targetPadding || 0;
+        
         return {
-            top: rect.top + window.scrollY,
-            left: rect.left + window.scrollX,
-            width: rect.width,
-            height: rect.height,
+            top: rect.top + window.scrollY - padding,
+            left: rect.left + window.scrollX - padding,
+            width: rect.width + (padding * 2),
+            height: rect.height + (padding * 2),
         };
     };
 
@@ -168,7 +445,7 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
     const currentStepData = steps[currentStep];
 
     return (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50" style={{margin: 0, padding: 0, pointerEvents: 'none'}}>
             {/* Highlight cutout - show for non-welcome/completion steps */}
             {targetElement && (
                 <div
@@ -178,13 +455,14 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
                         boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.8)',
                         backgroundColor: 'transparent',
                         zIndex: 51,
+                        pointerEvents: 'none', // Allow clicks to pass through the highlighted area
                     }}
                 />
             )}
 
             {/* Base overlay background for non-highlighted areas */}
             {!targetElement && (
-                <div className="absolute inset-0 bg-black/50" />
+                <div className="absolute inset-0 bg-black/50" style={{pointerEvents: 'none'}} />
             )}
 
             {/* Tooltip */}
@@ -198,6 +476,7 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
                     boxShadow: 'rgb(255, 255, 255) 0px 0px 0px 0px;',
                     zIndex: 52,
                     opacity: 1,
+                    pointerEvents: 'auto', // Allow interactions with the tooltip
                 }}
             >
                 <CardHeader className="pb-3">
@@ -222,6 +501,31 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
                     <p className="text-sm text-muted-foreground mb-4">
                         {currentStepData.content}
                     </p>
+
+                    {/* Interactive status */}
+                    {currentStepData.interactive && (
+                        <div className="mb-4 p-3 rounded-lg border bg-muted/30">
+                            {isWaitingForAction && !actionCompleted && (
+                                <div className="flex items-center gap-2 text-sm">
+                                    <div className="animate-pulse w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                    <span className="text-yellow-700 dark:text-yellow-300">
+                                        {currentStepData.interactive.type === 'click' && 'Click the highlighted element to continue'}
+                                        {currentStepData.interactive.type === 'form' && 'Fill out the form fields to continue'}
+                                        {currentStepData.interactive.type === 'wait' && 'Waiting for element to appear...'}
+                                        {currentStepData.interactive.type === 'navigate' && 'Navigate to the specified page...'}
+                                    </span>
+                                </div>
+                            )}
+                            {actionCompleted && (
+                                <div className="flex items-center gap-2 text-sm">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span className="text-green-700 dark:text-green-300">
+                                        {interactiveMessage || 'Action completed!'}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Progress bar */}
                     <div className="w-full bg-muted rounded-full h-1 mb-4">
@@ -256,6 +560,7 @@ export const TourOverlay: React.FC<TourOverlayProps> = ({
                         <Button
                             size="sm"
                             onClick={nextStep}
+                            disabled={currentStepData.interactive?.skipNextButton && isWaitingForAction && !actionCompleted}
                             className="text-xs"
                         >
                             {currentStep === steps.length - 1 ? 'Finish' : 'Next'}

@@ -301,6 +301,7 @@ export default function CreateKmsKeyPage() {
                 mode.badge ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-lg cursor-pointer'
               }`}
               onClick={() => !mode.badge && setSelectedMode(mode.id)}
+              data-tour={mode.id === 'newKeyPair' ? 'key-creation-method' : undefined}
             >
               <CardHeader className="flex-grow">
                 <div className="flex items-start space-x-4">
@@ -380,6 +381,7 @@ export default function CreateKmsKeyPage() {
                       placeholder="e.g., my-secure-rsa-key"
                       required
                       className="mt-1"
+                      data-tour="key-alias-input"
                     />
                   </div>
                   <div>
@@ -412,7 +414,7 @@ export default function CreateKmsKeyPage() {
                     <div>
                       <Label htmlFor="keyType">Key Type</Label>
                       <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={isSubmitting || isLoadingEngines || !selectedEngine}>
-                        <SelectTrigger id="keyType" className="mt-1"><SelectValue placeholder="Select key type" /></SelectTrigger>
+                        <SelectTrigger id="keyType" className="mt-1" data-tour="algorithm-select"><SelectValue placeholder="Select key type" /></SelectTrigger>
                         <SelectContent>
                           {availableKeyTypeOptions.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
                         </SelectContent>
@@ -424,7 +426,7 @@ export default function CreateKmsKeyPage() {
                     <div>
                       <Label htmlFor="keySpec">{keySpecLabel}</Label>
                       <Select value={currentKeySpecValue} onValueChange={handleKeySpecChange} disabled={isSubmitting || isLoadingEngines || !keyType}>
-                        <SelectTrigger id="keySpec" className="mt-1"><SelectValue placeholder="Select key specification" /></SelectTrigger>
+                        <SelectTrigger id="keySpec" className="mt-1" data-tour="key-size-select"><SelectValue placeholder="Select key specification" /></SelectTrigger>
                         <SelectContent>
                           {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
                         </SelectContent>
@@ -503,7 +505,7 @@ export default function CreateKmsKeyPage() {
             )}
 
             <div className="flex justify-end pt-4">
-              <Button type="submit" size="lg" disabled={isSubmitting}>
+              <Button type="submit" size="lg" disabled={isSubmitting} data-tour="create-key-submit">
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
                 {selectedMode === 'newKeyPair' ? 'Create Key Pair' : 
                  selectedMode === 'importKeyPair' ? 'Import Key Pair' :

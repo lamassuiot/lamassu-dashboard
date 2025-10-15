@@ -6,6 +6,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
+import { TourProvider } from '@/contexts/TourContext';
 import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -609,10 +610,12 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ConfigProvider>
           <AuthProvider>
-            <React.Suspense fallback={<LoadingState />}>
-              <InnerLayout>{children}</InnerLayout>
-            </React.Suspense>
-            <Toaster />
+            <TourProvider>
+              <React.Suspense fallback={<LoadingState />}>
+                <InnerLayout>{children}</InnerLayout>
+              </React.Suspense>
+              <Toaster />
+            </TourProvider>
           </AuthProvider>
         </ConfigProvider>
       </body>

@@ -51,23 +51,24 @@ export const useKmsTour = (props?: UseKmsTourProps) => {
             title: 'KMS Overview',
             content: 'This page manages asymmetric keys in your Key Management Service. These keys are essential for PKI operations like certificate signing and digital signatures.',
             position: 'bottom',
-            offset: { x: 0, y: -20 }
+            offset: { x: 0, y: 10 },
+            targetPadding: 8
         },
         {
             id: 'create-key-button',
             target: '[data-tour="create-key-button"]',
             title: 'Create New Keys',
             content: 'Click here to create new asymmetric key pairs. You can generate RSA or ECDSA keys with various sizes and configurations to meet your security requirements.',
-            position: 'left',
-            offset: { x: -10, y: -20 }
+            position: 'bottom',
+            offset: { x: -50, y: 10 },
         },
         {
             id: 'refresh-button',
             target: '[data-tour="kms-refresh-button"]',
             title: 'Refresh Keys',
             content: 'Use this button to refresh the key list and get the latest information from your KMS. This is useful when keys are created or modified outside the dashboard.',
-            position: 'left',
-            offset: { x: -10, y: -20 }
+            position: 'bottom',
+            offset: { x: 0, y: 10 },
         },
         {
             id: 'filter-section',
@@ -75,7 +76,8 @@ export const useKmsTour = (props?: UseKmsTourProps) => {
             title: 'Filter Keys',
             content: 'Use the search filter to quickly find specific keys by their alias. This is particularly useful when managing large numbers of keys.',
             position: 'right',
-            offset: { x: 10, y: -20 }
+            offset: { x: 10, y: -20 },
+            targetPadding: 6
         },
         {
             id: 'keys-table',
@@ -107,7 +109,8 @@ export const useKmsTour = (props?: UseKmsTourProps) => {
             title: 'Pagination Controls',
             content: 'Navigate through large numbers of keys using these pagination controls. You can also adjust the page size to show more or fewer keys per page.',
             position: 'top',
-            offset: { x: 0, y: -30 }
+            offset: { x: 0, y: -30 },
+            targetPadding: 6
         },
         {
             id: 'completion',
