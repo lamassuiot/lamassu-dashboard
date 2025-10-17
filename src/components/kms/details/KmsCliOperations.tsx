@@ -97,13 +97,11 @@ export const KmsCliOperations: React.FC<KmsCliOperationsProps> = ({
         }
         if (fullAlgorithm.startsWith('ECDSA_')) {
             if (isDigestMode) {
-                // Digest mode: 
                 return 'ECDSA';
             } else {
                 if (fullAlgorithm.includes('SHA_256')) return 'ECDSA-SHA256';
                 if (fullAlgorithm.includes('SHA_384')) return 'ECDSA-SHA384';
                 if (fullAlgorithm.includes('SHA_512')) return 'ECDSA-SHA512';
-                // Raw mode: 
             }
         }
         return 'SHA256-RSA-PKCS'; // default fallback
