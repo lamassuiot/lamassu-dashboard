@@ -111,7 +111,7 @@ export const KmsCliOperations: React.FC<KmsCliOperationsProps> = ({
     const bearerTokenExport = `export BEARER_TOKEN="${user?.access_token || 'YOUR_ACCESS_TOKEN_HERE'}"`;
 
     const keyAliasSanitized = keyAlias.replace(/\s+/g, '_');
-    const kmsUrl = getPublicAPIUrl().replaceAll("https://", "").replaceAll("http://", "");
+    const kmsUrl = getPublicAPIUrl().replace(/^https?:\/\//, "");
 
     // Generate config file content with dynamic values
     const configFileContent = JSON.stringify({
