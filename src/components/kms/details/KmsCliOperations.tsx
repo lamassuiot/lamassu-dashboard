@@ -49,7 +49,7 @@ export const KmsCliOperations: React.FC<KmsCliOperationsProps> = ({
         if (algorithm === 'ECDSA') {
             if (!algo.startsWith('ECDSA')) return true;
 
-            const keySizeNumber = typeof size === 'string' ? parseInt(size) : parseInt(size);
+            const keySizeNumber = parseInt(size);
 
             switch (keySizeNumber) {
                 case 256: return algo !== 'ECDSA_SHA_256';
