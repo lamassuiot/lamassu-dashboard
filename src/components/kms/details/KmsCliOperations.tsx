@@ -113,7 +113,7 @@ export const KmsCliOperations: React.FC<KmsCliOperationsProps> = ({
     const bearerTokenExport = `export BEARER_TOKEN="${user?.access_token || 'YOUR_ACCESS_TOKEN_HERE'}"`;
 
     const keyAliasSanitized = keyAlias.replace(/\s+/g, '_');
-    const kmsUrl = getPublicAPIUrl()
+    const kmsUrl = getPublicAPIUrl().replaceAll("https://", "").replaceAll("http://", "");
 
     // Generate config file content with dynamic values
     const configFileContent = JSON.stringify({
@@ -219,7 +219,7 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"`
         const pssOption = isPssAlgorithm ? '-pkeyopt rsa_padding_mode:pss' : '';
 
         return inputType === 'digest'
-            ? `openssl pkey -provider pkcs11 -provider default  -in "pkcs11:object=ecdsa-pispo" -pubout > ${keyAliasSanitized}.pub
+            ? `openssl pkey -provider pkcs11 -provider default  -in "pkcs11:object=${keyAliasSanitized}" -pubout > ${keyAliasSanitized}.pub
 
 openssl pkeyutl -verify -pubin -inkey ${keyAliasSanitized}.pub -in digest.bin -sigfile signature.bin ${pssOption} ${opensslFlags}`
             : `echo -n "your-data-to-sign" | \\
@@ -263,7 +263,7 @@ openssl dgst -${hashAlgorithm} -verify public-key.pem \\
 ${isDigestMode ? `
 openssl dgst -${hashAlgorithm} -binary -out digest.bin data-to-sign.txt` : ''}
 
-pkcs11-tool --module ./lms-pkcs11-x86.so --sign ${commandFlags} --label "${keyAliasSanitized}" --input-file ${pkcs11InFile} --output-file signature.bin
+pkcs11-tool --module ./lms-pkcs11-x86.so --sign ${commandFlags} --signature-format openssl --label "${keyAliasSanitized}" --input-file ${pkcs11InFile} --output-file signature.bin
 
 ${optionalPostSignCommand}
 echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
