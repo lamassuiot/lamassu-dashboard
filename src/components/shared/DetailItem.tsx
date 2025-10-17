@@ -19,15 +19,17 @@ export const DetailItem: React.FC<DetailItemProps> = ({ label, value, fullWidthV
   return (
     <div
       className={cn(
-        `py-2 ${fullWidthValue ? 'grid grid-cols-1' : 'grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-4 items-baseline'}`,
+        `py-3 ${fullWidthValue ? 'grid grid-cols-1' : 'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2'}`,
         className
       )}
     >
-      <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
+      <dt className="text-sm font-medium text-muted-foreground min-w-0 shrink-0">
+        {label}
+      </dt>
       <dd
         className={cn(
-          "text-sm text-foreground break-all min-w-0",
-          fullWidthValue ? 'mt-1' : 'mt-1 sm:mt-0',
+          "text-sm text-foreground min-w-0 flex-1 text-left sm:text-right",
+          fullWidthValue && 'mt-1 sm:mt-0 text-left',
           isMono && "font-mono"
         )}
       >
