@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -186,7 +185,7 @@ export default function CertificateAuthoritiesPage() {
           </div>
           <p className="text-sm text-muted-foreground mb-4">Manage your Certification Authority configurations and trust stores.</p> 
 
-          <div className="flex flex-col md:flex-row gap-4 items-end mb-4 p-4 border rounded-lg bg-muted/30">
+          <div className="flex flex-col md:flex-row gap-4 items-end mb-4">
             <div className="flex-grow w-full space-y-1.5">
                 <Label htmlFor="ca-filter">Filter by Name</Label>
                 <div className="relative">
