@@ -19,7 +19,7 @@ import { ExpirationInput, type ExpirationConfig } from '@/components/shared/Expi
 import { formatISO } from 'date-fns';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
+import { KEY_TYPE_OPTIONS_POST_QUANTUM, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS } from '@/lib/form-options';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
@@ -33,6 +33,7 @@ export default function CreateCaGeneratePage() {
   const { toast } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isHybridCa, setIsHybridCa] = useState(false);
 
   const [caType, setCaType] = useState('root');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
@@ -42,6 +43,83 @@ export default function CreateCaGeneratePage() {
 
   const [keyType, setKeyType] = useState('RSA');
   const [keySize, setKeySize] = useState('2048');
+  const [innerKeyType, setInnerKeyType] = useState('RSA');
+  const [innerKeySize, setInnerKeySize] = useState('2048');
+  const [engineSupportedKeyTypes, setEngineSupportedKeyTypes] = useState<string[]>([]);
+  const [engineSupportedKeySizes, setEngineSupportedKeySizes] = useState<string[]>([]);
+  const [engineSupportedInnerKeyTypes, setEngineSupportedInnerKeyTypes] = useState<string[]>([]);
+  const [engineSupportedInnerKeySizes, setEngineSupportedInnerKeySizes] = useState<string[]>([]);
+  const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
+  // Update supported key types and sizes when cryptoEngineId or allCryptoEngines changes
+  useEffect(() => {
+    if (!cryptoEngineId || !allCryptoEngines.length) {
+      setEngineSupportedKeyTypes([]);
+      setEngineSupportedKeySizes([]);
+      setEngineSupportedInnerKeyTypes([]);
+      setEngineSupportedInnerKeySizes([]);
+      return;
+    }
+    const engine = allCryptoEngines.find(e => e.id === cryptoEngineId);
+    if (!engine) {
+      setEngineSupportedKeyTypes([]);
+      setEngineSupportedKeySizes([]);
+      setEngineSupportedInnerKeyTypes([]);
+      setEngineSupportedInnerKeySizes([]);
+      return;
+    }
+    const supportedTypes = engine.supported_key_types.map(kt => kt.type);
+    setEngineSupportedKeyTypes(supportedTypes);
+    setEngineSupportedInnerKeyTypes(supportedTypes);
+    // Default to first supported type if current is not available
+    if (!supportedTypes.includes(keyType)) {
+      setKeyType(supportedTypes[0]);
+      setInnerKeyType(supportedTypes[0]);
+    }
+    // Set key sizes for the selected type
+    const typeDetail = engine.supported_key_types.find(kt => kt.type === keyType);
+    if (typeDetail) {
+      const sizesAsStrings = typeDetail.sizes.map(s => s.toString());
+      setEngineSupportedKeySizes(sizesAsStrings);
+      setEngineSupportedInnerKeySizes(sizesAsStrings);
+      if (!sizesAsStrings.includes(keySize)) {
+        setKeySize(sizesAsStrings[0]);
+        setInnerKeySize(sizesAsStrings[0]);
+      }
+    } else {
+      setEngineSupportedKeySizes([]);
+      setEngineSupportedInnerKeySizes([]);
+    }
+  }, [cryptoEngineId, allCryptoEngines, keyType]);
+
+  // When keyType changes, update keySize to first supported for that type
+  useEffect(() => {
+    if (!cryptoEngineId || !allCryptoEngines.length) return;
+    const engine = allCryptoEngines.find(e => e.id === cryptoEngineId);
+    if (!engine) return;
+    const typeDetail = engine.supported_key_types.find(kt => kt.type === keyType);
+    if (typeDetail) {
+      const sizesAsStrings = typeDetail.sizes.map(s => s.toString());
+      setEngineSupportedKeySizes(sizesAsStrings);
+      if (!sizesAsStrings.includes(keySize)) {
+        setKeySize(sizesAsStrings[0]);
+      }
+    }
+  }, [keyType, cryptoEngineId, allCryptoEngines]);
+
+  // Same, but for innerKeyType
+  useEffect(() => {
+    if (!cryptoEngineId || !allCryptoEngines.length) return;
+    const engine = allCryptoEngines.find(e => e.id === cryptoEngineId);
+    if (!engine) return;
+    const typeDetail = engine.supported_key_types.find(kt => kt.type === innerKeyType);
+    if (typeDetail) {
+      const sizesAsStrings = typeDetail.sizes.map(s => s.toString());
+      setEngineSupportedInnerKeySizes(sizesAsStrings);
+      if (!sizesAsStrings.includes(keySize)) {
+        setInnerKeySize(sizesAsStrings[0]);
+      }
+    }
+  }, [innerKeyType, cryptoEngineId, allCryptoEngines]);
 
   const [country, setCountry] = useState('');
   const [stateProvince, setStateProvince] = useState('');
@@ -61,7 +139,6 @@ export default function CreateCaGeneratePage() {
 
   const [availableParentCAs, setAvailableParentCAs] = useState<CA[]>([]);
   
-  const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
   const [errorDependencies, setErrorDependencies] = useState<string | null>(null);
@@ -124,14 +201,12 @@ export default function CreateCaGeneratePage() {
 
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
-    if (value === 'RSA') {
-      setKeySize('2048');
-    } else if (value === 'ECDSA') {
-      setKeySize('P-256');
-    }
+    // keySize will be set by effect
   };
 
-  const currentKeySizeOptions = keyType === 'RSA' ? RSA_KEY_SIZE_OPTIONS : ECDSA_CURVE_OPTIONS;
+  const handleInnerKeyTypeChange = (value: string) => {
+    setInnerKeyType(value);
+  };
 
   const handleParentCaSelectFromModal = (ca: CA) => {
     if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
@@ -198,29 +273,56 @@ export default function CreateCaGeneratePage() {
         return;
     }
 
-    const payload: CreateCaPayload = {
-      parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
-      id: caId,
-      engine_id: cryptoEngineId, 
-      subject: {
-        country: country || undefined,
-        state_province: stateProvince || undefined,
-        locality: locality || undefined,
-        organization: organization || undefined,
-        organization_unit: organizationalUnit || undefined,
-        common_name: caName,
-      },
-      key_metadata: {
-        type: keyType,
-        bits: keyType === 'RSA' ? parseInt(keySize) : mapEcdsaCurveToBits(keySize),
-      },
-      ca_expiration: formatExpirationForApi(caExpiration),
-      profile_id: selectedProfileId,
-      ca_type: "MANAGED",
-    };
+    const payload: CreateCaPayload = isHybridCa ?
+        {
+          parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
+          id: caId,
+          engine_id: cryptoEngineId, 
+          subject: {
+            country: country || undefined,
+            state_province: stateProvince || undefined,
+            locality: locality || undefined,
+            organization: organization || undefined,
+            organization_unit: organizationalUnit || undefined,
+            common_name: caName,
+          },
+          outer_key_metadata: {
+            type: keyType,
+            bits: keyType === 'ECDSA' ? mapEcdsaCurveToBits(keySize) : parseInt(keySize),
+          },
+          inner_key_metadata: {
+            type: innerKeyType,
+            bits: innerKeyType === 'ECDSA' ? mapEcdsaCurveToBits(innerKeySize) : parseInt(innerKeySize),
+          },
+          ca_expiration: formatExpirationForApi(caExpiration),
+          profile_id: selectedProfileId,
+          ca_type: "MANAGED",
+          hybrid_certificate_type: "CHAMELEON"
+        }
+        :
+        {
+          parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
+          id: caId,
+          engine_id: cryptoEngineId, 
+          subject: {
+            country: country || undefined,
+            state_province: stateProvince || undefined,
+            locality: locality || undefined,
+            organization: organization || undefined,
+            organization_unit: organizationalUnit || undefined,
+            common_name: caName,
+          },
+          key_metadata: {
+            type: keyType,
+            bits: keyType === 'ECDSA' ? mapEcdsaCurveToBits(keySize) : parseInt(keySize),
+          },
+          ca_expiration: formatExpirationForApi(caExpiration),
+          profile_id: selectedProfileId,
+          ca_type: "MANAGED",
+        };
 
     try {
-      await createCa(payload, user!.access_token!);
+      await createCa(payload, user!.access_token!, isHybridCa);
 
       toast({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.`, variant: "default" });
       router.push('/certificate-authorities');
@@ -238,6 +340,10 @@ export default function CreateCaGeneratePage() {
     setSelectedProfileId(newProfile.id);
     setProfileMode('reuse');
   };
+
+  const handleIsHybridCaChange = () => {
+    setIsHybridCa(!isHybridCa)
+  }
 
   return (
     <div className="w-full space-y-6 mb-8">
@@ -277,20 +383,56 @@ export default function CreateCaGeneratePage() {
                     <Select value={keyType} onValueChange={handleKeyTypeChange}>
                       <SelectTrigger id="keyType"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {KEY_TYPE_OPTIONS.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
+                        {engineSupportedKeyTypes.map(type => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="keySize">{keyType === 'ECDSA' ? 'ECDSA Curve' : 'Key Size'}</Label>
+                    <Label htmlFor="keySize">{keyType === 'ECDSA' ? 'ECDSA Curve' : keyType === 'ML-DSA' ? 'ML-DSA Security Level' : 'Key Size'}</Label>
                     <Select value={keySize} onValueChange={setKeySize}>
                       <SelectTrigger id="keySize"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {currentKeySizeOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
+                        {engineSupportedKeySizes.map(ks => (
+                          <SelectItem key={ks} value={ks}>{ks}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+                <div className="grid grid-cols-1 grid-cols-2 gap-2">
+                  <label>
+                    <input type="checkbox" id="hybridCA" value="first_checkbox" checked={isHybridCa} onChange={handleIsHybridCaChange}/> Hybrid CA 
+                  </label>
+                </div>
+                {
+                  isHybridCa && 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="keyType">Inner Key Type</Label>
+                      <Select value={innerKeyType} onValueChange={handleInnerKeyTypeChange}>
+                        <SelectTrigger id="innerKeyType"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {engineSupportedKeyTypes.map(type => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="innrKeySize">{innerKeyType === 'ECDSA' ? 'ECDSA Curve' : innerKeyType === 'ML-DSA' ? 'ML-DSA Security Level' : 'Inner Key Size'}</Label>
+                      <Select value={innerKeySize} onValueChange={setInnerKeySize}>
+                        <SelectTrigger id="innerKeySize"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {engineSupportedInnerKeySizes.map(ks => (
+                            <SelectItem key={ks} value={ks}>{ks}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                }
               </CardContent>
             </Card>
 

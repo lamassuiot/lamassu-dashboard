@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -417,7 +415,8 @@ export default function IssueCertificateFormClient() {
       // --- Part 1: Generate Key & CSR ---
       const algorithm = selectedAlgorithm === 'RSA' 
         ? { name: "RSASSA-PKCS1-v1_5", modulusLength: parseInt(selectedRsaKeySize, 10), publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }
-        : { name: "ECDSA", namedCurve: selectedEcdsaCurve };
+        : selectedAlgorithm === 'ECDSA' ? { name: "ECDSA", namedCurve: selectedEcdsaCurve }
+        : { name: "Ed25519" };
       const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
       
       const privateKeyPem = formatAsPem(arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey)), 'PRIVATE KEY');
@@ -702,8 +701,11 @@ export default function IssueCertificateFormClient() {
                                     <div className="space-y-1"><Label htmlFor="keyAlgorithm">Algorithm</Label><Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{KEY_TYPE_OPTIONS.map(a=><SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent></Select></div>
                                     {selectedAlgorithm === 'RSA' ? (
                                     <div className="space-y-1"><Label htmlFor="rsaKeySize">RSA Key Size</Label><Select value={selectedRsaKeySize} onValueChange={setSelectedRsaKeySize}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{RSA_KEY_SIZE_OPTIONS.map(s=><SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div>
-                                    ) : (
+                                    ) : selectedAlgorithm === 'ECDSA' ? (
                                     <div className="space-y-1"><Label htmlFor="ecdsaCurve">ECDSA Curve</Label><Select value={selectedEcdsaCurve} onValueChange={setSelectedEcdsaCurve}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ECDSA_CURVE_OPTIONS.map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+                                    ) : (
+                                    // TODO -> Add Ed25519 Specific features once implemented
+                                    <div className="space-y-1"></div>
                                     )}
                                 </div>
                                     </CardContent>

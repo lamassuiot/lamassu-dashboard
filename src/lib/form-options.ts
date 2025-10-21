@@ -4,6 +4,7 @@
 export const KEY_TYPE_OPTIONS = [
   { value: 'RSA', label: 'RSA' },
   { value: 'ECDSA', label: 'ECDSA' },
+  { value: 'Ed25519', label: 'Ed25519' },
 ];
 
 export const KEY_TYPE_OPTIONS_POST_QUANTUM = [
