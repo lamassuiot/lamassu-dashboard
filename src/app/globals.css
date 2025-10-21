@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -15,10 +14,12 @@
     /* #0f67ff Light Sky Blue */
     --primary-foreground: 0 0% 98%;
     /* Near White */
-    
-    --header-background: 217 100% 53%; /* Custom header background */
-    --header-foreground: 0 0% 98%;    /* Custom header foreground */
-    --header-height: 3rem; 
+
+    --header-background: 217 100% 53%;
+    /* Custom header background */
+    --header-foreground: 0 0% 98%;
+    /* Custom header foreground */
+    --header-height: 3rem;
 
     --accent: 150 65% 85%;
     /* #a2ecc8 Periwinkle (greenish) */
@@ -60,7 +61,7 @@
 
     --radius: 0.5rem;
     /* Default border radius */
-    
+
     /* Homepage Specific Colors */
     --homepage-card-background: hsl(var(--primary));
 
@@ -110,9 +111,11 @@
     /* Slightly lighter/desaturated primary */
     --primary-foreground: 0 0% 98%;
     /* Near White */
-    
-    --header-background: 217 90% 35%; /* Custom header background for dark mode */
-    --header-foreground: 0 0% 98%;    /* Custom header foreground for dark mode */
+
+    --header-background: 217 90% 35%;
+    /* Custom header background for dark mode */
+    --header-foreground: 0 0% 98%;
+    /* Custom header foreground for dark mode */
     --header-height: 3rem;
 
     --accent: 150 50% 70%;
@@ -152,7 +155,7 @@
     /* Darker input border */
     --ring: 217 80% 65%;
     /* Primary variant for dark rings */
-    
+
     /* Homepage Specific Colors */
     --homepage-card-background: hsl(var(--primary));
 
@@ -208,6 +211,10 @@
   padding: 0 !important;
 }
 
+.dark .vis-item {
+  background-color: hsl(var(--card)) !important;
+}
+
 .vis-item-content {
   padding: 0 !important;
 }
@@ -219,7 +226,11 @@
 .vis-timeline {
   @apply rounded-lg bg-card;
   border: none !important;
-  background: white!important;
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark .vis-timeline {
+  background: rgba(0, 0, 0, 0.6) !important;
 }
 
 .vis-panel.vis-bottom {
@@ -325,7 +336,8 @@
   }
 
   .secondary-logo-container {
-    display: var(--secondary-logo-display, flex); /* Default to flex */
+    display: var(--secondary-logo-display, flex);
+    /* Default to flex */
     align-items: center;
     gap: 1rem;
     height: 100%;
@@ -336,8 +348,9 @@
     /* For light theme: change blue SVG to primary color */
     filter: invert(36%) sepia(91%) saturate(3011%) hue-rotate(205deg) brightness(101%) contrast(106%);
   }
+
   .dark .lamassu-logo-theme-filter {
     /* For dark theme: change blue SVG to foreground color */
-    filter: invert(99%) sepia(4%) saturate(301%) hue-rotate(190deg) brightness(118%) contrast(85%);
+    filter: grayscale(100%) invert(100%);
   }
 }
