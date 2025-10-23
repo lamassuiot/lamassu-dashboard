@@ -17,11 +17,113 @@ import {
   useReactFlow,
   ReactFlowProvider,
   useUpdateNodeInternals,
+  EdgeProps,
+  EdgeLabelRenderer,
+  BaseEdge,
+  getBezierPath,
+  EdgeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Database, Users, Shield, FileText } from 'lucide-react';
+
+// Custom edge component with floating action panel
+const CustomEdgeWithActions = ({ 
+  id, 
+  sourceX, 
+  sourceY, 
+  targetX, 
+  targetY, 
+  sourcePosition, 
+  targetPosition,
+  style = {},
+  markerEnd,
+  data,
+  label,
+}: EdgeProps) => {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const showActionsPanel = (data as any)?.showActionsPanel || false;
+  const targetNodeActions = (data as any)?.targetNodeActions || [];
+  const edgePermissions = (data as any)?.edgePermissions || {};
+  const onActionToggle = (data as any)?.onActionToggle;
+
+  return (
+    <>
+      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style as any} />
+      <EdgeLabelRenderer>
+        {label && (
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              fontSize: 12,
+              fontWeight: 600,
+              background: 'white',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              pointerEvents: 'all',
+            }}
+            className="nodrag nopan"
+          >
+            {label}
+          </div>
+        )}
+        {showActionsPanel && targetNodeActions.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY + 40}px)`,
+              pointerEvents: 'all',
+            }}
+            className="nodrag nopan"
+          >
+            <Card className="shadow-lg border-2 border-primary bg-background min-w-[200px]">
+              <CardHeader className="pb-2 pt-3 px-3">
+                <CardTitle className="text-xs font-semibold">Allowed Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3 pt-0">
+                <div className="space-y-2">
+                  {targetNodeActions.map((action: string) => {
+                    const isChecked = edgePermissions[action] || false;
+                    return (
+                      <div key={action} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`${id}-${action}`}
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            if (onActionToggle) {
+                              onActionToggle(id, action, checked);
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`${id}-${action}`}
+                          className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {action}
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </EdgeLabelRenderer>
+    </>
+  );
+};
 
 // Custom node component for entities
 const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
@@ -39,7 +141,7 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
       case 'certificate':
         return <FileText className="h-5 w-5" />;
       case 'policy':
-        return <Shield className="h-5 w-5 text-blue-600" />;
+        return <Shield className="h-5 w-5 text-primary-foreground" />;
       default:
         return <Database className="h-5 w-5" />;
     }
@@ -47,7 +149,7 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
 
   // Determine border and text colors based on selection state
   const getBorderColor = () => {
-    if (data.name === 'policy') return 'border-blue-500/50';
+    if (data.name === 'policy') return 'border-primary';
     if (selected) return 'border-blue-500';
     
     // Check if this node has a policy connection (should be blue)
@@ -60,7 +162,7 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
   };
 
   const getTextColor = () => {
-    if (data.name === 'policy') return 'text-blue-600';
+    if (data.name === 'policy') return 'text-primary-foreground';
     if (selected) return 'text-blue-600';
     
     // Check if this node has a policy connection (should be blue)
@@ -73,13 +175,34 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
   };
 
   const getBackgroundColor = () => {
-    if (data.name === 'policy') return 'bg-blue-50';
+    if (data.name === 'policy') return 'bg-primary';
     return 'bg-background';
   };
 
   const getNodeWidth = () => {
     if (data.name === 'policy') return 'min-w-[350px]';
     return 'min-w-[250px]';
+  };
+
+  const getBorderWidth = () => {
+    // Check if there's a path from policy via granted permissions
+    const thisNodeId = data.nodeId || data.name;
+    
+    // Policy always gets default border
+    if (thisNodeId === 'policy') return 'border-2';
+    
+    // Check if there's a path from policy to this node via granted permissions
+    const hasPathFromPolicy = hasPathFromPolicyViaGrantedPermissions(
+      thisNodeId, 
+      data.nodeHandlePermissions || {}, 
+      data.allEdges || []
+    );
+    
+    if (hasPathFromPolicy) {
+      return 'border-[5px]'; // Thicker border when there's a path from policy
+    }
+    
+    return 'border-2'; // Default border
   };
 
   // Get available positions for dynamic handles
@@ -129,116 +252,231 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
     }
   };
 
-  const getHandleColor = (handleId: string) => {
-  // Get this node's permissions from global state (use nodeId)
-  const thisNodeId = data.nodeId || data.name;
-  const thisNodePermissions = data.nodeHandlePermissions?.[thisNodeId] || {};
-  const thisHandlePermission = thisNodePermissions[handleId];
-    
-    // Check if this is a target handle with policy connection
-    if (hasPolicyConnection && incomingEdges.some((edge: any) => edge.targetHandle === handleId)) {
-      return thisHandlePermission ? '#22c55e' : '#ef4444'; // Green if allowed, red if denied
+  // Helper function to check if there's a path from Policy to this node via granted permissions
+  const hasPathFromPolicyViaGrantedPermissions = (targetNodeId: string, nodeHandlePermissions: any, allEdges: any[]) => {
+    // If this is the policy node itself, it always has a path to itself
+    if (targetNodeId === 'policy') {
+      return true;
     }
     
-    // Check if this is a target handle with incoming edges from nodes with granted permissions
-    // Incoming granted: some incoming edge's SOURCE node has the sourceHandle granted
-    const hasIncomingGrantedEdge = incomingEdges.some((edge: any) => {
-      if (edge.targetHandle === handleId) {
-        const sourceNodePermissions = data.nodeHandlePermissions?.[edge.source] || {};
-        return edge.sourceHandle && sourceNodePermissions[edge.sourceHandle];
-      }
-      return false;
-    });
+    // Use BFS to find a path from policy to targetNodeId through granted permissions
+    const visited = new Set();
+    const queue = ['policy']; // Start from policy
     
-    if (hasIncomingGrantedEdge) {
-      return thisHandlePermission ? '#22c55e' : '#ef4444'; // Green if allowed, red if denied
+    while (queue.length > 0) {
+      const currentNode = queue.shift()!;
+      
+      if (currentNode === targetNodeId) {
+        return true; // Found a path
+      }
+      
+      if (visited.has(currentNode)) {
+        continue;
+      }
+      visited.add(currentNode);
+      
+      // Find all edges from current node
+      const outgoingEdges = allEdges.filter(edge => edge.source === currentNode);
+      
+      for (const edge of outgoingEdges) {
+        const nextNode = edge.target;
+        
+        if (currentNode === 'policy') {
+          // For policy connections, just having the connection is enough to continue
+          if (!visited.has(nextNode)) {
+            queue.push(nextNode);
+          }
+        } else {
+          // For non-policy connections, the source handle must be granted (green)
+          if (edge.sourceHandle) {
+            const sourcePermissions = nodeHandlePermissions[currentNode] || {};
+            const isSourceGranted = sourcePermissions[edge.sourceHandle];
+            
+            if (isSourceGranted && !visited.has(nextNode)) {
+              queue.push(nextNode);
+            }
+          }
+        }
+      }
     }
     
-    // If this is a source handle, check whether the target node/handle it connects to is granted.
-    // Example: device.right -> device_group.left. If device_group.left is granted, then device.right should show the button.
-    const sourceLeadsToGrantedTarget = outgoingEdges.some((edge: any) => {
-      if (edge.sourceHandle === handleId && edge.target) {
-        const targetPermissions = data.nodeHandlePermissions?.[edge.target] || {};
-        return edge.targetHandle && targetPermissions[edge.targetHandle];
-      }
-      return false;
-    });
+    return false; // No path found
+  };
 
-    if (sourceLeadsToGrantedTarget) {
-      return thisHandlePermission ? '#22c55e' : '#ef4444';
+  const getHandleColor = (handleId: string) => {
+    // Get this node's permissions from global state (use nodeId)
+    const thisNodeId = data.nodeId || data.name;
+    const thisNodePermissions = data.nodeHandlePermissions?.[thisNodeId] || {};
+    const thisHandlePermission = thisNodePermissions[handleId];
+    
+    // ENHANCED LOGIC: Only source handles that connect to related nodes AND have path from policy get green/red colors
+    
+    const nodeType = data.name;
+    const isSource = isSourceHandle(nodeType, handleId);
+    
+    // Only color source handles that connect to related nodes
+    if (isSource) {
+      const connectsToRelatedNode = outgoingEdges.some((edge: any) => {
+        return edge.sourceHandle === handleId && edge.target;
+      });
+      
+      // NEW RULE: Must also have a path from Policy via granted permissions
+      const hasPathFromPolicy = hasPathFromPolicyViaGrantedPermissions(
+        thisNodeId, 
+        data.nodeHandlePermissions || {}, 
+        data.allEdges || []
+      );
+      
+      if (connectsToRelatedNode && hasPathFromPolicy) {
+        return thisHandlePermission ? '#22c55e' : '#ef4444'; // Green if granted, red if denied
+      }
     }
     
-    return '#6366f1'; // Default primary color
+    return '#6366f1'; // Default primary color for all other handles
+  };
+
+  // Helper function to determine if a handle is a source handle based on node type and handle ID
+  const isSourceHandle = (nodeType: string, handleId: string) => {
+    switch (nodeType) {
+      case 'device':
+        // Device has source handle: bottom (sends to certificate)
+        return handleId === 'bottom';
+      case 'device_group':
+        // Device Group has source handle: right (sends to device)
+        return handleId === 'right';
+      case 'dms':
+        // DMS has source handle: left (sends to device)
+        return handleId === 'left';
+      case 'policy':
+        // Policy has source handle: bottom
+        return handleId === 'bottom';
+      case 'certificate':
+        // Certificate only has target handles
+        return false;
+      default:
+        // For dynamic handles, none are source handles (they are all targets for policy connections)
+        return !handleId.startsWith('dynamic-');
+    }
   };
 
   const isClickableHandle = (handleId: string) => {
-    // Clickable if it's a target handle with policy connection
-    if (hasPolicyConnection && incomingEdges.some((edge: any) => edge.targetHandle === handleId)) {
-      return true;
+    // ENHANCED LOGIC: Source handles get green/red buttons when they connect to related nodes 
+    // AND there's a path from Policy via granted permissions
+    
+    const nodeType = data.name;
+    const isSource = isSourceHandle(nodeType, handleId);
+    
+    // Only source handles can be clickable
+    if (!isSource) {
+      return false;
     }
     
-    // Clickable if it's a target handle with incoming edges from nodes with granted permissions
-    const hasIncomingGrantedEdge = incomingEdges.some((edge: any) => {
-      if (edge.targetHandle === handleId) {
-        const sourceNodePermissions = data.nodeHandlePermissions?.[edge.source] || {};
-        return edge.sourceHandle && sourceNodePermissions[edge.sourceHandle];
-      }
-      return false;
+    // Check if this source handle connects to a related node (target of an edge)
+    const connectsToRelatedNode = outgoingEdges.some((edge: any) => {
+      return edge.sourceHandle === handleId && edge.target;
     });
-
-    if (hasIncomingGrantedEdge) {
+    
+    // NEW RULE: Must also have a path from Policy via granted permissions
+    const thisNodeId = data.nodeId || data.name;
+    const hasPathFromPolicy = hasPathFromPolicyViaGrantedPermissions(
+      thisNodeId, 
+      data.nodeHandlePermissions || {}, 
+      data.allEdges || []
+    );
+    
+    if (connectsToRelatedNode && hasPathFromPolicy) {
       return true;
     }
-
-    // Clickable if it's a source handle and the target node/handle it connects to has been granted
-    const sourceTargetsGranted = outgoingEdges.some((edge: any) => {
-      if (edge.sourceHandle === handleId && edge.target) {
-        const targetPermissions = data.nodeHandlePermissions?.[edge.target] || {};
-        return edge.targetHandle && targetPermissions[edge.targetHandle];
-      }
-      return false;
-    });
-
-    if (sourceTargetsGranted) return true;
     
     return false;
   };
 
   return (
-    <Card className={`shadow-lg border-2 cursor-pointer ${getNodeWidth()} ${getBorderColor()} ${getBackgroundColor()}`}>
-      <CardHeader className="pb-2">
-        <CardTitle className={`flex items-center gap-2 text-sm ${getTextColor()}`}>
-          {getEntityIcon(data.name)}
-          {data.name}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">Description:</p>
-          <p className="text-xs">{data.description}</p>
-        </div>
+    <div className="relative">
+      <Card className={`shadow-lg cursor-pointer ${getBorderWidth()} ${getNodeWidth()} ${getBorderColor()} ${getBackgroundColor()}`}>
+        <CardHeader className="pb-2">
+          <CardTitle className={`flex items-center gap-2 text-sm ${getTextColor()}`}>
+            {getEntityIcon(data.name)}
+            {data.name}
+          </CardTitle>
+        </CardHeader>
+        {data.name === 'policy' ? (
+          <></>
+        ) : (
+          <CardContent className="space-y-3">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Description:</p>
+              <p className="text-xs">{data.description}</p>
+            </div>
+            
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Table:</p>
+              <Badge variant="outline" className="text-xs">{data.table}</Badge>
+            </div>
+            
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">ID Column:</p>
+              <Badge variant="secondary" className="text-xs">{data.column_id}</Badge>
+            </div>
+            
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Actions:</p>
+              <div className="flex flex-wrap gap-1">
+                {data.actions.map((action: string) => (
+                  <Badge key={action} variant="outline" className="text-xs">
+                    {action}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        )}
         
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">Table:</p>
-          <Badge variant="outline" className="text-xs">{data.table}</Badge>
-        </div>
-        
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">ID Column:</p>
-          <Badge variant="secondary" className="text-xs">{data.column_id}</Badge>
-        </div>
-        
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">Actions:</p>
-          <div className="flex flex-wrap gap-1">
-            {data.actions.map((action: string) => (
-              <Badge key={action} variant="outline" className="text-xs">
-                {action}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </CardContent>
+        {/* Invisible handles for connections */}
+        {data.name === 'policy' ? (
+          // Policy has a large source handle for easy dragging
+          <Handle
+            id="node-center"
+            type="source"
+            position={Position.Top}
+            className="opacity-0"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: '200px',
+              height: '120px',
+              transform: 'translate(-50%, -50%)',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '8px',
+              pointerEvents: 'auto',
+              zIndex: 10,
+            }}
+          />
+        ) : (
+          // Other nodes have large target handles to receive connections
+          <Handle
+            id="node-center"
+            type="target"
+            position={Position.Top}
+            className="opacity-0"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: '200px',
+              height: '120px',
+              transform: 'translate(-50%, -50%)',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '8px',
+              pointerEvents: 'auto',
+              zIndex: 10,
+            }}
+          />
+        )}
+      </Card>
       
       {/* Connection handles */}
       {data.name === 'policy' ? (
@@ -260,27 +498,11 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
           }}
         />
       ) : data.name === 'device' ? (
-        // Device node has 3 fixed handles + dynamic handles for policy connections
+        // Device node has 2 target handles + 1 source handle + dynamic handles for policy connections
         <>
           <Handle
-            id="right"
-            type="source"
-            position={Position.Right}
-            className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle('right') ? 'cursor-pointer' : ''}`}
-            style={{
-              width: '16px',
-              height: '16px',
-              borderRadius: isClickableHandle('right') ? '4px' : '50%',
-              backgroundColor: getHandleColor('right'),
-            }}
-            onClick={isClickableHandle('right') ? (e) => {
-              e.stopPropagation();
-              toggleHandlePermission('right');
-            } : undefined}
-          />
-          <Handle
             id="left"
-            type="source"
+            type="target"
             position={Position.Left}
             className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle('left') ? 'cursor-pointer' : ''}`}
             style={{
@@ -295,8 +517,24 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
             } : undefined}
           />
           <Handle
-            id="bottom"
+            id="right"
             type="target"
+            position={Position.Right}
+            className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle('right') ? 'cursor-pointer' : ''}`}
+            style={{
+              width: '16px',
+              height: '16px',
+              borderRadius: isClickableHandle('right') ? '4px' : '50%',
+              backgroundColor: getHandleColor('right'),
+            }}
+            onClick={isClickableHandle('right') ? (e) => {
+              e.stopPropagation();
+              toggleHandlePermission('right');
+            } : undefined}
+          />
+          <Handle
+            id="bottom"
+            type="source"
             position={Position.Bottom}
             className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle('bottom') ? 'cursor-pointer' : ''}`}
             style={{
@@ -338,57 +576,11 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
           })}
         </>
       ) : data.name === 'device_group' ? (
-        // Device Group has 1 fixed handle + dynamic handles for policy connections
-        <>
-          <Handle
-            id="left"
-            type="target"
-            position={Position.Left}
-            className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle('left') ? 'cursor-pointer' : ''}`}
-            style={{
-              width: '16px',
-              height: '16px',
-              borderRadius: isClickableHandle('left') ? '4px' : '50%',
-              backgroundColor: getHandleColor('left'),
-            }}
-            onClick={isClickableHandle('left') ? (e) => {
-              e.stopPropagation();
-              toggleHandlePermission('left');
-            } : undefined}
-          />
-          {/* Dynamic handles for policy connections */}
-          {dynamicHandlesForNode.map((handleId: string) => {
-            const position = handleId === 'top' ? Position.Top : 
-                           handleId === 'right' ? Position.Right : 
-                           handleId === 'bottom' ? Position.Bottom : Position.Left;
-            const fullId = `dynamic-${handleId}`;
-            return (
-              <Handle
-                key={fullId}
-                id={fullId}
-                type="target"
-                position={position}
-                className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle(fullId) ? 'cursor-pointer' : ''}`}
-                style={{
-                  width: '16px',
-                  height: '16px',
-                  borderRadius: isClickableHandle(fullId) ? '4px' : '50%',
-                  backgroundColor: getHandleColor(fullId),
-                }}
-                onClick={isClickableHandle(fullId) ? (e) => {
-                  e.stopPropagation();
-                  toggleHandlePermission(fullId);
-                } : undefined}
-              />
-            );
-          })}
-        </>
-      ) : data.name === 'dms' ? (
-        // DMS has 1 fixed handle + dynamic handles for policy connections
+        // Device Group has 1 source handle + dynamic handles for policy connections
         <>
           <Handle
             id="right"
-            type="target"
+            type="source"
             position={Position.Right}
             className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle('right') ? 'cursor-pointer' : ''}`}
             style={{
@@ -429,12 +621,58 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
             );
           })}
         </>
+      ) : data.name === 'dms' ? (
+        // DMS has 1 source handle + dynamic handles for policy connections
+        <>
+          <Handle
+            id="left"
+            type="source"
+            position={Position.Left}
+            className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle('left') ? 'cursor-pointer' : ''}`}
+            style={{
+              width: '16px',
+              height: '16px',
+              borderRadius: isClickableHandle('left') ? '4px' : '50%',
+              backgroundColor: getHandleColor('left'),
+            }}
+            onClick={isClickableHandle('left') ? (e) => {
+              e.stopPropagation();
+              toggleHandlePermission('left');
+            } : undefined}
+          />
+          {/* Dynamic handles for policy connections */}
+          {dynamicHandlesForNode.map((handleId: string) => {
+            const position = handleId === 'top' ? Position.Top : 
+                           handleId === 'right' ? Position.Right : 
+                           handleId === 'bottom' ? Position.Bottom : Position.Left;
+            const fullId = `dynamic-${handleId}`;
+            return (
+              <Handle
+                key={fullId}
+                id={fullId}
+                type="target"
+                position={position}
+                className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle(fullId) ? 'cursor-pointer' : ''}`}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: isClickableHandle(fullId) ? '4px' : '50%',
+                  backgroundColor: getHandleColor(fullId),
+                }}
+                onClick={isClickableHandle(fullId) ? (e) => {
+                  e.stopPropagation();
+                  toggleHandlePermission(fullId);
+                } : undefined}
+              />
+            );
+          })}
+        </>
       ) : data.name === 'certificate' ? (
-        // Certificate has 1 fixed handle + dynamic handles for policy connections
+        // Certificate has 1 target handle + dynamic handles for policy connections
         <>
           <Handle
             id="top"
-            type="source"
+            type="target"
             position={Position.Top}
             className={`w-4 h-4 border-2 border-white shadow-lg ${isClickableHandle('top') ? 'cursor-pointer' : ''}`}
             style={{
@@ -476,7 +714,7 @@ const EntityNode = ({ data, selected }: { data: any; selected?: boolean }) => {
           })}
         </>
       ) : null}
-    </Card>
+    </div>
   );
 };
 
@@ -551,6 +789,10 @@ const nodeTypes: NodeTypes = {
   entityNode: EntityNode,
 };
 
+const edgeTypes: EdgeTypes = {
+  customEdge: CustomEdgeWithActions,
+};
+
 function RelationshipsFlowDiagramContent() {
   // State for tracking selected node
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -560,6 +802,8 @@ function RelationshipsFlowDiagramContent() {
   const [pendingEdges, setPendingEdges] = useState<Edge[]>([]);
   // State for tracking handle permissions across all nodes
   const [nodeHandlePermissions, setNodeHandlePermissions] = useState<Record<string, Record<string, boolean>>>({});
+  // State for tracking edge action permissions (which actions are allowed for each edge)
+  const [edgeActionPermissions, setEdgeActionPermissions] = useState<Record<string, Record<string, boolean>>>({});
   
   // React Flow instance for internal operations
   const reactFlowInstance = useReactFlow();
@@ -572,6 +816,17 @@ function RelationshipsFlowDiagramContent() {
       [nodeId]: {
         ...prev[nodeId],
         [handleId]: granted
+      }
+    }));
+  }, []);
+
+  // Handle action permission changes for edges
+  const handleEdgeActionToggle = useCallback((edgeId: string, action: string, checked: boolean | 'indeterminate') => {
+    setEdgeActionPermissions(prev => ({
+      ...prev,
+      [edgeId]: {
+        ...prev[edgeId],
+        [action]: checked === true
       }
     }));
   }, []);
@@ -614,19 +869,19 @@ function RelationshipsFlowDiagramContent() {
   const initialEdges: Edge[] = useMemo(() => {
     const edges: Edge[] = [];
     
-    // Device to Device Group relationship (Device right handle → Device Group left handle)
+    // Device Group to Device relationship (Device Group → Device, device belongs_to_group device_group)
     edges.push({
-      id: 'device-device_group',
-      source: 'device',
-      target: 'device_group',
-      sourceHandle: 'right',
-      targetHandle: 'left',
+      id: 'device_group-device',
+      source: 'device_group',
+      target: 'device',
+      sourceHandle: 'right', // Device Group needs a source handle
+      targetHandle: 'left',  // Device receives on left
       label: 'belongs_to_group',
       type: 'smoothstep',
       style: { stroke: '#6b7280', strokeWidth: 2 }, // Default gray color
       labelStyle: { fontSize: 12, fontWeight: 600 },
       labelBgStyle: { fill: 'white', fillOpacity: 0.8 },
-      markerStart: {
+      markerEnd: {
         type: 'arrowclosed',
         width: 20,
         height: 20,
@@ -634,19 +889,19 @@ function RelationshipsFlowDiagramContent() {
       },
     });
 
-    // Device to DMS relationship (Device left handle → DMS right handle)
+    // DMS to Device relationship (DMS → Device, device dms_owner dms)
     edges.push({
-      id: 'device-dms',
-      source: 'device',
-      target: 'dms',
-      sourceHandle: 'left',
-      targetHandle: 'right',
+      id: 'dms-device',
+      source: 'dms',
+      target: 'device',
+      sourceHandle: 'left',  // DMS needs a source handle
+      targetHandle: 'right', // Device receives on right
       label: 'dms_owner',
       type: 'smoothstep',
       style: { stroke: '#6b7280', strokeWidth: 2 }, // Default gray color
       labelStyle: { fontSize: 12, fontWeight: 600 },
       labelBgStyle: { fill: 'white', fillOpacity: 0.8 },
-      markerStart: {
+      markerEnd: {
         type: 'arrowclosed',
         width: 20,
         height: 20,
@@ -654,19 +909,19 @@ function RelationshipsFlowDiagramContent() {
       },
     });
 
-    // Certificate to Device relationship (Certificate top handle → Device bottom handle)
+    // Device to Certificate relationship (Device → Certificate, certificate belongs_to_device device)
     edges.push({
-      id: 'certificate-device',
-      source: 'certificate',
-      target: 'device',
-      sourceHandle: 'top',
-      targetHandle: 'bottom',
+      id: 'device-certificate',
+      source: 'device',
+      target: 'certificate',
+      sourceHandle: 'bottom', // Device sends from bottom
+      targetHandle: 'top',    // Certificate receives on top
       label: 'belongs_to_device',
       type: 'smoothstep',
       style: { stroke: '#6b7280', strokeWidth: 2 }, // Default gray color
       labelStyle: { fontSize: 12, fontWeight: 600 },
       labelBgStyle: { fill: 'white', fillOpacity: 0.8 },
-      markerStart: {
+      markerEnd: {
         type: 'arrowclosed',
         width: 20,
         height: 20,
@@ -679,6 +934,12 @@ function RelationshipsFlowDiagramContent() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Debug: Log edges to see if they're being set correctly
+  useEffect(() => {
+    console.log('🔍 Current edges state:', edges);
+    console.log('🔍 Initial edges:', initialEdges);
+  }, [edges, initialEdges]);
 
   // Effect to handle pending edge creation after handles are rendered
   useEffect(() => {
@@ -784,6 +1045,7 @@ function RelationshipsFlowDiagramContent() {
           outgoingEdges,
           hasIncomingBlueEdges,
           nodeHandlePermissions,
+          allEdges: edges, // Add all edges for path checking
           onPermissionChange: handlePermissionChange,
           onClick: () => {
             setSelectedNode(selectedNode === node.id ? null : node.id);
@@ -795,6 +1057,7 @@ function RelationshipsFlowDiagramContent() {
 
   // Update edges with selection highlighting and permission colors
   const updatedEdges = useMemo(() => {
+    console.log('🎨 Updating edges, current count:', edges.length);
     return edges.map(edge => {
       const isPolicyEdge = edge.source === 'policy' || edge.target === 'policy';
       
@@ -806,10 +1069,21 @@ function RelationshipsFlowDiagramContent() {
       const sourceNodePermissions = nodeHandlePermissions[edge.source] || {};
       const isSourcePermissionGranted = edge.sourceHandle && sourceNodePermissions[edge.sourceHandle];
       
+      // Determine if we should show the actions panel
+      const showActionsPanel = isPolicyEdge || isSourcePermissionGranted;
+      
+      // Get target node's actions
+      const targetNode = nodes.find(n => n.id === edge.target);
+      const targetNodeActions = targetNode?.data?.actions || [];
+      
+      // Get edge permissions for this edge
+      const edgePermissions = edgeActionPermissions[edge.id] || {};
+      
       if (isPolicyEdge) {
         // Policy edges stay blue with markerEnd (arrow at end) and dashed line
         return {
           ...edge,
+          type: 'customEdge',
           style: { 
             stroke: '#3b82f6', 
             strokeWidth: 3,
@@ -821,6 +1095,12 @@ function RelationshipsFlowDiagramContent() {
             height: 20,
             color: '#3b82f6',
           },
+          data: {
+            showActionsPanel,
+            targetNodeActions,
+            edgePermissions,
+            onActionToggle: handleEdgeActionToggle,
+          },
         } as Edge;
       }
       
@@ -828,29 +1108,43 @@ function RelationshipsFlowDiagramContent() {
         // Edge with granted permission (either target or source) - make it blue and wider
         return {
           ...edge,
+          type: 'customEdge',
           style: { ...edge.style, stroke: '#3b82f6', strokeWidth: 3 },
-          markerStart: {
+          markerEnd: {
             type: 'arrowclosed' as const,
             width: 20,
             height: 20,
             color: '#3b82f6',
           },
+          data: {
+            showActionsPanel,
+            targetNodeActions,
+            edgePermissions,
+            onActionToggle: handleEdgeActionToggle,
+          },
         } as Edge;
       }
       
-      // Default gray edges with markerStart (arrow at start)
+      // Default gray edges with markerEnd (arrow at destination)
       return {
         ...edge,
-        style: { ...edge.style, stroke: '#6b7280' },
-        markerStart: {
+        type: 'customEdge',
+        style: { ...edge.style, stroke: '#6b7280', strokeWidth: 2 },
+        markerEnd: {
           type: 'arrowclosed' as const,
           width: 20,
           height: 20,
           color: '#6b7280',
         },
+        data: {
+          showActionsPanel: false,
+          targetNodeActions: [],
+          edgePermissions: {},
+          onActionToggle: handleEdgeActionToggle,
+        },
       } as Edge;
     });
-  }, [edges, nodeHandlePermissions]);
+  }, [edges, nodeHandlePermissions, edgeActionPermissions, nodes, handleEdgeActionToggle]);
 
   // Handle node clicks
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
@@ -871,6 +1165,11 @@ function RelationshipsFlowDiagramContent() {
         target = params.source;
         sourceHandle = params.targetHandle;
         targetHandle = params.sourceHandle;
+      }
+      
+      // Normalize policy source handles (both "right" and "node-center" should work the same)
+      if (source === 'policy' && (sourceHandle === 'node-center' || sourceHandle === 'right')) {
+        sourceHandle = 'right'; // Use the visible handle for the actual edge
       }
       
       // Easy Connect: Create dynamic handle if policy is connecting to another node
@@ -906,7 +1205,6 @@ function RelationshipsFlowDiagramContent() {
           }
         }
 
-
         // Get available position for new handle on target node
         const existingHandles = dynamicHandles[target] || [];
         
@@ -915,44 +1213,57 @@ function RelationshipsFlowDiagramContent() {
           
           // For non-policy nodes, avoid their fixed handles
           if (nodeId === 'device') {
-            // Device has fixed right, left, bottom handles
-            return positions.find(pos => !['right', 'left', 'bottom'].includes(pos) && !existingHandles.includes(pos)) || 'top';
+            // Device has fixed left, right (target) and bottom (source) handles
+            return positions.find(pos => !['left', 'right', 'bottom'].includes(pos) && !existingHandles.includes(pos)) || 'top';
           } else if (nodeId === 'device_group') {
-            // Device Group has fixed left handle
-            return positions.find(pos => pos !== 'left' && !existingHandles.includes(pos)) || 'top';
-          } else if (nodeId === 'dms') {
-            // DMS has fixed right handle
+            // Device Group has fixed right (source) handle
             return positions.find(pos => pos !== 'right' && !existingHandles.includes(pos)) || 'top';
+          } else if (nodeId === 'dms') {
+            // DMS has fixed left (source) handle
+            return positions.find(pos => pos !== 'left' && !existingHandles.includes(pos)) || 'top';
           } else if (nodeId === 'certificate') {
-            // Certificate has fixed top handle
+            // Certificate has fixed top (target) handle
             return positions.find(pos => pos !== 'top' && !existingHandles.includes(pos)) || 'right';
           }
           
           // For other nodes, use any available position
           return positions.find(pos => !existingHandles.includes(pos)) || 'top';
         };
-        
-        const newHandleId = getAvailablePosition(target, existingHandles);
-        const dynamicHandleId = `dynamic-${newHandleId}`;
-        
-        // Update dynamic handles state
-        setDynamicHandles(prev => {
-          const newState = {
+
+        // If targetHandle is null, undefined, or "node-center", we're connecting to the node itself - create a dynamic handle
+        if (!targetHandle || targetHandle === 'node-center') {
+          const newHandleId = getAvailablePosition(target, existingHandles);
+          targetHandle = `dynamic-${newHandleId}`;
+          
+          // Update dynamic handles state
+          setDynamicHandles(prev => ({
             ...prev,
             [target]: [...existingHandles, newHandleId]
-          };
-          return newState;
-        });
+          }));
+        } else if (!targetHandle.startsWith('dynamic-')) {
+          // If targetHandle exists but is not dynamic, still create a dynamic handle for policy connections
+          const newHandleId = getAvailablePosition(target, existingHandles);
+          targetHandle = `dynamic-${newHandleId}`;
+          
+          // Update dynamic handles state
+          setDynamicHandles(prev => ({
+            ...prev,
+            [target]: [...existingHandles, newHandleId]
+          }));
+        }
+
+        const dynamicHandleId = targetHandle;
         
         // Update nodes to include the new dynamic handle
         setNodes(currentNodes => {
           const updatedNodes = currentNodes.map(node => {
             if (node.id === target) {
+              const currentDynamicHandles = dynamicHandles[target] || [];
               const updatedNode = {
                 ...node,
                 data: {
                   ...node.data,
-                  dynamicHandles: [...existingHandles, newHandleId]
+                  dynamicHandles: currentDynamicHandles
                 }
               };
               return updatedNode;
@@ -1015,7 +1326,7 @@ function RelationshipsFlowDiagramContent() {
         },
         labelStyle: { fontSize: 12, fontWeight: 600 },
         labelBgStyle: { fill: 'white', fillOpacity: 0.8 },
-        markerStart: {
+        markerEnd: {
           type: 'arrowclosed',
           width: 20,
           height: 20,
@@ -1029,6 +1340,9 @@ function RelationshipsFlowDiagramContent() {
     },
     [setEdges, setNodes, dynamicHandles, edges, nodeHandlePermissions],
   );
+
+  // Debug: Log render info
+  console.log('📊 Rendering component with', updatedNodes.length, 'nodes and', updatedEdges.length, 'edges');
 
   return (
     <div className="space-y-4">
@@ -1077,6 +1391,7 @@ function RelationshipsFlowDiagramContent() {
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           className="bg-background"
         >
