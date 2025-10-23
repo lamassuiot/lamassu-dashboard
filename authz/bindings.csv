@@ -1,0 +1,7 @@
+device_group:caf, device:caf-01, belongs_to_group
+dms:caf-dms, device:caf-01, dms_owner
+
+device_group:caf, device:caf-02, belongs_to_group
+dms:caf-dms, device:caf-02, dms_owner
+
+device:caf-01, certificate:caf-01-001, belongs_to_device

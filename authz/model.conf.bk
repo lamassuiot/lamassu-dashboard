@@ -1,0 +1,23 @@
+[request_definition]
+# user: the subject
+# obj: the resource (Device or DeviceGroup)
+# act: the action being requested (e.g., read, update)
+r = user, obj, act
+
+[policy_definition]
+# subject, object, action, effect
+p = sub, obj, act, eft
+
+[role_definition]
+# relationship edges (e.g., user→DeviceGroup, DeviceGroup→Device)
+g = _, _
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+# Access allowed if:
+# 1. The user has a direct or indirect relationship to the object (ReBAC traversal via g)
+# 2. AND the action matches a permitted policy (p)
+# 3. AND the policy effect is allow (eft is automatically handled by Casbin)
+m = g(r.user, r.obj) && regexMatch(r.act, p.act)

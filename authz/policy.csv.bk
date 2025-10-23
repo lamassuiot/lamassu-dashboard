@@ -1,0 +1,25 @@
+# --- Policies (who can do what on which type of entity) ---
+# Allow policies
+p, *, devicegroup:*, read, allow
+p, *, device:*, read, allow
+p, *, devicegroup:*, write, allow
+p, *, device:*, write, allow
+
+# Deny policies (override allows for specific cases)
+p, user:bob, device:alpha-.*, delete, deny
+p, .*, device:lab-.*, delete, deny
+p, user:alice, devicegroup:beta, .*, deny
+
+# --- Relationship edges (ReBAC graph) ---
+# Users belong to device groups
+g, user:alice, devicegroup:alpha
+g, user:bob, devicegroup:beta
+
+# Groups own devices
+g, devicegroup:alpha, device:alpha-001
+g, devicegroup:alpha, device:alpha-002
+g, devicegroup:beta, device:beta-001
+
+# Nested groups (optional)
+g, devicegroup:alpha, devicegroup:lab
+g, devicegroup:lab, device:lab-001

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Link from 'next/link';
 import { AdvancedTestingComponent } from './components/AdvancedTestingComponent';
+import RelationshipsFlowDiagram from '@/components/shared/RelationshipsFlowDiagram';
 
 // Sample data for existing policies
 const samplePolicies = [
@@ -92,10 +93,11 @@ export default function SecurityAccessPoliciesPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="policies">Policies</TabsTrigger>
           <TabsTrigger value="principals">Principals</TabsTrigger>
+          <TabsTrigger value="relationships">Relationships</TabsTrigger>
           <TabsTrigger value="test">Test Access</TabsTrigger>
         </TabsList>
 
@@ -404,6 +406,19 @@ export default function SecurityAccessPoliciesPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="relationships" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Entity Relationships</h2>
+              <p className="text-muted-foreground">
+                Visualize entity relationships and their access control permissions
+              </p>
+            </div>
+          </div>
+          
+          <RelationshipsFlowDiagram />
         </TabsContent>
 
         <TabsContent value="test" className="space-y-6">

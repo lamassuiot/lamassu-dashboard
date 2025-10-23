@@ -1,0 +1,6 @@
+p, projectgroup:primary-alpha, project:alpha, read, allow
+p, projectgroup:primary-alpha, project:alpha, write, allow
+p, devicegroup:primary-alpha, device:alpha-001, read, allow
+p, devicegroup:audit-alpha, device:alpha-001, write, deny
+g, user:alice, projectgroup:primary-alpha
+g2, user:bob, projectgroup:audit-alpha

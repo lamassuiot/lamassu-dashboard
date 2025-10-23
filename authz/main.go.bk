@@ -1,0 +1,181 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"strings"
+
+	"github.com/casbin/casbin/v2"
+)
+
+func main() {
+	e, err := casbin.NewEnforcer("./model.conf", "./policy.csv")
+	if err != nil {
+		log.Fatalf("failed to create enforcer: %v", err)
+	}
+
+	fmt.Println("=== Relationship Graph Traversal ===")
+
+	// Print all role inheritance relationships
+	fmt.Println("\n1. All Role Relationships (g rules):")
+	groupingPolicies, _ := e.GetGroupingPolicy()
+	for _, role := range groupingPolicies {
+		fmt.Printf("  %s -> %s\n", role[0], role[1])
+	}
+
+	// Print all policies
+	fmt.Println("\n2. All Policies (p rules):")
+	policies, _ := e.GetPolicy()
+	for _, policy := range policies {
+		if len(policy) >= 4 {
+			fmt.Printf("  subject:%s, object:%s, action:%s, effect:%s\n", policy[0], policy[1], policy[2], policy[3])
+		} else {
+			fmt.Printf("  subject:%s, object:%s, action:%s\n", policy[0], policy[1], policy[2])
+		}
+	}
+
+	// Analyze policy effects
+	fmt.Println("\n3. Policy Effects Analysis:")
+	allowPolicies := 0
+	denyPolicies := 0
+	for _, policy := range policies {
+		if len(policy) >= 4 {
+			if policy[3] == "allow" {
+				allowPolicies++
+			} else if policy[3] == "deny" {
+				denyPolicies++
+				fmt.Printf("  DENY: %s cannot %s %s\n", policy[0], policy[2], policy[1])
+			}
+		}
+	}
+	fmt.Printf("  Total Allow Policies: %d\n", allowPolicies)
+	fmt.Printf("  Total Deny Policies: %d\n", denyPolicies)
+
+	// Test access scenarios
+	fmt.Println("\n4. Access Control Tests:")
+
+	testCases := []struct {
+		user   string
+		object string
+		action string
+	}{
+		{"user:alice", "device:alpha-001", "read"},
+		{"user:alice", "device:alpha-002", "write"},
+		{"user:bob", "device:beta-001", "read"},
+		{"user:alice", "device:beta-001", "read"}, // should fail - no relationship
+		{"user:bob", "device:alpha-001", "read"},  // should fail - no relationship
+		{"user:alice", "devicegroup:alpha", "read"},
+		{"user:alice", "device:lab-001", "read"},   // nested group access
+		{"user:alice", "device:lab-001", "delete"}, // should fail - deny policy
+		{"user:bob", "device:alpha-001", "delete"}, // should fail - deny policy
+		{"user:alice", "devicegroup:beta", "read"}, // should fail - explicit deny
+	}
+
+	for _, tc := range testCases {
+		fmt.Printf("\n  Testing: %s wants to %s %s\n", tc.user, tc.action, tc.object)
+
+		// Check if there's a relationship path
+		hasRelationship, _ := e.HasGroupingPolicy(tc.user, tc.object)
+		if !hasRelationship {
+			// Check indirect relationships through all intermediate roles
+			userRoles, _ := e.GetRolesForUser(tc.user)
+			fmt.Printf("    %s belongs to groups: %v\n", tc.user, userRoles)
+
+			for _, role := range userRoles {
+				hasRoleRelation, _ := e.HasGroupingPolicy(role, tc.object)
+				if hasRoleRelation {
+					hasRelationship = true
+					fmt.Printf("    Found relationship path: %s -> %s -> %s\n", tc.user, role, tc.object)
+					break
+				}
+				// Check nested relationships
+				intermediateRoles, _ := e.GetRolesForUser(role)
+				for _, nestedRole := range intermediateRoles {
+					hasNestedRelation, _ := e.HasGroupingPolicy(nestedRole, tc.object)
+					if hasNestedRelation {
+						hasRelationship = true
+						fmt.Printf("    Found nested relationship path: %s -> %s -> %s -> %s\n", tc.user, role, nestedRole, tc.object)
+						break
+					}
+				}
+			}
+		} else {
+			fmt.Printf("    Direct relationship: %s -> %s\n", tc.user, tc.object)
+		}
+
+		// Check for matching policies
+		matchingPolicies := []string{}
+		for _, policy := range policies {
+			if len(policy) >= 4 {
+				// Check if policy matches
+				subMatch := policy[0] == "*" || policy[0] == tc.user
+				objMatch := strings.Contains(tc.object, strings.Replace(policy[1], "*", "", -1)) || policy[1] == tc.object
+				actMatch := strings.Contains(policy[2], tc.action) || policy[2] == "*" || policy[2] == tc.action
+
+				if subMatch && objMatch && actMatch {
+					matchingPolicies = append(matchingPolicies, fmt.Sprintf("%s:%s", policy[2], policy[3]))
+				}
+			}
+		}
+		if len(matchingPolicies) > 0 {
+			fmt.Printf("    Matching policies: %v\n", matchingPolicies)
+		}
+
+		ok, err := e.Enforce(tc.user, tc.object, tc.action)
+		if err != nil {
+			fmt.Printf("    Error: %v\n", err)
+			continue
+		}
+
+		if ok {
+			fmt.Printf("    Result: ✅ ACCESS GRANTED\n")
+		} else {
+			fmt.Printf("    Result: ❌ ACCESS DENIED\n")
+		}
+	}
+
+	groups, devices, _ := GetReachableEntities(e, "user:alice")
+	filter := BuildDeviceFilter(groups, devices)
+	fmt.Println("SQL Filter:", filter)
+
+}
+
+func GetReachableEntities(e *casbin.Enforcer, user string) (groups []string, devices []string, err error) {
+	roles, err := e.GetImplicitRolesForUser(user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, r := range roles {
+		if strings.HasPrefix(r, "devicegroup:") {
+			groups = append(groups, strings.TrimPrefix(r, "devicegroup:"))
+		} else if strings.HasPrefix(r, "device:") {
+			devices = append(devices, strings.TrimPrefix(r, "device:"))
+		}
+	}
+
+	return
+}
+
+func BuildDeviceFilter(groups, devices []string) string {
+	conditions := []string{}
+
+	if len(devices) > 0 {
+		ids := "'" + strings.Join(devices, "', '") + "'"
+		conditions = append(conditions, fmt.Sprintf("id IN (%s)", ids))
+	}
+
+	if len(groups) > 0 {
+		gids := "'" + strings.Join(groups, "', '") + "'"
+		conditions = append(conditions,
+			fmt.Sprintf("owener_group IN (%s)", gids),
+			fmt.Sprintf("secondary_devicegroup_id IN (%s)", gids),
+		)
+	}
+
+	if len(conditions) == 0 {
+		return "1=0" // no access
+	}
+
+	return strings.Join(conditions, " OR ")
+}

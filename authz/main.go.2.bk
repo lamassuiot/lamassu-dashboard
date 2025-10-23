@@ -1,0 +1,204 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"strings"
+
+	"github.com/casbin/casbin/v2"
+	"gopkg.in/yaml.v3"
+)
+
+type Link struct {
+	Target      string `yaml:"target"`
+	Type        string `yaml:"type"`
+	InverseOf   string `yaml:"inverse_of"`
+	Description string `yaml:"description"`
+}
+
+type Relationship struct {
+	Name  string `yaml:"name"`
+	Alias string `yaml:"alias"`
+}
+
+type Entity struct {
+	Name          string            `yaml:"name"`
+	Description   string            `yaml:"description"`
+	Table         string            `yaml:"table"`
+	Columns       map[string]string `yaml:"columns"`
+	Relationships []Relationship    `yaml:"relationships"`
+	Links         []Link            `yaml:"links"`
+}
+
+type RelationshipScope struct {
+	Allow []string `yaml:"allow"`
+	Deny  []string `yaml:"deny"`
+}
+
+type Permissions struct {
+	Defaults           map[string]string            `yaml:"defaults"`
+	Actions            []string                     `yaml:"actions"`
+	RelationshipScopes map[string]RelationshipScope `yaml:"relationship_scopes"`
+}
+
+type Config struct {
+	Entities    []Entity    `yaml:"entities"`
+	Permissions Permissions `yaml:"permissions"`
+}
+
+func main() {
+	cfg, err := LoadConfig("access_model.yaml")
+	if err != nil {
+		log.Fatalf("failed to load YAML: %v", err)
+	}
+
+	e, err := casbin.NewEnforcer("./model.conf", "./policy.csv")
+	if err != nil {
+		log.Fatalf("failed to create enforcer: %v", err)
+	}
+
+	GenerateCrossEntityLinks(e, cfg)
+
+	if err := e.BuildRoleLinks(); err != nil {
+		log.Fatalf("failed to rebuild role links: %v", err)
+	}
+
+	fmt.Println("=== Cross-Entity Links Loaded ===")
+	groupPolicies, _ := e.GetGroupingPolicy()
+	for _, rule := range groupPolicies {
+		fmt.Printf("  %v\n", rule)
+	}
+
+	testCases := []struct {
+		user   string
+		object string
+		action string
+	}{
+		{"user:alice", "project:alpha", "read"},
+		{"user:alice", "device:alpha-001", "read"},
+		{"user:bob", "project:alpha", "delete"},
+	}
+
+	fmt.Println("\n=== Access Control Tests ===")
+	for _, tc := range testCases {
+		ok, err := e.Enforce(tc.user, tc.object, tc.action)
+		if err != nil {
+			log.Printf("error enforcing %v: %v", tc, err)
+			continue
+		}
+
+		fmt.Printf("\n→ %s wants to %s %s\n", tc.user, tc.action, tc.object)
+		if ok {
+			fmt.Printf("✅ ACCESS GRANTED\n")
+			sqlFilter := BuildSQLFilter(e, cfg, tc.user)
+			fmt.Println("SQL Filter:")
+			fmt.Println(sqlFilter)
+		} else {
+			fmt.Printf("❌ ACCESS DENIED\n")
+		}
+
+		PrintFullRelationTree(e, tc.user, map[string]bool{}, "")
+	}
+}
+
+func LoadConfig(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var cfg Config
+	err = yaml.Unmarshal(data, &cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func GenerateCrossEntityLinks(e *casbin.Enforcer, cfg *Config) {
+	for _, entity := range cfg.Entities {
+		for _, link := range entity.Links {
+			targetEntity := findEntity(cfg, link.Target)
+			if targetEntity == nil {
+				continue
+			}
+
+			for _, rel := range entity.Relationships {
+				for _, trel := range targetEntity.Relationships {
+					if rel.Name == trel.Name {
+						srcPrefix := fmt.Sprintf("%sgroup:%s-", entity.Name, rel.Name)
+						tgtPrefix := fmt.Sprintf("%sgroup:%s-", targetEntity.Name, trel.Name)
+
+						policies, err := e.GetPolicy()
+						if err != nil {
+							log.Printf("failed to get policies: %v", err)
+							continue
+						}
+
+						for _, policy := range policies {
+							sub := policy[0]
+							if strings.HasPrefix(sub, srcPrefix) {
+								instance := strings.TrimPrefix(sub, srcPrefix)
+								targetGroup := tgtPrefix + instance
+								_, _ = e.AddNamedGroupingPolicy("g", sub, targetGroup)
+								targetObject := fmt.Sprintf("%s:%s", targetEntity.Name, instance)
+								_, _ = e.AddNamedGroupingPolicy("g", sub, targetObject)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func findEntity(cfg *Config, name string) *Entity {
+	for _, e := range cfg.Entities {
+		if e.Name == name {
+			return &e
+		}
+	}
+	return nil
+}
+
+func PrintFullRelationTree(e *casbin.Enforcer, subject string, visited map[string]bool, indent string) {
+	if visited[subject] {
+		return
+	}
+	visited[subject] = true
+
+	children, _ := e.GetRolesForUser(subject)
+	fmt.Printf("%s%s\n", indent, subject)
+	for _, child := range children {
+		PrintFullRelationTree(e, child, visited, indent+"  └─ ")
+	}
+}
+
+func BuildSQLFilter(e *casbin.Enforcer, cfg *Config, user string) string {
+	roles, _ := e.GetImplicitRolesForUser(user)
+	conditions := []string{}
+
+	for _, entity := range cfg.Entities {
+		entityConds := []string{}
+		for _, r := range roles {
+			for _, rel := range entity.Relationships {
+				prefix := fmt.Sprintf("%sgroup:%s-", entity.Name, rel.Name)
+				if strings.HasPrefix(r, prefix) {
+					instance := strings.TrimPrefix(r, prefix)
+					if col, ok := entity.Columns[rel.Name+"_group"]; ok {
+						entityConds = append(entityConds, fmt.Sprintf("%s IN ('%s')", col, instance))
+					}
+				}
+			}
+		}
+		if len(entityConds) > 0 {
+			tableCond := fmt.Sprintf("-- %s\n(%s)", entity.Table, strings.Join(entityConds, " OR "))
+			conditions = append(conditions, tableCond)
+		}
+	}
+
+	if len(conditions) == 0 {
+		return "1=0"
+	}
+	return strings.Join(conditions, "\nOR\n")
+}

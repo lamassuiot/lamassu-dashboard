@@ -1,0 +1,81 @@
+entities:
+  - name: device
+    description: "A device entity"
+    table: "devices"
+    column_id: "id"
+    actions:
+      - read
+      - create
+      - update
+      - update-metadata
+      - delete
+      - list
+    relationships:
+      - name: belongs_to_group
+        relation_with: "device_group"
+        column: "device_group_id"
+        column_type: "varchar"
+        actions:
+          - read
+
+      - name: dms_owner
+        relation_with: "dms"
+        column: "dms_owner"
+        column_type: "varchar"
+        actions:
+          - read
+          - write
+          - delete
+
+  - name: device_group
+    actions:
+      - read
+      - create
+      - update
+      - update-metadata
+      - delete
+      - list
+    description: "A device group entity"
+    table: "groups"
+    column_id: "id"
+    relationships:
+
+  - name: dms
+    description: "A DMS group entity"
+    actions:
+      - read
+      - create
+      - update
+      - update-metadata
+      - delete
+      - list
+    table: "dmss"
+    column_id: "id"
+    relationships:
+
+  - name: certificate
+    description: "A certificate entity"
+    actions:
+      - read
+      - create
+      - update
+      - update-metadata
+      - update-status #revoke/reactivate
+      - delete
+      - list
+    table: "certificates"
+    column_id: "serial_number"
+    relationships:
+      - name: belongs_to_device
+        relation_with: "device"
+        column: "device_id"
+        column_type: "varchar"
+        actions:
+          - read
+          - write
+          - delete     
+
+permissions:
+  defaults:
+    allow_effect: "allow"
+    deny_effect: "deny"
