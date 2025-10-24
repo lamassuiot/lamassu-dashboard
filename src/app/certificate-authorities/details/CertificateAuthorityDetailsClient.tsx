@@ -488,14 +488,34 @@ export default function CertificateAuthorityDetailsClient() {
                   </span>
                 )}
 
-                {caDetails.rawApiData?.certificate?.key_metadata && (
-                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground">
-                    <KeyRound className="h-3 w-3 shrink-0" />
-                    {caDetails.rawApiData.certificate.key_metadata.type}
-                    {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
-                    {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
-                  </span>
-                )}
+                  {(caDetails.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
+                    <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+                      PQC
+                    </Badge>
+                  )}
+
+                  {caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && (
+                    <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+                      HYBRID
+                    </Badge>
+                  )}
+
+                  {cryptoEngine && (
+                    <div className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-0.5">
+                      <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                      <span className="text-xs text-muted-foreground">{cryptoEngine.name || cryptoEngine.type}</span>
+                    </div>
+                  )}
+
+                  {caDetails.rawApiData?.certificate?.key_metadata && (
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <KeyRound className="h-3 w-3" />
+                      {caDetails.rawApiData.certificate.key_metadata.type}
+                      {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
+                      {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
           </div>
