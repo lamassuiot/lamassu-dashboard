@@ -81,6 +81,7 @@
     "vaul": "^0.9.9",
     "vis-data": "^7.1.9",
     "vis-timeline": "^7.7.3",
+    "vscode-langservers-extracted": "^4.10.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
