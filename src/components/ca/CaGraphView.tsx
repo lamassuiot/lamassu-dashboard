@@ -108,6 +108,10 @@ function CertificateRow({ ca, mutualSigner, onOpenCa }: Readonly<{ ca: CA; mutua
         : <FileBadge className="size-4 shrink-0 text-muted-foreground" />}
       <span className="min-w-0 flex-1 truncate text-sm">{ca.name}</span>
       {isSelfSigned(ca) && <Badge variant="secondary">Self-signed</Badge>}
+      {(ca.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
+        <Badge variant="info">PQC</Badge>
+      )}
+      {ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && <Badge variant="info">HYBRID</Badge>}
       <ApiStatusBadge status={getEffectiveCaStatus(ca)} />
     </button>
   );

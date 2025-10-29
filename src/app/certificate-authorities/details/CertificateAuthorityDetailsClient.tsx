@@ -432,10 +432,10 @@ export default function CertificateAuthorityDetailsClient() {
               </Badge>
             )}
             {(caDetails.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
-              <Badge variant="outline" className="border-primary/30 text-primary">PQC</Badge>
+              <Badge variant="info">PQC</Badge>
             )}
             {caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && (
-              <Badge variant="outline" className="border-primary/30 text-primary">HYBRID</Badge>
+              <Badge variant="info">HYBRID</Badge>
             )}
             {caDetails.rawApiData?.certificate?.key_metadata && (
               <Badge variant="secondary" className="font-mono">
