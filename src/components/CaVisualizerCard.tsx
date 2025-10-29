@@ -46,7 +46,48 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
     icon = <HardDrive className="h-6 w-6 text-primary" />;
   }
 
-  const Comp = onClick ? 'button' : 'div';
+  const { text: statusText, isCritical } = getStatusAndExpiryText(ca);
+
+  const cardInnerContent = (
+    <div className={cn("flex items-center p-3")}>
+      <div className="p-2 flex-shrink-0 border-r border-border/50 pr-3 mr-3">
+        {IconComponent}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 truncate" title={ca.name}>
+            {ca.name}
+          </p>
+          {(ca.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
+            <Badge className="text-[10px] h-5 px-1.5">PQC</Badge>
+          )}
+          {ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && (
+            <Badge className="text-[10px] h-5 px-1.5">HYBRID</Badge>
+          )}
+        </div>
+        <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")} title={statusText}>
+          {statusText}
+        </p>
+      </div>
+      <div className="flex-shrink-0 border-l border-border/50 pl-3 ml-3">
+        <StatusIcon status={ca.status} expires={ca.expires} />
+      </div>
+    </div>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        data-ca-visualizer-card="true"
+        type="button"
+        onClick={() => onClick(ca)}
+        className={cn(cardBaseClasses, clickableClasses, className, "text-left")}
+        aria-label={`View details for ${ca.name}`}
+      >
+        {cardInnerContent}
+      </button>
+    );
+  }
 
   return (
     <Comp
