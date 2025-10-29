@@ -9,6 +9,7 @@ import { formatDistanceToNowStrict, isPast, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
+import { Badge } from '@/components/ui/badge';
 
 const getExpiryTextAndSimplifiedStatus = (expires: string, status: CA['status']): { text: string; isCritical: boolean } => {
   const expiryDate = parseISO(expires);
@@ -100,6 +101,12 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({ ca, 
             <p className="text-sm font-medium truncate">{ca.name}</p>
             {ca.caType === 'IMPORTED' && <UploadCloud className="h-4 w-4 text-muted-foreground flex-shrink-0" title="Imported CA with Private Key" />}
             {ca.caType === 'EXTERNAL_PUBLIC' && <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" title="External Public CA (Certificate Only)" />}
+            {(ca.keyAlgorithm.toUpperCase().startsWith("ML-DSA") || ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"]) && (
+              <Badge className="text-xs">PQC</Badge>
+            )}
+            {ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"] && (
+              <Badge className="text-xs">HYBRID</Badge>
+            )}
           </div>
           <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")}>{statusText}</p>
         </div>

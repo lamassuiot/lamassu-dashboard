@@ -11,6 +11,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import dagre from '@dagrejs/dagre';
 import { isPast, parseISO } from 'date-fns';
+import { Badge } from "@/components/ui/badge";
 
 interface CaGraphViewProps {
   cas: CA[];
@@ -18,7 +19,7 @@ interface CaGraphViewProps {
   router: ReturnType<typeof import('next/navigation').useRouter>;
 }
 
-const NODE_WIDTH = 280;
+const NODE_WIDTH = 350;
 const NODE_HEIGHT = 60;
 
 const GraphNodeComponent = ({ node, allCryptoEngines }: { node: dagre.Node & { data: CA }; allCryptoEngines: ApiCryptoEngine[] }) => {
@@ -85,7 +86,17 @@ const GraphNodeComponent = ({ node, allCryptoEngines }: { node: dagre.Node & { d
         {IconComponent}
       </div>
       <div className="flex-grow min-w-0">
-        <p className={cn('font-semibold truncate', titleColor)}>{ca.name}</p>
+        <p className={cn('font-semibold truncate', titleColor)}>
+        {ca.name}
+        &nbsp;
+        {(ca.keyAlgorithm.toUpperCase().startsWith("ML-DSA") || ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"]) && (
+          <Badge className="text-xs">PQC</Badge>
+        )}
+        &nbsp;
+        {ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"] && (
+          <Badge className="text-xs">HYBRID</Badge>
+        )}
+        </p>
         <p className={cn('text-xs font-mono truncate', subtextColor)}>ID: {ca.id.substring(0, 8)}...</p>
       </div>
       <div className="flex-shrink-0">{statusIcon}</div>

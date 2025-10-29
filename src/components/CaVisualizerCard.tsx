@@ -8,6 +8,7 @@ import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
+import { Badge } from '@/components/ui/badge';
 
 interface CaVisualizerCardProps {
   ca: CA;
@@ -68,6 +69,15 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 truncate" title={ca.name}>
             {ca.name}
+            &nbsp;
+            &nbsp;
+            {(ca.keyAlgorithm.toUpperCase().startsWith("ML-DSA") || ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"]) && (
+              <Badge className="text-xs">PQC</Badge>
+            )}
+            &nbsp;
+            {ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"] && (
+              <Badge className="text-xs">HYBRID</Badge>
+            )}
           </p>
           <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")} title={statusText}>
             {statusText}
