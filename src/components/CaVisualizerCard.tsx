@@ -119,6 +119,8 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
             {label}
           </Badge>
         </div>
+        {(ca.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && <Badge size={sizes.badgeSize}>PQC</Badge>}
+        {ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && <Badge size={sizes.badgeSize}>HYBRID</Badge>}
         <p className={cn('truncate text-muted-foreground', sizes.expiry)}>{expiryText}</p>
       </div>
     </Comp>
