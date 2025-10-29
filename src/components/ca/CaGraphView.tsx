@@ -32,6 +32,7 @@ import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { isPast, parseISO } from 'date-fns';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { toPng } from 'html-to-image';
+import { Badge } from "@/components/ui/badge";
 
 interface CaGraphViewProps {
   cas: CA[];
@@ -252,12 +253,19 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
         </div>
         {statusBadge}
       </div>
-
       {/* Info row */}
       <div className="flex items-center justify-between gap-2">
-        <p className={cn('text-[11px] font-mono truncate flex-1', subtextColor)}>
-          {ca.id}
-        </p>
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <p className={cn('text-[11px] font-mono truncate', subtextColor)}>
+            {ca.id}
+          </p>
+          {(ca.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
+            <Badge className="text-[10px] h-5 px-1.5">PQC</Badge>
+          )}
+          {ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && (
+            <Badge className="text-[10px] h-5 px-1.5">HYBRID</Badge>
+          )}
+        </div>
         {ca.issuer === 'Self-signed' ? (
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 border border-indigo-300 dark:border-indigo-700">
             <span className="text-[10px] font-medium text-indigo-700 dark:text-indigo-300">Root CA</span>
