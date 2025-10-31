@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey } from '@/lib/ca-data';
+import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey } from '@/lib/kms-data';
 import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { Label } from '@/components/ui/label';
@@ -31,6 +31,7 @@ interface KmsKey {
   algorithm: string;
   size: string;
   name?: string;
+  aliases: string[];
 }
 
 export default function KmsKeysPage() {
@@ -101,18 +102,16 @@ export default function KmsKeysPage() {
       const keysResponse = await fetchKmsKeys(user.access_token, params);
       
       const transformedKeys: KmsKey[] = (keysResponse.list || []).map((apiKey) => {
-        const engineIdMatch = apiKey.id.match(/token-id=([^;]+)/);
-        const engineId = engineIdMatch ? engineIdMatch[1] : undefined;
-
         return {
-            id: apiKey.id,
-            alias: apiKey.name || apiKey.id,
+            id: apiKey.pkcs11_uri,
+            alias: apiKey.name || apiKey.key_id,
             name: apiKey.name,
             keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
-            hasPrivateKey: apiKey.id.includes('type=private'),
-            cryptoEngineId: engineId,
+            hasPrivateKey: apiKey.has_private_key,
+            cryptoEngineId: apiKey.engine_id,
             algorithm: apiKey.algorithm,
             size: String(apiKey.size),
+            aliases: apiKey.aliases,
         };
       });
 
@@ -318,6 +317,7 @@ export default function KmsKeysPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Alias</TableHead>
+                  <TableHead>Aliases</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Strength</TableHead>
                   <TableHead><div className="flex items-center"><Cpu className="mr-1.5 h-4 w-4 text-muted-foreground"/>Crypto Engine</div></TableHead>
@@ -337,6 +337,19 @@ export default function KmsKeysPage() {
                         >
                           {key.name}
                         </button>
+                      </TableCell>
+                      <TableCell>
+                        {key.aliases && key.aliases.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {key.aliases.map((alias, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {alias}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">No aliases</span>
+                        )}
                       </TableCell>
                       <TableCell>{key.keyTypeDisplay}</TableCell>
                       <TableCell>

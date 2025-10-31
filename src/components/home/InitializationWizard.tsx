@@ -11,7 +11,6 @@ import { CryptoEngineSummary } from './CryptoEngineSummary';
 import { Stepper } from '../shared/Stepper';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import {
-  fetchCryptoEngines,
   createCa,
   fetchAndProcessCAs,
   parseCertificatePemDetails,
@@ -23,6 +22,7 @@ import {
   signCertificate,
   fetchCaStatsSummary,
 } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';

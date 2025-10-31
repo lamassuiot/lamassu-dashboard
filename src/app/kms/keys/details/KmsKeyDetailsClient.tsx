@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -22,7 +22,7 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import * as asn1js from 'asn1js';
 import * as pkijs from 'pkijs';
 import { CertificationRequest, AlgorithmIdentifier } from 'pkijs';
-import { fetchCryptoEngines, fetchKmsKeys, signWithKmsKey, verifyWithKmsKey } from '@/lib/ca-data';
+import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, type PatchOperation } from '@/lib/kms-data';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { SectionHeader } from '@/components/shared/FormComponents';
@@ -168,6 +168,13 @@ export default function KmsKeyDetailsClient() {
   // CLI Operations state
   const [showCliOperations, setShowCliOperations] = useState(false);
 
+  // Aliases management state
+  const [keyAliases, setKeyAliases] = useState<string[]>([]);
+  const [originalAliases, setOriginalAliases] = useState<string[]>([]); // Track original state
+  const [isEditingAliases, setIsEditingAliases] = useState(false);
+  const [newAlias, setNewAlias] = useState('');
+  const [isSavingAliases, setIsSavingAliases] = useState(false);
+
   // --- CSR SAN Handlers ---
   const handleAddCsrSan = () => {
     if (!csrCurrentSanValue.trim()) return;
@@ -184,6 +191,84 @@ export default function KmsKeyDetailsClient() {
       e.preventDefault();
       handleAddCsrSan();
     }
+  };
+
+  // --- Alias Management Handlers ---
+  const handleAddAlias = () => {
+    if (!newAlias.trim()) return;
+    if (keyAliases.includes(newAlias.trim())) {
+      toast({ title: "Duplicate Alias", description: "This alias already exists.", variant: "destructive" });
+      return;
+    }
+    setKeyAliases(prev => [...prev, newAlias.trim()]);
+    setNewAlias('');
+  };
+
+  const handleRemoveAlias = (index: number) => {
+    setKeyAliases(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveAliases = async () => {
+    if (!keyDetails || !user?.access_token) return;
+
+    setIsSavingAliases(true);
+    try {
+      // Build patch operations based on changes
+      const patches: PatchOperation[] = [];
+      
+      // Find removed aliases
+      originalAliases.forEach((alias, index) => {
+        if (!keyAliases.includes(alias)) {
+          patches.push({
+            op: 'remove',
+            path: index.toString()
+          });
+        }
+      });
+      
+      // Find added aliases
+      keyAliases.forEach((alias, index) => {
+        if (!originalAliases.includes(alias)) {
+          patches.push({
+            op: 'add',
+            path: index.toString(),
+            value: alias
+          });
+        }
+      });
+      
+      // If no changes, just exit edit mode
+      if (patches.length === 0) {
+        setIsEditingAliases(false);
+        return;
+      }
+
+      await updateKeyAliases(patches, user.access_token);
+      
+      // Update original aliases to match current state
+      setOriginalAliases([...keyAliases]);
+      
+      toast({
+        title: "Aliases Updated",
+        description: "Key aliases have been successfully updated.",
+      });
+      setIsEditingAliases(false);
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update aliases.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingAliases(false);
+    }
+  };
+
+  const handleCancelEditAliases = () => {
+    // Restore original aliases
+    setKeyAliases([...originalAliases]);
+    setIsEditingAliases(false);
+    setNewAlias('');
   };
 
   // --- CLI Operations Handlers ---
@@ -214,19 +299,13 @@ export default function KmsKeyDetailsClient() {
     setError(null);
 
     try {
-      const filterParams = new URLSearchParams();
-      filterParams.set('filter', `id[equal]${keyId}`);
-      filterParams.set('page_size', '1');
-
-      const [keysResponse, allEnginesData] = await Promise.all([
-        fetchKmsKeys(user.access_token, filterParams),
+      const [apiKey, allEnginesData] = await Promise.all([
+        fetchKmsKey(keyId, user.access_token),
         fetchCryptoEngines(user.access_token)
       ]);
 
       setAllCryptoEngines(allEnginesData);
       
-      const apiKey = keysResponse.list?.[0];
-
       if (apiKey) {
         let pem = '';
         try {
@@ -237,21 +316,21 @@ export default function KmsKeyDetailsClient() {
           pem = "Error: Could not decode or format public key.";
         }
 
-        const engineIdMatch = apiKey.id.match(/token-id=([^;]+)/);
-        const engineId = engineIdMatch ? engineIdMatch[1] : undefined;
-
         const algorithm = apiKey.algorithm.toUpperCase() as KmsKeyDetailed['algorithm'];
         const detailedKey: KmsKeyDetailed = {
-          id: apiKey.id,
-          alias: apiKey.name || apiKey.id,
+          id: apiKey.pkcs11_uri,
+          alias: apiKey.name || apiKey.key_id,
           keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
           algorithm: ['RSA', 'ECDSA'].includes(algorithm) ? algorithm : 'Unknown',
           keySize: apiKey.size,
-          hasPrivateKey: apiKey.id.includes('type=private'),
+          hasPrivateKey: apiKey.has_private_key,
           publicKeyPem: pem,
-          cryptoEngineId: engineId,
+          cryptoEngineId: apiKey.engine_id,
         };
         setKeyDetails(detailedKey);
+        const aliases = apiKey.aliases || [];
+        setKeyAliases(aliases);
+        setOriginalAliases(aliases); // Track original state for diff calculation
         setCsrCommonName(detailedKey.alias || '');
 
         if (detailedKey.algorithm === 'RSA') {
@@ -913,6 +992,102 @@ export default function KmsKeyDetailsClient() {
                       </div>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Aliases Section */}
+              <Card className="overflow-hidden">
+                <CardHeader className="border-b py-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center text-lg">
+                        <Tag className="mr-3 h-5 w-5" />
+                        Key Aliases
+                      </CardTitle>
+                      <CardDescription>Alternative names for this key</CardDescription>
+                    </div>
+                    {!isEditingAliases && (
+                      <Button variant="outline" size="sm" onClick={() => setIsEditingAliases(true)}>
+                        <PenTool className="mr-2 h-3 w-3" />
+                        Edit Aliases
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {isEditingAliases ? (
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter new alias..."
+                          value={newAlias}
+                          onChange={(e) => setNewAlias(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddAlias();
+                            }
+                          }}
+                        />
+                        <Button onClick={handleAddAlias} size="sm">
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          Add
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {keyAliases.length > 0 ? (
+                          keyAliases.map((alias, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg border">
+                              <span className="text-sm font-medium">{alias}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveAlias(idx)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <XIcon className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-4 text-muted-foreground text-sm">
+                            No aliases configured
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2 justify-end pt-2">
+                        <Button variant="outline" onClick={handleCancelEditAliases} disabled={isSavingAliases}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveAliases} disabled={isSavingAliases}>
+                          {isSavingAliases ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>Save Changes</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {keyAliases && keyAliases.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {keyAliases.map((alias, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-sm px-3 py-1">
+                              {alias}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-muted-foreground text-sm">
+                          No aliases configured for this key
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

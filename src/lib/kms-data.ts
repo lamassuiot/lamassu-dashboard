@@ -1,0 +1,218 @@
+// KMS (Key Management Service) API functions
+import { ApiCryptoEngine } from "@/types/crypto-engine";
+import { get_KMS_API_BASE_URL } from "./api-domains";
+
+// --- KMS Key Types and Interfaces ---
+
+export interface ApiKmsKey {
+  pkcs11_uri: string; // PKCS#11 URI - Primary identifier for the key
+  key_id: string; // Unique key identifier (extracted from PKCS#11 URI)
+  name: string;
+  aliases: string[]; // Array of key aliases
+  engine_id: string; // ID of the crypto engine managing this key
+  has_private_key: boolean; // Indicates if private key is available
+  algorithm: string; // Key algorithm (e.g., "ECDSA", "RSA")
+  size: number; // Key size in bits
+  public_key: string; // Base64 encoded public key
+  creation_ts: string; // ISO timestamp
+  metadata: Record<string, any>; // Additional metadata
+}
+
+interface ApiKmsKeyListResponse {
+    next: string | null;
+    list: ApiKmsKey[];
+}
+
+export interface CreateKmsKeyPayload {
+    engine_id: string;
+    name: string;
+    algorithm: string;
+    size: number;
+}
+
+export interface ImportKmsKeyPayload {
+    private_key: string; // Base64 encoded PEM
+    engine_id: string;
+    name: string;
+}
+
+// --- KMS Key API Functions ---
+export async function fetchCryptoEngines(accessToken: string): Promise<ApiCryptoEngine[]> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/engines`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to fetch crypto engines. HTTP error ${response.status}`;
+        try {
+            errorJson = await response.json();
+            if (errorJson && errorJson.err) {
+                errorMessage = `Failed to fetch crypto engines: ${errorJson.err}`;
+            } else if (errorJson && errorJson.message) {
+                errorMessage = `Failed to fetch crypto engines: ${errorJson.message}`;
+            }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for crypto engines:", e);
+        }
+        throw new Error(errorMessage);
+    }
+    const enginesData: ApiCryptoEngine[] = await response.json();
+    return enginesData;
+}
+
+export async function fetchKmsKeys(accessToken: string, params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
+    const url = new URL(`${get_KMS_API_BASE_URL()}/kms/keys`);
+    params.forEach((value, key) => url.searchParams.append(key, value));
+    
+    const response = await fetch(url.toString(), {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to fetch KMS keys. HTTP error ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Failed to fetch keys: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
+        } catch(e) { /* ignore */}
+        throw new Error(errorMessage);
+    }
+    return response.json();
+}
+
+export async function fetchKmsKey(keyId: string, accessToken: string): Promise<ApiKmsKey> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to fetch KMS key. HTTP error ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Failed to fetch key: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
+        } catch(e) { /* ignore */}
+        throw new Error(errorMessage);
+    }
+    return response.json();
+}
+
+export async function signWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<any> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/sign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.err || result.message || `Signing failed with status ${response.status}`);
+    }
+    return result;
+}
+
+export async function verifyWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<{ valid: boolean }> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Verification failed with status ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Verification failed: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
+        } catch(e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+
+    return response.json();
+}
+
+export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to create key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
+
+export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/import`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to import key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key import failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
+
+export async function deleteKmsKey(keyId: string, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to delete KMS key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
+
+export interface PatchOperation {
+    op: "add" | "remove" | "replace"; // Operation type: add, remove, or replace
+    path: string; // Index in string format (e.g., "0", "1", "2")
+    value?: any; // Value for add or replace operations (omit for remove)
+}
+
+export async function updateKeyAliases(patches: PatchOperation[], accessToken: string): Promise<void> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/alias`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ patches })
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to update key aliases. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Alias update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}

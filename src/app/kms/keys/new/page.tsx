@@ -16,7 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
-import { createKmsKey, importKmsKey, fetchCryptoEngines } from '@/lib/ca-data';
+import { createKmsKey, importKmsKey } from '@/lib/kms-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
 const creationModes = [

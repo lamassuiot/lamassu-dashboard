@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
-import { createKmsKey } from '@/lib/ca-data';
+import { createKmsKey } from '@/lib/kms-data';
 
 const creationModes = [
   {
