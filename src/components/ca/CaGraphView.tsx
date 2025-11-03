@@ -276,7 +276,7 @@ const CryptoEngineNode = ({ data }: { data: CryptoEngineNodeData }) => {
       </div>
       <div className="flex-grow min-w-0">
         <p className="text-sm font-bold truncate text-purple-900 dark:text-purple-100 leading-tight">{kmsKey!.name}</p>
-        <div className="text-[11px] text-purple-700 dark:text-purple-300 mt-0.5">
+        <div className="text-[11px] text-purple-700 dark:text-purple-300 mt-0.5 font-mono truncate">
           <IdentifierDisplay value={kmsKey!.key_id} className="text-[11px]" />
         </div>
       </div>
@@ -305,7 +305,7 @@ const GroupNode = ({ data }: { data: GroupNodeData }) => {
               <p className="text-xs font-semibold truncate text-purple-900 dark:text-purple-100 leading-tight">
                 {data.kmsKey.name}
               </p>
-              <div className="text-[10px] text-purple-700 dark:text-purple-300">
+              <div className="text-[10px] text-purple-700 dark:text-purple-300 font-mono truncate">
                 <IdentifierDisplay value={data.kmsKey.key_id} className="text-[10px]" />
               </div>
             </div>

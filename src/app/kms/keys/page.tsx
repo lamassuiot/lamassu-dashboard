@@ -343,19 +343,6 @@ export default function KmsKeysPage() {
                           {key.name}
                         </button>
                       </TableCell>
-                      <TableCell>
-                        {key.aliases && key.aliases.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {key.aliases.map((alias, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
-                                {alias}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">No aliases</span>
-                        )}
-                      </TableCell>
                       <TableCell>{key.keyTypeDisplay}</TableCell>
                       <TableCell>
                         <KeyStrengthIndicator algorithm={key.algorithm} size={key.size} />
