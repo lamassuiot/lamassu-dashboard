@@ -3,15 +3,19 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle, Database, Link as LinkIcon, FileKey } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
+import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import type { CertificateData } from '@/types/certificate';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,6 +31,14 @@ import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
+import { DetailItem } from '@/components/shared/DetailItem';
+import { Separator } from '@/components/ui/separator';
+
+// Monaco Editor dynamic import
+const Editor = dynamic(() => import('@monaco-editor/react'), { 
+  ssr: false, 
+  loading: () => <div className="h-96 w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> 
+});
 
 // --- Helper Functions ---
 function ipToBuffer(ip: string): ArrayBuffer | null {
@@ -109,6 +121,7 @@ interface KmsKeyDetailed {
   hasPrivateKey: boolean;
   publicKeyPem?: string;
   cryptoEngineId?: string;
+  metadata?: Record<string, any>;
 }
 
 const signatureAlgorithms = [
@@ -164,6 +177,11 @@ export default function KmsKeyDetailsClient() {
   const [csrSans, setCsrSans] = useState<{type: 'DNS' | 'IP' | 'Email' | 'URI'; value: string}[]>([]);
   const [csrCurrentSanType, setCsrCurrentSanType] = useState<'DNS' | 'IP' | 'Email' | 'URI'>('DNS');
   const [csrCurrentSanValue, setCsrCurrentSanValue] = useState('');
+
+  // Related entities state
+  const [boundCertificate, setBoundCertificate] = useState<CertificateData | null>(null);
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+  const [isLoadingBoundCert, setIsLoadingBoundCert] = useState(false);
 
   // CLI Operations state
   const [showCliOperations, setShowCliOperations] = useState(false);
@@ -221,7 +239,7 @@ export default function KmsKeyDetailsClient() {
         if (!keyAliases.includes(alias)) {
           patches.push({
             op: 'remove',
-            path: index.toString()
+            path: `/${index}`
           });
         }
       });
@@ -231,7 +249,7 @@ export default function KmsKeyDetailsClient() {
         if (!originalAliases.includes(alias)) {
           patches.push({
             op: 'add',
-            path: index.toString(),
+            path: `/${index}`,
             value: alias
           });
         }
@@ -243,7 +261,7 @@ export default function KmsKeyDetailsClient() {
         return;
       }
 
-      await updateKeyAliases(patches, user.access_token);
+      await updateKeyAliases(keyDetails.id, patches, user.access_token);
       
       // Update original aliases to match current state
       setOriginalAliases([...keyAliases]);
@@ -269,6 +287,38 @@ export default function KmsKeyDetailsClient() {
     setKeyAliases([...originalAliases]);
     setIsEditingAliases(false);
     setNewAlias('');
+  };
+
+  // Handler to fetch and view bound certificate
+  const handleViewBoundCertificate = async (serialNumber: string) => {
+    if (!user?.access_token) return;
+    
+    setIsLoadingBoundCert(true);
+    try {
+      const { certificates } = await fetchIssuedCertificates({
+        accessToken: user.access_token,
+        apiQueryString: `serial_number=${serialNumber}`,
+      });
+      
+      if (certificates.length > 0) {
+        setBoundCertificate(certificates[0]);
+        setIsCertModalOpen(true);
+      } else {
+        toast({
+          title: "Certificate Not Found",
+          description: `No certificate found with serial number: ${serialNumber}`,
+          variant: "destructive"
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Failed to Load Certificate",
+        description: error.message || "Could not fetch certificate details.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingBoundCert(false);
+    }
   };
 
   // --- CLI Operations Handlers ---
@@ -326,6 +376,7 @@ export default function KmsKeyDetailsClient() {
           hasPrivateKey: apiKey.has_private_key,
           publicKeyPem: pem,
           cryptoEngineId: apiKey.engine_id,
+          metadata: apiKey.metadata || {},
         };
         setKeyDetails(detailedKey);
         const aliases = apiKey.aliases || [];
@@ -961,6 +1012,7 @@ export default function KmsKeyDetailsClient() {
             <TabsTrigger value="public-key"><FileText className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Public Key</TabsTrigger>
             <TabsTrigger value="sign-verify" disabled={!keyDetails.hasPrivateKey}><PenTool className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Sign / Verify</TabsTrigger>
             <TabsTrigger value="generate-csr" disabled={!keyDetails.hasPrivateKey}><FileSignature className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Generate CSR</TabsTrigger>
+            <TabsTrigger value="metadata"><Database className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Metadata</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -977,7 +1029,7 @@ export default function KmsKeyDetailsClient() {
                 <CardContent className="p-6">
                   <div className="grid gap-4">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground">Key Alias</Label>
+                      <Label className="text-sm font-medium text-muted-foreground">Key Name</Label>
                       <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border">
                         <span className="font-mono text-sm font-medium">{keyDetails.alias}</span>
                         <Badge variant="outline" className="ml-auto">Primary Name</Badge>
@@ -997,11 +1049,11 @@ export default function KmsKeyDetailsClient() {
 
               {/* Aliases Section */}
               <Card className="overflow-hidden">
-                <CardHeader className="border-b py-3">
+                <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="flex items-center text-lg">
-                        <Tag className="mr-3 h-5 w-5" />
+                        <Tag className="mr-3 h-5 w-5 text-primary" />
                         Key Aliases
                       </CardTitle>
                       <CardDescription>Alternative names for this key</CardDescription>
@@ -1177,6 +1229,72 @@ export default function KmsKeyDetailsClient() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Related Entities */}
+              {(() => {
+                const bindedResources = keyDetails.metadata?.['lamassu.io/kms/binded-resources'];
+                if (!bindedResources) return null;
+
+                // Parse the binded resources
+                let resources: Array<{ resource_id: string; resource_type: string }> = [];
+                try {
+                  if (typeof bindedResources === 'string') {
+                    resources = [JSON.parse(bindedResources)];
+                  } else if (Array.isArray(bindedResources)) {
+                    resources = bindedResources;
+                  } else if (typeof bindedResources === 'object') {
+                    resources = [bindedResources];
+                  }
+                } catch (e) {
+                  console.error('Failed to parse binded-resources:', e);
+                  return null;
+                }
+
+                // Filter for certificate resources
+                const certificateResources = resources.filter(r => r.resource_type === 'certificate');
+                if (certificateResources.length === 0) return null;
+
+                return (
+                  <Card className="overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
+                      <CardTitle className="flex items-center text-lg">
+                        <LinkIcon className="mr-3 h-5 w-5 text-primary" />
+                        Related Entities
+                      </CardTitle>
+                      <CardDescription>Resources bound to this key</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="space-y-3">
+                        {certificateResources.map((resource, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-background rounded-lg border hover:border-primary/50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <FileKey className="h-5 w-5 text-primary" />
+                              <div>
+                                <div className="font-medium text-sm">Certificate</div>
+                                <div className="text-xs text-muted-foreground font-mono">
+                                  SN: {resource.resource_id}
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewBoundCertificate(resource.resource_id)}
+                              disabled={isLoadingBoundCert}
+                            >
+                              {isLoadingBoundCert ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                'View Details'
+                              )}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </div>
           </TabsContent>
 
@@ -1532,8 +1650,55 @@ export default function KmsKeyDetailsClient() {
               </Card>
             </div>
           </TabsContent>
+
+          {/* Metadata Tab */}
+          <TabsContent value="metadata">
+            <Card className="overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
+                <CardTitle className="flex items-center text-lg">
+                  <Database className="mr-3 h-5 w-5 text-primary" />
+                  Key Metadata
+                </CardTitle>
+                <CardDescription>Additional metadata associated with this key</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {keyDetails.metadata && Object.keys(keyDetails.metadata).length > 0 ? (
+                  <div className="border rounded-md overflow-hidden">
+                    <Editor
+                      height="500px"
+                      defaultLanguage="json"
+                      value={JSON.stringify(keyDetails.metadata, null, 2)}
+                      theme="vs-dark"
+                      options={{
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        automaticLayout: true,
+                        scrollBeyondLastLine: false,
+                        fontSize: 13,
+                        lineNumbers: 'on',
+                        renderWhitespace: 'selection',
+                        folding: true,
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Database className="mx-auto h-12 w-12 opacity-20 mb-3" />
+                    <p className="text-sm">No metadata associated with this key</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Certificate Details Modal */}
+      <CertificateDetailsModal 
+        certificate={boundCertificate} 
+        isOpen={isCertModalOpen} 
+        onClose={() => setIsCertModalOpen(false)} 
+      />
     </div>
   );
 }

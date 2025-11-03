@@ -558,8 +558,11 @@ export interface CreateCaPayload {
     common_name: string;
   };
   key_metadata: {
-    type: string;
-    bits: number;
+    // For new key generation
+    type?: string;
+    bits?: number;
+    // For existing key reuse
+    key_id?: string;
   };
   ca_expiration: { type: string; duration?: string; time?: string };
   ca_type: "MANAGED";

@@ -61,7 +61,7 @@ export async function fetchCryptoEngines(accessToken: string): Promise<ApiCrypto
 }
 
 export async function fetchKmsKeys(accessToken: string, params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
-    const url = new URL(`${get_KMS_API_BASE_URL()}/kms/keys`);
+    const url = new URL(`${get_KMS_API_BASE_URL()}/keys`);
     params.forEach((value, key) => url.searchParams.append(key, value));
     
     const response = await fetch(url.toString(), {
@@ -80,7 +80,7 @@ export async function fetchKmsKeys(accessToken: string, params: URLSearchParams)
 }
 
 export async function fetchKmsKey(keyId: string, accessToken: string): Promise<ApiKmsKey> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}`, {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
@@ -96,7 +96,7 @@ export async function fetchKmsKey(keyId: string, accessToken: string): Promise<A
 }
 
 export async function signWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<any> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/sign`, {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/sign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +112,7 @@ export async function signWithKmsKey(keyId: string, payload: any, accessToken: s
 }
 
 export async function verifyWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<{ valid: boolean }> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/verify`, {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,7 +135,7 @@ export async function verifyWithKmsKey(keyId: string, payload: any, accessToken:
 }
 
 export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys`, {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -155,7 +155,7 @@ export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: st
 }
 
 export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/import`, {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/import`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -175,7 +175,7 @@ export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: st
 }
 
 export async function deleteKmsKey(keyId: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}`, {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -193,18 +193,18 @@ export async function deleteKmsKey(keyId: string, accessToken: string): Promise<
 
 export interface PatchOperation {
     op: "add" | "remove" | "replace"; // Operation type: add, remove, or replace
-    path: string; // Index in string format (e.g., "0", "1", "2")
+    path: string; // JSON Pointer path format (e.g., "/0", "/1", "/2")
     value?: any; // Value for add or replace operations (omit for remove)
 }
 
-export async function updateKeyAliases(patches: PatchOperation[], accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/kms/keys/alias`, {
+export async function updateKeyAliases(keyId: string, patches: PatchOperation[], accessToken: string): Promise<void> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/alias`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ patches })
+        body: JSON.stringify({ key_id: keyId, patches })
     });
     if (!response.ok) {
         let errorJson;

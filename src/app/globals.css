@@ -98,6 +98,60 @@
     /* Variable for secondary logo */
     --secondary-logo-url: url('https://placehold.co/200x60.png');
     --secondary-logo-display: none;
+
+    /* CA Graph View Colors */
+    /* CA Node - Active Status */
+    --ca-node-active-bg: 214 100% 97%;        /* from-blue-50 to-blue-100 */
+    --ca-node-active-bg-to: 214 100% 96%;
+    --ca-node-active-icon-bg: 217 91% 60%;    /* bg-blue-500 */
+    --ca-node-active-border: 214 95% 80%;     /* border-blue-300 */
+    --ca-node-active-title: 214 95% 25%;      /* text-blue-900 */
+    --ca-node-active-subtitle: 214 85% 35%;   /* text-blue-700 */
+    --ca-node-active-shadow: 214 100% 85%;    /* shadow-blue-200/50 */
+    --ca-node-active-badge-bg: 142 76% 95%;   /* bg-green-100 */
+    --ca-node-active-badge-border: 142 76% 85%; /* border-green-300 */
+    --ca-node-active-badge-text: 142 76% 30%; /* text-green-700 */
+    --ca-node-active-badge-icon: 142 76% 45%; /* text-green-600 */
+
+    /* CA Node - Expired Status */
+    --ca-node-expired-bg: 32 98% 97%;         /* from-orange-50 to-orange-100 */
+    --ca-node-expired-bg-to: 32 98% 96%;
+    --ca-node-expired-icon-bg: 25 95% 53%;    /* bg-orange-500 */
+    --ca-node-expired-border: 32 98% 80%;     /* border-orange-300 */
+    --ca-node-expired-title: 32 98% 25%;      /* text-orange-900 */
+    --ca-node-expired-subtitle: 32 98% 35%;   /* text-orange-700 */
+    --ca-node-expired-shadow: 32 98% 85%;     /* shadow-orange-200/50 */
+    --ca-node-expired-badge-bg: 32 98% 95%;   /* bg-orange-100 */
+    --ca-node-expired-badge-border: 32 98% 85%; /* border-orange-300 */
+    --ca-node-expired-badge-text: 32 98% 30%; /* text-orange-700 */
+    --ca-node-expired-badge-icon: 32 98% 45%; /* text-orange-600 */
+
+    /* CA Node - Revoked Status */
+    --ca-node-revoked-bg: 0 84% 97%;          /* from-red-50 to-red-100 */
+    --ca-node-revoked-bg-to: 0 84% 96%;
+    --ca-node-revoked-icon-bg: 0 84% 60%;     /* bg-red-500 */
+    --ca-node-revoked-border: 0 84% 80%;      /* border-red-300 */
+    --ca-node-revoked-title: 0 84% 25%;       /* text-red-900 */
+    --ca-node-revoked-subtitle: 0 84% 35%;    /* text-red-700 */
+    --ca-node-revoked-shadow: 0 84% 85%;      /* shadow-red-200/50 */
+    --ca-node-revoked-badge-bg: 0 84% 95%;    /* bg-red-100 */
+    --ca-node-revoked-badge-border: 0 84% 85%; /* border-red-300 */
+    --ca-node-revoked-badge-text: 0 84% 30%;  /* text-red-700 */
+    --ca-node-revoked-badge-icon: 0 84% 45%;  /* text-red-600 */
+
+    /* Crypto Engine Node Colors */
+    --engine-node-bg: 280 87% 97%;            /* from-purple-50 to-purple-100 */
+    --engine-node-bg-to: 280 87% 96%;
+    --engine-node-icon-bg: 271 81% 56%;       /* bg-purple-500 */
+    --engine-node-border: 280 87% 80%;        /* border-purple-300 */
+    --engine-node-title: 280 87% 25%;         /* text-purple-900 */
+    --engine-node-subtitle: 280 87% 35%;      /* text-purple-700 */
+    --engine-node-shadow: 280 87% 85%;        /* shadow-purple-200/50 */
+
+    /* Graph Edge Colors */
+    --edge-hierarchy: 215 25% 40%;            /* default edge color */
+    --edge-attested: 142 76% 45%;             /* green #10b981 */
+    --edge-signed: 38 92% 50%;                /* orange/amber #f59e0b */
   }
 
   .dark {
@@ -183,6 +237,60 @@
     /* Dark sidebar border */
     --sidebar-ring: 217 80% 65%;
     /* Ring color */
+
+    /* CA Graph View Colors - Dark Mode */
+    /* CA Node - Active Status */
+    --ca-node-active-bg: 214 95% 15%;         /* from-blue-950/60 to-blue-900/40 */
+    --ca-node-active-bg-to: 214 95% 20%;
+    --ca-node-active-icon-bg: 217 91% 65%;    /* bg-blue-600 */
+    --ca-node-active-border: 214 95% 50%;     /* border-blue-600 */
+    --ca-node-active-title: 214 95% 90%;      /* text-blue-100 */
+    --ca-node-active-subtitle: 214 85% 75%;   /* text-blue-300 */
+    --ca-node-active-shadow: 214 95% 15%;     /* shadow-blue-900/30 */
+    --ca-node-active-badge-bg: 142 76% 15%;   /* bg-green-900/50 */
+    --ca-node-active-badge-border: 142 76% 35%; /* border-green-700 */
+    --ca-node-active-badge-text: 142 76% 75%; /* text-green-300 */
+    --ca-node-active-badge-icon: 142 76% 65%; /* text-green-400 */
+
+    /* CA Node - Expired Status */
+    --ca-node-expired-bg: 32 98% 15%;         /* from-orange-950/60 to-orange-900/40 */
+    --ca-node-expired-bg-to: 32 98% 20%;
+    --ca-node-expired-icon-bg: 25 95% 60%;    /* bg-orange-600 */
+    --ca-node-expired-border: 32 98% 50%;     /* border-orange-600 */
+    --ca-node-expired-title: 32 98% 90%;      /* text-orange-100 */
+    --ca-node-expired-subtitle: 32 98% 75%;   /* text-orange-300 */
+    --ca-node-expired-shadow: 32 98% 15%;     /* shadow-orange-900/30 */
+    --ca-node-expired-badge-bg: 32 98% 15%;   /* bg-orange-900/50 */
+    --ca-node-expired-badge-border: 32 98% 35%; /* border-orange-700 */
+    --ca-node-expired-badge-text: 32 98% 75%; /* text-orange-300 */
+    --ca-node-expired-badge-icon: 32 98% 65%; /* text-orange-400 */
+
+    /* CA Node - Revoked Status */
+    --ca-node-revoked-bg: 0 84% 15%;          /* from-red-950/60 to-red-900/40 */
+    --ca-node-revoked-bg-to: 0 84% 20%;
+    --ca-node-revoked-icon-bg: 0 84% 65%;     /* bg-red-600 */
+    --ca-node-revoked-border: 0 84% 50%;      /* border-red-600 */
+    --ca-node-revoked-title: 0 84% 90%;       /* text-red-100 */
+    --ca-node-revoked-subtitle: 0 84% 75%;    /* text-red-300 */
+    --ca-node-revoked-shadow: 0 84% 15%;      /* shadow-red-900/30 */
+    --ca-node-revoked-badge-bg: 0 84% 15%;    /* bg-red-900/50 */
+    --ca-node-revoked-badge-border: 0 84% 35%; /* border-red-700 */
+    --ca-node-revoked-badge-text: 0 84% 75%;  /* text-red-300 */
+    --ca-node-revoked-badge-icon: 0 84% 65%;  /* text-red-400 */
+
+    /* Crypto Engine Node Colors - Dark Mode */
+    --engine-node-bg: 280 87% 15%;            /* from-purple-950/60 to-purple-900/40 */
+    --engine-node-bg-to: 280 87% 20%;
+    --engine-node-icon-bg: 271 81% 65%;       /* bg-purple-600 */
+    --engine-node-border: 280 87% 50%;        /* border-purple-600 */
+    --engine-node-title: 280 87% 90%;         /* text-purple-100 */
+    --engine-node-subtitle: 280 87% 75%;      /* text-purple-300 */
+    --engine-node-shadow: 280 87% 15%;        /* shadow-purple-900/30 */
+
+    /* Graph Edge Colors - Dark Mode (same as light for consistency) */
+    --edge-hierarchy: 215 25% 60%;            /* slightly lighter for dark mode */
+    --edge-attested: 142 76% 55%;             /* slightly lighter green */
+    --edge-signed: 38 92% 60%;                /* slightly lighter orange */
   }
 }
 
