@@ -164,6 +164,7 @@ export interface JobHistoryStatus { // Status object within a history entry
   message?: string;
   progress?: number;
   context?: JobHistoryStatusContext;
+  reason?: string; // Optional reason for the state (e.g., "Immediate")
 }
 
 export interface JobHistoryEntry { // One entry in the 'history' array of a job

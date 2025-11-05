@@ -27,7 +27,7 @@ import type {
 import dagre from '@dagrejs/dagre';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Play, CheckCircle, AlertTriangle, Check, X, Cpu, Code } from 'lucide-react';
+import { Play, CheckCircle, AlertTriangle, Check, X, Cpu, Code, Zap } from 'lucide-react';
 import { NodeStatusIndicator } from '@/components/node-status-indicator';
 import { BaseNode, BaseNodeContent } from '@/components/base-node';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
@@ -151,17 +151,8 @@ const getStateEligibleType = (
 ): 'CLIENT' | 'WFX' | 'UNKNOWN' => {
   if (!workflowDefinition.transitions) return 'UNKNOWN';
   
-  // Find transitions that lead TO this state
-  const incomingTransitions = workflowDefinition.transitions.filter(
-    (transition: any) => transition.to === stateName
-  );
-  
-  // If we have incoming transitions, use the eligible field from the first one
-  if (incomingTransitions.length > 0 && incomingTransitions[0].eligible) {
-    return incomingTransitions[0].eligible as 'CLIENT' | 'WFX';
-  }
-  
-  // Find transitions that start FROM this state 
+  // Find transitions that start FROM this state (outgoing transitions)
+  // The eligible field tells us who can trigger the transition FROM this state
   const outgoingTransitions = workflowDefinition.transitions.filter(
     (transition: any) => transition.from === stateName
   );
@@ -174,12 +165,66 @@ const getStateEligibleType = (
   return 'UNKNOWN';
 };
 
+// Check if a state has immediate transitions FROM it
+const hasImmediateTransition = (
+  stateName: string,
+  workflowDefinition: DeviceJobWorkflow
+): boolean => {
+  if (!workflowDefinition.transitions) return false;
+  
+  const immediateTransitions = workflowDefinition.transitions.filter(
+    (transition: any) => 
+      transition.from === stateName && 
+      (transition.immediate === true || 
+       transition.inmediate === true || 
+       transition.action === "IMMEDIATE" ||
+       transition.action === "inmediate")
+  );
+  
+  return immediateTransitions.length > 0;
+};
+
+// Determine if a state was effectively visited (including immediate states that were bypassed)
+const isStateVisited = (
+  stateName: string,
+  idealPath: string[],
+  historyStates: string[],
+  currentState?: string,
+  workflowDefinition?: DeviceJobWorkflow
+): boolean => {
+  // If the state was directly visited in history, it's visited
+  if (historyStates.includes(stateName)) {
+    return true;
+  }
+  
+  // If it's the current state, it's visited
+  if (currentState === stateName) {
+    return true;
+  }
+  
+  // If this state has immediate transitions, check if a later state was visited
+  if (workflowDefinition && hasImmediateTransition(stateName, workflowDefinition)) {
+    // Find the position in the ideal path
+    const stateIndex = idealPath.indexOf(stateName);
+    
+    // Check if any later state in the ideal path was visited
+    for (let i = stateIndex + 1; i < idealPath.length; i++) {
+      if (historyStates.includes(idealPath[i]) || currentState === idealPath[i]) {
+        return true; // A later state was reached, so this immediate state was effectively visited
+      }
+    }
+  }
+  
+  return false; // Not visited
+};
+
 // Determine if a state was skipped based on the ideal path and job history
 const isStateSkipped = (
   stateName: string,
   idealPath: string[],
   historyStates: string[],
-  currentState?: string
+  currentState?: string,
+  workflowDefinition?: DeviceJobWorkflow
 ): boolean => {
   // If the state is not in the ideal path, it can't be skipped (it's not part of main flow)
   if (!idealPath.includes(stateName)) {
@@ -194,6 +239,11 @@ const isStateSkipped = (
   // If it's the current state, it's not skipped
   if (currentState === stateName) {
     return false;
+  }
+  
+  // Check if this state has immediate transitions - if so, it should be marked as immediate not skipped
+  if (workflowDefinition && hasImmediateTransition(stateName, workflowDefinition)) {
+    return false; // Don't mark as skipped if it has immediate transitions
   }
   
   // Find the position in the ideal path
@@ -376,7 +426,7 @@ const VerticalConnectionEdge = (props: any) => {
   );
 };
 
-const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string[], jobHistory: JobHistoryEntry[], mainFlowStates: string[], direction = 'TB') => {
+const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string[], jobHistory: JobHistoryEntry[], mainFlowStates: string[], workflowDefinition: DeviceJobWorkflow, direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   dagreGraph.setGraph({ rankdir: direction, ranksep: 80, nodesep: 60, align: 'UL' });
@@ -498,14 +548,14 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
         }
       }
       
+      // Find current state from job history
+      const actualCurrentState = jobHistory.length > 0 ? jobHistory[jobHistory.length - 1]?.status?.state : null;
+      
       // Color red if this is the actual path taken to a terminal state
       const isActualTerminalPath = wasTerminalReached && edge.source.trim() === lastStateBeforeTerminal;
-      const sourceVisited = historyStates.includes(edge.source);
-      const targetVisited = historyStates.includes(edge.target);
-      
-      // Check if source state was skipped using the ideal path  
-      const actualCurrentState = jobHistory.length > 0 ? jobHistory[jobHistory.length - 1]?.status?.state : null;
-      const wasSourceSkipped = isStateSkipped(edge.source, mainFlowStates, historyStates, actualCurrentState || undefined);
+      const sourceVisited = isStateVisited(edge.source, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
+      const targetVisited = isStateVisited(edge.target, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
+      const wasSourceSkipped = isStateSkipped(edge.source, mainFlowStates, historyStates, actualCurrentState || undefined, workflowDefinition);
       
       // Check if this terminal edge goes FROM the current state AND not to TERMINATED (for animation)
       const isCurrentTerminalEdge = edge.source === actualCurrentState && actualCurrentState !== null && edge.target !== 'TERMINATED';
@@ -567,19 +617,19 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
   const layoutedEdges: Edge[] = [
     // Regular edges (main flow)
     ...regularEdges.map((edge, index) => {
-      const sourceVisited = historyStates.includes(edge.source);
-      const targetVisited = historyStates.includes(edge.target);
-      
       // Find current state from job history or passed currentState
       const actualCurrentState = jobHistory.length > 0 ? jobHistory[jobHistory.length - 1]?.status?.state : null;
+      
+      const sourceVisited = isStateVisited(edge.source, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
+      const targetVisited = isStateVisited(edge.target, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
       const currentStateToUse = actualCurrentState;
       
       // An edge is "current" if it goes FROM the current state TO the next ideal state
       const isCurrentEdge = edge.source === currentStateToUse && currentStateToUse !== null;
       
       // Check if states were skipped
-      const wasSourceSkipped = isStateSkipped(edge.source, mainFlowStates, historyStates, actualCurrentState || undefined);
-      const wasTargetSkipped = isStateSkipped(edge.target, mainFlowStates, historyStates, actualCurrentState || undefined);
+      const wasSourceSkipped = isStateSkipped(edge.source, mainFlowStates, historyStates, actualCurrentState || undefined, workflowDefinition);
+      const wasTargetSkipped = isStateSkipped(edge.target, mainFlowStates, historyStates, actualCurrentState || undefined, workflowDefinition);
       
       // Determine edge color based on state
       let stroke: string;
@@ -635,8 +685,13 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
 };
 
 // Helper function to calculate state duration
-const calculateStateDuration = (stateEvents: JobHistoryEntry[], allJobHistory?: JobHistoryEntry[], stateName?: string): string => {
+const calculateStateDuration = (stateEvents: JobHistoryEntry[], allJobHistory?: JobHistoryEntry[], stateName?: string, workflowDefinition?: DeviceJobWorkflow): string => {
   if (stateEvents.length === 0) return "0s";
+  
+  // Check if this state has immediate transitions
+  if (workflowDefinition && stateName && hasImmediateTransition(stateName, workflowDefinition)) {
+    return "Immediate";
+  }
   
   const startEvent = stateEvents[0];
   const startTime = new Date(startEvent.mtime);
@@ -693,6 +748,7 @@ const calculateStateDuration = (stateEvents: JobHistoryEntry[], allJobHistory?: 
 const CustomNode = ({
   data,
   onStateClick,
+  workflowDefinition,
 }: {
   data: {
     label: string;
@@ -704,10 +760,18 @@ const CustomNode = ({
     lastEvent: JobHistoryEntry | null;
     currentState?: string;
     jobHistory?: JobHistoryEntry[];
+    wasSkipped?: boolean;
+    hasImmediate?: boolean;
+    eligibleType?: string;
   };
   onStateClick?: (stateData: any) => void;
+  workflowDefinition?: DeviceJobWorkflow;
 }) => {
   const { label, icon: Icon, isVisited, isTerminal, isError, isCurrent, lastEvent, currentState, jobHistory = [] } = data;
+  
+  // Extract additional properties
+  const wasSkipped = data.wasSkipped || false;
+  const hasImmediate = data.hasImmediate || false;
   
   // Real-time timer for current state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -727,9 +791,22 @@ const CustomNode = ({
   // Check if this state was actually visited (has event history)
   const actuallyVisited = isVisited;
   
+  // Debug logging for visited state detection
+  if (process.env.NODE_ENV === 'development') {
+    const stateHistoryEvents = jobHistory.filter(h => h.status && h.status.state === label);
+    console.log(`[DEBUG] State ${label}:`, {
+      actuallyVisited,
+      isCurrentState,
+      wasSkipped,
+      hasLastEvent: lastEvent !== null,
+      historyEventsCount: stateHistoryEvents.length,
+      jobHistoryTotal: jobHistory.length,
+      styling: actuallyVisited || wasSkipped ? 'visited/skipped' : 'not-visited'
+    });
+  }
+  
   // Use the properly calculated wasSkipped value passed from the node data
   // This is calculated using the actual ideal path from the workflow definition
-  const wasSkipped = data.wasSkipped || false;
   
   // Should be considered visited if actually visited or if it's before current state and wasn't skipped
   const shouldBeVisited = actuallyVisited && !isCurrentState;
@@ -796,7 +873,7 @@ const CustomNode = ({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onStateClick(data);
+        onStateClick?.(data);
       }}
       draggable={false}
       title="Click to show info"
@@ -804,21 +881,24 @@ const CustomNode = ({
 
       {/* Eligible Type Icon - Top Right Corner */}
       {data.eligibleType && data.eligibleType !== 'UNKNOWN' && (
-        <div className="absolute top-1.5 right-1.5 z-20 flex flex-col items-center gap-1">
+        <div className="absolute top-1.5 right-1.5 z-10 flex flex-col items-center gap-1">
           {/* Eligible Type Icon with its own tooltip */}
           <TooltipProvider delayDuration={0}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div>
+                <div className="relative">
+                  {/* Main eligible icon */}
                   {data.eligibleType === 'CLIENT' ? (
                     <Cpu className={`w-3.5 h-3.5 ${actuallyVisited || wasSkipped || isCurrentState ? 'text-primary' : 'text-muted-foreground/70'}`} />
                   ) : (
                     <Code className={`w-3.5 h-3.5 ${actuallyVisited || wasSkipped || isCurrentState ? 'text-primary' : 'text-muted-foreground/70'}`} />
                   )}
+                  
+
                 </div>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">
-                Eligible: {data.eligibleType === 'CLIENT' ? 'Device' : 'Developer'}
+                {`Eligible: ${data.eligibleType === 'CLIENT' ? 'Device' : 'Developer'}`}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -860,7 +940,7 @@ const CustomNode = ({
         style={{
           backgroundColor: 'hsl(var(--background))', // Keep original background for all states
           borderColor: !actuallyVisited && !wasSkipped && !isCurrentState ? 'hsl(var(--muted-foreground) / 0.3)' : 'hsl(var(--border))',
-          zIndex: 1005 // Above node background but below clickable handle
+          zIndex: 5 // Above node background but below tooltips
         }}
       >
         {actuallyVisited && !isCurrentState && !wasSkipped && (
@@ -905,10 +985,33 @@ const CustomNode = ({
         <span className="font-semibold text-sm">{label}</span>
         <span className="text-xs text-muted-foreground mt-1">
           {(() => {
-            if (wasSkipped) return "0s (skipped)";
-            if (!actuallyVisited && !isCurrentState) return ""; // No time for unreached states
+            // Check for immediate transitions first - they should show "Immediate" even if marked as visited
+            // Use jobHistory to check if this state was actually executed
+            const stateWasActuallyExecuted = jobHistory.some(event => event.status && event.status.state === label);
+            if (hasImmediate && !stateWasActuallyExecuted && !isCurrentState) {
+              return (
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help underline decoration-dotted">Immediate</span>
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="top" 
+                      className="text-xs max-w-xs bg-popover border shadow-lg" 
+                      style={{ 
+                        zIndex: 2147483647
+                      } as React.CSSProperties}
+                    >
+                      This state is automatically transitioned by WFX, the workflow executioner, without manual intervention.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            }
             
-            const stateEvents = jobHistory.filter(event => event.status.state === label);
+            // If state was actually visited, show normal duration
+            if (actuallyVisited || isCurrentState) {
+              const stateEvents = jobHistory.filter(event => event.status.state === label);
             
             if (isCurrentState && !isTerminal) {
               // Calculate real-time duration for current state
@@ -928,9 +1031,32 @@ const CustomNode = ({
               return "0s";
             }
             
-            if (stateEvents.length === 0) return "0s (no data)";
-            
-            return calculateStateDuration(stateEvents, jobHistory, label);
+              if (stateEvents.length === 0) return "0s (no data)";
+              
+              return calculateStateDuration(stateEvents, jobHistory, label, workflowDefinition);
+            } else {
+              // State not visited yet
+              if (hasImmediate) return (
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help underline decoration-dotted">Immediate</span>
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      side="top" 
+                      className="text-xs max-w-xs bg-popover border shadow-lg" 
+                      style={{ 
+                        zIndex: 2147483647
+                      } as React.CSSProperties}
+                    >
+                      This state is automatically transitioned by WFX without manual intervention
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+              if (wasSkipped) return "0s (skipped)";
+              return ""; // No time for unreached states
+            }
           })()}
         </span>
       </div>
@@ -964,7 +1090,9 @@ const CustomNode = ({
             <div>
               <span className="text-sm font-medium text-muted-foreground">Status: </span>
               {wasSkipped && <span className="text-green-600 font-medium">Skipped</span>}
-              {isCurrentState && !wasSkipped && <span className="text-blue-600 font-medium">Currently Active</span>}
+              {isCurrentState && !wasSkipped && !isTerminal && <span className="text-blue-600 font-medium">Currently Active</span>}
+              {isCurrentState && !wasSkipped && isTerminal && label === 'ACTIVATED' && <span className="text-green-600 font-medium">Activated</span>}
+              {isCurrentState && !wasSkipped && isTerminal && label === 'TERMINATED' && <span className="text-red-600 font-medium">Terminated</span>}
               {actuallyVisited && !isCurrentState && !wasSkipped && <span className="text-green-600 font-medium">Completed</span>}
               {!actuallyVisited && !isCurrentState && !wasSkipped && <span className="text-muted-foreground">Not Yet Reached</span>}
               {isTerminal && actuallyVisited && <span className="text-red-600 font-medium">Terminal State Reached</span>}
@@ -1000,7 +1128,7 @@ const CustomNode = ({
                   
                   if (stateEvents.length === 0) return "0s";
                   
-                  return calculateStateDuration(stateEvents, jobHistory, label);
+                  return calculateStateDuration(stateEvents, jobHistory, label, workflowDefinition);
                 })()}
               </span>
             </div>
@@ -1090,9 +1218,17 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
       else return { nodes: [], edges: [] };
     }
 
-    const historyStates = jobHistory.map((h) => h.status.state);
+    // Get unique states from history, filtering out any invalid entries
+    const historyStates = [...new Set(jobHistory
+      .filter(h => h && h.status && h.status.state)
+      .map(h => h.status.state)
+    )];
     const lastEventByState = new Map<string, JobHistoryEntry>();
-    jobHistory.forEach((event) => lastEventByState.set(event.status.state, event));
+    jobHistory.forEach((event) => {
+      if (event && event.status && event.status.state) {
+        lastEventByState.set(event.status.state, event);
+      }
+    });
 
     // Determine the actual current state from job history if currentState is not provided
     const mostRecentEvent = jobHistory.length > 0 ? jobHistory[jobHistory.length - 1] : null;
@@ -1101,15 +1237,28 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
     // Dynamically determine the ideal path (main flow) from workflow structure
     const mainFlowStates = determineIdealPath(workflowDefinition);
     
+    // Debug logging for visited state detection
+    if (process.env.NODE_ENV === 'development' && historyStates.length > 0) {
+      console.log('[DEBUG] History states:', historyStates);
+      console.log('[DEBUG] Current state:', actualCurrentState);
+      console.log('[DEBUG] Workflow states:', workflowDefinition.states.map(s => s.name));
+    }
+    
     const initialNodes: Node[] = workflowDefinition.states.map((state: DeviceJobWorkflowState) => {
-      const isVisited = historyStates.includes(state.name);
-      const isTerminal = state.name === 'TERMINATED';
+      const isTerminal = state.name === 'TERMINATED' || state.name === 'ACTIVATED';
       const isCurrent = actualCurrentState === state.name;
-      const Icon = isTerminal ? AlertTriangle : Play;
+      const Icon = state.name === 'TERMINATED' ? AlertTriangle : state.name === 'ACTIVATED' ? CheckCircle : Play;
       const lastEvent = lastEventByState.get(state.name) || null;
 
       // Calculate if this state was skipped based on the ideal path
-      const wasSkipped = isStateSkipped(state.name, mainFlowStates, historyStates, actualCurrentState);
+      const wasSkipped = isStateSkipped(state.name, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
+      
+      // Determine if state was actually visited using comprehensive logic like skipped detection
+      // This includes immediate states that were effectively visited when later states are reached
+      const isVisited = isStateVisited(state.name, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
+      
+      // Check if this state has immediate transitions
+      const hasImmediate = hasImmediateTransition(state.name, workflowDefinition);
 
       // Determine the eligible type for this state
       const eligibleType = getStateEligibleType(state.name, workflowDefinition);
@@ -1128,6 +1277,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
           currentState: actualCurrentState, 
           jobHistory, 
           wasSkipped,
+          hasImmediate,
           eligibleType,
           workflowDefinition
         },
@@ -1171,7 +1321,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
         };
       });
 
-    return getLayoutedElements(initialNodes, initialEdges, historyStates, jobHistory, mainFlowStates);
+    return getLayoutedElements(initialNodes, initialEdges, historyStates, jobHistory, mainFlowStates, workflowDefinition);
   }, [workflow, jobHistory, currentState]);
 
   useEffect(() => {
@@ -1183,8 +1333,8 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
   const handleEdgesChange: OnEdgesChange = (changes) => setEdges((eds) => applyEdgeChanges(changes, eds));
 
   const nodeTypes = useMemo(() => ({
-    custom: (props: any) => <CustomNode {...props} onStateClick={handleStateClick} />
-  }), []);
+    custom: (props: any) => <CustomNode {...props} onStateClick={handleStateClick} workflowDefinition={workflow} />
+  }), [workflow]);
 
   const edgeTypes = useMemo(() => ({ 
     leftDown: LeftDownEdge, 
@@ -1212,8 +1362,14 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
             <div>
               <span className="text-sm font-medium">Status:</span>
               <div className="mt-1">
-                {selectedState.isCurrent && (
+                {selectedState.isCurrent && !selectedState.isTerminal && (
                   <span className="text-blue-600 font-medium">Currently Active</span>
+                )}
+                {selectedState.isCurrent && selectedState.isTerminal && selectedState.label === 'ACTIVATED' && (
+                  <span className="text-green-600 font-medium">Activated</span>
+                )}
+                {selectedState.isCurrent && selectedState.isTerminal && selectedState.label === 'TERMINATED' && (
+                  <span className="text-red-600 font-medium">Terminated</span>
                 )}
                 {selectedState.wasSkipped && (
                   <span className="text-green-600 font-medium">Skipped</span>
@@ -1224,8 +1380,8 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
                 {!selectedState.isVisited && !selectedState.isCurrent && !selectedState.wasSkipped && (
                   <span className="text-muted-foreground">Not Reached</span>
                 )}
-                {selectedState.isTerminal && selectedState.isVisited && (
-                  <span className="text-red-600 font-medium">Terminated</span>
+                {selectedState.isTerminal && selectedState.isVisited && !selectedState.isCurrent && (
+                  <span className="text-red-600 font-medium">Terminal State Reached</span>
                 )}
               </div>
             </div>

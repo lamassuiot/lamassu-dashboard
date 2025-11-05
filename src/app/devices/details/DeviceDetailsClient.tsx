@@ -875,8 +875,8 @@ export default function DeviceDetailsClient() {
         </TabsContent>
 
         <TabsContent value="timeline">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Timeline Section - Left Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-[6fr_10fr] gap-6">
+            {/* Timeline Section - Left Side (5fr = ~42% reduced from 50%) */}
             <Card>
               <CardHeader>
                   <CardTitle>Device Event Timeline</CardTitle>

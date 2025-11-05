@@ -146,3 +146,37 @@ header {
 .secondary-logo {
     aspect-ratio: 200 / 40;
 }
+
+.lamassu-logo-theme-filter {
+    /* For light theme: change SVG to #6cc24a (green) */
+    filter: invert(66%) sepia(24%) saturate(1102%) hue-rotate(61deg) brightness(92%) contrast(92%) ;
+    display: none;
+}
+
+.dark header .secondary-logo {
+    filter: grayscale(1) invert(1);
+}
+
+.dark header .tertiary-logo {
+    filter: grayscale(1) invert(1);
+}
+
+/* Inject LKS logo next to Ikerlan logo using CSS */
+header {
+    position: relative;
+}
+
+/* Dark theme filter for injected LKS logo */
+.dark header .secondary-logo::after {
+    filter: grayscale(1) invert(1);
+}
+
+/* Dark theme specific logo color */
+.dark header button svg {
+    color: white;
+}
+
+.secondary-logo {
+    aspect-ratio: 200 / 40;
+    background-position: left;
+}
