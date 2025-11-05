@@ -45,14 +45,21 @@ interface CaNodeData extends Record<string, unknown> {
 }
 
 interface CryptoEngineNodeData extends Record<string, unknown> {
-  engine: ApiCryptoEngine;
-  kmsKey: ApiKmsKey;
+  engine?: ApiCryptoEngine;
+  kmsKey?: ApiKmsKey;
+  isUnknown?: boolean;
+  keyId?: string;
 }
 
 interface GroupNodeData extends Record<string, unknown> {
   label: string;
   engine?: ApiCryptoEngine;
   kmsKey?: ApiKmsKey;
+}
+
+interface UnknownIssuerNodeData extends Record<string, unknown> {
+  issuerName: string;
+  issuerDN?: string;
 }
 
 type NodeData = CaNodeData | CryptoEngineNodeData | GroupNodeData;
@@ -214,8 +221,40 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
 
 // Custom node component for Crypto Engine visualization
 const CryptoEngineNode = ({ data }: { data: CryptoEngineNodeData }) => {
-  const { engine, kmsKey } = data;
+  const { engine, kmsKey, isUnknown, keyId } = data;
 
+  // Unknown KMS Key styling
+  if (isUnknown) {
+    return (
+      <div
+        className="rounded-xl p-2.5 flex items-center gap-3 w-[320px] h-[65px] shadow-lg border-2 bg-gradient-to-br from-muted/30 to-muted/50 dark:from-muted/20 dark:to-muted/40 border-muted-foreground/40 dark:border-muted-foreground/30 shadow-muted/30 transition-all duration-200"
+        style={{ borderStyle: 'dashed' }}
+      >
+        {/* Handles on all four sides for dynamic edge connections - both source and target */}
+        <Handle type="target" position={Position.Top} id="target-top" style={{ opacity: 0 }} />
+        <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
+        <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
+        <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
+        
+        <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
+        <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
+        <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
+        <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
+        
+        <div className="flex-shrink-0 bg-muted p-2 rounded-lg shadow-sm">
+          <Landmark className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div className="flex-grow min-w-0">
+          <p className="text-sm font-bold truncate text-muted-foreground leading-tight">Unknown KMS Key</p>
+          <p className="text-[11px] font-mono text-muted-foreground/70 truncate mt-0.5">
+            {keyId || 'No key ID'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal KMS Key styling
   return (
     <div
       className="rounded-xl p-2.5 flex items-center gap-3 w-[320px] h-[65px] shadow-lg border-2 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/60 dark:to-purple-900/40 border-purple-300 dark:border-purple-600 shadow-purple-200/50 dark:shadow-purple-900/30 transition-all duration-200 hover:scale-[1.02] hover:shadow-xl"
@@ -232,12 +271,12 @@ const CryptoEngineNode = ({ data }: { data: CryptoEngineNodeData }) => {
       <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
       
       <div className="flex-shrink-0 bg-purple-500 dark:bg-purple-600 p-2 rounded-lg shadow-sm">
-        <CryptoEngineViewer engine={engine} iconOnly />
+        <CryptoEngineViewer engine={engine!} iconOnly />
       </div>
       <div className="flex-grow min-w-0">
-        <p className="text-sm font-bold truncate text-purple-900 dark:text-purple-100 leading-tight">{kmsKey.name}</p>
+        <p className="text-sm font-bold truncate text-purple-900 dark:text-purple-100 leading-tight">{kmsKey!.name}</p>
         <p className="text-[11px] font-mono text-purple-700 dark:text-purple-300 truncate mt-0.5">
-          {kmsKey.key_id}
+          {kmsKey!.key_id}
         </p>
       </div>
     </div>
@@ -286,10 +325,57 @@ const GroupNode = ({ data }: { data: GroupNodeData }) => {
   );
 };
 
+// Custom node component for Unknown Issuer visualization
+const UnknownIssuerNode = ({ data }: { data: UnknownIssuerNodeData }) => {
+  const { issuerName, issuerDN } = data;
+
+  return (
+    <div
+      className="rounded-xl p-3 flex flex-col gap-2 w-[380px] h-[85px] shadow-lg border-2 bg-gradient-to-br from-muted/30 to-muted/50 dark:from-muted/20 dark:to-muted/40 border-muted-foreground/40 dark:border-muted-foreground/30 shadow-muted/30 transition-all duration-200"
+      style={{ borderStyle: 'dashed' }}
+    >
+      {/* Handles on all four sides for dynamic edge connections - both source and target */}
+      <Handle type="target" position={Position.Top} id="target-top" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
+      
+      <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
+      
+      {/* Header row with icon */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="p-1.5 rounded-lg flex-shrink-0 shadow-sm bg-muted">
+            <Landmark className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm truncate leading-tight text-muted-foreground">Unknown Issuer</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted border border-muted-foreground/30">
+          <AlertTriangle className="h-3 w-3 text-muted-foreground" />
+          <span className="text-[10px] font-medium text-muted-foreground">Not Found</span>
+        </div>
+      </div>
+      
+      {/* Info row - show issuerDN if available, otherwise issuerName (ID) */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-mono truncate flex-1 text-muted-foreground/70" title={issuerDN || issuerName}>
+          {issuerDN || issuerName}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const nodeTypes = {
   caNode: CaNode,
   cryptoEngineNode: CryptoEngineNode,
   group: GroupNode,
+  unknownIssuerNode: UnknownIssuerNode,
 };
 
 // ELK instance for graph layout
@@ -569,6 +655,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               position: { x: 20, y: 85 + index * 95 }, // Offset for crypto engine header
               parentId: groupId,
               extent: 'parent',
+              draggable: false, // Prevent moving nodes inside the group
               width: 380,
               height: 85,
             });
@@ -637,10 +724,11 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
         }
         
         const kmsKey = kmsKeysMap.get(ca.subjectKeyId);
+        const engineNodeId = `engine-${ca.subjectKeyId}`;
+        
         if (kmsKey) {
           const engine = allCryptoEngines.find((e: ApiCryptoEngine) => e.id === kmsKey.engine_id);
           if (engine) {
-            const engineNodeId = `engine-${kmsKey.key_id}`;
             if (!addedEngineNodes.has(engineNodeId)) {
               cryptoEngineNodes.push({
                 id: engineNodeId,
@@ -648,6 +736,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
                 data: {
                   engine,
                   kmsKey,
+                  isUnknown: false,
                 },
                 position: { x: 0, y: 0 }, // Will be set by layout algorithm
                 width: 320,
@@ -656,16 +745,33 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               addedEngineNodes.add(engineNodeId);
             }
           }
+        } else {
+          // Create unknown KMS Key node
+          if (!addedEngineNodes.has(engineNodeId)) {
+            cryptoEngineNodes.push({
+              id: engineNodeId,
+              type: 'cryptoEngineNode',
+              data: {
+                isUnknown: true,
+                keyId: ca.subjectKeyId,
+              },
+              position: { x: 0, y: 0 }, // Will be set by layout algorithm
+              width: 320,
+              height: 65,
+            });
+            addedEngineNodes.add(engineNodeId);
+          }
         }
       }
 
       // Add crypto engine node for authority_key_id (signing key)
-      if (ca.authorityKeyId && ca. authorityKeyId !== ca.subjectKeyId) {
+      if (ca.authorityKeyId && ca.authorityKeyId !== ca.subjectKeyId) {
         const kmsKey = kmsKeysMap.get(ca.authorityKeyId);
+        const engineNodeId = `engine-${ca.authorityKeyId}`;
+        
         if (kmsKey) {
           const engine = allCryptoEngines.find((e: ApiCryptoEngine) => e.id === kmsKey.engine_id);
           if (engine) {
-            const engineNodeId = `engine-${kmsKey.key_id}`;
             if (!addedEngineNodes.has(engineNodeId)) {
               cryptoEngineNodes.push({
                 id: engineNodeId,
@@ -673,6 +779,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
                 data: {
                   engine,
                   kmsKey,
+                  isUnknown: false,
                 },
                 position: { x: 0, y: 0 }, // Will be set by layout algorithm
                 width: 320,
@@ -680,6 +787,22 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               });
               addedEngineNodes.add(engineNodeId);
             }
+          }
+        } else {
+          // Create unknown KMS Key node for authority key
+          if (!addedEngineNodes.has(engineNodeId)) {
+            cryptoEngineNodes.push({
+              id: engineNodeId,
+              type: 'cryptoEngineNode',
+              data: {
+                isUnknown: true,
+                keyId: ca.authorityKeyId,
+              },
+              position: { x: 0, y: 0 }, // Will be set by layout algorithm
+              width: 320,
+              height: 65,
+            });
+            addedEngineNodes.add(engineNodeId);
           }
         }
       }
@@ -690,6 +813,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
 
     // Create ReactFlow edges for CA hierarchy
     const reactFlowEdges: Edge[] = [];
+    const addedUnknownIssuers = new Set<string>();
     
     // Helper to get initial handle positions
     const getInitialHandles = (sourceId: string, targetId: string) => {
@@ -705,7 +829,69 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     allNodes.forEach(ca => {
       if (ca.issuer && ca.issuer !== 'Self-signed') {
         const issuerExists = allNodes.some(node => node.id === ca.issuer);
-        if (issuerExists) {
+        
+        if (!issuerExists) {
+          // Create unknown issuer node if not already added
+          const unknownIssuerId = `unknown-issuer-${ca.issuer}`;
+          if (!addedUnknownIssuers.has(unknownIssuerId)) {
+            // Format issuer DN for display
+            let issuerDN = 'Unknown';
+            if (ca.issuerDN?.common_name) {
+              const parts = [];
+              if (ca.issuerDN.common_name) parts.push(`CN=${ca.issuerDN.common_name}`);
+              if (ca.issuerDN.organization) parts.push(`O=${ca.issuerDN.organization}`);
+              if (ca.issuerDN.organization_unit) parts.push(`OU=${ca.issuerDN.organization_unit}`);
+              if (ca.issuerDN.country) parts.push(`C=${ca.issuerDN.country}`);
+              issuerDN = parts.join(', ');
+            }
+            
+            reactFlowNodes.push({
+              id: unknownIssuerId,
+              type: 'unknownIssuerNode',
+              data: {
+                issuerName: ca.issuer || 'Unknown',
+                issuerDN: issuerDN,
+              },
+              position: { x: 0, y: 0 }, // Will be set by layout algorithm
+              width: 380,
+              height: 85,
+            });
+            addedUnknownIssuers.add(unknownIssuerId);
+          }
+          
+          // Create edge from unknown issuer to CA
+          let targetId = ca.id;
+          
+          // Check if target CA is in a group
+          if (groupByAttestedKey && ca.subjectKeyId) {
+            const targetGroupId = `group-${ca.subjectKeyId}`;
+            if (reactFlowNodes.some(n => n.id === targetGroupId)) {
+              targetId = targetGroupId;
+            }
+          }
+          
+          const { sourceHandle, targetHandle } = getInitialHandles(unknownIssuerId, targetId);
+          reactFlowEdges.push({
+            id: `${unknownIssuerId}-${ca.id}`,
+            source: unknownIssuerId,
+            target: targetId,
+            type: 'smoothstep',
+            sourceHandle,
+            targetHandle,
+            animated: false,
+            data: { edgeType: 'hierarchy' },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              width: 20,
+              height: 20,
+              color: '#64748b', // slate-500 for visibility
+            },
+            style: {
+              strokeWidth: 2,
+              stroke: '#64748b', // slate-500 for clear visibility in exports
+            },
+          });
+        } else if (issuerExists) {
           // Determine source and target (use group if grouped and exists)
           let sourceId = ca.issuer;
           let targetId = ca.id;
@@ -756,76 +942,70 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       // Add edge from crypto engine to CA for subject_key_id (CA's own key)
       // In group mode, edge connects to the group instead
       if (ca.subjectKeyId) {
-        const kmsKey = kmsKeysMap.get(ca.subjectKeyId);
-        if (kmsKey) {
-          const engineNodeId = `engine-${kmsKey.key_id}`;
-          let targetId = ca.id;
-          
-          // If grouping is enabled and this CA is in a group, connect to the group
-          if (groupByAttestedKey) {
-            const groupId = `group-${ca.subjectKeyId}`;
-            if (reactFlowNodes.some(n => n.id === groupId)) {
-              // Skip - don't create edge, crypto engine is inside the group
-              return;
-            }
+        const engineNodeId = `engine-${ca.subjectKeyId}`;
+        let targetId = ca.id;
+        
+        // If grouping is enabled and this CA is in a group, connect to the group
+        if (groupByAttestedKey) {
+          const groupId = `group-${ca.subjectKeyId}`;
+          if (reactFlowNodes.some(n => n.id === groupId)) {
+            // Skip - don't create edge, crypto engine is inside the group
+            return;
           }
-          
-          const { sourceHandle, targetHandle } = getInitialHandles(engineNodeId, targetId);
-          reactFlowEdges.push({
-            id: `${engineNodeId}-${ca.id}-subject`,
-            source: engineNodeId,
-            target: targetId,
-            type: 'smoothstep',
-            sourceHandle,
-            targetHandle,
-            animated: false,
-            data: { edgeType: 'attested' },
-            label: 'attested key',
-            labelStyle: { fill: '#10b981', fontSize: 10, fontWeight: 500 },
-            labelBgStyle: { fill: '#f0fdf4' },
-            style: {
-              strokeWidth: 2,
-              stroke: '#10b981', // green color for subject_key_id (attested key)
-            },
-          });
         }
+        
+        const { sourceHandle, targetHandle } = getInitialHandles(engineNodeId, targetId);
+        reactFlowEdges.push({
+          id: `${engineNodeId}-${ca.id}-subject`,
+          source: engineNodeId,
+          target: targetId,
+          type: 'smoothstep',
+          sourceHandle,
+          targetHandle,
+          animated: false,
+          data: { edgeType: 'attested' },
+          label: 'attested key',
+          labelStyle: { fill: '#10b981', fontSize: 10, fontWeight: 500 },
+          labelBgStyle: { fill: '#f0fdf4' },
+          style: {
+            strokeWidth: 2,
+            stroke: '#10b981', // green color for subject_key_id (attested key)
+          },
+        });
       }
 
       // Add edge from crypto engine to CA for authority_key_id (signing key)
       if (ca.authorityKeyId) {
-        const kmsKey = kmsKeysMap.get(ca.authorityKeyId);
-        if (kmsKey) {
-          const engineNodeId = `engine-${kmsKey.key_id}`;
-          let targetId = ca.id;
-          
-          // If grouping is enabled and this CA is in a group, connect to the group
-          if (groupByAttestedKey) {
-            const groupId = `group-${ca.subjectKeyId}`;
-            if (reactFlowNodes.some(n => n.id === groupId)) {
-              targetId = groupId;
-            }
+        const engineNodeId = `engine-${ca.authorityKeyId}`;
+        let targetId = ca.id;
+        
+        // If grouping is enabled and this CA is in a group, connect to the group
+        if (groupByAttestedKey) {
+          const groupId = `group-${ca.subjectKeyId}`;
+          if (reactFlowNodes.some(n => n.id === groupId)) {
+            targetId = groupId;
           }
-          
-          const { sourceHandle, targetHandle } = getInitialHandles(engineNodeId, targetId);
-          reactFlowEdges.push({
-            id: `${engineNodeId}-${ca.id}-authority`,
-            source: engineNodeId,
-            target: targetId,
-            type: 'smoothstep',
-            sourceHandle,
-            targetHandle,
-            animated: false,
-            data: { edgeType: 'signed' },
-            label: 'signed by',
-            labelStyle: { fill: '#f59e0b', fontSize: 10, fontWeight: 500 },
-            labelBgStyle: { fill: '#fffbeb' },
-            style: {
-              strokeWidth: 2,
-              stroke: '#f59e0b', // amber/orange color for authority_key_id (signed by)
-              strokeDasharray: '8,4',
-            },
-          });
         }
+        
+        const { sourceHandle, targetHandle } = getInitialHandles(engineNodeId, targetId);
+        reactFlowEdges.push({
+          id: `${engineNodeId}-${ca.id}-authority`,
+          source: engineNodeId,
+          target: targetId,
+          type: 'smoothstep',
+          sourceHandle,
+          targetHandle,
+          animated: false,
+          data: { edgeType: 'signed' },
+          label: 'signed by',
+          labelStyle: { fill: '#f59e0b', fontSize: 10, fontWeight: 500 },
+          labelBgStyle: { fill: '#fffbeb' },
+          style: {
+            strokeWidth: 2,
+            stroke: '#f59e0b', // amber/orange color for authority_key_id (signed by)
+            strokeDasharray: '8,4',
+          },
+        });
       }
     });
 

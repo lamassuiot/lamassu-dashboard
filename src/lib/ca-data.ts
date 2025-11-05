@@ -73,8 +73,8 @@ export interface ApiResponseList {
 export interface CA {
   id: string;
   name: string;
-  issuer: string; // ID of the parent CA or "Self-signed"
   expires: string; // ISO date string from valid_to
+  issuer: string; // ID of the parent CA or "Self-signed"
   serialNumber: string;
   status: 'active' | 'expired' | 'revoked' | 'unknown'; // Added 'unknown' for safety
   keyAlgorithm: string;
@@ -393,10 +393,21 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
   }
 
 
+  // Determine if self-signed by comparing AKI and SKI
+  // A certificate is self-signed if:
+  // 1. AKI equals SKI (both present and match), OR
+  // 2. AKI is missing/empty (root CAs might not have AKI), OR
+  // 3. Issuer metadata ID equals the CA's own ID
+  const isSelfSigned = 
+    (apiCa.certificate.authority_key_id && apiCa.certificate.subject_key_id && 
+     apiCa.certificate.authority_key_id === apiCa.certificate.subject_key_id) ||
+    (!apiCa.certificate.authority_key_id || apiCa.certificate.authority_key_id === '') ||
+    (apiCa.certificate.issuer_metadata.id === apiCa.id);
+
   return {
     id: apiCa.id,
     name: apiCa.certificate.subject.common_name || apiCa.id,
-    issuer: apiCa.certificate.issuer_metadata.id === apiCa.id || apiCa.level === 0 ? 'Self-signed' : apiCa.certificate.issuer_metadata.id,
+    issuer: isSelfSigned ? 'Self-signed' : apiCa.certificate.issuer_metadata.id,
     expires: apiCa.certificate.valid_to,
     serialNumber: apiCa.certificate.serial_number,
     status,
@@ -416,6 +427,7 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
     // Parsed fields are intentionally left undefined for lazy parsing
   };
 }
+
 
 // Helper to build hierarchy from a flat list of CAs
 function buildCaHierarchy(flatCaList: Omit<CA, 'children'>[]): CA[] {
