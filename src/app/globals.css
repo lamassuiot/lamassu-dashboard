@@ -354,3 +354,7 @@
     filter: grayscale(100%) invert(100%);
   }
 }
+
+.dark .text-primary {
+  color: hsl(217 100% 70%);
+}
