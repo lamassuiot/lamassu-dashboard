@@ -95,7 +95,7 @@ export default function KmsKeysPage() {
 
       // Add alias filter if search term is provided
       if (debouncedAliasSearchTerm.trim() !== '') {
-        params.append('filter', `name[contains]${debouncedAliasSearchTerm.trim()}`);
+        params.append('filter', `name[contains_ignorecase]${debouncedAliasSearchTerm.trim()}`);
       }
 
       const keysResponse = await fetchKmsKeys(user.access_token, params);

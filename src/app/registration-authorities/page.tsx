@@ -193,7 +193,7 @@ export default function RegistrationAuthoritiesPage() {
         }
         
         if (debouncedSearchTerm.trim()) {
-            params.append('filter', `name[contains]${debouncedSearchTerm.trim()}`);
+            params.append('filter', `name[contains_ignorecase]${debouncedSearchTerm.trim()}`);
         }
 
         const [raData, caData, cryptoEnginesData] = await Promise.all([
