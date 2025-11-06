@@ -15,7 +15,6 @@ import { format } from 'date-fns';
 import { DetailItem } from './DetailItem';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { revocationReasons } from '@/lib/revocation-reasons';
 
 // Integer to label mapping for DER-encoded CRL reason codes
 const crlReasonCodeMap: { [key: number]: string } = {
