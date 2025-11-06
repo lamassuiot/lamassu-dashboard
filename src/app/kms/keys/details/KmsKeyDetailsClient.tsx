@@ -26,13 +26,14 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import * as asn1js from 'asn1js';
 import * as pkijs from 'pkijs';
 import { CertificationRequest, AlgorithmIdentifier } from 'pkijs';
-import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, type PatchOperation } from '@/lib/kms-data';
+import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, type PatchOperation } from '@/lib/kms-data';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Separator } from '@/components/ui/separator';
+import { TagInput } from '@/components/shared/TagInput';
 
 // Monaco Editor dynamic import
 const Editor = dynamic(() => import('@monaco-editor/react'), { 
@@ -121,6 +122,7 @@ interface KmsKeyDetailed {
   hasPrivateKey: boolean;
   publicKeyPem?: string;
   cryptoEngineId?: string;
+  tags?: string[];
   metadata?: Record<string, any>;
 }
 
@@ -192,6 +194,12 @@ export default function KmsKeyDetailsClient() {
   const [isEditingAliases, setIsEditingAliases] = useState(false);
   const [newAlias, setNewAlias] = useState('');
   const [isSavingAliases, setIsSavingAliases] = useState(false);
+
+  // Tags management state
+  const [keyTags, setKeyTags] = useState<string[]>([]);
+  const [originalTags, setOriginalTags] = useState<string[]>([]); // Track original state
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [isSavingTags, setIsSavingTags] = useState(false);
 
   // --- CSR SAN Handlers ---
   const handleAddCsrSan = () => {
@@ -289,6 +297,50 @@ export default function KmsKeyDetailsClient() {
     setNewAlias('');
   };
 
+  // --- Tags Management Handlers ---
+  const handleSaveTags = async () => {
+    if (!keyDetails || !user?.access_token) return;
+
+    setIsSavingTags(true);
+    try {
+      // Check if there are changes
+      const hasChanges = JSON.stringify(keyTags.sort()) !== JSON.stringify(originalTags.sort());
+      
+      if (!hasChanges) {
+        setIsEditingTags(false);
+        return;
+      }
+
+      await updateKeyTags(keyDetails.id, keyTags, user.access_token);
+      
+      // Update original tags to match current state
+      setOriginalTags([...keyTags]);
+      
+      // Update keyDetails to reflect the change
+      setKeyDetails(prev => prev ? { ...prev, tags: keyTags } : null);
+      
+      toast({
+        title: "Tags Updated",
+        description: "Key tags have been successfully updated.",
+      });
+      setIsEditingTags(false);
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update tags.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingTags(false);
+    }
+  };
+
+  const handleCancelEditTags = () => {
+    // Restore original tags
+    setKeyTags([...originalTags]);
+    setIsEditingTags(false);
+  };
+
   // Handler to fetch and view bound certificate
   const handleViewBoundCertificate = async (serialNumber: string) => {
     if (!user?.access_token) return;
@@ -376,12 +428,18 @@ export default function KmsKeyDetailsClient() {
           hasPrivateKey: apiKey.has_private_key,
           publicKeyPem: pem,
           cryptoEngineId: apiKey.engine_id,
+          tags: apiKey.tags || [],
           metadata: apiKey.metadata || {},
         };
         setKeyDetails(detailedKey);
         const aliases = apiKey.aliases || [];
         setKeyAliases(aliases);
         setOriginalAliases(aliases); // Track original state for diff calculation
+        
+        const tags = apiKey.tags || [];
+        setKeyTags(tags);
+        setOriginalTags(tags); // Track original state for diff calculation
+        
         setCsrCommonName(detailedKey.alias || '');
 
         if (detailedKey.algorithm === 'RSA') {
@@ -1043,6 +1101,57 @@ export default function KmsKeyDetailsClient() {
                         </code>
                       </div>
                     </div>
+                    
+                    {/* Tags Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium text-muted-foreground">Tags</Label>
+                        {!isEditingTags && (
+                          <Button variant="ghost" size="sm" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
+                            <PenTool className="mr-1.5 h-3 w-3" />
+                            Edit
+                          </Button>
+                        )}
+                      </div>
+                      {isEditingTags ? (
+                        <div className="space-y-3">
+                          <TagInput
+                            value={keyTags}
+                            onChange={setKeyTags}
+                            placeholder="Add tags..."
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="outline" size="sm" onClick={handleCancelEditTags} disabled={isSavingTags}>
+                              Cancel
+                            </Button>
+                            <Button size="sm" onClick={handleSaveTags} disabled={isSavingTags}>
+                              {isSavingTags ? (
+                                <>
+                                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>Save</>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-muted/30 rounded-lg border min-h-[44px]">
+                          {keyTags && keyTags.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {keyTags.map((tag, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">No tags configured</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1170,7 +1279,7 @@ export default function KmsKeyDetailsClient() {
                       <div>
                         <Label className="text-sm font-medium text-muted-foreground mb-2 block">Key Size & Strength</Label>
                         <div className="p-3 bg-background rounded-lg border">
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between">
                             <span className="font-medium">{keyDetails.keyTypeDisplay}</span>
                             <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
                           </div>
@@ -1210,7 +1319,7 @@ export default function KmsKeyDetailsClient() {
                           return (
                             <div>
                               <Label className="text-sm font-medium text-muted-foreground mb-2 block">Crypto Engine</Label>
-                              <div className="p-3 bg-background rounded-lg border">
+                              <div className="p-2 bg-background rounded-lg border">
                                 {engine ? (
                                   <CryptoEngineViewer engine={engine} />
                                 ) : (

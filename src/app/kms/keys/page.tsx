@@ -32,6 +32,7 @@ interface KmsKey {
   size: string;
   name?: string;
   aliases: string[];
+  tags?: string[];
   metadata?: Record<string, any>;
 }
 
@@ -112,6 +113,7 @@ export default function KmsKeysPage() {
           algorithm: apiKey.algorithm,
           size: String(apiKey.size),
           aliases: apiKey.aliases,
+          tags: apiKey.tags || [],
           metadata: apiKey.metadata,
         };
       });
@@ -317,11 +319,12 @@ export default function KmsKeysPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Alias</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Strength</TableHead>
                   <TableHead><div className="flex items-center"><Cpu className="mr-1.5 h-4 w-4 text-muted-foreground" />Crypto Engine</div></TableHead>
                   <TableHead>Aliases</TableHead>
+                  <TableHead>Tags</TableHead>
                   <TableHead>Related Entities</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -364,6 +367,19 @@ export default function KmsKeysPage() {
                           </div>
                         ) : (
                           <span className="text-muted-foreground text-xs">No aliases</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {key.tags && key.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {key.tags.map((tag, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -499,7 +515,7 @@ export default function KmsKeysPage() {
             if (!open) setKeyToDelete(null);
           }}
           onConfirm={handleDeleteKey}
-          keyName={keyToDelete.alias}
+          keyName={keyToDelete.name || keyToDelete.id}
           keyId={keyToDelete.id}
           isDeleting={isDeleting}
         />

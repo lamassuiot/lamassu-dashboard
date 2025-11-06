@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2 } from "lucide-react";
+import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2, Tag, Code } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
@@ -19,6 +20,14 @@ import { SectionHeader } from '@/components/shared/FormComponents';
 import { createKmsKey, importKmsKey } from '@/lib/kms-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
+import { TagInput } from '@/components/shared/TagInput';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+// Monaco Editor dynamic import to avoid SSR issues
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
+  ssr: false,
+  loading: () => <div className="h-48 w-full flex items-center justify-center bg-muted/30 rounded-md border"><Loader2 className="h-8 w-8 animate-spin"/></div>
+});
 
 const creationModes = [
   {
@@ -61,6 +70,11 @@ export default function CreateKmsKeyPage() {
 
   // Import Public Key mode fields
   const [publicKeyPem, setPublicKeyPem] = useState('');
+
+  // Common fields for tags and metadata
+  const [tags, setTags] = useState<string[]>([]);
+  const [metadata, setMetadata] = useState('{}');
+  const [metadataError, setMetadataError] = useState<string | null>(null);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -161,6 +175,19 @@ export default function CreateKmsKeyPage() {
     else if (keyType === 'ECDSA') setEcdsaCurve(value);
   };
 
+  const handleMetadataChange = (value: string | undefined) => {
+    const newValue = value || '{}';
+    setMetadata(newValue);
+    
+    // Validate JSON
+    try {
+      JSON.parse(newValue);
+      setMetadataError(null);
+    } catch (error) {
+      setMetadataError('Invalid JSON format');
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -181,6 +208,18 @@ export default function CreateKmsKeyPage() {
             toast({ title: "Validation Error", description: "Key Name / Alias is required.", variant: "destructive" });
             setIsSubmitting(false);
             return;
+        }
+
+        // Validate metadata JSON
+        let parsedMetadata: Record<string, any> | undefined;
+        if (metadata.trim() && metadata.trim() !== '{}') {
+            try {
+                parsedMetadata = JSON.parse(metadata);
+            } catch (error) {
+                toast({ title: "Validation Error", description: "Metadata must be valid JSON.", variant: "destructive" });
+                setIsSubmitting(false);
+                return;
+            }
         }
 
         try {
@@ -209,6 +248,8 @@ export default function CreateKmsKeyPage() {
                 name: keyName.trim(),
                 algorithm: keyType,
                 size: sizeValue,
+                ...(tags.length > 0 && { tags }),
+                ...(parsedMetadata && Object.keys(parsedMetadata).length > 0 && { metadata: parsedMetadata }),
             };
             
             await createKmsKey(payload, user.access_token);
@@ -242,6 +283,18 @@ export default function CreateKmsKeyPage() {
         return;
       }
 
+      // Validate metadata JSON
+      let parsedMetadata: Record<string, any> | undefined;
+      if (metadata.trim() && metadata.trim() !== '{}') {
+          try {
+              parsedMetadata = JSON.parse(metadata);
+          } catch (error) {
+              toast({ title: "Validation Error", description: "Metadata must be valid JSON.", variant: "destructive" });
+              setIsSubmitting(false);
+              return;
+          }
+      }
+
       try {
         // Convert PEM to base64
         const privateKeyBase64 = btoa(privateKeyPem.trim());
@@ -250,6 +303,8 @@ export default function CreateKmsKeyPage() {
           private_key: privateKeyBase64,
           engine_id: cryptoEngineId,
           name: importKeyName.trim(),
+          ...(tags.length > 0 && { tags }),
+          ...(parsedMetadata && Object.keys(parsedMetadata).length > 0 && { metadata: parsedMetadata }),
         };
         
         await importKmsKey(payload, user.access_token);
@@ -434,6 +489,59 @@ export default function CreateKmsKeyPage() {
                         <p className="text-sm text-muted-foreground mt-1">Please select a key type first</p>
                       )}
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Tags and Metadata - Common for newKeyPair and importKeyPair */}
+            {(selectedMode === 'newKeyPair' || selectedMode === 'importKeyPair') && (
+              <Card>
+                <SectionHeader icon={Tag} title="Tags & Metadata (Optional)" />
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label htmlFor="tags">Tags</Label>
+                    <TagInput
+                      id="tags"
+                      value={tags}
+                      onChange={setTags}
+                      placeholder="Add tags..."
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Add tags to categorize and filter keys (e.g., production, critical, us-east-1)
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="metadata">Metadata (JSON)</Label>
+                    <div className="mt-1">
+                      <MonacoEditor
+                        height="200px"
+                        defaultLanguage="json"
+                        value={metadata}
+                        onChange={handleMetadataChange}
+                        options={{
+                          minimap: { enabled: false },
+                          scrollBeyondLastLine: false,
+                          fontSize: 13,
+                          lineNumbers: 'on',
+                          automaticLayout: true,
+                          tabSize: 2,
+                          formatOnPaste: true,
+                          formatOnType: true,
+                        }}
+                        theme="vs-dark"
+                      />
+                    </div>
+                    {metadataError && (
+                      <Alert variant="destructive" className="mt-2">
+                        <AlertDescription>{metadataError}</AlertDescription>
+                      </Alert>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Define custom metadata as JSON (e.g., owner, project, cost-center)
+                    </p>
                   </div>
                 </CardContent>
               </Card>
