@@ -329,7 +329,7 @@ export default function DeviceDetailsClient() {
                 const certPromises = serialsToFetch.map(serialNumber => 
                     fetchIssuedCertificates({
                         accessToken: user.access_token!,
-                        apiQueryString: `filter=serial_number[equal]${serialNumber}&page_size=1`
+                        apiQueryString: `filter=serial_number[equal_ignorecase]${serialNumber}&page_size=1`
                     }).then(result => result.certificates[0])
                 );
                 
