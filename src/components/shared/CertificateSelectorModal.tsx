@@ -101,9 +101,9 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
       }
       if (debouncedSearchTerm.trim() !== '') {
         if (searchField === 'commonName') {
-          filtersToApply.push(`subject.common_name[contains]${debouncedSearchTerm.trim()}`);
+          filtersToApply.push(`subject.common_name[contains_ignorecase]${debouncedSearchTerm.trim()}`);
         } else if (searchField === 'serialNumber') {
-          filtersToApply.push(`serial_number[contains]${debouncedSearchTerm.trim()}`);
+          filtersToApply.push(`serial_number[contains_ignorecase]${debouncedSearchTerm.trim()}`);
         }
       }
       filtersToApply.forEach(f => params.append('filter', f));

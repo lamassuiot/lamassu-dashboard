@@ -270,7 +270,7 @@ export const InitializationWizard: React.FC = () => {
                     const createdCaList = await fetchAndProcessCAs(user.access_token, `filter=id[equal]${testCaId}`);
                     const { certificates } = await fetchIssuedCertificates({
                         accessToken: user.access_token,
-                        apiQueryString: `filter=serial_number[equal]${issuedCertSerialNumber}&page_size=1`
+                        apiQueryString: `filter=serial_number[equal_ignorecase]${issuedCertSerialNumber}&page_size=1`
                     });
                     const issuedCertDetails = certificates[0];
                     if (!issuedCertDetails?.pemData || createdCaList.length === 0 || !createdCaList[0].pemData) {

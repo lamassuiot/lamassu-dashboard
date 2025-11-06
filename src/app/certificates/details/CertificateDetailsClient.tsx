@@ -138,7 +138,7 @@ export default function CertificateDetailsClient() { // Renamed component
       const apiFormattedSerialNumber = certificateId.replace(/:/g, '');
       const { certificates: certList } = await fetchIssuedCertificates({ 
           accessToken: user.access_token, 
-          apiQueryString: `filter=serial_number[equal]${apiFormattedSerialNumber}&page_size=1`
+          apiQueryString: `filter=serial_number[equal_ignorecase]${apiFormattedSerialNumber}&page_size=1`
       });
       const foundCert = certList.length > 0 ? certList[0] : null;
       
