@@ -190,7 +190,7 @@ export default function DevicesPage() {
         
         const filtersToApply: string[] = [];
         if (dmsOwnerFilter) filtersToApply.push(`dms_owner[equal]${dmsOwnerFilter}`);
-        if (debouncedSearchTerm.trim() !== '') filtersToApply.push(`${searchField}[contains]${debouncedSearchTerm.trim()}`);
+        if (debouncedSearchTerm.trim() !== '') filtersToApply.push(`${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
         if (statusFilter !== 'ALL') filtersToApply.push(`status[equal]${statusFilter}`);
         filtersToApply.forEach(f => params.append('filter', f));
 
