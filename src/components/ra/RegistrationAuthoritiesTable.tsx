@@ -7,12 +7,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10 } from "lucide-react";
+import { MoreVertical, Edit, Trash2, BookText, TerminalSquare, Router as RouterIcon, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, Settings2 } from "lucide-react";
 import type { ApiRaItem } from '@/lib/dms-api';
 import { cn } from '@/lib/utils';
 import type { SortableColumn, SortDirection } from '@/app/registration-authorities/page';
+import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { format, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import type { CA } from '@/lib/ca-data';
+import { findCaById } from '@/lib/ca-data';
+import type { ApiCryptoEngine } from '@/types/crypto-engine';
+import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 
 interface SortConfig {
   column: SortableColumn;
@@ -22,6 +28,8 @@ interface SortConfig {
 interface RegistrationAuthoritiesTableProps {
   ras: ApiRaItem[];
   getCaNameById: (caId: string) => string;
+  allCAs: CA[];
+  allCryptoEngines?: ApiCryptoEngine[];
   onEdit: (raId: string) => void;
   onViewDevices: (raId: string) => void;
   onShowMetadata: (ra: ApiRaItem) => void;
@@ -52,8 +60,11 @@ const SortableTableHeader: React.FC<{
     }
     
     return (
-        <TableHead className={cn("cursor-pointer hover:bg-muted/50", className)} onClick={() => onSort(column)}>
-            <div className="flex items-center gap-1">
+        <TableHead className={cn("cursor-pointer hover:bg-muted/50", 
+          column === 'creation_ts' && "text-center", 
+          className)} onClick={() => onSort(column)}>
+            <div className={cn("flex items-center gap-1", 
+              column === 'creation_ts' && "justify-center")}>
                 {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
             </div>
         </TableHead>
@@ -64,6 +75,8 @@ const SortableTableHeader: React.FC<{
 export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTableProps> = ({
   ras,
   getCaNameById,
+  allCAs,
+  allCryptoEngines,
   onEdit,
   onViewDevices,
   onShowMetadata,
@@ -81,9 +94,10 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
         <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-12"></TableHead>
             <SortableTableHeader column="name" title="Name" onSort={requestSort} sortConfig={sortConfig} />
             <TableHead className="hidden md:table-cell">Registration Mode</TableHead>
-            <TableHead>Enrollment CA</TableHead>
+            <TableHead className="min-w-[280px]">Enrollment CA</TableHead>
             <TableHead className="hidden lg:table-cell">Auth Mode</TableHead>
             <SortableTableHeader column="creation_ts" title="Created At" onSort={requestSort} sortConfig={sortConfig} />
             <TableHead className="text-right">Actions</TableHead>
@@ -92,20 +106,63 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
         <TableBody>
           {ras.map((ra) => (
             <TableRow key={ra.id}>
-              <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">{ra.name}</TableCell>
-              <TableCell className="hidden md:table-cell">
-                <Badge variant="outline">{ra.settings.enrollment_settings.registration_mode}</Badge>
+              <TableCell className="w-12">
+                <div className="flex justify-center">
+                  {(() => {
+                    const profile = ra.settings.enrollment_settings.device_provisioning_profile;
+                    const IconComponent = getLucideIconByName(profile.icon);
+                    const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
+                    
+                    return (
+                      <div className="p-2 rounded-md flex-shrink-0" style={{ backgroundColor: bgColor }}>
+                        {IconComponent ? (
+                          <IconComponent className="h-5 w-5" style={{ color: iconColor }} />
+                        ) : (
+                          <Settings2 className="h-5 w-5 text-primary" />
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
               </TableCell>
-              <TableCell className="truncate max-w-[200px]">
-                <span className="truncate" title={getCaNameById(ra.settings.enrollment_settings.enrollment_ca)}>
-                  {getCaNameById(ra.settings.enrollment_settings.enrollment_ca)}
-                </span>
+              <TableCell className="font-medium max-w-[150px] sm:max-w-xs">
+                <div className="flex flex-col">
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto font-medium text-left justify-start truncate"
+                    onClick={() => onEdit(ra.id)}
+                    title={`Edit ${ra.name}`}
+                  >
+                    <span className="truncate">{ra.name}</span>
+                  </Button>
+                  <span className="text-xs text-muted-foreground truncate" title={ra.id}>{ra.id}</span>
+                </div>
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                <Badge variant="secondary">{ra.settings.enrollment_settings.registration_mode}</Badge>
+              </TableCell>
+              <TableCell className="max-w-[280px]">
+                {(() => {
+                  const ca = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
+                  return ca ? (
+                    <CaVisualizerCard 
+                      ca={ca} 
+                      allCryptoEngines={allCryptoEngines}
+                      onClick={(selectedCa) => router.push(`/certificate-authorities/details?caId=${selectedCa.id}`)}
+                      className="min-w-0 !bg-transparent !border-0 !shadow-none hover:!bg-muted/50"
+                    />
+                  ) : (
+                    <span className="text-muted-foreground text-sm">
+                      CA not found: {ra.settings.enrollment_settings.enrollment_ca}
+                    </span>
+                  );
+                })()}
               </TableCell>
               <TableCell className="hidden lg:table-cell">
                 <Badge variant="secondary">{ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode?.replace('_', ' ') || 'N/A'}</Badge>
               </TableCell>
               <TableCell>
-                {format(parseISO(ra.creation_ts), 'MMM dd, yyyy')}
+                <DateDisplay date={ra.creation_ts} />
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>

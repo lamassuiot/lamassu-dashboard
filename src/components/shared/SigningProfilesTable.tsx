@@ -84,7 +84,16 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
         <TableBody>
           {profiles.map((profile) => (
             <TableRow key={profile.id}>
-              <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">{profile.name}</TableCell>
+              <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
+                <Button
+                  variant="link"
+                  className="p-0 h-auto font-medium text-left justify-start truncate"
+                  onClick={() => onEdit(profile.id)}
+                  title={`Edit ${profile.name}`}
+                >
+                  <span className="truncate">{profile.name}</span>
+                </Button>
+              </TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground truncate max-w-[200px]">
                 {profile.description}
               </TableCell>
@@ -95,6 +104,7 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
                   {profile.honor_subject && <Badge variant="outline">Honor Subject</Badge>}
                   {profile.honor_key_usage && <Badge variant="outline">Honor KU</Badge>}
                   {profile.honor_extended_key_usages && <Badge variant="outline">Honor EKU</Badge>}
+                  {profile.honor_extensions && <Badge variant="outline">Honor Ext</Badge>}
                 </div>
               </TableCell>
               <TableCell className="hidden xl:table-cell">

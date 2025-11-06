@@ -13,6 +13,7 @@ import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } fr
 import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { CompactDateDisplay, DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from 'lucide-react';
 import { TimelineEventItem, type TimelineEventDisplayData } from '@/components/devices/TimelineEventItem';
@@ -665,7 +666,11 @@ export default function DeviceDetailsClient() {
               <div className="flex items-center space-x-2 mt-1">
                 <DeviceStatusBadge status={device.status as any} />
                 <span className="text-xs text-muted-foreground">
-                  Created: {format(creationDate, 'dd MMM yyyy, HH:mm')} ({formatDistanceToNowStrict(creationDate)} ago)
+                  Created: <CompactDateDisplay 
+                    date={device.creation_timestamp} 
+                    formatString="dd MMM yyyy, HH:mm"
+                    className="inline"
+                  />
                 </span>
               </div>
             </div>
@@ -774,8 +779,8 @@ export default function DeviceDetailsClient() {
                         <TableHead>Status</TableHead>
                         <TableHead className="hidden md:table-cell">Common Name</TableHead>
                         <TableHead className="hidden lg:table-cell">CA</TableHead>
-                        <TableHead className="hidden lg:table-cell">Valid From</TableHead>
-                        <TableHead className="hidden lg:table-cell">Valid To</TableHead>
+                        <TableHead className="hidden lg:table-cell text-center">Valid From</TableHead>
+                        <TableHead className="hidden lg:table-cell text-center">Valid To</TableHead>
                         <TableHead className="hidden md:table-cell">Lifespan</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -828,8 +833,8 @@ export default function DeviceDetailsClient() {
                                 cert.ca
                                 )}
                           </TableCell>
-                          <TableCell className="hidden lg:table-cell">{format(parseISO(cert.validFrom), 'dd/MM/yy HH:mm')}</TableCell>
-                          <TableCell className="hidden lg:table-cell">{format(parseISO(cert.validTo), 'dd/MM/yy HH:mm')}</TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validFrom} formatString="dd/MM/yy HH:mm" className="text-xs" /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString="dd/MM/yy HH:mm" className="text-xs" highlightExpired /></TableCell>
                           <TableCell className="hidden md:table-cell">{cert.lifespan}</TableCell>
                           <TableCell>
                             <Button variant="ghost" size="icon" title="View Certificate Details" onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>

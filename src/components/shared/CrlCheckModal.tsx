@@ -16,6 +16,20 @@ import { DetailItem } from './DetailItem';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { revocationReasons } from '@/lib/revocation-reasons';
+
+// Integer to label mapping for DER-encoded CRL reason codes
+const crlReasonCodeMap: { [key: number]: string } = {
+  0: "Unspecified",
+  1: "KeyCompromise", 
+  2: "CACompromise",
+  3: "AffiliationChanged",
+  4: "Superseded",
+  5: "CessationOfOperation",
+  6: "CertificateHold",
+  8: "RemoveFromCRL",
+  9: "PrivilegeWithdrawn",
+  10: "AACompromise"
+};
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
 
 interface CrlCheckModalProps {
@@ -115,7 +129,7 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
               const crlEntryExtension = cert.crlEntryExtensions?.extensions.find((ext: any) => ext.extnID === "2.5.29.21"); // id-ce-cRLReason
               if(crlEntryExtension) {
                 const reasonCode = (crlEntryExtension.parsedValue.valueBlock.valueDec);
-                return revocationReasons.find(r => parseInt(r.value, 10) === reasonCode)?.label || `Unknown (${reasonCode})`;
+                return crlReasonCodeMap[reasonCode] || `Unknown (${reasonCode})`;
               }
               return 'N/A';
             }
@@ -218,7 +232,7 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Serial Number</TableHead>
-                                                <TableHead>Revocation Date</TableHead>
+                                                <TableHead className="text-center">Revocation Date</TableHead>
                                                 <TableHead>Reason</TableHead>
                                             </TableRow>
                                         </TableHeader>

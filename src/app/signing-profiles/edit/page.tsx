@@ -108,6 +108,7 @@ export default function EditSigningProfilePage() {
         keyUsages: (profile.key_usage || []) as any[],
         honorExtendedKeyUsages: profile.honor_extended_key_usages,
         extendedKeyUsages: (profile.extended_key_usages || []) as any[],
+        honorExtensions: profile.honor_extensions,
     };
   };
 
@@ -138,7 +139,7 @@ export default function EditSigningProfilePage() {
         honor_extended_key_usages: data.honorExtendedKeyUsages,
         extended_key_usages: data.extendedKeyUsages || [],
         honor_subject: data.honorSubject,
-        honor_extensions: true,
+        honor_extensions: data.honorExtensions,
         crypto_enforcement: {
             enabled: data.cryptoEnforcement.enabled,
             allow_rsa_keys: data.cryptoEnforcement.allowRsa,

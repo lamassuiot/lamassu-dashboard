@@ -37,7 +37,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format, parseISO } from 'date-fns';
 import { cn, getCookie, setCookie } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
-import { findCaById, fetchAndProcessCAs } from '@/lib/ca-data';
+import { findCaById, fetchAndProcessCAs, fetchCryptoEngines } from '@/lib/ca-data';
+import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
@@ -91,6 +92,7 @@ export default function RegistrationAuthoritiesPage() {
   
   const [ras, setRas] = useState<ApiRaItem[]>([]);
   const [allCAs, setAllCAs] = useState<CA[]>([]);
+  const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -194,15 +196,19 @@ export default function RegistrationAuthoritiesPage() {
             params.append('filter', `name[contains]${debouncedSearchTerm.trim()}`);
         }
 
-        const [raData, caData] = await Promise.all([
+        const [raData, caData, cryptoEnginesData] = await Promise.all([
             fetchRegistrationAuthorities(user.access_token, params),
             allCAs.length === 0 ? fetchAndProcessCAs(user.access_token) : Promise.resolve(null),
+            allCryptoEngines.length === 0 ? fetchCryptoEngines(user.access_token) : Promise.resolve(null),
         ]);
 
         setRas(raData.list || []);
         setNextTokenFromApi(raData.next || null);
         if (caData) {
             setAllCAs(caData);
+        }
+        if (cryptoEnginesData) {
+            setAllCryptoEngines(cryptoEnginesData);
         }
 
     } catch (err: any) {
@@ -438,6 +444,8 @@ export default function RegistrationAuthoritiesPage() {
         <RegistrationAuthoritiesTable
             ras={filteredRas}
             getCaNameById={getCaNameById}
+            allCAs={allCAs}
+            allCryptoEngines={allCryptoEngines}
             onEdit={(raId) => router.push(`/registration-authorities/new?raId=${raId}`)}
             onViewDevices={(raId) => router.push(`/devices?dms_owner=${raId}`)}
             onShowMetadata={handleShowMetadata}
@@ -446,7 +454,6 @@ export default function RegistrationAuthoritiesPage() {
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
-            router={router}
         />
       ) : (
         <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
@@ -659,7 +666,7 @@ export default function RegistrationAuthoritiesPage() {
         onCaSelected={(ca) => { setCaFilterId(ca.id); setIsCaSelectorOpen(false); }}
         currentSelectedCaId={caFilterId}
         isAuthLoading={authLoading}
-        allCryptoEngines={[]}
+        allCryptoEngines={allCryptoEngines}
     />
       <EstEnrollModal
           isOpen={isEnrollModalOpen}

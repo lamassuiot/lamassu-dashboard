@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 
 interface CertificateDetailsModalProps {
   certificate: CertificateData | null;
@@ -55,8 +56,8 @@ export function CertificateDetailsModal({ certificate, isOpen, onClose }: Certif
             <DetailItem label="Subject" value={certificate.subject} />
             <DetailItem label="Issuer" value={certificate.issuer} />
             <DetailItem label="Serial Number" value={certificate.serialNumber} />
-            <DetailItem label="Valid From" value={format(new Date(certificate.validFrom), 'PPpp')} />
-            <DetailItem label="Valid To" value={format(new Date(certificate.validTo), 'PPpp')} />
+            <DetailItem label="Valid From" value={<DateDisplay date={certificate.validFrom} formatString="PPpp" />} />
+            <DetailItem label="Valid To" value={<DateDisplay date={certificate.validTo} formatString="PPpp" highlightExpired />} />
             <DetailItem label="Status" value={<ApiStatusBadge status={certificate.apiStatus} />} />
             
             {certificate.publicKeyAlgorithm && <DetailItem label="Public Key Algorithm" value={certificate.publicKeyAlgorithm} />}

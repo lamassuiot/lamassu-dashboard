@@ -70,6 +70,8 @@ export const signingProfileSchema = z.object({
 
   honorExtendedKeyUsages: z.boolean().default(false),
   extendedKeyUsages: z.array(z.enum(extendedKeyUsageOptions)).optional().default([]),
+
+  honorExtensions: z.boolean().default(true),
 });
 
 export type SigningProfileFormValues = z.infer<typeof signingProfileSchema>;
@@ -95,6 +97,7 @@ export const defaultFormValues: SigningProfileFormValues = {
   keyUsages: [],
   honorExtendedKeyUsages: true,
   extendedKeyUsages: [],
+  honorExtensions: true,
 };
 
 export const templateDefaults: Record<string, Partial<SigningProfileFormValues>> = {
@@ -107,6 +110,7 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
     extendedKeyUsages: ['ClientAuth', 'ServerAuth'],
     honorKeyUsage: false,
     honorExtendedKeyUsages: false,
+    honorExtensions: true,
   },
   'code-signing': {
     profileName: 'Code Signing Profile',
@@ -117,6 +121,7 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
     extendedKeyUsages: ['CodeSigning'],
     honorKeyUsage: false,
     honorExtendedKeyUsages: false,
+    honorExtensions: true,
   },
   'server-cert': {
     profileName: 'TLS Web Server Profile',
@@ -127,6 +132,7 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
     extendedKeyUsages: ['ServerAuth'],
     honorKeyUsage: false,
     honorExtendedKeyUsages: false,
+    honorExtensions: true,
   },
   'ca-cert': {
     profileName: 'Intermediate CA Profile',
@@ -138,6 +144,7 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
     extendedKeyUsages: [],
     honorKeyUsage: false,
     honorExtendedKeyUsages: false,
+    honorExtensions: true,
   },
 };
 
@@ -451,6 +458,13 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form }) 
               />
             </div>
           )}
+
+          <SwitchFormField
+            control={form.control}
+            name="honorExtensions"
+            label="Honor Certificate Extensions From CSR"
+            description="Preserve certificate extensions from the Certificate Signing Request (CSR). Currently, only Subject Alternative Name (SAN) extensions are supported. Note: Key Usage (KU) and Extended Key Usage (EKU) extensions have their own dedicated switches above."
+          />
         </CardContent>
       </Card>
     </div>

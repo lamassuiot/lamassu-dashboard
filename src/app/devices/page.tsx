@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare } from "lucide-react";
 import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
@@ -261,8 +262,11 @@ export default function DevicesPage() {
 
 
     return (
-      <TableHead className={cn("cursor-pointer hover:bg-muted/60", className)} onClick={() => requestSort(column)}>
-        <div className="flex items-center gap-1">
+      <TableHead className={cn("cursor-pointer hover:bg-muted/60", 
+        column === 'createdAt' && "text-center", 
+        className)} onClick={() => requestSort(column)}>
+        <div className={cn("flex items-center gap-1", 
+          column === 'createdAt' && "justify-center")}>
           {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
         </div>
       </TableHead>
@@ -470,10 +474,12 @@ export default function DevicesPage() {
                       <TableCell><StatusBadge status={device.status} /></TableCell>
                       <TableCell><Badge variant="secondary" className="truncate" title={device.deviceGroup}>{device.deviceGroup}</Badge></TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                            <span className="text-xs">{format(parseISO(device.createdAt), 'dd/MM/yyyy HH:mm')}</span>
-                            <span className="text-xs text-muted-foreground">{formatDistanceToNowStrict(parseISO(device.createdAt))} ago</span>
-                        </div>
+                        <DateDisplay 
+                          date={device.createdAt} 
+                          formatString="dd/MM/yyyy HH:mm"
+                          className="text-xs"
+                          relativeClassName="text-xs"
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">

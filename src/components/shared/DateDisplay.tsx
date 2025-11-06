@@ -1,0 +1,107 @@
+"use client";
+
+import React from 'react';
+import { format, parseISO, formatDistanceToNow, isPast } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+interface DateDisplayProps {
+  date: string; // ISO date string
+  formatString?: string; // date-fns format string, defaults to 'MMM dd, yyyy'
+  className?: string;
+  showRelative?: boolean; // Whether to show relative time, defaults to true
+  relativeClassName?: string; // Additional className for relative time
+  highlightExpired?: boolean; // Whether to highlight expired dates in red, defaults to false
+}
+
+/**
+ * DateDisplay component that shows a formatted date with humanized relative time below it.
+ * Uses date-fns for consistent date handling across the application.
+ * 
+ * @param date - ISO date string to display
+ * @param formatString - Optional format string for the main date display (default: 'MMM dd, yyyy')
+ * @param className - Optional className for the container
+ * @param showRelative - Whether to show relative time (default: true)
+ * @param relativeClassName - Optional className for the relative time text
+ * @param highlightExpired - Whether to highlight expired dates in red (default: false)
+ */
+export const DateDisplay: React.FC<DateDisplayProps> = ({
+  date,
+  formatString = 'MMM dd, yyyy',
+  className,
+  showRelative = true,
+  relativeClassName,
+  highlightExpired = false
+}) => {
+  if (!date) {
+    return <span className={className}>-</span>;
+  }
+
+  try {
+    const parsedDate = parseISO(date);
+    const formattedDate = format(parsedDate, formatString);
+    
+    if (!showRelative) {
+      return <span className={className}>{formattedDate}</span>;
+    }
+
+    const relativeTime = formatDistanceToNow(parsedDate, { addSuffix: true });
+    const isExpired = isPast(parsedDate);
+    
+    return (
+      <div className={cn("flex flex-col items-center text-center", className)}>
+        <span className={cn("font-medium", highlightExpired && isExpired && "text-red-500")}>{formattedDate}</span>
+        <span 
+          className={cn(
+            "text-xs text-muted-foreground",
+            highlightExpired && isExpired && "text-red-500",
+            relativeClassName
+          )}
+        >
+          {relativeTime}
+        </span>
+      </div>
+    );
+  } catch (error) {
+    console.error('DateDisplay: Invalid date format:', date, error);
+    return <span className={className}>Invalid date</span>;
+  }
+};
+
+/**
+ * Compact version that shows only relative time with a tooltip showing the full date
+ */
+export const CompactDateDisplay: React.FC<DateDisplayProps & { tooltipFormatString?: string }> = ({
+  date,
+  formatString = 'PPP', // Full date format for tooltip
+  className,
+  tooltipFormatString,
+  highlightExpired = false,
+  ...props
+}) => {
+  if (!date) {
+    return <span className={className}>-</span>;
+  }
+
+  try {
+    const parsedDate = parseISO(date);
+    const relativeTime = formatDistanceToNow(parsedDate, { addSuffix: true });
+    const tooltipDate = format(parsedDate, tooltipFormatString || formatString);
+    const isExpired = isPast(parsedDate);
+    
+    return (
+      <span 
+        className={cn(
+          "text-sm cursor-help text-center",
+          highlightExpired && isExpired && "text-red-500",
+          className
+        )}
+        title={tooltipDate}
+      >
+        {relativeTime}
+      </span>
+    );
+  } catch (error) {
+    console.error('CompactDateDisplay: Invalid date format:', date, error);
+    return <span className={className}>Invalid date</span>;
+  }
+};

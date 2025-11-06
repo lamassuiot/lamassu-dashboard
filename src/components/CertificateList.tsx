@@ -16,6 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
@@ -81,8 +82,11 @@ export function CertificateList({
     }
     
     return (
-      <TableHead className={cn("cursor-pointer hover:bg-muted/50", className)} onClick={() => requestSort(column)}>
-        <div className="flex items-center gap-1">
+      <TableHead className={cn("cursor-pointer hover:bg-muted/50", 
+        (column === 'validFrom' || column === 'expires') && "text-center", 
+        className)} onClick={() => requestSort(column)}>
+        <div className={cn("flex items-center gap-1", 
+          (column === 'validFrom' || column === 'expires') && "justify-center")}>
           {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
         </div>
       </TableHead>
@@ -247,8 +251,8 @@ export function CertificateList({
                       issuerDisplayName
                     )}
                   </TableCell>}{/*
-                  */}<TableCell>{format(parseISO(cert.validFrom), 'MMM dd, yyyy')}</TableCell>{/*
-                  */}<TableCell>{format(parseISO(cert.validTo), 'MMM dd, yyyy')}</TableCell>{/*
+                  */}<TableCell><DateDisplay date={cert.validFrom} /></TableCell>{/*
+                  */}<TableCell><DateDisplay date={cert.validTo} highlightExpired /></TableCell>{/*
                   */}<TableCell>
                     <ApiStatusBadge status={cert.apiStatus} />
                   </TableCell>{/*
