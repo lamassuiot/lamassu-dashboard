@@ -256,7 +256,7 @@ export default function DeviceDetailsClient() {
             const certPromises = pageIdentities.map(async ({ version, serialNumber }) => {
                 const { certificates } = await fetchIssuedCertificates({
                     accessToken: user.access_token!,
-                    apiQueryString: `filter=serial_number[equal]${serialNumber}&page_size=1`
+                    apiQueryString: `filter=serial_number[equal_ignorecase]${serialNumber}&page_size=1`
                 });
                 const certData = certificates[0];
                 if (!certData) return null;
