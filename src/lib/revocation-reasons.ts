@@ -1,69 +1,59 @@
 
 export interface RevocationReason {
-  value: int;
+  value: string;
   label: string;
   description: string;
 }
 
 export const revocationReasons: RevocationReason[] = [
   {
-    value: 0,
+    value: "Unspecified",
     label: "Unspecified",
     description: "Revocation occurred for a reason that has no more specific value.",
   },
   {
-    value: 1,
+    value: "KeyCompromise",
     label: "KeyCompromise",
     description: "The private key, or another validated portion of an end-entity certificate, is suspected to have been compromised.",
   },
   {
-    value: 2,
+    value: "CACompromise",
     label: "CACompromise",
     description: "The private key, or another validated portion of a Certificate Authority (CA) certificate, is suspected to have been compromised.",
   },
   {
-    value: 3,
+    value: "AffiliationChanged",
     label: "AffiliationChanged",
     description: "The subject's name, or other validated information in the certificate, has changed without anything being compromised.",
   },
   {
-    value: 4,
+    value: "Superseded",
     label: "Superseded",
     description: "The certificate has been superseded, but without anything being compromised.",
   },
   {
-    value: 5,
+    value: "CessationOfOperation",
     label: "CessationOfOperation",
     description: "The certificate is no longer needed, but nothing is suspected to be compromised.",
   },
   {
-    value: 6,
+    value: "CertificateHold",
     label: "CertificateHold",
     description: "The certificate is temporarily suspended, and may either return to service or become permanently revoked in the future.",
   },
   {
-    value: 7,
-    label: "Unexpected value",
-    description: "(7) is reserved and not used by RFC.",
-  },
-  {
-    value: 8,
+    value: "RemoveFromCRL",
     label: "RemoveFromCRL",
     description: "The certificate was revoked with CertificateHold on a base Certificate Revocation List (CRL) and is being returned to service on a delta CRL.",
   },
   {
-    value: 9,
+    value: "PrivilegeWithdrawn",
     label: "PrivilegeWithdrawn",
     description: "A privilege contained within the certificate has been withdrawn.",
   },
   {
-    value: 10,
+    value: "AACompromise",
     label: "AACompromise",
     description: "It is known, or suspected, that aspects of the Attribute Authority (AA) validated in the attribute certificate have been compromised.",
-  },
-  {
-    value: 11,
-    label: "WeakAlgorithmOrKey",
-    description: "The certificate key uses a weak cryptographic algorithm, or the key is too short, or the key was generated in an unsafe manner.",
   },
 ];

@@ -15,6 +15,7 @@ import { DetailItem } from '@/components/shared/DetailItem';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
 import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { format, parseISO } from 'date-fns';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useAuth } from '@/contexts/AuthContext';
@@ -323,8 +324,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <DetailItem label="Subject" value={certDetails.subject} />
             <DetailItem label="Issuer" value={certDetails.issuer} />
             <DetailItem label="Serial Number" value={certDetails.serialNumber} isMono />
-            <DetailItem label="Valid From" value={format(parseISO(certDetails.validFrom), 'PPpp')} />
-            <DetailItem label="Valid To" value={format(parseISO(certDetails.validTo), 'PPpp')} />
+            <DetailItem label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString="PPpp" />} />
+            <DetailItem label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString="PPpp" highlightExpired />} />
           </AccordionContent>
         </AccordionItem>
 

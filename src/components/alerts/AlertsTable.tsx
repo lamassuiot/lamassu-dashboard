@@ -15,6 +15,7 @@ import type { AlertEvent, AlertSortConfig, SortableAlertColumn } from '@/app/ale
 import { Layers, ChevronDown, ChevronsUpDown, ArrowDownAZ, ArrowUpAZ, ArrowDown10, ArrowUp01 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from '../ui/textarea';
+import { CompactDateDisplay } from '@/components/shared/DateDisplay';
 
 interface AlertsTableProps {
   events: AlertEvent[];
@@ -100,7 +101,7 @@ export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscription
                   </div>
                 </TableCell>{/*
                 */}<TableCell>
-                  {formatDistanceToNow(new Date(event.lastSeen), { addSuffix: true })}
+                  <CompactDateDisplay date={event.lastSeen} />
                 </TableCell>{/*
                 */}<TableCell>{event.eventCounter.toLocaleString()}</TableCell>{/*
                 */}<TableCell>
