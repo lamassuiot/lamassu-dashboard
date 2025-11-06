@@ -258,3 +258,23 @@ export async function updateKeyTags(keyId: string, tags: string[], accessToken: 
         throw new Error(errorMessage);
     }
 }
+
+export async function updateKeyTags(keyId: string, tags: string[], accessToken: string): Promise<void> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/tags`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ tags })
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to update key tags. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Tag update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
