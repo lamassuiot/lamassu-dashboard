@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, FileCode, MessageSquare } from 'lucide-react';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +56,9 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { BackendStatusDialog } from '@/components/shared/BackendStatusDialog';
+import { AIChatDialog } from '@/components/shared/AIChatDialog';
+import { AIChatSidebar } from '@/components/shared/AIChatSidebar';
+import { AIChatFloatingButton } from '@/components/shared/AIChatFloatingButton';
 import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
@@ -87,6 +90,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'alerts': "Alerts",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
+  'openapi-spec': "OpenAPI Spec",
 };
 
 interface NavItem {
@@ -136,6 +140,7 @@ const navigationConfig: NavGroup[] = [
     label: 'TOOLS',
     items: [
       { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
+      { href: '/openapi-spec', label: 'OpenAPI Spec', icon: FileCode },
     ],
   },
 ];
@@ -228,6 +233,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
 
   const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
   let userRoles: string[] = [];
@@ -318,6 +324,16 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                     <DropdownMenuItem onSelect={() => setIsStatusModalOpen(true)}>
                       <Info className="mr-2 h-4 w-4" />
                       <span>Backend Services</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setIsChatModalOpen(true)}>
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      <span>AI Assistant</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/openapi-spec">
+                        <FileCode className="mr-2 h-4 w-4" />
+                        <span>OpenAPI Spec</span>
+                      </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={handleRunWizard}>
                         <PlaySquare className="mr-2 h-4 w-4" />
@@ -491,8 +507,34 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
         </DialogContent>
       </Dialog>
       <BackendStatusDialog isOpen={isStatusModalOpen} onOpenChange={setIsStatusModalOpen} />
+      <AIChatDialog isOpen={isChatModalOpen} onOpenChange={setIsChatModalOpen} />
       <VersionInfoDialog isOpen={isVersionModalOpen} onOpenChange={setIsVersionModalOpen} versionInfo={VERSION_INFO} />
     </SidebarProvider>
+  );
+};
+
+
+const RootLayoutWrapper = ({ children }: { children: React.ReactNode }) => {
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+
+  return (
+    <div className="relative flex h-screen overflow-hidden">
+      {/* Main content area with transition */}
+      <div 
+        className={`flex-1 transition-all duration-300 ease-in-out ${
+          isAIChatOpen ? 'mr-[500px] sm:mr-[500px] md:mr-[600px] lg:mr-[700px]' : 'mr-0'
+        }`}
+      >
+        <InnerLayout>{children}</InnerLayout>
+      </div>
+
+      {/* AI Chat Sidebar and Floating Button */}
+      <AIChatSidebar isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
+      <AIChatFloatingButton 
+        isOpen={isAIChatOpen}
+        onClick={() => setIsAIChatOpen(!isAIChatOpen)} 
+      />
+    </div>
   );
 };
 
@@ -610,7 +652,7 @@ export default function RootLayout({
         <ConfigProvider>
           <AuthProvider>
             <React.Suspense fallback={<LoadingState />}>
-              <InnerLayout>{children}</InnerLayout>
+              <RootLayoutWrapper>{children}</RootLayoutWrapper>
             </React.Suspense>
             <Toaster />
           </AuthProvider>
