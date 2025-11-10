@@ -60,13 +60,14 @@ export default function DeviceDetailsClient() {
   const searchParams = useSearchParams(); 
   const routerHook = useRouter();
   const deviceId = searchParams.get('deviceId'); 
+  const tabParam = searchParams.get('tab');
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
   const [errorDevice, setErrorDevice] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('certificatesHistory');
+  const [activeTab, setActiveTab] = useState(tabParam || 'certificatesHistory');
   
   const [fullCertificateIdentityList, setFullCertificateIdentityList] = useState<{ version: string; serialNumber: string }[]>([]);
   
@@ -178,6 +179,13 @@ export default function DeviceDetailsClient() {
       }
     }
   }, [jobs, selectedWorkflowName]);
+
+  // Handle tab parameter from URL
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
   
   // State for integrations and force update
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);

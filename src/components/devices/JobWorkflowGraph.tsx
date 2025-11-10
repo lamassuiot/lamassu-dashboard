@@ -303,8 +303,8 @@ const LeftDownEdge = (props: any) => {
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{
-            fill: '#999',
-            stroke: '#999',
+            fill: 'hsl(var(--muted-foreground))',
+            stroke: 'hsl(var(--muted-foreground))',
             animation: 'currentMarkerPulse 2s ease-in-out infinite'
           }}
         />
@@ -402,8 +402,8 @@ const VerticalConnectionEdge = (props: any) => {
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{
-            fill: '#999',
-            stroke: '#999',
+            fill: 'hsl(var(--muted-foreground))',
+            stroke: 'hsl(var(--muted-foreground))',
             animation: 'currentMarkerPulse 2s ease-in-out infinite'
           }}
         />
@@ -566,16 +566,16 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
       
       let strokeWidth = 2;
       
-      if (isActualTerminalPath) {
-        // Actual terminal path: red color and thicker
-        stroke = '#ef4444';
+      if (isActualTerminalPath && edge.target === 'TERMINATED') {
+        // Actual terminal path to TERMINATED: red color and thicker
+        stroke = 'hsl(var(--destructive))';
         strokeWidth = 3; // Make red paths thicker
       } else if ((sourceVisited || wasSourceSkipped) && edge.target !== 'TERMINATED') {
-        // Source visited or skipped AND not going to TERMINATED: blue color
-        stroke = '#3b82f6'; // Blue for visited terminal edges (except TERMINATED)
+        // Source visited or skipped AND not going to TERMINATED: primary color
+        stroke = 'hsl(var(--primary))'; // Theme primary color for visited terminal edges (except TERMINATED)
       } else {
         // Not visited or going to TERMINATED: gray
-        stroke = '#999';
+        stroke = 'hsl(var(--muted-foreground))';
       }
 
       // Determine source handle based on target position
@@ -638,17 +638,17 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
       
       if (isCurrentEdge) {
         // Current state edge: will vibrate between visited (blue) and non-visited (gray) colors in component
-        stroke = '#3b82f6'; // Start with blue visited color
+        stroke = 'hsl(var(--primary))'; // Start with blue visited color
         animated = true;
         animationDuration = '1s'; // Faster vibration
       } else if ((sourceVisited || wasSourceSkipped) && (targetVisited || wasTargetSkipped)) {
         // Both states visited or skipped: blue color
-        stroke = '#3b82f6'; // Blue for visited edges
+        stroke = 'hsl(var(--primary))'; // Blue for visited edges
         animated = true;
         animationDuration = `${2 + (index % 3)}s`;
       } else {
         // Not visited: medium gray (previous color)
-        stroke = '#999';
+        stroke = 'hsl(var(--muted-foreground))';
         animated = true;
         animationDuration = `${2 + (index % 3)}s`;
       }
@@ -827,14 +827,14 @@ const CustomNode = ({
     // Terminal states that were reached - special colors
     if (label === 'TERMINATED') {
       // TERMINATED state when reached - red
-      backgroundColor = '#fef2f2'; // Light red background
-      borderColor = '#ef4444'; // Red border
-      textColor = '#dc2626'; // Dark red text
+      backgroundColor = 'hsl(var(--destructive) / 0.1)'; // Light red background
+      borderColor = 'hsl(var(--destructive))'; // Red border
+      textColor = 'hsl(var(--destructive))'; // Dark red text
     } else if (label === 'ACTIVATED') {
       // ACTIVATED state when reached - green
-      backgroundColor = '#f0fdf4'; // Light green background
-      borderColor = '#22c55e'; // Green border
-      textColor = '#16a34a'; // Dark green text
+      backgroundColor = 'hsl(var(--primary) / 0.1)'; // Light green background
+      borderColor = 'hsl(var(--primary))'; // Green border
+      textColor = 'hsl(var(--primary))'; // Dark green text
     } else {
       // Other terminal states - default terminal styling
       backgroundColor = 'hsl(var(--card))';
@@ -953,9 +953,14 @@ const CustomNode = ({
             <Check className="w-3 h-3 text-primary-foreground" />
           </div>
         )}
-        {(isTerminal && actuallyVisited) && (
-          <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
-            <X className="w-3 h-3 text-white" />
+        {(isTerminal && actuallyVisited && label === 'TERMINATED') && (
+          <div className="w-4 h-4 rounded-full bg-destructive flex items-center justify-center">
+            <X className="w-3 h-3 text-destructive-foreground" />
+          </div>
+        )}
+        {(isTerminal && actuallyVisited && label === 'ACTIVATED') && (
+          <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+            <CheckCircle className="w-3 h-3 text-primary-foreground" />
           </div>
         )}
         {!actuallyVisited && !wasSkipped && !isError && !isTerminal && !isCurrentState && (
@@ -968,13 +973,13 @@ const CustomNode = ({
               className="absolute -inset-0.5 rounded-full"
               style={{
                 border: '3px solid transparent',
-                borderTopColor: '#f59e0b', /* Orange/yellow color */
+                borderTopColor: 'hsl(var(--primary))', /* Primary color */
                 borderRadius: '50%',
                 animation: 'spin 2s linear infinite'
               }}
             />
             {/* Colored inner circle for current state */}
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#f59e0b' }} />
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'hsl(var(--primary))' }} />
           </>
         )}
       </div>
@@ -1092,10 +1097,9 @@ const CustomNode = ({
               {wasSkipped && <span className="text-green-600 font-medium">Skipped</span>}
               {isCurrentState && !wasSkipped && !isTerminal && <span className="text-blue-600 font-medium">Currently Active</span>}
               {isCurrentState && !wasSkipped && isTerminal && label === 'ACTIVATED' && <span className="text-green-600 font-medium">Activated</span>}
-              {isCurrentState && !wasSkipped && isTerminal && label === 'TERMINATED' && <span className="text-red-600 font-medium">Terminated</span>}
+              {isCurrentState && !wasSkipped && isTerminal && label === 'TERMINATED' && <span className="text-red-600 font-medium">Terminal State Reached</span>}
               {actuallyVisited && !isCurrentState && !wasSkipped && <span className="text-green-600 font-medium">Completed</span>}
               {!actuallyVisited && !isCurrentState && !wasSkipped && <span className="text-muted-foreground">Not Yet Reached</span>}
-              {isTerminal && actuallyVisited && <span className="text-red-600 font-medium">Terminal State Reached</span>}
             </div>
 
             {/* Duration */}

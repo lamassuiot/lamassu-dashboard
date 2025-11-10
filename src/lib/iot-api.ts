@@ -27,6 +27,62 @@ export async function deleteUpdatePackApi({ dmsId, packName, accessToken }: ApiP
   return handleApiError(response, `Failed to delete pack ${packName}`);
 }
 
+export async function fetchUpdatePackArtifacts({ dmsId, packName, accessToken }: ApiParams & { packName: string }): Promise<string[]> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/artifacts`, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch artifacts for pack ${packName}. HTTP error ${response.status}`);
+  }
+
+  // Try to parse as JSON
+  try {
+    const data = await response.json();
+    // Handle different response formats: direct array, {list: array}, or {artifacts: array}
+    if (Array.isArray(data)) {
+      return data;
+    }
+    return data.list || data.artifacts || [];
+  } catch (error) {
+    // If JSON parsing fails, try to parse as text that might be a JSON string
+    try {
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      return parsed.list || parsed.artifacts || [];
+    } catch (textError) {
+      console.error('Failed to parse artifacts response:', textError);
+      return [];
+    }
+  }
+}
+
+export async function fetchUpdatePackDescriptor({ dmsId, packName, accessToken }: ApiParams & { packName: string }): Promise<string> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/descriptor`, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch descriptor for pack ${packName}. HTTP error ${response.status}`);
+  }
+
+  // Try to get as text first (for descriptor content)
+  try {
+    const text = await response.text();
+    return text;
+  } catch (error) {
+    // Fallback to JSON parsing
+    const data = await response.json();
+    if (typeof data === 'string') {
+      return data;
+    }
+    return data.descriptor || data.content || '';
+  }
+}
+
 export async function fetchGlobalStrategy({ dmsId, accessToken }: ApiParams): Promise<ApiGlobalStrategy | null> {
   const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/strategy`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },

@@ -91,6 +91,8 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'updates': "Updates",
   'create_update': "Create Update",
   'launch_update': "Launch Update",
+  'packs': "Update Packs",
+  'pack-details': "Update Pack Details",
 };
 
 interface NavItem {
@@ -170,6 +172,17 @@ function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): Br
       else if (queryParams.get('deviceId')) hrefWithQuery += `?deviceId=${queryParams.get('deviceId')}`;
     } else if (segment === 'issue-certificate' && queryParams.get('caId')) {
       hrefWithQuery += `?caId=${queryParams.get('caId')}`;
+    } else if (segment === 'pack-details') {
+      const packName = queryParams.get('packName');
+      const dmsId = queryParams.get('dmsId');
+      if (packName && dmsId) {
+        hrefWithQuery += `?packName=${packName}&dmsId=${dmsId}`;
+        // Insert "Update Packs" as an intermediate breadcrumb
+        breadcrumbItems.push({ label: 'Update Packs', href: '/updates/packs' });
+        if (packName) {
+          label = decodeURIComponent(packName);
+        }
+      }
     }
 
 

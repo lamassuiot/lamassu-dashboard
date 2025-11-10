@@ -29,7 +29,7 @@ const SELECT_NONE_VALUE = "_NONE_";
 
 const strategyFormSchema = z.object({
   workflowType: z.enum(["wfx.workflow.dau.direct", "wfx.workflow.phased.rollout"]),
-  rolloutType: z.enum(["fixed", "percentage"]),
+  rolloutType: z.enum(["numeric", "percentage"]),
   rolloutValue: z.coerce.number().int().positive("Rollout value must be a positive integer."),
   testDeviceId: z.string().optional(), // Assuming MOCK_DEVICES is still used for test device IDs for now
   updatePackId: z.string().optional(), // This will store the ID of the update pack
@@ -51,7 +51,7 @@ export function UpdateStrategyForm({
 
   const defaultFormValues: StrategyFormValues = {
     workflowType: "wfx.workflow.dau.direct",
-    rolloutType: "percentage",
+    rolloutType: "numeric",
     rolloutValue: 10,
     testDeviceId: undefined,
     updatePackId: undefined, // Will store ID
@@ -134,14 +134,13 @@ export function UpdateStrategyForm({
 
 
   return (
-    <Card className="w-full"> {/* Removed max-w-2xl and mx-auto for flexibility */}
-      <CardHeader>
-        <CardTitle>{cardTitle}</CardTitle>
-        <CardDescription>{cardDescription}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <>
+      <div>
+        <h3 className="text-lg font-semibold">{cardTitle}</h3>
+        <p className="text-muted-foreground">{cardDescription}</p>
+      </div>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
               name="workflowType"
@@ -172,13 +171,13 @@ export function UpdateStrategyForm({
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">Rollout Type</FormLabel>
                     <FormDescription>
-                      Rollout: {field.value === 'fixed' ? 'Fixed number' : 'Percentage'}.
+                      Rollout: {field.value === 'numeric' ? 'Fixed number' : 'Percentage'}.
                     </FormDescription>
                   </div>
                   <FormControl>
                      <Switch
                         checked={field.value === 'percentage'}
-                        onCheckedChange={(checked) => field.onChange(checked ? 'percentage' : 'fixed')}
+                        onCheckedChange={(checked) => field.onChange(checked ? 'percentage' : 'numeric')}
                         aria-label={`Switch to ${field.value === 'percentage' ? 'fixed number' : 'percentage'} rollout`}
                       />
                   </FormControl>
@@ -256,13 +255,12 @@ export function UpdateStrategyForm({
             />
           </form>
         </Form>
-      </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-2 p-4 pt-6 border-t">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-6 border-t">
         <Button type="button" variant="outline" onClick={handleClearForm} className="w-full sm:w-auto">Clear Form</Button>
-        <Button type="submit" onClick={form.handleSubmit(onSubmit)} className="w-full sm:w-auto bg-primary hover:bg-primary/90">
+        <Button type="button" onClick={form.handleSubmit(onSubmit)} className="w-full sm:w-auto bg-primary hover:bg-primary/90">
           Save Strategy
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </>
   );
 }

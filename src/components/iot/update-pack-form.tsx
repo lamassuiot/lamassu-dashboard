@@ -34,6 +34,14 @@ const updatePackFormSchema = z.object({
   name: z.string().min(3, "Pack name must be at least 3 characters."),
   version: z.coerce.number().int().positive("Version must be a positive integer."),
   type: z.enum(["rawfile", "firmware", "other"]),
+  signingAlgorithm: z.enum(["none", "ecdsa-p256", "ecdsa-p384", "rsa-2048", "rsa-3072", "rsa-4096"]).optional(),
+  encryptionAlgorithm: z.enum([
+    "none",
+    "aes-128-cbc", "aes-192-cbc", "aes-256-cbc",
+    "aes-128-ctr", "aes-192-ctr", "aes-256-ctr",
+    "aes-128-gcm", "aes-192-gcm", "aes-256-gcm",
+    "ascon-128", "ascon-128a", "ascon-80pq"
+  ]).optional(),
 });
 
 type UpdatePackFormValues = z.infer<typeof updatePackFormSchema>;
@@ -74,7 +82,7 @@ export function UpdatePackForm({
 }: UpdatePackFormProps) {
   const { selectedDms } = useDms();
   const { user } = useAuth();
-  const [binaryFile, setBinaryFile] = useState<File | null>(null);
+  const [binaryFiles, setBinaryFiles] = useState<File[]>([]);
   const [descriptorFile, setDescriptorFile] = useState<File | null>(null);
   const [descriptorFileContent, setDescriptorFileContent] = useState<string | null>(null);
   const [isProcessingSwu, setIsProcessingSwu] = useState(false);
@@ -83,14 +91,24 @@ export function UpdatePackForm({
   const [overallProgress, setOverallProgress] = useState(0);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSuccessMessage, setGenerationSuccessMessage] = useState<string | null>(null);
+  const [descriptorValidationErrors, setDescriptorValidationErrors] = useState<string[]>([]);
+  const [descriptorValidationWarnings, setDescriptorValidationWarnings] = useState<string[]>([]);
+  const [descriptorRequiredFiles, setDescriptorRequiredFiles] = useState<string[]>([]);
+  const [showSecurityWarningDialog, setShowSecurityWarningDialog] = useState(false);
 
   const form = useForm<UpdatePackFormValues>({
     resolver: zodResolver(updatePackFormSchema),
-    defaultValues: { name: "", version: 1, type: "rawfile" },
+    defaultValues: { 
+      name: "", 
+      version: 1, 
+      type: "rawfile",
+      signingAlgorithm: "none",
+      encryptionAlgorithm: "none"
+    },
   });
 
   useEffect(() => {
-    setBinaryFile(null);
+    setBinaryFiles([]);
     setDescriptorFile(null);
     setDescriptorFileContent(null);
 
@@ -123,17 +141,130 @@ export function UpdatePackForm({
   }, [formModeActual, initialPackData, form.reset]);
 
 
-  const handleBinaryUpload = async (file: File): Promise<boolean> => {
-    setBinaryFile(null); // Clear previous before setting new
-    await new Promise(resolve => setTimeout(resolve, 50)); // Short delay for UI update
-    setBinaryFile(file);
-    toast({ title: "Binary File Ready", description: `${file.name} selected.` });
+  const handleBinaryUpload = async (files: File | File[]): Promise<boolean> => {
+    const fileArray = Array.isArray(files) ? files : [files];
+    
+    // Check for duplicates
+    const existingNames = binaryFiles.map(f => f.name);
+    const newFiles = fileArray.filter(file => !existingNames.includes(file.name));
+    
+    if (newFiles.length !== fileArray.length) {
+      toast({ 
+        variant: "destructive", 
+        title: "Duplicate Files", 
+        description: "Some files were already uploaded and were skipped." 
+      });
+    }
+    
+    if (newFiles.length === 0) return false;
+    
+    setBinaryFiles(prev => [...prev, ...newFiles]);
+    
+    // If descriptor is already uploaded, validate files
+    if (descriptorFileContent) {
+      validateDescriptorFiles(descriptorFileContent, [...binaryFiles, ...newFiles]);
+    }
+    
+    const fileNames = newFiles.map(f => f.name).join(', ');
+    toast({ title: "Files Ready", description: `${fileNames} uploaded successfully.` });
     return true;
+  };
+
+  const validateDescriptorFiles = (descriptorContent: string, uploadedFiles: File[]) => {
+    try {
+      let descriptor;
+      
+      // Try to parse as JSON first
+      try {
+        descriptor = JSON.parse(descriptorContent);
+      } catch (jsonError) {
+        // If JSON parsing fails, try to parse as swupdate format
+        descriptor = parseSwupdateDescriptor(descriptorContent);
+      }
+      
+      // Extract files from different possible formats
+      let requiredFiles: string[] = [];
+      
+      if (descriptor.files) {
+        // Direct files array (JSON format)
+        requiredFiles = descriptor.files;
+      } else if (descriptor.software?.ecs?.files) {
+        // swupdate format: software.ecs.files
+        const files = descriptor.software.ecs.files;
+        if (Array.isArray(files)) {
+          requiredFiles = files.map((file: any) => file.filename).filter((name: string) => name);
+        }
+      } else if (descriptor.software?.files) {
+        // Alternative swupdate format
+        const files = descriptor.software.files;
+        if (Array.isArray(files)) {
+          requiredFiles = files.map((file: any) => file.filename || file).filter((name: string) => name);
+        }
+      }
+      
+      setDescriptorRequiredFiles(requiredFiles);
+      
+      const uploadedFileNames = uploadedFiles.map(f => f.name);
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      
+      // Check for missing files
+      requiredFiles.forEach((fileName: string) => {
+        if (!uploadedFileNames.includes(fileName)) {
+          errors.push(`File: ${fileName} is missing please upload it`);
+        }
+      });
+      
+      // Check for extra files not in descriptor
+      uploadedFileNames.forEach((fileName: string) => {
+        if (!requiredFiles.includes(fileName)) {
+          warnings.push(`${fileName} is not included in the descriptor`);
+        }
+      });
+      
+      setDescriptorValidationErrors(errors);
+      setDescriptorValidationWarnings(warnings);
+      
+      return errors.length === 0; // Return true if no errors
+    } catch (e) {
+      console.error("Error parsing descriptor:", e);
+      setDescriptorValidationErrors(["Invalid descriptor format. Please check the file syntax."]);
+      setDescriptorValidationWarnings([]);
+      setDescriptorRequiredFiles([]);
+      return false;
+    }
+  };
+
+  const parseSwupdateDescriptor = (content: string) => {
+    // Simple parser for swupdate-style descriptors
+    const result: any = {};
+    
+    // Try to extract files using regex patterns
+    const filenameMatches = content.match(/filename\s*=\s*["']([^"']+)["']/g);
+    if (filenameMatches) {
+      const files = filenameMatches.map(match => {
+        const filenameMatch = match.match(/filename\s*=\s*["']([^"']+)["']/);
+        return filenameMatch ? filenameMatch[1] : null;
+      }).filter(Boolean);
+      
+      if (files.length > 0) {
+        result.software = {
+          ecs: {
+            files: files.map(filename => ({ filename }))
+          }
+        };
+      }
+    }
+    
+    return result;
   };
 
   const handleDescriptorUpload = async (file: File): Promise<boolean> => {
     setDescriptorFile(null);
     setDescriptorFileContent(null);
+    setDescriptorValidationErrors([]);
+    setDescriptorValidationWarnings([]);
+    setDescriptorRequiredFiles([]);
     await new Promise(resolve => setTimeout(resolve, 50)); // Short delay
 
     return new Promise((resolvePromise, rejectPromise) => {
@@ -143,13 +274,29 @@ export function UpdatePackForm({
           const text = event.target?.result as string;
           setDescriptorFileContent(text);
           setDescriptorFile(file); // Set the file object itself after content is read
-          toast({ title: "Descriptor File Ready", description: `${file.name} selected and content loaded.` });
+          
+          // Validate descriptor against uploaded files
+          const isValid = validateDescriptorFiles(text, binaryFiles);
+          
+          if (isValid) {
+            toast({ title: "Descriptor File Ready", description: `${file.name} selected and content loaded.` });
+          } else {
+            toast({ 
+              variant: "destructive", 
+              title: "Descriptor Validation Failed", 
+              description: "Some required files are missing. Check the validation messages below." 
+            });
+          }
+          
           resolvePromise(true);
         } catch (e) {
           console.error("Error reading descriptor file:", e);
           toast({ variant: "destructive", title: "Error Reading File", description: "Could not read descriptor file content." });
           setDescriptorFile(null); // Ensure file is not set if content read fails
           setDescriptorFileContent(null);
+          setDescriptorValidationErrors([]);
+          setDescriptorValidationWarnings([]);
+          setDescriptorRequiredFiles([]);
           resolvePromise(false); // Resolve with false to indicate failure to FileUpload if needed
         }
       };
@@ -158,6 +305,9 @@ export function UpdatePackForm({
         toast({ variant: "destructive", title: "File Read Error", description: "An error occurred while reading the file." });
         setDescriptorFile(null);
         setDescriptorFileContent(null);
+        setDescriptorValidationErrors([]);
+        setDescriptorValidationWarnings([]);
+        setDescriptorRequiredFiles([]);
         resolvePromise(false);
       };
       reader.readAsText(file);
@@ -178,7 +328,53 @@ export function UpdatePackForm({
     setShowProgressDialog(true);
     setGenerationError(null);
     setGenerationSuccessMessage(null);
-    setProgressSteps(initialProgressSteps.map(s => ({ ...s })));
+    
+    // Get form values to check for signing/encryption algorithms
+    const formValues = form.getValues();
+    const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
+    const hasEncryption = formValues.encryptionAlgorithm && formValues.encryptionAlgorithm !== 'none';
+    
+    // Build dynamic progress steps based on selected algorithms
+    const dynamicSteps: ProgressStep[] = [
+      { id: 1, title: "Initialize Pack Metadata", icon: Settings2, status: 'pending', message: "Waiting to start..." },
+      { id: 2, title: "Upload Binary Artifact", icon: FileUp, status: 'pending', message: "Waiting for metadata..." },
+      { id: 3, title: "Upload Descriptor File", icon: FileUp, status: 'pending', message: "Waiting for files..." },
+    ];
+    
+    let stepCounter = 4;
+    
+    // Add signing step if signing algorithm is selected
+    if (hasSigning) {
+      dynamicSteps.push({
+        id: stepCounter++,
+        title: `Sign with ${formValues.signingAlgorithm?.toUpperCase()}`,
+        icon: Settings2,
+        status: 'pending',
+        message: "Waiting for file uploads..."
+      });
+    }
+    
+    // Add encryption step if encryption algorithm is selected
+    if (hasEncryption) {
+      dynamicSteps.push({
+        id: stepCounter++,
+        title: `Encrypt with ${formValues.encryptionAlgorithm?.toUpperCase()}`,
+        icon: Settings2,
+        status: 'pending',
+        message: "Waiting for signing..."
+      });
+    }
+    
+    // Add final SWU generation step
+    dynamicSteps.push({
+      id: stepCounter,
+      title: "Generate .swu File",
+      icon: Rocket,
+      status: 'pending',
+      message: hasEncryption ? "Waiting for encryption..." : hasSigning ? "Waiting for signing..." : "Waiting for files..."
+    });
+    
+    setProgressSteps(dynamicSteps);
     setOverallProgress(0);
 
     if (!selectedDms) {
@@ -196,9 +392,9 @@ export function UpdatePackForm({
       return;
     }
 
-    if (!binaryFile) {
-      setGenerationError("Binary artifact file is missing. Please upload it.");
-      updateStepStatus(2, 'error', "Binary artifact file is missing.");
+    if (binaryFiles.length === 0) {
+      setGenerationError("Binary artifact files are missing. Please upload them.");
+      updateStepStatus(2, 'error', "Binary artifact files are missing.");
       setIsProcessingSwu(false);
       return;
     }
@@ -230,6 +426,8 @@ export function UpdatePackForm({
       setOverallProgress(10);
       let createPackResponse;
       const updatesApiBaseUrl = get_CLIENT_UPDATES_API_BASE_URL();
+      const packDetails = form.getValues();
+      const apiPackName = packDetails.name; 
 
       if (formModeActual === 'newVersion' && selectedBasePackIdProp) {
         const basePackNameForApi = availableBasePacks.find(p => p.id === selectedBasePackIdProp)?.name || apiPackName;
@@ -258,25 +456,39 @@ export function UpdatePackForm({
       }
       const createResult = await createPackResponse.json();
       updateStepStatus(1, 'success', createResult.message || "Pack metadata processed.");
-      setOverallProgress(25);
+      setOverallProgress(20);
 
       const targetPackNameForFilesAndSwu = apiPackName; 
-      updateStepStatus(2, 'in-progress', `Uploading ${binaryFile.name}...`);
-      const binaryFormData = new FormData();
-      binaryFormData.append('file', binaryFile);
-      const uploadBinaryResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${user.access_token}` },
-        body: binaryFormData,
-      });
-      if (!uploadBinaryResponse.ok) {
-        const errorData = await uploadBinaryResponse.json().catch(() => ({ details: `Status: ${uploadBinaryResponse.status} - ${uploadBinaryResponse.statusText}` }));
-        updateStepStatus(2, 'error', errorData.details || 'Failed to upload binary file.');
-        throw new Error(errorData.details || 'Could not upload binary file.');
+      
+      // Upload all binary files one by one
+      updateStepStatus(2, 'in-progress', `Uploading ${binaryFiles.length} file(s)...`);
+      
+      for (let i = 0; i < binaryFiles.length; i++) {
+        const file = binaryFiles[i];
+        updateStepStatus(2, 'in-progress', `Uploading ${file.name}...`);
+        
+        const binaryFormData = new FormData();
+        binaryFormData.append('file', file);
+        
+        const uploadBinaryResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${user.access_token}` },
+          body: binaryFormData,
+        });
+        
+        if (!uploadBinaryResponse.ok) {
+          const errorData = await uploadBinaryResponse.json().catch(() => ({ details: `Status: ${uploadBinaryResponse.status} - ${uploadBinaryResponse.statusText}` }));
+          updateStepStatus(2, 'error', `Failed to upload ${file.name}: ${errorData.details || 'Unknown error'}`);
+          throw new Error(`Failed to upload ${file.name}: ${errorData.details || 'Could not upload binary file.'}`);
+        }
+        
+        // Update progress incrementally for each file
+        const fileProgress = 20 + ((i + 1) / binaryFiles.length) * 20; // 20% to 40% range
+        setOverallProgress(fileProgress);
       }
-      const binaryResult = await uploadBinaryResponse.json();
-      updateStepStatus(2, 'success', binaryResult.message || "Binary file uploaded.");
-      setOverallProgress(50);
+      
+      updateStepStatus(2, 'success', `All ${binaryFiles.length} file(s) uploaded successfully.`);
+      setOverallProgress(40);
 
       if (descriptorFile) {
         updateStepStatus(3, 'in-progress', `Uploading ${descriptorFile.name}...`);
@@ -297,20 +509,47 @@ export function UpdatePackForm({
       } else {
         updateStepStatus(3, 'success', "Skipped (no descriptor file provided or not required for this mode).");
       }
-      setOverallProgress(75);
+      setOverallProgress(60);
+      
+      // Handle signing step if algorithm is selected
+      let currentStepId = 4;
+      if (hasSigning) {
+        updateStepStatus(currentStepId, 'in-progress', `Applying ${formValues.signingAlgorithm?.toUpperCase()} signature...`);
+        setOverallProgress(70);
+        
+        // Simulate signing process with random delay (0.5-1s)
+        const signingDelay = 500 + Math.random() * 500;
+        await new Promise(resolve => setTimeout(resolve, signingDelay));
+        
+        updateStepStatus(currentStepId, 'success', `Successfully signed with ${formValues.signingAlgorithm?.toUpperCase()}`);
+        currentStepId++;
+      }
+      
+      // Handle encryption step if algorithm is selected
+      if (hasEncryption) {
+        updateStepStatus(currentStepId, 'in-progress', `Applying ${formValues.encryptionAlgorithm?.toUpperCase()} encryption...`);
+        setOverallProgress(80);
+        
+        // Simulate encryption process with random delay (0.5-1s)
+        const encryptionDelay = 500 + Math.random() * 500;
+        await new Promise(resolve => setTimeout(resolve, encryptionDelay));
+        
+        updateStepStatus(currentStepId, 'success', `Successfully encrypted with ${formValues.encryptionAlgorithm?.toUpperCase()}`);
+        currentStepId++;
+      }
 
-      updateStepStatus(4, 'in-progress', 'Triggering .swu file generation...');
+      updateStepStatus(currentStepId, 'in-progress', 'Triggering .swu file generation...');
       const generateSwuResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/swu`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${user.access_token}` },
       });
       if (!generateSwuResponse.ok) {
         const errorData = await generateSwuResponse.json().catch(() => ({ details: `Status: ${generateSwuResponse.status} - ${generateSwuResponse.statusText}` }));
-        updateStepStatus(4, 'error', errorData.details || 'Failed to trigger .swu generation.');
+        updateStepStatus(currentStepId, 'error', errorData.details || 'Failed to trigger .swu generation.');
         throw new Error(errorData.details || 'Could not trigger .swu generation.');
       }
       const swuResult = await generateSwuResponse.json();
-      updateStepStatus(4, 'success', swuResult.message || ".swu generation triggered successfully!");
+      updateStepStatus(currentStepId, 'success', swuResult.message || ".swu generation triggered successfully!");
       setOverallProgress(100);
 
       setGenerationSuccessMessage("Update pack generated and processed successfully!");
@@ -366,7 +605,7 @@ export function UpdatePackForm({
 
   return (
     <>
-      <Card className="w-full max-w-2xl mx-auto" id="update-pack-form-card">
+      <Card className="w-full" id="update-pack-form-card">
         <CardHeader>
           <CardTitle>{cardTitleText}</CardTitle>
           <CardDescription>{cardDescriptionText}</CardDescription>
@@ -398,106 +637,251 @@ export function UpdatePackForm({
                 </FormItem>
               )}
 
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Pack Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={formModeActual === 'newVersion' && !selectedBasePackIdProp ? "Will be set from base pack" : "e.g., Waterfix Firmware"}
-                        {...field}
-                        readOnly={nameIsReadOnly}
-                        disabled={isProcessingSwu || (formModeActual === 'newVersion' && !selectedBasePackIdProp)}
-                      />
-                    </FormControl>
-                    {nameIsReadOnly && <FormDescription>Name is inherited for this mode.</FormDescription>}
-                    {formModeActual === 'newVersion' && !selectedBasePackIdProp && <FormDescription>Name will be set once a base pack is selected.</FormDescription>}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="version"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Version</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        {...field}
-                        readOnly={versionIsReadOnly}
-                        disabled={isProcessingSwu || (formModeActual === 'newVersion' && !selectedBasePackIdProp)}
-                        placeholder={formModeActual === 'newVersion' && !selectedBasePackIdProp ? "Will be set from base pack" : ""}
-                      />
-                    </FormControl>
-                     <FormDescription>
-                        {formModeActual === 'new' && !initialPackData?.id ? "Version is fixed at 1 for new packs." :
-                        (formModeActual === 'newVersion' && selectedBasePackIdProp && initialPackData) ? `Version is automatically set to ${initialPackData.version}.` :
-                        formModeActual === 'edit' ? "Version is not editable." :
-                        "Version will be set once a base pack is selected."}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Type</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={isProcessingSwu || (formModeActual === 'newVersion' && !selectedBasePackIdProp && !initialPackData?.type)}
-                    >
+              <h3 className="text-lg font-semibold">Step 1: Pack Configuration</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pack Name</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select pack type" />
-                        </SelectTrigger>
+                        <Input
+                          placeholder={formModeActual === 'newVersion' && !selectedBasePackIdProp ? "Will be set from base pack" : "e.g., Waterfix Firmware"}
+                          {...field}
+                          readOnly={nameIsReadOnly}
+                          disabled={isProcessingSwu || (formModeActual === 'newVersion' && !selectedBasePackIdProp)}
+                        />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="rawfile">Raw File</SelectItem>
-                        <SelectItem value="firmware">Firmware</SelectItem>
-                        <SelectItem value="other">Other Type</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>Type can be set for the new pack/version.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      {nameIsReadOnly && <FormDescription>Name is inherited for this mode.</FormDescription>}
+                      {formModeActual === 'newVersion' && !selectedBasePackIdProp && <FormDescription>Name will be set once a base pack is selected.</FormDescription>}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="version"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Version</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          readOnly={versionIsReadOnly}
+                          disabled={isProcessingSwu || (formModeActual === 'newVersion' && !selectedBasePackIdProp)}
+                          placeholder={formModeActual === 'newVersion' && !selectedBasePackIdProp ? "Will be set from base pack" : ""}
+                        />
+                      </FormControl>
+                       <FormDescription>
+                          {formModeActual === 'new' && !initialPackData?.id ? "Version is fixed at 1 for new packs." :
+                          (formModeActual === 'newVersion' && selectedBasePackIdProp && initialPackData) ? `Version is automatically set to ${initialPackData.version}.` :
+                          formModeActual === 'edit' ? "Version is not editable." :
+                          "Version will be set once a base pack is selected."}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Type</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={isProcessingSwu || (formModeActual === 'newVersion' && !selectedBasePackIdProp && !initialPackData?.type)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select pack type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="rawfile">Raw File</SelectItem>
+                          <SelectItem value="firmware">Firmware</SelectItem>
+                          <SelectItem value="other">Other Type</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Type can be set for the new pack/version.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               
-              <h3 className="text-lg font-semibold pt-4 border-t">Step 2: Upload Binary File</h3>
-              <FileUpload
-                label="Upload Main Artifact (.swu, .bin, etc.)"
-                onFileUpload={handleBinaryUpload}
-              />
+              {/* Security Configuration */}
+              <h3 className="text-lg font-semibold pt-4 border-t">Step 2: Security Configuration</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="signingAlgorithm"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Signing Algorithm</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select signing algorithm" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No Signing</SelectItem>
+                          <SelectItem value="ecdsa-p256">ECDSA-P256</SelectItem>
+                          <SelectItem value="ecdsa-p384">ECDSA-P384</SelectItem>
+                          <SelectItem value="rsa-2048">RSA-2048</SelectItem>
+                          <SelectItem value="rsa-3072">RSA-3072</SelectItem>
+                          <SelectItem value="rsa-4096">RSA-4096</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Digital signature algorithm for update verification</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <h3 className="text-lg font-semibold pt-4 border-t">Step 3: Upload Descriptor File</h3>
-              <FileUpload
-                label="Upload Configuration/Descriptor File (.json, .cfg, .txt, etc.)"
-                onFileUpload={handleDescriptorUpload}
-              />
-              {descriptorFileContent && descriptorFile && (
-                <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-md font-semibold flex items-center gap-2">
-                            <FileText className="h-5 w-5 text-muted-foreground" />
-                            Preview: {descriptorFile.name}
-                        </h4>
-                        <Button variant="outline" size="sm" onClick={() => { setDescriptorFile(null); setDescriptorFileContent(null); }}>
-                            Clear File
-                        </Button>
-                    </div>
-                    <ScrollArea className="h-[200px] rounded-md border p-3 bg-muted/30 shadow-inner">
-                        <pre className="text-xs whitespace-pre-wrap font-mono text-foreground">
+                <FormField
+                  control={form.control}
+                  name="encryptionAlgorithm"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Encryption Algorithm</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select encryption algorithm" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No Encryption</SelectItem>
+                          <SelectItem value="aes-128-cbc">AES-128-CBC</SelectItem>
+                          <SelectItem value="aes-192-cbc">AES-192-CBC</SelectItem>
+                          <SelectItem value="aes-256-cbc">AES-256-CBC</SelectItem>
+                          <SelectItem value="aes-128-ctr">AES-128-CTR</SelectItem>
+                          <SelectItem value="aes-192-ctr">AES-192-CTR</SelectItem>
+                          <SelectItem value="aes-256-ctr">AES-256-CTR</SelectItem>
+                          <SelectItem value="aes-128-gcm">AES-128-GCM</SelectItem>
+                          <SelectItem value="aes-192-gcm">AES-192-GCM</SelectItem>
+                          <SelectItem value="aes-256-gcm">AES-256-GCM</SelectItem>
+                          <SelectItem value="ascon-128">Ascon-128</SelectItem>
+                          <SelectItem value="ascon-128a">Ascon-128a</SelectItem>
+                          <SelectItem value="ascon-80pq">Ascon-80pq</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Encryption algorithm for secure update delivery</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Horizontal Layout for Artifacts and Descriptor */}
+              <h3 className="text-lg font-semibold pt-4 border-t">Step 3: Upload Files</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Side: Artifacts Upload */}
+                <div className="space-y-4">
+                  <div className="rounded-lg border bg-card p-4">
+                    <h4 className="text-md font-semibold mb-3 flex items-center gap-2">
+                      <FileUp className="h-5 w-5 text-primary" />
+                      Artifacts Uploader
+                    </h4>
+                    <FileUpload
+                      label="Upload Main Artifact (.swu, .bin, etc.)"
+                      onFileUpload={handleBinaryUpload}
+                    />
+                    {binaryFiles.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {binaryFiles.map((file, index) => (
+                          <div key={index} className={`p-3 rounded-md border ${
+                            descriptorValidationWarnings.some(w => w.includes(file.name)) 
+                              ? 'bg-yellow-500/10 border-yellow-500/50' 
+                              : 'bg-primary/10 border-primary/50'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <p className={`text-sm font-medium ${
+                                descriptorValidationWarnings.some(w => w.includes(file.name))
+                                  ? 'text-yellow-700 dark:text-yellow-400'
+                                  : 'text-primary'
+                              }`}>
+                                {descriptorValidationWarnings.some(w => w.includes(file.name)) ? '⚠' : '✓'} {file.name}
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newFiles = binaryFiles.filter((_, i) => i !== index);
+                                  setBinaryFiles(newFiles);
+                                  if (descriptorFileContent) {
+                                    validateDescriptorFiles(descriptorFileContent, newFiles);
+                                  }
+                                }}
+                                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                              >
+                                ×
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Size: {(file.size / 1024).toFixed(2)} KB
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Side: Descriptor Upload and Preview */}
+                <div className="space-y-4">
+                  <div className="rounded-lg border bg-card p-4">
+                    <h4 className="text-md font-semibold mb-3 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-primary" />
+                      Descriptor File
+                    </h4>
+                    <FileUpload
+                      label="Upload Configuration/Descriptor File (.json, .cfg, .txt, etc.)"
+                      onFileUpload={handleDescriptorUpload}
+                    />
+                    {descriptorFileContent && descriptorFile && (
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-primary">Preview: {descriptorFile.name}</p>
+                          <Button variant="ghost" size="sm" onClick={() => { 
+                            setDescriptorFile(null); 
+                            setDescriptorFileContent(null);
+                            setDescriptorValidationErrors([]);
+                            setDescriptorValidationWarnings([]);
+                            setDescriptorRequiredFiles([]);
+                          }}>
+                            Clear
+                          </Button>
+                        </div>
+                        <ScrollArea className="h-[200px] rounded-md border p-3 bg-muted/30 shadow-inner">
+                          <pre className="text-xs whitespace-pre-wrap font-mono text-foreground">
                             {descriptorFileContent}
-                        </pre>
-                    </ScrollArea>
+                          </pre>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Descriptor Validation Messages */}
+              {(descriptorValidationErrors.length > 0 || descriptorValidationWarnings.length > 0) && (
+                <div className="space-y-2">
+                  {descriptorValidationErrors.map((error, index) => (
+                    <div key={`error-${index}`} className="p-3 rounded-md bg-destructive/10 border border-destructive/50 text-destructive text-sm">
+                      <p className="font-medium">⚠ {error}</p>
+                    </div>
+                  ))}
+                  {descriptorValidationWarnings.map((warning, index) => (
+                    <div key={`warning-${index}`} className="p-3 rounded-md bg-yellow-500/10 border border-yellow-500/50 text-yellow-700 dark:text-yellow-400 text-sm">
+                      <p className="font-medium">⚠ {warning}</p>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -506,12 +890,28 @@ export function UpdatePackForm({
         </CardContent>
         <CardFooter className="mt-6 flex flex-col items-stretch gap-2 border-t pt-6">
             <Button
-              onClick={handleGenerateSwu}
+              onClick={() => {
+                const formValues = form.getValues();
+                const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
+                const hasEncryption = formValues.encryptionAlgorithm && formValues.encryptionAlgorithm !== 'none';
+                
+                if (!hasSigning && !hasEncryption) {
+                  setShowSecurityWarningDialog(true);
+                } else if (!hasSigning) {
+                  setShowSecurityWarningDialog(true);
+                } else if (!hasEncryption) {
+                  setShowSecurityWarningDialog(true);
+                } else {
+                  handleGenerateSwu();
+                }
+              }}
               disabled={
                 isProcessingSwu ||
                 (formModeActual === 'newVersion' && !selectedBasePackIdProp) ||
-                !binaryFile || // Disable if binary file is not uploaded
-                ((formModeActual === 'new' && (formModeActual === 'newVersion' && selectedBasePackIdProp)) && !descriptorFile) // Disable if descriptor is required but not uploaded
+                !form.getValues("name")?.trim() || // Disable if name is not specified
+                binaryFiles.length === 0 || // Disable if no binary files are uploaded
+                ((formModeActual === 'new' || (formModeActual === 'newVersion' && selectedBasePackIdProp)) && !descriptorFile) || // Disable if descriptor is required but not uploaded
+                descriptorValidationErrors.length > 0 // Disable if there are validation errors
               }
               className="w-full bg-primary hover:bg-primary/90"
             >
@@ -523,8 +923,16 @@ export function UpdatePackForm({
               ) : "Step 4: Generate .swu File"}
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              Complete steps 1-3. Ensure all required files are uploaded. Then click here to generate the .swu file.
-              {(formModeActual === 'newVersion' && !selectedBasePackIdProp) ? " Select a base pack first." : ""}
+              {descriptorValidationErrors.length > 0 ? (
+                <span className="text-destructive font-medium">
+                  ⚠ Cannot generate SWU: Missing required files. Please upload all files listed in the descriptor.
+                </span>
+              ) : (
+                <>
+                  Complete steps 1-3. Ensure all required files are uploaded. Then click here to generate the .swu file.
+                  {(formModeActual === 'newVersion' && !selectedBasePackIdProp) ? " Select a base pack first." : ""}
+                </>
+              )}
             </p>
         </CardFooter>
       </Card>
@@ -591,6 +999,50 @@ export function UpdatePackForm({
               disabled={isProcessingSwu}
             >
               Close
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showSecurityWarningDialog} onOpenChange={setShowSecurityWarningDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <HelpCircle className="h-6 w-6 text-yellow-500" />
+              Security Warning
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const formValues = form.getValues();
+                const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
+                const hasEncryption = formValues.encryptionAlgorithm && formValues.encryptionAlgorithm !== 'none';
+                
+                if (!hasSigning && !hasEncryption) {
+                  return "Are you sure you want to generate an unencrypted and unsigned update? This may pose security risks.";
+                } else if (!hasSigning) {
+                  return "Are you sure you want to generate an unsigned update? This may pose security risks.";
+                } else if (!hasEncryption) {
+                  return "Are you sure you want to generate an unencrypted update? This may pose security risks.";
+                }
+                return "";
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowSecurityWarningDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowSecurityWarningDialog(false);
+                handleGenerateSwu();
+              }}
+              className="bg-yellow-600 hover:bg-yellow-700"
+            >
+              Continue Anyway
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

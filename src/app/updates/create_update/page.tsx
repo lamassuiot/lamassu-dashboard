@@ -3,12 +3,13 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Package, MoreVertical, GitFork, Download, Trash2, FileText, PlusCircle, RefreshCw, PackagePlus } from 'lucide-react';
+import { Package, GitFork, Trash2, PlusCircle, RefreshCw, PackagePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import type { UpdatePack } from '@/types/iot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,7 +37,6 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
-import { UpdatePackForm } from '@/components/iot/update-pack-form';
 import { fetchUpdatePacks, deleteUpdatePackApi } from '@/lib/iot-api';
 import { useDms } from '@/contexts/DmsContext';
 
@@ -82,13 +82,11 @@ function DescriptorViewDialog({ pack, isOpen, onOpenChange }: DescriptorViewDial
 
 
 function ExistingUpdatePacks({
-  onInitiateNewVersionFromTable,
   isLoading,
   error,
   data,
   refetch,
 }: {
-  onInitiateNewVersionFromTable: (pack: UpdatePack) => void;
   isLoading: boolean;
   error: Error | null;
   data: UpdatePack[] | undefined;
@@ -149,12 +147,10 @@ function ExistingUpdatePacks({
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Existing Update Packs</CardTitle>
-          <CardDescription>Loading update packs...</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Existing Update Packs</h3>
+        <p className="text-muted-foreground">Loading update packs...</p>
+        <div className="space-y-2">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="flex items-center space-x-4 p-2 border rounded-md">
               <Skeleton className="h-8 w-8 rounded-full" />
@@ -167,35 +163,30 @@ function ExistingUpdatePacks({
               <Skeleton className="h-8 w-8" />
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Existing Update Packs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-destructive text-center py-4">Error loading update packs: {error.message}</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Existing Update Packs</h3>
+        <p className="text-destructive text-center py-4">Error loading update packs: {error.message}</p>
+      </div>
     );
   }
   
   return (
     <>
-    <Card>
-      <CardHeader className="flex flex-row justify-between items-center">
+    <div className="space-y-4">
+      <div className="flex flex-row justify-between items-center">
         <div>
-          <CardTitle>Existing Update Packs</CardTitle>
-          <CardDescription>List of update packs. Select an action or use the tabs above.</CardDescription>
+          <h3 className="text-lg font-semibold">Existing Update Packs</h3>
+          <p className="text-muted-foreground">List of update packs. Select an action or use the tabs above.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-4 w-4 mr-2"/>Refresh</Button>
-      </CardHeader>
-      <CardContent>
+      </div>
         {displayPacks.length > 0 ? (
           <Table>
             <TableHeader>
@@ -203,8 +194,6 @@ function ExistingUpdatePacks({
                 <TableHead>Name</TableHead>
                 <TableHead>Version</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Descriptor</TableHead>
-                <TableHead className="w-[180px]">Created At</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -214,54 +203,41 @@ function ExistingUpdatePacks({
                                       ? `${pack.name.replace(/[^a-zA-Z0-9_.-]/g, '_')}_v${pack.version}.swu` 
                                       : 'update.swu';
                 return (
-                  <TableRow key={pack.id}>
-                    <TableCell className="font-medium flex items-center gap-2">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      {pack.name}
+                  <TableRow 
+                    key={pack.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => router.push(`/updates/packs/${pack.name}`)}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <span 
+                          className="text-primary hover:text-primary/80 underline cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/updates/packs/${pack.name}`);
+                          }}
+                        >
+                          {pack.name}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">v{pack.version}</Badge>
                     </TableCell>
                     <TableCell>{pack.type}</TableCell>
-                    <TableCell>{pack.descriptorFileName || 'N/A'}</TableCell>
-                    <TableCell>{pack.formattedCreatedAt || "Loading date..."}</TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onInitiateNewVersionFromTable(pack)}>
-                            <GitFork className="mr-2 h-4 w-4" /> Create New Version
-                          </DropdownMenuItem>
-                           {pack.descriptorFileName && pack.descriptorContent && (
-                            <DropdownMenuItem onClick={() => setPackForDescriptorView(pack)}>
-                              <FileText className="mr-2 h-4 w-4" /> View Descriptor
-                            </DropdownMenuItem>
-                          )}
-                          {pack.uri && (
-                            <DropdownMenuItem asChild>
-                              <a 
-                                href={pack.uri} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                download={downloadFilename}
-                              >
-                                <Download className="mr-2 h-4 w-4" /> Download SWU File
-                              </a>
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive-foreground focus:bg-destructive"
-                            onClick={() => setPackToDelete(pack)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPackToDelete(pack);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -273,9 +249,8 @@ function ExistingUpdatePacks({
             No update packs found for DMS ID: {selectedDms?.id}.
           </p>
         )}
-      </CardContent>
-    </Card>
-    {packToDelete && (
+      </div>
+      {packToDelete && (
         <AlertDialog open={!!packToDelete} onOpenChange={() => setPackToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -308,11 +283,10 @@ function ExistingUpdatePacks({
 }
 
 export default function UpdatePacksPage() {
-  type FormMode = 'new' | 'newVersion' | 'edit'; 
-  type TabValue = 'new' | 'newVersion';
 
   const { selectedDms } = useDms();
   const { user } = useAuth();
+  const router = useRouter();
   
   const queryClient = useQueryClient();
 
@@ -349,45 +323,7 @@ export default function UpdatePacksPage() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState<TabValue>('new');
-  const [formMode, setFormMode] = useState<FormMode>('new');
-  const [packForForm, setPackForForm] = useState<UpdatePack | undefined>(undefined);
   const [selectedBasePackId, setSelectedBasePackId] = useState<string | undefined>(undefined);
-  
-  const handleTabChange = useCallback((newTab: TabValue) => {
-    setActiveTab(newTab);
-    if (newTab === 'new') {
-        setFormMode('new');
-        setPackForForm(undefined);
-        setSelectedBasePackId(undefined);
-    } else { // newVersion
-        setFormMode('newVersion');
-        setPackForForm(undefined);
-        setSelectedBasePackId(undefined);
-    }
-  }, []);
-  
-  const handleInitiateNewVersionFromTable = (basePack: UpdatePack) => {
-    setActiveTab('newVersion');
-    setFormMode('newVersion');
-    const newVersionPackData = {
-      ...basePack,
-      version: (Number(basePack.version) || 0) + 1,
-      id: '', 
-      createdAt: new Date().toISOString(),
-      binaryFileName: undefined,
-      descriptorFileName: undefined,
-      descriptorContent: undefined,
-      uri: undefined, 
-    };
-    setPackForForm(newVersionPackData); 
-    setSelectedBasePackId(basePack.id); 
-  };
-  
-  const handleSwuGenerated = () => {
-    refetch();
-    handleTabChange('new'); // Reset to the 'new' tab after success
-  };
   
   if (!selectedDms) {
     return (
@@ -403,35 +339,80 @@ export default function UpdatePacksPage() {
         <CardHeader>
           <CardTitle>Create Update Pack</CardTitle>
           <CardDescription>
-            Choose to create a brand new pack or a new version of an existing one.
+            Choose to create a brand new pack or update an existing one.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(value) => handleTabChange(value as TabValue)}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="new">Create New Pack</TabsTrigger>
-              <TabsTrigger value="newVersion">Create New Version</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Create New Pack Option */}
+            <Card className="p-6 flex flex-col h-full">
+              <div className="flex-1 flex flex-col items-center text-center">
+                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                  <PackagePlus className="h-10 w-10 text-primary" />
+                </div>
+                <CardTitle className="mb-2">Create New Update Pack</CardTitle>
+                <CardDescription>
+                  Start from scratch with a new firmware update package
+                </CardDescription>
+              </div>
+              <div className="mt-6">
+                <Button
+                  onClick={() => router.push('/updates/create?mode=new')}
+                  className="w-full"
+                >
+                  Create New Pack
+                </Button>
+              </div>
+            </Card>
+
+            {/* Create New Version Option */}
+            <Card className="p-6 flex flex-col h-full">
+              <div className="flex-1 flex flex-col items-center text-center">
+                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                  <GitFork className="h-10 w-10 text-primary" />
+                </div>
+                <CardTitle className="mb-2">Update Existing Pack</CardTitle>
+                <CardDescription>
+                  Create a new version based on an existing update pack
+                </CardDescription>
+              </div>
+              <div className="mt-6 space-y-4">
+                <Select
+                  value={selectedBasePackId || ''}
+                  onValueChange={(value) => {
+                    setSelectedBasePackId(value);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Choose an existing update pack to create a new version" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(fetchedUpdatePacks || []).map((pack) => (
+                      <SelectItem key={pack.id} value={pack.id}>
+                        {pack.name} v{pack.version} ({pack.type})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={() => {
+                    if (selectedBasePackId) {
+                      router.push(`/updates/create?mode=update&basePackId=${selectedBasePackId}`);
+                    }
+                  }}
+                  disabled={!selectedBasePackId}
+                  className="w-full"
+                  variant={selectedBasePackId ? "default" : "secondary"}
+                >
+                  Update Selected Pack
+                </Button>
+              </div>
+            </Card>
+          </div>
         </CardContent>
       </Card>
       
-      <UpdatePackForm
-        formModeActual={formMode}
-        initialPackData={packForForm}
-        availableBasePacks={fetchedUpdatePacks || []}
-        selectedBasePackIdProp={selectedBasePackId}
-        onBasePackSelect={(id) => {
-            setSelectedBasePackId(id);
-            const basePack = (fetchedUpdatePacks || []).find(p => p.id === id);
-            if(basePack) handleInitiateNewVersionFromTable(basePack);
-            else setPackForForm(undefined);
-        }}
-        onSwuGenerated={handleSwuGenerated}
-      />
-      
       <ExistingUpdatePacks
-        onInitiateNewVersionFromTable={handleInitiateNewVersionFromTable}
         isLoading={isFetching}
         error={fetchError}
         data={fetchedUpdatePacks}
