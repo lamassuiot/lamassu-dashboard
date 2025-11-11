@@ -519,12 +519,8 @@ const RootLayoutWrapper = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="relative flex h-screen overflow-hidden">
-      {/* Main content area with transition */}
-      <div 
-        className={`flex-1 transition-all duration-300 ease-in-out ${
-          isAIChatOpen ? 'mr-[500px] sm:mr-[500px] md:mr-[600px] lg:mr-[700px]' : 'mr-0'
-        }`}
-      >
+      {/* Main content area */}
+      <div className="flex-1">
         <InnerLayout>{children}</InnerLayout>
       </div>
 
