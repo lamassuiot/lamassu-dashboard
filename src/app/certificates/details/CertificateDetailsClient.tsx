@@ -53,7 +53,7 @@ const buildCertificateChainPem = (
     currentIssuerId = issuerCa.issuer;
     safetyNet++;
   }
-  return chain.join('\\n\\n'); 
+  return chain.join(''); 
 };
 
 

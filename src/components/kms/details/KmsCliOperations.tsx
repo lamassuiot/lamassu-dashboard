@@ -191,7 +191,7 @@ export OPENSSL_CONF=$(pwd)/openssl-pkcs11-provider.conf`;
     const getOpensslSignCommand = (isEngine: boolean) => {
         const opensslFlags = isEngine ? '-engine pkcs11' : '-provider pkcs11 -provider default';
         const isPssAlgorithm = selectedAlgorithm.includes('PSS');
-        const pssOption = isPssAlgorithm ? '-pkeyopt rsa_padding_mode:pss' : '';
+        const pssOption = isPssAlgorithm ? `-pkeyopt rsa_padding_mode:pss -pkeyopt digest:${hashAlgorithm}` : '';
 
         return inputType === 'digest'
             ? `echo -n "your-data-to-sign" | openssl dgst -${hashAlgorithm} -binary -out digest.bin
@@ -202,7 +202,7 @@ echo "signed data digest: $(cat digest.bin | hexdump -v -e '/1 "%02x"')"
 echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
 `
             : `echo -n "your-data-to-sign" | \\
-openssl dgst -${hashAlgorithm} -sign "pkcs11:label=${keyAliasSanitized};type=private" ${isPssAlgorithm ? '-sigopt rsa_padding_mode:pss \\' : ''} ${opensslFlags} -out signature.bin
+openssl dgst -${hashAlgorithm} -sign "pkcs11:label=${keyAliasSanitized};type=private" ${isPssAlgorithm ? '-sigopt rsa_padding_mode:pss' : ''} ${opensslFlags} -out signature.bin
 
 echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"`
     };
