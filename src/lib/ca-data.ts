@@ -858,6 +858,19 @@ export async function signCertificate(caId: string, payload: any, accessToken: s
     return result;
 }
 
+export async function reissueCa(caId: string, payload: any, accessToken: string): Promise<any> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/reissue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.err || `Failed to reissue CA. Status: ${response.status}`);
+    }
+    return result;
+}
+
 export async function fetchCaRequestById(requestId: string, accessToken: string): Promise<any> {
     const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests?filter=id[equal]${requestId}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },

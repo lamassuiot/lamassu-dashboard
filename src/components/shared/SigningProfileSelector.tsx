@@ -49,6 +49,9 @@ interface SigningProfileSelectorProps {
 
   createModeEnabled?: boolean;
   onProfileCreated?: (newProfile: ApiSigningProfile) => void;
+  
+  // Props to control which modes are available
+  availableModes?: ProfileMode[];
 }
 
 
@@ -69,6 +72,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
   onExtendedKeyUsageChange,
   createModeEnabled = true,
   onProfileCreated,
+  availableModes = ['reuse', 'inline', 'create'],
 }) => {
     
   const { user } = useAuth();
@@ -165,9 +169,15 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
       : "bg-muted text-muted-foreground"
   );
 
-  const gridColsClass = [inlineModeEnabled, createModeEnabled].filter(Boolean).length + 1 >= 3 
-    ? 'md:grid-cols-3' 
-    : 'md:grid-cols-2';
+  // Count enabled modes to determine grid layout
+  const enabledModesCount = availableModes.filter(mode => {
+    if (mode === 'reuse') return true;
+    if (mode === 'inline') return inlineModeEnabled;
+    if (mode === 'create') return createModeEnabled;
+    return false;
+  }).length;
+
+  const gridColsClass = enabledModesCount === 1 ? 'md:grid-cols-1' : enabledModesCount === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3';
 
 
   if (profileMode === 'create' && createModeEnabled) {
@@ -213,15 +223,17 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
     <div className="space-y-4">
       <Label>Profile Mode</Label>
       <div className={cn("grid grid-cols-1 gap-4", gridColsClass)}>
-        <Card className={cardClass('reuse')} onClick={() => onProfileModeChange('reuse')}>
-          <CardHeader ><div className="flex items-center space-x-3"><div className={iconWrapperClass('reuse')}><BookText className="h-5 w-5" /></div><div><CardTitle className="text-base">Reuse Existing Profile</CardTitle><CardDescription className="text-sm">Use predefined issuance templates</CardDescription></div></div></CardHeader>
-        </Card>
-        {inlineModeEnabled && (
+        {availableModes.includes('reuse') && (
+          <Card className={cardClass('reuse')} onClick={() => onProfileModeChange('reuse')}>
+            <CardHeader ><div className="flex items-center space-x-3"><div className={iconWrapperClass('reuse')}><BookText className="h-5 w-5" /></div><div><CardTitle className="text-base">Reuse Existing Profile</CardTitle><CardDescription className="text-sm">Use predefined issuance templates</CardDescription></div></div></CardHeader>
+          </Card>
+        )}
+        {availableModes.includes('inline') && inlineModeEnabled && (
             <Card className={cardClass('inline')} onClick={() => onProfileModeChange('inline')}>
               <CardHeader ><div className="flex items-center space-x-3"><div className={iconWrapperClass('inline')}><Settings2 className="h-5 w-5" /></div><div><CardTitle className="text-base">Inline Profile</CardTitle><CardDescription className="text-sm">Define a one-time issuance policy</CardDescription></div></div></CardHeader>
             </Card>
         )}
-        {createModeEnabled && (
+        {availableModes.includes('create') && createModeEnabled && (
             <Card className={cardClass('create')} onClick={() => onProfileModeChange('create')}>
               <CardHeader ><div className="flex items-center space-x-3"><div className={iconWrapperClass('create')}><PlusCircle className="h-5 w-5" /></div><div><CardTitle className="text-base">Create New Profile</CardTitle><CardDescription className="text-sm">Create a new reusable profile</CardDescription></div></div></CardHeader>
             </Card>

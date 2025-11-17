@@ -5,9 +5,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronRight } from "lucide-react";
+import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronRight, Settings } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
@@ -26,6 +32,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaStatsDisplay } from '@/components/ca/details/CaStatsDisplay';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificatesTab';
+import { ReissueCertificateModal } from '@/components/ca/ReissueCertificateModal';
 
 
 interface CaStats {
@@ -84,6 +91,8 @@ export default function CertificateAuthorityDetailsClient() {
 
   const [isCrlModalOpen, setIsCrlModalOpen] = useState(false);
   const [caForCrlCheck, setCaForCrlCheck] = useState<CA | null>(null);
+
+  const [isReissueModalOpen, setIsReissueModalOpen] = useState(false);
 
   const tabFromQuery = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<string>(tabFromQuery || "information");
@@ -298,6 +307,10 @@ export default function CertificateAuthorityDetailsClient() {
     await updateCaMetadata(id, patchOperations, user.access_token);
   };
 
+  const handleOpenReissueModal = () => {
+    setIsReissueModalOpen(true);
+  };
+
   if (authLoading || isLoadingCAs || isLoadingEngines) {
     return (
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
@@ -421,21 +434,36 @@ export default function CertificateAuthorityDetailsClient() {
           </div>
         </div>
 
-        <div className="p-6 flex flex-wrap gap-2 border-b">
-          <Button variant="outline" onClick={handleOpenCrlModal}><Download className="mr-2 h-4 w-4" /> Download/View CRL</Button>
-          {isCaOnHold ? (
-            <Button variant="outline" onClick={handleReactivateCA}><ShieldAlert className="mr-2 h-4 w-4" />Re-activate CA</Button>
-          ) : caDetails.status !== 'revoked' ? (
-              <Button variant="destructive" onClick={handleCARevocation} disabled={isRevoking}>
-                  {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                  {isRevoking ? 'Revoking...' : 'Revoke CA'}
-              </Button>
-          ) : null}
-          {caDetails.status === 'revoked' && (
-              <Button variant="destructive" onClick={handleDeleteCA} disabled={isDeleting}>
-                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                  {isDeleting ? 'Deleting...' : 'Permanently Delete'}
-              </Button>
+        <div className="p-6 flex flex-wrap gap-2 border-b justify-between items-center">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={handleOpenCrlModal}><Download className="mr-2 h-4 w-4" /> Download/View CRL</Button>
+            {isCaOnHold ? (
+              <Button variant="outline" onClick={handleReactivateCA}><ShieldAlert className="mr-2 h-4 w-4" />Re-activate CA</Button>
+            ) : caDetails.status !== 'revoked' ? (
+                <Button variant="destructive" onClick={handleCARevocation} disabled={isRevoking}>
+                    {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                    {isRevoking ? 'Revoking...' : 'Revoke CA'}
+                </Button>
+            ) : null}
+            {caDetails.status === 'revoked' && (
+                <Button variant="destructive" onClick={handleDeleteCA} disabled={isDeleting}>
+                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+                    {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+                </Button>
+            )}
+          </div>
+          {caIsActive && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm"><Settings className="h-4 w-4" /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleOpenReissueModal}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Reissue CA
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 
@@ -526,6 +554,15 @@ export default function CertificateAuthorityDetailsClient() {
           isOpen={isCrlModalOpen}
           onClose={() => setIsCrlModalOpen(false)}
           ca={caForCrlCheck}
+        />
+      )}
+      {caDetails && (
+        <ReissueCertificateModal
+          isOpen={isReissueModalOpen}
+          onClose={() => setIsReissueModalOpen(false)}
+          caId={caDetails.id}
+          caName={caDetails.name}
+          caExpiryDate={caDetails.expires}
         />
       )}
     </div>
