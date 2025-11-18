@@ -5,20 +5,34 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, Plus, ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
+import { Package, Plus, ArrowLeft, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import { fetchUpdatePacks } from '@/lib/iot-api';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { deleteUpdatePackApi } from '@/lib/iot-api';
 import type { UpdatePack } from '@/types/iot';
 
 export default function UpdatePacksPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { availableDms } = useDms();
+  const queryClient = useQueryClient();
+  const [packToDelete, setPackToDelete] = React.useState<(UpdatePack & { dmsId: string; dmsName: string }) | null>(null);
 
   // Fetch all update packs from all DMS instances
   const { data: allUpdatePacks = [], isLoading, error } = useQuery<(UpdatePack & { dmsId: string; dmsName: string })[], Error>({
@@ -38,6 +52,28 @@ export default function UpdatePacksPage() {
     enabled: !!user?.access_token && availableDms.length > 0,
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (pack: UpdatePack & { dmsId: string; dmsName: string }) => 
+      deleteUpdatePackApi({ dmsId: pack.dmsId, packName: pack.name, accessToken: user!.access_token! }),
+    onSuccess: (data, pack) => {
+      toast({
+        title: "Update Pack Deleted",
+        description: `Pack "${pack.name}" has been successfully deleted. ${data?.message || ''}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['allUpdatePacks'] });
+    },
+    onError: (error: Error, pack) => {
+      toast({
+        variant: "destructive",
+        title: "Deletion Failed",
+        description: `Could not delete pack "${pack.name}". ${error.message}`,
+      });
+    },
+    onSettled: () => {
+      setPackToDelete(null);
+    }
+  });
+
   const handlePackClick = (pack: UpdatePack & { dmsId: string; dmsName: string }) => {
     router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&dmsId=${pack.dmsId}`);
   };
@@ -46,7 +82,14 @@ export default function UpdatePacksPage() {
     router.push(`/updates?packName=${encodeURIComponent(pack.name)}&dmsId=${pack.dmsId}`);
   };
 
+  const handleDeleteConfirm = () => {
+    if (packToDelete) {
+      deleteMutation.mutate(packToDelete);
+    }
+  };
+
   return (
+    <>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -58,7 +101,6 @@ export default function UpdatePacksPage() {
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Updates
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
@@ -84,7 +126,7 @@ export default function UpdatePacksPage() {
             A list of all firmware update packs across all Device Management Systems.
           </p>
         </div>
-          {isLoading ? (
+        {isLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-12 w-full" />
@@ -108,12 +150,13 @@ export default function UpdatePacksPage() {
                     <TableHead>Type</TableHead>
                     <TableHead>SWU Status</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {allUpdatePacks.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No update packs found. Create your first update pack to get started.
                       </TableCell>
                     </TableRow>
@@ -174,6 +217,19 @@ export default function UpdatePacksPage() {
                             {pack.createdAt ? new Date(pack.createdAt).toLocaleDateString() : 'N/A'}
                           </span>
                         </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPackToDelete(pack);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -183,5 +239,29 @@ export default function UpdatePacksPage() {
           )}
         </div>
     </div>
+
+    {/* Delete Confirmation Dialog */}
+    <AlertDialog open={!!packToDelete} onOpenChange={() => setPackToDelete(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Update Pack</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete the update pack "{packToDelete?.name}"? 
+            This action cannot be undone and will remove the pack from the system.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={handleDeleteConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { UpdatePack, ApiCreateUpdatePackPayload } from '@/types/iot';
 import { FileUpload } from '@/components/iot/file-upload';
 import { toast } from "@/hooks/use-toast";
@@ -28,21 +29,20 @@ import { Loader2, CheckCircle, XCircle, HelpCircle, PackageCheck, FileUp, Settin
 import { useDms } from '@/contexts/DmsContext';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchSymmetricKeys, type SymmetricKey } from '@/lib/symkms-api';
+import { useQuery } from '@tanstack/react-query';
 
 
 const updatePackFormSchema = z.object({
   name: z.string().min(3, "Pack name must be at least 3 characters."),
   version: z.coerce.number().int().positive("Version must be a positive integer."),
+  dmsId: z.string().min(1, "Please select a Device Management System."),
   type: z.enum(["rawfile", "firmware", "other"]),
   signingAlgorithm: z.enum(["none", "ecdsa-p256", "ecdsa-p384", "rsa-2048", "rsa-3072", "rsa-4096"]).optional(),
-  encryptionAlgorithm: z.enum([
-    "none",
-    "aes-128-cbc", "aes-192-cbc", "aes-256-cbc",
-    "aes-128-ctr", "aes-192-ctr", "aes-256-ctr",
-    "aes-128-gcm", "aes-192-gcm", "aes-256-gcm",
-    "ascon-128", "ascon-128a", "ascon-80pq"
-  ]).optional(),
-});
+  encryptionKeyId: z.string().optional(),
+  descriptorEncrypted: z.boolean().optional(),
+  encryptAllFiles: z.boolean().optional(),
+}).passthrough(); // Allow additional fields for individual file encryption
 
 type UpdatePackFormValues = z.infer<typeof updatePackFormSchema>;
 type FormMode = 'new' | 'newVersion' | 'edit';
@@ -80,7 +80,7 @@ export function UpdatePackForm({
   onBasePackSelect,
   onSwuGenerated,
 }: UpdatePackFormProps) {
-  const { selectedDms } = useDms();
+  const { availableDms, selectedDms } = useDms();
   const { user } = useAuth();
   const [binaryFiles, setBinaryFiles] = useState<File[]>([]);
   const [descriptorFile, setDescriptorFile] = useState<File | null>(null);
@@ -96,15 +96,25 @@ export function UpdatePackForm({
   const [descriptorRequiredFiles, setDescriptorRequiredFiles] = useState<string[]>([]);
   const [showSecurityWarningDialog, setShowSecurityWarningDialog] = useState(false);
 
+  // Fetch available symmetric keys for encryption
+  const { data: symmetricKeys = [] } = useQuery<SymmetricKey[], Error>({
+    queryKey: ['symmetricKeys', user?.profile?.sub],
+    queryFn: () => fetchSymmetricKeys(user!.profile.sub!, user!.access_token!),
+    enabled: !!user?.profile?.sub && !!user?.access_token,
+  });
+
   const form = useForm<UpdatePackFormValues>({
     resolver: zodResolver(updatePackFormSchema),
     defaultValues: { 
       name: "", 
       version: 1, 
+      dmsId: selectedDms?.id || "",
       type: "rawfile",
       signingAlgorithm: "none",
-      encryptionAlgorithm: "none"
-    },
+      encryptionKeyId: "none",
+      descriptorEncrypted: false,
+      encryptAllFiles: false
+    } as any,
   });
 
   useEffect(() => {
@@ -119,26 +129,65 @@ export function UpdatePackForm({
         name: initialPackData?.name || "",
         version: initialPackData?.version || 1,
         type: typeValue,
-      });
+        signingAlgorithm: "none",
+        encryptionKeyId: "none",
+        descriptorEncrypted: false,
+        encryptAllFiles: false
+      } as any);
     } else if (formModeActual === 'newVersion') {
       if (initialPackData && initialPackData.name) {
         form.reset({
           name: initialPackData.name,
           version: initialPackData.version,
           type: typeValue,
-        });
+          signingAlgorithm: "none",
+          encryptionKeyId: "none",
+          descriptorEncrypted: false,
+          encryptAllFiles: false
+        } as any);
       } else {
-        form.reset({ name: "", version: 0, type: "rawfile" });
+        form.reset({ 
+          name: "", 
+          version: 0, 
+          type: "rawfile",
+          signingAlgorithm: "none",
+          encryptionKeyId: "none",
+          descriptorEncrypted: false,
+          encryptAllFiles: false
+        } as any);
       }
     } else if (formModeActual === 'edit' && initialPackData) {
       form.reset({
         name: initialPackData.name,
         version: initialPackData.version,
         type: typeValue,
-      });
+        signingAlgorithm: "none",
+        encryptionKeyId: "none",
+        descriptorEncrypted: false,
+        encryptAllFiles: false
+      } as any);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formModeActual, initialPackData, form.reset]);
+
+  // Reset individual file encryption checkboxes when descriptor files change
+  useEffect(() => {
+    if (descriptorRequiredFiles.length > 0) {
+      // Clear any existing individual file encryption fields
+      const currentValues = form.getValues();
+      const updatedValues = { ...currentValues };
+
+      // Remove old encryptFile_* fields
+      Object.keys(updatedValues).forEach(key => {
+        if (key.startsWith('encryptFile_')) {
+          delete updatedValues[key as keyof typeof updatedValues];
+        }
+      });
+
+      // Reset form with cleared values
+      form.reset(updatedValues);
+    }
+  }, [descriptorRequiredFiles, form]);
 
 
   const handleBinaryUpload = async (files: File | File[]): Promise<boolean> => {
@@ -259,6 +308,125 @@ export function UpdatePackForm({
     return result;
   };
 
+  const convertToSWUGeneratorAlgorithmName = (algorithm: string): string => {
+    // Convert algorithm names from our format to SWUGenerator expected format
+    const normalizedAlg = algorithm.toLowerCase().trim();
+    
+    const algorithmMap: Record<string, string> = {
+      // AES variants
+      'aes-128-cbc': 'AES-128-CBC',
+      'aes128cbc': 'AES-128-CBC',
+      'aes-192-cbc': 'AES-192-CBC',
+      'aes192cbc': 'AES-192-CBC',
+      'aes-256-cbc': 'AES-256-CBC',
+      'aes256cbc': 'AES-256-CBC',
+      'aes-128-ctr': 'AES-128-CTR',
+      'aes128ctr': 'AES-128-CTR',
+      'aes-192-ctr': 'AES-192-CTR',
+      'aes192ctr': 'AES-192-CTR',
+      'aes-256-ctr': 'AES-256-CTR',
+      'aes256ctr': 'AES-256-CTR',
+      'aes-128-gcm': 'AES-128-GCM',
+      'aes128gcm': 'AES-128-GCM',
+      'aes-192-gcm': 'AES-192-GCM',
+      'aes192gcm': 'AES-192-GCM',
+      'aes-256-gcm': 'AES-256-GCM',
+      'aes256gcm': 'AES-256-GCM',
+      // Ascon variants
+      'ascon-80pq': 'Ascon-80pq',
+      'ascon80pq': 'Ascon-80pq',
+      'ascon-128': 'Ascon-128',
+      'ascon128': 'Ascon-128',
+      'ascon-128a': 'Ascon-128a',
+      'ascon128a': 'Ascon-128a',
+    };
+
+    const mapped = algorithmMap[normalizedAlg];
+    if (mapped) {
+      return mapped;
+    }
+    
+    // If not found in map, return original
+    console.warn(`Unknown algorithm format: ${algorithm}, using as-is`);
+    return algorithm;
+  };
+
+  const modifyDescriptorForEncryption = (descriptorContent: string, encryptedFileIndices: number[]): string => {
+    if (encryptedFileIndices.length === 0) {
+      return descriptorContent;
+    }
+
+    try {
+      // Check if it's JSON format
+      let isJsonFormat = false;
+      try {
+        JSON.parse(descriptorContent);
+        isJsonFormat = true;
+      } catch (e) {
+        // Not JSON, assume swupdate format
+      }
+
+      if (isJsonFormat) {
+        // Handle JSON format
+        const descriptor = JSON.parse(descriptorContent);
+        if (descriptor.files && Array.isArray(descriptor.files)) {
+          descriptor.files = descriptor.files.map((file: any, index: number) => {
+            if (encryptedFileIndices.includes(index)) {
+              return { ...file, encrypted: true };
+            }
+            return file;
+          });
+        }
+        return JSON.stringify(descriptor, null, 2);
+      } else {
+        // Handle swupdate format (libconf)
+        // We need to modify the text content directly by adding encrypted=true to file entries
+        let modifiedContent = descriptorContent;
+        
+        // Find all file blocks using regex
+        const fileBlockRegex = /\{\s*filename\s*=\s*["']([^"']+)["'][^}]*\}/g;
+        const matches = [...descriptorContent.matchAll(fileBlockRegex)];
+        
+        // Track which files we've encountered
+        let fileIndex = 0;
+        let offset = 0;
+        
+        matches.forEach((match) => {
+          const fullMatch = match[0];
+          const filename = match[1];
+          const matchStart = match.index! + offset;
+          
+          // Check if this file should be encrypted
+          if (encryptedFileIndices.includes(fileIndex)) {
+            // Check if 'encrypted' field already exists in this block
+            if (!fullMatch.includes('encrypted')) {
+              // Find the position before the closing brace
+              const closingBracePos = matchStart + fullMatch.lastIndexOf('}');
+              
+              // Insert encrypted = true before the closing brace
+              const before = modifiedContent.substring(0, closingBracePos);
+              const after = modifiedContent.substring(closingBracePos);
+              
+              // Add proper indentation (assuming 2 spaces or tab)
+              const indentation = fullMatch.match(/^\s*/)?.[0] || '\t\t\t\t';
+              modifiedContent = before + `\n${indentation}\tencrypted = true;` + after;
+              
+              // Update offset for next iteration
+              offset += `\n${indentation}\tencrypted = true;`.length;
+            }
+          }
+          
+          fileIndex++;
+        });
+        
+        return modifiedContent;
+      }
+    } catch (e) {
+      console.error("Error modifying descriptor for encryption:", e);
+      return descriptorContent;
+    }
+  };
+
   const handleDescriptorUpload = async (file: File): Promise<boolean> => {
     setDescriptorFile(null);
     setDescriptorFileContent(null);
@@ -329,10 +497,11 @@ export function UpdatePackForm({
     setGenerationError(null);
     setGenerationSuccessMessage(null);
     
-    // Get form values to check for signing/encryption algorithms
+    // Get form values to check for signing/encryption
     const formValues = form.getValues();
     const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
-    const hasEncryption = formValues.encryptionAlgorithm && formValues.encryptionAlgorithm !== 'none';
+    const hasEncryption = formValues.encryptionKeyId && formValues.encryptionKeyId !== 'none' && formValues.encryptionKeyId !== '';
+    const selectedKey = symmetricKeys.find(k => k.id === formValues.encryptionKeyId);
     
     // Build dynamic progress steps based on selected algorithms
     const dynamicSteps: ProgressStep[] = [
@@ -354,11 +523,11 @@ export function UpdatePackForm({
       });
     }
     
-    // Add encryption step if encryption algorithm is selected
-    if (hasEncryption) {
+    // Add encryption step if encryption key is selected
+    if (hasEncryption && selectedKey) {
       dynamicSteps.push({
         id: stepCounter++,
-        title: `Encrypt with ${formValues.encryptionAlgorithm?.toUpperCase()}`,
+        title: `Encrypt with ${selectedKey.algorithm.toUpperCase()}`,
         icon: Settings2,
         status: 'pending',
         message: "Waiting for signing..."
@@ -377,12 +546,15 @@ export function UpdatePackForm({
     setProgressSteps(dynamicSteps);
     setOverallProgress(0);
 
-    if (!selectedDms) {
+    const formData = form.getValues();
+    const selectedDmsForPack = availableDms.find(dms => dms.id === formData.dmsId);
+    
+    if (!selectedDmsForPack) {
         setGenerationError("No Device Management System is selected.");
         setIsProcessingSwu(false);
         return;
     }
-    const dmsId = selectedDms.id;
+    const dmsId = selectedDmsForPack.id;
 
     const isValid = await form.trigger();
     if (!isValid) {
@@ -492,8 +664,32 @@ export function UpdatePackForm({
 
       if (descriptorFile) {
         updateStepStatus(3, 'in-progress', `Uploading ${descriptorFile.name}...`);
+        
+        // Check if individual files are selected for encryption
+        const encryptedFileIndices: number[] = [];
+        if (!formValues.encryptAllFiles && descriptorRequiredFiles.length > 0) {
+          descriptorRequiredFiles.forEach((fileName, index) => {
+            const fieldName = `encryptFile_${index}`;
+            if (formValues[fieldName as keyof typeof formValues]) {
+              encryptedFileIndices.push(index);
+            }
+          });
+        }
+        
+        let descriptorToUpload = descriptorFile;
+        
+        // If individual files are selected for encryption, modify the descriptor
+        if (encryptedFileIndices.length > 0 && descriptorFileContent) {
+          const modifiedContent = modifyDescriptorForEncryption(descriptorFileContent, encryptedFileIndices);
+          // Create a new file with modified content
+          descriptorToUpload = new File([modifiedContent], descriptorFile.name, {
+            type: descriptorFile.type,
+            lastModified: descriptorFile.lastModified
+          });
+        }
+        
         const descriptorFormData = new FormData();
-        descriptorFormData.append('file', descriptorFile);
+        descriptorFormData.append('file', descriptorToUpload);
         const uploadDescriptorResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${user.access_token}` },
@@ -525,23 +721,54 @@ export function UpdatePackForm({
         currentStepId++;
       }
       
-      // Handle encryption step if algorithm is selected
-      if (hasEncryption) {
-        updateStepStatus(currentStepId, 'in-progress', `Applying ${formValues.encryptionAlgorithm?.toUpperCase()} encryption...`);
+      // Handle encryption step if key is selected
+      if (hasEncryption && selectedKey) {
+        updateStepStatus(currentStepId, 'in-progress', `Applying ${selectedKey.algorithm.toUpperCase()} encryption...`);
         setOverallProgress(80);
         
         // Simulate encryption process with random delay (0.5-1s)
         const encryptionDelay = 500 + Math.random() * 500;
         await new Promise(resolve => setTimeout(resolve, encryptionDelay));
         
-        updateStepStatus(currentStepId, 'success', `Successfully encrypted with ${formValues.encryptionAlgorithm?.toUpperCase()}`);
+        updateStepStatus(currentStepId, 'success', `Successfully encrypted with ${selectedKey.algorithm.toUpperCase()}`);
         currentStepId++;
       }
 
       updateStepStatus(currentStepId, 'in-progress', 'Triggering .swu file generation...');
-      const generateSwuResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/swu`, {
+      
+      // Prepare SWU generation payload with encryption parameters if selected
+      const swuPayload: any = {};
+      if (formValues.encryptionKeyId && selectedKey) {
+        swuPayload.user = user.profile.sub;
+        swuPayload.encryption_key_name = selectedKey.id;
+        swuPayload.encryption_alg_name = convertToSWUGeneratorAlgorithmName(selectedKey.algorithm);
+        swuPayload.sw_desc_encrypted = formValues.descriptorEncrypted || false;
+
+        // Handle file encryption options
+        if (formValues.encryptAllFiles) {
+          swuPayload.encrypt_all_files = true;
+        } else if (descriptorRequiredFiles.length > 0) {
+          // Check for individual file encryption
+          const encryptedFiles: string[] = [];
+          descriptorRequiredFiles.forEach((fileName, index) => {
+            const fieldName = `encryptFile_${index}`;
+            if (formValues[fieldName as keyof typeof formValues]) {
+              encryptedFiles.push(fileName);
+            }
+          });
+          if (encryptedFiles.length > 0) {
+            swuPayload.encrypted_files = encryptedFiles;
+          }
+        }
+      }
+      
+      const generateSwuResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/swu?user_id=${encodeURIComponent(user.profile.sub)}`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${user.access_token}` },
+        headers: { 
+          'Authorization': `Bearer ${user.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: Object.keys(swuPayload).length > 0 ? JSON.stringify(swuPayload) : undefined,
       });
       if (!generateSwuResponse.ok) {
         const errorData = await generateSwuResponse.json().catch(() => ({ details: `Status: ${generateSwuResponse.status} - ${generateSwuResponse.statusText}` }));
@@ -641,6 +868,35 @@ export function UpdatePackForm({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
+                  name="dmsId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Device Management System</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={isProcessingSwu}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select DMS" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableDms.map(dms => (
+                            <SelectItem key={dms.id} value={dms.id}>
+                              {dms.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Select the DMS where this update pack will be created.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
                   name="name"
                   render={({ field }) => (
                     <FormItem>
@@ -684,6 +940,8 @@ export function UpdatePackForm({
                     </FormItem>
                   )}
                 />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="type"
@@ -713,73 +971,8 @@ export function UpdatePackForm({
                 />
               </div>
               
-              {/* Security Configuration */}
-              <h3 className="text-lg font-semibold pt-4 border-t">Step 2: Security Configuration</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="signingAlgorithm"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Signing Algorithm</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select signing algorithm" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">No Signing</SelectItem>
-                          <SelectItem value="ecdsa-p256">ECDSA-P256</SelectItem>
-                          <SelectItem value="ecdsa-p384">ECDSA-P384</SelectItem>
-                          <SelectItem value="rsa-2048">RSA-2048</SelectItem>
-                          <SelectItem value="rsa-3072">RSA-3072</SelectItem>
-                          <SelectItem value="rsa-4096">RSA-4096</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>Digital signature algorithm for update verification</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="encryptionAlgorithm"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Encryption Algorithm</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select encryption algorithm" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">No Encryption</SelectItem>
-                          <SelectItem value="aes-128-cbc">AES-128-CBC</SelectItem>
-                          <SelectItem value="aes-192-cbc">AES-192-CBC</SelectItem>
-                          <SelectItem value="aes-256-cbc">AES-256-CBC</SelectItem>
-                          <SelectItem value="aes-128-ctr">AES-128-CTR</SelectItem>
-                          <SelectItem value="aes-192-ctr">AES-192-CTR</SelectItem>
-                          <SelectItem value="aes-256-ctr">AES-256-CTR</SelectItem>
-                          <SelectItem value="aes-128-gcm">AES-128-GCM</SelectItem>
-                          <SelectItem value="aes-192-gcm">AES-192-GCM</SelectItem>
-                          <SelectItem value="aes-256-gcm">AES-256-GCM</SelectItem>
-                          <SelectItem value="ascon-128">Ascon-128</SelectItem>
-                          <SelectItem value="ascon-128a">Ascon-128a</SelectItem>
-                          <SelectItem value="ascon-80pq">Ascon-80pq</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>Encryption algorithm for secure update delivery</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Horizontal Layout for Artifacts and Descriptor */}
-              <h3 className="text-lg font-semibold pt-4 border-t">Step 3: Upload Files</h3>
+              {/* File Upload Section - Moved before Security */}
+              <h3 className="text-lg font-semibold pt-4 border-t">Step 2: Upload Files</h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Side: Artifacts Upload */}
                 <div className="space-y-4">
@@ -884,6 +1077,139 @@ export function UpdatePackForm({
                   ))}
                 </div>
               )}
+              
+              {/* Security Configuration - Moved after Files */}
+              <h3 className="text-lg font-semibold pt-4 border-t">Step 3: Security Configuration</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="signingAlgorithm"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Signing Algorithm</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select signing algorithm" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No Signing</SelectItem>
+                          <SelectItem value="ecdsa-p256">ECDSA-P256</SelectItem>
+                          <SelectItem value="ecdsa-p384">ECDSA-P384</SelectItem>
+                          <SelectItem value="rsa-2048">RSA-2048</SelectItem>
+                          <SelectItem value="rsa-3072">RSA-3072</SelectItem>
+                          <SelectItem value="rsa-4096">RSA-4096</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Digital signature algorithm for update verification</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Encryption Key Selection */}
+                <FormField
+                  control={form.control}
+                  name="encryptionKeyId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Keys</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select encryption key" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">No Encryption</SelectItem>
+                          {symmetricKeys.map((key) => (
+                            <SelectItem key={key.id} value={key.id}>
+                              {key.id} ({key.algorithm})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Select a symmetric key for encryption</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* File Encryption Options - show when key is selected */}
+              {form.watch('encryptionKeyId') && form.watch('encryptionKeyId') !== 'none' && form.watch('encryptionKeyId') !== '' && (
+                <div className="space-y-3">
+                  <FormField
+                    control={form.control}
+                    name="descriptorEncrypted"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>Encrypt descriptor</FormLabel>
+                          <FormDescription>
+                            Encrypt the software update descriptor file
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="encryptAllFiles"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>Encrypt all files in descriptor</FormLabel>
+                          <FormDescription>
+                            Encrypt all files listed in the software update descriptor
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Individual file encryption checkboxes */}
+                  {descriptorRequiredFiles.length > 0 && !form.watch('encryptAllFiles') && (
+                    <div className="space-y-2">
+                      <FormLabel className="text-sm font-medium">Or encrypt individual files:</FormLabel>
+                      {descriptorRequiredFiles.map((fileName, index) => (
+                        <FormField
+                          key={fileName}
+                          control={form.control}
+                          name={`encryptFile_${index}`}
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <div className="space-y-1 leading-none">
+                                <FormLabel className="text-sm">{fileName}</FormLabel>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
             </form>
           </Form>
@@ -893,7 +1219,7 @@ export function UpdatePackForm({
               onClick={() => {
                 const formValues = form.getValues();
                 const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
-                const hasEncryption = formValues.encryptionAlgorithm && formValues.encryptionAlgorithm !== 'none';
+                const hasEncryption = formValues.encryptionKeyId && formValues.encryptionKeyId !== 'none' && formValues.encryptionKeyId !== '';
                 
                 if (!hasSigning && !hasEncryption) {
                   setShowSecurityWarningDialog(true);
@@ -1015,7 +1341,7 @@ export function UpdatePackForm({
               {(() => {
                 const formValues = form.getValues();
                 const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
-                const hasEncryption = formValues.encryptionAlgorithm && formValues.encryptionAlgorithm !== 'none';
+                const hasEncryption = formValues.encryptionKeyId && formValues.encryptionKeyId !== 'none' && formValues.encryptionKeyId !== '';
                 
                 if (!hasSigning && !hasEncryption) {
                   return "Are you sure you want to generate an unencrypted and unsigned update? This may pose security risks.";

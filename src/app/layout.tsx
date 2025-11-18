@@ -28,9 +28,9 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Download, Upload, UploadCloud, Lock, PlaySquare } from 'lucide-react';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,6 +81,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'issue-certificate': "Issue Certificate",
   'kms': "KMS",
   'keys': "Keys",
+  'sym-keys': "Symmetric Keys",
   'devices': "Devices",
   'device-groups': "Device Groups",
   'integrations': "Platform Integrations",
@@ -113,7 +114,8 @@ const navigationConfig: NavGroup[] = [
   {
     label: 'KMS',
     items: [
-      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false },
+      { href: '/kms/keys', label: 'Asymmetric Keys', icon: KeyRound, devOnly: true },
+      { href: '/kms/keys/sym-keys', label: 'Symmetric Keys', icon: Lock, devOnly: true },
       { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
     ],
   },
@@ -389,6 +391,90 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
         {isAuthenticated() ? (
           isWizardMode ? (
             <div className="flex-1 overflow-y-auto">
+            <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
+              <SidebarHeader className="p-4">
+                <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+                  <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
+                    <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
+                  </div>
+                  <Image
+                    src={LogoFullBlue}
+                    height={30}
+                    width={140}
+                    alt="LamassuIoT Logo"
+                    className="group-data-[collapsible=icon]:hidden dark:hidden"
+                  />
+                  <Image
+                    src={LogoFullWhite}
+                    height={30}
+                    width={140}
+                    alt="LamassuIoT Logo"
+                    className="group-data-[collapsible=icon]:hidden hidden dark:block"
+                  />
+                  <Image
+                    src={LogoBlue}
+                    height={30}
+                    width={30}
+                    alt="LamassuIoT Logo"
+                    className="hidden group-data-[collapsible=icon]:block"
+                  />
+                </div>
+              </SidebarHeader>
+              <SidebarContent className="p-2">
+                <SidebarMenu>
+                  {navigationConfig.map((group, groupIndex) => {
+                    if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                      return null;
+                    }
+
+                    const filteredItems = group.items.filter(item =>
+                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
+                    );
+
+                    if (filteredItems.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <React.Fragment key={group.label || `group-${groupIndex}`}>
+                        {group.label && (
+                          <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0">
+                            {group.label}
+                          </SidebarGroupLabel>
+                        )}
+                        {filteredItems.map(item => (
+                          <SidebarMenuItem key={item.href}>
+                            <SidebarMenuButton
+                              asChild
+                              isActive={
+                                item.href === '/kms/keys' 
+                                  ? pathname === '/kms/keys' || (pathname.startsWith('/kms/keys/') && !pathname.startsWith('/kms/keys/sym-keys'))
+                                  : pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')
+                              }
+                              tooltip={{ children: item.label, side: 'right', align: 'center' }}
+                            >
+                              <Link href={item.href} className="flex items-center w-full justify-start">
+                                <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
+                                <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarContent>
+              <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
+                <CustomSidebarToggle />
+                <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+
+                </div>
+              </SidebarFooter>
+            </Sidebar>
+
+            <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
+              {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
               {children}
             </div>
           ) : (

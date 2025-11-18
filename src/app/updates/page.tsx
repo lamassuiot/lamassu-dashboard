@@ -5,7 +5,7 @@ import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, Settings2, Pencil, X, PackageCheck, AlertTriangle, RefreshCw, Eye, Info, CheckCircle, Loader2, Clock, Package, Plus, MoreVertical, PlusCircle, ArrowLeft } from 'lucide-react';
+import { PlayCircle, Settings2, Pencil, X, PackageCheck, AlertTriangle, RefreshCw, Eye, Info, CheckCircle, Loader2, Clock, Package, Plus, MoreVertical, PlusCircle, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
 import type { UpdateStrategy, LaunchItem, ApiGlobalStrategy, UpdatePack, DeviceJob } from '@/types/iot';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -34,7 +34,13 @@ import {
   triggerItemRollout,
   fetchDeviceJobsForLaunch,
 } from '@/lib/iot-api';
+import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { useDms } from '@/contexts/DmsContext';
+
+// Extended LaunchItem with DMS information
+interface LaunchItemWithDms extends LaunchItem {
+  dmsName: string;
+}
 
 // Extended type to combine update pack with launch status
 interface UpdatePackWithStatus extends UpdatePack {
@@ -47,6 +53,10 @@ interface UpdatePackWithStatus extends UpdatePack {
   errorRate: number;
   rolloutProgress: number;
   targetTags: string[];
+  dmsId: string;
+  dmsName: string;
+  hasLaunchForCurrentVersion: boolean;
+  isRemoved?: boolean;
 }
 
 // Helper function to format workflow type
@@ -1246,6 +1256,235 @@ function UpdatePackErrorRateCell({ pack, dmsId, accessToken }: UpdatePackErrorRa
   );
 }
 
+// Component for grouped update pack view with launches
+interface UpdatePackGroupProps {
+  pack: UpdatePackWithStatus;
+  dmsId: string;
+  accessToken: string | null;
+  onNewLaunch: (packId: string, packName: string, version: number) => void;
+  onNewVersion: (packId: string) => void;
+  onViewLaunchDetails: (launch: LaunchItem) => void;
+}
+
+function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, onViewLaunchDetails }: UpdatePackGroupProps) {
+  const [isExpanded, setIsExpanded] = React.useState(true);
+  const [startedLaunches, setStartedLaunches] = React.useState<Set<string>>(new Set());
+  
+  const handleLaunchExecute = async (launchId: string) => {
+    try {
+      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/rollout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to execute launch: ${response.statusText}`);
+      }
+
+      // Mark as started locally
+      setStartedLaunches(prev => new Set(prev).add(launchId));
+      
+      toast({
+        title: "Launch Executed",
+        description: `Launch ${launchId.slice(-4)} has been successfully executed.`,
+      });
+
+      // Optionally refresh the launches data
+      // queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
+
+    } catch (error) {
+      console.error('Error executing launch:', error);
+      toast({
+        variant: "destructive",
+        title: "Launch Execution Failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    }
+  };
+  
+  return (
+    <div className="border rounded-lg hover:shadow-md transition-shadow">
+      <div className="p-4 border-b">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="h-8 w-8 p-0 hover:bg-primary/10"
+              >
+                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">{pack.name}</h3>
+                  <Badge variant="secondary" className="font-medium">v{pack.version}</Badge>
+                  {pack.isRemoved && (
+                    <Badge variant="destructive">removed</Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <span>{pack.dmsName}</span>
+                  <span>•</span>
+                  <span>{pack.launches.length} launch{pack.launches.length !== 1 ? 'es' : ''}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!pack.hasLaunchForCurrentVersion && (
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => onNewLaunch(pack.id, pack.name, pack.version)}
+                className="gap-2 bg-primary hover:bg-primary/90"
+              >
+                <PlayCircle className="h-4 w-4" />
+                New Launch
+              </Button>
+            )}
+            {!pack.isRemoved && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onNewVersion(pack.id)}
+                className="gap-2"
+              >
+                <PlusCircle className="h-4 w-4" />
+                New Version
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      {isExpanded && (
+        <div className="p-4">
+          {pack.launches.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center rounded-lg border-2 border-dashed">
+              <Info className="h-12 w-12 text-muted-foreground mb-3" />
+              <p className="text-lg font-medium text-foreground">No launches found for this update pack</p>
+              <p className="text-sm text-muted-foreground mb-4 max-w-md">
+                Create a new launch to start deploying version {pack.version} to your devices.
+              </p>
+              <Button
+                onClick={() => onNewLaunch(pack.id, pack.name, pack.version)}
+                className="bg-primary hover:bg-primary/90"
+              >
+                <PlayCircle className="mr-2 h-4 w-4" />
+                Create Launch for v{pack.version}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pack.launches.map((launch) => (
+                <div
+                  key={launch.id}
+                  className="border rounded-lg p-4 hover:bg-muted/10 transition-colors"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    <div className="md:col-span-3">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="p-0 h-auto font-medium text-primary hover:underline"
+                          onClick={() => onViewLaunchDetails(launch)}
+                        >
+                          Launch - {launch.id.slice(-4)}
+                        </Button>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {launch.exec_date ? format(parseISO(launch.exec_date), "PPp") : 'N/A'}
+                      </div>
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <LaunchStatusCell 
+                        launch={launch}
+                        dmsId={dmsId}
+                        accessToken={accessToken}
+                      />
+                    </div>
+                    
+                    <div className="md:col-span-3">
+                      <LaunchProgressCell
+                        launch={launch}
+                        dmsId={dmsId}
+                        accessToken={accessToken}
+                      />
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <div className="text-xs space-y-1">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-3 w-3 text-primary" />
+                          <span>{launch.devices_with_job.length} w/ Job</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span>{launch.devices_without_job.length} w/o Job</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="md:col-span-2 flex justify-end gap-2">
+                      {/* Show Execute button for launches that haven't completed */}
+                      {(!launch.exec_date || launch.devices_with_job.length === 0) && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Button
+                                  size="sm"
+                                  variant={startedLaunches.has(launch.id) ? "default" : "outline"}
+                                  onClick={() => handleLaunchExecute(launch.id)}
+                                  disabled={launch.devices_without_job.length === 0}
+                                  className={`gap-2 ${
+                                    startedLaunches.has(launch.id) 
+                                      ? "bg-green-600 hover:bg-green-700" 
+                                      : ""
+                                  }`}
+                                >
+                                  <PlayCircle className="h-4 w-4" />
+                                  {startedLaunches.has(launch.id) ? "Execute" : "Start"}
+                                </Button>
+                              </div>
+                            </TooltipTrigger>
+                            {launch.devices_without_job.length === 0 && (
+                              <TooltipContent>
+                                <p>All devices have job assigned</p>
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onViewLaunchDetails(launch)}
+                        className="gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Details
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function UpdatesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1253,6 +1492,7 @@ export default function UpdatesPage() {
   const [selectedLaunchForDialog, setSelectedLaunchForDialog] = React.useState<LaunchItem | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = React.useState(false);
   const [isStrategyDialogOpen, setIsStrategyDialogOpen] = React.useState(false);
+  const [selectedPackForLaunch, setSelectedPackForLaunch] = React.useState<string | null>(null);
   const { user } = useAuth();
   const { availableDms, selectedDms } = useDms();
 
@@ -1283,6 +1523,8 @@ export default function UpdatesPage() {
       // After saving strategy, trigger the launch
       globalLaunchMutation.mutate();
       setIsStrategyDialogOpen(false);
+      // Clear selected pack when dialog closes
+      setSelectedPackForLaunch(null);
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: "Strategy Configuration Failed", description: err.message });
@@ -1395,6 +1637,146 @@ export default function UpdatesPage() {
     updatePackId: updatePacks.find(p => p.name === globalStrategy?.update_pack_id)?.id || undefined,
   };
 
+  // Helper function to extract pack name and version from launch name
+  const extractPackInfo = (launchName: string): { name: string; version: number } | null => {
+    // Try to extract version from launch name
+    const versionMatch = launchName.match(/(?:_v|\sV)([0-9]+(?:\.[0-9]+)*)/i);
+    if (versionMatch && versionMatch[1]) {
+      const versionParts = versionMatch[1].split('.');
+      const version = parseInt(versionParts[0], 10);
+      // Remove version suffix to get pack name
+      const name = launchName.replace(/(?:_v|\sV)([0-9]+(?:\.[0-9]+)*).*$/i, '').trim();
+      return { name, version };
+    }
+    
+    // If no version found, try to match with existing packs
+    const matchedPack = updatePacks.find(pack => 
+      launchName.includes(pack.name) || launchName.startsWith(pack.name)
+    );
+    
+    if (matchedPack) {
+      return { name: matchedPack.name, version: matchedPack.version };
+    }
+    
+    // If no match found, assume the launch name is the pack name and use version 1
+    // This handles removed packs that still have launches
+    if (launchName.trim()) {
+      return { name: launchName.trim(), version: 1 };
+    }
+    
+    return null;
+  };
+
+  // Group launches by update pack
+  const groupedLaunches = React.useMemo(() => {
+    if (packNameFilter || !user?.access_token) return { activePacks: [], removedPacks: [] };
+    
+    // Fetch all update packs from all DMS
+    const packsMap = new Map<string, UpdatePackWithStatus>();
+    
+    // Initialize with all update packs (these are active packs)
+    availableDms.forEach(dms => {
+      // We'll need to fetch packs for each DMS - for now use selectedDms packs
+      if (dms.id === selectedDms?.id && updatePacks.length > 0) {
+        updatePacks.forEach(pack => {
+          const key = `${dms.id}-${pack.name}-${pack.version}`;
+          if (!packsMap.has(key)) {
+            packsMap.set(key, {
+              ...pack,
+              dmsId: dms.id,
+              dmsName: dms.name,
+              launches: [],
+              totalDevices: 0,
+              devicesWithJob: 0,
+              completedDevices: 0,
+              failedDevices: 0,
+              status: 'Not Started',
+              errorRate: 0,
+              rolloutProgress: 0,
+              targetTags: [],
+              hasLaunchForCurrentVersion: false,
+              isRemoved: false,
+            });
+          }
+        });
+      }
+    });
+    
+    // Add launches to their respective packs
+    allLaunches.forEach(launch => {
+      // Extract pack name and version from launch name
+      const packInfo = extractPackInfo(launch.name);
+      if (packInfo) {
+        const key = `${launch.dms_id}-${packInfo.name}-${packInfo.version}`;
+        let packWithStatus = packsMap.get(key);
+        
+        if (!packWithStatus) {
+          // Create a pack entry if it doesn't exist
+          // Only mark as removed if it's from the selected DMS and doesn't exist in updatePacks
+          const isRemoved = selectedDms && launch.dms_id === selectedDms.id && !updatePacks.some(p => p.name === packInfo.name && p.version === packInfo.version);
+          packWithStatus = {
+            id: `${launch.dms_id}-${packInfo.name}`,
+            name: packInfo.name,
+            version: packInfo.version,
+            type: 'firmware',
+            dmsId: launch.dms_id,
+            dmsName: launch.dmsName || '',
+            launches: [],
+            totalDevices: 0,
+            devicesWithJob: 0,
+            completedDevices: 0,
+            failedDevices: 0,
+            status: 'Not Started',
+            errorRate: 0,
+            rolloutProgress: 0,
+            targetTags: [],
+            hasLaunchForCurrentVersion: false,
+            isRemoved: isRemoved,
+          };
+          packsMap.set(key, packWithStatus);
+        }
+        
+        packWithStatus.launches.push(launch);
+        packWithStatus.totalDevices += launch.devices_with_job.length + launch.devices_without_job.length;
+        packWithStatus.devicesWithJob += launch.devices_with_job.length;
+        packWithStatus.hasLaunchForCurrentVersion = true;
+      }
+    });
+    
+    // Separate active and removed packs
+    const allPacks = Array.from(packsMap.values());
+    const activePacks = allPacks.filter(pack => !pack.isRemoved);
+    const removedPacks = allPacks.filter(pack => pack.isRemoved);
+    
+    // Sort both arrays
+    const sortPacks = (packs: UpdatePackWithStatus[]) => packs.sort((a, b) => {
+      // Sort by DMS name, then pack name, then version (descending)
+      if (a.dmsName !== b.dmsName) return a.dmsName.localeCompare(b.dmsName);
+      if (a.name !== b.name) return a.name.localeCompare(b.name);
+      return b.version - a.version;
+    });
+    
+    return {
+      activePacks: sortPacks(activePacks),
+      removedPacks: sortPacks(removedPacks),
+    };
+  }, [allLaunches, updatePacks, availableDms, selectedDms, packNameFilter, user]);
+
+  const handleNewLaunch = (packId: string, packName: string, version: number) => {
+    // Set the selected pack and open strategy dialog
+    setSelectedPackForLaunch(packId);
+    setIsStrategyDialogOpen(true);
+  };
+
+  const handleNewVersion = (packId: string) => {
+    router.push(`/updates/create?mode=update&basePackId=${encodeURIComponent(packId)}`);
+  };
+
+  const handleViewLaunchDetails = (launch: LaunchItem) => {
+    setSelectedLaunchForDialog(launch);
+    setIsDetailDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with Create Update Pack button */}
@@ -1438,13 +1820,18 @@ export default function UpdatesPage() {
         )}
       </div>
 
-      {/* Launches Table */}
+      {/* Launches Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold">Launches</h2>
+            <h2 className="text-xl font-semibold">
+              {packNameFilter ? 'Launches' : 'Update Packs & Launches'}
+            </h2>
             <p className="text-muted-foreground">
-              A list of all firmware update launches across all Device Management Systems.
+              {packNameFilter 
+                ? 'A list of all firmware update launches for this pack.'
+                : 'View all update packs and their launches across Device Management Systems.'
+              }
             </p>
           </div>
           {!packNameFilter && selectedDms && (
@@ -1458,24 +1845,88 @@ export default function UpdatesPage() {
             </Button>
           )}
         </div>
-          {isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : launchesError ? (
-            <div className="text-center py-4">
-              <p className="text-destructive flex items-center justify-center gap-2">
-                <AlertTriangle /> Error Loading Launches
-              </p>
-              <p className="text-destructive-foreground mb-2">{launchesError.message}</p>
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
-                <RefreshCw className="mr-2 h-4 w-4" /> Retry
-              </Button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
+        
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        ) : launchesError ? (
+          <div className="text-center py-4">
+            <p className="text-destructive flex items-center justify-center gap-2">
+              <AlertTriangle /> Error Loading Launches
+            </p>
+            <p className="text-destructive-foreground mb-2">{launchesError.message}</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Retry
+            </Button>
+          </div>
+        ) : !packNameFilter ? (
+          /* Grouped view by update pack */
+          <div className="space-y-4">
+            {groupedLaunches.activePacks.length === 0 && groupedLaunches.removedPacks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center bg-muted/30 rounded-lg">
+                <Package className="h-16 w-16 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium text-foreground">No update packs found</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Create your first update pack to start deploying firmware updates.
+                </p>
+                <Button onClick={() => router.push('/updates/create_update')} className="bg-primary hover:bg-primary/90">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Create Update Pack
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Active Update Packs */}
+                {groupedLaunches.activePacks.length > 0 && (
+                  <div className="space-y-4">
+                    {groupedLaunches.activePacks.map((pack) => (
+                      <UpdatePackGroup
+                        key={`${pack.dmsId}-${pack.name}-${pack.version}`}
+                        pack={pack}
+                        dmsId={pack.dmsId}
+                        accessToken={user?.access_token || null}
+                        onNewLaunch={handleNewLaunch}
+                        onNewVersion={handleNewVersion}
+                        onViewLaunchDetails={handleViewLaunchDetails}
+                      />
+                    ))}
+                  </div>
+                )}
+                
+                {/* Removed Update Packs */}
+                {groupedLaunches.removedPacks.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-destructive">
+                        <Info className="h-5 w-5" />
+                        <h3 className="font-semibold">Removed Update Packs</h3>
+                      </div>
+                      <p className="text-sm text-destructive/80 mt-1">
+                        These update packs have been removed but still have associated launches.
+                      </p>
+                    </div>
+                    {groupedLaunches.removedPacks.map((pack) => (
+                      <UpdatePackGroup
+                        key={`${pack.dmsId}-${pack.name}-${pack.version}`}
+                        pack={pack}
+                        dmsId={pack.dmsId}
+                        accessToken={user?.access_token || null}
+                        onNewLaunch={handleNewLaunch}
+                        onNewVersion={handleNewVersion}
+                        onViewLaunchDetails={handleViewLaunchDetails}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          /* Filtered view - show table */
+          <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1616,24 +2067,78 @@ export default function UpdatesPage() {
         </div>
 
       {/* Strategy Configuration Dialog */}
-      <Dialog open={isStrategyDialogOpen} onOpenChange={setIsStrategyDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog open={isStrategyDialogOpen} onOpenChange={(open) => {
+        setIsStrategyDialogOpen(open);
+        if (!open) {
+          setSelectedPackForLaunch(null);
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings2 className="h-5 w-5 text-primary" />
               Configure Launch Strategy
             </DialogTitle>
             <DialogDescription>
-              Set up the rollout strategy for this launch. This configuration will be saved and used for the launch preparation.
+              Configure the rollout strategy for your next firmware update launch. This will determine how updates are deployed to your device fleet.
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[calc(80vh-200px)] pr-4">
-            <UpdateStrategyForm
-              strategy={formInitialData}
-              availableUpdatePacks={updatePacks}
-              onStrategySavedOrUpdated={handleStrategySave}
-            />
+          
+          <ScrollArea className="max-h-[calc(90vh-180px)] pr-4">
+            <div className="space-y-6">
+              {/* Strategy Form */}
+              <div className="bg-muted/30 rounded-lg p-6">
+                <UpdateStrategyForm
+                  strategy={formInitialData}
+                  availableUpdatePacks={updatePacks}
+                  defaultSelectedPackId={selectedPackForLaunch || undefined}
+                  onStrategySavedOrUpdated={handleStrategySave}
+                />
+              </div>
+              
+              {/* Help Section */}
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Info className="h-4 w-4 text-primary" />
+                    Configuration Guide
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div>
+                    <p className="font-medium mb-1">Workflow Types:</p>
+                    <ul className="list-disc list-inside space-y-1 text-muted-foreground ml-2">
+                      <li><strong>Direct:</strong> Deploy updates immediately to all targeted devices</li>
+                      <li><strong>Phased:</strong> Deploy updates in controlled stages with user monitoring</li>
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <p className="font-medium mb-1">Rollout Options:</p>
+                    <ul className="list-disc list-inside space-y-1 text-muted-foreground ml-2">
+                      <li><strong>Percentage:</strong> Target a percentage of your total device fleet</li>
+                      <li><strong>Fixed:</strong> Target a specific number of devices</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Tip:</strong> Use a test device to validate updates before full deployment. Start with lower percentages for phased rollouts to minimize risk.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </ScrollArea>
+          
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => {
+              setIsStrategyDialogOpen(false);
+              setSelectedPackForLaunch(null);
+            }}>
+              Cancel
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

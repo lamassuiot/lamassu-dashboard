@@ -767,6 +767,191 @@ export async function signCertificate(caId: string, payload: any, accessToken: s
     return result;
 }
 
+export async function fetchCaRequestById(requestId: string, accessToken: string): Promise<any> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests?filter=id[equal]${requestId}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) throw new Error("Failed to fetch CA request details.");
+    const data = await response.json();
+    const foundRequest = data.list?.[0];
+    if (foundRequest) {
+        return foundRequest;
+    }
+    throw new Error(`CA Request with ID "${requestId}" not found or is not pending.`);
+}
+
+export interface ApiKmsKey {
+  id: string;
+  name?: string;
+  algorithm: string;
+  size: string;
+  public_key: string;
+  status: string;
+  creation_ts: string;
+}
+
+export interface ApiKmsKeyListResponse {
+  next: string | null;
+  list: ApiKmsKey[];
+}
+
+
+export async function fetchKmsKeys(accessToken: string, apiQueryString?: string): Promise<ApiKmsKeyListResponse> {
+    const url = `${get_CA_API_BASE_URL()}/kms/keys?${apiQueryString || ''}`;
+    const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to fetch KMS keys. HTTP error ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Failed to fetch keys: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
+        } catch(e) { /* ignore */}
+        throw new Error(errorMessage);
+    }
+    return response.json();
+}
+
+export async function signWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<any> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/sign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.err || result.message || `Signing failed with status ${response.status}`);
+    }
+    return result;
+}
+
+export async function verifyWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<{ valid: boolean }> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Verification failed with status ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Verification failed: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
+        } catch(e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+
+    return response.json();
+}
+
+
+export async function createKmsKey(payload: { engine_id: string; algorithm: string; size: number; name: string }, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to create key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+}
+
+// SymKMS API Functions
+export interface ApiSymKey {
+  id: string;
+  user_id: string;
+  algorithm: string;
+  creation_ts: string;
+}
+
+export interface ApiSymKeyListResponse {
+  keys: ApiSymKey[];
+  total?: number;
+}
+
+export async function fetchSymKeys(accessToken: string, userId: string, limit?: number, offset?: number): Promise<ApiSymKeyListResponse> {
+    const params = new URLSearchParams({ user_id: userId });
+    if (limit !== undefined) params.append('limit', limit.toString());
+    if (offset !== undefined) params.append('offset', offset.toString());
+    
+    const url = `${get_CA_API_BASE_URL()}/symkms?${params.toString()}`;
+    const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to fetch symmetric keys. HTTP error ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Failed to fetch keys: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
+        } catch(e) { /* ignore */}
+        throw new Error(errorMessage);
+    }
+    
+    const data = await response.json();
+    return { keys: data || [], total: data?.length };
+}
+
+export async function createSymKey(payload: { user_id: string; algorithm: string; id?: string }, accessToken: string): Promise<ApiSymKey> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/symkms`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to create symmetric key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore json parse error */ }
+        throw new Error(errorMessage);
+    }
+    
+    return response.json();
+}
+
+export async function deleteSymKey(keyId: string, accessToken: string): Promise<void> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/symkms/${encodeURIComponent(keyId)}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`
+        },
+    });
+    
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to delete symmetric key. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Key deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) { /* ignore */ }
+        throw new Error(errorMessage);
+    }
+}
+
 export async function updateCaDefaultProfileId(caId: string, profileId: string | null, accessToken: string): Promise<void> {
     const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/profile`, {
         method: 'POST',

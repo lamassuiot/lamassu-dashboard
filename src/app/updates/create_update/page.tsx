@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Package, GitFork, Trash2, PlusCircle, RefreshCw, PackagePlus } from 'lucide-react';
+import { Package, GitFork, Trash2, PlusCircle, RefreshCw, PackagePlus, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
@@ -335,6 +335,24 @@ export default function UpdatePacksPage() {
 
   return (
     <div className="space-y-8">
+      {/* Header with back button */}
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push('/updates')}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Create Update Pack</h1>
+          <p className="text-muted-foreground mt-1">
+            Create new firmware update packs or update existing ones.
+          </p>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Create Update Pack</CardTitle>

@@ -40,12 +40,14 @@ type StrategyFormValues = z.infer<typeof strategyFormSchema>;
 interface UpdateStrategyFormProps {
   strategy?: UpdateStrategy; 
   availableUpdatePacks: UpdatePack[]; // Added prop for update packs
+  defaultSelectedPackId?: string; // New prop for pre-selecting a pack
   onStrategySavedOrUpdated?: (strategy: UpdateStrategy) => void;
 }
 
 export function UpdateStrategyForm({ 
   strategy: initialStrategyData, 
   availableUpdatePacks,
+  defaultSelectedPackId,
   onStrategySavedOrUpdated 
 }: UpdateStrategyFormProps) {
 
@@ -54,7 +56,7 @@ export function UpdateStrategyForm({
     rolloutType: "numeric",
     rolloutValue: 10,
     testDeviceId: undefined,
-    updatePackId: undefined, // Will store ID
+    updatePackId: defaultSelectedPackId || undefined, // Use the default selected pack
   };
 
   const form = useForm<StrategyFormValues>({
@@ -64,8 +66,14 @@ export function UpdateStrategyForm({
       rolloutType: initialStrategyData.rolloutType,
       rolloutValue: initialStrategyData.rolloutValue,
       testDeviceId: initialStrategyData.testDeviceId || undefined,
-      updatePackId: initialStrategyData.updatePackId || undefined, // Expecting ID here
-    } : defaultFormValues,
+      updatePackId: defaultSelectedPackId || initialStrategyData.updatePackId || undefined,
+    } : {
+      workflowType: "wfx.workflow.dau.direct",
+      rolloutType: "numeric",
+      rolloutValue: 10,
+      testDeviceId: undefined,
+      updatePackId: defaultSelectedPackId || undefined,
+    },
   });
 
   React.useEffect(() => {
@@ -75,12 +83,19 @@ export function UpdateStrategyForm({
           rolloutType: initialStrategyData.rolloutType,
           rolloutValue: initialStrategyData.rolloutValue,
           testDeviceId: initialStrategyData.testDeviceId || undefined,
-          updatePackId: initialStrategyData.updatePackId || undefined,
+          updatePackId: defaultSelectedPackId || initialStrategyData.updatePackId || undefined,
       });
     } else {
-      form.reset(defaultFormValues);
+      // When no initial strategy data, use defaults with the selected pack
+      form.reset({
+        workflowType: "wfx.workflow.dau.direct",
+        rolloutType: "numeric",
+        rolloutValue: 10,
+        testDeviceId: undefined,
+        updatePackId: defaultSelectedPackId || undefined,
+      });
     }
-  }, [initialStrategyData, form]);
+  }, [initialStrategyData, defaultSelectedPackId, form]);
 
   const onSubmit = (data: StrategyFormValues) => {
     const processedData = { ...data };
@@ -134,133 +149,204 @@ export function UpdateStrategyForm({
 
 
   return (
-    <>
-      <div>
-        <h3 className="text-lg font-semibold">{cardTitle}</h3>
-        <p className="text-muted-foreground">{cardDescription}</p>
-      </div>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Main Configuration Card */}
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-primary/5 to-primary/10">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold text-primary">Rollout Configuration</CardTitle>
+            <CardDescription className="text-sm">Configure how firmware updates will be deployed to your device fleet</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Workflow and Update Pack Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="workflowType"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-sm font-medium text-foreground">Workflow Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-11 bg-background border-primary/20 focus:border-primary">
+                          <SelectValue placeholder="Select workflow type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="wfx.workflow.dau.direct">Direct Update</SelectItem>
+                        <SelectItem value="wfx.workflow.phased.rollout">Phased Rollout</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription className="text-xs">
+                      {field.value === 'wfx.workflow.dau.direct' 
+                        ? 'Deploy immediately to all targeted devices' 
+                        : 'Deploy in controlled phases with monitoring'}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="updatePackId"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-sm font-medium text-foreground">Update Pack</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? SELECT_NONE_VALUE}>
+                      <FormControl>
+                        <SelectTrigger className="h-11 bg-background border-primary/20 focus:border-primary">
+                          <SelectValue placeholder="Select update pack" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={SELECT_NONE_VALUE}>None (Select later)</SelectItem>
+                        {availableUpdatePacks.map(pack => ( 
+                          <SelectItem key={pack.id} value={pack.id}>{pack.name} v{pack.version}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription className="text-xs">Choose the update pack to deploy</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Rollout Configuration Section */}
+            <div className="bg-background/50 rounded-lg p-4 border border-primary/10">
+              <h4 className="text-sm font-medium text-foreground mb-4 flex items-center gap-2">
+                <div className="w-1 h-4 bg-primary rounded-full"></div>
+                Rollout Targeting
+              </h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="rolloutType"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="text-sm font-medium text-foreground">Target Type</FormLabel>
+                      <div className="flex items-center justify-between p-4 bg-background rounded-md border border-primary/20 hover:border-primary/40 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full transition-colors ${
+                            field.value === 'numeric' ? 'bg-blue-500' : 'bg-orange-500'
+                          }`}></div>
+                          <div>
+                            <div className="text-sm font-medium">
+                              {field.value === 'numeric' ? 'Fixed Count' : 'Percentage'}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {field.value === 'numeric' ? 'Specific number of devices' : 'Percentage of fleet'}
+                            </div>
+                          </div>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value === 'percentage'}
+                            onCheckedChange={(checked) => field.onChange(checked ? 'percentage' : 'numeric')}
+                            className="data-[state=checked]:bg-orange-500"
+                          />
+                        </FormControl>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              
+                <FormField
+                  control={form.control}
+                  name="rolloutValue"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="text-sm font-medium text-foreground">
+                        {form.watch("rolloutType") === "percentage" ? "Percentage Value" : "Device Count"}
+                      </FormLabel>
+                      <div className="flex items-center gap-3 p-3 bg-background rounded-md border border-primary/20 hover:border-primary/40 transition-colors">
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder={form.watch("rolloutType") === "percentage" ? "25" : "10"} 
+                            {...field} 
+                            className="w-24 h-10 text-center text-base font-semibold bg-background border-0 focus:ring-0 p-0"
+                          />
+                        </FormControl>
+                        <span className="text-sm text-muted-foreground font-medium">
+                          {form.watch("rolloutType") === "percentage" ? "%" : "devices"}
+                        </span>
+                      </div>
+                      <FormDescription className="text-xs">
+                        {form.watch("rolloutType") === "percentage" 
+                          ? "Percentage of total devices (1-100)" 
+                          : "Number of devices to update"}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Test Device Card */}
+        <Card className="border-0 shadow-sm bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium text-amber-800 dark:text-amber-200">
+              Test Device (Optional)
+            </CardTitle>
+            <CardDescription className="text-sm text-amber-700 dark:text-amber-300">
+              Validate your update on a single device before full deployment
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <FormField
               control={form.control}
-              name="workflowType"
+              name="testDeviceId"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Workflow Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                <FormItem className="space-y-3">
+                  <FormLabel className="text-sm font-medium text-foreground">Select Test Device</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? SELECT_NONE_VALUE}>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select workflow type" />
+                      <SelectTrigger className="h-11 bg-background border-amber-200 dark:border-amber-800 focus:border-amber-500">
+                        <SelectValue placeholder="Choose a test device" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="wfx.workflow.dau.direct">Direct</SelectItem>
-                      <SelectItem value="wfx.workflow.phased.rollout">Phased</SelectItem>
+                      <SelectItem value={SELECT_NONE_VALUE}>Skip testing</SelectItem>
+                      {MOCK_DEVICES_FOR_TEST.map(device => (
+                        <SelectItem key={device.id} value={device.id}>
+                          {device.name}
+                          <span className="text-xs text-muted-foreground">({device.id})</span>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="rolloutType"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Rollout Type</FormLabel>
-                    <FormDescription>
-                      Rollout: {field.value === 'numeric' ? 'Fixed number' : 'Percentage'}.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                     <Switch
-                        checked={field.value === 'percentage'}
-                        onCheckedChange={(checked) => field.onChange(checked ? 'percentage' : 'numeric')}
-                        aria-label={`Switch to ${field.value === 'percentage' ? 'fixed number' : 'percentage'} rollout`}
-                      />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="rolloutValue"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Rollout Value</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="e.g., 10 or 100" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {form.getValues("rolloutType") === "percentage" ? 
-                    "Percentage of devices (1-100)." : 
-                    "Fixed number of devices."}
+                  <FormDescription className="text-xs text-amber-600 dark:text-amber-400">
+                    Recommended for production deployments to catch issues early
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+          </CardContent>
+        </Card>
 
-            <FormField
-              control={form.control}
-              name="testDeviceId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Test Device ID (Optional)</FormLabel>
-                   <Select onValueChange={field.onChange} value={field.value ?? SELECT_NONE_VALUE}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a test device" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={SELECT_NONE_VALUE}>None</SelectItem>
-                      {MOCK_DEVICES_FOR_TEST.map(device => (
-                        <SelectItem key={device.id} value={device.id}>{device.name} ({device.id})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>ID of the device to test the update on first.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="updatePackId" // This field stores the ID
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Update Pack (Optional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? SELECT_NONE_VALUE}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an update pack" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                       <SelectItem value={SELECT_NONE_VALUE}>None (No specific pack)</SelectItem>
-                      {availableUpdatePacks.map(pack => ( 
-                        <SelectItem key={pack.id} value={pack.id}>{pack.name} v{pack.version}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>Update pack to be used with this strategy.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </form>
-        </Form>
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-6 border-t">
-        <Button type="button" variant="outline" onClick={handleClearForm} className="w-full sm:w-auto">Clear Form</Button>
-        <Button type="button" onClick={form.handleSubmit(onSubmit)} className="w-full sm:w-auto bg-primary hover:bg-primary/90">
-          Save Strategy
-        </Button>
-      </div>
-    </>
+        {/* Action Buttons */}
+        <div className="pt-4 border-t border-primary/10">
+          <Button 
+            type="submit" 
+            disabled={!form.watch("updatePackId") || form.watch("updatePackId") === SELECT_NONE_VALUE}
+            className="w-full h-12 bg-primary hover:bg-primary/90 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Rocket className="h-5 w-5 mr-2" />
+            {form.watch("updatePackId") && form.watch("updatePackId") !== SELECT_NONE_VALUE
+              ? `Prepare launch for ${availableUpdatePacks.find(pack => pack.id === form.watch("updatePackId"))?.name || 'Update Pack'}`
+              : "Select an update pack to continue"
+            }
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }
