@@ -7,14 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, AlertTriangle, Copy, Check, Download as DownloadIcon, ArrowLeft } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, ArrowLeft } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { reissueCa, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { SigningProfileSelector, type ProfileMode } from '@/components/shared/SigningProfileSelector';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { DetailItem } from '@/components/shared/DetailItem';
-import { formatISO, add, parseISO, isAfter, type Duration } from 'date-fns';
+import { formatISO, add, parseISO, isAfter, type Duration, differenceInYears, differenceInWeeks, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface ReissueCertificateModalProps {
@@ -23,6 +23,8 @@ interface ReissueCertificateModalProps {
     caId: string;
     caName: string;
     caExpiryDate: string;
+    caValidFrom?: string;
+    onReissueSuccess?: () => void;
 }
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:58.999Z";
@@ -52,12 +54,14 @@ export const ReissueCertificateModal: React.FC<ReissueCertificateModalProps> = (
     caId,
     caName,
     caExpiryDate,
+    caValidFrom,
+    onReissueSuccess,
 }) => {
     const { toast } = useToast();
     const { user } = useAuth();
 
     // State for profile selection
-    const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
+    const [profileMode, setProfileMode] = useState<ProfileMode>('inline');
     const [signingProfiles, setSigningProfiles] = useState<ApiSigningProfile[]>([]);
     const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
     const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
@@ -109,6 +113,40 @@ export const ReissueCertificateModal: React.FC<ReissueCertificateModalProps> = (
         }
         return null;
     }, [profileMode, selectedProfileId, signingProfiles]);
+
+    useEffect(() => {
+        if (caValidFrom && caExpiryDate) {
+            const validFrom = parseISO(caValidFrom);
+            const expiry = parseISO(caExpiryDate);
+
+            let remaining = validFrom;
+            const parts: string[] = [];
+
+            // Years
+            const years = differenceInYears(expiry, remaining);
+            if (years > 0) {
+                parts.push(`${years}y`);
+                remaining = add(remaining, { years });
+            }
+
+            // Weeks
+            const weeks = differenceInWeeks(expiry, remaining);
+            if (weeks > 0) {
+                parts.push(`${weeks}w`);
+                remaining = add(remaining, { weeks });
+            }
+
+            // Days
+            const days = differenceInDays(expiry, remaining);
+            if (days > 0) {
+                parts.push(`${days}d`);
+            }
+
+            if (parts.length > 0) {
+                setValidity({ type: 'Duration', durationValue: parts.join('') });
+            }
+        }
+    }, [caValidFrom, caExpiryDate]);
 
     // Load profiles on mount
     useEffect(() => {
@@ -230,6 +268,9 @@ export const ReissueCertificateModal: React.FC<ReissueCertificateModalProps> = (
     };
 
     const handleClose = () => {
+        if (step === 2 && onReissueSuccess) {
+            onReissueSuccess();
+        }
         setStep(1);
         setReissuedCertificate(null);
         setReissuanceError(null);
@@ -322,69 +363,27 @@ export const ReissueCertificateModal: React.FC<ReissueCertificateModalProps> = (
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-6 py-4">
-                        {/* Success Message */}
-                        <Alert className="border-green-200 bg-green-50">
-                            <AlertTitle className="text-green-800">Certificate Reissued Successfully</AlertTitle>
-                            <AlertDescription className="text-green-700">
-                                A new certificate has been created with the same subject.
-                            </AlertDescription>
-                        </Alert>
+                    <div className="space-y-6 py-8 flex flex-col items-center justify-center text-center">
+                        <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/20">
+                            <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
+                        </div>
 
-                        {/* Certificate Details */}
-                        <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                            <h3 className="font-semibold text-sm">New Certificate</h3>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-semibold">Certificate Reissued Successfully</h3>
+                            <p className="text-muted-foreground max-w-sm mx-auto">
+                                A new certificate has been created with the same subject information.
+                            </p>
+                        </div>
+
+                        <div className="bg-muted/50 p-4 rounded-lg space-y-2 w-full max-w-md">
+                            <h3 className="font-semibold text-sm text-left">New Certificate Details</h3>
+                            <div className="grid grid-cols-1 gap-2 text-sm text-left">
                                 <DetailItem label="Serial Number" value={reissuedCertificate?.serial || "N/A"} />
                             </div>
                         </div>
 
-                        {/* Certificate PEM */}
-                        <div className="space-y-2">
-                            <Label>Certificate PEM</Label>
-                            <Textarea
-                                value={reissuedCertificate?.pem || ""}
-                                readOnly
-                                className="font-mono text-xs h-32"
-                            />
-                            <div className="flex gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleCopy(reissuedCertificate?.pem || "", "Certificate")}
-                                    className="gap-2"
-                                >
-                                    {certificateCopied ? (
-                                        <>
-                                            <Check className="h-4 w-4" />
-                                            Copied
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy className="h-4 w-4" />
-                                            Copy
-                                        </>
-                                    )}
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleDownload(reissuedCertificate?.pem || "", `certificate-${reissuedCertificate?.serial}.pem`)}
-                                    className="gap-2"
-                                >
-                                    <DownloadIcon className="h-4 w-4" />
-                                    Download
-                                </Button>
-                            </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex justify-end gap-3 pt-4">
-                            <Button variant="outline" onClick={handleBack} className="gap-2">
-                                <ArrowLeft className="h-4 w-4" />
-                                Back
-                            </Button>
-                            <Button onClick={handleClose}>Done</Button>
+                        <div className="flex justify-center pt-4 w-full">
+                            <Button onClick={handleClose} className="w-full max-w-xs">Done</Button>
                         </div>
                     </div>
                 )}

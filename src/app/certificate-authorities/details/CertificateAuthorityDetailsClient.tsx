@@ -71,7 +71,7 @@ export default function CertificateAuthorityDetailsClient() {
   const [allCertificateAuthoritiesData, setAllCertificateAuthoritiesData] = useState<CA[]>([]);
   const [isLoadingCAs, setIsLoadingCAs] = useState(true);
   const [errorCAs, setErrorCAs] = useState<string | null>(null);
-  
+
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingEngines, setIsLoadingEngines] = useState(true);
   const [errorEngines, setErrorEngines] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export default function CertificateAuthorityDetailsClient() {
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
   const [caToRevoke, setCaToRevoke] = useState<CA | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
-  
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [caToDelete, setCaToDelete] = useState<CA | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -104,42 +104,42 @@ export default function CertificateAuthorityDetailsClient() {
 
   const cryptoEngine = useMemo(() => {
     if (caDetails?.kmsKeyId && allCryptoEngines.length > 0) {
-        return allCryptoEngines.find(e => e.id === caDetails.kmsKeyId);
+      return allCryptoEngines.find(e => e.id === caDetails.kmsKeyId);
     }
     return undefined;
   }, [caDetails, allCryptoEngines]);
 
   const loadInitialData = useCallback(async () => {
     if (!isAuthenticated() || !user?.access_token) {
-        if (!authLoading) {
-            setErrorCAs("User not authenticated.");
-            setErrorEngines("User not authenticated.");
-        }
-        setIsLoadingCAs(false);
-        setIsLoadingEngines(false);
-        return;
+      if (!authLoading) {
+        setErrorCAs("User not authenticated.");
+        setErrorEngines("User not authenticated.");
+      }
+      setIsLoadingCAs(false);
+      setIsLoadingEngines(false);
+      return;
     }
 
     setIsLoadingCAs(true);
     setErrorCAs(null);
     try {
-        const fetchedCAs = await fetchAndProcessCAs(user.access_token);
-        setAllCertificateAuthoritiesData(fetchedCAs);
+      const fetchedCAs = await fetchAndProcessCAs(user.access_token);
+      setAllCertificateAuthoritiesData(fetchedCAs);
     } catch (err: any) {
-        setErrorCAs(err.message || 'Failed to load CA data.');
+      setErrorCAs(err.message || 'Failed to load CA data.');
     } finally {
-        setIsLoadingCAs(false);
+      setIsLoadingCAs(false);
     }
-    
+
     setIsLoadingEngines(true);
     setErrorEngines(null);
     try {
-        const enginesData = await fetchCryptoEngines(user.access_token);
-        setAllCryptoEngines(enginesData);
+      const enginesData = await fetchCryptoEngines(user.access_token);
+      setAllCryptoEngines(enginesData);
     } catch (err: any) {
-        setErrorEngines(err.message || 'Failed to load Crypto Engines.');
+      setErrorEngines(err.message || 'Failed to load Crypto Engines.');
     } finally {
-        setIsLoadingEngines(false);
+      setIsLoadingEngines(false);
     }
   }, [user?.access_token, isAuthenticated, authLoading]);
 
@@ -171,22 +171,22 @@ export default function CertificateAuthorityDetailsClient() {
       }
       const foundCa = findCaById(caIdFromUrl, allCertificateAuthoritiesData);
       if (foundCa) {
-          if (foundCa.pemData) {
-              const parsedDetails = await parseCertificatePemDetails(foundCa.pemData);
-              const completeCa = { ...foundCa, ...parsedDetails };
-              setCaDetails(completeCa);
-          } else {
-              setCaDetails(foundCa);
-          }
-  
-          const path = buildCaPathToRoot(foundCa.id, allCertificateAuthoritiesData);
-          setCaPathToRoot(path);
-          const chainPem = path.slice().reverse().map(p => p.pemData).filter(Boolean).join('');
-          setFullChainPemString(chainPem);
-          if (isAuthenticated() && user?.access_token) {
-              loadCaStats(foundCa.id, user.access_token);
-          }
-  
+        if (foundCa.pemData) {
+          const parsedDetails = await parseCertificatePemDetails(foundCa.pemData);
+          const completeCa = { ...foundCa, ...parsedDetails };
+          setCaDetails(completeCa);
+        } else {
+          setCaDetails(foundCa);
+        }
+
+        const path = buildCaPathToRoot(foundCa.id, allCertificateAuthoritiesData);
+        setCaPathToRoot(path);
+        const chainPem = path.slice().reverse().map(p => p.pemData).filter(Boolean).join('');
+        setFullChainPemString(chainPem);
+        if (isAuthenticated() && user?.access_token) {
+          loadCaStats(foundCa.id, user.access_token);
+        }
+
       } else {
         setErrorCAs(`Certification Authority with ID "${caIdFromUrl}" not found.`);
       }
@@ -203,93 +203,93 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmCARevocation = async (reason: string) => {
     if (!caToRevoke || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot revoke CA. Details or authentication missing.", variant: "destructive" });
-        return;
+      toast({ title: "Error", description: "Cannot revoke CA. Details or authentication missing.", variant: "destructive" });
+      return;
     }
 
     setIsRevoking(true);
     setIsRevocationModalOpen(false); // Close modal immediately
 
     try {
-        await revokeCa(caToRevoke.id, reason, user.access_token);
-        // Success
-        setCaDetails(prev => prev ? { ...prev, status: 'revoked' } : null);
-        toast({
-            title: "Certification Authority Revoked",
-            description: `Certification Authority "${caToRevoke.name}" has been successfully revoked.`,
-            variant: "default"
-        });
+      await revokeCa(caToRevoke.id, reason, user.access_token);
+      // Success
+      setCaDetails(prev => prev ? { ...prev, status: 'revoked' } : null);
+      toast({
+        title: "Certification Authority Revoked",
+        description: `Certification Authority "${caToRevoke.name}" has been successfully revoked.`,
+        variant: "default"
+      });
 
     } catch (error: any) {
-        toast({
-            title: "Revocation Failed",
-            description: error.message,
-            variant: "destructive"
-        });
+      toast({
+        title: "Revocation Failed",
+        description: error.message,
+        variant: "destructive"
+      });
     } finally {
-        setIsRevoking(false);
-        setCaToRevoke(null);
+      setIsRevoking(false);
+      setCaToRevoke(null);
     }
   };
-  
+
   const handleReactivateCA = async () => {
     if (!caDetails || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot reactivate CA. Details or authentication missing.", variant: "destructive" });
-        return;
+      toast({ title: "Error", description: "Cannot reactivate CA. Details or authentication missing.", variant: "destructive" });
+      return;
     }
 
     try {
-        await updateCaStatus(caDetails.id, 'ACTIVE', undefined, user.access_token);
-        
-        setCaDetails(prev => prev ? { ...prev, status: 'active' } : null);
-        toast({
-            title: "Certification Authority Re-activated",
-            description: `Certification Authority "${caDetails.name}" has been successfully re-activated.`,
-            variant: "default"
-        });
+      await updateCaStatus(caDetails.id, 'ACTIVE', undefined, user.access_token);
+
+      setCaDetails(prev => prev ? { ...prev, status: 'active' } : null);
+      toast({
+        title: "Certification Authority Re-activated",
+        description: `Certification Authority "${caDetails.name}" has been successfully re-activated.`,
+        variant: "default"
+      });
     } catch (error: any) {
-        toast({
-            title: "Re-activation Failed",
-            description: error.message,
-            variant: "destructive"
-        });
+      toast({
+        title: "Re-activation Failed",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   };
 
   const handleDeleteCA = () => {
     if (caDetails) {
-        setCaToDelete(caDetails);
-        setIsDeleteModalOpen(true);
+      setCaToDelete(caDetails);
+      setIsDeleteModalOpen(true);
     }
   };
 
   const handleConfirmDeleteCA = async () => {
     if (!caToDelete || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot delete CA. Details or authentication missing.", variant: "destructive" });
-        return;
+      toast({ title: "Error", description: "Cannot delete CA. Details or authentication missing.", variant: "destructive" });
+      return;
     }
 
     setIsDeleting(true);
     setIsDeleteModalOpen(false); // Close modal immediately
 
     try {
-        await deleteCa(caToDelete.id, user.access_token);
-        toast({
-            title: "Certification Authority Deleted",
-            description: `Certification Authority "${caToDelete.name}" has been permanently deleted.`,
-            variant: "default"
-        });
-        routerHook.push('/certificate-authorities'); // Redirect to the list page
+      await deleteCa(caToDelete.id, user.access_token);
+      toast({
+        title: "Certification Authority Deleted",
+        description: `Certification Authority "${caToDelete.name}" has been permanently deleted.`,
+        variant: "default"
+      });
+      routerHook.push('/certificate-authorities'); // Redirect to the list page
 
     } catch (error: any) {
-        toast({
-            title: "Deletion Failed",
-            description: error.message,
-            variant: "destructive"
-        });
+      toast({
+        title: "Deletion Failed",
+        description: error.message,
+        variant: "destructive"
+      });
     } finally {
-        setIsDeleting(false);
-        setCaToDelete(null);
+      setIsDeleting(false);
+      setCaToDelete(null);
     }
   };
 
@@ -299,10 +299,10 @@ export default function CertificateAuthorityDetailsClient() {
       setIsCrlModalOpen(true);
     }
   };
-  
+
   const handleUpdateCaMetadata = async (id: string, patchOperations: PatchOperation[]) => {
     if (!user?.access_token) {
-        throw new Error("User not authenticated.");
+      throw new Error("User not authenticated.");
     }
     await updateCaMetadata(id, patchOperations, user.access_token);
   };
@@ -323,9 +323,9 @@ export default function CertificateAuthorityDetailsClient() {
   if ((errorCAs || errorEngines) && !caDetails) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Button>
+        <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back
+        </Button>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error Loading Data</AlertTitle>
@@ -360,21 +360,21 @@ export default function CertificateAuthorityDetailsClient() {
   } else if (caDetails.status === 'revoked') {
     statusColorClass = 'bg-red-500 hover:bg-red-600';
     statusVariant = 'destructive';
-    if(caDetails.rawApiData?.certificate.revocation_reason === 'CertificateHold') {
-        isCaOnHold = true;
+    if (caDetails.rawApiData?.certificate.revocation_reason === 'CertificateHold') {
+      isCaOnHold = true;
     }
-  } else if (isPast(parseISO(caDetails.expires))) { 
+  } else if (isPast(parseISO(caDetails.expires))) {
     statusColorClass = 'bg-orange-500 hover:bg-orange-600';
     statusVariant = 'destructive';
-  } else { 
-    statusColorClass = 'bg-yellow-500 hover:bg-yellow-600'; 
-    statusVariant = 'outline'; 
+  } else {
+    statusColorClass = 'bg-yellow-500 hover:bg-yellow-600';
+    statusVariant = 'outline';
   }
 
 
   return (
     <div className="w-full">
-       <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4">
         <Button variant="outline" onClick={() => routerHook.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -387,46 +387,46 @@ export default function CertificateAuthorityDetailsClient() {
               <div className="flex items-center space-x-3">
                 <FileText className="h-8 w-8 text-primary" />
                 <div>
-                    {caPathToRoot.length > 1 && (
-                      <div className="flex items-center text-sm text-muted-foreground mb-1">
-                        {caPathToRoot.slice(0, -1).map((ca, index) => (
-                          <React.Fragment key={ca.id}>
-                            <Button
-                              variant="link"
-                              className="p-0 h-auto"
-                              onClick={() => routerHook.push(`/certificate-authorities/details?caId=${ca.id}`)}
-                            >
-                              {ca.name}
-                            </Button>
-                            <ChevronRight className="h-4 w-4 mx-1" />
-                          </React.Fragment>
-                        ))}
+                  {caPathToRoot.length > 1 && (
+                    <div className="flex items-center text-sm text-muted-foreground mb-1">
+                      {caPathToRoot.slice(0, -1).map((ca, index) => (
+                        <React.Fragment key={ca.id}>
+                          <Button
+                            variant="link"
+                            className="p-0 h-auto"
+                            onClick={() => routerHook.push(`/certificate-authorities/details?caId=${ca.id}`)}
+                          >
+                            {ca.name}
+                          </Button>
+                          <ChevronRight className="h-4 w-4 mx-1" />
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                  <h1 className="text-2xl font-headline font-semibold">{caDetails.name}</h1>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Certification Authority ID: {caDetails.id}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <Badge variant={statusVariant} className={cn("text-sm", statusVariant !== 'outline' ? statusColorClass : '')}>{caDetails.status.toUpperCase()}</Badge>
+                    {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
+                      <Badge variant="destructive" className="font-normal bg-red-100 dark:bg-red-900/50">
+                        Reason: {caDetails.rawApiData.certificate.revocation_reason}
+                      </Badge>
+                    )}
+                    {caDetails.caType && (
+                      <Badge variant="secondary" className="text-xs">{caDetails.caType.replace(/_/g, ' ').toUpperCase()}</Badge>
+                    )}
+                    {cryptoEngine && (
+                      <div className="border-l-2 border-border pl-2">
+                        <CryptoEngineViewer engine={cryptoEngine} />
                       </div>
                     )}
-                    <h1 className="text-2xl font-headline font-semibold">{caDetails.name}</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Certification Authority ID: {caDetails.id}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      <Badge variant={statusVariant} className={cn("text-sm", statusVariant !== 'outline' ? statusColorClass : '')}>{caDetails.status.toUpperCase()}</Badge>
-                      {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
-                        <Badge variant="destructive" className="font-normal bg-red-100 dark:bg-red-900/50">
-                            Reason: {caDetails.rawApiData.certificate.revocation_reason}
-                        </Badge>
-                      )}
-                      {caDetails.caType && (
-                        <Badge variant="secondary" className="text-xs">{caDetails.caType.replace(/_/g, ' ').toUpperCase()}</Badge>
-                      )}
-                      {cryptoEngine && (
-                        <div className="border-l-2 border-border pl-2">
-                            <CryptoEngineViewer engine={cryptoEngine} />
-                        </div>
-                      )}
-                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-            
+
             <div className="flex-grow w-full xl:w-auto">
               <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
             </div>
@@ -440,16 +440,16 @@ export default function CertificateAuthorityDetailsClient() {
             {isCaOnHold ? (
               <Button variant="outline" onClick={handleReactivateCA}><ShieldAlert className="mr-2 h-4 w-4" />Re-activate CA</Button>
             ) : caDetails.status !== 'revoked' ? (
-                <Button variant="destructive" onClick={handleCARevocation} disabled={isRevoking}>
-                    {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                    {isRevoking ? 'Revoking...' : 'Revoke CA'}
-                </Button>
+              <Button variant="destructive" onClick={handleCARevocation} disabled={isRevoking}>
+                {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                {isRevoking ? 'Revoking...' : 'Revoke CA'}
+              </Button>
             ) : null}
             {caDetails.status === 'revoked' && (
-                <Button variant="destructive" onClick={handleDeleteCA} disabled={isDeleting}>
-                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                    {isDeleting ? 'Deleting...' : 'Permanently Delete'}
-                </Button>
+              <Button variant="destructive" onClick={handleDeleteCA} disabled={isDeleting}>
+                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+              </Button>
             )}
           </div>
           {caIsActive && (
@@ -505,7 +505,7 @@ export default function CertificateAuthorityDetailsClient() {
           </TabsContent>
 
           <TabsContent value="metadata">
-             <MetadataTabContent
+            <MetadataTabContent
               rawJsonData={caDetails.rawApiData?.metadata}
               itemName={caDetails.name}
               tabTitle="Certification Authority Metadata"
@@ -516,10 +516,10 @@ export default function CertificateAuthorityDetailsClient() {
               onUpdateSuccess={loadInitialData}
             />
           </TabsContent>
-          
+
           <TabsContent value="issued">
-            <IssuedCertificatesTab 
-              caId={caDetails.id} 
+            <IssuedCertificatesTab
+              caId={caDetails.id}
               caIsActive={caIsActive}
               allCAs={allCertificateAuthoritiesData}
             />
@@ -542,11 +542,11 @@ export default function CertificateAuthorityDetailsClient() {
       )}
       {caToDelete && (
         <DeleteCaModal
-            isOpen={isDeleteModalOpen}
-            onOpenChange={setIsDeleteModalOpen}
-            onConfirm={handleConfirmDeleteCA}
-            caName={caToDelete.name}
-            isDeleting={isDeleting}
+          isOpen={isDeleteModalOpen}
+          onOpenChange={setIsDeleteModalOpen}
+          onConfirm={handleConfirmDeleteCA}
+          caName={caToDelete.name}
+          isDeleting={isDeleting}
         />
       )}
       {caForCrlCheck && (
@@ -563,6 +563,8 @@ export default function CertificateAuthorityDetailsClient() {
           caId={caDetails.id}
           caName={caDetails.name}
           caExpiryDate={caDetails.expires}
+          caValidFrom={caDetails.validFrom || caDetails.rawApiData?.certificate.valid_from}
+          onReissueSuccess={loadInitialData}
         />
       )}
     </div>
