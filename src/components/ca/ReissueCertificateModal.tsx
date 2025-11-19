@@ -285,74 +285,101 @@ export const ReissueCertificateModal: React.FC<ReissueCertificateModalProps> = (
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle>Reissue CA Certificate</DialogTitle>
-                    <DialogDescription>
-                        Reissue the certificate for CA "{caName}"
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
+                <div className="px-6 pt-6 pb-2">
+                    <DialogHeader>
+                        <DialogTitle>Reissue CA Certificate</DialogTitle>
+                        <DialogDescription>
+                            Reissue the certificate for CA "{caName}"
+                        </DialogDescription>
+                    </DialogHeader>
+                </div>
 
-                {step === 1 ? (
-                    <div className="space-y-6 py-4">
-                        {/* Current CA Certificate Info */}
-                        <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                            <h3 className="font-semibold text-sm">Current CA Certificate</h3>
-                            <p className="text-sm text-muted-foreground">
-                                A new certificate will be issued for this CA with the same subject and issuer information.
-                            </p>
-                        </div>
-
-                        {/* Validity Warning */}
-                        {validityWarning && (
-                            <Alert variant="destructive">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>Validity Warning</AlertTitle>
-                                <AlertDescription>{validityWarning}</AlertDescription>
-                            </Alert>
-                        )}
-
-                        {/* Profile Selection */}
-                        {isLoadingProfiles ? (
-                            <div className="flex items-center justify-center p-6">
-                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                <p className="ml-2">Loading profiles...</p>
+                <div className="flex-1 overflow-y-auto px-6">
+                    {step === 1 ? (
+                        <div className="space-y-6 py-4">
+                            {/* Current CA Certificate Info */}
+                            <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                                <h3 className="font-semibold text-sm">Current CA Certificate</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    A new certificate will be issued for this CA with the same subject and issuer information.
+                                </p>
                             </div>
-                        ) : (
-                            <SigningProfileSelector
-                                profileMode={profileMode}
-                                onProfileModeChange={setProfileMode}
-                                selectedProfileId={selectedProfileId}
-                                onProfileIdChange={setSelectedProfileId}
-                                availableProfiles={signingProfiles}
-                                isLoadingProfiles={false}
-                                inlineModeEnabled={true}
-                                availableModes={['reuse', 'inline']}
-                                keyUsages={keyUsages}
-                                onKeyUsageChange={(usage, checked) =>
-                                    setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage))
-                                }
-                                extendedKeyUsages={extendedKeyUsages}
-                                onExtendedKeyUsageChange={(usage, checked) =>
-                                    setExtendedKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage))
-                                }
-                                validity={validity}
-                                onValidityChange={setValidity}
-                                validityWarning={validityWarning}
-                            />
-                        )}
 
-                        {/* Error Message */}
-                        {reissuanceError && (
-                            <Alert variant="destructive">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>Error</AlertTitle>
-                                <AlertDescription>{reissuanceError}</AlertDescription>
-                            </Alert>
-                        )}
+                            {/* Validity Warning */}
+                            {validityWarning && (
+                                <Alert variant="destructive">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertTitle>Validity Warning</AlertTitle>
+                                    <AlertDescription>{validityWarning}</AlertDescription>
+                                </Alert>
+                            )}
 
-                        {/* Action Buttons */}
-                        <div className="flex justify-end gap-3 pt-4">
+                            {/* Profile Selection */}
+                            {isLoadingProfiles ? (
+                                <div className="flex items-center justify-center p-6">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                    <p className="ml-2">Loading profiles...</p>
+                                </div>
+                            ) : (
+                                <SigningProfileSelector
+                                    profileMode={profileMode}
+                                    onProfileModeChange={setProfileMode}
+                                    selectedProfileId={selectedProfileId}
+                                    onProfileIdChange={setSelectedProfileId}
+                                    availableProfiles={signingProfiles}
+                                    isLoadingProfiles={false}
+                                    inlineModeEnabled={true}
+                                    availableModes={['reuse', 'inline']}
+                                    keyUsages={keyUsages}
+                                    onKeyUsageChange={(usage, checked) =>
+                                        setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage))
+                                    }
+                                    extendedKeyUsages={extendedKeyUsages}
+                                    onExtendedKeyUsageChange={(usage, checked) =>
+                                        setExtendedKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage))
+                                    }
+                                    validity={validity}
+                                    onValidityChange={setValidity}
+                                    validityWarning={validityWarning}
+                                />
+                            )}
+
+                            {/* Error Message */}
+                            {reissuanceError && (
+                                <Alert variant="destructive">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertTitle>Error</AlertTitle>
+                                    <AlertDescription>{reissuanceError}</AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-6 py-8 flex flex-col items-center justify-center text-center">
+                            <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/20">
+                                <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
+                            </div>
+
+                            <div className="space-y-2">
+                                <h3 className="text-xl font-semibold">Certificate Reissued Successfully</h3>
+                                <p className="text-muted-foreground max-w-sm mx-auto">
+                                    A new certificate has been created with the same subject information.
+                                </p>
+                            </div>
+
+                            <div className="bg-muted/50 p-4 rounded-lg space-y-2 w-full max-w-md">
+                                <h3 className="font-semibold text-sm text-left">New Certificate Details</h3>
+                                <div className="grid grid-cols-1 gap-2 text-sm text-left">
+                                    <DetailItem label="Serial Number" value={reissuedCertificate?.serial || "N/A"} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-6 pt-4 border-t mt-auto bg-background rounded-b-lg">
+                    {step === 1 ? (
+                        <div className="flex justify-end gap-3">
                             <Button variant="outline" onClick={handleClose} disabled={isReissuing}>
                                 Cancel
                             </Button>
@@ -361,32 +388,12 @@ export const ReissueCertificateModal: React.FC<ReissueCertificateModalProps> = (
                                 Reissue CA Certificate
                             </Button>
                         </div>
-                    </div>
-                ) : (
-                    <div className="space-y-6 py-8 flex flex-col items-center justify-center text-center">
-                        <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/20">
-                            <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
-                        </div>
-
-                        <div className="space-y-2">
-                            <h3 className="text-xl font-semibold">Certificate Reissued Successfully</h3>
-                            <p className="text-muted-foreground max-w-sm mx-auto">
-                                A new certificate has been created with the same subject information.
-                            </p>
-                        </div>
-
-                        <div className="bg-muted/50 p-4 rounded-lg space-y-2 w-full max-w-md">
-                            <h3 className="font-semibold text-sm text-left">New Certificate Details</h3>
-                            <div className="grid grid-cols-1 gap-2 text-sm text-left">
-                                <DetailItem label="Serial Number" value={reissuedCertificate?.serial || "N/A"} />
-                            </div>
-                        </div>
-
-                        <div className="flex justify-center pt-4 w-full">
+                    ) : (
+                        <div className="flex justify-center w-full">
                             <Button onClick={handleClose} className="w-full max-w-xs">Done</Button>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </DialogContent>
         </Dialog>
     );
