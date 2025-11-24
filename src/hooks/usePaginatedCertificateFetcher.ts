@@ -90,6 +90,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
                     case 'expires': sortByApiField = 'valid_to'; break;
                     case 'status': sortByApiField = 'status'; break;
                     case 'validFrom': sortByApiField = 'valid_from'; break;
+                    case 'revocationTime': sortByApiField = 'revocation_timestamp'; break;
                     default: sortByApiField = 'valid_from';
                 }
                 apiParams.append('sort_by', sortByApiField);

@@ -48,7 +48,7 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
     const isExpired = isPast(parsedDate);
     
     return (
-      <div className={cn("flex flex-col items-center text-center", className)}>
+      <div className={cn("flex flex-col items-start", className)}>
         <span className={cn("font-medium", highlightExpired && isExpired && "text-red-500")}>{formattedDate}</span>
         <span 
           className={cn(

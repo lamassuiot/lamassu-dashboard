@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Copy, Check, Link as LinkIcon, Download as DownloadIcon } from "lucide-react";
 import type { ToastProps } from '@/components/ui/toast';
+import type { CA } from '@/lib/ca-data';
+import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 
 interface PemTabContentProps {
   singlePemData: string | undefined;
@@ -13,6 +15,13 @@ interface PemTabContentProps {
   itemName: string;
   itemPathToRootCount?: number; // Number of certs in the chain (including the end-entity)
   toast: ({ title, description, variant }: Omit<ToastProps, 'id'> & { title?: React.ReactNode; description?: React.ReactNode }) => void;
+  certificateChain?: CA[];
+  currentCertificate?: {
+    subject: string;
+    statusBadgeVariant: "default" | "secondary" | "destructive" | "outline";
+    statusBadgeClass?: string;
+    statusText: string;
+  };
 }
 
 export const PemTabContent: React.FC<PemTabContentProps> = ({
@@ -21,6 +30,8 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
   itemName,
   itemPathToRootCount,
   toast,
+  certificateChain,
+  currentCertificate,
 }) => {
   const [certificateCopied, setCertificateCopied] = useState(false);
   const [chainCopied, setChainCopied] = useState(false);
@@ -138,12 +149,32 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
               </Button>
             </div>
           </div>
-          <ScrollArea className="h-96 w-full rounded-md border p-3 bg-muted/30">
-            <pre className="text-xs whitespace-pre-wrap break-all font-mono">{fullChainPemData.replace(/\\n/g, '\n')}</pre>
-          </ScrollArea>
-           <p className="text-xs text-muted-foreground mt-1">
-            The full chain typically includes the end-entity certificate followed by its issuer(s), up to the root CA.
-          </p>
+          
+          {/* Split view: PEM on left, Issuance Chain on right */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left side: PEM Data */}
+            <div>
+              <ScrollArea className="h-96 w-full rounded-md border p-3 bg-muted/30">
+                <pre className="text-xs whitespace-pre-wrap break-all font-mono">{fullChainPemData.replace(/\\n/g, '\n')}</pre>
+              </ScrollArea>
+              <p className="text-xs text-muted-foreground mt-1">
+                The full chain typically includes the end-entity certificate followed by its issuer(s), up to the root CA.
+              </p>
+            </div>
+            
+            {/* Right side: Issuance Chain Visualizer */}
+            {certificateChain && currentCertificate && (
+              <div>
+                <ScrollArea className="h-96 w-full rounded-md border p-4 bg-muted/10">
+                  <IssuanceChainVisualizer
+                    certificateChain={certificateChain}
+                    currentCertificate={currentCertificate}
+                    invert={true}
+                  />
+                </ScrollArea>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { DetailItem } from './DetailItem';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 // Integer to label mapping for DER-encoded CRL reason codes
 const crlReasonCodeMap: { [key: number]: string } = {
@@ -239,7 +240,9 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
                                             {crlDetails.revokedCertificates.length > 0 ? (
                                                 crlDetails.revokedCertificates.map(cert => (
                                                     <TableRow key={cert.serialNumber}>
-                                                        <TableCell className="font-mono text-xs">{cert.serialNumber}</TableCell>
+                                                        <TableCell className="font-mono text-xs">
+                                                            <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
+                                                        </TableCell>
                                                         <TableCell>{cert.revocationDate}</TableCell>
                                                         <TableCell>{cert.reason}</TableCell>
                                                     </TableRow>

@@ -15,6 +15,7 @@ import { Badge } from '../ui/badge';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib/va-api';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
 // Helper functions for downloads
@@ -161,7 +162,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                 <DialogHeader>
                     <DialogTitle className="flex items-center"><ShieldCheck className="mr-2 h-6 w-6 text-primary"/>OCSP Status Check</DialogTitle>
                     <DialogDescription>
-                        Verify the revocation status of certificate <span className="font-mono text-xs">{certificate?.serialNumber}</span>.
+                        Verify the revocation status of certificate <IdentifierDisplay value={certificate?.serialNumber || ''} className="text-xs" />.
                     </DialogDescription>
                 </DialogHeader>
 

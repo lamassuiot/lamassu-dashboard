@@ -28,7 +28,10 @@ import {
 } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
+import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -223,6 +226,7 @@ const CustomFooter = () => {
 
 const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
   const { isAuthenticated, user, login, logout } = useAuth();
+  const { mode: identifierMode, toggleMode: toggleIdentifierMode } = useIdentifierDisplay();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -306,6 +310,19 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                         </p>
                       </div>
                     </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="identifier-display-mode" className="text-sm cursor-pointer">
+                          ID Separators
+                        </Label>
+                        <Switch
+                          id="identifier-display-mode"
+                          checked={identifierMode === 'with-separators'}
+                          onCheckedChange={toggleIdentifierMode}
+                        />
+                      </div>
+                    </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
                       <User className="mr-2 h-4 w-4" />
@@ -609,10 +626,12 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ConfigProvider>
           <AuthProvider>
-            <React.Suspense fallback={<LoadingState />}>
-              <InnerLayout>{children}</InnerLayout>
-            </React.Suspense>
-            <Toaster />
+            <IdentifierDisplayProvider>
+              <React.Suspense fallback={<LoadingState />}>
+                <InnerLayout>{children}</InnerLayout>
+              </React.Suspense>
+              <Toaster />
+            </IdentifierDisplayProvider>
           </AuthProvider>
         </ConfigProvider>
       </body>

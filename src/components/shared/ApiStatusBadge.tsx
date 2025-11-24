@@ -29,5 +29,5 @@ export const ApiStatusBadge: React.FC<ApiStatusBadgeProps> = ({ status }) => {
     Icon = Clock;
   }
 
-  return <Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap", badgeClass)}><Icon className="mr-1 h-3 w-3" />{upperStatus.replace('_', ' ')}</Badge>;
+  return <Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap", badgeClass)}>{upperStatus.replace('_', ' ')}</Badge>;
 };

@@ -25,6 +25,7 @@ import { DetailItem } from './DetailItem';
 import { cn } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { SectionHeader } from '@/components/shared/FormComponents';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
 const getDefaultVAConfig = (caId: string): VAConfig => ({
@@ -384,7 +385,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
                         Selected: {selectedCertificateSignerDisplay.subject}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        SN: <span className="font-mono">{selectedCertificateSignerDisplay.serialNumber}</span>
+                        SN: <IdentifierDisplay value={selectedCertificateSignerDisplay.serialNumber} className="text-xs" />
                       </p>
                     </div>
                   )}

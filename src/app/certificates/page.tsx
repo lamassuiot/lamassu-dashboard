@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePaginatedCertificateFetcher, type ApiStatusFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom';
+export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime';
 export type SortDirection = 'asc' | 'desc';
 
 export interface CertSortConfig {

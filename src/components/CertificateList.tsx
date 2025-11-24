@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import type { CertificateData } from '@/types/certificate';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eye, MoreVertical, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, ChevronsUpDown, ShieldAlert, FileText, ShieldCheck, Download } from 'lucide-react';
 import {
@@ -17,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
@@ -41,13 +43,13 @@ interface CertificateListProps {
 
 const getCommonName = (subjectOrIssuer: string): string => {
   const cnMatch = subjectOrIssuer.match(/CN=([^,]+)/);
-  return cnMatch ? cnMatch[1] : subjectOrIssuer; 
+  return cnMatch ? cnMatch[1] : subjectOrIssuer;
 };
 
-export function CertificateList({ 
-  certificates, 
-  allCAs, 
-  onInspectCertificate, 
+export function CertificateList({
+  certificates,
+  allCAs,
+  onInspectCertificate,
   onCertificateUpdated,
   sortConfig,
   requestSort,
@@ -62,31 +64,29 @@ export function CertificateList({
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
   const [certificateToRevoke, setCertificateToRevoke] = useState<CertificateData | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
-  
+
   const [isOcspModalOpen, setIsOcspModalOpen] = useState(false);
   const [certForOcsp, setCertForOcsp] = useState<CertificateData | null>(null);
   const [issuerForOcsp, setIssuerForOcsp] = useState<CA | null>(null);
 
 
-  const SortableHeader: React.FC<{ column: SortableCertColumn; title: string; className?: string }> = ({ column, title, className }) => {
+  const SortableHeader: React.FC<{ column: SortableCertColumn; title: string; className?: string; center?: boolean; dateColumn?: boolean }> = ({ column, title, className, center = false, dateColumn = false }) => {
     const isSorted = sortConfig?.column === column;
     let Icon = ChevronsUpDown;
     if (isSorted) {
-      if (column === 'expires' || column === 'validFrom') { // Numeric/Date sort icon preference
+      if (dateColumn) { // Numeric/Date sort icon preference
         Icon = sortConfig?.direction === 'asc' ? ArrowUp01 : ArrowDown10;
       } else { // Text-based sort icon preference
         Icon = sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ;
       }
-    } else if (column === 'expires' || column === 'validFrom') {
-         Icon = ChevronsUpDown; // Default for non-sorted date
     }
-    
+
     return (
-      <TableHead className={cn("cursor-pointer hover:bg-muted/50", 
-        (column === 'validFrom' || column === 'expires') && "text-center", 
+      <TableHead className={cn("cursor-pointer hover:bg-muted/50",
+        center && "text-center",
         className)} onClick={() => requestSort(column)}>
-        <div className={cn("flex items-center gap-1", 
-          (column === 'validFrom' || column === 'expires') && "justify-center")}>
+        <div className={cn("flex items-center gap-1",
+          center && "justify-center")}>
           {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
         </div>
       </TableHead>
@@ -107,7 +107,7 @@ export function CertificateList({
       toast({ title: "Error", description: "Authentication token not found.", variant: "destructive" });
       return;
     }
-    
+
     setIsRevocationModalOpen(false);
 
     try {
@@ -117,7 +117,7 @@ export function CertificateList({
         reason: reason,
         accessToken: accessToken,
       });
-      
+
       onCertificateUpdated({ ...certificateToRevoke, apiStatus: 'REVOKED', revocationReason: reason });
       toast({
         title: "Certificate Revoked",
@@ -147,7 +147,7 @@ export function CertificateList({
         status: 'ACTIVE',
         accessToken: accessToken,
       });
-      
+
       onCertificateUpdated({ ...certificate, apiStatus: 'ACTIVE', revocationReason: undefined });
       toast({
         title: "Certificate Re-activated",
@@ -165,8 +165,8 @@ export function CertificateList({
 
   const handleOpenOcspModal = (certificate: CertificateData, issuer: CA | null) => {
     if (!issuer) {
-        toast({ title: "Error", description: "Issuer CA details are not available for this certificate. Cannot perform OCSP check.", variant: "destructive" });
-        return;
+      toast({ title: "Error", description: "Issuer CA details are not available for this certificate. Cannot perform OCSP check.", variant: "destructive" });
+      return;
     }
     setCertForOcsp(certificate);
     setIssuerForOcsp(issuer);
@@ -198,7 +198,7 @@ export function CertificateList({
       description: `The certificate for "${getCommonName(certificate.subject)}" has been downloaded.`,
     });
   };
-  
+
   if (certificates.length === 0 && !isLoading) {
     return null; // The parent CertificatesPage will show "No certificates" message
   }
@@ -208,15 +208,16 @@ export function CertificateList({
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>{/*
-          */}<SortableHeader column="commonName" title="Common Name" />{/*
-          */}<SortableHeader column="serialNumber" title="Serial Number" className="hidden md:table-cell" />{/*
-          */}{showIssuerColumn && <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>}{/*
-          */}<SortableHeader column="validFrom" title="Valid From" />{/*
-          */}<SortableHeader column="expires" title="Expires" />{/*
-          */}<SortableHeader column="status" title="Status" />{/*
-          */}<TableHead className="text-right">Actions</TableHead>{/*
-        */}</TableRow>
+            <TableRow>
+              <SortableHeader column="commonName" title="Common Name" />
+              <SortableHeader column="serialNumber" title="Serial Number" className="hidden md:table-cell" />
+              {showIssuerColumn && <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>}
+              <SortableHeader column="validFrom" title="Valid From" center dateColumn />
+              <SortableHeader column="expires" title="Expires" center dateColumn />
+              <SortableHeader column="status" title="Status" center />
+              <SortableHeader column="revocationTime" title="Revocation Time" center dateColumn className="hidden xl:table-cell" />
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
           </TableHeader>
           <TableBody>
             {certificates.map((cert) => {
@@ -225,19 +226,21 @@ export function CertificateList({
               const isOnHold = cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationReason === 'CertificateHold';
 
               return (
-                <TableRow key={cert.id}>{/*
-                  */}<TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
+                <TableRow key={cert.id}>
+                  <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
                     <Button
-                        variant="link"
-                        className="p-0 h-auto font-medium text-left whitespace-normal"
-                        onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
-                        title={`View details for ${getCommonName(cert.subject)}`}
+                      variant="link"
+                      className="p-0 h-auto font-medium text-left whitespace-normal"
+                      onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
+                      title={`View details for ${getCommonName(cert.subject)}`}
                     >
-                        {getCommonName(cert.subject)}
+                      {getCommonName(cert.subject)}
                     </Button>
-                  </TableCell>{/*
-                  */}<TableCell className="hidden md:table-cell font-mono text-xs truncate max-w-[120px]">{cert.serialNumber}</TableCell>{/*
-                  */}{showIssuerColumn && <TableCell className="hidden lg:table-cell truncate max-w-[200px]">
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell font-mono text-xs truncate max-w-[120px]">
+                    <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
+                  </TableCell>
+                  {showIssuerColumn && <TableCell className="hidden lg:table-cell truncate max-w-[200px]">
                     {issuerCa ? (
                       <Button
                         variant="link"
@@ -250,54 +253,74 @@ export function CertificateList({
                     ) : (
                       issuerDisplayName
                     )}
-                  </TableCell>}{/*
-                  */}<TableCell><DateDisplay date={cert.validFrom} /></TableCell>{/*
-                  */}<TableCell><DateDisplay date={cert.validTo} highlightExpired /></TableCell>{/*
-                  */}<TableCell>
-                    <ApiStatusBadge status={cert.apiStatus} />
-                  </TableCell>{/*
-                  */}<TableCell className="text-right">
-                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" title="More actions" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                                <span className="sr-only">More actions</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                <span>View Details</span>
-                            </DropdownMenuItem>
-                            {onInspectCertificate && (
-                                <DropdownMenuItem onClick={() => onInspectCertificate(cert)}>
-                                    <Eye className="mr-2 h-4 w-4" /> Quick Inspect (Modal)
-                                </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleOpenOcspModal(cert, issuerCa)} disabled={!cert.ocspUrls || cert.ocspUrls.length === 0}>
-                                <ShieldCheck className="mr-2 h-4 w-4" /> OCSP Check
-                            </DropdownMenuItem>
-                            
-                            {isOnHold ? (
-                            <DropdownMenuItem onClick={() => handleReactivateCertificate(cert)}>
-                                <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate Certificate
-                            </DropdownMenuItem>
-                            ) : (
-                            <DropdownMenuItem onClick={() => handleOpenRevokeCertModal(cert)} disabled={cert.apiStatus?.toUpperCase() === 'REVOKED'}>
-                                <ShieldAlert className="mr-2 h-4 w-4" /> Revoke Certificate
-                            </DropdownMenuItem>
-                            )}
+                  </TableCell>}
+                  <TableCell><DateDisplay date={cert.validFrom} /></TableCell>
+                  <TableCell><DateDisplay date={cert.validTo} highlightExpired /></TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <ApiStatusBadge
+                        status={cert.apiStatus}
+                      />
+                      {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationReason && (
+                        <span className="text-[10px] text-red-600 dark:text-red-400">
+                          {cert.revocationReason}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-center">
+                    {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
+                      <DateDisplay
+                        date={cert.revocationTimestamp}
+                        formatString="MMM dd, yyyy"
+                        showRelative={true}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" title="More actions" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">More actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>
+                          <FileText className="mr-2 h-4 w-4" />
+                          <span>View Details</span>
+                        </DropdownMenuItem>
+                        {onInspectCertificate && (
+                          <DropdownMenuItem onClick={() => onInspectCertificate(cert)}>
+                            <Eye className="mr-2 h-4 w-4" /> Quick Inspect (Modal)
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleOpenOcspModal(cert, issuerCa)} disabled={!cert.ocspUrls || cert.ocspUrls.length === 0}>
+                          <ShieldCheck className="mr-2 h-4 w-4" /> OCSP Check
+                        </DropdownMenuItem>
 
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleDownloadPem(cert)}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download PEM
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
+                        {isOnHold ? (
+                          <DropdownMenuItem onClick={() => handleReactivateCertificate(cert)}>
+                            <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate Certificate
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={() => handleOpenRevokeCertModal(cert)} disabled={cert.apiStatus?.toUpperCase() === 'REVOKED'}>
+                            <ShieldAlert className="mr-2 h-4 w-4" /> Revoke Certificate
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleDownloadPem(cert)}>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download PEM
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
                     </DropdownMenu>
-                  </TableCell>{/*
-                */}</TableRow>
+                  </TableCell>
+                </TableRow>
               );
             })}
           </TableBody>
@@ -318,10 +341,10 @@ export function CertificateList({
       )}
       {certForOcsp && issuerForOcsp && (
         <OcspCheckModal
-            isOpen={isOcspModalOpen}
-            onClose={() => setIsOcspModalOpen(false)}
-            certificate={certForOcsp}
-            issuerCertificate={issuerForOcsp}
+          isOpen={isOcspModalOpen}
+          onClose={() => setIsOcspModalOpen(false)}
+          certificate={certForOcsp}
+          issuerCertificate={issuerForOcsp}
         />
       )}
     </div>

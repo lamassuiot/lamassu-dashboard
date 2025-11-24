@@ -474,6 +474,13 @@ export default function CertificateAuthorityDetailsClient() {
               itemName={caDetails.name}
               itemPathToRootCount={caPathToRoot.length}
               toast={toast}
+              certificateChain={caPathToRoot.slice(0, -1)} // Exclude the current CA, showing only parents
+              currentCertificate={{
+                subject: caDetails.name,
+                statusBadgeVariant: statusVariant,
+                statusBadgeClass: statusColorClass,
+                statusText: caDetails.status.toUpperCase(),
+              }}
             />
           </TabsContent>
 
