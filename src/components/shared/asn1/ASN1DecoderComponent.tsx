@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, ChangeEvent, useCallback } from 'react';
+import { useState, useRef, ChangeEvent, useCallback, useMemo } from 'react';
 import { useASN1Decoder } from './useASN1Decoder';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Upload, FileText, Download, Copy, AlertCircle, ChevronRight, ChevronDown } from 'lucide-react';
 
@@ -37,6 +36,8 @@ interface TreeNodeProps {
   onToggle: (nodeId: string) => void;
   onHover: (byteRange: { start: number; end: number } | null) => void;
   mergedView: boolean;
+  hoveredByteRange: { start: number; end: number } | null;
+  highlightParent: boolean;
 }
 
 const ASN1DecoderComponent: React.FC = () => {
@@ -47,10 +48,8 @@ const ASN1DecoderComponent: React.FC = () => {
     definitions,
     selectedDefinition,
     wantHex,
-    trimHex,
     wantDef,
     setWantHex,
-    setTrimHex,
     setWantDef,
     setSelectedDefinition,
     decodeText,
@@ -64,9 +63,12 @@ const ASN1DecoderComponent: React.FC = () => {
   const [colorsEnabled, setColorsEnabled] = useState<boolean>(true);
   const [advancedMode, setAdvancedMode] = useState<boolean>(false);
   const [mergedView, setMergedView] = useState<boolean>(false);
-  const [derDecoderView, setDerDecoderView] = useState<boolean>(false);
+  const [highlightParent, setHighlightParent] = useState<boolean>(false);
   const [hoveredByteRange, setHoveredByteRange] = useState<{ start: number; end: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Cache for parsed tree nodes to avoid reparsing on every hover
+  const treeNodesCache = useRef<{ structure: string; nodes: ASN1TreeNode[] } | null>(null);
 
   // Handle file selection
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
@@ -108,10 +110,6 @@ const ASN1DecoderComponent: React.FC = () => {
     setWantHex(checked);
   };
 
-  const changeTrimHex = (checked: boolean): void => {
-    setTrimHex(checked);
-  };
-
   const changeWantDef = (checked: boolean): void => {
     setWantDef(checked);
   };
@@ -136,6 +134,35 @@ const ASN1DecoderComponent: React.FC = () => {
   // Handle node hover for hex highlighting
   const handleNodeHover = useCallback((byteRange: { start: number; end: number } | null): void => {
     setHoveredByteRange(byteRange);
+  }, []);
+
+  // Find ASN.1 element containing a given byte position
+  const findElementByBytePosition = useCallback((nodes: ASN1TreeNode[], bytePosition: number): { start: number; end: number } | null => {
+    for (const node of nodes) {
+      // Check if this node contains the byte position
+      if (node.byteStart !== undefined && node.byteEnd !== undefined) {
+        if (bytePosition >= node.byteStart && bytePosition < node.byteEnd) {
+          // First check children for a more specific match
+          if (node.hasChildren && node.children.length > 0) {
+            const childMatch = findElementByBytePosition(node.children, bytePosition);
+            if (childMatch) {
+              return childMatch;
+            }
+          }
+          // Return this node's range as it contains the byte
+          return { start: node.byteStart, end: node.byteEnd };
+        }
+      }
+      
+      // Check children even if parent doesn't have byte range
+      if (node.hasChildren && node.children.length > 0) {
+        const childMatch = findElementByBytePosition(node.children, bytePosition);
+        if (childMatch) {
+          return childMatch;
+        }
+      }
+    }
+    return null;
   }, []);
 
   // Expand all nodes
@@ -272,13 +299,13 @@ const ASN1DecoderComponent: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Checkbox 
-                    id="der-decoder-view" 
-                    checked={derDecoderView} 
-                    onCheckedChange={(checked) => setDerDecoderView(checked === true)}
+                    id="highlight-parent" 
+                    checked={highlightParent} 
+                    onCheckedChange={(checked) => setHighlightParent(checked === true)}
                     className="h-4 w-4"
                   />
-                  <Label htmlFor="der-decoder-view" className="text-xs text-blue-800 dark:text-blue-200">
-                    DER decoder
+                  <Label htmlFor="highlight-parent" className="text-xs text-blue-800 dark:text-blue-200">
+                    Highlight parent
                   </Label>
                 </div>
               </div>
@@ -385,29 +412,37 @@ const ASN1DecoderComponent: React.FC = () => {
       const trimmedLine = line.trim();
       
       // Extract ASN.1 type if present
-      const typeMatch = trimmedLine.match(/(SEQUENCE|SET|OBJECT IDENTIFIER|INTEGER|BIT STRING|OCTET STRING|UTF8String|PrintableString|UTCTime|GeneralizedTime|NULL|BOOLEAN|ENUMERATED)/);
+      const typeMatch = trimmedLine.match(/(SEQUENCE|SET|OBJECT IDENTIFIER|INTEGER|BIT STRING|OCTET STRING|UTF8String|PrintableString|UTCTime|GeneralizedTime|NULL|BOOLEAN|ENUMERATED|\[[0-9]+\])/);
       const type = typeMatch ? typeMatch[1] : undefined;
       
       // Extract byte positions from the ASN.1 structure line
-      // Format: "[+001C]" or similar hex offset indicators
-      const bytePositionMatch = trimmedLine.match(/\[\+([0-9A-Fa-f]+)\]/);
+      // Format can be: "@offset+length" (e.g., "@0+140") or "[+001C]" or similar
       let byteStart: number | undefined;
       let byteEnd: number | undefined;
       
-      if (bytePositionMatch) {
-        byteStart = parseInt(bytePositionMatch[1], 16);
-        
-        // Try to extract length info to calculate byte end
-        // Look for length patterns like "l=XX" or similar
-        const lengthMatch = trimmedLine.match(/l=(\d+)/);
-        if (lengthMatch) {
-          const contentLength = parseInt(lengthMatch[1], 10);
-          // Add tag byte (1) + length encoding bytes (usually 1-4) + content length
-          // This is an approximation - actual calculation would need full ASN.1 parsing
-          byteEnd = byteStart + 1 + (contentLength > 127 ? Math.ceil(Math.log2(contentLength) / 8) + 1 : 1) + contentLength;
-        } else {
-          // Default to a small range if we can't determine length
-          byteEnd = byteStart + 2;
+      // Try @offset+length format first (most common)
+      const atFormatMatch = trimmedLine.match(/@(\d+)\+(\d+)/);
+      if (atFormatMatch) {
+        byteStart = parseInt(atFormatMatch[1], 10);
+        const totalLength = parseInt(atFormatMatch[2], 10);
+        // Total length includes tag + length encoding + content
+        // For a simple approximation, we use the total length directly
+        byteEnd = byteStart + totalLength + (totalLength > 127 ? Math.ceil(Math.log2(totalLength) / 8) + 2 : 2);
+      } else {
+        // Try [+hexOffset] format
+        const bytePositionMatch = trimmedLine.match(/\[\+([0-9A-Fa-f]+)\]/);
+        if (bytePositionMatch) {
+          byteStart = parseInt(bytePositionMatch[1], 16);
+          
+          // Try to extract length info to calculate byte end
+          const lengthMatch = trimmedLine.match(/l=(\d+)/);
+          if (lengthMatch) {
+            const contentLength = parseInt(lengthMatch[1], 10);
+            byteEnd = byteStart + 1 + (contentLength > 127 ? Math.ceil(Math.log2(contentLength) / 8) + 1 : 1) + contentLength;
+          } else {
+            // Default to a small range if we can't determine length
+            byteEnd = byteStart + 2;
+          }
         }
       }
       
@@ -451,6 +486,16 @@ const ASN1DecoderComponent: React.FC = () => {
 
     return nodes;
   }, []);
+
+  // Get cached tree nodes or parse and cache them
+  const getCachedTreeNodes = useCallback((structure: string): ASN1TreeNode[] => {
+    if (treeNodesCache.current && treeNodesCache.current.structure === structure) {
+      return treeNodesCache.current.nodes;
+    }
+    const nodes = parseASN1Tree(structure);
+    treeNodesCache.current = { structure, nodes };
+    return nodes;
+  }, [parseASN1Tree]);
 
   // Function to extract hex values from ASN.1 line
   const extractHexFromLine = (line: string): string => {
@@ -670,9 +715,25 @@ const ASN1DecoderComponent: React.FC = () => {
   };
 
   // Tree Node Component
-  const TreeNode: React.FC<TreeNodeProps> = ({ node, expandedNodes, onToggle, onHover, mergedView }) => {
+  const TreeNode: React.FC<TreeNodeProps> = ({ node, expandedNodes, onToggle, onHover, mergedView, hoveredByteRange, highlightParent }) => {
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.hasChildren;
+
+    // Check if this node is highlighted due to hex hover
+    const isHighlighted = hoveredByteRange && 
+      node.byteStart !== undefined && 
+      node.byteEnd !== undefined &&
+      (
+        highlightParent
+          ? // When highlightParent is true, highlight if ranges overlap (includes parents)
+            (
+              (hoveredByteRange.start >= node.byteStart && hoveredByteRange.start < node.byteEnd) ||
+              (hoveredByteRange.end > node.byteStart && hoveredByteRange.end <= node.byteEnd) ||
+              (hoveredByteRange.start <= node.byteStart && hoveredByteRange.end >= node.byteEnd)
+            )
+          : // When highlightParent is false, only highlight exact match
+            (hoveredByteRange.start === node.byteStart && hoveredByteRange.end === node.byteEnd)
+      );
 
     const handleMouseEnter = () => {
       if (node.byteStart !== undefined && node.byteEnd !== undefined) {
@@ -687,7 +748,11 @@ const ASN1DecoderComponent: React.FC = () => {
     return (
       <div className="select-none">
         <div 
-          className={`flex items-center font-mono text-xs leading-tight tracking-tight py-0.5 hover:bg-gray-50 dark:hover:bg-gray-800 rounded cursor-pointer ${hasChildren ? '' : 'ml-4'}`}
+          className={`flex items-center font-mono text-xs leading-tight tracking-tight py-0.5 rounded cursor-pointer transition-colors ${hasChildren ? '' : 'ml-4'} ${
+            isHighlighted 
+              ? 'bg-yellow-100 dark:bg-yellow-900 border-l-2 border-yellow-500 dark:border-yellow-400' 
+              : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+          }`}
           style={{ 
             paddingLeft: `${node.indentLevel * 12}px`,
             fontFamily: 'ui-monospace, "SF Mono", "Monaco", "Menlo", "Consolas", "Liberation Mono", monospace'
@@ -734,6 +799,8 @@ const ASN1DecoderComponent: React.FC = () => {
                 onToggle={onToggle}
                 onHover={onHover}
                 mergedView={mergedView}
+                hoveredByteRange={hoveredByteRange}
+                highlightParent={highlightParent}
               />
             ))}
           </div>
@@ -792,16 +859,6 @@ const ASN1DecoderComponent: React.FC = () => {
 
   // Format ASN.1 structure with tree visualization
   const formatASN1Tree = (structure: string): JSX.Element => {
-    if (derDecoderView) {
-      // Show DER decoder format
-      const derFormat = convertToDerDecoderFormat(structure);
-      return (
-        <div className="font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-          {derFormat}
-        </div>
-      );
-    }
-    
     // Show normal tree view
     const treeNodes = parseASN1Tree(structure);
     
@@ -815,6 +872,8 @@ const ASN1DecoderComponent: React.FC = () => {
             onToggle={toggleNode}
             onHover={handleNodeHover}
             mergedView={mergedView}
+            hoveredByteRange={hoveredByteRange}
+            highlightParent={highlightParent}
           />
         ))}
       </div>
@@ -923,12 +982,38 @@ const ASN1DecoderComponent: React.FC = () => {
                       currentBytePosition >= hoveredByteRange.start && 
                       currentBytePosition < hoveredByteRange.end;
                     
+                    // Determine if this is the first or last byte in the hovered range for styling
+                    const isFirstInRange = isHovered && currentBytePosition === hoveredByteRange.start;
+                    const isLastInRange = isHovered && currentBytePosition === hoveredByteRange.end - 1;
+                    const isOnlyInRange = isFirstInRange && isLastInRange;
+                    
                     let colorClass = '';
                     let title = '';
                     
                     // Apply hover highlighting first (takes priority)
                     if (isHovered) {
-                      colorClass = 'bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 border border-yellow-400 dark:border-yellow-600';
+                      // Create unified background for multi-byte elements
+                      let hoverClass = 'bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100';
+                      
+                      // Add rounded corners only at the edges of the range
+                      if (isOnlyInRange) {
+                        hoverClass += ' rounded';
+                      } else if (isFirstInRange) {
+                        hoverClass += ' rounded-l';
+                      } else if (isLastInRange) {
+                        hoverClass += ' rounded-r';
+                      }
+                      
+                      // Add border to create unified appearance
+                      if (isFirstInRange) {
+                        hoverClass += ' border-l border-t border-b border-yellow-400 dark:border-yellow-600';
+                      } else if (isLastInRange) {
+                        hoverClass += ' border-r border-t border-b border-yellow-400 dark:border-yellow-600';
+                      } else {
+                        hoverClass += ' border-t border-b border-yellow-400 dark:border-yellow-600';
+                      }
+                      
+                      colorClass = hoverClass;
                       title = `Hovered ASN.1 element byte at position ${currentBytePosition}: ${byte.toUpperCase()}`;
                     }
                     // Check if it's a known ASN.1 tag
@@ -949,8 +1034,25 @@ const ASN1DecoderComponent: React.FC = () => {
                     return (
                       <span
                         key={byteIndex}
-                        className={`mr-1 px-0.5 rounded cursor-help ${colorClass}`}
+                        className={`pl-0.5 cursor-pointer ${colorClass} ${isHovered ? 'pr-[0.375rem]' : 'pr-0.5 mr-1 rounded'}`}
                         title={title}
+                        onMouseEnter={() => {
+                          // When hovering a hex byte, find and highlight the entire ASN.1 element
+                          if (decodedData?.structure) {
+                            const treeNodes = getCachedTreeNodes(decodedData.structure);
+                            const elementRange = findElementByBytePosition(treeNodes, currentBytePosition);
+                            if (elementRange) {
+                              setHoveredByteRange(elementRange);
+                            } else {
+                              setHoveredByteRange({ start: currentBytePosition, end: currentBytePosition + 1 });
+                            }
+                          } else {
+                            setHoveredByteRange({ start: currentBytePosition, end: currentBytePosition + 1 });
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          setHoveredByteRange(null);
+                        }}
                       >
                         {byte.toUpperCase()}
                       </span>
@@ -982,12 +1084,38 @@ const ASN1DecoderComponent: React.FC = () => {
                       currentBytePosition >= hoveredByteRange.start && 
                       currentBytePosition < hoveredByteRange.end;
                     
+                    // Determine if this is the first or last byte in the hovered range for styling
+                    const isFirstInRange = isHovered && currentBytePosition === hoveredByteRange.start;
+                    const isLastInRange = isHovered && currentBytePosition === hoveredByteRange.end - 1;
+                    const isOnlyInRange = isFirstInRange && isLastInRange;
+                    
                     let colorClass = '';
                     let title = '';
                     
                     // Apply hover highlighting first (takes priority)
                     if (isHovered) {
-                      colorClass = 'bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 border border-yellow-400 dark:border-yellow-600';
+                      // Create unified background for multi-byte elements
+                      let hoverClass = 'bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100';
+                      
+                      // Add rounded corners only at the edges of the range
+                      if (isOnlyInRange) {
+                        hoverClass += ' rounded';
+                      } else if (isFirstInRange) {
+                        hoverClass += ' rounded-l';
+                      } else if (isLastInRange) {
+                        hoverClass += ' rounded-r';
+                      }
+                      
+                      // Add border to create unified appearance
+                      if (isFirstInRange) {
+                        hoverClass += ' border-l border-t border-b border-yellow-400 dark:border-yellow-600';
+                      } else if (isLastInRange) {
+                        hoverClass += ' border-r border-t border-b border-yellow-400 dark:border-yellow-600';
+                      } else {
+                        hoverClass += ' border-t border-b border-yellow-400 dark:border-yellow-600';
+                      }
+                      
+                      colorClass = hoverClass;
                       title = `Hovered ASN.1 element byte at position ${currentBytePosition}: ${byte.toUpperCase()}`;
                     }
                     // Check if it's a known ASN.1 tag
@@ -1008,8 +1136,25 @@ const ASN1DecoderComponent: React.FC = () => {
                     return (
                       <span
                         key={byteIndex}
-                        className={`mr-1 px-0.5 rounded cursor-help ${colorClass}`}
+                        className={`pl-0.5 cursor-pointer ${colorClass} ${isHovered ? 'pr-[0.375rem]' : 'pr-0.5 mr-1 rounded'}`}
                         title={title}
+                        onMouseEnter={() => {
+                          // When hovering a hex byte, find and highlight the entire ASN.1 element
+                          if (decodedData?.structure) {
+                            const treeNodes = getCachedTreeNodes(decodedData.structure);
+                            const elementRange = findElementByBytePosition(treeNodes, currentBytePosition);
+                            if (elementRange) {
+                              setHoveredByteRange(elementRange);
+                            } else {
+                              setHoveredByteRange({ start: currentBytePosition, end: currentBytePosition + 1 });
+                            }
+                          } else {
+                            setHoveredByteRange({ start: currentBytePosition, end: currentBytePosition + 1 });
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          setHoveredByteRange(null);
+                        }}
                       >
                         {byte.toUpperCase()}
                       </span>
@@ -1153,16 +1298,6 @@ const ASN1DecoderComponent: React.FC = () => {
                 onCheckedChange={changeWantHex}
               />
               <Label htmlFor="want-hex">Show hex dump</Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="trim-hex" 
-                checked={trimHex} 
-                onCheckedChange={changeTrimHex}
-                disabled={!wantHex}
-              />
-              <Label htmlFor="trim-hex">Trim long hex strings</Label>
             </div>
             
             <div className="flex items-center space-x-2">

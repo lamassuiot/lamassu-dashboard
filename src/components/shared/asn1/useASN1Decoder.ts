@@ -26,10 +26,8 @@ interface UseASN1DecoderReturn {
   definitions: TypeDefinition[];
   selectedDefinition: string;
   wantHex: boolean;
-  trimHex: boolean;
   wantDef: boolean;
   setWantHex: (value: boolean) => void;
-  setTrimHex: (value: boolean) => void;
   setWantDef: (value: boolean) => void;
   setSelectedDefinition: (value: string) => void;
   decode: (der: string) => Promise<ASN1DecodedData>;
@@ -48,7 +46,6 @@ export const useASN1Decoder = (): UseASN1DecoderReturn => {
 
   // Options state
   const [wantHex, setWantHex] = useState<boolean>(true);
-  const [trimHex, setTrimHex] = useState<boolean>(true);
   const [wantDef, setWantDef] = useState<boolean>(true);
 
   // Constants
@@ -58,11 +55,9 @@ export const useASN1Decoder = (): UseASN1DecoderReturn => {
   // Load options from localStorage
   useEffect(() => {
     const savedWantHex = localStorage.getItem('wantHex');
-    const savedTrimHex = localStorage.getItem('trimHex');
     const savedWantDef = localStorage.getItem('wantDef');
 
     if (savedWantHex !== null) setWantHex(savedWantHex === 'true');
-    if (savedTrimHex !== null) setTrimHex(savedTrimHex === 'true');
     if (savedWantDef !== null) setWantDef(savedWantDef === 'true');
   }, []);
 
@@ -70,10 +65,6 @@ export const useASN1Decoder = (): UseASN1DecoderReturn => {
   useEffect(() => {
     localStorage.setItem('wantHex', wantHex.toString());
   }, [wantHex]);
-
-  useEffect(() => {
-    localStorage.setItem('trimHex', trimHex.toString());
-  }, [trimHex]);
 
   useEffect(() => {
     localStorage.setItem('wantDef', wantDef.toString());
@@ -323,10 +314,8 @@ Make sure your input contains valid ASN.1 data.`;
     definitions,
     selectedDefinition,
     wantHex,
-    trimHex,
     wantDef,
     setWantHex,
-    setTrimHex,
     setWantDef,
     setSelectedDefinition,
     decode,
