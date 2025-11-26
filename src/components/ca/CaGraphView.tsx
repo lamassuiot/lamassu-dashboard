@@ -28,6 +28,7 @@ import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { fetchKmsKeys, type ApiKmsKey } from '@/lib/kms-data';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPast, parseISO } from 'date-fns';
 import ELK from 'elkjs/lib/elk.bundled.js';
@@ -275,9 +276,9 @@ const CryptoEngineNode = ({ data }: { data: CryptoEngineNodeData }) => {
       </div>
       <div className="flex-grow min-w-0">
         <p className="text-sm font-bold truncate text-purple-900 dark:text-purple-100 leading-tight">{kmsKey!.name}</p>
-        <p className="text-[11px] font-mono text-purple-700 dark:text-purple-300 truncate mt-0.5">
-          {kmsKey!.key_id}
-        </p>
+        <div className="text-[11px] text-purple-700 dark:text-purple-300 mt-0.5">
+          <IdentifierDisplay value={kmsKey!.key_id} className="text-[11px]" />
+        </div>
       </div>
     </div>
   );
@@ -304,9 +305,9 @@ const GroupNode = ({ data }: { data: GroupNodeData }) => {
               <p className="text-xs font-semibold truncate text-purple-900 dark:text-purple-100 leading-tight">
                 {data.kmsKey.name}
               </p>
-              <p className="text-[10px] font-mono text-purple-700 dark:text-purple-300 truncate">
-                {data.kmsKey.key_id}
-              </p>
+              <div className="text-[10px] text-purple-700 dark:text-purple-300">
+                <IdentifierDisplay value={data.kmsKey.key_id} className="text-[10px]" />
+              </div>
             </div>
           </div>
         )}

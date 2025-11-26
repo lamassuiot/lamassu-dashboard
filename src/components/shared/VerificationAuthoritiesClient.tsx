@@ -376,7 +376,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
                     disabled={authLoading || isSubmitting}
                   >
                     {authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> :
-                      selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}... (SN: ${selectedCertificateSignerDisplay.serialNumber.substring(0, 8)}...)`
+                      selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}...`
                         : "Select CRL Signer Certificate..."}
                   </Button>
                   {selectedCertificateSignerDisplay && (

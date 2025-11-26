@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { importCa, type ImportCaPayload, ab2hex } from '@/lib/ca-data';
 import { SectionHeader } from '@/components/shared/FormComponents';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -172,7 +173,7 @@ export default function CreateCaImportPublicPage() {
                             <>
                             <DetailItem label="Subject" value={decodedImportedCertInfo.subject} isMono />
                             <DetailItem label="Issuer" value={decodedImportedCertInfo.issuer} isMono />
-                            <DetailItem label="Serial Number" value={decodedImportedCertInfo.serialNumber} isMono />
+                            <DetailItem label="Serial Number" value={<IdentifierDisplay value={decodedImportedCertInfo.serialNumber || ''} />} />
                             <DetailItem label="Valid From" value={decodedImportedCertInfo.validFrom} />
                             <DetailItem label="Valid To" value={decodedImportedCertInfo.validTo} />
                             <DetailItem label="Is CA" value={<Badge variant={decodedImportedCertInfo.isCa ? "default" : "secondary"}>{decodedImportedCertInfo.isCa ? 'Yes' : 'No'}</Badge>} />
