@@ -388,9 +388,14 @@ const layoutOptions = {
   'elk.direction': 'DOWN',
   'elk.spacing.nodeNode': '100',
   'elk.layered.spacing.nodeNodeBetweenLayers': '150',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '50',
+  'elk.spacing.edgeNode': '50',
   'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+  'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.separateConnectedComponents': 'true',
-  'elk.spacing.componentComponent': '100',
+  'elk.spacing.componentComponent': '150',
+  'elk.padding': '[top=50,left=50,bottom=50,right=50]',
+  'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
 };
 
 // Helper function to calculate layout using ELK with port configuration
@@ -401,21 +406,43 @@ const getLayoutedElements = async (
   // Only layout nodes that don't have a parent (top-level nodes and groups)
   const topLevelNodes = nodes.filter(node => !node.parentId);
   
+  if (topLevelNodes.length === 0) {
+    console.warn('No top-level nodes to layout');
+    return nodes;
+  }
+  
+  // Get proper dimensions from node data
+  const getNodeDimensions = (node: Node<NodeData>) => {
+    let width = node.width ?? 380;
+    let height = node.height ?? 85;
+    
+    if (node.type === 'cryptoEngineNode') {
+      width = node.width ?? 320;
+      height = node.height ?? 65;
+    } else if (node.type === 'unknownIssuerNode') {
+      width = node.width ?? 380;
+      height = node.height ?? 85;
+    } else if (node.type === 'group') {
+      width = (node.style?.width as number) || node.width || 420;
+      height = (node.style?.height as number) || node.height || 300;
+    }
+    
+    return { width, height };
+  };
+  
+  // Filter edges to only include those connecting top-level nodes
+  const topLevelNodeIds = new Set(topLevelNodes.map(n => n.id));
+  const layoutEdges = edges.filter(edge => 
+    topLevelNodeIds.has(edge.source) && topLevelNodeIds.has(edge.target)
+  );
+  
+  console.log(`Preparing ELK layout: ${topLevelNodes.length} nodes, ${layoutEdges.length} edges (filtered from ${edges.length})`);
+  
   const graph = {
     id: 'root',
     layoutOptions,
     children: topLevelNodes.map((node) => {
-      // Determine node dimensions
-      let width = 380;
-      let height = 85;
-      
-      if (node.type === 'cryptoEngineNode') {
-        width = 320;
-        height = 65;
-      } else if (node.type === 'group') {
-        width = node.style?.width as number || 420;
-        height = node.style?.height as number || 300;
-      }
+      const { width, height } = getNodeDimensions(node);
 
       // Define ports on all four sides for flexible edge routing with consistent naming
       // All nodes have both source and target ports in all directions
@@ -441,7 +468,7 @@ const getLayoutedElements = async (
         ports,
       };
     }),
-    edges: edges.map((edge) => ({
+    edges: layoutEdges.map((edge) => ({
       id: edge.id,
       sources: [edge.sourceHandle ? `${edge.source}-${edge.sourceHandle}` : edge.source],
       targets: [edge.targetHandle ? `${edge.target}-${edge.targetHandle}` : edge.target],
@@ -450,6 +477,12 @@ const getLayoutedElements = async (
 
   try {
     const layoutedGraph = await elk.layout(graph);
+    
+    console.log('ELK layout complete:', {
+      inputNodes: topLevelNodes.length,
+      outputNodes: layoutedGraph.children?.length ?? 0,
+      sample: layoutedGraph.children?.slice(0, 3).map(n => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }))
+    });
 
     const layoutedNodes = nodes.map((node) => {
       // Child nodes keep their relative positions
@@ -459,11 +492,17 @@ const getLayoutedElements = async (
       
       // Top-level nodes get positioned by ELK
       const layoutedNode = layoutedGraph.children?.find((lgNode) => lgNode.id === node.id);
+      
+      if (!layoutedNode) {
+        console.warn(`Node ${node.id} not found in ELK layout result`);
+        return node;
+      }
+      
       return {
         ...node,
         position: {
-          x: layoutedNode?.x ?? 0,
-          y: layoutedNode?.y ?? 0,
+          x: layoutedNode.x ?? 0,
+          y: layoutedNode.y ?? 0,
         },
       };
     });
@@ -476,22 +515,18 @@ const getLayoutedElements = async (
   }
 };
 
-// Custom hook to handle ELK layout
+// Custom hook to handle fit view after nodes are initialized
 function useLayoutNodes() {
   const nodesInitialized = useNodesInitialized();
-  const { getNodes, getEdges, setNodes, fitView } = useReactFlow<Node<NodeData>>();
+  const { fitView } = useReactFlow<Node<NodeData>>();
 
   useEffect(() => {
     if (nodesInitialized) {
-      const layoutNodes = async () => {
-        const layoutedNodes = await getLayoutedElements(getNodes(), getEdges());
-        setNodes(layoutedNodes);
-        window.requestAnimationFrame(() => fitView());
-      };
-
-      layoutNodes();
+      window.requestAnimationFrame(() => {
+        fitView({ padding: 0.2, duration: 300 });
+      });
     }
-  }, [nodesInitialized, getNodes, getEdges, setNodes, fitView]);
+  }, [nodesInitialized, fitView]);
 
   return null;
 }
@@ -642,6 +677,8 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               borderRadius: '12px',
               padding: '10px',
             },
+            width: 420,
+            height: casInGroup.length * 100 + 120,
           });
 
           // Create CA nodes as children of the group
@@ -1019,12 +1056,18 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       return true;
     });
 
-    // Set nodes and edges - layout will be applied by useLayoutNodes hook
-    setNodes(reactFlowNodes);
-    setEdges(filteredEdges);
+    // Apply ELK layout before setting nodes
+    const applyLayout = async () => {
+      console.log('Applying layout to nodes...');
+      const layoutedNodes = await getLayoutedElements(reactFlowNodes, reactFlowEdges);
+      setNodes(layoutedNodes);
+      setEdges(filteredEdges);
+    };
+    
+    applyLayout();
   }, [cas, allCryptoEngines, kmsKeysMap, router, isLoadingKeys, setNodes, setEdges, showHierarchyEdges, showAttestedKeyEdges, showSignedByEdges, groupByAttestedKey]);
 
-  // Use the layout hook to automatically apply ELK layout
+  // Use the layout hook to fit view after nodes are initialized
   useLayoutNodes();
 
   // Get fitView to reset the view
