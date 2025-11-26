@@ -252,8 +252,8 @@ export function CertificateList({
                       issuerDisplayName
                     )}
                   </TableCell>}
-                  <TableCell><DateDisplay date={cert.validFrom} /></TableCell>
-                  <TableCell><DateDisplay date={cert.validTo} highlightExpired /></TableCell>
+                  <TableCell><DateDisplay date={cert.validFrom} className='items-center' /></TableCell>
+                  <TableCell><DateDisplay date={cert.validTo} highlightExpired className='items-center' /></TableCell>
                   <TableCell className="text-center">
                     <div className="flex flex-col items-center gap-1">
                       <ApiStatusBadge
@@ -272,6 +272,7 @@ export function CertificateList({
                         date={cert.revocationTimestamp}
                         formatString="MMM dd, yyyy"
                         showRelative={true}
+                        className='items-center'
                       />
                     ) : (
                       <span className="text-xs text-muted-foreground">-</span>
