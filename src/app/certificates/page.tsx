@@ -245,18 +245,20 @@ export default function CertificatesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-        <div className="relative col-span-1 md:col-span-1">
+        <div className="col-span-1 md:col-span-1">
             <Label htmlFor="certSearchTermInput">Search Term</Label>
-            <Search className="absolute left-3 top-[calc(50%+6px)] -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-                id="certSearchTermInput"
-                type="text"
-                placeholder="Enter search term..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 mt-1"
-                disabled={isLoadingApi || authLoading}
-            />
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                    id="certSearchTermInput"
+                    type="text"
+                    placeholder="Enter search term..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 mt-1"
+                    disabled={isLoadingApi || authLoading}
+                />
+            </div>
         </div>
         <div className="col-span-1 md:col-span-1">
             <Label htmlFor="certSearchFieldSelect">Search In</Label>
