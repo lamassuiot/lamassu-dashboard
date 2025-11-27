@@ -2,7 +2,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
+import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 interface SortConfig {
   column: SortableColumn;
@@ -87,66 +88,106 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
 }) => {
   const router = useRouter();
 
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    icon: true,
+    name: true,
+    registrationMode: true,
+    enrollmentCA: true,
+    authMode: true,
+    createdAt: true,
+  });
+
+  const columns: ColumnConfig[] = [
+    { id: 'icon', label: 'Icon', visible: columnVisibility.icon },
+    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
+    { id: 'registrationMode', label: 'Registration Mode', visible: columnVisibility.registrationMode },
+    { id: 'enrollmentCA', label: 'Enrollment CA', visible: columnVisibility.enrollmentCA },
+    { id: 'authMode', label: 'Auth Mode', visible: columnVisibility.authMode },
+    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({
+      ...prev,
+      [columnId]: !prev[columnId],
+    }));
+  };
+
   return (
     <div className="w-full space-y-4">
+      <div className="flex justify-end mb-2">
+        <ColumnSelector
+          columns={columns}
+          onColumnToggle={handleColumnToggle}
+          align="end"
+        />
+      </div>
       <div className="overflow-x-auto">
         <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12"></TableHead>
-            <SortableTableHeader column="name" title="Name" onSort={requestSort} sortConfig={sortConfig} />
-            <TableHead className="hidden md:table-cell">Registration Mode</TableHead>
-            <TableHead className="min-w-[280px]">Enrollment CA</TableHead>
-            <TableHead className="hidden lg:table-cell">Auth Mode</TableHead>
-            <SortableTableHeader column="creation_ts" title="Created At" onSort={requestSort} sortConfig={sortConfig} />
+            {columnVisibility.icon && <TableHead className="w-12"></TableHead>}
+            {columnVisibility.name && <SortableTableHeader column="name" title="Name" onSort={requestSort} sortConfig={sortConfig} />}
+            {columnVisibility.registrationMode && <TableHead className="hidden md:table-cell">Registration Mode</TableHead>}
+            {columnVisibility.enrollmentCA && <TableHead className="min-w-[280px]">Enrollment CA</TableHead>}
+            {columnVisibility.authMode && <TableHead className="hidden lg:table-cell">Auth Mode</TableHead>}
+            {columnVisibility.createdAt && <SortableTableHeader column="creation_ts" title="Created At" onSort={requestSort} sortConfig={sortConfig} />}
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {ras.map((ra) => (
             <TableRow key={ra.id}>
-              <TableCell className="w-12">
-                <div className="flex justify-center">
+              {columnVisibility.icon && (
+                <TableCell className="w-12">
+                  <div className="flex justify-center">
+                    {(() => {
+                      const profile = ra.settings.enrollment_settings.device_provisioning_profile;
+                      const IconComponent = getLucideIconByName(profile.icon);
+                      const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
+                      
+                      return (
+                        <div className="p-2 rounded-md flex-shrink-0" style={{ backgroundColor: bgColor }}>
+                          {IconComponent ? (
+                            <IconComponent className="h-5 w-5" style={{ color: iconColor }} />
+                          ) : (
+                            <Settings2 className="h-5 w-5 text-primary" />
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </TableCell>
+              )}
+              {columnVisibility.name && (
+                <TableCell className="font-medium max-w-[150px] sm:max-w-xs">
+                  <div className="flex flex-col">
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto font-medium text-left justify-start truncate"
+                      onClick={() => onEdit(ra.id)}
+                      title={`Edit ${ra.name}`}
+                    >
+                      <span className="truncate">{ra.name}</span>
+                    </Button>
+                    <span className="text-xs text-muted-foreground truncate" title={ra.id}>{ra.id}</span>
+                  </div>
+                </TableCell>
+              )}
+              {columnVisibility.registrationMode && (
+                <TableCell className="hidden md:table-cell">
+                  <Badge variant="secondary">{ra.settings.enrollment_settings.registration_mode}</Badge>
+                </TableCell>
+              )}
+              {columnVisibility.enrollmentCA && (
+                <TableCell className="max-w-[280px]">
                   {(() => {
-                    const profile = ra.settings.enrollment_settings.device_provisioning_profile;
-                    const IconComponent = getLucideIconByName(profile.icon);
-                    const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
-                    
-                    return (
-                      <div className="p-2 rounded-md flex-shrink-0" style={{ backgroundColor: bgColor }}>
-                        {IconComponent ? (
-                          <IconComponent className="h-5 w-5" style={{ color: iconColor }} />
-                        ) : (
-                          <Settings2 className="h-5 w-5 text-primary" />
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </TableCell>
-              <TableCell className="font-medium max-w-[150px] sm:max-w-xs">
-                <div className="flex flex-col">
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto font-medium text-left justify-start truncate"
-                    onClick={() => onEdit(ra.id)}
-                    title={`Edit ${ra.name}`}
-                  >
-                    <span className="truncate">{ra.name}</span>
-                  </Button>
-                  <span className="text-xs text-muted-foreground truncate" title={ra.id}>{ra.id}</span>
-                </div>
-              </TableCell>
-              <TableCell className="hidden md:table-cell">
-                <Badge variant="secondary">{ra.settings.enrollment_settings.registration_mode}</Badge>
-              </TableCell>
-              <TableCell className="max-w-[280px]">
-                {(() => {
-                  const ca = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
-                  return ca ? (
-                    <CaVisualizerCard 
-                      ca={ca} 
-                      allCryptoEngines={allCryptoEngines}
+                    const ca = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
+                    return ca ? (
+                      <CaVisualizerCard 
+                        ca={ca} 
+                        allCryptoEngines={allCryptoEngines}
                       onClick={(selectedCa) => router.push(`/certificate-authorities/details?caId=${selectedCa.id}`)}
                       className="min-w-0 !bg-transparent !border-0 !shadow-none hover:!bg-muted/50"
                     />
@@ -157,12 +198,17 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                   );
                 })()}
               </TableCell>
-              <TableCell className="hidden lg:table-cell">
-                <Badge variant="secondary">{ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode?.replace('_', ' ') || 'N/A'}</Badge>
-              </TableCell>
-              <TableCell>
-                <DateDisplay date={ra.creation_ts} />
-              </TableCell>
+              )}
+              {columnVisibility.authMode && (
+                <TableCell className="hidden lg:table-cell">
+                  <Badge variant="secondary">{ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode?.replace('_', ' ') || 'N/A'}</Badge>
+                </TableCell>
+              )}
+              {columnVisibility.createdAt && (
+                <TableCell>
+                  <DateDisplay date={ra.creation_ts} />
+                </TableCell>
+              )}
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

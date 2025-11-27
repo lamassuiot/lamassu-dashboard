@@ -2,7 +2,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { MoreVertical, Edit, Trash2, Users, ChevronsUpDown, ArrowUpZA, ArrowDown
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import type { ProfileSortConfig, SortableProfileColumn } from '@/app/signing-profiles/page';
 import { cn } from '@/lib/utils';
+import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 interface SigningProfilesTableProps {
   profiles: ApiSigningProfile[];
@@ -67,59 +68,100 @@ const SortableTableHeader: React.FC<{
 
 
 export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ profiles, sortConfig, requestSort, onEdit, onDelete, onViewUsage }) => {
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    name: true,
+    description: true,
+    validity: true,
+    policies: true,
+    usages: true,
+  });
+
+  const columns: ColumnConfig[] = [
+    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
+    { id: 'description', label: 'Description', visible: columnVisibility.description },
+    { id: 'validity', label: 'Validity', visible: columnVisibility.validity },
+    { id: 'policies', label: 'Policies', visible: columnVisibility.policies },
+    { id: 'usages', label: 'Usages', visible: columnVisibility.usages },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({
+      ...prev,
+      [columnId]: !prev[columnId],
+    }));
+  };
+
   return (
     <div className="w-full space-y-4">
+      <div className="flex justify-end mb-2">
+        <ColumnSelector
+          columns={columns}
+          onColumnToggle={handleColumnToggle}
+          align="end"
+        />
+      </div>
       <div className="overflow-x-auto">
         <Table>
         <TableHeader>
           <TableRow>
-            <SortableTableHeader column="name" title="Name" onSort={requestSort} sortConfig={sortConfig} />
-            <TableHead className="hidden md:table-cell">Description</TableHead>
-            <TableHead>Validity</TableHead>
-            <TableHead className="hidden lg:table-cell">Policies</TableHead>
-            <TableHead className="hidden xl:table-cell">Usages</TableHead>
+            {columnVisibility.name && <SortableTableHeader column="name" title="Name" onSort={requestSort} sortConfig={sortConfig} />}
+            {columnVisibility.description && <TableHead className="hidden md:table-cell">Description</TableHead>}
+            {columnVisibility.validity && <TableHead>Validity</TableHead>}
+            {columnVisibility.policies && <TableHead className="hidden lg:table-cell">Policies</TableHead>}
+            {columnVisibility.usages && <TableHead className="hidden xl:table-cell">Usages</TableHead>}
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {profiles.map((profile) => (
             <TableRow key={profile.id}>
-              <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
-                <Button
-                  variant="link"
-                  className="p-0 h-auto font-medium text-left justify-start truncate"
-                  onClick={() => onEdit(profile.id)}
-                  title={`Edit ${profile.name}`}
-                >
-                  <span className="truncate">{profile.name}</span>
-                </Button>
-              </TableCell>
-              <TableCell className="hidden md:table-cell text-muted-foreground truncate max-w-[200px]">
-                {profile.description}
-              </TableCell>
-              <TableCell className="truncate max-w-[180px]">{validityToString(profile.validity)}</TableCell>
-              <TableCell className="hidden lg:table-cell">
-                <div className="flex flex-wrap gap-1">
-                  {profile.sign_as_ca && <Badge variant="default" className="bg-green-600/90 text-white">CA</Badge>}
-                  {profile.honor_subject && <Badge variant="outline">Honor Subject</Badge>}
-                  {profile.honor_key_usage && <Badge variant="outline">Honor KU</Badge>}
-                  {profile.honor_extended_key_usages && <Badge variant="outline">Honor EKU</Badge>}
-                  {profile.honor_extensions && <Badge variant="outline">Honor Ext</Badge>}
-                </div>
-              </TableCell>
-              <TableCell className="hidden xl:table-cell">
-                <div className="flex flex-wrap gap-1">
-                  {profile.key_usage.slice(0, 2).map(usage => (
-                    <Badge key={usage} variant="secondary" className="text-xs">{usage}</Badge>
-                  ))}
-                  {profile.extended_key_usages.slice(0, 2).map(eku => (
-                    <Badge key={eku} variant="secondary" className="text-xs">{eku}</Badge>
-                  ))}
-                  {(profile.key_usage.length + profile.extended_key_usages.length) > 4 && (
-                    <Badge variant="outline">...</Badge>
-                  )}
-                </div>
-              </TableCell>
+              {columnVisibility.name && (
+                <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto font-medium text-left justify-start truncate"
+                    onClick={() => onEdit(profile.id)}
+                    title={`Edit ${profile.name}`}
+                  >
+                    <span className="truncate">{profile.name}</span>
+                  </Button>
+                </TableCell>
+              )}
+              {columnVisibility.description && (
+                <TableCell className="hidden md:table-cell text-muted-foreground truncate max-w-[200px]">
+                  {profile.description}
+                </TableCell>
+              )}
+              {columnVisibility.validity && (
+                <TableCell className="truncate max-w-[180px]">{validityToString(profile.validity)}</TableCell>
+              )}
+              {columnVisibility.policies && (
+                <TableCell className="hidden lg:table-cell">
+                  <div className="flex flex-wrap gap-1">
+                    {profile.sign_as_ca && <Badge variant="default" className="bg-green-600/90 text-white">CA</Badge>}
+                    {profile.honor_subject && <Badge variant="outline">Honor Subject</Badge>}
+                    {profile.honor_key_usage && <Badge variant="outline">Honor KU</Badge>}
+                    {profile.honor_extended_key_usages && <Badge variant="outline">Honor EKU</Badge>}
+                    {profile.honor_extensions && <Badge variant="outline">Honor Ext</Badge>}
+                  </div>
+                </TableCell>
+              )}
+              {columnVisibility.usages && (
+                <TableCell className="hidden xl:table-cell">
+                  <div className="flex flex-wrap gap-1">
+                    {profile.key_usage.slice(0, 2).map(usage => (
+                      <Badge key={usage} variant="secondary" className="text-xs">{usage}</Badge>
+                    ))}
+                    {profile.extended_key_usages.slice(0, 2).map(eku => (
+                      <Badge key={eku} variant="secondary" className="text-xs">{eku}</Badge>
+                    ))}
+                    {(profile.key_usage.length + profile.extended_key_usages.length) > 4 && (
+                      <Badge variant="outline">...</Badge>
+                    )}
+                  </div>
+                </TableCell>
+              )}
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
