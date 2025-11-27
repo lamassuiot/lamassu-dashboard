@@ -4,12 +4,6 @@
     "unused-imports"
   ],
   "rules": {
-    "sort-imports": [
-      "error",
-      {
-        "ignoreMemberSort": true
-      }
-    ],
     "no-unused-vars": "off",
     "react/no-unescaped-entities": "off",
     "@typescript-eslint/no-unused-vars": "off",

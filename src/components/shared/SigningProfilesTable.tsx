@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit, Trash2, Users, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10 } from "lucide-react";
+import { MoreVertical, Edit, Trash2, Users, ChevronsUpDown, ArrowUpZA, ArrowDownAZ } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import type { ProfileSortConfig, SortableProfileColumn } from '@/app/signing-profiles/page';
 import { cn } from '@/lib/utils';

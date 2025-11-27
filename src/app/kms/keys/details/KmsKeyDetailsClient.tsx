@@ -31,8 +31,6 @@ import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
-import { DetailItem } from '@/components/shared/DetailItem';
-import { Separator } from '@/components/ui/separator';
 import { TagInput } from '@/components/shared/TagInput';
 
 // Monaco Editor dynamic import

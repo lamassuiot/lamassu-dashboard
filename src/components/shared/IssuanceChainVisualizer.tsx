@@ -2,7 +2,6 @@
 
 import React from 'react';
 import type { CA } from '@/lib/ca-data';
-import type { CertificateData } from '@/types/certificate';
 import { Badge } from '@/components/ui/badge';
 import { FileText, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
