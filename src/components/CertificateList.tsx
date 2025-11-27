@@ -26,6 +26,7 @@ import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { updateCertificateStatus } from '@/lib/issued-certificate-data';
 import { useAuth } from '@/contexts/AuthContext';
+import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 interface CertificateListProps {
   certificates: CertificateData[];
@@ -66,6 +67,34 @@ export function CertificateList({
   const [isOcspModalOpen, setIsOcspModalOpen] = useState(false);
   const [certForOcsp, setCertForOcsp] = useState<CertificateData | null>(null);
   const [issuerForOcsp, setIssuerForOcsp] = useState<CA | null>(null);
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    commonName: true,
+    serialNumber: true,
+    issuer: true,
+    validFrom: true,
+    expires: true,
+    status: true,
+    revocationTime: true,
+  });
+
+  const columns: ColumnConfig[] = [
+    { id: 'commonName', label: 'Common Name', visible: columnVisibility.commonName, disabled: true },
+    { id: 'serialNumber', label: 'Serial Number', visible: columnVisibility.serialNumber },
+    { id: 'issuer', label: 'CA Issuer', visible: columnVisibility.issuer && showIssuerColumn },
+    { id: 'validFrom', label: 'Valid From', visible: columnVisibility.validFrom },
+    { id: 'expires', label: 'Expires', visible: columnVisibility.expires },
+    { id: 'status', label: 'Status', visible: columnVisibility.status },
+    { id: 'revocationTime', label: 'Revocation Time', visible: columnVisibility.revocationTime },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({
+      ...prev,
+      [columnId]: !prev[columnId],
+    }));
+  };
 
 
   const SortableHeader: React.FC<{ column: SortableCertColumn; title: string; className?: string; center?: boolean; dateColumn?: boolean }> = ({ column, title, className, center = false, dateColumn = false }) => {
@@ -203,17 +232,24 @@ export function CertificateList({
 
   return (
     <div className={cn("w-full space-y-4", isLoading && "opacity-50 pointer-events-none")}>
+      <div className="flex justify-end mb-2">
+        <ColumnSelector
+          columns={columns}
+          onColumnToggle={handleColumnToggle}
+          align="end"
+        />
+      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <SortableHeader column="commonName" title="Common Name" />
-              <SortableHeader column="serialNumber" title="Serial Number" className="hidden md:table-cell" />
-              {showIssuerColumn && <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>}
-              <SortableHeader column="validFrom" title="Valid From" center dateColumn />
-              <SortableHeader column="expires" title="Expires" center dateColumn />
-              <SortableHeader column="status" title="Status" center />
-              <SortableHeader column="revocationTime" title="Revocation Time" center dateColumn className="hidden xl:table-cell" />
+              {columnVisibility.commonName && <SortableHeader column="commonName" title="Common Name" />}
+              {columnVisibility.serialNumber && <SortableHeader column="serialNumber" title="Serial Number" className="hidden md:table-cell" />}
+              {showIssuerColumn && columnVisibility.issuer && <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>}
+              {columnVisibility.validFrom && <SortableHeader column="validFrom" title="Valid From" center dateColumn />}
+              {columnVisibility.expires && <SortableHeader column="expires" title="Expires" center dateColumn />}
+              {columnVisibility.status && <SortableHeader column="status" title="Status" center />}
+              {columnVisibility.revocationTime && <SortableHeader column="revocationTime" title="Revocation Time" center dateColumn className="hidden xl:table-cell" />}
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -225,59 +261,73 @@ export function CertificateList({
 
               return (
                 <TableRow key={cert.id}>
-                  <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto font-medium text-left whitespace-normal"
-                      onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
-                      title={`View details for ${getCommonName(cert.subject)}`}
-                    >
-                      {getCommonName(cert.subject)}
-                    </Button>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell font-mono text-xs truncate max-w-[120px]">
-                    <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
-                  </TableCell>
-                  {showIssuerColumn && <TableCell className="hidden lg:table-cell truncate max-w-[200px]">
-                    {issuerCa ? (
+                  {columnVisibility.commonName && (
+                    <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
                       <Button
                         variant="link"
-                        className="p-0 h-auto text-left whitespace-normal leading-tight"
-                        onClick={() => router.push(`/certificate-authorities/details?caId=${issuerCa.id}`)}
-                        title={`View details for CA: ${issuerCa.name}`}
+                        className="p-0 h-auto font-medium text-left whitespace-normal"
+                        onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
+                        title={`View details for ${getCommonName(cert.subject)}`}
                       >
-                        {issuerCa.name}
+                        {getCommonName(cert.subject)}
                       </Button>
-                    ) : (
-                      issuerDisplayName
-                    )}
-                  </TableCell>}
-                  <TableCell><DateDisplay date={cert.validFrom} className='items-center' /></TableCell>
-                  <TableCell><DateDisplay date={cert.validTo} highlightExpired className='items-center' /></TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <ApiStatusBadge
-                        status={cert.apiStatus}
-                      />
-                      {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationReason && (
-                        <span className="text-[10px] text-red-600 dark:text-red-400">
-                          {cert.revocationReason}
-                        </span>
+                    </TableCell>
+                  )}
+                  {columnVisibility.serialNumber && (
+                    <TableCell className="hidden md:table-cell font-mono text-xs truncate max-w-[120px]">
+                      <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
+                    </TableCell>
+                  )}
+                  {showIssuerColumn && columnVisibility.issuer && (
+                    <TableCell className="hidden lg:table-cell truncate max-w-[200px]">
+                      {issuerCa ? (
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto text-left whitespace-normal leading-tight"
+                          onClick={() => router.push(`/certificate-authorities/details?caId=${issuerCa.id}`)}
+                          title={`View details for CA: ${issuerCa.name}`}
+                        >
+                          {issuerCa.name}
+                        </Button>
+                      ) : (
+                        issuerDisplayName
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden xl:table-cell text-center">
-                    {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
-                      <DateDisplay
-                        date={cert.revocationTimestamp}
-                        formatString="MMM dd, yyyy"
-                        showRelative={true}
-                        className='items-center'
-                      />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
+                    </TableCell>
+                  )}
+                  {columnVisibility.validFrom && (
+                    <TableCell><DateDisplay date={cert.validFrom} className='items-center' /></TableCell>
+                  )}
+                  {columnVisibility.expires && (
+                    <TableCell><DateDisplay date={cert.validTo} highlightExpired className='items-center' /></TableCell>
+                  )}
+                  {columnVisibility.status && (
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <ApiStatusBadge
+                          status={cert.apiStatus}
+                        />
+                        {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationReason && (
+                          <span className="text-[10px] text-red-600 dark:text-red-400">
+                            {cert.revocationReason}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
+                  {columnVisibility.revocationTime && (
+                    <TableCell className="hidden xl:table-cell text-center">
+                      {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
+                        <DateDisplay
+                          date={cert.revocationTimestamp}
+                          formatString="MMM dd, yyyy"
+                          showRelative={true}
+                          className='items-center'
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
