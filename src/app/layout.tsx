@@ -226,7 +226,7 @@ const CustomFooter = () => {
 
 const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
   const { isAuthenticated, user, login, logout } = useAuth();
-  const { mode: identifierMode, toggleMode: toggleIdentifierMode } = useIdentifierDisplay();
+  const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -320,6 +320,18 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                           id="identifier-display-mode"
                           checked={identifierMode === 'with-separators'}
                           onCheckedChange={toggleIdentifierMode}
+                        />
+                      </div>
+                    </div>
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="display-time-mode" className="text-sm cursor-pointer">
+                          Display Time
+                        </Label>
+                        <Switch
+                          id="display-time-mode"
+                          checked={displayTime}
+                          onCheckedChange={toggleDisplayTime}
                         />
                       </div>
                     </div>
