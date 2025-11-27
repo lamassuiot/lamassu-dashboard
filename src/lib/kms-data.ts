@@ -79,7 +79,9 @@ export async function fetchKmsKeys(accessToken: string, params: URLSearchParams)
         try {
             errorJson = await response.json();
             errorMessage = `Failed to fetch keys: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore */}
+        } catch(e) {
+            console.error("Failed to parse error response as JSON for KMS keys:", e);
+        }
         throw new Error(errorMessage);
     }
     return response.json();
@@ -95,7 +97,9 @@ export async function fetchKmsKey(keyId: string, accessToken: string): Promise<A
         try {
             errorJson = await response.json();
             errorMessage = `Failed to fetch key: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore */}
+        } catch(e) {
+            console.error("Failed to parse error response as JSON for KMS key:", e);
+        }
         throw new Error(errorMessage);
     }
     return response.json();
@@ -133,7 +137,9 @@ export async function verifyWithKmsKey(keyId: string, payload: any, accessToken:
         try {
             errorJson = await response.json();
             errorMessage = `Verification failed: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore json parse error */ }
+        } catch(e) {
+            console.error("Failed to parse error response as JSON for key verification:", e);
+        }
         throw new Error(errorMessage);
     }
 
@@ -155,7 +161,9 @@ export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: st
         try {
             errorJson = await response.json();
             errorMessage = `Key creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for key creation:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -175,7 +183,9 @@ export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: st
         try {
             errorJson = await response.json();
             errorMessage = `Key import failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for key import:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -192,7 +202,9 @@ export async function deleteKmsKey(keyId: string, accessToken: string): Promise<
         try {
             errorJson = await response.json();
             errorMessage = `Key deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for key deletion:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -218,7 +230,9 @@ export async function updateKeyAliases(keyId: string, patches: PatchOperation[],
         try {
             errorJson = await response.json();
             errorMessage = `Alias update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for alias update:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -238,7 +252,9 @@ export async function updateKeyTags(keyId: string, tags: string[], accessToken: 
         try {
             errorJson = await response.json();
             errorMessage = `Tag update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for tag update:", e);
+        }
         throw new Error(errorMessage);
     }
 }

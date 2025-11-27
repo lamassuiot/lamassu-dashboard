@@ -669,7 +669,9 @@ export async function fetchCaRequests(params: URLSearchParams, accessToken: stri
         try {
             errorJson = await response.json();
             errorMessage = `Failed to fetch requests: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch(e) { /* ignore */ }
+        } catch(e) {
+            console.error("Failed to parse error response as JSON for CA requests:", e);
+        }
         throw new Error(errorMessage);
     }
     return response.json();
@@ -687,7 +689,9 @@ export async function deleteCaRequest(requestId: string, accessToken: string): P
         try {
             errorJson = await response.json();
             errorMessage = `Deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CA request deletion:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -722,7 +726,7 @@ export async function importCa(payload: ImportCaPayload, accessToken: string): P
       errorJson = await response.json();
       errorMessage = `Failed to import CA: ${errorJson.err || errorJson.message || 'Unknown error'}`;
     } catch (e) {
-      // Ignore if response is not JSON
+      console.error("Failed to parse error response as JSON for CA import:", e);
     }
     throw new Error(errorMessage);
   }
@@ -749,7 +753,9 @@ export async function updateCaMetadata(caId: string, patchOperations: PatchOpera
     try {
       const errJson = await response.json();
       errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) { /* Ignore */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for CA metadata update:", e);
+    }
     throw new Error(`Failed to update CA metadata: ${errorBody} (Status: ${response.status})`);
   }
 }
@@ -768,7 +774,9 @@ export async function fetchCaStats(caId: string, accessToken: string): Promise<C
         try {
             const errJson = await response.json();
             errorBody = errJson.err || errJson.message || errorBody;
-        } catch(e) { /* Ignore parsing error */ }
+        } catch(e) {
+            console.error("Failed to parse error response as JSON for CA stats:", e);
+        }
         throw new Error(`Failed to fetch CA statistics: ${errorBody} (Status: ${response.status})`);
     }
     return response.json();
@@ -793,7 +801,9 @@ export async function updateCaStatus(caId: string, status: 'ACTIVE' | 'REVOKED',
         try {
             errorJson = await response.json();
             errorMessage = `Status update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CA status update:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -814,7 +824,9 @@ export async function revokeCa(caId: string, reason: string, accessToken: string
     try {
       errorJson = await response.json();
       errorMessage = `Revocation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) { /* ignore json parse error */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for CA revocation:", e);
+    }
     throw new Error(errorMessage);
   }
 }
@@ -832,7 +844,9 @@ export async function deleteCa(caId: string, accessToken: string): Promise<void>
         try {
             errorJson = await response.json();
             errorMessage = `Deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CA deletion:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -879,7 +893,9 @@ export async function updateCaDefaultProfileId(caId: string, profileId: string |
         try {
             errorJson = await response.json();
             errorMessage = `Update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CA default profile update:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -1002,7 +1018,9 @@ export async function createSigningProfile(payload: CreateSigningProfilePayload,
         try {
             errorJson = await response.json();
             errorMessage = `Profile creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for signing profile creation:", e);
+        }
         throw new Error(errorMessage);
     }
     return response.json();
@@ -1018,7 +1036,9 @@ export async function fetchSigningProfileById(profileId: string, accessToken: st
         try {
             errorJson = await response.json();
             errorMessage = `Failed to fetch profile: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore */}
+        } catch(e) {
+            console.error("Failed to parse error response as JSON for signing profile fetch:", e);
+        }
         throw new Error(errorMessage);
     }
     return response.json();
@@ -1039,7 +1059,9 @@ export async function updateSigningProfile(profileId: string, payload: CreateSig
         try {
             errorJson = await response.json();
             errorMessage = `Profile update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for signing profile update:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -1057,7 +1079,9 @@ export async function deleteSigningProfile(profileId: string, accessToken: strin
         try {
             errorJson = await response.json();
             errorMessage = `Profile deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for signing profile deletion:", e);
+        }
         throw new Error(errorMessage);
     }
 }

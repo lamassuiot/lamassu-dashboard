@@ -155,7 +155,9 @@ export async function createOrUpdateRa(
         try {
             errorJson = await response.json();
             errorMessage = `RA ${isEditMode ? 'update' : 'creation'} failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for RA creation/update:", e);
+        }
         throw new Error(errorMessage);
     }
 }

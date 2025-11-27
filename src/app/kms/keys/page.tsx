@@ -398,6 +398,7 @@ export default function KmsKeysPage() {
                               resources = [bindedResources];
                             }
                           } catch (e) {
+                            console.error("Failed to parse binded resources:", e);
                             return <span className="text-muted-foreground text-xs">-</span>;
                           }
 

@@ -209,7 +209,9 @@ export async function updateCertificateStatus({
     try {
       const errJson = await response.json();
       errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) { /* Ignore parsing error */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for certificate status update:", e);
+    }
     
     const actionText = status === 'REVOKED' ? 'revoke' : 're-activate';
     throw new Error(`Failed to ${actionText} certificate: ${errorBody} (Status: ${response.status})`);
@@ -232,7 +234,9 @@ export async function updateCertificateMetadata(serialNumber: string, metadata: 
     try {
       const errJson = await response.json();
       errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) { /* Ignore */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for certificate metadata update:", e);
+    }
     throw new Error(`Failed to update certificate metadata: ${errorBody} (Status: ${response.status})`);
   }
 }
@@ -258,7 +262,9 @@ export async function importCertificate(payload: ImportCertificateBody, accessTo
     try {
       const errJson = await response.json();
       errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) { /* Ignore parsing error */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for certificate import:", e);
+    }
     throw new Error(`Failed to import certificate: ${errorBody} (Status: ${response.status})`);
   }
 }
@@ -277,7 +283,9 @@ export async function deleteCertificate(serialNumber: string, accessToken: strin
         try {
             const errJson = await response.json();
             errorBody = errJson.err || errJson.message || errorBody;
-        } catch (e) { /* Ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for certificate deletion:", e);
+        }
         throw new Error(`Failed to delete certificate: ${errorBody} (Status: ${response.status})`);
     }
 }

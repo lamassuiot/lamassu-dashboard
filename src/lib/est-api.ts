@@ -32,7 +32,9 @@ export async function fetchEstCaCerts(
         try {
             errorJson = await response.json();
             errorMessage = `EST CA certs fetch failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for EST CA certs:", e);
+        }
         throw new Error(errorMessage);
     }
     

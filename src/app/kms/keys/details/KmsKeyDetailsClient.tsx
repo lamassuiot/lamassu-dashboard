@@ -498,6 +498,7 @@ export default function KmsKeyDetailsClient() {
           const buffer = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))).buffer;
           encodedPayload = arrayBufferToBase64(buffer);
         } catch (e) {
+          console.error("Hex encoding error:", e);
           toast({ title: "Encoding Error", description: "Invalid hexadecimal string.", variant: "destructive" });
           setIsSigning(false);
           return;
@@ -550,6 +551,7 @@ export default function KmsKeyDetailsClient() {
           const buffer = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))).buffer;
           encodedUnsignedPayload = arrayBufferToBase64(buffer);
         } catch (e) {
+          console.error("Hex encoding error for verification:", e);
           toast({ title: "Encoding Error", description: "Invalid hexadecimal string for payload.", variant: "destructive" });
           setIsVerifying(false);
           return;
