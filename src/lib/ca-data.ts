@@ -150,6 +150,7 @@ const formatPkijsPublicKeyInfo = (publicKeyInfo: PublicKeyInfo): string => {
   const algoOid = publicKeyInfo.algorithm.algorithmId;
   const algoName = OID_MAP[algoOid] || algoOid;
   let details = "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const algo = publicKeyInfo.algorithm as any;
   if (algoName === "EC" && algo.parameters && algo.parameters.valueBlock) {
       const curveOid = algo.parameters.valueBlock.value as string;
