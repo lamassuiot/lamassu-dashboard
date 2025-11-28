@@ -86,7 +86,6 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'device-groups': "Device Groups",
   'integrations': "Platform Integrations",
   'crypto-engines': "Crypto Engines",
-  'requests': "CA Requests",
   'alerts': "Alerts",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",

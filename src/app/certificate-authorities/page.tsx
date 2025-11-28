@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Landmark, List, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, FileSignature, Search, UploadCloud, FileText } from "lucide-react";
+import { Landmark, List, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, UploadCloud, FileText } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -176,9 +176,6 @@ export default function CertificateAuthoritiesPage() {
               <h1 className="text-2xl font-headline font-semibold">Certification Authorities</h1> 
             </div>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" onClick={() => router.push('/certificate-authorities/requests')}>
-                <FileSignature className="mr-2 h-4 w-4" /> Manage CA Requests
-              </Button>
               <Button variant="default" onClick={handleCreateNewCAClick}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Create New CA
               </Button>
