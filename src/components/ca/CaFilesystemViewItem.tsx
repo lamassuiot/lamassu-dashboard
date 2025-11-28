@@ -98,8 +98,8 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({ ca, 
         <div className="flex-grow min-w-0">
           <div className="flex items-center space-x-2">
             <p className="text-sm font-medium truncate">{ca.name}</p>
-            {ca.caType === 'IMPORTED' && <UploadCloud className="h-4 w-4 text-muted-foreground flex-shrink-0" title="Imported CA with Private Key" />}
-            {ca.caType === 'EXTERNAL_PUBLIC' && <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" title="External Public CA (Certificate Only)" />}
+            {ca.caType === 'IMPORTED' && <UploadCloud className="h-4 w-4 text-muted-foreground flex-shrink-0"/>}
+            {ca.caType === 'EXTERNAL_PUBLIC' && <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
           </div>
           <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")}>{statusText}</p>
         </div>
