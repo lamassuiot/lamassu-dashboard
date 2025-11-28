@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
@@ -115,7 +115,7 @@ export default function CreateKmsKeyPage() {
 
   // Get supported key types from selected crypto engine
   const selectedEngine = cryptoEngines.find(engine => engine.id === cryptoEngineId);
-  const supportedKeyTypes = selectedEngine?.supported_key_types || [];
+  const supportedKeyTypes = useMemo(() => selectedEngine?.supported_key_types || [], [selectedEngine]);
 
   // Get available key type options based on selected engine
   const availableKeyTypeOptions = supportedKeyTypes.map(keyType => ({
@@ -184,6 +184,7 @@ export default function CreateKmsKeyPage() {
       JSON.parse(newValue);
       setMetadataError(null);
     } catch (error) {
+      console.error("Invalid JSON in metadata editor:", error);
       setMetadataError('Invalid JSON format');
     }
   };
@@ -216,6 +217,7 @@ export default function CreateKmsKeyPage() {
             try {
                 parsedMetadata = JSON.parse(metadata);
             } catch (error) {
+                console.error("Failed to parse metadata JSON:", error);
                 toast({ title: "Validation Error", description: "Metadata must be valid JSON.", variant: "destructive" });
                 setIsSubmitting(false);
                 return;
@@ -289,6 +291,7 @@ export default function CreateKmsKeyPage() {
           try {
               parsedMetadata = JSON.parse(metadata);
           } catch (error) {
+              console.error("Failed to parse metadata JSON:", error);
               toast({ title: "Validation Error", description: "Metadata must be valid JSON.", variant: "destructive" });
               setIsSubmitting(false);
               return;
