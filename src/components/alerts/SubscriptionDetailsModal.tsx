@@ -53,6 +53,7 @@ export const SubscriptionDetailsModal: React.FC<SubscriptionDetailsModalProps> =
             // It's a schema, so it should be valid JSON. Let's prettify it.
             return JSON.stringify(JSON.parse(conditionValue), null, 2);
         } catch (e) {
+            console.error("Failed to parse condition value as JSON:", e);
             // If it's not valid JSON for some reason, show the raw string.
             return conditionValue;
         }

@@ -3,15 +3,19 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle, Database, Link as LinkIcon, FileKey } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
+import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import type { CertificateData } from '@/types/certificate';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,11 +26,19 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import * as asn1js from 'asn1js';
 import * as pkijs from 'pkijs';
 import { CertificationRequest, AlgorithmIdentifier } from 'pkijs';
-import { fetchCryptoEngines, fetchKmsKeys, signWithKmsKey, verifyWithKmsKey } from '@/lib/ca-data';
+import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, type PatchOperation } from '@/lib/kms-data';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
+import { TagInput } from '@/components/shared/TagInput';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+
+// Monaco Editor dynamic import
+const Editor = dynamic(() => import('@monaco-editor/react'), { 
+  ssr: false, 
+  loading: () => <div className="h-96 w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> 
+});
 
 // --- Helper Functions ---
 function ipToBuffer(ip: string): ArrayBuffer | null {
@@ -109,6 +121,8 @@ interface KmsKeyDetailed {
   hasPrivateKey: boolean;
   publicKeyPem?: string;
   cryptoEngineId?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
 }
 
 const signatureAlgorithms = [
@@ -165,8 +179,26 @@ export default function KmsKeyDetailsClient() {
   const [csrCurrentSanType, setCsrCurrentSanType] = useState<'DNS' | 'IP' | 'Email' | 'URI'>('DNS');
   const [csrCurrentSanValue, setCsrCurrentSanValue] = useState('');
 
+  // Related entities state
+  const [boundCertificate, setBoundCertificate] = useState<CertificateData | null>(null);
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+  const [isLoadingBoundCert, setIsLoadingBoundCert] = useState(false);
+
   // CLI Operations state
   const [showCliOperations, setShowCliOperations] = useState(false);
+
+  // Aliases management state
+  const [keyAliases, setKeyAliases] = useState<string[]>([]);
+  const [originalAliases, setOriginalAliases] = useState<string[]>([]); // Track original state
+  const [isEditingAliases, setIsEditingAliases] = useState(false);
+  const [newAlias, setNewAlias] = useState('');
+  const [isSavingAliases, setIsSavingAliases] = useState(false);
+
+  // Tags management state
+  const [keyTags, setKeyTags] = useState<string[]>([]);
+  const [originalTags, setOriginalTags] = useState<string[]>([]); // Track original state
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [isSavingTags, setIsSavingTags] = useState(false);
 
   // --- CSR SAN Handlers ---
   const handleAddCsrSan = () => {
@@ -183,6 +215,160 @@ export default function KmsKeyDetailsClient() {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddCsrSan();
+    }
+  };
+
+  // --- Alias Management Handlers ---
+  const handleAddAlias = () => {
+    if (!newAlias.trim()) return;
+    if (keyAliases.includes(newAlias.trim())) {
+      toast({ title: "Duplicate Alias", description: "This alias already exists.", variant: "destructive" });
+      return;
+    }
+    setKeyAliases(prev => [...prev, newAlias.trim()]);
+    setNewAlias('');
+  };
+
+  const handleRemoveAlias = (index: number) => {
+    setKeyAliases(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveAliases = async () => {
+    if (!keyDetails || !user?.access_token) return;
+
+    setIsSavingAliases(true);
+    try {
+      // Build patch operations based on changes
+      const patches: PatchOperation[] = [];
+      
+      // Find removed aliases
+      originalAliases.forEach((alias, index) => {
+        if (!keyAliases.includes(alias)) {
+          patches.push({
+            op: 'remove',
+            path: `/${index}`
+          });
+        }
+      });
+      
+      // Find added aliases
+      keyAliases.forEach((alias, index) => {
+        if (!originalAliases.includes(alias)) {
+          patches.push({
+            op: 'add',
+            path: `/${index}`,
+            value: alias
+          });
+        }
+      });
+      
+      // If no changes, just exit edit mode
+      if (patches.length === 0) {
+        setIsEditingAliases(false);
+        return;
+      }
+
+      await updateKeyAliases(keyDetails.id, patches, user.access_token);
+      
+      // Update original aliases to match current state
+      setOriginalAliases([...keyAliases]);
+      
+      toast({
+        title: "Aliases Updated",
+        description: "Key aliases have been successfully updated.",
+      });
+      setIsEditingAliases(false);
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update aliases.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingAliases(false);
+    }
+  };
+
+  const handleCancelEditAliases = () => {
+    // Restore original aliases
+    setKeyAliases([...originalAliases]);
+    setIsEditingAliases(false);
+    setNewAlias('');
+  };
+
+  // --- Tags Management Handlers ---
+  const handleSaveTags = async () => {
+    if (!keyDetails || !user?.access_token) return;
+
+    setIsSavingTags(true);
+    try {
+      // Check if there are changes
+      const hasChanges = JSON.stringify(keyTags.sort()) !== JSON.stringify(originalTags.sort());
+      
+      if (!hasChanges) {
+        setIsEditingTags(false);
+        return;
+      }
+
+      await updateKeyTags(keyDetails.id, keyTags, user.access_token);
+      
+      // Update original tags to match current state
+      setOriginalTags([...keyTags]);
+      
+      // Update keyDetails to reflect the change
+      setKeyDetails(prev => prev ? { ...prev, tags: keyTags } : null);
+      
+      toast({
+        title: "Tags Updated",
+        description: "Key tags have been successfully updated.",
+      });
+      setIsEditingTags(false);
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update tags.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingTags(false);
+    }
+  };
+
+  const handleCancelEditTags = () => {
+    // Restore original tags
+    setKeyTags([...originalTags]);
+    setIsEditingTags(false);
+  };
+
+  // Handler to fetch and view bound certificate
+  const handleViewBoundCertificate = async (serialNumber: string) => {
+    if (!user?.access_token) return;
+    
+    setIsLoadingBoundCert(true);
+    try {
+      const { certificates } = await fetchIssuedCertificates({
+        accessToken: user.access_token,
+        apiQueryString: `serial_number=${serialNumber}`,
+      });
+      
+      if (certificates.length > 0) {
+        setBoundCertificate(certificates[0]);
+        setIsCertModalOpen(true);
+      } else {
+        toast({
+          title: "Certificate Not Found",
+          description: `No certificate found with serial number: ${serialNumber}`,
+          variant: "destructive"
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Failed to Load Certificate",
+        description: error.message || "Could not fetch certificate details.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingBoundCert(false);
     }
   };
 
@@ -214,19 +400,13 @@ export default function KmsKeyDetailsClient() {
     setError(null);
 
     try {
-      const filterParams = new URLSearchParams();
-      filterParams.set('filter', `id[equal]${keyId}`);
-      filterParams.set('page_size', '1');
-
-      const [keysResponse, allEnginesData] = await Promise.all([
-        fetchKmsKeys(user.access_token, filterParams),
+      const [apiKey, allEnginesData] = await Promise.all([
+        fetchKmsKey(keyId, user.access_token),
         fetchCryptoEngines(user.access_token)
       ]);
 
       setAllCryptoEngines(allEnginesData);
       
-      const apiKey = keysResponse.list?.[0];
-
       if (apiKey) {
         let pem = '';
         try {
@@ -237,21 +417,28 @@ export default function KmsKeyDetailsClient() {
           pem = "Error: Could not decode or format public key.";
         }
 
-        const engineIdMatch = apiKey.id.match(/token-id=([^;]+)/);
-        const engineId = engineIdMatch ? engineIdMatch[1] : undefined;
-
         const algorithm = apiKey.algorithm.toUpperCase() as KmsKeyDetailed['algorithm'];
         const detailedKey: KmsKeyDetailed = {
-          id: apiKey.id,
-          alias: apiKey.name || apiKey.id,
+          id: apiKey.pkcs11_uri,
+          alias: apiKey.name || apiKey.key_id,
           keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
           algorithm: ['RSA', 'ECDSA'].includes(algorithm) ? algorithm : 'Unknown',
           keySize: apiKey.size,
-          hasPrivateKey: apiKey.id.includes('type=private'),
+          hasPrivateKey: apiKey.has_private_key,
           publicKeyPem: pem,
-          cryptoEngineId: engineId,
+          cryptoEngineId: apiKey.engine_id,
+          tags: apiKey.tags || [],
+          metadata: apiKey.metadata || {},
         };
         setKeyDetails(detailedKey);
+        const aliases = apiKey.aliases || [];
+        setKeyAliases(aliases);
+        setOriginalAliases(aliases); // Track original state for diff calculation
+        
+        const tags = apiKey.tags || [];
+        setKeyTags(tags);
+        setOriginalTags(tags); // Track original state for diff calculation
+        
         setCsrCommonName(detailedKey.alias || '');
 
         if (detailedKey.algorithm === 'RSA') {
@@ -311,6 +498,7 @@ export default function KmsKeyDetailsClient() {
           const buffer = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))).buffer;
           encodedPayload = arrayBufferToBase64(buffer);
         } catch (e) {
+          console.error("Hex encoding error:", e);
           toast({ title: "Encoding Error", description: "Invalid hexadecimal string.", variant: "destructive" });
           setIsSigning(false);
           return;
@@ -363,6 +551,7 @@ export default function KmsKeyDetailsClient() {
           const buffer = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))).buffer;
           encodedUnsignedPayload = arrayBufferToBase64(buffer);
         } catch (e) {
+          console.error("Hex encoding error for verification:", e);
           toast({ title: "Encoding Error", description: "Invalid hexadecimal string for payload.", variant: "destructive" });
           setIsVerifying(false);
           return;
@@ -869,8 +1058,8 @@ export default function KmsKeyDetailsClient() {
                   {keyDetails.alias}
                 </h1>
               </div>
-              <p className="text-sm text-muted-foreground mt-1.5 break-all">
-                Key ID: {keyDetails.id}
+              <p className="text-sm text-muted-foreground mt-1.5">
+                Key ID: <IdentifierDisplay value={keyDetails.id} className="text-xs" />
               </p>
             </div>
           </div>
@@ -882,6 +1071,7 @@ export default function KmsKeyDetailsClient() {
             <TabsTrigger value="public-key"><FileText className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Public Key</TabsTrigger>
             <TabsTrigger value="sign-verify" disabled={!keyDetails.hasPrivateKey}><PenTool className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Sign / Verify</TabsTrigger>
             <TabsTrigger value="generate-csr" disabled={!keyDetails.hasPrivateKey}><FileSignature className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Generate CSR</TabsTrigger>
+            <TabsTrigger value="metadata"><Database className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Metadata</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -898,7 +1088,7 @@ export default function KmsKeyDetailsClient() {
                 <CardContent className="p-6">
                   <div className="grid gap-4">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground">Key Alias</Label>
+                      <Label className="text-sm font-medium text-muted-foreground">Key Name</Label>
                       <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border">
                         <span className="font-mono text-sm font-medium">{keyDetails.alias}</span>
                         <Badge variant="outline" className="ml-auto">Primary Name</Badge>
@@ -907,12 +1097,157 @@ export default function KmsKeyDetailsClient() {
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Key Identifier</Label>
                       <div className="p-3 bg-muted/30 rounded-lg border">
-                        <code className="text-xs text-muted-foreground break-all leading-relaxed">
-                          {keyDetails.id}
-                        </code>
+                        <IdentifierDisplay value={keyDetails.id} className="text-xs" />
                       </div>
                     </div>
+                    
+                    {/* Tags Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium text-muted-foreground">Tags</Label>
+                        {!isEditingTags && (
+                          <Button variant="ghost" size="sm" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
+                            <PenTool className="mr-1.5 h-3 w-3" />
+                            Edit
+                          </Button>
+                        )}
+                      </div>
+                      {isEditingTags ? (
+                        <div className="space-y-3">
+                          <TagInput
+                            value={keyTags}
+                            onChange={setKeyTags}
+                            placeholder="Add tags..."
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="outline" size="sm" onClick={handleCancelEditTags} disabled={isSavingTags}>
+                              Cancel
+                            </Button>
+                            <Button size="sm" onClick={handleSaveTags} disabled={isSavingTags}>
+                              {isSavingTags ? (
+                                <>
+                                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>Save</>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-muted/30 rounded-lg border min-h-[44px]">
+                          {keyTags && keyTags.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {keyTags.map((tag, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">No tags configured</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Aliases Section */}
+              <Card className="overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center text-lg">
+                        <Tag className="mr-3 h-5 w-5 text-primary" />
+                        Key Aliases
+                      </CardTitle>
+                      <CardDescription>Alternative names for this key</CardDescription>
+                    </div>
+                    {!isEditingAliases && (
+                      <Button variant="outline" size="sm" onClick={() => setIsEditingAliases(true)}>
+                        <PenTool className="mr-2 h-3 w-3" />
+                        Edit Aliases
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {isEditingAliases ? (
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter new alias..."
+                          value={newAlias}
+                          onChange={(e) => setNewAlias(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddAlias();
+                            }
+                          }}
+                        />
+                        <Button onClick={handleAddAlias} size="sm">
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          Add
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {keyAliases.length > 0 ? (
+                          keyAliases.map((alias, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg border">
+                              <span className="text-sm font-medium">{alias}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveAlias(idx)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <XIcon className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-4 text-muted-foreground text-sm">
+                            No aliases configured
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2 justify-end pt-2">
+                        <Button variant="outline" onClick={handleCancelEditAliases} disabled={isSavingAliases}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveAliases} disabled={isSavingAliases}>
+                          {isSavingAliases ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>Save Changes</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {keyAliases && keyAliases.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {keyAliases.map((alias, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-sm px-3 py-1">
+                              {alias}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-muted-foreground text-sm">
+                          No aliases configured for this key
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -943,7 +1278,7 @@ export default function KmsKeyDetailsClient() {
                       <div>
                         <Label className="text-sm font-medium text-muted-foreground mb-2 block">Key Size & Strength</Label>
                         <div className="p-3 bg-background rounded-lg border">
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between">
                             <span className="font-medium">{keyDetails.keyTypeDisplay}</span>
                             <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
                           </div>
@@ -983,7 +1318,7 @@ export default function KmsKeyDetailsClient() {
                           return (
                             <div>
                               <Label className="text-sm font-medium text-muted-foreground mb-2 block">Crypto Engine</Label>
-                              <div className="p-3 bg-background rounded-lg border">
+                              <div className="p-2 bg-background rounded-lg border">
                                 {engine ? (
                                   <CryptoEngineViewer engine={engine} />
                                 ) : (
@@ -1002,6 +1337,72 @@ export default function KmsKeyDetailsClient() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Related Entities */}
+              {(() => {
+                const bindedResources = keyDetails.metadata?.['lamassu.io/kms/binded-resources'];
+                if (!bindedResources) return null;
+
+                // Parse the binded resources
+                let resources: Array<{ resource_id: string; resource_type: string }> = [];
+                try {
+                  if (typeof bindedResources === 'string') {
+                    resources = [JSON.parse(bindedResources)];
+                  } else if (Array.isArray(bindedResources)) {
+                    resources = bindedResources;
+                  } else if (typeof bindedResources === 'object') {
+                    resources = [bindedResources];
+                  }
+                } catch (e) {
+                  console.error('Failed to parse binded-resources:', e);
+                  return null;
+                }
+
+                // Filter for certificate resources
+                const certificateResources = resources.filter(r => r.resource_type === 'certificate');
+                if (certificateResources.length === 0) return null;
+
+                return (
+                  <Card className="overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
+                      <CardTitle className="flex items-center text-lg">
+                        <LinkIcon className="mr-3 h-5 w-5 text-primary" />
+                        Related Entities
+                      </CardTitle>
+                      <CardDescription>Resources bound to this key</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="space-y-3">
+                        {certificateResources.map((resource, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-background rounded-lg border hover:border-primary/50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <FileKey className="h-5 w-5 text-primary" />
+                              <div>
+                                <div className="font-medium text-sm">Certificate</div>
+                                <div className="text-xs text-muted-foreground font-mono">
+                                  SN: {resource.resource_id}
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewBoundCertificate(resource.resource_id)}
+                              disabled={isLoadingBoundCert}
+                            >
+                              {isLoadingBoundCert ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                'View Details'
+                              )}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </div>
           </TabsContent>
 
@@ -1357,8 +1758,55 @@ export default function KmsKeyDetailsClient() {
               </Card>
             </div>
           </TabsContent>
+
+          {/* Metadata Tab */}
+          <TabsContent value="metadata">
+            <Card className="overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
+                <CardTitle className="flex items-center text-lg">
+                  <Database className="mr-3 h-5 w-5 text-primary" />
+                  Key Metadata
+                </CardTitle>
+                <CardDescription>Additional metadata associated with this key</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {keyDetails.metadata && Object.keys(keyDetails.metadata).length > 0 ? (
+                  <div className="border rounded-md overflow-hidden">
+                    <Editor
+                      height="500px"
+                      defaultLanguage="json"
+                      value={JSON.stringify(keyDetails.metadata, null, 2)}
+                      theme="vs-dark"
+                      options={{
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        automaticLayout: true,
+                        scrollBeyondLastLine: false,
+                        fontSize: 13,
+                        lineNumbers: 'on',
+                        renderWhitespace: 'selection',
+                        folding: true,
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Database className="mx-auto h-12 w-12 opacity-20 mb-3" />
+                    <p className="text-sm">No metadata associated with this key</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Certificate Details Modal */}
+      <CertificateDetailsModal 
+        certificate={boundCertificate} 
+        isOpen={isCertModalOpen} 
+        onClose={() => setIsCertModalOpen(false)} 
+      />
     </div>
   );
 }

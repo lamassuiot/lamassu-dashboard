@@ -25,6 +25,7 @@ import { format as formatDate, parseISO, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
 // --- Zlint Types and Interfaces ---
@@ -532,7 +533,7 @@ export default function CertificateViewerPage() {
                             <AccordionContent className="space-y-1 px-4 pt-3">
                                 <DetailItem label="Subject" value={parsedDetails.subject} isMono />
                                 <DetailItem label="Issuer" value={parsedDetails.issuer} isMono />
-                                <DetailItem label="Serial Number" value={parsedDetails.serialNumber} isMono />
+                                <DetailItem label="Serial Number" value={<IdentifierDisplay value={parsedDetails.serialNumber} />} />
                                 <DetailItem label="Valid From" value={isValid(parseISO(parsedDetails.validFrom)) ? formatDate(parseISO(parsedDetails.validFrom), 'PPpp') : 'Invalid Date'} />
                                 <DetailItem label="Valid To" value={isValid(parseISO(parsedDetails.validTo)) ? formatDate(parseISO(parsedDetails.validTo), 'PPpp') : 'Invalid Date'} />
                                 <DetailItem label="Is CA" value={<Badge variant={parsedDetails.isCa ? "default" : "secondary"}>{parsedDetails.isCa ? 'Yes' : 'No'}</Badge>} />

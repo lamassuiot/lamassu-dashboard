@@ -11,17 +11,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare } from "lucide-react";
-import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
+import { DmsSelector } from '@/components/shared/DmsSelector';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { fetchDevices } from '@/lib/devices-api';
 import { useToast } from '@/hooks/use-toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
+import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -136,6 +137,30 @@ export default function DevicesPage() {
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [raForEnrollModal, setRaForEnrollModal] = useState<ApiRaItem | null>(null);
   const [deviceForEnrollModal, setDeviceForEnrollModal] = useState<DeviceData | null>(null);
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    id: true,
+    status: true,
+    deviceGroup: true,
+    createdAt: true,
+    tags: true,
+  });
+
+  const columns: ColumnConfig[] = [
+    { id: 'id', label: 'Device ID', visible: columnVisibility.id, disabled: true },
+    { id: 'status', label: 'Status', visible: columnVisibility.status },
+    { id: 'deviceGroup', label: 'Device Group', visible: columnVisibility.deviceGroup },
+    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
+    { id: 'tags', label: 'Tags', visible: columnVisibility.tags },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({
+      ...prev,
+      [columnId]: !prev[columnId],
+    }));
+  };
   
   const isInitialLoad = useRef(true);
 
@@ -286,6 +311,17 @@ export default function DevicesPage() {
     router.push(`/devices/details?deviceId=${deviceIdValue}`);
   };
 
+  const handleDmsOwnerChange = (dmsId: string | null) => {
+    const currentParams = new URLSearchParams(searchParams.toString());
+    if (dmsId) {
+      currentParams.set('dms_owner', dmsId);
+    } else {
+      currentParams.delete('dms_owner');
+    }
+    const newQueryString = currentParams.toString();
+    router.push(`/devices${newQueryString ? `?${newQueryString}` : ''}`);
+  };
+
   const handleOpenEnrollModal = async (device: DeviceData) => {
     if (!user?.access_token) {
         toast({ title: 'Authentication Error', description: 'You must be logged in.', variant: 'destructive' });
@@ -361,20 +397,7 @@ export default function DevicesPage() {
         Overview of all registered IoT devices, their status, and associated groups.
       </p>
 
-      {dmsOwnerFilter && (
-        <Alert variant="default" className="my-4">
-          <AlertCircleIcon className="h-4 w-4" />
-          <AlertTitle>Filtering by Registration Authority</AlertTitle>
-          <AlertDescription>
-            Showing devices owned by <strong>{dmsOwnerFilter}</strong>.
-            <Button variant="link" onClick={() => router.push('/devices')} className="p-0 h-auto ml-2 text-primary">
-              Clear filter
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
         <div className="space-y-1">
           <Label htmlFor="searchTermInput">Search Term</Label>
           <div className="relative">
@@ -402,6 +425,15 @@ export default function DevicesPage() {
               <SelectItem value="tags">Tags</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="dmsOwnerFilter">Registration Authority</Label>
+          <DmsSelector
+            value={dmsOwnerFilter}
+            onChange={handleDmsOwnerChange}
+            disabled={isLoadingApi || authLoading}
+          />
         </div>
         
         <div className="space-y-1">
@@ -441,15 +473,22 @@ export default function DevicesPage() {
 
       {!apiError && sortedDevices.length > 0 && (
         <>
+          <div className="flex justify-end mb-2">
+            <ColumnSelector
+              columns={columns}
+              onColumnToggle={handleColumnToggle}
+              align="end"
+            />
+          </div>
           <div className={cn("overflow-x-auto transition-opacity duration-300", isLoadingApi && sortedDevices.length > 0 && "opacity-50 pointer-events-none")}>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableTableHeader column="id" title="ID" className="w-[250px]" />
-                  <SortableTableHeader column="status" title="Status" className="w-[120px]" />
-                  <SortableTableHeader column="deviceGroup" title="Device Group" className="w-[180px]" />
-                  <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />
-                  <TableHead>Tags</TableHead>
+                  {columnVisibility.id && <SortableTableHeader column="id" title="ID" className="w-[250px]" />}
+                  {columnVisibility.status && <SortableTableHeader column="status" title="Status" className="w-[120px]" />}
+                  {columnVisibility.deviceGroup && <SortableTableHeader column="deviceGroup" title="Device Group" className="w-[180px]" />}
+                  {columnVisibility.createdAt && <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />}
+                  {columnVisibility.tags && <TableHead>Tags</TableHead>}
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -458,34 +497,44 @@ export default function DevicesPage() {
                   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
                   return (
                     <TableRow key={device.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <DeviceIcon type={device.iconType} iconColor={iconColor} bgColor={bgColor} />
-                          <Button
-                            variant="link"
-                            className="font-medium truncate p-0 h-auto text-left"
-                            onClick={() => handleViewDetails(device.id)}
-                            title={`View details for ${device.displayId}`}
-                          >
-                            {device.displayId}
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell><StatusBadge status={device.status} /></TableCell>
-                      <TableCell><Badge variant="secondary" className="truncate" title={device.deviceGroup}>{device.deviceGroup}</Badge></TableCell>
-                      <TableCell>
-                        <DateDisplay 
-                          date={device.createdAt} 
-                          formatString="dd/MM/yyyy HH:mm"
-                          className="text-xs"
-                          relativeClassName="text-xs"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {device.tags.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
-                        </div>
-                      </TableCell>
+                      {columnVisibility.id && (
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <DeviceIcon type={device.iconType} iconColor={iconColor} bgColor={bgColor} />
+                            <Button
+                              variant="link"
+                              className="font-medium truncate p-0 h-auto text-left"
+                              onClick={() => handleViewDetails(device.id)}
+                              title={`View details for ${device.displayId}`}
+                            >
+                              {device.displayId}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
+                      {columnVisibility.status && (
+                        <TableCell><StatusBadge status={device.status} /></TableCell>
+                      )}
+                      {columnVisibility.deviceGroup && (
+                        <TableCell><Badge variant="secondary" className="truncate" title={device.deviceGroup}>{device.deviceGroup}</Badge></TableCell>
+                      )}
+                      {columnVisibility.createdAt && (
+                        <TableCell>
+                          <DateDisplay 
+                            date={device.createdAt} 
+                            formatString="dd/MM/yyyy HH:mm"
+                            className="text-xs"
+                            relativeClassName="text-xs"
+                          />
+                        </TableCell>
+                      )}
+                      {columnVisibility.tags && (
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {device.tags.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

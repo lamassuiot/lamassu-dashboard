@@ -10,7 +10,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { formatDistanceToNow } from 'date-fns';
 import type { AlertEvent, AlertSortConfig, SortableAlertColumn } from '@/app/alerts/page';
 import { Layers, ChevronDown, ChevronsUpDown, ArrowDownAZ, ArrowUpAZ, ArrowDown10, ArrowUp01 } from 'lucide-react';
 import { cn } from '@/lib/utils';

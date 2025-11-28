@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { DetailItem } from './DetailItem';
 import { GitCommit, Clock, GitBranch, Package, Shield, Info } from 'lucide-react';
 import type { VersionInfo } from '@/lib/version';
 import { format, parseISO } from 'date-fns';

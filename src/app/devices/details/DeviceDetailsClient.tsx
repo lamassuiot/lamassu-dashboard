@@ -31,6 +31,7 @@ import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIden
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface CertificateHistoryEntry {
   version: string;
@@ -385,7 +386,7 @@ export default function DeviceDetailsClient() {
                 const serial = device.identity.versions[versionToFind];
                 certificateInfo = updatedFetchedCerts.get(serial);
                  if (!certificateInfo) {
-                    detailsNode = <div className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/><p className="text-xs text-muted-foreground font-mono">Loading Cert... SN: {serial.substring(0, 12)}...</p></div>;
+                    detailsNode = <div className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/><p className="text-xs text-muted-foreground">Loading Cert... SN: <IdentifierDisplay value={serial.substring(0, 24)} className="text-xs" />...</p></div>;
                 }
             }
 
@@ -792,11 +793,11 @@ export default function DeviceDetailsClient() {
                           <TableCell className="font-mono text-xs">
                             <Button
                                 variant="link"
-                                className="p-0 h-auto font-mono text-xs"
+                                className="p-0 h-auto text-xs"
                                 onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
                                 title={`View details for certificate ${cert.serialNumber}`}
                             >
-                                {cert.serialNumber}
+                                <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
                             </Button>
                           </TableCell>
                           <TableCell>

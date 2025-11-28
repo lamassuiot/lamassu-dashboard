@@ -151,7 +151,9 @@ export async function downloadCrl(ski: string, accessToken: string): Promise<Arr
          try {
             errorJson = await response.json();
             errorMessage = `CRL download failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CRL download:", e);
+        }
         throw new Error(errorMessage);
     }
     

@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ShieldCheck, Settings, Loader2, AlertTriangle as AlertTriangleIcon, FileText, Download, RefreshCw } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, fetchCryptoEngines } from '@/lib/ca-data';
+import { fetchAndProcessCAs } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { CertificateData } from '@/types/certificate';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,7 @@ import { DetailItem } from './DetailItem';
 import { cn } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { SectionHeader } from '@/components/shared/FormComponents';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
 const getDefaultVAConfig = (caId: string): VAConfig => ({
@@ -374,7 +376,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
                     disabled={authLoading || isSubmitting}
                   >
                     {authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> :
-                      selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}... (SN: ${selectedCertificateSignerDisplay.serialNumber.substring(0, 8)}...)`
+                      selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}...`
                         : "Select CRL Signer Certificate..."}
                   </Button>
                   {selectedCertificateSignerDisplay && (
@@ -383,7 +385,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
                         Selected: {selectedCertificateSignerDisplay.subject}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        SN: <span className="font-mono">{selectedCertificateSignerDisplay.serialNumber}</span>
+                        SN: <IdentifierDisplay value={selectedCertificateSignerDisplay.serialNumber} className="text-xs" />
                       </p>
                     </div>
                   )}

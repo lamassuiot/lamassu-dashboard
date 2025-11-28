@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
 import { parseCertificatePemDetails } from '@/lib/ca-data';
 import dynamic from 'next/dynamic';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 // Dynamically import Monaco Editor to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
@@ -309,7 +310,7 @@ export default function ImportCertificatePage() {
                     <AlertDescription className="space-y-1">
                       <div><strong>Subject:</strong> {parsedInfo.subject}</div>
                       <div><strong>Issuer:</strong> {parsedInfo.issuer}</div>
-                      <div><strong>Serial Number:</strong> {parsedInfo.serialNumber}</div>
+                      <div><strong>Serial Number:</strong> <IdentifierDisplay value={parsedInfo.serialNumber || ''} className="text-xs" /></div>
                       <div><strong>Valid From:</strong> {parsedInfo.validFrom}</div>
                       <div><strong>Valid To:</strong> {parsedInfo.validTo}</div>
                     </AlertDescription>

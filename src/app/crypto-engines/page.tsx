@@ -15,7 +15,7 @@ import AWSKMSLogo from "@/components/shared/CryptoEngineIcons/AWS-KMS.png";
 import AWSSMLogo from "@/components/shared/CryptoEngineIcons/AWS-SM.png";
 import PKCS11Logo from "@/components/shared/CryptoEngineIcons/PKCS11.png";
 import VaultLogo from "@/components/shared/CryptoEngineIcons/HASHICORP-VAULT.png";
-import { fetchCryptoEngines } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 
 
 // Helper to format supported key types for display

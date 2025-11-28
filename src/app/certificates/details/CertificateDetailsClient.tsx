@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 import type { CertificateData } from '@/types/certificate';
 import type { CA } from '@/lib/ca-data';
 import { fetchIssuedCertificates, updateCertificateStatus, updateCertificateMetadata, deleteCertificate } from '@/lib/issued-certificate-data';
-import { fetchAndProcessCAs, findCaById, fetchCryptoEngines, parseCertificatePemDetails } from '@/lib/ca-data';
+import { fetchAndProcessCAs, findCaById, parseCertificatePemDetails } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { RevocationModal } from '@/components/shared/RevocationModal';
@@ -23,6 +24,7 @@ import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTab
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchDeviceById } from '@/lib/devices-api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -423,7 +425,7 @@ export default function CertificateDetailsClient() { // Renamed component
                 </h1>
               </div>
               <p className="text-sm text-muted-foreground mt-1.5">
-                Serial Number: {certificateDetails.serialNumber}
+                Serial Number: <IdentifierDisplay value={certificateDetails.serialNumber} className="text-xs" />
               </p>
             </div>
             <div className="flex items-center gap-2 self-start sm:self-auto mt-2 sm:mt-0">
@@ -491,6 +493,13 @@ export default function CertificateDetailsClient() { // Renamed component
                 itemName={certificateDetails.subject || certificateDetails.serialNumber}
                 itemPathToRootCount={certificateChainForVisualizer.length + 1} // Cert + CAs
                 toast={toast}
+                certificateChain={certificateChainForVisualizer}
+                currentCertificate={{
+                  subject: certificateDetails.subject,
+                  statusBadgeVariant: statusVariant,
+                  statusBadgeClass: statusColorClass,
+                  statusText: statusText,
+                }}
             />
           </TabsContent>
 

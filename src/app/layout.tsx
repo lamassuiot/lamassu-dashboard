@@ -28,7 +28,10 @@ import {
 } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
+import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -223,6 +226,7 @@ const CustomFooter = () => {
 
 const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
   const { isAuthenticated, user, login, logout } = useAuth();
+  const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -244,11 +248,11 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
 
   const handleRunWizard = () => {
     if (typeof document !== 'undefined') {
-        // Clear completion cookie
-        document.cookie = 'lamassu_wizard_completed=; path=/; max-age=0';
-        // Set a short-lived cookie to force the wizard to open
-        document.cookie = 'force_wizard_open=true; path=/; max-age=5'; // Expires in 5 seconds
-        window.location.reload();
+      // Clear completion cookie
+      document.cookie = 'lamassu_wizard_completed=; path=/; max-age=0';
+      // Set a short-lived cookie to force the wizard to open
+      document.cookie = 'force_wizard_open=true; path=/; max-age=5'; // Expires in 5 seconds
+      window.location.reload();
     }
   };
 
@@ -307,6 +311,31 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="identifier-display-mode" className="text-sm cursor-pointer">
+                          ID Separators
+                        </Label>
+                        <Switch
+                          id="identifier-display-mode"
+                          checked={identifierMode === 'with-separators'}
+                          onCheckedChange={toggleIdentifierMode}
+                        />
+                      </div>
+                    </div>
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="display-time-mode" className="text-sm cursor-pointer">
+                          Display Time
+                        </Label>
+                        <Switch
+                          id="display-time-mode"
+                          checked={displayTime}
+                          onCheckedChange={toggleDisplayTime}
+                        />
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
                       <User className="mr-2 h-4 w-4" />
                       <span>Profile / Token Claims</span>
@@ -320,8 +349,8 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                       <span>Backend Services</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={handleRunWizard}>
-                        <PlaySquare className="mr-2 h-4 w-4" />
-                        <span>Run Setup Wizard</span>
+                      <PlaySquare className="mr-2 h-4 w-4" />
+                      <span>Run Setup Wizard</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={logout}>
@@ -352,9 +381,9 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
                 <SidebarHeader className="p-4">
                   <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                     <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
-                       <div className="secondary-logo h-[30px] w-auto aspect-[200/60]"/>
-                     </div>
+                    <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
+                      <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
+                    </div>
                     <Image
                       src={LogoFullBlue}
                       height={30}
@@ -362,7 +391,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                       alt="LamassuIoT Logo"
                       className="group-data-[collapsible=icon]:hidden dark:hidden"
                     />
-                     <Image
+                    <Image
                       src={LogoFullWhite}
                       height={30}
                       width={140}
@@ -381,40 +410,40 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                 <SidebarContent className="p-2">
                   <SidebarMenu>
                     {navigationConfig.map((group, groupIndex) => {
-                      if (group.devOnly && !(process.env.NODE_ENV == 'development' ||  process.env.NEXT_FORCE_DEV_OPTIONS)) {
-                          return null;
+                      if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                        return null;
                       }
-                      
-                      const filteredItems = group.items.filter(item => 
-                          !(item.devOnly && !(process.env.NODE_ENV == 'development' ||  process.env.NEXT_FORCE_DEV_OPTIONS))
+
+                      const filteredItems = group.items.filter(item =>
+                        !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
                       );
 
                       if (filteredItems.length === 0) {
-                          return null;
+                        return null;
                       }
 
                       return (
-                          <React.Fragment key={group.label || `group-${groupIndex}`}>
-                              {group.label && (
-                                  <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
-                                      {group.label}
-                                  </SidebarGroupLabel>
-                              )}
-                              {filteredItems.map(item => (
-                                  <SidebarMenuItem key={item.href}>
-                                      <SidebarMenuButton
-                                          asChild
-                                          isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
-                                          tooltip={{ children: item.label, side: 'right', align: 'center' }}
-                                      >
-                                          <Link href={item.href} className="flex items-center w-full justify-start">
-                                              <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
-                                              <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
-                                          </Link>
-                                      </SidebarMenuButton>
-                                  </SidebarMenuItem>
-                              ))}
-                          </React.Fragment>
+                        <React.Fragment key={group.label || `group-${groupIndex}`}>
+                          {group.label && (
+                            <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
+                              {group.label}
+                            </SidebarGroupLabel>
+                          )}
+                          {filteredItems.map(item => (
+                            <SidebarMenuItem key={item.href}>
+                              <SidebarMenuButton
+                                asChild
+                                isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
+                                tooltip={{ children: item.label, side: 'right', align: 'center' }}
+                              >
+                                <Link href={item.href} className="flex items-center w-full justify-start">
+                                  <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
+                                  <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          ))}
+                        </React.Fragment>
                       );
                     })}
                   </SidebarMenu>
@@ -422,7 +451,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                 <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
                   <CustomSidebarToggle />
                   <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-                      
+
                   </div>
                 </SidebarFooter>
               </Sidebar>
@@ -508,60 +537,60 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
 
   const checkSystemStatus = useCallback(async () => {
     if (!user?.access_token) {
-        setIsCheckingSystem(false);
-        return;
+      setIsCheckingSystem(false);
+      return;
     }
 
     // Check for the force-open cookie first
     const forceOpen = document.cookie.includes('force_wizard_open=true');
     if (forceOpen) {
-        document.cookie = 'force_wizard_open=; path=/; max-age=0'; // Delete the cookie after reading
-        setIsWizardMode(true);
-        setIsCheckingSystem(false);
-        return;
+      document.cookie = 'force_wizard_open=; path=/; max-age=0'; // Delete the cookie after reading
+      setIsWizardMode(true);
+      setIsCheckingSystem(false);
+      return;
     }
 
     // Only check CA stats on the homepage
     if (pathname !== '/') {
-        setIsWizardMode(false);
-        setIsCheckingSystem(false);
-        return;
+      setIsWizardMode(false);
+      setIsCheckingSystem(false);
+      return;
     }
 
     // Check if the completion cookie is set
     const wizardCompleted = document.cookie.includes('lamassu_wizard_completed=true');
     if (wizardCompleted) {
-        setIsWizardMode(false);
-        setIsCheckingSystem(false);
-        return;
+      setIsWizardMode(false);
+      setIsCheckingSystem(false);
+      return;
     }
-    
+
     try {
-        const stats = await fetchCaStatsSummary(user.access_token);
-        if (stats.cas.total === 0) {
-            setIsWizardMode(true);
-        } else {
-            // If CAs exist, set the completion cookie and don't show the wizard.
-            document.cookie = "lamassu_wizard_completed=true; path=/; max-age=315360000"; // 10 years
-            setIsWizardMode(false);
-        }
+      const stats = await fetchCaStatsSummary(user.access_token);
+      if (stats.cas.total === 0) {
+        setIsWizardMode(true);
+      } else {
+        // If CAs exist, set the completion cookie and don't show the wizard.
+        document.cookie = "lamassu_wizard_completed=true; path=/; max-age=315360000"; // 10 years
+        setIsWizardMode(false);
+      }
     } catch (error) {
-        console.error("Failed to fetch system stats for wizard check:", error);
-        setIsWizardMode(false); // Default to showing dashboard on error
+      console.error("Failed to fetch system stats for wizard check:", error);
+      setIsWizardMode(false); // Default to showing dashboard on error
     } finally {
-        setIsCheckingSystem(false);
+      setIsCheckingSystem(false);
     }
   }, [user?.access_token, pathname]);
 
   useEffect(() => {
-      setClientMounted(true);
-      if (!authIsLoading && user) {
-          checkSystemStatus();
-      } else if (!authIsLoading && !user) {
-          // If not authenticated, not in wizard mode and not checking
-          setIsWizardMode(false);
-          setIsCheckingSystem(false);
-      }
+    setClientMounted(true);
+    if (!authIsLoading && user) {
+      checkSystemStatus();
+    } else if (!authIsLoading && !user) {
+      // If not authenticated, not in wizard mode and not checking
+      setIsWizardMode(false);
+      setIsCheckingSystem(false);
+    }
   }, [authIsLoading, user, checkSystemStatus]);
 
 
@@ -577,13 +606,13 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
   if (!clientMounted) {
     return <LoadingState />;
   }
-  
+
   if (authIsLoading || isCheckingSystem) {
-      return <LoadingState />;
+    return <LoadingState />;
   }
-  
+
   if (isWizardMode) {
-      return <MainLayoutContent isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
+    return <MainLayoutContent isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
   }
 
   return <MainLayoutContent>{children}</MainLayoutContent>;
@@ -601,6 +630,7 @@ export default function RootLayout({
         <Script src="/config.js" strategy="beforeInteractive" />
         <title>LamassuIoT Certificate Manager</title>
         <meta name="description" content="Manage and verify your X.509 certificates with LamassuIoT." />
+        <link rel="manifest" href="/manifest.json" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -609,10 +639,12 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ConfigProvider>
           <AuthProvider>
-            <React.Suspense fallback={<LoadingState />}>
-              <InnerLayout>{children}</InnerLayout>
-            </React.Suspense>
-            <Toaster />
+            <IdentifierDisplayProvider>
+              <React.Suspense fallback={<LoadingState />}>
+                <InnerLayout>{children}</InnerLayout>
+              </React.Suspense>
+              <Toaster />
+            </IdentifierDisplayProvider>
           </AuthProvider>
         </ConfigProvider>
       </body>

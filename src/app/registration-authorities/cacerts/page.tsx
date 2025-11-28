@@ -16,6 +16,7 @@ import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { fetchEstCaCerts } from '@/lib/est-api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
 import * as asn1js from "asn1js";
@@ -181,7 +182,7 @@ export default function EstCaCertsPage() {
                                                         <AccordionTrigger>{commonName}</AccordionTrigger>
                                                         <AccordionContent>
                                                             <div className="p-3 border-t space-y-2">
-                                                                <DetailItem label="Serial Number" value={cert.serialNumber} isMono />
+                                                                <DetailItem label="Serial Number" value={<IdentifierDisplay value={cert.serialNumber} />} />
                                                                 <DetailItem label="Public Key Algorithm" value={<Badge variant="secondary">{cert.publicKeyAlgorithm}</Badge>} />
                                                                 <DetailItem label="Subject" value={cert.subject} isMono />
                                                                 <DetailItem label="Issuer" value={cert.issuer} isMono />

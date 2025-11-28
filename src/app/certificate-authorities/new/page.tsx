@@ -26,6 +26,13 @@ const creationModes: CreationMode[] = [
     icon: <KeyRound className="h-8 w-8 text-primary" />,
   },
   {
+    id: 'generate-existing-key',
+    href: '/certificate-authorities/new/generate-existing-key',
+    title: 'Create New CA (Existing Key)',
+    description: 'Provision a new Root or Intermediate CA using an existing KMS key. Reuse a previously generated key pair.',
+    icon: <KeyRound className="h-8 w-8 text-primary" />,
+  },
+  {
     id: 'generate-csr',
     href: '/certificate-authorities/new/generate-csr',
     title: 'Request New CA (CSR)',

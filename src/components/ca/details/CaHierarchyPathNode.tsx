@@ -17,6 +17,7 @@ interface CaHierarchyPathNodeProps {
   isFirst: boolean;
   isDimmed?: boolean; 
   allCryptoEngines?: ApiCryptoEngine[];
+  invertSeparator?: boolean; // When true, rotates the separator to point upwards
 }
 
 const getStatusVisuals = (ca: CA, isCurrentCa: boolean): { icon: React.ElementType, colorClass: string, text: string } => {
@@ -41,7 +42,7 @@ const getStatusVisuals = (ca: CA, isCurrentCa: boolean): { icon: React.ElementTy
   return { icon, colorClass, text: statusText };
 };
 
-export const CaHierarchyPathNode: React.FC<CaHierarchyPathNodeProps> = ({ ca, isCurrentCa, hasNext, isFirst, isDimmed, allCryptoEngines }) => {
+export const CaHierarchyPathNode: React.FC<CaHierarchyPathNodeProps> = ({ ca, isCurrentCa, hasNext, isFirst, isDimmed, allCryptoEngines, invertSeparator = false }) => {
   const router = useRouter();
   const { icon: StatusIcon, colorClass: statusColorClass, text: statusText } = getStatusVisuals(ca, isCurrentCa);
 
@@ -91,7 +92,7 @@ export const CaHierarchyPathNode: React.FC<CaHierarchyPathNodeProps> = ({ ca, is
       )}
 
       {hasNext && (
-        <ChevronDown className={cn("h-5 w-5 text-border my-1", effectiveDim && "opacity-60")} />
+        <ChevronDown className={cn("h-5 w-5 text-primary my-1", effectiveDim && "opacity-60", invertSeparator && "rotate-180")} />
       )}
       {!hasNext && <div className="h-2"></div>}
     </div>

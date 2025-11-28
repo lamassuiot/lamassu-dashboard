@@ -14,7 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { fetchCryptoEngines, createCaRequest, type CreateCaRequestPayload } from '@/lib/ca-data';
+import { createCaRequest, type CreateCaRequestPayload } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 
 export default function RequestCaCsrPage() {

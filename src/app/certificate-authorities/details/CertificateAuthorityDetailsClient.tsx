@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
-import { findCaById, fetchAndProcessCAs, fetchCryptoEngines, updateCaMetadata, fetchCaStats, revokeCa, deleteCa, parseCertificatePemDetails, updateCaStatus } from '@/lib/ca-data';
+import { findCaById, fetchAndProcessCAs, updateCaMetadata, fetchCaStats, revokeCa, deleteCa, parseCertificatePemDetails, updateCaStatus } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { RevocationModal } from '@/components/shared/RevocationModal';
@@ -473,6 +474,13 @@ export default function CertificateAuthorityDetailsClient() {
               itemName={caDetails.name}
               itemPathToRootCount={caPathToRoot.length}
               toast={toast}
+              certificateChain={caPathToRoot.slice(0, -1)} // Exclude the current CA, showing only parents
+              currentCertificate={{
+                subject: caDetails.name,
+                statusBadgeVariant: statusVariant,
+                statusBadgeClass: statusColorClass,
+                statusText: caDetails.status.toUpperCase(),
+              }}
             />
           </TabsContent>
 

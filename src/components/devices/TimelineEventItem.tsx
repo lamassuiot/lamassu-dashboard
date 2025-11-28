@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { CheckCircle, XCircle, AlertTriangle, History, Edit, Info, HelpCircle, FileText, ShieldAlert, ShieldCheck, Landmark } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
+import { IdentifierDisplay } from '../shared/IdentifierDisplay';
 
 // This interface must match the one defined in DeviceDetailsClient.tsx
 // It's copied here to avoid circular dependency issues with shared types.
@@ -107,10 +108,10 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
                             <div>
                                 <Button
                                     variant="link"
-                                    className="p-0 h-auto font-mono text-xs text-foreground"
+                                    className="p-0 h-auto text-xs text-foreground"
                                     onClick={() => router.push(`/certificates/details?certificateId=${event.certificate?.serialNumber}`)}
                                 >
-                                    SN: {event.certificate.serialNumber}
+                                    SN: <IdentifierDisplay value={event.certificate.serialNumber} className="text-xs" />
                                 </Button>
                                 <div className="mt-1">
                                     <ApiStatusBadge status={event.certificate.apiStatus} />
