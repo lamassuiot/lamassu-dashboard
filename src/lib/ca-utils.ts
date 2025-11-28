@@ -21,8 +21,8 @@ interface CaFilterOptions {
 export function filterCaList(caList: CA[], options: CaFilterOptions): CA[] {
   const { filterText = '', selectedStatuses = [], selectedTypes = [] } = options;
 
-  return caList
-    .map(ca => {
+  const filtered = caList
+    .map((ca): CA | null => {
       // Recursively filter children first.
       const filteredChildren = ca.children ? filterCaList(ca.children, options) : [];
       
@@ -53,4 +53,6 @@ export function filterCaList(caList: CA[], options: CaFilterOptions): CA[] {
       return null;
     })
     .filter((ca): ca is CA => ca !== null);
+  
+  return filtered;
 }
