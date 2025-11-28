@@ -16,6 +16,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
+import { DmsSelector } from '@/components/shared/DmsSelector';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { fetchDevices } from '@/lib/devices-api';
 import { useToast } from '@/hooks/use-toast';
@@ -310,6 +311,17 @@ export default function DevicesPage() {
     router.push(`/devices/details?deviceId=${deviceIdValue}`);
   };
 
+  const handleDmsOwnerChange = (dmsId: string | null) => {
+    const currentParams = new URLSearchParams(searchParams.toString());
+    if (dmsId) {
+      currentParams.set('dms_owner', dmsId);
+    } else {
+      currentParams.delete('dms_owner');
+    }
+    const newQueryString = currentParams.toString();
+    router.push(`/devices${newQueryString ? `?${newQueryString}` : ''}`);
+  };
+
   const handleOpenEnrollModal = async (device: DeviceData) => {
     if (!user?.access_token) {
         toast({ title: 'Authentication Error', description: 'You must be logged in.', variant: 'destructive' });
@@ -385,20 +397,7 @@ export default function DevicesPage() {
         Overview of all registered IoT devices, their status, and associated groups.
       </p>
 
-      {dmsOwnerFilter && (
-        <Alert variant="default" className="my-4">
-          <AlertCircleIcon className="h-4 w-4" />
-          <AlertTitle>Filtering by Registration Authority</AlertTitle>
-          <AlertDescription>
-            Showing devices owned by <strong>{dmsOwnerFilter}</strong>.
-            <Button variant="link" onClick={() => router.push('/devices')} className="p-0 h-auto ml-2 text-primary">
-              Clear filter
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
         <div className="space-y-1">
           <Label htmlFor="searchTermInput">Search Term</Label>
           <div className="relative">
@@ -426,6 +425,15 @@ export default function DevicesPage() {
               <SelectItem value="tags">Tags</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="dmsOwnerFilter">Registration Authority</Label>
+          <DmsSelector
+            value={dmsOwnerFilter}
+            onChange={handleDmsOwnerChange}
+            disabled={isLoadingApi || authLoading}
+          />
         </div>
         
         <div className="space-y-1">
