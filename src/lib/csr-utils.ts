@@ -38,8 +38,10 @@ function formatPkijsPublicKeyInfo(publicKeyInfo: PkijsPublicKeyInfo): string {
   const algoOid = publicKeyInfo.algorithm.algorithmId;
   const algoName = OID_MAP[algoOid] || algoOid;
   let details = "";
-  if (algoName === "EC" && publicKeyInfo.algorithm.parameters) {
-      const curveOid = (publicKeyInfo.algorithm.parameters as any).valueBlock.value as string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const algorithm = publicKeyInfo.algorithm as any;
+  if (algoName === "EC" && algorithm.parameters) {
+      const curveOid = algorithm.parameters.valueBlock.value as string;
       details = `(Curve: ${OID_MAP[curveOid] || curveOid})`;
   } else if (algoName === "RSA" && publicKeyInfo.parsedKey) {
       const modulusBytes = (publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex.byteLength;
