@@ -25,4 +25,41 @@ jobs:
         run: npm ci
 
       - name: Run lint
-        run: npm run lint
+        id: lint
+        run: |
+          set +e
+          OUTPUT=$(npm run lint 2>&1)
+          EXIT_CODE=$?
+          echo "$OUTPUT"
+          
+          # Count ESLint errors and warnings
+          # ESLint outputs a summary line like "X problems (Y errors, Z warnings)"
+          ERROR_COUNT=$(echo "$OUTPUT" | grep -oP '\d+(?= error)' | tail -1 || echo "0")
+          WARNING_COUNT=$(echo "$OUTPUT" | grep -oP '\d+(?= warning)' | tail -1 || echo "0")
+          
+          # If no match found, set to 0
+          ERROR_COUNT=${ERROR_COUNT:-0}
+          WARNING_COUNT=${WARNING_COUNT:-0}
+          
+          # Calculate total issues
+          TOTAL_ISSUES=$((ERROR_COUNT + WARNING_COUNT))
+          
+          echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
+          echo "warning_count=$WARNING_COUNT" >> $GITHUB_OUTPUT
+          echo "total_issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+          echo ""
+          echo "========================================"
+          echo "ESLint Check Summary"
+          echo "========================================"
+          echo "Errors:   $ERROR_COUNT"
+          echo "Warnings: $WARNING_COUNT"
+          echo "Total:    $TOTAL_ISSUES"
+          echo "========================================"
+          
+          if [ "$TOTAL_ISSUES" -gt 0 ]; then
+            echo "❌ Lint check failed with $TOTAL_ISSUES issue(s)"
+            exit 1
+          else
+            echo "✅ Lint check passed with no issues"
+            exit 0
+          fi
