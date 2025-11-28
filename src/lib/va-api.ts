@@ -189,7 +189,7 @@ export async function checkOcspStatus(targetCertPem: string, issuerCertPem: stri
         
         const nonce = getRandomValues(new Uint8Array(10));
         ocspReq.tbsRequest.requestExtensions = [
-            new Extension({ extnID: "1.3.6.1.5.5.7.48.1.2", extnValue: new asn1js.OctetString({ valueHex: nonce.buffer }).toBER(false) })
+            new Extension({ extnID: "1.3.6.1.5.5.7.48.1.2", extnValue: new asn1js.OctetString({ valueHex: nonce.buffer as ArrayBuffer }).toBER(false) })
         ];
 
         const requestBody = ocspReq.toSchema(true).toBER(false);
