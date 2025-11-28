@@ -245,9 +245,9 @@ const CryptoEngineNode = ({ data }: { data: CryptoEngineNodeData }) => {
         <div className="flex-shrink-0 bg-muted p-2 rounded-lg shadow-sm">
           <Landmark className="h-5 w-5 text-muted-foreground" />
         </div>
-        <div className="flex-grow min-w-0">
+        <div className="flex-grow min-w-0 overflow-hidden">
           <p className="text-sm font-bold truncate text-muted-foreground leading-tight">Unknown KMS Key</p>
-          <p className="text-[11px] font-mono text-muted-foreground/70 truncate mt-0.5">
+          <p className="text-[11px] font-mono text-muted-foreground/70 truncate mt-0.5" title={keyId || 'No key ID'}>
             {keyId || 'No key ID'}
           </p>
         </div>
@@ -274,7 +274,7 @@ const CryptoEngineNode = ({ data }: { data: CryptoEngineNodeData }) => {
       <div className="flex-shrink-0 bg-purple-500 dark:bg-purple-600 p-2 rounded-lg shadow-sm">
         <CryptoEngineViewer engine={engine!} iconOnly />
       </div>
-      <div className="flex-grow min-w-0">
+      <div className="flex-grow min-w-0 overflow-hidden">
         <p className="text-sm font-bold truncate text-purple-900 dark:text-purple-100 leading-tight">{kmsKey!.name}</p>
         <div className="text-[11px] text-purple-700 dark:text-purple-300 mt-0.5 font-mono truncate">
           <IdentifierDisplay value={kmsKey!.key_id} className="text-[11px]" />
@@ -301,7 +301,7 @@ const GroupNode = ({ data }: { data: GroupNodeData }) => {
             <div className="flex-shrink-0 bg-purple-500 dark:bg-purple-600 p-1.5 rounded shadow-sm">
               <CryptoEngineViewer engine={data.engine} iconOnly />
             </div>
-            <div className="flex-grow min-w-0">
+            <div className="flex-grow min-w-0 overflow-hidden">
               <p className="text-xs font-semibold truncate text-purple-900 dark:text-purple-100 leading-tight">
                 {data.kmsKey.name}
               </p>
