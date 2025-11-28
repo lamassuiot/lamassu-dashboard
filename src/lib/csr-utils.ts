@@ -38,8 +38,8 @@ function formatPkijsPublicKeyInfo(publicKeyInfo: PkijsPublicKeyInfo): string {
   const algoOid = publicKeyInfo.algorithm.algorithmId;
   const algoName = OID_MAP[algoOid] || algoOid;
   let details = "";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const algorithm = publicKeyInfo.algorithm as any;
+  
+  const algorithm = publicKeyInfo.algorithm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
   if (algoName === "EC" && algorithm.parameters) {
       const curveOid = algorithm.parameters.valueBlock.value as string;
       details = `(Curve: ${OID_MAP[curveOid] || curveOid})`;
