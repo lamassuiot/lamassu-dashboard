@@ -8,7 +8,7 @@ on:
       - main
       
 jobs:
-  build:
+  linter:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -30,16 +30,13 @@ jobs:
           set +e
           OUTPUT=$(npm run lint 2>&1)
           EXIT_CODE=$?
+          
+          # Print the full output so users can see all errors/warnings
           echo "$OUTPUT"
           
-          # Count ESLint errors and warnings
-          # ESLint outputs a summary line like "X problems (Y errors, Z warnings)"
-          ERROR_COUNT=$(echo "$OUTPUT" | grep -oP '\d+(?= error)' | tail -1 || echo "0")
-          WARNING_COUNT=$(echo "$OUTPUT" | grep -oP '\d+(?= warning)' | tail -1 || echo "0")
-          
-          # If no match found, set to 0
-          ERROR_COUNT=${ERROR_COUNT:-0}
-          WARNING_COUNT=${WARNING_COUNT:-0}
+          # Count ESLint errors and warnings by counting lines with "Error:" and "Warning:"
+          ERROR_COUNT=$(echo "$OUTPUT" | grep -c "  Error: " || echo "0")
+          WARNING_COUNT=$(echo "$OUTPUT" | grep -c "  Warning: " || echo "0")
           
           # Calculate total issues
           TOTAL_ISSUES=$((ERROR_COUNT + WARNING_COUNT))
