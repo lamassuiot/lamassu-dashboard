@@ -592,6 +592,12 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       
       if (!sourceNode || !targetNode) return edge;
       
+      // Skip dynamic handle update for Root CA edges (where attested and signed edges share same source/target)
+      // These edges have isRootCA flag in their data to preserve their offset handles
+      if (edge.data?.isRootCA) {
+        return edge;
+      }
+      
       // Calculate best handle positions based on node positions
       const { sourceHandle, targetHandle } = getBestHandlePositions(sourceNode, targetNode);
       
@@ -992,7 +998,22 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           }
         }
         
-        const { sourceHandle, targetHandle } = getInitialHandles(engineNodeId, targetId);
+        // Check if this is a Root CA (subjectKeyId === authorityKeyId)
+        // If so, use offset handles to avoid overlap with signed by edge
+        const isRootCA = ca.subjectKeyId === ca.authorityKeyId;
+        let sourceHandle: string;
+        let targetHandle: string;
+        
+        if (isRootCA) {
+          // For Root CA, use top handles for attested key edge
+          sourceHandle = 'source-top';
+          targetHandle = 'target-top';
+        } else {
+          const handles = getInitialHandles(engineNodeId, targetId);
+          sourceHandle = handles.sourceHandle;
+          targetHandle = handles.targetHandle;
+        }
+        
         reactFlowEdges.push({
           id: `${engineNodeId}-${ca.id}-subject`,
           source: engineNodeId,
@@ -1001,7 +1022,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           sourceHandle,
           targetHandle,
           animated: false,
-          data: { edgeType: 'attested' },
+          data: { edgeType: 'attested', isRootCA },
           label: 'attested key',
           labelStyle: { fill: '#10b981', fontSize: 10, fontWeight: 500 },
           labelBgStyle: { fill: '#f0fdf4' },
@@ -1025,7 +1046,22 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           }
         }
         
-        const { sourceHandle, targetHandle } = getInitialHandles(engineNodeId, targetId);
+        // Check if this is a Root CA (subjectKeyId === authorityKeyId)
+        // If so, use offset handles to avoid overlap with attested key edge
+        const isRootCA = ca.subjectKeyId === ca.authorityKeyId;
+        let sourceHandle: string;
+        let targetHandle: string;
+        
+        if (isRootCA) {
+          // For Root CA, use bottom handles for signed by edge
+          sourceHandle = 'source-bottom';
+          targetHandle = 'target-bottom';
+        } else {
+          const handles = getInitialHandles(engineNodeId, targetId);
+          sourceHandle = handles.sourceHandle;
+          targetHandle = handles.targetHandle;
+        }
+        
         reactFlowEdges.push({
           id: `${engineNodeId}-${ca.id}-authority`,
           source: engineNodeId,
@@ -1034,7 +1070,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           sourceHandle,
           targetHandle,
           animated: false,
-          data: { edgeType: 'signed' },
+          data: { edgeType: 'signed', isRootCA },
           label: 'signed by',
           labelStyle: { fill: '#f59e0b', fontSize: 10, fontWeight: 500 },
           labelBgStyle: { fill: '#fffbeb' },
