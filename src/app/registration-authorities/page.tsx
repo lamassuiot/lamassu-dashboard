@@ -578,9 +578,9 @@ export default function RegistrationAuthoritiesPage() {
                                     icon={ListChecks}
                                     label="Validation CAs"
                                     value={
-                                        ra.settings.enrollment_settings.est_rfc7030_settings?.client_certificate_settings?.validation_cas?.length > 0 ? (
+                                        ra.settings.enrollment_settings.est_rfc7030_settings?.client_certificate_settings?.validation_cas?.length ?? 0 > 0 ? (
                                             <span className="font-normal text-foreground/90 truncate">
-                                                {ra.settings.enrollment_settings.est_rfc7030_settings.client_certificate_settings.validation_cas.map(id => getCaNameById(id)).join(', ')}
+                                                {ra.settings.enrollment_settings.est_rfc7030_settings?.client_certificate_settings?.validation_cas?.map(id => getCaNameById(id)).join(', ')}
                                             </span>
                                         ) : (<span className="text-xs text-muted-foreground">None</span>)
                                     }
