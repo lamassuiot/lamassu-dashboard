@@ -19,12 +19,12 @@ interface CaVisualizerCardProps {
 const StatusIcon: React.FC<{ status: CA['status']; expires: string }> = ({ status, expires }) => {
   const expiryDate = parseISO(expires);
   if (status === 'revoked') {
-    return <XCircle className="h-5 w-5 text-destructive" title="Status: Revoked" />;
+    return <XCircle className="h-5 w-5 text-destructive"/>;
   }
   if (isPast(expiryDate)) {
-    return <AlertTriangle className="h-5 w-5 text-orange-500" title="Status: Expired" />;
+    return <AlertTriangle className="h-5 w-5 text-orange-500" />;
   }
-  return <CheckCircle className="h-5 w-5 text-green-500" title="Status: Active" />;
+  return <CheckCircle className="h-5 w-5 text-green-500" />;
 };
 
 const getStatusAndExpiryText = (ca: CA): { text: string; isCritical: boolean } => {
