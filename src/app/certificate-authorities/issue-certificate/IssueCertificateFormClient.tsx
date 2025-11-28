@@ -199,7 +199,7 @@ export default function IssueCertificateFormClient() {
 
   // --- Effects ---
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.crypto) setEngine("webcrypto", getCrypto());
+    if (typeof window !== 'undefined' && window.crypto) setEngine("webcrypto", getCrypto() ?? undefined);
   }, []);
   
   useEffect(() => {

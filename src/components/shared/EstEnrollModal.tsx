@@ -191,7 +191,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
     
     useEffect(() => {
         if (typeof window !== 'undefined' && window.crypto) {
-            setEngine("webcrypto", getCrypto());
+            setEngine("webcrypto", getCrypto() ?? undefined);
         }
     }, []);
 

@@ -151,7 +151,7 @@ export const InitializationWizard: React.FC = () => {
         }
         
         if (typeof window !== 'undefined' && window.crypto) {
-            setEngine("webcrypto", getCrypto());
+            setEngine("webcrypto", getCrypto() ?? undefined);
         }
 
         setIsTestRunning(true);
