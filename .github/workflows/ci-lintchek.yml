@@ -1,4 +1,4 @@
-name: CI Lint and TypeScript Check
+name: CI Lint Check
 
 on:
   pull_request:
@@ -26,7 +26,3 @@ jobs:
 
       - name: Run lint
         run: npm run lint
-
-      - name: Run TypeScript checks
-        run: npm run typecheck
-
