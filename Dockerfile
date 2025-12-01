@@ -6,19 +6,20 @@ WORKDIR /app
 
 RUN apk add --no-cache git
 
-# Copy package.json and package-lock.json (or yarn.lock)
+# Copy package.json and pnpm-lock.yaml
 COPY package*.json ./
+COPY pnpm-lock.yaml ./
 
 # Install dependencies
-# Using npm ci for cleaner installs in CI/build environments
-RUN npm ci
+# Using pnpm for package management
+RUN pnpm i
 
 # Copy the rest of the application code
 COPY . .
 
 # Build the application
 # This will output to the 'out' directory due to `output: 'export'` in next.config.ts
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Serve the static files with Nginx
 FROM nginx:stable-alpine
