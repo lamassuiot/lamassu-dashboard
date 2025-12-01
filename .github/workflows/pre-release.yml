@@ -42,7 +42,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build project
-      run: npm ci && npm run build
+      run: pnpm i && pnpm run build
 
     - name: Zip out folder
       run: |
