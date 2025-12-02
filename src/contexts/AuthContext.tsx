@@ -141,16 +141,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const onUserLoaded = (loadedUser: User) => setUser(loadedUser);
     const onUserUnloaded = () => setUser(null);
-    const onSilentRenewError = (error: Error) => { console.error("AuthContext: Silent renew error:", error); logout(); };
+    const onSilentRenewError = (error: Error) => {
+      console.error("AuthContext: Silent renew error:", error);
+      // Only logout if the error is fatal and requires user interaction
+      const fatalErrors = ['login_required', 'interaction_required', 'invalid_grant'];
+      if (fatalErrors.some(e => error.message.includes(e))) {
+        logout();
+      }
+    };
+    const onAccessTokenExpired = () => {
+      console.warn("AuthContext: Access token expired. Logging out.");
+      logout();
+    }
 
     userManagerInstance.events.addUserLoaded(onUserLoaded);
     userManagerInstance.events.addUserUnloaded(onUserUnloaded);
     userManagerInstance.events.addSilentRenewError(onSilentRenewError);
+    userManagerInstance.events.addAccessTokenExpired(onAccessTokenExpired);
 
     return () => {
       userManagerInstance.events.removeUserLoaded(onUserLoaded);
       userManagerInstance.events.removeUserUnloaded(onUserUnloaded);
       userManagerInstance.events.removeSilentRenewError(onSilentRenewError);
+      userManagerInstance.events.removeAccessTokenExpired(onAccessTokenExpired);
     };
   }, [userManagerInstance, authMode, logout]);
 
