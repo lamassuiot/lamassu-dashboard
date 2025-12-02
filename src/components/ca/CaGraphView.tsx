@@ -7,6 +7,7 @@ import {
   Node,
   Edge,
   Controls,
+  ControlButton,
   Background,
   BackgroundVariant,
   useNodesState,
@@ -20,9 +21,8 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { RotateCcw, Landmark, CheckCircle, AlertTriangle, XCircle, Loader2, Download } from 'lucide-react';
+import { Focus, Landmark, CheckCircle, AlertTriangle, XCircle, Loader2, Download, Maximize, Minimize } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -72,7 +72,7 @@ const getBestHandlePositions = (
 ): { sourceHandle: string; targetHandle: string } => {
   const dx = targetNode.position.x - sourceNode.position.x;
   const dy = targetNode.position.y - sourceNode.position.y;
-  
+
   // Determine source handle (where edge leaves from)
   // All nodes have: 'source-top', 'source-right', 'source-bottom', 'source-left'
   let sourceHandle = 'source-right'; // default
@@ -83,7 +83,7 @@ const getBestHandlePositions = (
     // Vertical dominance
     sourceHandle = dy > 0 ? 'source-bottom' : 'source-top';
   }
-  
+
   // Determine target handle (where edge arrives at)
   // All nodes have: 'target-top', 'target-right', 'target-bottom', 'target-left'
   let targetHandle = 'target-left'; // default
@@ -94,7 +94,47 @@ const getBestHandlePositions = (
     // Vertical dominance
     targetHandle = dy > 0 ? 'target-top' : 'target-bottom';
   }
-  
+
+  return { sourceHandle, targetHandle };
+};
+
+// Helper function to get offset handle positions for Root CA edges
+// Returns handles with offset suffix based on the edge type (attested vs signed)
+const getOffsetHandlePositions = (
+  sourceNode: Node,
+  targetNode: Node,
+  edgeType: 'attested' | 'signed'
+): { sourceHandle: string; targetHandle: string } => {
+  const dx = targetNode.position.x - sourceNode.position.x;
+  const dy = targetNode.position.y - sourceNode.position.y;
+
+  // Offset suffix: attested uses 'left'/'top', signed uses 'right'/'bottom'
+  const offsetSuffix = edgeType === 'attested' ? 'left' : 'right';
+  const verticalOffsetSuffix = edgeType === 'attested' ? 'top' : 'bottom';
+
+  let sourceHandle: string;
+  let targetHandle: string;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal dominance - use vertical offset on the handles
+    if (dx > 0) {
+      sourceHandle = `source-right-${verticalOffsetSuffix}`;
+      targetHandle = `target-left-${verticalOffsetSuffix}`;
+    } else {
+      sourceHandle = `source-left-${verticalOffsetSuffix}`;
+      targetHandle = `target-right-${verticalOffsetSuffix}`;
+    }
+  } else {
+    // Vertical dominance - use horizontal offset on the handles
+    if (dy > 0) {
+      sourceHandle = `source-bottom-${offsetSuffix}`;
+      targetHandle = `target-top-${offsetSuffix}`;
+    } else {
+      sourceHandle = `source-top-${offsetSuffix}`;
+      targetHandle = `target-bottom-${offsetSuffix}`;
+    }
+  }
+
   return { sourceHandle, targetHandle };
 };
 
@@ -182,12 +222,22 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
       <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
-      
+
       <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
-      
+
+      {/* Offset handles for Root CA edges (attested and signed edges separated by 20px) */}
+      <Handle type="target" position={Position.Top} id="target-top-left" style={{ opacity: 0, left: 'calc(50% - 10px)' }} />
+      <Handle type="target" position={Position.Top} id="target-top-right" style={{ opacity: 0, left: 'calc(50% + 10px)' }} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom-left" style={{ opacity: 0, left: 'calc(50% - 10px)' }} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom-right" style={{ opacity: 0, left: 'calc(50% + 10px)' }} />
+      <Handle type="target" position={Position.Left} id="target-left-top" style={{ opacity: 0, top: 'calc(50% - 10px)' }} />
+      <Handle type="target" position={Position.Left} id="target-left-bottom" style={{ opacity: 0, top: 'calc(50% + 10px)' }} />
+      <Handle type="target" position={Position.Right} id="target-right-top" style={{ opacity: 0, top: 'calc(50% - 10px)' }} />
+      <Handle type="target" position={Position.Right} id="target-right-bottom" style={{ opacity: 0, top: 'calc(50% + 10px)' }} />
+
       {/* Header row with icon and status */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -200,7 +250,7 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
         </div>
         {statusBadge}
       </div>
-      
+
       {/* Info row */}
       <div className="flex items-center justify-between gap-2">
         <p className={cn('text-[11px] font-mono truncate flex-1', subtextColor)}>
@@ -236,18 +286,18 @@ const CryptoEngineNode = ({ data }: { data: CryptoEngineNodeData }) => {
         <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
         <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
         <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
-        
+
         <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
         <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
         <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
         <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
-        
+
         <div className="flex-shrink-0 bg-muted p-2 rounded-lg shadow-sm">
           <Landmark className="h-5 w-5 text-muted-foreground" />
         </div>
-        <div className="flex-grow min-w-0">
+        <div className="flex-grow min-w-0 overflow-hidden">
           <p className="text-sm font-bold truncate text-muted-foreground leading-tight">Unknown KMS Key</p>
-          <p className="text-[11px] font-mono text-muted-foreground/70 truncate mt-0.5">
+          <p className="text-[11px] font-mono text-muted-foreground/70 truncate mt-0.5" title={keyId || 'No key ID'}>
             {keyId || 'No key ID'}
           </p>
         </div>
@@ -265,18 +315,28 @@ const CryptoEngineNode = ({ data }: { data: CryptoEngineNodeData }) => {
       <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
-      
+
       <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
-      
+
+      {/* Offset handles for Root CA edges (attested and signed edges separated by 20px) */}
+      <Handle type="source" position={Position.Top} id="source-top-left" style={{ opacity: 0, left: 'calc(50% - 10px)' }} />
+      <Handle type="source" position={Position.Top} id="source-top-right" style={{ opacity: 0, left: 'calc(50% + 10px)' }} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom-left" style={{ opacity: 0, left: 'calc(50% - 10px)' }} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom-right" style={{ opacity: 0, left: 'calc(50% + 10px)' }} />
+      <Handle type="source" position={Position.Left} id="source-left-top" style={{ opacity: 0, top: 'calc(50% - 10px)' }} />
+      <Handle type="source" position={Position.Left} id="source-left-bottom" style={{ opacity: 0, top: 'calc(50% + 10px)' }} />
+      <Handle type="source" position={Position.Right} id="source-right-top" style={{ opacity: 0, top: 'calc(50% - 10px)' }} />
+      <Handle type="source" position={Position.Right} id="source-right-bottom" style={{ opacity: 0, top: 'calc(50% + 10px)' }} />
+
       <div className="flex-shrink-0 bg-purple-500 dark:bg-purple-600 p-2 rounded-lg shadow-sm">
         <CryptoEngineViewer engine={engine!} iconOnly />
       </div>
-      <div className="flex-grow min-w-0">
+      <div className="flex-grow min-w-0 overflow-hidden">
         <p className="text-sm font-bold truncate text-purple-900 dark:text-purple-100 leading-tight">{kmsKey!.name}</p>
-        <div className="text-[11px] text-purple-700 dark:text-purple-300 mt-0.5">
+        <div className="text-[11px] text-purple-700 dark:text-purple-300 mt-0.5 font-mono truncate">
           <IdentifierDisplay value={kmsKey!.key_id} className="text-[11px]" />
         </div>
       </div>
@@ -301,11 +361,11 @@ const GroupNode = ({ data }: { data: GroupNodeData }) => {
             <div className="flex-shrink-0 bg-purple-500 dark:bg-purple-600 p-1.5 rounded shadow-sm">
               <CryptoEngineViewer engine={data.engine} iconOnly />
             </div>
-            <div className="flex-grow min-w-0">
+            <div className="flex-grow min-w-0 overflow-hidden">
               <p className="text-xs font-semibold truncate text-purple-900 dark:text-purple-100 leading-tight">
                 {data.kmsKey.name}
               </p>
-              <div className="text-[10px] text-purple-700 dark:text-purple-300">
+              <div className="text-[10px] text-purple-700 dark:text-purple-300 font-mono truncate">
                 <IdentifierDisplay value={data.kmsKey.key_id} className="text-[10px]" />
               </div>
             </div>
@@ -317,7 +377,7 @@ const GroupNode = ({ data }: { data: GroupNodeData }) => {
       <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
-      
+
       <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
@@ -340,12 +400,12 @@ const UnknownIssuerNode = ({ data }: { data: UnknownIssuerNodeData }) => {
       <Handle type="target" position={Position.Right} id="target-right" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Bottom} id="target-bottom" style={{ opacity: 0 }} />
       <Handle type="target" position={Position.Left} id="target-left" style={{ opacity: 0 }} />
-      
+
       <Handle type="source" position={Position.Top} id="source-top" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Right} id="source-right" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Bottom} id="source-bottom" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Left} id="source-left" style={{ opacity: 0 }} />
-      
+
       {/* Header row with icon */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -361,7 +421,7 @@ const UnknownIssuerNode = ({ data }: { data: UnknownIssuerNodeData }) => {
           <span className="text-[10px] font-medium text-muted-foreground">Not Found</span>
         </div>
       </div>
-      
+
       {/* Info row - show issuerDN if available, otherwise issuerName (ID) */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-mono truncate flex-1 text-muted-foreground/70" title={issuerDN || issuerName}>
@@ -388,9 +448,14 @@ const layoutOptions = {
   'elk.direction': 'DOWN',
   'elk.spacing.nodeNode': '100',
   'elk.layered.spacing.nodeNodeBetweenLayers': '150',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '50',
+  'elk.spacing.edgeNode': '50',
   'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+  'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
   'elk.separateConnectedComponents': 'true',
-  'elk.spacing.componentComponent': '100',
+  'elk.spacing.componentComponent': '150',
+  'elk.padding': '[top=50,left=50,bottom=50,right=50]',
+  'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
 };
 
 // Helper function to calculate layout using ELK with port configuration
@@ -400,25 +465,48 @@ const getLayoutedElements = async (
 ): Promise<Node<NodeData>[]> => {
   // Only layout nodes that don't have a parent (top-level nodes and groups)
   const topLevelNodes = nodes.filter(node => !node.parentId);
-  
+
+  if (topLevelNodes.length === 0) {
+    console.warn('No top-level nodes to layout');
+    return nodes;
+  }
+
+  // Get proper dimensions from node data
+  const getNodeDimensions = (node: Node<NodeData>) => {
+    let width = node.width ?? 380;
+    let height = node.height ?? 85;
+
+    if (node.type === 'cryptoEngineNode') {
+      width = node.width ?? 320;
+      height = node.height ?? 65;
+    } else if (node.type === 'unknownIssuerNode') {
+      width = node.width ?? 380;
+      height = node.height ?? 85;
+    } else if (node.type === 'group') {
+      width = (node.style?.width as number) || node.width || 420;
+      height = (node.style?.height as number) || node.height || 300;
+    }
+
+    return { width, height };
+  };
+
+  // Filter edges to only include those connecting top-level nodes
+  const topLevelNodeIds = new Set(topLevelNodes.map(n => n.id));
+  const layoutEdges = edges.filter(edge =>
+    topLevelNodeIds.has(edge.source) && topLevelNodeIds.has(edge.target)
+  );
+
+  console.log(`Preparing ELK layout: ${topLevelNodes.length} nodes, ${layoutEdges.length} edges (filtered from ${edges.length})`);
+
   const graph = {
     id: 'root',
     layoutOptions,
     children: topLevelNodes.map((node) => {
-      // Determine node dimensions
-      let width = 380;
-      let height = 85;
-      
-      if (node.type === 'cryptoEngineNode') {
-        width = 320;
-        height = 65;
-      } else if (node.type === 'group') {
-        width = node.style?.width as number || 420;
-        height = node.style?.height as number || 300;
-      }
+      const { width, height } = getNodeDimensions(node);
 
       // Define ports on all four sides for flexible edge routing with consistent naming
       // All nodes have both source and target ports in all directions
+      // Also include offset ports for Root CA edges
       const ports = [
         { id: node.id }, // default port
         { id: `${node.id}-source-top`, properties: { side: 'NORTH' } },
@@ -429,6 +517,23 @@ const getLayoutedElements = async (
         { id: `${node.id}-target-right`, properties: { side: 'EAST' } },
         { id: `${node.id}-target-bottom`, properties: { side: 'SOUTH' } },
         { id: `${node.id}-target-left`, properties: { side: 'WEST' } },
+        // Offset ports for Root CA edges (separated by 20px)
+        { id: `${node.id}-source-top-left`, properties: { side: 'NORTH' } },
+        { id: `${node.id}-source-top-right`, properties: { side: 'NORTH' } },
+        { id: `${node.id}-source-bottom-left`, properties: { side: 'SOUTH' } },
+        { id: `${node.id}-source-bottom-right`, properties: { side: 'SOUTH' } },
+        { id: `${node.id}-source-left-top`, properties: { side: 'WEST' } },
+        { id: `${node.id}-source-left-bottom`, properties: { side: 'WEST' } },
+        { id: `${node.id}-source-right-top`, properties: { side: 'EAST' } },
+        { id: `${node.id}-source-right-bottom`, properties: { side: 'EAST' } },
+        { id: `${node.id}-target-top-left`, properties: { side: 'NORTH' } },
+        { id: `${node.id}-target-top-right`, properties: { side: 'NORTH' } },
+        { id: `${node.id}-target-bottom-left`, properties: { side: 'SOUTH' } },
+        { id: `${node.id}-target-bottom-right`, properties: { side: 'SOUTH' } },
+        { id: `${node.id}-target-left-top`, properties: { side: 'WEST' } },
+        { id: `${node.id}-target-left-bottom`, properties: { side: 'WEST' } },
+        { id: `${node.id}-target-right-top`, properties: { side: 'EAST' } },
+        { id: `${node.id}-target-right-bottom`, properties: { side: 'EAST' } },
       ];
 
       return {
@@ -441,7 +546,7 @@ const getLayoutedElements = async (
         ports,
       };
     }),
-    edges: edges.map((edge) => ({
+    edges: layoutEdges.map((edge) => ({
       id: edge.id,
       sources: [edge.sourceHandle ? `${edge.source}-${edge.sourceHandle}` : edge.source],
       targets: [edge.targetHandle ? `${edge.target}-${edge.targetHandle}` : edge.target],
@@ -451,19 +556,31 @@ const getLayoutedElements = async (
   try {
     const layoutedGraph = await elk.layout(graph);
 
+    console.log('ELK layout complete:', {
+      inputNodes: topLevelNodes.length,
+      outputNodes: layoutedGraph.children?.length ?? 0,
+      sample: layoutedGraph.children?.slice(0, 3).map(n => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }))
+    });
+
     const layoutedNodes = nodes.map((node) => {
       // Child nodes keep their relative positions
       if (node.parentId) {
         return node;
       }
-      
+
       // Top-level nodes get positioned by ELK
       const layoutedNode = layoutedGraph.children?.find((lgNode) => lgNode.id === node.id);
+
+      if (!layoutedNode) {
+        console.warn(`Node ${node.id} not found in ELK layout result`);
+        return node;
+      }
+
       return {
         ...node,
         position: {
-          x: layoutedNode?.x ?? 0,
-          y: layoutedNode?.y ?? 0,
+          x: layoutedNode.x ?? 0,
+          y: layoutedNode.y ?? 0,
         },
       };
     });
@@ -476,22 +593,18 @@ const getLayoutedElements = async (
   }
 };
 
-// Custom hook to handle ELK layout
+// Custom hook to handle fit view after nodes are initialized
 function useLayoutNodes() {
   const nodesInitialized = useNodesInitialized();
-  const { getNodes, getEdges, setNodes, fitView } = useReactFlow<Node<NodeData>>();
+  const { fitView } = useReactFlow<Node<NodeData>>();
 
   useEffect(() => {
     if (nodesInitialized) {
-      const layoutNodes = async () => {
-        const layoutedNodes = await getLayoutedElements(getNodes(), getEdges());
-        setNodes(layoutedNodes);
-        window.requestAnimationFrame(() => fitView());
-      };
-
-      layoutNodes();
+      window.requestAnimationFrame(() => {
+        fitView({ padding: 0.2, duration: 300 });
+      });
     }
-  }, [nodesInitialized, getNodes, getEdges, setNodes, fitView]);
+  }, [nodesInitialized, fitView]);
 
   return null;
 }
@@ -503,8 +616,9 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const graphRef = useRef<HTMLDivElement>(null);
-  
+
   // Edge visibility toggles
   const [showHierarchyEdges, setShowHierarchyEdges] = useState(true);
   const [showAttestedKeyEdges, setShowAttestedKeyEdges] = useState(true);
@@ -518,7 +632,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
         setIsLoadingKeys(false);
         return;
       }
-      
+
       try {
         const params = new URLSearchParams();
         const keysData = await fetchKmsKeys(user.access_token, params);
@@ -549,35 +663,48 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     if (nodes.length === 0 || edges.length === 0) return;
 
     const nodesMap = new Map(nodes.map(n => [n.id, n]));
-    
+
     // Update edges with dynamic handle positions
     const updatedEdges = edges.map(edge => {
       const sourceNode = nodesMap.get(edge.source);
       const targetNode = nodesMap.get(edge.target);
-      
+
       if (!sourceNode || !targetNode) return edge;
-      
-      // Calculate best handle positions based on node positions
-      const { sourceHandle, targetHandle } = getBestHandlePositions(sourceNode, targetNode);
-      
+
+      let sourceHandle: string;
+      let targetHandle: string;
+
+      // For Root CA edges, use offset handles to keep the two edges separated
+      if (edge.data?.isRootCA) {
+        const edgeType = edge.data?.edgeType as 'attested' | 'signed';
+        const handles = getOffsetHandlePositions(sourceNode, targetNode, edgeType);
+        sourceHandle = handles.sourceHandle;
+        targetHandle = handles.targetHandle;
+      } else {
+        // Calculate best handle positions based on node positions
+        const handles = getBestHandlePositions(sourceNode, targetNode);
+        sourceHandle = handles.sourceHandle;
+        targetHandle = handles.targetHandle;
+      }
+
       // Only update if handles have changed
       if (edge.sourceHandle === sourceHandle && edge.targetHandle === targetHandle) {
         return edge;
       }
-      
+
       return {
         ...edge,
         sourceHandle,
         targetHandle,
       };
     });
-    
+
     // Only update if edges have changed
-    const hasChanges = updatedEdges.some((edge, i) => 
-      edge.sourceHandle !== edges[i].sourceHandle || 
+    const hasChanges = updatedEdges.some((edge, i) =>
+      edge.sourceHandle !== edges[i].sourceHandle ||
       edge.targetHandle !== edges[i].targetHandle
     );
-    
+
     if (hasChanges) {
       setEdges(updatedEdges);
     }
@@ -623,12 +750,12 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           const engine = kmsKey ? allCryptoEngines.find((e: ApiCryptoEngine) => e.id === kmsKey.engine_id) : undefined;
           const groupId = `group-${keyId}`;
           groupIdToKeyIdMap.set(groupId, keyId);
-          
+
           // Create a group node with engine and key data
           reactFlowNodes.push({
             id: groupId,
             type: 'group',
-            data: { 
+            data: {
               label: "",
               engine,
               kmsKey,
@@ -642,6 +769,8 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               borderRadius: '12px',
               padding: '10px',
             },
+            width: 420,
+            height: casInGroup.length * 100 + 120,
           });
 
           // Create CA nodes as children of the group
@@ -714,7 +843,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     // Create ReactFlow nodes for Crypto Engines (only for ungrouped keys when grouping is enabled)
     const cryptoEngineNodes: Node<CryptoEngineNodeData>[] = [];
     const addedEngineNodes = new Set<string>();
-    
+
     allNodes.forEach(ca => {
       // Add crypto engine node for subject_key_id (CA's own key)
       if (ca.subjectKeyId) {
@@ -723,10 +852,10 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
         if (groupByAttestedKey && reactFlowNodes.some(n => n.id === groupId)) {
           return; // Skip - crypto engine is shown inside the group
         }
-        
+
         const kmsKey = kmsKeysMap.get(ca.subjectKeyId);
         const engineNodeId = `engine-${ca.subjectKeyId}`;
-        
+
         if (kmsKey) {
           const engine = allCryptoEngines.find((e: ApiCryptoEngine) => e.id === kmsKey.engine_id);
           if (engine) {
@@ -769,7 +898,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       if (ca.authorityKeyId && ca.authorityKeyId !== ca.subjectKeyId) {
         const kmsKey = kmsKeysMap.get(ca.authorityKeyId);
         const engineNodeId = `engine-${ca.authorityKeyId}`;
-        
+
         if (kmsKey) {
           const engine = allCryptoEngines.find((e: ApiCryptoEngine) => e.id === kmsKey.engine_id);
           if (engine) {
@@ -815,22 +944,22 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     // Create ReactFlow edges for CA hierarchy
     const reactFlowEdges: Edge[] = [];
     const addedUnknownIssuers = new Set<string>();
-    
+
     // Helper to get initial handle positions
     const getInitialHandles = (sourceId: string, targetId: string) => {
       const sourceNode = reactFlowNodes.find(n => n.id === sourceId);
       const targetNode = reactFlowNodes.find(n => n.id === targetId);
-      
+
       if (sourceNode && targetNode) {
         return getBestHandlePositions(sourceNode, targetNode);
       }
       return { sourceHandle: 'source-right', targetHandle: 'target-left' };
     };
-    
+
     allNodes.forEach(ca => {
       if (ca.issuer && ca.issuer !== 'Self-signed') {
         const issuerExists = allNodes.some(node => node.id === ca.issuer);
-        
+
         if (!issuerExists) {
           // Create unknown issuer node if not already added
           const unknownIssuerId = `unknown-issuer-${ca.issuer}`;
@@ -845,7 +974,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               if (ca.issuerDN.country) parts.push(`C=${ca.issuerDN.country}`);
               issuerDN = parts.join(', ');
             }
-            
+
             reactFlowNodes.push({
               id: unknownIssuerId,
               type: 'unknownIssuerNode',
@@ -859,10 +988,10 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
             });
             addedUnknownIssuers.add(unknownIssuerId);
           }
-          
+
           // Create edge from unknown issuer to CA
           let targetId = ca.id;
-          
+
           // Check if target CA is in a group
           if (groupByAttestedKey && ca.subjectKeyId) {
             const targetGroupId = `group-${ca.subjectKeyId}`;
@@ -870,7 +999,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               targetId = targetGroupId;
             }
           }
-          
+
           const { sourceHandle, targetHandle } = getInitialHandles(unknownIssuerId, targetId);
           reactFlowEdges.push({
             id: `${unknownIssuerId}-${ca.id}`,
@@ -896,7 +1025,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           // Determine source and target (use group if grouped and exists)
           let sourceId = ca.issuer;
           let targetId = ca.id;
-          
+
           if (groupByAttestedKey) {
             // Check if source CA is in a group
             const sourceCa = allNodes.find(n => n.id === ca.issuer);
@@ -906,7 +1035,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
                 sourceId = sourceGroupId;
               }
             }
-            
+
             // Check if target CA is in a group
             if (ca.subjectKeyId) {
               const targetGroupId = `group-${ca.subjectKeyId}`;
@@ -915,7 +1044,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               }
             }
           }
-          
+
           const { sourceHandle, targetHandle } = getInitialHandles(sourceId, targetId);
           reactFlowEdges.push({
             id: `${ca.issuer}-${ca.id}`,
@@ -945,7 +1074,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       if (ca.subjectKeyId) {
         const engineNodeId = `engine-${ca.subjectKeyId}`;
         let targetId = ca.id;
-        
+
         // If grouping is enabled and this CA is in a group, connect to the group
         if (groupByAttestedKey) {
           const groupId = `group-${ca.subjectKeyId}`;
@@ -954,17 +1083,22 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
             return;
           }
         }
-        
-        const { sourceHandle, targetHandle } = getInitialHandles(engineNodeId, targetId);
+
+        // Check if this is a Root CA (subjectKeyId === authorityKeyId)
+        const isRootCA = ca.subjectKeyId === ca.authorityKeyId;
+
+        // Use default handles initially - they will be dynamically updated
+        const handles = getInitialHandles(engineNodeId, targetId);
+
         reactFlowEdges.push({
           id: `${engineNodeId}-${ca.id}-subject`,
           source: engineNodeId,
           target: targetId,
           type: 'smoothstep',
-          sourceHandle,
-          targetHandle,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
           animated: false,
-          data: { edgeType: 'attested' },
+          data: { edgeType: 'attested', isRootCA },
           label: 'attested key',
           labelStyle: { fill: '#10b981', fontSize: 10, fontWeight: 500 },
           labelBgStyle: { fill: '#f0fdf4' },
@@ -977,9 +1111,10 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
 
       // Add edge from crypto engine to CA for authority_key_id (signing key)
       if (ca.authorityKeyId) {
+        const isRootCA = ca.subjectKeyId === ca.authorityKeyId;
         const engineNodeId = `engine-${ca.authorityKeyId}`;
         let targetId = ca.id;
-        
+
         // If grouping is enabled and this CA is in a group, connect to the group
         if (groupByAttestedKey) {
           const groupId = `group-${ca.subjectKeyId}`;
@@ -987,17 +1122,19 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
             targetId = groupId;
           }
         }
-        
-        const { sourceHandle, targetHandle } = getInitialHandles(engineNodeId, targetId);
+
+        // Use default handles initially - they will be dynamically updated
+        const handles = getInitialHandles(engineNodeId, targetId);
+
         reactFlowEdges.push({
           id: `${engineNodeId}-${ca.id}-authority`,
           source: engineNodeId,
           target: targetId,
           type: 'smoothstep',
-          sourceHandle,
-          targetHandle,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
           animated: false,
-          data: { edgeType: 'signed' },
+          data: { edgeType: 'signed', isRootCA },
           label: 'signed by',
           labelStyle: { fill: '#f59e0b', fontSize: 10, fontWeight: 500 },
           labelBgStyle: { fill: '#fffbeb' },
@@ -1019,12 +1156,18 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
       return true;
     });
 
-    // Set nodes and edges - layout will be applied by useLayoutNodes hook
-    setNodes(reactFlowNodes);
-    setEdges(filteredEdges);
+    // Apply ELK layout before setting nodes
+    const applyLayout = async () => {
+      console.log('Applying layout to nodes...');
+      const layoutedNodes = await getLayoutedElements(reactFlowNodes, reactFlowEdges);
+      setNodes(layoutedNodes);
+      setEdges(filteredEdges);
+    };
+
+    applyLayout();
   }, [cas, allCryptoEngines, kmsKeysMap, router, isLoadingKeys, setNodes, setEdges, showHierarchyEdges, showAttestedKeyEdges, showSignedByEdges, groupByAttestedKey]);
 
-  // Use the layout hook to automatically apply ELK layout
+  // Use the layout hook to fit view after nodes are initialized
   useLayoutNodes();
 
   // Get fitView to reset the view
@@ -1034,9 +1177,40 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     fitView({ padding: 0.2, duration: 300 });
   };
 
+  const handleFullscreenToggle = useCallback(() => {
+    if (!graphRef.current) return;
+    if (!document.fullscreenElement) {
+      graphRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  }, []);
+
+  // Listen for fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Refit view when fullscreen changes
+  useEffect(() => {
+    if (isFullscreen) {
+      setTimeout(() => {
+        fitView({ padding: 0.2, duration: 300 });
+      }, 100);
+    }
+  }, [isFullscreen, fitView]);
+
   const handleDownloadImage = useCallback(async () => {
     if (!graphRef.current) return;
-    
+
     setIsDownloading(true);
     try {
       // Find the ReactFlow viewport element
@@ -1055,8 +1229,8 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           // Exclude controls and panels from the export
           if (node.classList) {
             return !node.classList.contains('react-flow__controls') &&
-                   !node.classList.contains('react-flow__panel') &&
-                   !node.classList.contains('react-flow__attribution');
+              !node.classList.contains('react-flow__panel') &&
+              !node.classList.contains('react-flow__attribution');
           }
           return true;
         },
@@ -1085,7 +1259,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
   }
 
   return (
-    <div ref={graphRef} className="w-full h-[calc(100vh-250px)] border rounded-md relative overflow-hidden flex flex-col bg-background">
+    <div ref={graphRef} className={cn("w-full border rounded-md relative overflow-hidden flex flex-col bg-background", isFullscreen ? "h-screen" : "h-[calc(100vh-250px)]")}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -1103,30 +1277,26 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-        <Controls showInteractive={false} />
-        <Panel position="top-left" className="flex items-center gap-4 bg-background/95 backdrop-blur-sm border rounded-lg p-2 shadow-lg">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={handleReset} 
-            title="Reset View"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={handleDownloadImage}
-            disabled={isDownloading}
-            title="Download as Image"
-          >
+        <Controls showFitView={false} showInteractive={false}>
+          <ControlButton onClick={handleReset} title="Fit to View">
+            <Focus />
+          </ControlButton>
+          <ControlButton onClick={handleDownloadImage} title="Download as Image">
             {isDownloading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="animate-spin" />
             ) : (
-              <Download className="h-4 w-4" />
+              <Download />
             )}
-          </Button>
-          <div className="h-6 w-px bg-border" />
+          </ControlButton>
+          <ControlButton onClick={handleFullscreenToggle} title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
+            {isFullscreen ? (
+              <Minimize />
+            ) : (
+              <Maximize />
+            )}
+          </ControlButton>
+        </Controls>
+        <Panel position="top-left" className="flex items-center gap-4 bg-background/95 backdrop-blur-sm border rounded-lg p-2 shadow-lg">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Switch

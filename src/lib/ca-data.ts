@@ -602,101 +602,6 @@ export async function createCa(payload: CreateCaPayload, accessToken: string): P
   }
 }
 
-// Function and type for creating a CA Request
-export interface CreateCaRequestPayload {
-  parent_id: string;
-  id: string;
-  engine_id: string;
-  subject: {
-    country?: string;
-    state_province?: string;
-    locality?: string;
-    organization?: string;
-    organization_unit?: string;
-    common_name: string;
-  };
-  key_metadata: {
-    type: string;
-    bits: number;
-  };
-  metadata: Record<string, any>;
-}
-
-export async function createCaRequest(payload: CreateCaRequestPayload, accessToken: string): Promise<void> {
-  const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to create CA request. Status: ${response.status}`;
-    try {
-      errorJson = await response.json();
-      errorMessage = `Failed to create CA request: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for CA request creation:", e);
-    }
-    throw new Error(errorMessage);
-  }
-}
-
-export interface CACertificateRequest {
-    id: string;
-    key_id: string;
-    metadata: Record<string, any>;
-    subject: { common_name: string };
-    creation_ts: string;
-    engine_id: string;
-    key_metadata: { type: string; bits: number };
-    status: 'PENDING' | 'ISSUED';
-    fingerprint: string;
-    csr: string; // Base64 encoded PEM
-}
-
-export async function fetchCaRequests(params: URLSearchParams, accessToken: string): Promise<{ list: CACertificateRequest[]; next: string | null }> {
-    const url = `${get_CA_API_BASE_URL()}/cas/requests?${params.toString()}`;
-    const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch CA requests. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Failed to fetch requests: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch(e) {
-            console.error("Failed to parse error response as JSON for CA requests:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    return response.json();
-}
-
-export async function deleteCaRequest(requestId: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests/${requestId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to delete CA request. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for CA request deletion:", e);
-        }
-        throw new Error(errorMessage);
-    }
-}
-
-
 // Function and type for importing a CA
 export interface ImportCaPayload {
   id: string;
@@ -862,19 +767,6 @@ export async function signCertificate(caId: string, payload: any, accessToken: s
         throw new Error(result.err || `Failed to issue certificate. Status: ${response.status}`);
     }
     return result;
-}
-
-export async function fetchCaRequestById(requestId: string, accessToken: string): Promise<any> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests?filter=id[equal]${requestId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    if (!response.ok) throw new Error("Failed to fetch CA request details.");
-    const data = await response.json();
-    const foundRequest = data.list?.[0];
-    if (foundRequest) {
-        return foundRequest;
-    }
-    throw new Error(`CA Request with ID "${requestId}" not found or is not pending.`);
 }
 
 export async function updateCaDefaultProfileId(caId: string, profileId: string | null, accessToken: string): Promise<void> {

@@ -145,13 +145,13 @@ export default function HomePage() {
   const anyTimelineError = errorCAs || errorEngines;
   const anyTimelineLoading = isLoadingCAs || isLoadingEngines || authLoading;
   const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats || authLoading;
-  
+
 
   return (
     <div className="w-full space-y-8">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-start">
         <Button onClick={loadInitialData} variant="outline" disabled={isReloading}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
+          <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
         </Button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">

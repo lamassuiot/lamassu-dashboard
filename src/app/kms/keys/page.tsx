@@ -322,6 +322,7 @@ export default function KmsKeysPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Strength</TableHead>
+                  <TableHead>Public/Private</TableHead>
                   <TableHead><div className="flex items-center"><Cpu className="mr-1.5 h-4 w-4 text-muted-foreground" />Crypto Engine</div></TableHead>
                   <TableHead>Aliases</TableHead>
                   <TableHead>Tags</TableHead>
@@ -346,6 +347,17 @@ export default function KmsKeysPage() {
                       <TableCell>{key.keyTypeDisplay}</TableCell>
                       <TableCell>
                         <KeyStrengthIndicator algorithm={key.algorithm} size={key.size} />
+                      </TableCell>
+                      <TableCell>
+                        {key.hasPrivateKey ? (
+                          <Badge variant="default" className="text-xs">
+                            Private
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            Public
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {engine ? (

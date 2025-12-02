@@ -5,7 +5,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, FileSignature } from "lucide-react";
+import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -31,13 +31,6 @@ const creationModes: CreationMode[] = [
     title: 'Create New CA (Existing Key)',
     description: 'Provision a new Root or Intermediate CA using an existing KMS key. Reuse a previously generated key pair.',
     icon: <KeyRound className="h-8 w-8 text-primary" />,
-  },
-  {
-    id: 'generate-csr',
-    href: '/certificate-authorities/new/generate-csr',
-    title: 'Request New CA (CSR)',
-    description: 'Request a new CA by generating a server-side key and a CSR. Requires external approval and certificate import.',
-    icon: <FileSignature className="h-8 w-8 text-primary" />,
   },
   {
     id: 'import-full',
