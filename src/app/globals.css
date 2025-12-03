@@ -21,10 +21,10 @@
     /* Custom header foreground */
     --header-height: 3rem;
 
-    --accent: 150 65% 85%;
-    /* #a2ecc8 Periwinkle (greenish) */
-    --accent-foreground: 150 65% 25%;
-    /* Darker accent for contrast */
+    --accent: 210 80% 92%;
+    /* Light blue accent */
+    --accent-foreground: 210 80% 25%;
+    /* Darker blue for contrast */
 
     /* Standard ShadCN UI Colors (derived) */
     --card: 0 0% 100%;
@@ -86,10 +86,10 @@
     /* Same as main primary */
     --sidebar-primary-foreground: 0 0% 98%;
     /* Same as main primary-foreground */
-    --sidebar-accent: 150 65% 80%;
-    /* Slightly adjusted accent */
-    --sidebar-accent-foreground: 150 65% 20%;
-    /* Darker accent */
+    --sidebar-accent: 210 80% 90%;
+    /* Light blue accent */
+    --sidebar-accent-foreground: 210 80% 25%;
+    /* Darker blue */
     --sidebar-border: 210 40% 85%;
     /* Sidebar border */
     --sidebar-ring: 217 90% 65%;
