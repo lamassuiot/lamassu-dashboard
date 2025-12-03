@@ -32,7 +32,6 @@ import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { TagInput } from '@/components/shared/TagInput';
-import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 // Monaco Editor dynamic import
 const Editor = dynamic(() => import('@monaco-editor/react'), { 
@@ -1059,7 +1058,7 @@ export default function KmsKeyDetailsClient() {
                 </h1>
               </div>
               <p className="text-sm text-muted-foreground mt-1.5">
-                Key ID: <IdentifierDisplay value={keyDetails.id} className="text-xs" />
+                Key ID: <span className="font-mono text-xs">{keyDetails.id}</span>
               </p>
             </div>
           </div>
@@ -1097,7 +1096,7 @@ export default function KmsKeyDetailsClient() {
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Key Identifier</Label>
                       <div className="p-3 bg-muted/30 rounded-lg border">
-                        <IdentifierDisplay value={keyDetails.id} className="text-xs" />
+                        <div className="font-mono text-xs">{keyDetails.id}</div>
                       </div>
                     </div>
                     
