@@ -4,6 +4,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { HelpCircle } from 'lucide-react';
 
 /**
  * KeyStrengthIndicator - Maps cryptographic key parameters to NIST security strength levels
@@ -94,6 +95,35 @@ export const KeyStrengthIndicator: React.FC<KeyStrengthIndicatorProps> = ({ algo
     return `${label}${timeframe} | Algorithm: ${algorithm || 'Unknown'} | Size: ${size || 'Unknown'}`;
   };
 
+  // Calculate quantum security information
+  const getQuantumSecurity = (algo?: string, size?: string | number) => {
+    const algorithm = algo?.toUpperCase() || 'Unknown';
+    const keySize = size || 'Unknown';
+    
+    if (algorithm === 'RSA') {
+      const bitSize = parseInt(String(size), 10);
+      let quantumBits = 0;
+      if (bitSize >= 15360) quantumBits = 128; // 256-bit classical -> 128-bit quantum
+      else if (bitSize >= 7680) quantumBits = 96; // 192-bit classical -> 96-bit quantum
+      else if (bitSize >= 3072) quantumBits = 64; // 128-bit classical -> 64-bit quantum
+      else quantumBits = 56; // 112-bit classical -> 56-bit quantum
+      return `Post quantum ${quantumBits} bits security (due to grover algorithm)`;
+    }
+    if (algorithm === 'ECDSA') {
+      if (String(size).includes('521')) return 'Post quantum 128 bits security (due to grover algorithm)'; // 256-bit -> 128-bit
+      if (String(size).includes('384')) return 'Post quantum 96 bits security (due to grover algorithm)'; // 192-bit -> 96-bit
+      return 'Post quantum 64 bits security (due to grover algorithm)'; // 128-bit -> 64-bit
+    }
+    if (algorithm === 'ML-DSA') {
+      if (String(size).includes('87')) return 'Post quantum 256 bits security (post-quantum)'; // Level 5
+      if (String(size).includes('65')) return 'Post quantum 192 bits security (post-quantum)'; // Level 3
+      return 'Post quantum 128 bits security (post-quantum)'; // Level 2
+    }
+    return 'Post quantum unknown bits security';
+  };
+
+  const quantumSecurity = getQuantumSecurity(algorithm, size);
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -111,7 +141,15 @@ export const KeyStrengthIndicator: React.FC<KeyStrengthIndicatorProps> = ({ algo
           </div>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{getTooltipContent()}</p>
+          <div className="text-xs space-y-1">
+            <p className="font-medium">{algorithm || 'Unknown'} | {size || 'Unknown'}</p>
+            <p className="text-muted-foreground">
+              {algorithm === 'ML-DSA' 
+                ? `${quantumSecurity} (post-quantum algorithm)`
+                : `${quantumSecurity}`
+              }
+            </p>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

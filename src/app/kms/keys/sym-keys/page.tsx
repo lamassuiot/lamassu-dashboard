@@ -8,29 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { KeyRound, PlusCircle, MoreVertical, Trash2, AlertTriangle, Loader2, RefreshCw, Lock } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { KeyRound, PlusCircle, MoreVertical, Trash2, AlertTriangle, Loader2, RefreshCw, Lock, HelpCircle } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSymmetricKeys, deleteSymmetricKey, type SymmetricKey as ApiSymKey } from '@/lib/symkms-api';
 import { formatDistanceToNow } from 'date-fns';
-
-// Symmetric key algorithm options (for display labels)
-const SYM_KEY_ALGORITHMS: Record<string, string> = {
-  'AES_256_CBC': 'AES-256 CBC',
-  'AES_256_CTR': 'AES-256 CTR',
-  'AES_256_GCM': 'AES-256 GCM',
-  'AES_192_CBC': 'AES-192 CBC',
-  'AES_192_CTR': 'AES-192 CTR',
-  'AES_192_GCM': 'AES-192 GCM',
-  'AES_128_CBC': 'AES-128 CBC',
-  'AES_128_CTR': 'AES-128 CTR',
-  'AES_128_GCM': 'AES-128 GCM',
-  'Ascon128': 'Ascon-128',
-  'Ascon128a': 'Ascon-128a',
-  'Ascon80pq': 'Ascon-80pq',
-};
+import { SymmetricKeyStrengthIndicator } from '@/components/shared/SymmetricKeyStrengthIndicator';
+import { ResourceConsumptionIndicator } from '@/components/shared/LightweightIndicator';
+import { AEADIndicator } from '@/components/shared/AEADIndicator';
+import { SYM_KEY_ALGORITHMS } from '@/lib/key-spec-constants';
 
 interface SymKey extends ApiSymKey {
   displayName: string;
@@ -157,17 +146,68 @@ export default function SymKeysPage() {
       )}
 
       {!isLoading && !error && keys.length > 0 ? (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Key ID</TableHead>
-                <TableHead>Algorithm</TableHead>
-                <TableHead>User ID</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
+        <TooltipProvider>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Key ID</TableHead>
+                  <TableHead>Algorithm</TableHead>
+                  <TableHead className="flex items-center gap-1">
+                    Security Level
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <div className="text-xs space-y-2">
+                          <div className="font-medium">Security Level Explanation</div>
+                          <div className="space-y-1">
+                            <div><strong>5 bars:</strong> Very Strong (256-bit equivalent)</div>
+                            <div><strong>4 bars:</strong> Strong (192-bit equivalent)</div>
+                            <div><strong>3 bars:</strong> Adequate (128-bit equivalent)</div>
+                            <div><strong>2 bars:</strong> Deprecated (112-bit equivalent)</div>
+                            <div><strong>1 bar:</strong> Legacy (80-bit equivalent)</div>
+                          </div>
+                          <div className="border-t pt-2 mt-2">
+                            <div className="font-medium">Post-Quantum Security</div>
+                            <div className="text-muted-foreground">
+                              Grover's algorithm reduces symmetric key security by half (N/2). 
+                              AES-128 provides 64-bit quantum security, AES-256 provides 128-bit quantum security.
+                              Post-quantum variant for ascon, ascon80pq, offers 160 key length which provides 80-bit post-quantum security.
+                            </div>
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center justify-center gap-1 cursor-help">
+                            <span>AEAD</span>
+                            <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-sm">
+                          <div className="text-xs space-y-1">
+                            <div className="font-medium">Authenticated Encryption with Associated Data</div>
+                            <div className="text-muted-foreground">
+                              AEAD algorithms provide both confidentiality and authentication in a single operation,
+                              ensuring data integrity and authenticity along with encryption. Non-AEAD algorithms
+                              require separate authentication mechanisms.
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-center">Resource Consumption</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {keys.map((key) => (
                 <TableRow key={key.id}>
@@ -181,12 +221,18 @@ export default function SymKeysPage() {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="font-mono">
-                      {key.algorithm}
+                    <Badge variant="secondary" className="font-mono">
+                      {SYM_KEY_ALGORITHMS[key.algorithm] || key.algorithm}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-muted-foreground">{key.user_id}</span>
+                    <SymmetricKeyStrengthIndicator algorithm={key.algorithm} />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <AEADIndicator algorithm={key.algorithm} />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <ResourceConsumptionIndicator algorithm={key.algorithm} />
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">
@@ -216,6 +262,7 @@ export default function SymKeysPage() {
             </TableBody>
           </Table>
         </div>
+        </TooltipProvider>
       ) : (
         !isLoading && !error && (
           <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">

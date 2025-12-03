@@ -22,6 +22,7 @@ interface UpdateStatusTabProps {
   selectedJobId?: string;
   onWorkflowChange?: (workflowName: string) => void;
   onJobChange?: (jobId: string) => void;
+  onJobTransition?: (jobId: string, targetState: string) => void;
 }
 
 export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({ 
@@ -29,7 +30,8 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({
   selectedWorkflowName: externalWorkflowName = '', 
   selectedJobId: externalJobId = '', 
   onWorkflowChange, 
-  onJobChange 
+  onJobChange,
+  onJobTransition
 }) => {
   // Use external state if provided, otherwise use internal state
   const [internalSelectedJobId, setInternalSelectedJobId] = useState<string | null>(null);
@@ -295,6 +297,7 @@ export const UpdateStatusTab: React.FC<UpdateStatusTabProps> = ({
                 <JobWorkflowGraph 
                   workflow={jobToShow.workflow}
                   jobHistory={jobToShow.history}
+                  onTransition={onJobTransition ? (targetState) => onJobTransition(jobToShow.id, targetState) : undefined}
                 />
               );
             } else {

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Download, Package, Calendar, FileText, Info, CheckCircle, XCircle, Copy, Shield, PenTool, Lock } from 'lucide-react';
@@ -207,7 +208,9 @@ export default function UpdatePackDetailsPage() {
               <>
                 <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 <div>
-                  <p className="font-semibold text-red-900 dark:text-red-100">Error Generating SWU File</p>
+                  <p className="font-semibold text-red-900 dark:text-red-100">
+                    {updatePack.generationError || `SWU not generated for Version ${updatePack.version}`}
+                  </p>
                   <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                     There was a problem creating the update package
                   </p>
@@ -255,14 +258,16 @@ export default function UpdatePackDetailsPage() {
             Signature and encryption settings for this update
           </p>
           <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50 border border-border">
-              <PenTool className="h-5 w-5 text-primary" />
+            <div className={`flex items-center gap-3 p-3 rounded-lg border ${updatePack?.alg_sign ? 'bg-accent/50 border-border' : 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800'}`}>
+              <PenTool className={`h-5 w-5 ${updatePack?.alg_sign ? 'text-primary' : 'text-red-600 dark:text-red-400'}`} />
               <div className="flex-1">
                 <p className="text-sm font-medium">Digital Signature</p>
-                <p className="text-xs text-muted-foreground mt-1">ECDSA Algorithm</p>
+                <p className={`text-xs mt-1 ${updatePack?.alg_sign ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400'}`}>
+                  {updatePack?.alg_sign ? `${updatePack.alg_sign} Algorithm` : 'Not specified'}
+                </p>
               </div>
-              <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100">
-                Signed
+              <Badge variant="secondary" className={updatePack?.alg_sign ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100" : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100"}>
+                {updatePack?.alg_sign ? 'Signed' : 'Unsigned'}
               </Badge>
             </div>
             
@@ -270,10 +275,29 @@ export default function UpdatePackDetailsPage() {
               <Lock className="h-5 w-5 text-primary" />
               <div className="flex-1">
                 <p className="text-sm font-medium">Encryption</p>
-                <p className="text-xs text-muted-foreground mt-1">Ascon-128a Algorithm</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {updatePack?.encryption_alg_name ? (
+                    <>
+                      {updatePack.encryption_alg_name} (
+                      {updatePack.encryption_key_name ? (
+                        <Link 
+                          href={`/kms/keys/sym-keys/details?keyId=${encodeURIComponent(updatePack.encryption_key_name)}`}
+                          className="text-primary hover:underline"
+                        >
+                          {updatePack.encryption_key_name}
+                        </Link>
+                      ) : (
+                        'Unknown key'
+                      )}
+                      )
+                    </>
+                  ) : (
+                    'Not encrypted'
+                  )}
+                </p>
               </div>
               <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100">
-                Encrypted
+                {updatePack?.sw_desc_encrypted ? 'Encrypted' : 'Unencrypted'}
               </Badge>
             </div>
 
@@ -284,19 +308,23 @@ export default function UpdatePackDetailsPage() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">Certificate</span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  toast({
-                    title: "Download Started",
-                    description: "Downloading certificate"
-                  });
-                }}
-              >
-                <Download className="mr-2 h-3 w-3" />
-                certificate.pem
-              </Button>
+              {updatePack?.alg_sign ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    toast({
+                      title: "Download Started",
+                      description: "Downloading certificate"
+                    });
+                  }}
+                >
+                  <Download className="mr-2 h-3 w-3" />
+                  certificate.pem
+                </Button>
+              ) : (
+                <span className="text-xs text-muted-foreground">Not available</span>
+              )}
             </div>
           </div>
         </div>

@@ -22,11 +22,12 @@ export interface DeviceUpdateEvent {
 // Used by UpdateStrategyForm (camelCase)
 export interface UpdateStrategy {
   id?: string; // ID will be generated if not provided (e.g., when creating new)
-  workflowType: 'wfx.workflow.dau.direct' | 'wfx.workflow.phased.rollout';
-  rolloutType: 'fixed' | 'percentage';
+  workflowType: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
+  rolloutType: 'numeric' | 'percentage';
   rolloutValue: number;
   testDeviceId?: string;
   updatePackId?: string; // This will store the ID of the update pack
+  auto?: boolean; // Auto mode toggle
 }
 
 export interface ApiCreateUpdatePackPayload {
@@ -46,6 +47,7 @@ export interface UpdatePack {
   uri?: string;
   createdAt?: string; // ISO Date string
   binaryFileName?: string; // Name of the uploaded binary file
+  generationError?: string; // Error message if SWU generation failed
 }
 
 export interface LaunchItem {
@@ -55,20 +57,30 @@ export interface LaunchItem {
   exec_date: string; // ISO Date string
   devices_with_job: string[];
   devices_without_job: string[];
+  active_launches?: string[] | null; // Device IDs that are currently active/executing in this launch
+  // Launch-level strategy configuration (added per launch, not per DMS)
+  workflow_type?: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
+  rollout_type?: 'numeric' | 'percentage';
+  rollout_value?: number;
+  test_device_id?: string;
+  update_pack_id?: string; // Immutable - cannot be changed after creation
+  auto?: boolean; // Auto mode toggle
 }
 
 export interface LaunchListResponse {
   next: string | null;
   list: LaunchItem[] | null;
+  active_launches?: string[]; // Device IDs that are currently active/executing
 }
 
 export interface ApiGlobalStrategy {
   dms_id: string;
-  workflow_type: 'wfx.workflow.dau.direct' | 'wfx.workflow.phased.rollout';
-  rollout_type: 'fixed' | 'percentage';
+  workflow_type: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
+  rollout_type: 'numeric' | 'percentage';
   rollout_value: number;
   test_device_id?: string;
   update_pack_id?: string; // This is the pack ID from the API
+  auto?: boolean; // Auto mode toggle
 }
 
 // Types for /device/{deviceId}/jobs response

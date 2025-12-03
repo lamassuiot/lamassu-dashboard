@@ -121,7 +121,7 @@ export interface DecryptRequest {
     key_name: string;
     algorithm: string;
     ciphertext: string; // Hex or Base64 encoded depending on format
-    iv: string;         // Hex-encoded IV
+    iv?: string;         // Hex-encoded IV (optional for PKCS7)
     format?: 'ciphertext' | 'pkcs7'; // Optional format (default: ciphertext)
 }
 
@@ -159,4 +159,62 @@ export const decryptWithSymmetricKey = async (request: DecryptRequest, token: st
     });
 
     return handleApiError(response, 'Failed to decrypt data');
+};
+
+// MAC interfaces and functions
+export interface ComputeMacRequest {
+    user_id: string;
+    key_name: string;
+    mac_algorithm: 'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC';
+    data: string; // Base64-encoded data
+}
+
+export interface ComputeMacResponse {
+    mac: string; // Hex-encoded MAC
+}
+
+export interface VerifyMacRequest {
+    user_id: string;
+    key_name: string;
+    mac_algorithm: 'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC';
+    data: string; // Base64-encoded data
+    mac: string;  // Hex-encoded MAC
+}
+
+export interface VerifyMacResponse {
+    valid: boolean;
+}
+
+export const computeMac = async (request: ComputeMacRequest, token: string, options?: { signal?: AbortSignal }): Promise<ComputeMacResponse> => {
+    const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
+    const url = `${baseUrl}/mac`;
+    
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(request),
+        signal: options?.signal,
+    });
+
+    return handleApiError(response, 'Failed to compute MAC');
+};
+
+export const verifyMac = async (request: VerifyMacRequest, token: string, options?: { signal?: AbortSignal }): Promise<VerifyMacResponse> => {
+    const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
+    const url = `${baseUrl}/mac/verify`;
+    
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(request),
+        signal: options?.signal,
+    });
+
+    return handleApiError(response, 'Failed to verify MAC');
 };

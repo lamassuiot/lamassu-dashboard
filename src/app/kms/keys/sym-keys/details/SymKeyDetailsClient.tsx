@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDropzone } from 'react-dropzone';
-import { ArrowLeft, Lock, Info, FileText, Loader2, AlertTriangle, Upload, Download, Plus, X, UploadCloud, File as FileIcon } from 'lucide-react';
+import { ArrowLeft, Lock, Info, FileText, Loader2, AlertTriangle, Upload, Download, Plus, X, UploadCloud, File as FileIcon, Shield, Zap, Key, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -16,13 +16,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { DetailItem } from '@/components/shared/DetailItem';
+import { SymmetricKeyStrengthIndicator } from '@/components/shared/SymmetricKeyStrengthIndicator';
+import { ResourceConsumptionIndicator } from '@/components/shared/LightweightIndicator';
+import { AEADIndicator } from '@/components/shared/AEADIndicator';
+import { SYM_KEY_ALGORITHMS } from '@/lib/key-spec-constants';
 import { 
   fetchSymmetricKeys, 
   encryptWithSymmetricKey, 
   decryptWithSymmetricKey,
+  computeMac,
+  verifyMac,
   type SymmetricKey,
   type EncryptRequest,
-  type DecryptRequest 
+  type DecryptRequest,
+  type ComputeMacRequest,
+  type VerifyMacRequest
 } from '@/lib/symkms-api';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -91,6 +99,24 @@ export default function SymKeyDetailsClient() {
   const [decryptedFiles, setDecryptedFiles] = useState<DecryptedFile[]>([]);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [decryptFormat, setDecryptFormat] = useState<'ciphertext' | 'pkcs7' | ''>('');
+
+  // State for MAC Tab
+  const [macAlgorithm, setMacAlgorithm] = useState<'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC' | ''>('');
+  const [macDataInput, setMacDataInput] = useState('');
+  const [macDataFile, setMacDataFile] = useState<File | null>(null);
+  const [macDataFileBase64, setMacDataFileBase64] = useState<string | null>(null);
+  const [isMacDataFileLoading, setIsMacDataFileLoading] = useState(false);
+  const [computedMac, setComputedMac] = useState<string | null>(null);
+  const [isComputingMac, setIsComputingMac] = useState(false);
+  const [macToVerify, setMacToVerify] = useState('');
+  const [macVerifyDataInput, setMacVerifyDataInput] = useState('');
+  const [macVerifyFile, setMacVerifyFile] = useState<File | null>(null);
+  const [macVerifyFileBase64, setMacVerifyFileBase64] = useState<string | null>(null);
+  const [isMacVerifyFileLoading, setIsMacVerifyFileLoading] = useState(false);
+  const [macVerifyResult, setMacVerifyResult] = useState<boolean | null>(null);
+  const [isVerifyingMac, setIsVerifyingMac] = useState(false);
+  const [computeMacAbortController, setComputeMacAbortController] = useState<AbortController | null>(null);
+  const [verifyMacAbortController, setVerifyMacAbortController] = useState<AbortController | null>(null);
 
   const fetchKeyData = useCallback(async () => {
     if (!keyId) {
@@ -170,6 +196,88 @@ export default function SymKeyDetailsClient() {
     onDrop: onDropFiles,
     accept: undefined, // Allow all file types
     multiple: true,
+  });
+
+  // Helper function to convert ArrayBuffer to base64 without stack overflow
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunkSize = 8192; // Process in chunks to avoid stack overflow
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    return btoa(binary);
+  };
+
+  // Dropzone for MAC compute (single-file)
+  const onDropMacComputeFiles = useCallback((acceptedFiles: File[]) => {
+    if (!acceptedFiles || acceptedFiles.length === 0) return;
+    const file = acceptedFiles[0];
+    
+    // IMPORTANT: Clear base64 immediately to prevent using stale data from previous file
+    setMacDataFileBase64(null);
+    setMacDataFile(file);
+    // Always read file to base64 (the backend now accepts base64 up to ~350MB).
+    // Keep a loading flag so UI can prevent accidental submits while reading.
+    setIsMacDataFileLoading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const base64 = arrayBufferToBase64(arrayBuffer);
+        setMacDataFileBase64(base64);
+      } catch (err) {
+        console.error('Error converting file to base64:', err);
+      } finally {
+        setIsMacDataFileLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      console.error('Error reading file');
+      setIsMacDataFileLoading(false);
+    };
+    reader.readAsArrayBuffer(file);
+  }, []);
+
+  const { getRootProps: getMacComputeRootProps, getInputProps: getMacComputeInputProps, isDragActive: isMacComputeDragActive } = useDropzone({
+    onDrop: onDropMacComputeFiles,
+    accept: undefined,
+    multiple: false,
+  });
+
+  // Dropzone for MAC verify (single-file)
+  const onDropMacVerifyFiles = useCallback((acceptedFiles: File[]) => {
+    if (!acceptedFiles || acceptedFiles.length === 0) return;
+    const file = acceptedFiles[0];
+    
+    // IMPORTANT: Clear base64 immediately to prevent using stale data from previous file
+    setMacVerifyFileBase64(null);
+    setMacVerifyFile(file);
+    // Always read file to base64 (the backend now accepts base64 up to ~350MB).
+    setIsMacVerifyFileLoading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const base64 = arrayBufferToBase64(arrayBuffer);
+        setMacVerifyFileBase64(base64);
+      } catch (err) {
+        console.error('Error converting file to base64:', err);
+      } finally {
+        setIsMacVerifyFileLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      setIsMacVerifyFileLoading(false);
+    };
+    reader.readAsArrayBuffer(file);
+  }, []);
+
+  const { getRootProps: getMacVerifyRootProps, getInputProps: getMacVerifyInputProps, isDragActive: isMacVerifyDragActive } = useDropzone({
+    onDrop: onDropMacVerifyFiles,
+    accept: undefined,
+    multiple: false,
   });
 
   // Dropzone for decrypt files
@@ -602,6 +710,269 @@ export default function SymKeyDetailsClient() {
     URL.revokeObjectURL(url);
   };
 
+  // MAC handlers
+  const getAvailableMacAlgorithms = (): Array<{ value: 'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC'; label: string }> => {
+    if (!keyDetails) return [];
+    const algo = keyDetails.algorithm.toUpperCase();
+    
+    if (algo.startsWith('AES')) {
+      return [
+        { value: 'HMAC-SHA3-256', label: 'HMAC-SHA3-256' },
+        { value: 'AES-CMAC', label: 'AES-CMAC (RFC 4493)' },
+      ];
+    } else if (algo.startsWith('ASCON')) {
+      return [
+        { value: 'ASCON-MAC', label: 'ASCON-MAC' },
+      ];
+    }
+    return [];
+  };
+
+  const handleComputeMac = async () => {
+    console.log('handleComputeMac called', {
+      keyDetails: !!keyDetails,
+      access_token: !!user?.access_token,
+      macDataInput: macDataInput.trim(),
+      macDataFile: macDataFile?.name,
+      macAlgorithm,
+      isMacDataFileLoading,
+      macDataFileBase64: macDataFileBase64?.substring(0, 50),
+    });
+    
+    if (!keyDetails || !user?.access_token || (!macDataInput.trim() && !macDataFile) || !macAlgorithm) {
+      console.log('Early return - validation failed');
+      return;
+    }
+    
+    // Check if file is still loading
+    if (macDataFile && isMacDataFileLoading) {
+      console.log('Early return - file still loading');
+      toast({
+        title: "Please wait",
+        description: "File is still being processed...",
+      });
+      return;
+    }
+
+    setIsComputingMac(true);
+    const userId = user.profile?.sub || user.profile?.email || 'default-user';
+
+    try {
+      // Maximum file size limit (~350MB when base64 encoded becomes ~467MB)
+      const MAX_FILE_SIZE = 350 * 1024 * 1024;
+      
+      // File takes priority over text input
+      if (macDataFile) {
+        // Check file size limit
+        if (macDataFile.size > MAX_FILE_SIZE) {
+          toast({
+            title: "File Too Large",
+            description: `File size exceeds the maximum limit of 350MB. Current file size: ${(macDataFile.size / (1024 * 1024)).toFixed(2)}MB`,
+            variant: "destructive",
+          });
+          setIsComputingMac(false);
+          return;
+        }
+
+        // Wait for base64 if not ready yet
+        if (!macDataFileBase64) {
+          toast({
+            title: "Please wait",
+            description: "File is still being processed...",
+          });
+          setIsComputingMac(false);
+          return;
+        }
+        
+        const request: ComputeMacRequest = {
+          user_id: userId,
+          key_name: keyDetails.id,
+          mac_algorithm: macAlgorithm as 'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC',
+          data: macDataFileBase64,
+        };
+
+        // Add abort support for compute
+        const controller = new AbortController();
+        setComputeMacAbortController(controller);
+        // Timeout scales with file size: base 60s + 30s per MB
+        const fileSizeMB = macDataFile.size / (1024 * 1024);
+        const TIMEOUT_MS = Math.max(120 * 1000, (60 + fileSizeMB * 30) * 1000);
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        try {
+          const response = await computeMac(request, user.access_token, { signal: controller.signal });
+          setComputedMac(response.mac);
+        } finally {
+          clearTimeout(timeoutId);
+          setComputeMacAbortController(null);
+        }
+      } else {
+  // No file - use text input
+        const dataBase64 = btoa(macDataInput);
+
+        const request: ComputeMacRequest = {
+          user_id: userId,
+          key_name: keyDetails.id,
+          mac_algorithm: macAlgorithm as 'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC',
+          data: dataBase64,
+        };
+
+        // Add abort support for text compute as well
+        const controller = new AbortController();
+        setComputeMacAbortController(controller);
+        const TIMEOUT_MS = 60 * 1000;
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        try {
+          const response = await computeMac(request, user.access_token, { signal: controller.signal });
+          setComputedMac(response.mac);
+        } finally {
+          clearTimeout(timeoutId);
+          setComputeMacAbortController(null);
+        }
+      }
+      
+      toast({
+        title: "MAC Computed",
+        description: `Successfully computed ${macAlgorithm} MAC.`,
+      });
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        toast({ title: "MAC Aborted", description: "MAC computation was cancelled or timed out.", variant: "destructive" });
+      } else {
+      toast({
+        title: "MAC Computation Failed",
+        description: err.message || "Failed to compute MAC.",
+        variant: "destructive",
+      });
+      }
+    } finally {
+      setIsComputingMac(false);
+    }
+  };
+
+  const handleVerifyMac = async () => {
+    if (!keyDetails || !user?.access_token || (!macVerifyDataInput.trim() && !macVerifyFile) || !macToVerify.trim() || !macAlgorithm) return;
+
+    // Check if file is still loading
+    if (macVerifyFile && isMacVerifyFileLoading) {
+      toast({
+        title: "Please wait",
+        description: "File is still being processed...",
+      });
+      return;
+    }
+
+    setIsVerifyingMac(true);
+    const userId = user.profile?.sub || user.profile?.email || 'default-user';
+
+    try {
+      // Maximum file size limit (~350MB when base64 encoded becomes ~467MB)
+      const MAX_FILE_SIZE = 350 * 1024 * 1024;
+      
+      // File takes priority over text input
+      if (macVerifyFile) {
+        // Check file size limit
+        if (macVerifyFile.size > MAX_FILE_SIZE) {
+          toast({
+            title: "File Too Large",
+            description: `File size exceeds the maximum limit of 350MB. Current file size: ${(macVerifyFile.size / (1024 * 1024)).toFixed(2)}MB`,
+            variant: "destructive",
+          });
+          setIsVerifyingMac(false);
+          return;
+        }
+
+        // Wait for base64 if not ready yet
+        if (!macVerifyFileBase64) {
+          toast({
+            title: "Please wait",
+            description: "File is still being processed...",
+          });
+          setIsVerifyingMac(false);
+          return;
+        }
+        
+        const request: VerifyMacRequest = {
+          user_id: userId,
+          key_name: keyDetails.id,
+          mac_algorithm: macAlgorithm as 'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC',
+          data: macVerifyFileBase64,
+          mac: macToVerify.trim(),
+        };
+
+        // Timeout scales with file size: base 60s + 30s per MB
+        const fileSizeMB = macVerifyFile.size / (1024 * 1024);
+        const TIMEOUT_MS = Math.max(120 * 1000, (60 + fileSizeMB * 30) * 1000);
+        const controller = new AbortController();
+        setVerifyMacAbortController(controller);
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        try {
+          const response = await verifyMac(request, user.access_token, { signal: controller.signal });
+          setMacVerifyResult(response.valid);
+          toast({
+            title: response.valid ? "MAC Valid" : "MAC Invalid",
+            description: response.valid 
+              ? "The MAC is valid and matches the data." 
+              : "The MAC does not match the provided data.",
+            variant: response.valid ? "default" : "destructive",
+          });
+        } finally {
+          clearTimeout(timeoutId);
+          setVerifyMacAbortController(null);
+        }
+      } else {
+        // No file - use text input
+        const dataBase64 = btoa(macVerifyDataInput);
+
+        const request: VerifyMacRequest = {
+          user_id: userId,
+          key_name: keyDetails.id,
+          mac_algorithm: macAlgorithm as 'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC',
+          data: dataBase64,
+          mac: macToVerify.trim(),
+        };
+
+        const controller = new AbortController();
+        setVerifyMacAbortController(controller);
+        const TIMEOUT_MS = 60 * 1000;
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        try {
+          const response = await verifyMac(request, user.access_token, { signal: controller.signal });
+          setMacVerifyResult(response.valid);
+          toast({
+            title: response.valid ? "MAC Valid" : "MAC Invalid",
+            description: response.valid 
+              ? "The MAC is valid and matches the data." 
+              : "The MAC does not match the provided data.",
+            variant: response.valid ? "default" : "destructive",
+          });
+        } finally {
+          clearTimeout(timeoutId);
+          setVerifyMacAbortController(null);
+        }
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        toast({ title: "MAC Aborted", description: "MAC verification was cancelled or timed out.", variant: "destructive" });
+      } else {
+      toast({
+        title: "MAC Verification Failed",
+        description: err.message || "Failed to verify MAC.",
+        variant: "destructive",
+      });
+      }
+    } finally {
+      setIsVerifyingMac(false);
+    }
+  };
+
+  // Cleanup any remaining abort controllers on unmount
+  useEffect(() => {
+    return () => {
+      computeMacAbortController?.abort();
+      verifyMacAbortController?.abort();
+    };
+  }, [computeMacAbortController, verifyMacAbortController]);
+
   if (isLoading || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-8">
@@ -660,7 +1031,7 @@ export default function SymKeyDetailsClient() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">
             <Info className="mr-2 h-4 w-4" /> Overview
           </TabsTrigger>
@@ -670,24 +1041,298 @@ export default function SymKeyDetailsClient() {
           <TabsTrigger value="decrypt">
             <FileText className="mr-2 h-4 w-4" /> Decrypt
           </TabsTrigger>
+          <TabsTrigger value="mac">
+            <Shield className="mr-2 h-4 w-4" /> MAC
+          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
+        <TabsContent value="overview" className="space-y-6">
+          {/* Header Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-l-4 border-l-primary">
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Algorithm</p>
+                    <p className="text-2xl font-bold">
+                      {SYM_KEY_ALGORITHMS[keyDetails.algorithm] || keyDetails.algorithm}
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-primary/10 p-3">
+                    <Key className="h-5 w-5 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Key Length</p>
+                    <p className="text-2xl font-bold">
+                      {(() => {
+                        const algo = keyDetails.algorithm.toUpperCase();
+                        if (algo.includes('256')) return '256 bits';
+                        if (algo.includes('192')) return '192 bits';
+                        if (algo.includes('128')) return '128 bits';
+                        if (algo.includes('80PQ')) return '160 bits';
+                        return 'N/A';
+                      })()}
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-green-500/10 p-3">
+                    <Shield className="h-5 w-5 text-green-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Created</p>
+                    <p className="text-lg font-semibold">
+                      {keyDetails.created_at 
+                        ? formatDistanceToNow(new Date(keyDetails.created_at), { addSuffix: true })
+                        : 'Unknown'}
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-blue-500/10 p-3">
+                    <Clock className="h-5 w-5 text-blue-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Main Information Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Key Information Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Info className="h-5 w-5 text-primary" />
+                  Key Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <DetailItem label="Key ID" value={keyDetails.id} isMono fullWidthValue />
+                {keyDetails.creation_ts && (
+                  <DetailItem 
+                    label="Created On" 
+                    value={new Date(keyDetails.creation_ts * 1000).toLocaleString()} 
+                  />
+                )}
+                <div className="pt-2 border-t">
+                  <p className="text-sm font-medium mb-2">Tags</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">symmetric</Badge>
+                    <Badge variant="secondary">{keyDetails.algorithm.toLowerCase().includes('aes') ? 'aes' : 'ascon'}</Badge>
+                    {keyDetails.algorithm.toLowerCase().includes('gcm') && <Badge variant="secondary">aead</Badge>}
+                    {keyDetails.algorithm.toLowerCase().includes('ascon') && <Badge variant="secondary">lightweight</Badge>}
+                  </div>
+                </div>
+                <div className="pt-2 border-t">
+                  <p className="text-sm font-medium mb-2">Metadata</p>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>User ID:</span>
+                      <span className="font-mono text-xs">{keyDetails.user_id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Key Type:</span>
+                      <span>Symmetric Encryption</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Security Properties Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Shield className="h-5 w-5 text-primary" />
+                  Security Properties
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Security Strength and Quantum Security in one row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Security Strength</p>
+                    <div className="flex flex-col space-y-2">
+                      <SymmetricKeyStrengthIndicator algorithm={keyDetails.algorithm} />
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {(() => {
+                          const algo = keyDetails.algorithm.toUpperCase();
+                          if (algo.includes('80PQ')) return '80-bit post-quantum';
+                          if (algo.includes('256')) return '256-bit classical';
+                          if (algo.includes('192')) return '192-bit classical';
+                          if (algo.includes('128')) return '128-bit classical';
+                          return 'Unknown';
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Quantum Security</p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0">
+                        {keyDetails.algorithm.toUpperCase().includes('80PQ') ? (
+                          <div className="rounded-full bg-purple-100 dark:bg-purple-900/20 p-2">
+                            <Shield className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                          </div>
+                        ) : (
+                          <div className="rounded-full bg-muted p-2">
+                            <Shield className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {(() => {
+                            const algo = keyDetails.algorithm.toUpperCase();
+                            if (algo === 'ASCON80PQ') return 'Post-quantum Resistant';
+                            if (algo.includes('256')) return '128-bit Quantum Security';
+                            if (algo.includes('192')) return '96-bit Quantum Security';
+                            if (algo.includes('128') || algo.includes('ASCON')) return '64-bit Quantum Security';
+                            return 'Classical Security';
+                          })()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {(() => {
+                            const algo = keyDetails.algorithm.toUpperCase();
+                            if (algo === 'ASCON80PQ') return 'Enhanced key length provides quantum resistance';
+                            return 'Reduced by Grover\'s algorithm';
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AEAD and Resources side by side - larger */}
+                <div className="grid grid-cols-2 gap-6 pt-4 border-t">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <AEADIndicator algorithm={keyDetails.algorithm} />
+                      <div className="flex-1">
+                        <p className="text-lg font-medium">
+                          {(keyDetails.algorithm.toLowerCase().includes('gcm') ||
+                            keyDetails.algorithm.toLowerCase().includes('ascon'))
+                            ? 'AEAD' : 'Needs MAC or signature'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {(keyDetails.algorithm.toLowerCase().includes('gcm') ||
+                            keyDetails.algorithm.toLowerCase().includes('ascon'))
+                            ? 'Authenticated Encryption with Associated Data provides both confidentiality and integrity in a single operation'
+                            : 'Requires separate Message Authentication Code (MAC) or digital signature for data integrity'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <ResourceConsumptionIndicator algorithm={keyDetails.algorithm} />
+                      <div className="flex-1">
+                        <p className="text-lg font-medium">
+                          {keyDetails.algorithm.toLowerCase().includes('ascon')
+                            ? 'Lightweight' : 'Standard'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {keyDetails.algorithm.toLowerCase().includes('ascon')
+                            ? 'Optimized for IoT and constrained devices with minimal memory and processing requirements'
+                            : 'Standard resource requirements that constrained devices could suffer specially if low RAM and/or no HW for AES'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Cipher Mode & Details Card */}
           <Card>
-            <CardHeader>
-              <CardTitle>Key Information</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Zap className="h-5 w-5 text-primary" />
+                Cipher Mode Details
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <DetailItem label="Key ID" value={keyDetails.id} />
-              <DetailItem label="Algorithm" value={<Badge variant="outline">{keyDetails.algorithm}</Badge>} />
-              <DetailItem label="User ID" value={keyDetails.user_id} />
-              {keyDetails.created_at && (
-                <DetailItem 
-                  label="Created" 
-                  value={formatDistanceToNow(new Date(keyDetails.created_at), { addSuffix: true })} 
-                />
-              )}
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Mode</p>
+                  <Badge variant="outline" className="font-mono text-base">
+                    {(() => {
+                      const algo = keyDetails.algorithm.toUpperCase();
+                      if (algo.includes('GCM')) return 'GCM';
+                      if (algo.includes('CBC')) return 'CBC';
+                      if (algo.includes('CTR')) return 'CTR';
+                      if (algo.includes('ASCON')) return 'Ascon';
+                      return 'N/A';
+                    })()}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    {(() => {
+                      const algo = keyDetails.algorithm.toUpperCase();
+                      if (algo.includes('GCM')) return 'Galois/Counter Mode';
+                      if (algo.includes('CBC')) return 'Cipher Block Chaining';
+                      if (algo.includes('CTR')) return 'Counter Mode';
+                      if (algo.includes('ASCON')) return 'Authenticated Cipher';
+                      return 'N/A';
+                    })()}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Block/Stream</p>
+                  <Badge variant="secondary" className="text-base">
+                    {(() => {
+                      const algo = keyDetails.algorithm.toUpperCase();
+                      if (algo.includes('CTR')) return 'Stream';
+                      if (algo.includes('ASCON')) return 'Stream';
+                      return 'Block';
+                    })()}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    {(() => {
+                      const algo = keyDetails.algorithm.toUpperCase();
+                      if (algo.includes('CTR') || algo.includes('ASCON')) 
+                        return 'Processes data as a continuous stream';
+                      return 'Processes data in fixed-size blocks';
+                    })()}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Parallelization</p>
+                  <Badge variant={(() => {
+                    const algo = keyDetails.algorithm.toUpperCase();
+                    return (algo.includes('GCM') || algo.includes('CTR')) ? 'default' : 'outline';
+                  })()} className="text-base">
+                    {(() => {
+                      const algo = keyDetails.algorithm.toUpperCase();
+                      return (algo.includes('GCM') || algo.includes('CTR')) ? 'Yes' : 'No';
+                    })()}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    {(() => {
+                      const algo = keyDetails.algorithm.toUpperCase();
+                      if (algo.includes('GCM') || algo.includes('CTR'))
+                        return 'Can encrypt/decrypt in parallel';
+                      return 'Sequential processing required';
+                    })()}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -713,12 +1358,12 @@ export default function SymKeyDetailsClient() {
                     <SelectValue placeholder="Select encryption format" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ciphertext">Hex Format (ciphertext)</SelectItem>
+                    <SelectItem value="ciphertext">Hex Format</SelectItem>
                     <SelectItem value="pkcs7">PKCS7/CMS format</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-muted-foreground">
-                  Hex format uses hex encoding for ciphertext, PKCS7/CMS format uses base64 encoding
+                  Hex format uses hex encoding for ciphertext, PKCS7/CMS format uses standard PKCS7/CMS structure.
                 </p>
               </div>
 
@@ -967,7 +1612,7 @@ export default function SymKeyDetailsClient() {
                     <SelectValue placeholder="Select decryption format" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ciphertext">Hex Format (ciphertext)</SelectItem>
+                    <SelectItem value="ciphertext">Hex Format</SelectItem>
                     <SelectItem value="pkcs7">PKCS7/CMS format</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1188,9 +1833,362 @@ export default function SymKeyDetailsClient() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* MAC Tab */}
+        <TabsContent value="mac" className="space-y-6">
+          {/* Configuration Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                MAC Configuration
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="mac-algorithm">MAC Algorithm</Label>
+                <Select 
+                  value={macAlgorithm} 
+                  onValueChange={(v) => {
+                    setMacAlgorithm(v as 'HMAC-SHA3-256' | 'AES-CMAC' | 'ASCON-MAC' | '');
+                    setComputedMac(null);
+                    setMacVerifyResult(null);
+                  }}
+                >
+                  <SelectTrigger id="mac-algorithm">
+                    <SelectValue placeholder="Select MAC algorithm" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAvailableMacAlgorithms().map(algo => (
+                      <SelectItem key={algo.value} value={algo.value}>
+                        {algo.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {keyDetails?.algorithm.toUpperCase().startsWith('AES') 
+                    ? 'AES keys support HMAC-SHA3-256 and AES-CMAC algorithms.'
+                    : 'Ascon keys support ASCON-MAC algorithm.'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Compute MAC Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Compute MAC
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {macAlgorithm ? (
+                <>
+                  {/* Text Input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="mac-data">Text Data {macDataFile && <span className="text-xs text-muted-foreground">(file will be used instead)</span>}</Label>
+                    <Textarea
+                      id="mac-data"
+                      placeholder="Enter the text data to compute MAC for..."
+                      value={macDataInput}
+                      onChange={(e) => setMacDataInput(e.target.value)}
+                      rows={4}
+                      className={macDataFile ? 'opacity-50' : ''}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 border-t border-muted" />
+                    <span className="text-xs text-muted-foreground">OR drop a file (takes priority)</span>
+                    <div className="flex-1 border-t border-muted" />
+                  </div>
+
+                  {/* File Drop Zone */}
+                  <div className="space-y-2">
+                    <Label>File Input (drag & drop)</Label>
+                    <div
+                      {...getMacComputeRootProps()}
+                      className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                        isMacComputeDragActive 
+                          ? 'border-primary bg-primary/5' 
+                          : macDataFile 
+                            ? isMacDataFileLoading 
+                              ? 'border-yellow-500 bg-yellow-500/5' 
+                              : 'border-green-500 bg-green-500/5' 
+                            : 'border-muted-foreground/25 hover:border-primary/50'
+                      }`}
+                    >
+                      <input {...getMacComputeInputProps()} />
+                      {macDataFile ? (
+                        <div className="flex items-center justify-center gap-2">
+                          {isMacDataFileLoading ? (
+                            <Loader2 className="h-5 w-5 text-yellow-500 animate-spin" />
+                          ) : (
+                            <FileIcon className="h-5 w-5 text-green-500" />
+                          )}
+                          <span className="font-medium">{macDataFile.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({(macDataFile.size / 1024 / 1024).toFixed(2)} MB)
+                            {isMacDataFileLoading && (
+                              <Badge variant="outline" className="ml-2 text-yellow-600">Loading...</Badge>
+                            )}
+                            {!isMacDataFileLoading && macDataFile.size > 2 * 1024 * 1024 && (
+                              <Badge variant="outline" className="ml-2">Stream</Badge>
+                            )}
+                            {!isMacDataFileLoading && macDataFile.size <= 2 * 1024 * 1024 && (
+                              <Badge variant="outline" className="ml-2 text-green-600">Ready</Badge>
+                            )}
+                          </span>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setMacDataFile(null); 
+                              setMacDataFileBase64(null);
+                              setIsMacDataFileLoading(false);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-muted-foreground">
+                          <UploadCloud className="h-8 w-8 mx-auto mb-2" />
+                          <p className="text-sm">Drop a file here or click to browse</p>
+                          <p className="text-xs mt-1">Files &gt;2MB use streaming endpoint</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleComputeMac}
+                      disabled={isComputingMac || isMacDataFileLoading || (!macDataInput.trim() && !macDataFile)}
+                      className="flex-1"
+                    >
+                    {isComputingMac ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Computing MAC...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="mr-2 h-4 w-4" />
+                        Compute MAC
+                      </>
+                    )}
+                    </Button>
+                    {computeMacAbortController && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          computeMacAbortController.abort();
+                          setComputeMacAbortController(null);
+                          setIsComputingMac(false);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+
+                  {computedMac && (
+                    <div className="space-y-2 p-4 bg-muted rounded-lg">
+                      <Label>Computed MAC (hex-encoded)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={computedMac}
+                          readOnly
+                          className="font-mono text-xs flex-1"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(computedMac);
+                            toast({ title: "Copied", description: "MAC copied to clipboard." });
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Please select a MAC algorithm in the Configuration section above.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Verify MAC Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Verify MAC
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {macAlgorithm ? (
+                <>
+                  {/* Text Input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="verify-data">Text Data {macVerifyFile && <span className="text-xs text-muted-foreground">(file will be used instead)</span>}</Label>
+                    <Textarea
+                      id="verify-data"
+                      placeholder="Enter the original text data..."
+                      value={macVerifyDataInput}
+                      onChange={(e) => {
+                        setMacVerifyDataInput(e.target.value);
+                        setMacVerifyResult(null);
+                      }}
+                      rows={4}
+                      className={macVerifyFile ? 'opacity-50' : ''}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 border-t border-muted" />
+                    <span className="text-xs text-muted-foreground">OR drop a file (takes priority)</span>
+                    <div className="flex-1 border-t border-muted" />
+                  </div>
+
+                  {/* File Drop Zone */}
+                  <div className="space-y-2">
+                    <Label>File Input (drag & drop)</Label>
+                    <div
+                      {...getMacVerifyRootProps()}
+                      className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                        isMacVerifyDragActive 
+                          ? 'border-primary bg-primary/5' 
+                          : macVerifyFile 
+                            ? isMacVerifyFileLoading 
+                              ? 'border-yellow-500 bg-yellow-500/5' 
+                              : 'border-green-500 bg-green-500/5' 
+                            : 'border-muted-foreground/25 hover:border-primary/50'
+                      }`}
+                    >
+                      <input {...getMacVerifyInputProps()} />
+                      {macVerifyFile ? (
+                        <div className="flex items-center justify-center gap-2">
+                          {isMacVerifyFileLoading ? (
+                            <Loader2 className="h-5 w-5 text-yellow-500 animate-spin" />
+                          ) : (
+                            <FileIcon className="h-5 w-5 text-green-500" />
+                          )}
+                          <span className="font-medium">{macVerifyFile.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({(macVerifyFile.size / 1024 / 1024).toFixed(2)} MB)
+                            {isMacVerifyFileLoading && (
+                              <Badge variant="outline" className="ml-2 text-yellow-600">Loading...</Badge>
+                            )}
+                            {!isMacVerifyFileLoading && macVerifyFile.size > 2 * 1024 * 1024 && (
+                              <Badge variant="outline" className="ml-2">Stream</Badge>
+                            )}
+                            {!isMacVerifyFileLoading && macVerifyFile.size <= 2 * 1024 * 1024 && (
+                              <Badge variant="outline" className="ml-2 text-green-600">Ready</Badge>
+                            )}
+                          </span>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setMacVerifyFile(null); 
+                              setMacVerifyFileBase64(null); 
+                              setIsMacVerifyFileLoading(false);
+                              setMacVerifyResult(null);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-muted-foreground">
+                          <UploadCloud className="h-8 w-8 mx-auto mb-2" />
+                          <p className="text-sm">Drop a file here or click to browse</p>
+                          <p className="text-xs mt-1">Files &gt;2MB use streaming endpoint</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="mac-to-verify">MAC to Verify (hex-encoded)</Label>
+                    <Input
+                      id="mac-to-verify"
+                      placeholder="Enter the MAC to verify..."
+                      value={macToVerify}
+                      onChange={(e) => {
+                        setMacToVerify(e.target.value);
+                        setMacVerifyResult(null);
+                      }}
+                      className="font-mono"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleVerifyMac}
+                      disabled={isVerifyingMac || isMacVerifyFileLoading || (!macVerifyDataInput.trim() && !macVerifyFile) || !macToVerify.trim()}
+                      className="flex-1"
+                    >
+                    {isVerifyingMac ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Verifying MAC...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="mr-2 h-4 w-4" />
+                        Verify MAC
+                      </>
+                    )}
+                    </Button>
+                    {verifyMacAbortController && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          verifyMacAbortController.abort();
+                          setVerifyMacAbortController(null);
+                          setIsVerifyingMac(false);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+
+                  {macVerifyResult !== null && (
+                    <Alert variant={macVerifyResult ? "default" : "destructive"}>
+                      <Shield className="h-4 w-4" />
+                      <AlertTitle>{macVerifyResult ? "MAC Valid" : "MAC Invalid"}</AlertTitle>
+                      <AlertDescription>
+                        {macVerifyResult 
+                          ? "The MAC is valid and matches the provided data."
+                          : "The MAC does not match the provided data. The data may have been tampered with."}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Please select a MAC algorithm in the Configuration section above.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
-
-

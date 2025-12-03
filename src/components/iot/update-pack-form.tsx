@@ -34,7 +34,10 @@ import { useQuery } from '@tanstack/react-query';
 
 
 const updatePackFormSchema = z.object({
-  name: z.string().min(3, "Pack name must be at least 3 characters."),
+  name: z.string()
+    .min(3, "Pack name must be at least 3 characters.")
+    .regex(/^[^\s]+$/, "Pack name cannot contain spaces. Use underscores instead.")
+    .transform(val => val.replace(/\s+/g, '_')),
   version: z.coerce.number().int().positive("Version must be a positive integer."),
   dmsId: z.string().min(1, "Please select a Device Management System."),
   type: z.enum(["rawfile", "firmware", "other"]),
@@ -70,6 +73,7 @@ interface UpdatePackFormProps {
   selectedBasePackIdProp?: string;
   onBasePackSelect?: (basePackId: string | undefined) => void;
   onSwuGenerated?: () => void;
+  onSwuGenerationError?: (error: string) => void;
 }
 
 export function UpdatePackForm({
@@ -79,6 +83,7 @@ export function UpdatePackForm({
   selectedBasePackIdProp,
   onBasePackSelect,
   onSwuGenerated,
+  onSwuGenerationError,
 }: UpdatePackFormProps) {
   const { availableDms, selectedDms } = useDms();
   const { user } = useAuth();
@@ -783,7 +788,9 @@ export function UpdatePackForm({
       onSwuGenerated?.();
 
     } catch (error) {
-      setGenerationError((error as Error).message || "An unknown error occurred during SWU generation.");
+      const errorMessage = (error as Error).message || "An unknown error occurred during SWU generation.";
+      setGenerationError(errorMessage);
+      onSwuGenerationError?.(errorMessage);
     } finally {
       setIsProcessingSwu(false); 
     }
@@ -1140,72 +1147,86 @@ export function UpdatePackForm({
               {/* File Encryption Options - show when key is selected */}
               {form.watch('encryptionKeyId') && form.watch('encryptionKeyId') !== 'none' && form.watch('encryptionKeyId') !== '' && (
                 <div className="space-y-3">
-                  <FormField
-                    control={form.control}
-                    name="descriptorEncrypted"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>Encrypt descriptor</FormLabel>
-                          <FormDescription>
-                            Encrypt the software update descriptor file
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
+                  <div className="space-y-3">
+                    <FormLabel className="text-sm font-medium">Encryption Options</FormLabel>
 
-                  <FormField
-                    control={form.control}
-                    name="encryptAllFiles"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>Encrypt all files in descriptor</FormLabel>
-                          <FormDescription>
-                            Encrypt all files listed in the software update descriptor
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Individual file encryption checkboxes */}
-                  {descriptorRequiredFiles.length > 0 && !form.watch('encryptAllFiles') && (
-                    <div className="space-y-2">
-                      <FormLabel className="text-sm font-medium">Or encrypt individual files:</FormLabel>
-                      {descriptorRequiredFiles.map((fileName, index) => (
-                        <FormField
-                          key={fileName}
-                          control={form.control}
-                          name={`encryptFile_${index}`}
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                              <div className="space-y-1 leading-none">
-                                <FormLabel className="text-sm">{fileName}</FormLabel>
+                    <FormField
+                      control={form.control}
+                      name="descriptorEncrypted"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex flex-col space-y-2">
+                            <Button
+                              type="button"
+                              variant={field.value ? "default" : "outline"}
+                              onClick={() => field.onChange(!field.value)}
+                              className={`justify-start h-auto p-4 ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className={`w-4 h-4 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
+                                <div className="text-left">
+                                  <div className="font-medium">Encrypt Descriptor</div>
+                                  <div className="text-xs opacity-80">Encrypt the software update descriptor file</div>
+                                </div>
                               </div>
-                            </FormItem>
-                          )}
-                        />
-                      ))}
+                            </Button>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="encryptAllFiles"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex flex-col space-y-2">
+                            <Button
+                              type="button"
+                              variant={field.value ? "default" : "outline"}
+                              onClick={() => field.onChange(!field.value)}
+                              className={`justify-start h-auto p-4 ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className={`w-4 h-4 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
+                                <div className="text-left">
+                                  <div className="font-medium">Encrypt All Files</div>
+                                  <div className="text-xs opacity-80">Encrypt all files listed in the software update descriptor</div>
+                                </div>
+                              </div>
+                            </Button>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Individual file encryption options */}
+                  {descriptorRequiredFiles.length > 0 && !form.watch('encryptAllFiles') && (
+                    <div className="space-y-3">
+                      <FormLabel className="text-sm font-medium">Or encrypt individual files:</FormLabel>
+                      <div className="space-y-2">
+                        {descriptorRequiredFiles.map((fileName, index) => (
+                          <FormField
+                            key={fileName}
+                            control={form.control}
+                            name={`encryptFile_${index}`}
+                            render={({ field }) => (
+                              <Button
+                                type="button"
+                                variant={field.value ? "default" : "outline"}
+                                onClick={() => field.onChange(!field.value)}
+                                className={`justify-start h-auto p-3 w-full ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <div className={`w-3 h-3 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
+                                  <div className="text-left font-medium text-sm">{fileName}</div>
+                                </div>
+                              </Button>
+                            )}
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

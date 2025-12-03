@@ -37,11 +37,11 @@ export default function UpdatePacksPage() {
   // Fetch all update packs from all DMS instances
   const { data: allUpdatePacks = [], isLoading, error } = useQuery<(UpdatePack & { dmsId: string; dmsName: string })[], Error>({
     queryKey: ['allUpdatePacks'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user?.access_token || availableDms.length === 0) return [];
 
       const allPacksPromises = availableDms.map(dms =>
-        fetchUpdatePacks({ dmsId: dms.id, accessToken: user.access_token! })
+        fetchUpdatePacks({ dmsId: dms.id, accessToken: user.access_token! }, { signal })
           .then(packs => packs.map(pack => ({ ...pack, dmsId: dms.id, dmsName: dms.name })))
           .catch(() => []) // Return empty array on error for this DMS
       );
@@ -208,7 +208,9 @@ export default function UpdatePacksPage() {
                           ) : (
                             <div className="flex items-center gap-1 text-destructive">
                               <XCircle className="h-4 w-4" />
-                              <span className="text-xs">Error</span>
+                              <span className="text-xs">
+                                {pack.generationError || `Error creating Version ${pack.version}, please create a new version`}
+                              </span>
                             </div>
                           )}
                         </TableCell>

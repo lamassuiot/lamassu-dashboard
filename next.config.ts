@@ -3,7 +3,7 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: 'export', // Add this line to enable static HTML export
+  output: process.env.NODE_ENV === 'production' ? 'export' : undefined, // Only use static export in production
   typescript: {
     ignoreBuildErrors: true,
   },

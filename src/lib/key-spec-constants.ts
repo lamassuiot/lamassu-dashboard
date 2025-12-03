@@ -17,4 +17,19 @@ export const ECDSA_CURVE_OPTIONS = [
   { value: 'P-521', label: 'P-521 (NIST P-521, secp521r1)' },
 ];
 
+export const SYM_KEY_ALGORITHMS: Record<string, string> = {
+  'AES_256_CBC': 'AES-256 CBC',
+  'AES_256_CTR': 'AES-256 CTR',
+  'AES_256_GCM': 'AES-256 GCM',
+  'AES_192_CBC': 'AES-192 CBC',
+  'AES_192_CTR': 'AES-192 CTR',
+  'AES_192_GCM': 'AES-192 GCM',
+  'AES_128_CBC': 'AES-128 CBC',
+  'AES_128_CTR': 'AES-128 CTR',
+  'AES_128_GCM': 'AES-128 GCM',
+  'Ascon128': 'Ascon-128',
+  'Ascon128a': 'Ascon-128a',
+  'Ascon80pq': 'Ascon-80pq',
+};
+
 

@@ -34,6 +34,7 @@ import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { JobWorkflowModal } from '@/components/devices/JobWorkflowModal';
 import { UpdateStatusTab } from '@/components/devices/UpdateStatusTab';
+import { transitionJob } from '@/lib/iot-api';
 
 
 interface CertificateHistoryEntry {
@@ -711,6 +712,44 @@ export default function DeviceDetailsClient() {
     setTimelineDisplayCount(prev => prev + 5);
   };
 
+  const handleJobTransition = async (jobId: string, targetState: string) => {
+    if (!user?.access_token) {
+      toast({
+        title: 'Authentication Error',
+        description: 'You must be logged in to trigger a job transition.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await transitionJob({
+        jobId,
+        state: targetState,
+        message: `Manually transitioned to ${targetState} via dashboard`,
+        progress: 0,
+        accessToken: user.access_token,
+      });
+
+      toast({
+        title: 'Transition Successful',
+        description: `Job transitioned to ${targetState}.`,
+      });
+
+      // Refresh device data to show updated job status
+      if (deviceId) {
+        fetchDeviceDetails();
+      }
+    } catch (error) {
+      console.error('Error transitioning job:', error);
+      toast({
+        title: 'Transition Failed',
+        description: error instanceof Error ? error.message : 'Failed to transition job.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const totalHistoryPages = Math.ceil(fullCertificateIdentityList.length / historyPageSize);
 
   if (isLoadingDevice || authLoading) {
@@ -879,6 +918,7 @@ export default function DeviceDetailsClient() {
             selectedJobId={selectedJobId}
             onWorkflowChange={setSelectedWorkflowName}
             onJobChange={setSelectedJobId}
+            onJobTransition={handleJobTransition}
           />
         </TabsContent>
 
@@ -931,6 +971,7 @@ export default function DeviceDetailsClient() {
               selectedJobId={selectedJobId}
               onWorkflowChange={setSelectedWorkflowName}
               onJobChange={setSelectedJobId}
+              onJobTransition={handleJobTransition}
             />
           </div>
         </TabsContent>

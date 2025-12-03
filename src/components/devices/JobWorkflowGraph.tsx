@@ -749,6 +749,7 @@ const CustomNode = ({
   data,
   onStateClick,
   workflowDefinition,
+  onTransition,
 }: {
   data: {
     label: string;
@@ -766,6 +767,7 @@ const CustomNode = ({
   };
   onStateClick?: (stateData: any) => void;
   workflowDefinition?: DeviceJobWorkflow;
+  onTransition?: (targetState: string) => void;
 }) => {
   const { label, icon: Icon, isVisited, isTerminal, isError, isCurrent, lastEvent, currentState, jobHistory = [] } = data;
   
@@ -902,29 +904,6 @@ const CustomNode = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          
-          {/* Current state + Developer eligible = add play button below with its own tooltip */}
-          {isCurrentState && data.eligibleType === 'WFX' && (
-            <TooltipProvider delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      console.log('Future transition button - will trigger workflow state transition');
-                    }}
-                    title="Trigger transition (Developer action)"
-                  >
-                    <Play className="w-2.5 h-2.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs">
-                  Click to trigger transition
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
         </div>
       )}
       
@@ -1065,6 +1044,53 @@ const CustomNode = ({
           })()}
         </span>
       </div>
+      
+      {/* Transition Action Button - Bottom right inside card for current WFX state */}
+      {isCurrentState && data.eligibleType === 'WFX' && onTransition && (
+        <div className="absolute bottom-1 right-1 z-20">
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="bg-primary text-primary-foreground hover:bg-primary/80 active:scale-95 rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:shadow transition-all duration-150 flex items-center gap-0.5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('[Transition Button] Clicked for state:', label);
+                    console.log('[Transition Button] workflowDefinition:', workflowDefinition);
+                    console.log('[Transition Button] onTransition:', onTransition);
+                    // Find the WFX-eligible transition FROM the current state
+                    if (workflowDefinition?.transitions) {
+                      console.log('[Transition Button] All transitions:', workflowDefinition.transitions);
+                      const wfxTransition = workflowDefinition.transitions.find(
+                        (t: any) => 
+                          t.from === label && 
+                          t.eligible?.toUpperCase() === 'WFX' &&
+                          t.from !== t.to &&
+                          t.action?.toUpperCase() !== 'IMMEDIATE'
+                      );
+                      console.log('[Transition Button] Found WFX transition:', wfxTransition);
+                      if (wfxTransition) {
+                        console.log('[Transition Button] Calling onTransition with:', wfxTransition.to);
+                        onTransition(wfxTransition.to);
+                      } else {
+                        console.warn('No valid WFX transition found from state:', label);
+                      }
+                    } else {
+                      console.warn('[Transition Button] No transitions in workflowDefinition');
+                    }
+                  }}
+                >
+                  <Play className="w-2.5 h-2.5 fill-current" />
+                  Next
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Advance to next state
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
     </div>
   );
 
@@ -1203,9 +1229,10 @@ interface JobWorkflowGraphProps {
   workflow: DeviceJobWorkflow;
   jobHistory?: JobHistoryEntry[];
   currentState?: string;
+  onTransition?: (targetState: string) => void;
 }
 
-export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jobHistory = [], currentState }) => {
+export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jobHistory = [], currentState, onTransition }) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedState, setSelectedState] = useState<any>(null);
@@ -1214,12 +1241,20 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
     setSelectedState(stateData);
   };
 
+  // Resolve the workflow definition - use passed workflow if it has states, otherwise fall back to hardcoded
+  const resolvedWorkflow = useMemo(() => {
+    if (workflow?.states?.length) {
+      return workflow;
+    }
+    if (workflow?.name === 'wfx.workflow.dau.direct') return directWorkflow as DeviceJobWorkflow;
+    if (workflow?.name === 'wfx.workflow.dau.phased') return phasedWorkflow as DeviceJobWorkflow;
+    return null;
+  }, [workflow]);
+
   const layoutElements = useMemo(() => {
-    let workflowDefinition: DeviceJobWorkflow | null = workflow;
-    if (!workflowDefinition?.states?.length) {
-      if (workflow.name === 'wfx.workflow.dau.direct') workflowDefinition = directWorkflow as DeviceJobWorkflow;
-      else if (workflow.name === 'wfx.workflow.dau.phased') workflowDefinition = phasedWorkflow as DeviceJobWorkflow;
-      else return { nodes: [], edges: [] };
+    const workflowDefinition = resolvedWorkflow;
+    if (!workflowDefinition) {
+      return { nodes: [], edges: [] };
     }
 
     // Get unique states from history, filtering out any invalid entries
@@ -1326,7 +1361,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
       });
 
     return getLayoutedElements(initialNodes, initialEdges, historyStates, jobHistory, mainFlowStates, workflowDefinition);
-  }, [workflow, jobHistory, currentState]);
+  }, [resolvedWorkflow, jobHistory, currentState]);
 
   useEffect(() => {
     setNodes(layoutElements.nodes);
@@ -1337,8 +1372,8 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
   const handleEdgesChange: OnEdgesChange = (changes) => setEdges((eds) => applyEdgeChanges(changes, eds));
 
   const nodeTypes = useMemo(() => ({
-    custom: (props: any) => <CustomNode {...props} onStateClick={handleStateClick} workflowDefinition={workflow} />
-  }), [workflow]);
+    custom: (props: any) => <CustomNode {...props} onStateClick={handleStateClick} workflowDefinition={resolvedWorkflow} onTransition={onTransition} />
+  }), [resolvedWorkflow, onTransition]);
 
   const edgeTypes = useMemo(() => ({ 
     leftDown: LeftDownEdge, 

@@ -88,6 +88,12 @@ const generateRandomKey = (algorithm: string): string => {
   return btoa(binary);
 };
 
+// Utility function to validate hex string
+const isValidHex = (hex: string): boolean => {
+  const cleanHex = hex.replace(/\s/g, '').replace(/^0x/i, '');
+  return /^[0-9a-fA-F]*$/.test(cleanHex) && cleanHex.length % 2 === 0 && cleanHex.length > 0;
+};
+
 // Utility function to convert hex to base64
 const hexToBase64 = (hex: string): string => {
   const cleanHex = hex.replace(/\s/g, '').replace(/^0x/i, '');
@@ -163,7 +169,7 @@ export default function CreateSymKeyPage() {
         // Generate a new key
         keyValue = generateRandomKey(keyVariant);
       } else if (selectedMode === 'import') {
-        // Import key - convert to base64 if needed
+        // Import key - validate hex format and send as hex
         if (!importKeyValue.trim()) {
           toast({ title: "Validation Error", description: "Key value is required for import.", variant: "destructive" });
           setIsSubmitting(false);
@@ -171,7 +177,12 @@ export default function CreateSymKeyPage() {
         }
         
         if (keyFormat === 'hex') {
-          keyValue = hexToBase64(importKeyValue);
+          if (!isValidHex(importKeyValue)) {
+            toast({ title: "Validation Error", description: "Invalid hex format. Please enter a valid hexadecimal string.", variant: "destructive" });
+            setIsSubmitting(false);
+            return;
+          }
+          keyValue = importKeyValue.trim().replace(/\s/g, '').replace(/^0x/i, '');
         } else {
           keyValue = importKeyValue;
         }
