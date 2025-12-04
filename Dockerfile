@@ -1,10 +1,14 @@
 # Stage 1: Build the Next.js application
-FROM node:20-alpine AS builder
+FROM node:24 AS builder
+
+# Install pnpm via wget script and set PATH
+ENV PNPM_HOME="/root/.local/share/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
 
 # Set working directory
 WORKDIR /app
-
-RUN apk add --no-cache git
+RUN apt update && apt install -y git 
 
 # Copy package.json and pnpm-lock.yaml
 COPY package*.json ./
