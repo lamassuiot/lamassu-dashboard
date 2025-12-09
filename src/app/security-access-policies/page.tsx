@@ -1,72 +1,442 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Shield, Plus, FileText, User, TestTube, Edit, Trash2, Copy, Download, Upload, UserCog, Key } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Shield, Plus, FileText, Users, TestTube, Trash2, Download, Upload, RefreshCw, AlertCircle, Key, User, Fingerprint } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import Link from 'next/link';
-import { AdvancedTestingComponent } from './components/AdvancedTestingComponent';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import RelationshipsFlowDiagram from '@/components/shared/RelationshipsFlowDiagram';
 
-// Sample data for existing policies
-const samplePolicies = [
-  {
-    id: 'policy-1',
-    name: 'CA Administrator Policy',
-    effect: 'Allow',
-    actions: ['lamassu:sign_certificate', 'lamassu:revoke_certificate'],
-    resources: ['lamassu.io/v1/ca/*', 'lamassu.io/v1/ca/certificates/*'],
-    description: 'Allows CA administrators to sign and revoke certificates',
-    created: '2024-10-01T10:00:00Z',
-    lastModified: '2024-10-01T15:30:00Z'
-  },
-  {
-    id: 'policy-2',
-    name: 'Auditor Read-Only Policy',
-    effect: 'Allow',
-    actions: ['lamassu:read_certificate', 'lamassu:read_crl'],
-    resources: ['lamassu.io/v1/ca/certificates/*', 'lamassu.io/v1/ca/crl/*'],
-    description: 'Allows auditors to read certificates and CRLs',
-    created: '2024-09-28T14:00:00Z',
-    lastModified: '2024-09-28T14:00:00Z'
-  }
-];
+import { PoliciesTable } from './components/PoliciesTable';
+import { MembershipsTable } from './components/MembershipsTable';
+import { AddPolicyDialog } from './components/AddPolicyDialog';
+import { AddMembershipDialog } from './components/AddMembershipDialog';
+import { AccessCheckPanel } from './components/AccessCheckPanel';
+import { AdvancedTestingComponent } from './components/AdvancedTestingComponent';
+import { PrincipalsTable } from './components/PrincipalsTable';
+import { AddPrincipalDialog } from './components/AddPrincipalDialog';
+import { PrincipalPoliciesDialog } from './components/PrincipalPoliciesDialog';
+import { AuthTestPanel } from './components/AuthTestPanel';
 
-// Sample data for existing principals
-const samplePrincipals = [
-  {
-    id: 'principal-1',
-    name: 'Alice Certificate Principal',
-    type: 'certificate',
-    subject: 'cn=alice@example.com,ou=engineering',
-    ski: '1234567890abcdef1234567890abcdef12345678',
-    created: '2024-10-01T09:00:00Z'
-  },
-  {
-    id: 'principal-2',
-    name: 'Admin JWT Principal',
-    type: 'jwt',
-    subject: 'sub=admin@company.com',
-    roles: ['ca-admin', 'super-admin'],
-    rolesClaim: 'roles',
-    created: '2024-09-30T16:00:00Z'
-  },
-  {
-    id: 'principal-3',
-    name: 'Auditor JWT Principal',
-    type: 'jwt',
-    subject: 'sub=auditor@company.com',
-    roles: ['auditor'],
-    rolesClaim: 'roles',
-    created: '2024-09-29T11:00:00Z'
-  }
-];
+import {
+  listPolicies,
+  addPolicy,
+  deletePolicy,
+  addMembership,
+  deleteMembership,
+  checkAccess,
+  bulkLoadPolicies,
+  clearAllPolicies,
+  listPrincipals,
+  createPrincipal,
+  updatePrincipal,
+  deletePrincipal,
+  listPrincipalPolicies,
+  assignPolicyToPrincipal,
+  removePolicyFromPrincipal,
+  checkAccessWithAuth,
+  resolvePrincipal,
+} from '@/lib/authz-api';
+
+import type {
+  PolicyResponse,
+  PrincipalMembershipResponse,
+  ResourceHierarchyResponse,
+  AddPolicyRequest,
+  AddMembershipRequest,
+  CheckAccessRequest,
+  PrincipalDefinition,
+  CreatePrincipalRequest,
+  Policy,
+  CheckAccessWithAuthRequest,
+  ResolvePrincipalRequest,
+} from '@/types/authorization';
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function SecurityAccessPoliciesPage() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [policies, setPolicies] = useState<PolicyResponse[]>([]);
+  const [memberships, setMemberships] = useState<PrincipalMembershipResponse[]>([]);
+  const [resourceHierarchy, setResourceHierarchy] = useState<ResourceHierarchyResponse[]>([]);
+  const [principals, setPrincipals] = useState<PrincipalDefinition[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Dialog states
+  const [addPolicyOpen, setAddPolicyOpen] = useState(false);
+  const [addMembershipOpen, setAddMembershipOpen] = useState(false);
+  const [addPrincipalOpen, setAddPrincipalOpen] = useState(false);
+  const [principalPoliciesOpen, setPrincipalPoliciesOpen] = useState(false);
+  const [selectedPrincipal, setSelectedPrincipal] = useState<PrincipalDefinition | null>(null);
+  const [selectedPrincipalPolicies, setSelectedPrincipalPolicies] = useState<string[]>([]);
+  const [isAddingPolicy, setIsAddingPolicy] = useState(false);
+  const [isAddingMembership, setIsAddingMembership] = useState(false);
+  const [isAddingPrincipal, setIsAddingPrincipal] = useState(false);
+  const [isDeletingPolicy, setIsDeletingPolicy] = useState(false);
+  const [isDeletingMembership, setIsDeletingMembership] = useState(false);
+  const [isDeletingPrincipal, setIsDeletingPrincipal] = useState(false);
+
+  // Clear all confirmation dialog
+  const [clearAllOpen, setClearAllOpen] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
+
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const token = user?.access_token;
+
+  const fetchPolicies = useCallback(async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    setError(null);
+
+    try {
+      const [policiesResponse, principalsResponse] = await Promise.all([
+        listPolicies(token),
+        listPrincipals(undefined, token).catch(() => ({ principals: [] })),
+      ]);
+      setPolicies(policiesResponse.policies || []);
+      setMemberships(policiesResponse.principal_memberships || []);
+      setResourceHierarchy(policiesResponse.resource_hierarchy || []);
+      setPrincipals(principalsResponse.principals || []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load policies';
+      setError(message);
+      toast({
+        title: 'Error loading policies',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [token, toast]);
+
+  useEffect(() => {
+    fetchPolicies();
+  }, [fetchPolicies]);
+
+  const handleAddPolicy = async (policy: AddPolicyRequest) => {
+    setIsAddingPolicy(true);
+    try {
+      await addPolicy(policy, token);
+      toast({
+        title: 'Policy added',
+        description: `Policy for ${policy.subject} added successfully`,
+      });
+      setAddPolicyOpen(false);
+      await fetchPolicies(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add policy';
+      toast({
+        title: 'Error adding policy',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAddingPolicy(false);
+    }
+  };
+
+  const handleDeletePolicy = async (policy: PolicyResponse) => {
+    setIsDeletingPolicy(true);
+    try {
+      await deletePolicy(policy, token);
+      toast({
+        title: 'Policy deleted',
+        description: `Policy for ${policy.subject} deleted successfully`,
+      });
+      await fetchPolicies(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete policy';
+      toast({
+        title: 'Error deleting policy',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingPolicy(false);
+    }
+  };
+
+  const handleAddMembership = async (membership: AddMembershipRequest) => {
+    setIsAddingMembership(true);
+    try {
+      await addMembership(membership, token);
+      toast({
+        title: 'Membership added',
+        description: `${membership.principal} added to ${membership.scope}`,
+      });
+      setAddMembershipOpen(false);
+      await fetchPolicies(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add membership';
+      toast({
+        title: 'Error adding membership',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAddingMembership(false);
+    }
+  };
+
+  const handleDeleteMembership = async (membership: PrincipalMembershipResponse) => {
+    setIsDeletingMembership(true);
+    try {
+      await deleteMembership(membership, token);
+      toast({
+        title: 'Membership deleted',
+        description: `${membership.principal} removed from ${membership.scope}`,
+      });
+      await fetchPolicies(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete membership';
+      toast({
+        title: 'Error deleting membership',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingMembership(false);
+    }
+  };
+
+  const handleCheckAccess = async (request: CheckAccessRequest) => {
+    return await checkAccess(request, token);
+  };
+
+  // Principal management functions
+  const handleAddPrincipal = async (request: CreatePrincipalRequest) => {
+    setIsAddingPrincipal(true);
+    try {
+      await createPrincipal(request, token);
+      toast({
+        title: 'Principal added',
+        description: `Principal ${request.name} created successfully`,
+      });
+      setAddPrincipalOpen(false);
+      await fetchPolicies(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add principal';
+      toast({
+        title: 'Error adding principal',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAddingPrincipal(false);
+    }
+  };
+
+  const handleUpdatePrincipal = async (principal: PrincipalDefinition, enabled: boolean) => {
+    try {
+      await updatePrincipal(principal.name, { enabled }, token);
+
+      toast({
+        title: 'Principal updated',
+        description: `Principal ${principal.name} ${enabled ? 'enabled' : 'disabled'}`,
+      });
+      await fetchPolicies(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update principal';
+      toast({
+        title: 'Error updating principal',
+        description: message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeletePrincipal = async (principal: PrincipalDefinition) => {
+    setIsDeletingPrincipal(true);
+    try {
+      await deletePrincipal(principal.name, token);
+      toast({
+        title: 'Principal deleted',
+        description: `Principal ${principal.name} deleted successfully`,
+      });
+      await fetchPolicies(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete principal';
+      toast({
+        title: 'Error deleting principal',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingPrincipal(false);
+    }
+  };
+
+  const handleManagePrincipalPolicies = async (principal: PrincipalDefinition) => {
+    setSelectedPrincipal(principal);
+    try {
+      const response = await listPrincipalPolicies(principal.name, token);
+      // response is PrincipalPolicyAssignment[] - extract policy_ids
+      setSelectedPrincipalPolicies(response.map(p => p.policy_id));
+      setPrincipalPoliciesOpen(true);
+    } catch {
+      toast({
+        title: 'Error loading policies',
+        description: 'Failed to load assigned policies',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAssignPolicyToPrincipal = async (principalName: string, policyName: string) => {
+    await assignPolicyToPrincipal(principalName, { policy_id: policyName }, token);
+    toast({
+      title: 'Policy assigned',
+      description: `Policy ${policyName} assigned to ${principalName}`,
+    });
+  };
+
+  const handleRemovePolicyFromPrincipal = async (principalName: string, policyName: string) => {
+    await removePolicyFromPrincipal(principalName, policyName, token);
+    toast({
+      title: 'Policy removed',
+      description: `Policy ${policyName} removed from ${principalName}`,
+    });
+  };
+
+  const handleCheckAccessWithAuth = async (request: CheckAccessWithAuthRequest) => {
+    return await checkAccessWithAuth(request, token);
+  };
+
+  const handleResolvePrincipal = async (request: ResolvePrincipalRequest) => {
+    return await resolvePrincipal(request, token);
+  };
+
+  // Convert PolicyResponse to Policy for the dialog
+  const allPoliciesForAssignment: Policy[] = policies.map(p => ({
+    name: `${p.subject}:${p.object}:${p.action}`,
+    effect: 'allow',
+    resources: [p.object],
+    actions: [p.action],
+    conditions: {},
+  }));
+
+  const handleExport = () => {
+    // Generate CSV content from current policies and memberships
+    let csvContent = '# Policies\n';
+    policies.forEach(p => {
+      csvContent += `p,${p.subject},${p.object},${p.action},${p.hierarchy}\n`;
+    });
+    csvContent += '# Memberships\n';
+    memberships.forEach(m => {
+      csvContent += `g,${m.principal},${m.scope}\n`;
+    });
+
+    // Download as file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'policies-export.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Export complete',
+      description: 'Policies and memberships exported to CSV',
+    });
+  };
+
+  const handleImport = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const csvContent = event.target?.result as string;
+        try {
+          const result = await bulkLoadPolicies({ csv_content: csvContent }, token);
+          toast({
+            title: 'Import complete',
+            description: `Loaded ${result.policies_loaded} policies and ${result.memberships_loaded} memberships`,
+          });
+          await fetchPolicies(true);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Failed to import policies';
+          toast({
+            title: 'Import failed',
+            description: message,
+            variant: 'destructive',
+          });
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
+  const handleClearAll = async () => {
+    setIsClearingAll(true);
+    try {
+      await clearAllPolicies(token);
+      toast({
+        title: 'All policies cleared',
+        description: 'All policies and memberships have been removed',
+      });
+      setClearAllOpen(false);
+      await fetchPolicies(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to clear policies';
+      toast({
+        title: 'Error clearing policies',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsClearingAll(false);
+    }
+  };
+
+  const renderLoadingSkeleton = () => (
+    <div className="space-y-4">
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+    </div>
+  );
+
+  const renderError = () => (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+      <h3 className="text-lg font-semibold mb-2">Failed to load policies</h3>
+      <p className="text-muted-foreground mb-4">{error}</p>
+      <Button onClick={() => fetchPolicies()}>
+        <RefreshCw className="h-4 w-4 mr-2" />
+        Try Again
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -76,86 +446,137 @@ export default function SecurityAccessPoliciesPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Security Access & Policies</h1>
             <p className="text-muted-foreground">
-              Manage access control policies and principals for your PKI infrastructure
+              Manage ReBAC policies and memberships for your PKI infrastructure
             </p>
           </div>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleImport}>
             <Upload className="h-4 w-4 mr-2" />
             Import
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
             Export
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchPolicies(true)}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="policies">Policies</TabsTrigger>
           <TabsTrigger value="principals">Principals</TabsTrigger>
+          <TabsTrigger value="policies">Policies</TabsTrigger>
+          <TabsTrigger value="memberships">Memberships</TabsTrigger>
           <TabsTrigger value="relationships">Relationships</TabsTrigger>
           <TabsTrigger value="test">Test Access</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Principals</CardTitle>
+                <Key className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{principals.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Identity definitions
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Policies</CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{samplePolicies.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  Active access control policies
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{policies.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Active access control policies
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Principals</CardTitle>
-                <User className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Memberships</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{samplePrincipals.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  Registered identity principals
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{memberships.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Principal-scope assignments
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Certificate Principals</CardTitle>
-                <Key className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Hierarchical Policies</CardTitle>
+                <Shield className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {samplePrincipals.filter(p => p.type === 'certificate').length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  X.509 certificate-based
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {policies.filter(p => p.hierarchy === 'children').length}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Policies with child inheritance
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">JWT Principals</CardTitle>
-                <UserCog className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Resource Hierarchy</CardTitle>
+                <TestTube className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {samplePrincipals.filter(p => p.type === 'jwt').length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  JWT token-based
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{resourceHierarchy.length}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Parent-child relationships
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -163,70 +584,146 @@ export default function SecurityAccessPoliciesPage() {
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Recent Policy Changes</CardTitle>
-                <CardDescription>Latest modifications to access policies</CardDescription>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Common authorization management tasks</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-4 text-sm">
-                    <div className="flex h-2 w-2 rounded-full bg-green-500"></div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        CA Administrator Policy updated
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Added revoke_certificate action - 2 hours ago
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <div className="flex h-2 w-2 rounded-full bg-blue-500"></div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        New Auditor Read-Only Policy created
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Restricts auditor access to read operations - 1 day ago
-                      </p>
-                    </div>
-                  </div>
-                </div>
+              <CardContent className="space-y-2">
+                <Button className="w-full justify-start" variant="outline" onClick={() => setAddPrincipalOpen(true)}>
+                  <Key className="h-4 w-4 mr-2" />
+                  Add New Principal
+                </Button>
+                <Button className="w-full justify-start" variant="outline" onClick={() => setAddPolicyOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add New Policy
+                </Button>
+                <Button className="w-full justify-start" variant="outline" onClick={() => setAddMembershipOpen(true)}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Add Membership
+                </Button>
+                <Button className="w-full justify-start" variant="outline" onClick={() => setActiveTab('test')}>
+                  <TestTube className="h-4 w-4 mr-2" />
+                  Test Access Control
+                </Button>
+                <Button
+                  className="w-full justify-start text-destructive"
+                  variant="outline"
+                  onClick={() => setClearAllOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear All Policies
+                </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Recent Principal Activity</CardTitle>
-                <CardDescription>Latest principal registrations and updates</CardDescription>
+                <CardTitle>Policy Distribution</CardTitle>
+                <CardDescription>Breakdown of policy types by action</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-4 text-sm">
-                    <div className="flex h-2 w-2 rounded-full bg-green-500"></div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        Alice Certificate Principal registered
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        X.509 certificate-based identity - 3 hours ago
-                      </p>
-                    </div>
+                {isLoading ? (
+                  renderLoadingSkeleton()
+                ) : policies.length === 0 ? (
+                  <p className="text-center py-4 text-muted-foreground">No policies configured</p>
+                ) : (
+                  <div className="space-y-3">
+                    {Object.entries(
+                      policies.reduce((acc, p) => {
+                        acc[p.action] = (acc[p.action] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>)
+                    ).map(([action, count]) => (
+                      <div key={action} className="flex items-center justify-between">
+                        <Badge variant="outline">{action}</Badge>
+                        <span className="text-sm font-medium">{count} {count === 1 ? 'policy' : 'policies'}</span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <div className="flex h-2 w-2 rounded-full bg-blue-500"></div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        Admin JWT Principal updated
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Added super-admin role - 2 days ago
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
+
+          <AccessCheckPanel onCheckAccess={handleCheckAccess} />
+        </TabsContent>
+
+        <TabsContent value="principals" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Principal Definitions</h2>
+              <p className="text-muted-foreground">
+                Define identity matchers for OIDC, X.509, and API Key authentication
+              </p>
+            </div>
+            <Button onClick={() => setAddPrincipalOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Principal
+            </Button>
+          </div>
+
+          {/* Principal type summary cards */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">OIDC/JWT</CardTitle>
+                <User className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {principals.filter(p => p.type === 'oidc').length}
+                </div>
+                <p className="text-xs text-muted-foreground">OAuth/OpenID Connect identities</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">X.509 Certificates</CardTitle>
+                <Fingerprint className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {principals.filter(p => p.type === 'x509').length}
+                </div>
+                <p className="text-xs text-muted-foreground">Certificate-based identities</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">API Keys</CardTitle>
+                <Key className="h-4 w-4 text-orange-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {principals.filter(p => p.type === 'apikey').length}
+                </div>
+                <p className="text-xs text-muted-foreground">API key identities</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Principal Definitions</CardTitle>
+              <CardDescription>
+                Configure how authentication credentials are matched to principals
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                renderLoadingSkeleton()
+              ) : error ? (
+                renderError()
+              ) : (
+                <PrincipalsTable
+                  principals={principals}
+                  onDeletePrincipal={handleDeletePrincipal}
+                  onToggleEnabled={handleUpdatePrincipal}
+                  onManagePolicies={handleManagePrincipalPolicies}
+                  isDeleting={isDeletingPrincipal}
+                />
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="policies" className="space-y-6">
@@ -234,176 +731,71 @@ export default function SecurityAccessPoliciesPage() {
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Access Control Policies</h2>
               <p className="text-muted-foreground">
-                Define what actions are allowed on which resources
+                Define what subjects can perform which actions on resources
               </p>
             </div>
-            <Button asChild>
-              <Link href="/security-access-policies/policies/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Policy
-              </Link>
+            <Button onClick={() => setAddPolicyOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Policy
             </Button>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Existing Policies</CardTitle>
+              <CardTitle>Policies</CardTitle>
               <CardDescription>
-                Manage your access control policies
+                ReBAC policies defining subject-action-object relationships
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Policy Name</TableHead>
-                    <TableHead>Effect</TableHead>
-                    <TableHead>Actions</TableHead>
-                    <TableHead>Resources</TableHead>
-                    <TableHead>Last Modified</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {samplePolicies.map((policy) => (
-                    <TableRow key={policy.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{policy.name}</div>
-                          <div className="text-sm text-muted-foreground">{policy.description}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={policy.effect === 'Allow' ? 'default' : 'destructive'}>
-                          {policy.effect}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {policy.actions.map((action, i) => (
-                            <Badge key={i} variant="outline" className="text-xs">
-                              {action}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {policy.resources.map((resource, i) => (
-                            <div key={i} className="text-xs font-mono">
-                              {resource}
-                            </div>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {new Date(policy.lastModified).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {isLoading ? (
+                renderLoadingSkeleton()
+              ) : error ? (
+                renderError()
+              ) : (
+                <PoliciesTable
+                  policies={policies}
+                  onDeletePolicy={handleDeletePolicy}
+                  isDeleting={isDeletingPolicy}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="principals" className="space-y-6">
+        <TabsContent value="memberships" className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">Identity Principals</h2>
+              <h2 className="text-2xl font-bold tracking-tight">Principal Memberships</h2>
               <p className="text-muted-foreground">
-                Manage certificate and JWT-based identity principals
+                Assign principals to scopes to inherit permissions
               </p>
             </div>
-            <Button asChild>
-              <Link href="/security-access-policies/principals/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Register Principal
-              </Link>
+            <Button onClick={() => setAddMembershipOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Membership
             </Button>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Registered Principals</CardTitle>
+              <CardTitle>Memberships</CardTitle>
               <CardDescription>
-                View and manage identity principals that can be granted access
+                Principal-to-scope assignments for permission inheritance
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Principal Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Identity</TableHead>
-                    <TableHead>Details</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {samplePrincipals.map((principal) => (
-                    <TableRow key={principal.id}>
-                      <TableCell>
-                        <div className="font-medium">{principal.name}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={principal.type === 'certificate' ? 'default' : 'secondary'}>
-                          {principal.type === 'certificate' ? 'X.509 Cert' : 'JWT Token'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-mono text-sm">{principal.subject}</div>
-                      </TableCell>
-                      <TableCell>
-                        {principal.type === 'certificate' ? (
-                          <div className="text-xs">
-                            <div>SKI: {principal.ski?.substring(0, 16)}...</div>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            {principal.roles?.map((role, i) => (
-                              <Badge key={i} variant="outline" className="text-xs">
-                                {role}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {new Date(principal.created).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {isLoading ? (
+                renderLoadingSkeleton()
+              ) : error ? (
+                renderError()
+              ) : (
+                <MembershipsTable
+                  memberships={memberships}
+                  onDeleteMembership={handleDeleteMembership}
+                  isDeleting={isDeletingMembership}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -417,7 +809,7 @@ export default function SecurityAccessPoliciesPage() {
               </p>
             </div>
           </div>
-          
+
           <RelationshipsFlowDiagram />
         </TabsContent>
 
@@ -431,9 +823,70 @@ export default function SecurityAccessPoliciesPage() {
             </div>
           </div>
 
+          <AccessCheckPanel onCheckAccess={handleCheckAccess} />
+
+          <AuthTestPanel 
+            onCheckAccessWithAuth={handleCheckAccessWithAuth}
+            onResolvePrincipal={handleResolvePrincipal}
+          />
+
           <AdvancedTestingComponent />
         </TabsContent>
       </Tabs>
+
+      {/* Dialogs */}
+      <AddPolicyDialog
+        open={addPolicyOpen}
+        onOpenChange={setAddPolicyOpen}
+        onAddPolicy={handleAddPolicy}
+        isLoading={isAddingPolicy}
+      />
+
+      <AddMembershipDialog
+        open={addMembershipOpen}
+        onOpenChange={setAddMembershipOpen}
+        onAddMembership={handleAddMembership}
+        isLoading={isAddingMembership}
+      />
+
+      <AddPrincipalDialog
+        open={addPrincipalOpen}
+        onOpenChange={setAddPrincipalOpen}
+        onAddPrincipal={handleAddPrincipal}
+        isLoading={isAddingPrincipal}
+      />
+
+      <PrincipalPoliciesDialog
+        open={principalPoliciesOpen}
+        onOpenChange={setPrincipalPoliciesOpen}
+        principal={selectedPrincipal}
+        assignedPolicies={selectedPrincipalPolicies}
+        allPolicies={allPoliciesForAssignment}
+        onAssignPolicy={handleAssignPolicyToPrincipal}
+        onRemovePolicy={handleRemovePolicyFromPrincipal}
+      />
+
+      <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Policies?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will permanently delete all policies and memberships. This cannot be undone.
+              Consider exporting your current policies before proceeding.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearAll}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isClearingAll}
+            >
+              {isClearingAll ? 'Clearing...' : 'Clear All'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,0 +1,501 @@
+import { handleApiError } from "./api-domains";
+import type {
+  HealthResponse,
+  ListPoliciesResponse,
+  AddPolicyRequest,
+  AddPolicyResponse,
+  DeletePolicyRequest,
+  MessageResponse,
+  BulkLoadRequest,
+  BulkLoadResponse,
+  AddPolicyWithMetaRequest,
+  AddPolicyWithMetaResponse,
+  ListPolicyIDsResponse,
+  GetPoliciesByIDResponse,
+  DeleteByIDResponse,
+  ListPrincipalIDsResponse,
+  AddMembershipRequest,
+  AddMembershipResponse,
+  DeleteMembershipRequest,
+  AddMembershipWithMetaRequest,
+  AddMembershipWithMetaResponse,
+  CheckAccessRequest,
+  CheckAccessResponse,
+  ListResourcesRequest,
+  ListResourcesResponse,
+  GetFilterRequest,
+  GetFilterResponse,
+  // Principal types
+  PrincipalDefinition,
+  CreatePrincipalRequest,
+  UpdatePrincipalRequest,
+  ListPrincipalsResponse,
+  PrincipalPolicyAssignment,
+  AssignPolicyToPrincipalRequest,
+  ResolvePrincipalRequest,
+  ResolvePrincipalResponse,
+  CheckAccessWithAuthRequest,
+  CheckAccessWithAuthResponse,
+  PolicyPrincipalMapping,
+  CreateMappingRequest,
+  ListMappingsResponse,
+  PrincipalType,
+} from "@/types/authorization";
+
+const getAuthzApiUrl = (): string => {
+  // Check for configuration from config.js on the window object
+  if (typeof window !== 'undefined' && (window as unknown as { lamassuConfig?: { LAMASSU_AUTHZ_API?: string } }).lamassuConfig?.LAMASSU_AUTHZ_API) {
+    return (window as unknown as { lamassuConfig: { LAMASSU_AUTHZ_API: string } }).lamassuConfig.LAMASSU_AUTHZ_API;
+  }
+  // Fallback to the Next.js public environment variable
+  if (process.env.NEXT_PUBLIC_AUTHZ_API_URL) {
+    return process.env.NEXT_PUBLIC_AUTHZ_API_URL;
+  }
+  // Default fallback
+  return '';
+};
+
+const getHeaders = (token?: string): HeadersInit => {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
+// Health
+export async function checkAuthzHealth(token?: string): Promise<HealthResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/health`, {
+    method: "GET",
+    headers: getHeaders(token),
+  });
+  return handleApiError(response, "Health check failed");
+}
+
+// Policies
+export async function listPolicies(token?: string): Promise<ListPoliciesResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/policies`, {
+    method: "GET",
+    headers: getHeaders(token),
+  });
+  return handleApiError(response, "Failed to list policies");
+}
+
+export async function addPolicy(
+  request: AddPolicyRequest,
+  token?: string
+): Promise<AddPolicyResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/policies`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to add policy");
+}
+
+export async function deletePolicy(
+  request: DeletePolicyRequest,
+  token?: string
+): Promise<MessageResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/policies`, {
+    method: "DELETE",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to delete policy");
+}
+
+export async function bulkLoadPolicies(
+  request: BulkLoadRequest,
+  token?: string
+): Promise<BulkLoadResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/policies/bulk`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to bulk load policies");
+}
+
+export async function clearAllPolicies(token?: string): Promise<MessageResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/policies/all`, {
+    method: "DELETE",
+    headers: getHeaders(token),
+  });
+  return handleApiError(response, "Failed to clear policies");
+}
+
+// Policy Metadata
+export async function addPolicyWithMeta(
+  request: AddPolicyWithMetaRequest,
+  token?: string
+): Promise<AddPolicyWithMetaResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/policies/meta`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to add policy with metadata");
+}
+
+export async function listPolicyIDs(token?: string): Promise<ListPolicyIDsResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/policies/ids`, {
+    method: "GET",
+    headers: getHeaders(token),
+  });
+  return handleApiError(response, "Failed to list policy IDs");
+}
+
+export async function getPoliciesByPolicyID(
+  policyId: string,
+  token?: string
+): Promise<GetPoliciesByIDResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/policies/by-policy-id/${encodeURIComponent(policyId)}`,
+    {
+      method: "GET",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to get policies by policy ID");
+}
+
+export async function deletePoliciesByPolicyID(
+  policyId: string,
+  token?: string
+): Promise<DeleteByIDResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/policies/by-policy-id/${encodeURIComponent(policyId)}`,
+    {
+      method: "DELETE",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to delete policies by policy ID");
+}
+
+export async function getPoliciesByPrincipalID(
+  principalId: string,
+  token?: string
+): Promise<GetPoliciesByIDResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/policies/by-principal-id/${encodeURIComponent(principalId)}`,
+    {
+      method: "GET",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to get policies by principal ID");
+}
+
+export async function deletePoliciesByPrincipalID(
+  principalId: string,
+  token?: string
+): Promise<DeleteByIDResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/policies/by-principal-id/${encodeURIComponent(principalId)}`,
+    {
+      method: "DELETE",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to delete policies by principal ID");
+}
+
+// Memberships
+export async function addMembership(
+  request: AddMembershipRequest,
+  token?: string
+): Promise<AddMembershipResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/memberships`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to add membership");
+}
+
+export async function deleteMembership(
+  request: DeleteMembershipRequest,
+  token?: string
+): Promise<MessageResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/memberships`, {
+    method: "DELETE",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to delete membership");
+}
+
+export async function addMembershipWithMeta(
+  request: AddMembershipWithMetaRequest,
+  token?: string
+): Promise<AddMembershipWithMetaResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/memberships/meta`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to add membership with metadata");
+}
+
+export async function listPrincipalIDs(token?: string): Promise<ListPrincipalIDsResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/principals/ids`, {
+    method: "GET",
+    headers: getHeaders(token),
+  });
+  return handleApiError(response, "Failed to list principal IDs");
+}
+
+// Access Control
+export async function checkAccess(
+  request: CheckAccessRequest,
+  token?: string
+): Promise<CheckAccessResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/check`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to check access");
+}
+
+export async function listResources(
+  request: ListResourcesRequest,
+  token?: string
+): Promise<ListResourcesResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/list`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to list resources");
+}
+
+export async function getFilter(
+  request: GetFilterRequest,
+  token?: string
+): Promise<GetFilterResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/filter`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to get filter");
+}
+
+// =============================================================================
+// PRINCIPAL DEFINITIONS
+// =============================================================================
+
+// List all principals
+export async function listPrincipals(
+  type?: PrincipalType,
+  token?: string
+): Promise<ListPrincipalsResponse> {
+  const url = type
+    ? `${getAuthzApiUrl()}/v1/principals?type=${encodeURIComponent(type)}`
+    : `${getAuthzApiUrl()}/v1/principals`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: getHeaders(token),
+  });
+  return handleApiError(response, "Failed to list principals");
+}
+
+// Get a specific principal by ID
+export async function getPrincipal(
+  principalName: string,
+  token?: string
+): Promise<PrincipalDefinition> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/principals/${encodeURIComponent(principalName)}`,
+    {
+      method: "GET",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to get principal");
+}
+
+// Create a new principal
+export async function createPrincipal(
+  request: CreatePrincipalRequest,
+  token?: string
+): Promise<PrincipalDefinition> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/principals`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to create principal");
+}
+
+// Update a principal
+export async function updatePrincipal(
+  principalName: string,
+  request: UpdatePrincipalRequest,
+  token?: string
+): Promise<PrincipalDefinition> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/principals/${encodeURIComponent(principalName)}`,
+    {
+      method: "PATCH",
+      headers: getHeaders(token),
+      body: JSON.stringify(request),
+    }
+  );
+  return handleApiError(response, "Failed to update principal");
+}
+
+// Delete a principal
+export async function deletePrincipal(
+  principalName: string,
+  token?: string
+): Promise<MessageResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/principals/${encodeURIComponent(principalName)}`,
+    {
+      method: "DELETE",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to delete principal");
+}
+
+// =============================================================================
+// PRINCIPAL POLICY ASSIGNMENTS
+// =============================================================================
+
+// List policies assigned to a principal
+export async function listPrincipalPolicies(
+  principalName: string,
+  token?: string
+): Promise<PrincipalPolicyAssignment[]> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/principals/${encodeURIComponent(principalName)}/policies`,
+    {
+      method: "GET",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to list principal policies");
+}
+
+// Assign a policy to a principal
+export async function assignPolicyToPrincipal(
+  principalName: string,
+  request: AssignPolicyToPrincipalRequest,
+  token?: string
+): Promise<MessageResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/principals/${encodeURIComponent(principalName)}/policies`,
+    {
+      method: "POST",
+      headers: getHeaders(token),
+      body: JSON.stringify(request),
+    }
+  );
+  return handleApiError(response, "Failed to assign policy to principal");
+}
+
+// Remove a policy from a principal
+export async function removePolicyFromPrincipal(
+  principalName: string,
+  policyId: string,
+  token?: string
+): Promise<MessageResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/principals/${encodeURIComponent(principalName)}/policies/${encodeURIComponent(policyId)}`,
+    {
+      method: "DELETE",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to remove policy from principal");
+}
+
+// =============================================================================
+// PRINCIPAL RESOLUTION
+// =============================================================================
+
+// Resolve principals from auth context
+export async function resolvePrincipal(
+  request: ResolvePrincipalRequest,
+  token?: string
+): Promise<ResolvePrincipalResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/principals/resolve`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to resolve principal");
+}
+
+// Check access with auth context
+export async function checkAccessWithAuth(
+  request: CheckAccessWithAuthRequest,
+  token?: string
+): Promise<CheckAccessWithAuthResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/check/with-auth`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to check access with auth");
+}
+
+// =============================================================================
+// POLICY-PRINCIPAL MAPPINGS
+// =============================================================================
+
+// List all mappings
+export async function listMappings(
+  policyId?: string,
+  principalId?: string,
+  token?: string
+): Promise<ListMappingsResponse> {
+  const params = new URLSearchParams();
+  if (policyId) params.append("policy_id", policyId);
+  if (principalId) params.append("principal_id", principalId);
+  const queryString = params.toString();
+  const url = queryString
+    ? `${getAuthzApiUrl()}/v1/mappings?${queryString}`
+    : `${getAuthzApiUrl()}/v1/mappings`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: getHeaders(token),
+  });
+  return handleApiError(response, "Failed to list mappings");
+}
+
+// Create a mapping
+export async function createMapping(
+  request: CreateMappingRequest,
+  token?: string
+): Promise<PolicyPrincipalMapping> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/mappings`, {
+    method: "POST",
+    headers: getHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, "Failed to create mapping");
+}
+
+// Delete a mapping
+export async function deleteMapping(
+  policyId: string,
+  principalId: string,
+  token?: string
+): Promise<MessageResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/mappings/${encodeURIComponent(policyId)}/${encodeURIComponent(principalId)}`,
+    {
+      method: "DELETE",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to delete mapping");
+}
