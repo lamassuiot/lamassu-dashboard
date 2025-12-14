@@ -8,9 +8,14 @@ import {
   createKmsKey,
   importKmsKey,
   deleteKmsKey,
+  signWithKmsKey,
+  verifyWithKmsKey,
+  updateKeyAliases,
+  updateKeyTags,
   type ApiKmsKey,
   type CreateKmsKeyPayload,
   type ImportKmsKeyPayload,
+  type PatchOperation,
 } from './kms-data'
 import { ApiCryptoEngine } from '@/types/crypto-engine'
 
@@ -437,6 +442,332 @@ describe('kms-data', () => {
       const result = await createKmsKey(payload, MOCK_TOKEN)
 
       expect(result.has_private_key).toBe(false)
+    })
+  })
+
+  describe('signWithKmsKey', () => {
+    const keyId = 'key-123'
+    const signPayload = {
+      data: 'aGVsbG8gd29ybGQ=', // base64 encoded "hello world"
+      algorithm: 'SHA256WithRSA',
+    }
+
+    it('should sign data successfully', async () => {
+      const mockResponse = {
+        signature: 'c2lnbmF0dXJl', // base64 encoded signature
+      }
+
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/sign`, () => {
+          return HttpResponse.json(mockResponse)
+        })
+      )
+
+      const result = await signWithKmsKey(keyId, signPayload, MOCK_TOKEN)
+
+      expect(result).toBeDefined()
+      expect(result.signature).toBe('c2lnbmF0dXJl')
+    })
+
+    it('should send correct signing payload', async () => {
+      let capturedBody: any
+
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/sign`, async ({ request }) => {
+          capturedBody = await request.json()
+          return HttpResponse.json({ signature: 'test' })
+        })
+      )
+
+      await signWithKmsKey(keyId, signPayload, MOCK_TOKEN)
+
+      expect(capturedBody).toEqual(signPayload)
+    })
+
+    it('should handle signing error with err field', async () => {
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/sign`, () => {
+          return HttpResponse.json(
+            { err: 'Key not found' },
+            { status: 404 }
+          )
+        })
+      )
+
+      await expect(signWithKmsKey(keyId, signPayload, MOCK_TOKEN)).rejects.toThrow(
+        'Key not found'
+      )
+    })
+
+    it('should handle signing error with message field', async () => {
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/sign`, () => {
+          return HttpResponse.json(
+            { message: 'Invalid algorithm' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(signWithKmsKey(keyId, signPayload, MOCK_TOKEN)).rejects.toThrow(
+        'Invalid algorithm'
+      )
+    })
+
+    it('should handle signing error without error details', async () => {
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/sign`, () => {
+          return HttpResponse.json({}, { status: 500 })
+        })
+      )
+
+      await expect(signWithKmsKey(keyId, signPayload, MOCK_TOKEN)).rejects.toThrow(
+        'Signing failed with status 500'
+      )
+    })
+  })
+
+  describe('verifyWithKmsKey', () => {
+    const keyId = 'key-123'
+    const verifyPayload = {
+      data: 'aGVsbG8gd29ybGQ=',
+      signature: 'c2lnbmF0dXJl',
+      algorithm: 'SHA256WithRSA',
+    }
+
+    it('should verify signature successfully - valid', async () => {
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/verify`, () => {
+          return HttpResponse.json({ valid: true })
+        })
+      )
+
+      const result = await verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)
+
+      expect(result).toBeDefined()
+      expect(result.valid).toBe(true)
+    })
+
+    it('should verify signature successfully - invalid', async () => {
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/verify`, () => {
+          return HttpResponse.json({ valid: false })
+        })
+      )
+
+      const result = await verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)
+
+      expect(result.valid).toBe(false)
+    })
+
+    it('should send correct verification payload', async () => {
+      let capturedBody: any
+
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/verify`, async ({ request }) => {
+          capturedBody = await request.json()
+          return HttpResponse.json({ valid: true })
+        })
+      )
+
+      await verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)
+
+      expect(capturedBody).toEqual(verifyPayload)
+    })
+
+    it('should handle verification error with err field', async () => {
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/verify`, () => {
+          return HttpResponse.json(
+            { err: 'Invalid signature format' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)).rejects.toThrow(
+        'Invalid signature format'
+      )
+    })
+
+    it('should handle verification error with message field', async () => {
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/verify`, () => {
+          return HttpResponse.json(
+            { message: 'Key does not support verification' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)).rejects.toThrow(
+        'Key does not support verification'
+      )
+    })
+
+    it('should handle verification error with non-JSON response', async () => {
+      server.use(
+        http.post(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/verify`, () => {
+          return HttpResponse.text('Internal Server Error', { status: 500 })
+        })
+      )
+
+      await expect(verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)).rejects.toThrow(
+        'Verification failed with status 500'
+      )
+    })
+  })
+
+  describe('updateKeyAliases', () => {
+    const keyId = 'key-123'
+    const patches: PatchOperation[] = [
+      { op: 'add', path: '/2', value: 'new-alias' },
+      { op: 'replace', path: '/0', value: 'updated-alias' },
+      { op: 'remove', path: '/1' },
+    ]
+
+    it('should update key aliases successfully', async () => {
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/alias`, () => {
+          return new HttpResponse(null, { status: 204 })
+        })
+      )
+
+      await expect(
+        updateKeyAliases(keyId, patches, MOCK_TOKEN)
+      ).resolves.toBeUndefined()
+    })
+
+    it('should send correct patch operations', async () => {
+      let capturedBody: any
+
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/alias`, async ({ request }) => {
+          capturedBody = await request.json()
+          return new HttpResponse(null, { status: 204 })
+        })
+      )
+
+      await updateKeyAliases(keyId, patches, MOCK_TOKEN)
+
+      expect(capturedBody.key_id).toBe(keyId)
+      expect(capturedBody.patches).toEqual(patches)
+    })
+
+    it('should handle alias update error', async () => {
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/alias`, () => {
+          return HttpResponse.json(
+            { err: 'Alias already exists' },
+            { status: 409 }
+          )
+        })
+      )
+
+      await expect(
+        updateKeyAliases(keyId, patches, MOCK_TOKEN)
+      ).rejects.toThrow('Alias already exists')
+    })
+
+    it('should handle non-JSON error response', async () => {
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/alias`, () => {
+          return HttpResponse.text('Bad Request', { status: 400 })
+        })
+      )
+
+      await expect(
+        updateKeyAliases(keyId, patches, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to update key aliases')
+    })
+  })
+
+  describe('updateKeyTags', () => {
+    const keyId = 'key-123'
+    const tags = ['production', 'critical', 'ca-signing']
+
+    it('should update key tags successfully', async () => {
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/tags`, () => {
+          return new HttpResponse(null, { status: 204 })
+        })
+      )
+
+      await expect(
+        updateKeyTags(keyId, tags, MOCK_TOKEN)
+      ).resolves.toBeUndefined()
+    })
+
+    it('should send correct tags payload', async () => {
+      let capturedBody: any
+
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/tags`, async ({ request }) => {
+          capturedBody = await request.json()
+          return new HttpResponse(null, { status: 204 })
+        })
+      )
+
+      await updateKeyTags(keyId, tags, MOCK_TOKEN)
+
+      expect(capturedBody.tags).toEqual(tags)
+    })
+
+    it('should handle empty tags array', async () => {
+      let capturedBody: any
+
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/tags`, async ({ request }) => {
+          capturedBody = await request.json()
+          return new HttpResponse(null, { status: 204 })
+        })
+      )
+
+      await updateKeyTags(keyId, [], MOCK_TOKEN)
+
+      expect(capturedBody.tags).toEqual([])
+    })
+
+    it('should handle tag update error', async () => {
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/tags`, () => {
+          return HttpResponse.json(
+            { err: 'Invalid tag format' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(
+        updateKeyTags(keyId, tags, MOCK_TOKEN)
+      ).rejects.toThrow('Invalid tag format')
+    })
+
+    it('should handle tag update error with message field', async () => {
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/tags`, () => {
+          return HttpResponse.json(
+            { message: 'Tag limit exceeded' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(
+        updateKeyTags(keyId, tags, MOCK_TOKEN)
+      ).rejects.toThrow('Tag limit exceeded')
+    })
+
+    it('should handle non-JSON error response', async () => {
+      server.use(
+        http.put(`${KMS_API_BASE}/keys/${encodeURIComponent(keyId)}/tags`, () => {
+          return HttpResponse.text('Forbidden', { status: 403 })
+        })
+      )
+
+      await expect(
+        updateKeyTags(keyId, tags, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to update key tags')
     })
   })
 })

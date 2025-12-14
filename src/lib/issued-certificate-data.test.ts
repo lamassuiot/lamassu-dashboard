@@ -4,6 +4,10 @@ import { server } from './test-utils/msw-server'
 import {
   fetchIssuedCertificates,
   findCertificateBySerialNumber,
+  updateCertificateStatus,
+  updateCertificateMetadata,
+  importCertificate,
+  deleteCertificate,
   type ApiIssuedCertificateListResponse,
   type ApiIssuedCertificateItem,
 } from './issued-certificate-data'
@@ -210,15 +214,16 @@ describe('issued-certificate-data', () => {
     it('should find certificate by serial number', () => {
       const certs: CertificateData[] = [
         {
-          serialNumber: '123456',
-          subject: 'CN=test.example.com',
-          issuer: 'CN=Test CA',
-          validFrom: '2024-01-01T00:00:00Z',
-          validTo: '2025-01-01T00:00:00Z',
-          status: 'active',
-          pem: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
-          id: '123456',
-          publicKeyAlgorithm: 'RSA 2048',
+            serialNumber: '123456',
+            subject: 'CN=test.example.com',
+            issuer: 'CN=Test CA',
+            validFrom: '2024-01-01T00:00:00Z',
+            validTo: '2025-01-01T00:00:00Z',
+            apiStatus: 'active',
+            pemData: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
+            id: '123456',
+            publicKeyAlgorithm: 'RSA 2048',
+            fileName: 'cert-123'
         },
         {
           serialNumber: '654321',
@@ -226,10 +231,11 @@ describe('issued-certificate-data', () => {
           issuer: 'CN=Test CA',
           validFrom: '2024-01-01T00:00:00Z',
           validTo: '2025-01-01T00:00:00Z',
-          status: 'active',
-          pem: '-----BEGIN CERTIFICATE-----\ntest2\n-----END CERTIFICATE-----',
+          apiStatus: 'active',
+          pemData: '-----BEGIN CERTIFICATE-----\ntest2\n-----END CERTIFICATE-----',
           id: '654321',
           publicKeyAlgorithm: 'RSA 2048',
+          fileName: 'cert-124'
         },
       ]
 
@@ -248,4 +254,327 @@ describe('issued-certificate-data', () => {
       expect(result).toBeNull()
     })
   })
+
+  describe('updateCertificateStatus', () => {
+    it('should revoke certificate with reason', async () => {
+      server.use(
+        http.put(`${CA_API_BASE}/certificates/123456/status`, () => {
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await expect(
+        updateCertificateStatus({
+          serialNumber: '123456',
+          status: 'REVOKED',
+          reason: 'keyCompromise',
+          accessToken: MOCK_TOKEN,
+        })
+      ).resolves.toBeUndefined()
+    })
+
+    it('should re-activate certificate', async () => {
+      server.use(
+        http.put(`${CA_API_BASE}/certificates/123456/status`, () => {
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await expect(
+        updateCertificateStatus({
+          serialNumber: '123456',
+          status: 'ACTIVE',
+          accessToken: MOCK_TOKEN,
+        })
+      ).resolves.toBeUndefined()
+    })
+
+    it('should handle status update error with JSON response', async () => {
+      server.use(
+        http.put(`${CA_API_BASE}/certificates/123456/status`, () => {
+          return HttpResponse.json(
+            { err: 'Certificate not found' },
+            { status: 404 }
+          )
+        })
+      )
+
+      await expect(
+        updateCertificateStatus({
+          serialNumber: '123456',
+          status: 'REVOKED',
+          accessToken: MOCK_TOKEN,
+        })
+      ).rejects.toThrow('Failed to revoke certificate')
+    })
+
+    it('should handle status update error without JSON response', async () => {
+      server.use(
+        http.put(`${CA_API_BASE}/certificates/123456/status`, () => {
+          return new HttpResponse('Internal Server Error', { status: 500 })
+        })
+      )
+
+      await expect(
+        updateCertificateStatus({
+          serialNumber: '123456',
+          status: 'ACTIVE',
+          accessToken: MOCK_TOKEN,
+        })
+      ).rejects.toThrow('Failed to re-activate certificate')
+    })
+
+    it('should format serial number by removing colons', async () => {
+      let capturedUrl: string | undefined
+
+      server.use(
+        http.put(`${CA_API_BASE}/certificates/:serialNumber/status`, ({ params }) => {
+          capturedUrl = params.serialNumber as string
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await updateCertificateStatus({
+        serialNumber: '12:34:56',
+        status: 'REVOKED',
+        accessToken: MOCK_TOKEN,
+      })
+
+      expect(capturedUrl).toBe('123456')
+    })
+  })
+
+  describe('updateCertificateMetadata', () => {
+    it('should update certificate metadata successfully', async () => {
+      server.use(
+        http.put(`${CA_API_BASE}/certificates/123456/metadata`, () => {
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await expect(
+        updateCertificateMetadata('123456', { key: 'value' }, MOCK_TOKEN)
+      ).resolves.toBeUndefined()
+    })
+
+    it('should handle metadata update error with JSON response', async () => {
+      server.use(
+        http.put(`${CA_API_BASE}/certificates/123456/metadata`, () => {
+          return HttpResponse.json(
+            { err: 'Invalid metadata' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(
+        updateCertificateMetadata('123456', {}, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to update certificate metadata')
+    })
+
+    it('should handle metadata update error without JSON response', async () => {
+      server.use(
+        http.put(`${CA_API_BASE}/certificates/123456/metadata`, () => {
+          return new HttpResponse('Bad Request', { status: 400 })
+        })
+      )
+
+      await expect(
+        updateCertificateMetadata('123456', {}, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to update certificate metadata')
+    })
+  })
+
+  describe('importCertificate', () => {
+    it('should import certificate successfully', async () => {
+      server.use(
+        http.post(`${CA_API_BASE}/certificates/import`, () => {
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await expect(
+        importCertificate(
+          { certificate: 'base64cert', metadata: {} },
+          MOCK_TOKEN
+        )
+      ).resolves.toBeUndefined()
+    })
+
+    it('should handle import error with JSON response', async () => {
+      server.use(
+        http.post(`${CA_API_BASE}/certificates/import`, () => {
+          return HttpResponse.json(
+            { err: 'Invalid certificate' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(
+        importCertificate({ certificate: 'invalid', metadata: {} }, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to import certificate')
+    })
+
+    it('should handle import error without JSON response', async () => {
+      server.use(
+        http.post(`${CA_API_BASE}/certificates/import`, () => {
+          return new HttpResponse('Service Unavailable', { status: 503 })
+        })
+      )
+
+      await expect(
+        importCertificate({ certificate: 'cert', metadata: {} }, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to import certificate')
+    })
+  })
+
+  describe('deleteCertificate', () => {
+    it('should delete certificate successfully', async () => {
+      server.use(
+        http.delete(`${CA_API_BASE}/certificates/123456`, () => {
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await expect(
+        deleteCertificate('123456', MOCK_TOKEN)
+      ).resolves.toBeUndefined()
+    })
+
+    it('should handle deletion error with JSON response', async () => {
+      server.use(
+        http.delete(`${CA_API_BASE}/certificates/123456`, () => {
+          return HttpResponse.json(
+            { err: 'Certificate in use' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(
+        deleteCertificate('123456', MOCK_TOKEN)
+      ).rejects.toThrow('Failed to delete certificate')
+    })
+
+    it('should handle deletion error without JSON response', async () => {
+      server.use(
+        http.delete(`${CA_API_BASE}/certificates/123456`, () => {
+          return new HttpResponse('Forbidden', { status: 403 })
+        })
+      )
+
+      await expect(
+        deleteCertificate('123456', MOCK_TOKEN)
+      ).rejects.toThrow('Failed to delete certificate')
+    })
+
+    it('should format serial number by removing colons', async () => {
+      let capturedUrl: string | undefined
+
+      server.use(
+        http.delete(`${CA_API_BASE}/certificates/:serialNumber`, ({ params }) => {
+          capturedUrl = params.serialNumber as string
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await deleteCertificate('AA:BB:CC', MOCK_TOKEN)
+
+      expect(capturedUrl).toBe('AABBCC')
+    })
+  })
+
+  describe('transformApiIssuedCertificateToLocal', () => {
+    it('should handle certificate with curve_name instead of bits', async () => {
+      const eccCert: ApiIssuedCertificateItem = {
+        ...mockCertificate,
+        key_metadata: {
+          type: 'ECDSA',
+          curve_name: 'P-256',
+        },
+      }
+
+      const response: ApiIssuedCertificateListResponse = {
+        next: null,
+        list: [eccCert],
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/certificates`, () => {
+          return HttpResponse.json(response)
+        })
+      )
+
+      const result = await fetchIssuedCertificates({
+        accessToken: MOCK_TOKEN,
+      })
+
+      expect(result.certificates[0].publicKeyAlgorithm).toContain('ECDSA')
+      expect(result.certificates[0].publicKeyAlgorithm).toContain('P-256')
+    })
+
+    it('should handle certificate with missing subject common_name', async () => {
+      const noCommonNameCert: ApiIssuedCertificateItem = {
+        ...mockCertificate,
+        subject: {
+          common_name: '',
+          organization: 'Example Org',
+        },
+      }
+
+      const response: ApiIssuedCertificateListResponse = {
+        next: null,
+        list: [noCommonNameCert],
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/certificates`, () => {
+          return HttpResponse.json(response)
+        })
+      )
+
+      const result = await fetchIssuedCertificates({
+        accessToken: MOCK_TOKEN,
+      })
+
+      expect(result.certificates[0].subject).toContain('O=Example Org')
+    })
+
+    it('should handle certificate with base64 decode error', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      
+      // Mock window.atob to throw error
+      const originalAtob = global.atob
+      global.atob = vi.fn(() => {
+        throw new Error('Invalid base64')
+      })
+
+      const response: ApiIssuedCertificateListResponse = {
+        next: null,
+        list: [mockCertificate],
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/certificates`, () => {
+          return HttpResponse.json(response)
+        })
+      )
+
+      const result = await fetchIssuedCertificates({
+        accessToken: MOCK_TOKEN,
+      })
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to decode base64 PEM data'),
+        expect.any(String),
+        expect.any(Error)
+      )
+
+      // Restore
+      global.atob = originalAtob
+      consoleSpy.mockRestore()
+    })
+  })
 })
+

@@ -6,6 +6,11 @@ import {
   fetchRaById,
   createOrUpdateRa,
   deleteRa,
+  fetchAllRegistrationAuthorities,
+  bindIdentityToDevice,
+  fetchDmsStats,
+  updateRaMetadata,
+  deleteRaIntegration,
   type ApiRaListResponse,
   type ApiRaItem,
   type RaCreationPayload,
@@ -410,5 +415,189 @@ describe('dms-api', () => {
 
       expect(result).toBeUndefined() // createOrUpdateRa returns void
     })
+
+    it('should handle createOrUpdateRa error without JSON response', async () => {
+      const payload: RaCreationPayload = {
+        id: 'ra-error',
+        name: 'Error RA',
+        metadata: {},
+        settings: mockRa.settings,
+      }
+
+      server.use(
+        http.post(`${DMS_API_BASE}/dms`, () => {
+          return new HttpResponse('Internal Server Error', { status: 500 })
+        })
+      )
+
+      await expect(
+        createOrUpdateRa(payload, MOCK_TOKEN, false)
+      ).rejects.toThrow('Failed to create RA')
+    })
+
+    it('should handle createOrUpdateRa update mode error', async () => {
+      const payload: RaCreationPayload = {
+        id: 'ra-123',
+        name: 'Updated RA',
+        metadata: {},
+        settings: mockRa.settings,
+      }
+
+      server.use(
+        http.put(`${DMS_API_BASE}/dms/ra-123`, () => {
+          return HttpResponse.json(
+            { err: 'Validation error' },
+            { status: 400 }
+          )
+        })
+      )
+
+      await expect(
+        createOrUpdateRa(payload, MOCK_TOKEN, true, 'ra-123')
+      ).rejects.toThrow('RA update failed')
+    })
+
+    it('should handle createOrUpdateRa update mode without JSON response', async () => {
+      const payload: RaCreationPayload = {
+        id: 'ra-123',
+        name: 'Updated RA',
+        metadata: {},
+        settings: mockRa.settings,
+      }
+
+      server.use(
+        http.put(`${DMS_API_BASE}/dms/ra-123`, () => {
+          return new HttpResponse('Service Unavailable', { status: 503 })
+        })
+      )
+
+      await expect(
+        createOrUpdateRa(payload, MOCK_TOKEN, true, 'ra-123')
+      ).rejects.toThrow('Failed to update RA')
+    })
+  })
+
+  describe('Additional DMS API functions', () => {
+    it('should handle fetchAllRegistrationAuthorities with multiple pages', async () => {
+      let callCount = 0
+      server.use(
+        http.get(`${DMS_API_BASE}/dms`, ({ request }) => {
+          callCount++
+          const url = new URL(request.url)
+          const bookmark = url.searchParams.get('bookmark')
+          
+          if (!bookmark) {
+            return HttpResponse.json({
+              next: 'page2',
+              list: [mockRa],
+            })
+          } else if (bookmark === 'page2') {
+            return HttpResponse.json({
+              next: 'page3',
+              list: [{ ...mockRa, id: 'ra-456' }],
+            })
+          } else {
+            return HttpResponse.json({
+              next: null,
+              list: [{ ...mockRa, id: 'ra-789' }],
+            })
+          }
+        })
+      )
+
+      const result = await fetchAllRegistrationAuthorities(MOCK_TOKEN)
+
+      expect(result).toHaveLength(3)
+      expect(callCount).toBe(3)
+      expect(result[0].id).toBe('ra-123')
+      expect(result[1].id).toBe('ra-456')
+      expect(result[2].id).toBe('ra-789')
+    })
+
+    it('should handle bindIdentityToDevice success', async () => {
+      server.use(
+        http.post(`${DMS_API_BASE}/dms/bind-identity`, () => {
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await expect(
+        bindIdentityToDevice('device-1', 'serial-123', MOCK_TOKEN)
+      ).resolves.toBeUndefined()
+    })
+
+    it('should handle bindIdentityToDevice error', async () => {
+      server.use(
+        http.post(`${DMS_API_BASE}/dms/bind-identity`, () => {
+          return HttpResponse.json(
+            { err: 'Device not found' },
+            { status: 404 }
+          )
+        })
+      )
+
+      await expect(
+        bindIdentityToDevice('device-1', 'serial-123', MOCK_TOKEN)
+      ).rejects.toThrow('Failed to assign identity')
+    })
+
+    it('should handle fetchDmsStats success', async () => {
+      server.use(
+        http.get(`${DMS_API_BASE}/stats`, () => {
+          return HttpResponse.json({ total: 42 })
+        })
+      )
+
+      const result = await fetchDmsStats(MOCK_TOKEN)
+      expect(result.total).toBe(42)
+    })
+
+    it('should handle updateRaMetadata success', async () => {
+      server.use(
+        http.get(`${DMS_API_BASE}/dms/ra-123`, () => {
+          return HttpResponse.json(mockRa)
+        }),
+        http.put(`${DMS_API_BASE}/dms/ra-123`, () => {
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await expect(
+        updateRaMetadata('ra-123', { updated: true }, MOCK_TOKEN)
+      ).resolves.toBeUndefined()
+    })
+
+    it('should handle deleteRaIntegration success', async () => {
+      const raWithIntegration = {
+        ...mockRa,
+        metadata: { integration1: 'value1', integration2: 'value2' },
+      }
+
+      server.use(
+        http.get(`${DMS_API_BASE}/dms/ra-123`, () => {
+          return HttpResponse.json(raWithIntegration)
+        }),
+        http.put(`${DMS_API_BASE}/dms/ra-123`, () => {
+          return new HttpResponse(null, { status: 200 })
+        })
+      )
+
+      await expect(
+        deleteRaIntegration('ra-123', 'integration1', MOCK_TOKEN)
+      ).resolves.toBeUndefined()
+    })
+
+    it('should handle deleteRaIntegration when key not found', async () => {
+      server.use(
+        http.get(`${DMS_API_BASE}/dms/ra-123`, () => {
+          return HttpResponse.json(mockRa)
+        })
+      )
+
+      await expect(
+        deleteRaIntegration('ra-123', 'nonexistent', MOCK_TOKEN)
+      ).rejects.toThrow('Integration key not found')
+    })
   })
 })
+

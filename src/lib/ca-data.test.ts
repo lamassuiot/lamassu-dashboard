@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from './test-utils/msw-server'
 import {
@@ -23,6 +23,7 @@ import {
   fetchSigningProfileById,
   updateSigningProfile,
   deleteSigningProfile,
+  parseCertificatePemDetails,
   type CA,
   type CaStats,
   type CreateCaPayload,
@@ -765,5 +766,852 @@ describe('ca-data', () => {
         deleteSigningProfile(profileId, MOCK_TOKEN)
       ).rejects.toThrow('Profile deletion failed')
     })
+
+    it('should handle deletion error without JSON response', async () => {
+      server.use(
+        http.delete(`${CA_API_BASE}/profiles/${profileId}`, () => {
+          return new HttpResponse('Internal Server Error', { status: 500 })
+        })
+      )
+
+      await expect(
+        deleteSigningProfile(profileId, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to delete signing profile')
+    })
+  })
+
+  describe('ab2hex edge cases', () => {
+    it('should trim leading 0x00 for buffers larger than 16 bytes', () => {
+      const buffer = new Uint8Array([0x00, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]).buffer
+      const result = ab2hex(buffer)
+      expect(result.startsWith('de')).toBe(true)
+    })
+
+    it('should not trim leading 0x00 for buffers 16 bytes or smaller', () => {
+      const buffer = new Uint8Array([0x00, 0xde, 0xad, 0xbe, 0xef]).buffer
+      const result = ab2hex(buffer)
+      expect(result.startsWith('00')).toBe(true)
+    })
+  })
+
+  describe('getCaDisplayName edge cases', () => {
+    it('should return "Self-signed" for Self-signed issuer', () => {
+      const result = getCaDisplayName('Self-signed', [])
+      expect(result).toBe('Self-signed')
+    })
+  })
+
+  describe('findCaById with nested children', () => {
+    const mockNestedCAs: CA[] = [
+      {
+        id: 'root',
+        name: 'Root CA',
+        status: 'active',
+        expires: '2025-01-01T00:00:00Z',
+        issuer: 'Self-signed',
+        serialNumber: '1',
+        keyAlgorithm: 'RSA 2048',
+        children: [
+          {
+            id: 'intermediate',
+            name: 'Intermediate CA',
+            status: 'active',
+            expires: '2025-01-01T00:00:00Z',
+            issuer: 'root',
+            serialNumber: '2',
+            keyAlgorithm: 'RSA 2048',
+            children: [
+              {
+                id: 'leaf',
+                name: 'Leaf CA',
+                status: 'active',
+                expires: '2025-01-01T00:00:00Z',
+                issuer: 'intermediate',
+                serialNumber: '3',
+                keyAlgorithm: 'RSA 2048',
+              } as CA,
+            ],
+          } as CA,
+        ],
+      } as CA,
+    ]
+
+    it('should find nested CA by ID', () => {
+      const result = findCaById('leaf', mockNestedCAs)
+      expect(result).toBeDefined()
+      expect(result?.id).toBe('leaf')
+      expect(result?.name).toBe('Leaf CA')
+    })
+
+    it('should find intermediate CA by ID', () => {
+      const result = findCaById('intermediate', mockNestedCAs)
+      expect(result).toBeDefined()
+      expect(result?.id).toBe('intermediate')
+    })
+  })
+
+  describe('findCaByCommonName with nested children', () => {
+    const mockNestedCAs: CA[] = [
+      {
+        id: 'root',
+        name: 'Root CA',
+        status: 'active',
+        expires: '2025-01-01T00:00:00Z',
+        issuer: 'Self-signed',
+        serialNumber: '1',
+        keyAlgorithm: 'RSA 2048',
+        children: [
+          {
+            id: 'intermediate',
+            name: 'Intermediate CA',
+            status: 'active',
+            expires: '2025-01-01T00:00:00Z',
+            issuer: 'root',
+            serialNumber: '2',
+            keyAlgorithm: 'RSA 2048',
+          } as CA,
+        ],
+      } as CA,
+    ]
+
+    it('should find nested CA by common name', () => {
+      const result = findCaByCommonName('Intermediate CA', mockNestedCAs)
+      expect(result).toBeDefined()
+      expect(result?.id).toBe('intermediate')
+    })
+
+    it('should handle case-insensitive search', () => {
+      const result = findCaByCommonName('root ca', mockNestedCAs)
+      expect(result).toBeDefined()
+      expect(result?.id).toBe('root')
+    })
+  })
+
+  describe('parseCertificatePemDetails', () => {
+    it('should return default result when window is undefined', async () => {
+      const originalWindow = global.window
+      // @ts-ignore
+      delete global.window
+
+      const result = await parseCertificatePemDetails('test-pem')
+
+      expect(result.subject).toBe('N/A')
+      expect(result.issuer).toBe('N/A')
+
+      global.window = originalWindow
+    })
+
+    it('should return default result for empty PEM', async () => {
+      const result = await parseCertificatePemDetails('')
+
+      expect(result.subject).toBe('N/A')
+      expect(result.serialNumber).toBe('N/A')
+    })
+
+    it('should handle invalid PEM format gracefully', async () => {
+      const invalidPem = '-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----'
+
+      const result = await parseCertificatePemDetails(invalidPem)
+
+      expect(result.subject).toBe('N/A')
+      expect(result.issuer).toBe('N/A')
+    })
+
+    it('should handle PEM without extensions', async () => {
+      // Basic certificate without extensions
+      const basicPem = `-----BEGIN CERTIFICATE-----
+MIIBbjCCARigAwIBAgIJAKHHCgVZU1JSMA0GCSqGSIb3DQEBCwUAMBUxEzARBgNV
+BAMMClRlc3QgSXNzdWVyMB4XDTIzMDEwMTAwMDAwMFoXDTI1MDEwMTAwMDAwMFow
+FTETMBEGA1UEAwwKVGVzdCBJc3N1ZXIwXDANBgkqhkiG9w0BAQEFAANLADBIAkEA
+0smE8eEgo9pC4l9QBQIX5/wHP172ntCc7kjRzlstFQ8t8edHlBOAlgDpBTYe/x/B
+lEdBYM3tCopHuoJrcrZghwIDAQABMA0GCSqGSIb3DQEBCwUAA0EAaZk6HcQUQqJi
+pntfXN1eY2kEoZgulDE5Bbl0m8xpXNltkfBI+Hoq+kIrpzXE7sJh/SHbDsnPk7qE
+XQGdcNTVHA==
+-----END CERTIFICATE-----`
+
+      const result = await parseCertificatePemDetails(basicPem)
+
+      expect(result.subject).toBeDefined()
+      expect(result.issuer).toBeDefined()
+      expect(result.crlDistributionPoints).toEqual([])
+      expect(result.ocspUrls).toEqual([])
+    })
+
+    it('should handle error during fingerprint calculation', async () => {
+      // Mock crypto.subtle.digest to throw error using vi.spyOn
+      const originalDigest = global.crypto.subtle.digest
+      const digestSpy = vi.spyOn(global.crypto.subtle, 'digest')
+        .mockRejectedValue(new Error('Digest failed'))
+
+      const basicPem = `-----BEGIN CERTIFICATE-----
+MIIBbjCCARigAwIBAgIJAKHHCgVZU1JSMA0GCSqGSIb3DQEBCwUAMBUxEzARBgNV
+BAMMClRlc3QgSXNzdWVyMB4XDTIzMDEwMTAwMDAwMFoXDTI1MDEwMTAwMDAwMFow
+FTETMBEGA1UEAwwKVGVzdCBJc3N1ZXIwXDANBgkqhkiG9w0BAQEFAANLADBIAkEA
+0smE8eEgo9pC4l9QBQIX5/wHP172ntCc7kjRzlstFQ8t8edHlBOAlgDpBTYe/x/B
+lEdBYM3tCopHuoJrcrZghwIDAQABMA0GCSqGSIb3DQEBCwUAA0EAaZk6HcQUQqJi
+pntfXN1eY2kEoZgulDE5Bbl0m8xpXNltkfBI+Hoq+kIrpzXE7sJh/SHbDsnPk7qE
+XQGdcNTVHA==
+-----END CERTIFICATE-----`
+
+      const result = await parseCertificatePemDetails(basicPem)
+
+      expect(result.fingerprintSha256).toBeUndefined()
+
+      digestSpy.mockRestore()
+    })
+
+    it('should handle certificate with all extensions', async () => {
+      // Create a more complete certificate PEM with various extensions
+      // This is a real-world-like certificate with multiple extensions
+      const fullPem = `-----BEGIN CERTIFICATE-----
+MIIDXTCCAkWgAwIBAgIJAKHHCgVZU1JTMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
+BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
+aWRnaXRzIFB0eSBMdGQwHhcNMjMwMTAxMDAwMDAwWhcNMjUwMTAxMDAwMDAwWjBF
+MQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50
+ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
+CgKCAQEA0smE8eEgo9pC4l9QBQIX5/wHP172ntCc7kjRzlstFQ8t8edHlBOAlgDp
+BTYe/x/BlEdBYM3tCopHuoJrcrZghwIDAQABo4HOMIHLMB0GA1UdDgQWBBST6yLq
+iU8EcJ0K7gN8L8P8K8P8KDAfBgNVHSMEGDAWgBST6yLqiU8EcJ0K7gN8L8P8K8P8
+KDAMBgNVHRMEBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHSUEFjAUBggrBgEF
+BQcDAQYIKwYBBQUHAwIwOwYDVR0fBDQwMjAwoC6gLIYqaHR0cDovL2NybC5leGFt
+cGxlLmNvbS9jYS9jcmwucGVtMA0GCSqGSIb3DQEBCwUAA4IBAQCQ==
+-----END CERTIFICATE-----`
+
+      const result = await parseCertificatePemDetails(fullPem)
+
+      expect(result.subject).toBeDefined()
+      expect(result.issuer).toBeDefined()
+      expect(result.serialNumber).toBeDefined()
+    })
+
+    it('should handle missing crypto.subtle', async () => {
+      // Mock crypto.subtle to be undefined using vi.spyOn
+      const originalSubtle = global.crypto.subtle
+      Object.defineProperty(global.crypto, 'subtle', {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      })
+
+      const basicPem = `-----BEGIN CERTIFICATE-----
+MIIBbjCCARigAwIBAgIJAKHHCgVZU1JSMA0GCSqGSIb3DQEBCwUAMBUxEzARBgNV
+BAMMClRlc3QgSXNzdWVyMB4XDTIzMDEwMTAwMDAwMFoXDTI1MDEwMTAwMDAwMFow
+FTETMBEGA1UEAwwKVGVzdCBJc3N1ZXIwXDANBgkqhkiG9w0BAQEFAANLADBIAkEA
+0smE8eEgo9pC4l9QBQIX5/wHP172ntCc7kjRzlstFQ8t8edHlBOAlgDpBTYe/x/B
+lEdBYM3tCopHuoJrcrZghwIDAQABMA0GCSqGSIb3DQEBCwUAA0EAaZk6HcQUQqJi
+pntfXN1eY2kEoZgulDE5Bbl0m8xpXNltkfBI+Hoq+kIrpzXE7sJh/SHbDsnPk7qE
+XQGdcNTVHA==
+-----END CERTIFICATE-----`
+
+      const result = await parseCertificatePemDetails(basicPem)
+
+      expect(result.fingerprintSha256).toBeUndefined()
+
+      Object.defineProperty(global.crypto, 'subtle', {
+        value: originalSubtle,
+        writable: true,
+        configurable: true,
+      })
+    })
+  })
+
+  describe('CA operations error handling', () => {
+    it('should handle createCa with non-JSON error response', async () => {
+      const payload: CreateCaPayload = {
+        subject: { commonName: 'New CA' },
+        keyMetadata: { type: 'RSA', bits: 2048 },
+        issuanceExpiration: { type: 'Duration', duration: '1y' },
+        engineId: 'golang',
+      } as CreateCaPayload
+
+      server.use(
+        http.post(`${CA_API_BASE}/cas`, () => {
+          return new HttpResponse('Internal Server Error', { status: 500 })
+        })
+      )
+
+      await expect(createCa(payload, MOCK_TOKEN)).rejects.toThrow('Failed to create CA')
+    })
+
+    it('should handle importCa with non-JSON error response', async () => {
+      const payload: ImportCaPayload = {
+        certificate: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
+        engineId: 'golang',
+      } as ImportCaPayload
+
+      server.use(
+        http.post(`${CA_API_BASE}/cas/import`, () => {
+          return new HttpResponse('Bad Gateway', { status: 502 })
+        })
+      )
+
+      await expect(importCa(payload, MOCK_TOKEN)).rejects.toThrow('Failed to import CA')
+    })
+
+    it('should handle updateCaMetadata with non-JSON error response', async () => {
+      const caId = 'ca-123'
+      const patchOps: PatchOperation[] = [
+        { op: 'replace', path: '/metadata/location', value: 'datacenter-1' },
+      ]
+
+      server.use(
+        http.put(`${CA_API_BASE}/cas/${caId}/metadata`, () => {
+          return new HttpResponse('Service Unavailable', { status: 503 })
+        })
+      )
+
+      await expect(
+        updateCaMetadata(caId, patchOps, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to update CA metadata')
+    })
+
+    it('should handle fetchCaStats with non-JSON error response', async () => {
+      const caId = 'ca-123'
+
+      server.use(
+        http.get(`${CA_API_BASE}/stats/${caId}`, () => {
+          return new HttpResponse('Not Found', { status: 404 })
+        })
+      )
+
+      await expect(fetchCaStats(caId, MOCK_TOKEN)).rejects.toThrow(
+        'Failed to fetch CA statistics'
+      )
+    })
+
+    it('should handle updateCaStatus with non-JSON error response', async () => {
+      const caId = 'ca-123'
+
+      server.use(
+        http.post(`${CA_API_BASE}/cas/${caId}/status`, () => {
+          return new HttpResponse('Forbidden', { status: 403 })
+        })
+      )
+
+      await expect(
+        updateCaStatus(caId, 'ACTIVE', undefined, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to update CA status')
+    })
+
+    it('should handle revokeCa with non-JSON error response', async () => {
+      const caId = 'ca-123'
+
+      server.use(
+        http.post(`${CA_API_BASE}/cas/${caId}/status`, () => {
+          return new HttpResponse('Internal Error', { status: 500 })
+        })
+      )
+
+      await expect(revokeCa(caId, 'keyCompromise', MOCK_TOKEN)).rejects.toThrow(
+        'Failed to revoke CA'
+      )
+    })
+
+    it('should handle deleteCa with non-JSON error response', async () => {
+      const caId = 'ca-123'
+
+      server.use(
+        http.delete(`${CA_API_BASE}/cas/${caId}`, () => {
+          return new HttpResponse('Conflict', { status: 409 })
+        })
+      )
+
+      await expect(deleteCa(caId, MOCK_TOKEN)).rejects.toThrow('Failed to delete CA')
+    })
+
+    it('should handle updateCaDefaultProfileId with non-JSON error response', async () => {
+      const caId = 'ca-123'
+      const profileId = 'profile-456'
+
+      server.use(
+        http.post(`${CA_API_BASE}/cas/${caId}/profile`, () => {
+          return new HttpResponse('Bad Request', { status: 400 })
+        })
+      )
+
+      await expect(
+        updateCaDefaultProfileId(caId, profileId, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to update issuance profile')
+    })
+
+    it('should handle createSigningProfile with non-JSON error response', async () => {
+      const payload: CreateSigningProfilePayload = {
+        name: 'New Profile',
+        key_usages: ['digitalSignature'],
+        extended_key_usages: ['serverAuth'],
+        validity: { type: 'Duration', duration: '1y' },
+      } as CreateSigningProfilePayload
+
+      server.use(
+        http.post(`${CA_API_BASE}/profiles`, () => {
+          return new HttpResponse('Service Error', { status: 503 })
+        })
+      )
+
+      await expect(createSigningProfile(payload, MOCK_TOKEN)).rejects.toThrow(
+        'Failed to create signing profile'
+      )
+    })
+
+    it('should handle fetchSigningProfileById with non-JSON error response', async () => {
+      const profileId = 'profile-123'
+
+      server.use(
+        http.get(`${CA_API_BASE}/profiles/${profileId}`, () => {
+          return new HttpResponse('Not Authorized', { status: 401 })
+        })
+      )
+
+      await expect(
+        fetchSigningProfileById(profileId, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to fetch signing profile')
+    })
+
+    it('should handle updateSigningProfile with non-JSON error response', async () => {
+      const profileId = 'profile-123'
+      const payload: CreateSigningProfilePayload = {
+        name: 'Updated Profile',
+        key_usages: ['digitalSignature'],
+      } as CreateSigningProfilePayload
+
+      server.use(
+        http.put(`${CA_API_BASE}/profiles/${profileId}`, () => {
+          return new HttpResponse('Gateway Timeout', { status: 504 })
+        })
+      )
+
+      await expect(
+        updateSigningProfile(profileId, payload, MOCK_TOKEN)
+      ).rejects.toThrow('Failed to update signing profile')
+    })
+  })
+
+  describe('fetchAndProcessCAs additional scenarios', () => {
+    const mockApiResponse = {
+      next: null,
+      list: [
+        {
+          id: 'ca-1',
+          certificate: {
+            serial_number: '123456',
+            subject_key_id: 'ski-1',
+            authority_key_id: 'ski-1',
+            metadata: {},
+            status: 'ACTIVE',
+            certificate: btoa('-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----'),
+            key_metadata: { type: 'RSA', bits: 2048 },
+            subject: { common_name: 'Root CA' },
+            issuer: { common_name: 'Root CA' },
+            valid_from: '2023-01-01T00:00:00Z',
+            valid_to: '2025-01-01T00:00:00Z',
+            issuer_metadata: { serial_number: '123456', id: 'ca-1', level: 0 },
+            is_ca: true,
+            engine_id: 'golang',
+          },
+          serial_number: '123456',
+          metadata: {},
+          creation_ts: '2023-01-01T00:00:00Z',
+          level: 0,
+        },
+        {
+          id: 'ca-2',
+          certificate: {
+            serial_number: '234567',
+            subject_key_id: 'ski-2',
+            authority_key_id: 'ski-1',
+            metadata: {},
+            status: 'ACTIVE',
+            certificate: btoa('-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----'),
+            key_metadata: { type: 'ECDSA', curve_name: 'P-256' },
+            subject: { common_name: 'Intermediate CA' },
+            issuer: { common_name: 'Root CA' },
+            valid_from: '2023-01-01T00:00:00Z',
+            valid_to: '2025-01-01T00:00:00Z',
+            issuer_metadata: { serial_number: '123456', id: 'ca-1', level: 0 },
+            is_ca: true,
+            engine_id: 'golang',
+          },
+          serial_number: '234567',
+          metadata: {},
+          creation_ts: '2023-01-01T00:00:00Z',
+          level: 1,
+        },
+      ],
+    }
+
+    it('should fetch and build CA hierarchy', async () => {
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json(mockApiResponse)
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result).toHaveLength(1) // Only root CA at top level
+      expect(result[0].id).toBe('ca-1')
+      expect(result[0].children).toHaveLength(1)
+      expect(result[0].children?.[0].id).toBe('ca-2')
+    })
+
+    it('should handle pagination', async () => {
+      const page1 = {
+        next: 'bookmark-123',
+        list: [mockApiResponse.list[0]],
+      }
+      const page2 = {
+        next: null,
+        list: [mockApiResponse.list[1]],
+      }
+
+      let callCount = 0
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, ({ request }) => {
+          const url = new URL(request.url)
+          if (callCount === 0) {
+            callCount++
+            return HttpResponse.json(page1)
+          }
+          expect(url.searchParams.get('bookmark')).toBe('bookmark-123')
+          return HttpResponse.json(page2)
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].children).toHaveLength(1)
+    })
+
+    it('should set default page_size parameter', async () => {
+      let capturedUrl: URL | undefined
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, ({ request }) => {
+          capturedUrl = new URL(request.url)
+          return HttpResponse.json({ next: null, list: [] })
+        })
+      )
+
+      await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(capturedUrl?.searchParams.get('page_size')).toBe('100')
+    })
+
+    it('should preserve custom query parameters', async () => {
+      let capturedUrl: URL | undefined
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, ({ request }) => {
+          capturedUrl = new URL(request.url)
+          return HttpResponse.json({ next: null, list: [] })
+        })
+      )
+
+      await fetchAndProcessCAs(MOCK_TOKEN, 'status=ACTIVE&page_size=50')
+
+      expect(capturedUrl?.searchParams.get('status')).toBe('ACTIVE')
+      expect(capturedUrl?.searchParams.get('page_size')).toBe('50')
+    })
+
+    it('should handle fetch error', async () => {
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ err: 'Internal error' }, { status: 500 })
+        })
+      )
+
+      await expect(fetchAndProcessCAs(MOCK_TOKEN)).rejects.toThrow('Internal error')
+    })
+
+    it('should handle fetch error with non-JSON response', async () => {
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return new HttpResponse('Internal Server Error', { status: 500 })
+        })
+      )
+
+      await expect(fetchAndProcessCAs(MOCK_TOKEN)).rejects.toThrow('HTTP error 500')
+    })
+
+    it('should handle expired certificates', async () => {
+      const expiredCa = {
+        ...mockApiResponse.list[0],
+        certificate: {
+          ...mockApiResponse.list[0].certificate,
+          valid_to: '2020-01-01T00:00:00Z', // Expired
+        },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [expiredCa] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].status).toBe('expired')
+    })
+
+    it('should handle revoked certificates', async () => {
+      const revokedCa = {
+        ...mockApiResponse.list[0],
+        certificate: {
+          ...mockApiResponse.list[0].certificate,
+          status: 'REVOKED',
+        },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [revokedCa] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].status).toBe('revoked')
+    })
+
+    it('should handle CA with validity type Duration', async () => {
+      const caWithDuration = {
+        ...mockApiResponse.list[0],
+        validity: { type: 'Duration', duration: '365d' },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [caWithDuration] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].defaultIssuanceLifetime).toBe('365d')
+    })
+
+    it('should handle CA with validity type Date (indefinite)', async () => {
+      const caWithIndefinite = {
+        ...mockApiResponse.list[0],
+        validity: { type: 'Date', time: '9999-12-31T23:59:59Z' },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [caWithIndefinite] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].defaultIssuanceLifetime).toBe('Indefinite')
+    })
+
+    it('should handle CA with validity type Date (specific date)', async () => {
+      const caWithDate = {
+        ...mockApiResponse.list[0],
+        validity: { type: 'Date', time: '2025-12-31T23:59:59Z' },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [caWithDate] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].defaultIssuanceLifetime).toBe('2025-12-31T23:59:59Z')
+    })
+
+    it('should handle CA with validity type Indefinite', async () => {
+      const caWithIndefiniteType = {
+        ...mockApiResponse.list[0],
+        validity: { type: 'Indefinite' },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [caWithIndefiniteType] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].defaultIssuanceLifetime).toBe('Indefinite')
+    })
+
+    it('should handle orphan CAs (missing parent)', async () => {
+      const orphanCa = {
+        ...mockApiResponse.list[1],
+        certificate: {
+          ...mockApiResponse.list[1].certificate,
+          authority_key_id: 'ski-999', // Non-existent parent
+          issuer_metadata: { serial_number: '999', id: 'ca-999', level: 0 },
+        },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [orphanCa] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      // Orphan should become a root
+      expect(result).toHaveLength(1)
+      expect(result[0].id).toBe('ca-2')
+    })
+
+    it('should sort CAs by name', async () => {
+      const unsortedCas = {
+        next: null,
+        list: [
+          {
+            ...mockApiResponse.list[0],
+            id: 'ca-z',
+            certificate: {
+              ...mockApiResponse.list[0].certificate,
+              subject: { common_name: 'Z CA' },
+            },
+          },
+          {
+            ...mockApiResponse.list[0],
+            id: 'ca-a',
+            certificate: {
+              ...mockApiResponse.list[0].certificate,
+              subject: { common_name: 'A CA' },
+            },
+          },
+        ],
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json(unsortedCas)
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].name).toBe('A CA')
+      expect(result[1].name).toBe('Z CA')
+    })
+
+    it('should handle CA without common_name', async () => {
+      const caWithoutCN = {
+        ...mockApiResponse.list[0],
+        certificate: {
+          ...mockApiResponse.list[0].certificate,
+          subject: { organization: 'Test Org' },
+        },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [caWithoutCN] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].name).toBe('ca-1') // Falls back to ID
+    })
+
+    it('should handle CA with empty authority_key_id', async () => {
+      const caWithEmptyAKI = {
+        ...mockApiResponse.list[0],
+        certificate: {
+          ...mockApiResponse.list[0].certificate,
+          authority_key_id: '',
+        },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [caWithEmptyAKI] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].issuer).toBe('Self-signed')
+    })
+
+    it('should handle CA with expired EXPIRED status from API', async () => {
+      const expiredStatusCa = {
+        ...mockApiResponse.list[0],
+        certificate: {
+          ...mockApiResponse.list[0].certificate,
+          status: 'EXPIRED',
+        },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [expiredStatusCa] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].status).toBe('expired')
+    })
+
+    it('should handle CA with unknown status from API', async () => {
+      const unknownStatusCa = {
+        ...mockApiResponse.list[0],
+        certificate: {
+          ...mockApiResponse.list[0].certificate,
+          status: 'UNKNOWN_STATUS',
+        },
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [unknownStatusCa] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].status).toBe('unknown')
+    })
+
+    it('should handle CA with no validity specified', async () => {
+      const caWithoutValidity = {
+        ...mockApiResponse.list[0],
+        validity: undefined,
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [caWithoutValidity] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].defaultIssuanceLifetime).toBe('Not Specified')
+    })
+
+    it('should decode base64 PEM in browser environment', async () => {
+      const caWithEncodedPem = {
+        ...mockApiResponse.list[0],
+      }
+
+      server.use(
+        http.get(`${CA_API_BASE}/cas`, () => {
+          return HttpResponse.json({ next: null, list: [caWithEncodedPem] })
+        })
+      )
+
+      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+
+      expect(result[0].pemData).toBeDefined()
+    })
   })
 })
+
