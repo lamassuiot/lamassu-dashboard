@@ -25,9 +25,24 @@ if (!global.crypto) {
 }
 
 // Mock atob/btoa for base64 encoding/decoding
+// Note: atob expects base64 without whitespace, btoa produces base64
 if (!global.atob) {
-  global.atob = (str: string) => Buffer.from(str, 'base64').toString('binary')
+  global.atob = (str: string) => {
+    // Remove any whitespace that might be in the base64 string
+    const cleanStr = str.replace(/\s+/g, '')
+    return Buffer.from(cleanStr, 'base64').toString('binary')
+  }
 }
 if (!global.btoa) {
   global.btoa = (str: string) => Buffer.from(str, 'binary').toString('base64')
+}
+
+// Ensure window.atob and window.btoa use the same implementation
+if (typeof window !== 'undefined') {
+  if (!window.atob) {
+    (window as any).atob = global.atob
+  }
+  if (!window.btoa) {
+    (window as any).btoa = global.btoa
+  }
 }

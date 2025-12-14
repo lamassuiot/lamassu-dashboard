@@ -146,7 +146,7 @@ export async function verifyWithKmsKey(keyId: string, payload: any, accessToken:
     return response.json();
 }
 
-export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: string): Promise<void> {
+export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: string): Promise<ApiKmsKey> {
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys`, {
         method: 'POST',
         headers: {
@@ -166,9 +166,10 @@ export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: st
         }
         throw new Error(errorMessage);
     }
+    return response.json();
 }
 
-export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: string): Promise<void> {
+export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: string): Promise<ApiKmsKey> {
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/import`, {
         method: 'POST',
         headers: {
@@ -188,6 +189,7 @@ export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: st
         }
         throw new Error(errorMessage);
     }
+    return response.json();
 }
 
 export async function deleteKmsKey(keyId: string, accessToken: string): Promise<void> {

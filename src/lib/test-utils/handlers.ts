@@ -73,4 +73,19 @@ export const handlers = [
   http.get(`${DMS_API_BASE}/v1/cas/:id/.well-known/est/:ra_id/cacerts`, () => {
     return HttpResponse.text('-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----')
   }),
+
+  // VA Core API handlers  
+  http.get('https://api.test.lamassu.io/va/crl/:ski', () => {
+    return HttpResponse.arrayBuffer(new ArrayBuffer(100))
+  }),
+
+  // Certificate API handlers
+  http.get('https://api.test.lamassu.io/ca/v1/certificates', () => {
+    return HttpResponse.json({ next: null, list: [] })
+  }),
+
+  // Device stats endpoint
+  http.get('https://api.test.lamassu.io/devmanager/v1/stats', () => {
+    return HttpResponse.json({ total: 0, pending: 0, active: 0, decommissioned: 0 })
+  }),
 ]
