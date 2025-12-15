@@ -19,12 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AddPolicyRequest, HierarchyType } from "@/types/authorization";
+import type { AddPolicyWithMetaRequest, HierarchyType } from "@/types/authorization";
 
 interface AddPolicyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddPolicy: (policy: AddPolicyRequest) => Promise<void>;
+  onAddPolicy: (policy: AddPolicyWithMetaRequest) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -34,6 +34,7 @@ export function AddPolicyDialog({
   onAddPolicy,
   isLoading,
 }: AddPolicyDialogProps) {
+  const [policyId, setPolicyId] = useState("");
   const [subject, setSubject] = useState("");
   const [object, setObject] = useState("");
   const [action, setAction] = useState("");
@@ -41,11 +42,12 @@ export function AddPolicyDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onAddPolicy({ subject, object, action, hierarchy });
+    await onAddPolicy({ policy_id: policyId, subject, object, action, hierarchy });
     resetForm();
   };
 
   const resetForm = () => {
+    setPolicyId("");
     setSubject("");
     setObject("");
     setAction("");
@@ -71,6 +73,19 @@ export function AddPolicyDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="policyId">Policy ID</Label>
+              <Input
+                id="policyId"
+                placeholder="e.g., alice-device-policy"
+                value={policyId}
+                onChange={(e) => setPolicyId(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                A unique identifier to group related policy rules
+              </p>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="subject">Subject</Label>
               <Input
@@ -130,7 +145,7 @@ export function AddPolicyDialog({
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !subject || !object || !action}>
+            <Button type="submit" disabled={isLoading || !policyId || !subject || !object || !action}>
               {isLoading ? "Adding..." : "Add Policy"}
             </Button>
           </DialogFooter>

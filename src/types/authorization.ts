@@ -203,6 +203,33 @@ export interface ResourceHierarchyResponse {
   parent: string;
 }
 
+// Detailed Policy Types (for GET /v1/principals/{id}/policies)
+export interface PolicyRuleResponse {
+  subject: string;
+  object: string;
+  action: string;
+  hierarchy: HierarchyType;
+}
+
+export interface MembershipRuleResponse {
+  principal: string;
+  scope: string;
+}
+
+export interface DetailedPolicyResponse {
+  policy_id: string;
+  scope?: string;
+  rules: PolicyRuleResponse[];
+  memberships: MembershipRuleResponse[];
+  assigned_at?: string;
+}
+
+export interface ListDetailedPoliciesResponse {
+  principal_id: string;
+  policies: DetailedPolicyResponse[];
+  count: number;
+}
+
 // Policy Requests
 export interface AddPolicyRequest {
   subject: string;

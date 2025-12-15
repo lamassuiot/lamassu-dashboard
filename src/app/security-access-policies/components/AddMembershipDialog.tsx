@@ -12,12 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { AddMembershipRequest } from "@/types/authorization";
+import type { AddMembershipWithMetaRequest } from "@/types/authorization";
 
 interface AddMembershipDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddMembership: (membership: AddMembershipRequest) => Promise<void>;
+  onAddMembership: (membership: AddMembershipWithMetaRequest) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -27,16 +27,18 @@ export function AddMembershipDialog({
   onAddMembership,
   isLoading,
 }: AddMembershipDialogProps) {
+  const [policyId, setPolicyId] = useState("");
   const [principal, setPrincipal] = useState("");
   const [scope, setScope] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onAddMembership({ principal, scope });
+    await onAddMembership({ policy_id: policyId, principal, scope });
     resetForm();
   };
 
   const resetForm = () => {
+    setPolicyId("");
     setPrincipal("");
     setScope("");
   };
@@ -60,6 +62,19 @@ export function AddMembershipDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="policyId">Policy ID</Label>
+              <Input
+                id="policyId"
+                placeholder="e.g., alice-device-policy"
+                value={policyId}
+                onChange={(e) => setPolicyId(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                A unique identifier to group this membership with related policies
+              </p>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="principal">Principal</Label>
               <Input
@@ -91,7 +106,7 @@ export function AddMembershipDialog({
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !principal || !scope}>
+            <Button type="submit" disabled={isLoading || !policyId || !principal || !scope}>
               {isLoading ? "Adding..." : "Add Membership"}
             </Button>
           </DialogFooter>

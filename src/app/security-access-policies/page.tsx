@@ -23,8 +23,9 @@ import { PrincipalPoliciesDialog } from './components/PrincipalPoliciesDialog';
 import { AuthTestPanel } from './components/AuthTestPanel';
 
 import {
-  listPolicies,
-  addPolicy,
+  listPolicyIDs,
+  getPolicy,
+  createPolicy,
   deletePolicy,
   addMembership,
   deleteMembership,
@@ -43,17 +44,17 @@ import {
 } from '@/lib/authz-api';
 
 import type {
-  PolicyResponse,
   PrincipalMembershipResponse,
   ResourceHierarchyResponse,
-  AddPolicyRequest,
-  AddMembershipRequest,
+  AddPolicyWithMetaRequest,
+  AddMembershipWithMetaRequest,
   CheckAccessRequest,
   PrincipalDefinition,
   CreatePrincipalRequest,
   Policy,
   CheckAccessWithAuthRequest,
   ResolvePrincipalRequest,
+  PolicyWithMetaResponse,
 } from '@/types/authorization';
 
 import {
@@ -69,7 +70,8 @@ import {
 
 export default function SecurityAccessPoliciesPage() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [policies, setPolicies] = useState<PolicyResponse[]>([]);
+  const [policies, setPolicies] = useState<PolicyWithMetaResponse[]>([]);
+  const [policyIds, setPolicyIds] = useState<string[]>([]);
   const [memberships, setMemberships] = useState<PrincipalMembershipResponse[]>([]);
   const [resourceHierarchy, setResourceHierarchy] = useState<ResourceHierarchyResponse[]>([]);
   const [principals, setPrincipals] = useState<PrincipalDefinition[]>([]);
@@ -108,13 +110,32 @@ export default function SecurityAccessPoliciesPage() {
     setError(null);
 
     try {
-      const [policiesResponse, principalsResponse] = await Promise.all([
-        listPolicies(token),
+      const [policyIdsResponse, principalsResponse] = await Promise.all([
+        listPolicyIDs(token),
         listPrincipals(undefined, token).catch(() => ({ principals: [] })),
       ]);
-      setPolicies(policiesResponse.policies || []);
-      setMemberships(policiesResponse.principal_memberships || []);
-      setResourceHierarchy(policiesResponse.resource_hierarchy || []);
+      
+      const ids = policyIdsResponse.policy_ids || [];
+      setPolicyIds(ids);
+      
+      // Fetch details for each policy
+      const allPolicies: PolicyWithMetaResponse[] = [];
+      const allMemberships: PrincipalMembershipResponse[] = [];
+      
+      await Promise.all(
+        ids.map(async (policyId) => {
+          try {
+            const policyDetails = await getPolicy(policyId, token);
+            allPolicies.push(...(policyDetails.policies || []));
+          } catch {
+            // Skip policies that fail to load
+          }
+        })
+      );
+      
+      setPolicies(allPolicies);
+      setMemberships(allMemberships);
+      setResourceHierarchy([]);
       setPrincipals(principalsResponse.principals || []);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load policies';
@@ -134,10 +155,10 @@ export default function SecurityAccessPoliciesPage() {
     fetchPolicies();
   }, [fetchPolicies]);
 
-  const handleAddPolicy = async (policy: AddPolicyRequest) => {
+  const handleAddPolicy = async (policy: AddPolicyWithMetaRequest) => {
     setIsAddingPolicy(true);
     try {
-      await addPolicy(policy, token);
+      await createPolicy(policy, token);
       toast({
         title: 'Policy added',
         description: `Policy for ${policy.subject} added successfully`,
@@ -156,10 +177,10 @@ export default function SecurityAccessPoliciesPage() {
     }
   };
 
-  const handleDeletePolicy = async (policy: PolicyResponse) => {
+  const handleDeletePolicy = async (policy: PolicyWithMetaResponse) => {
     setIsDeletingPolicy(true);
     try {
-      await deletePolicy(policy, token);
+      await deletePolicy(policy.policy_id, token);
       toast({
         title: 'Policy deleted',
         description: `Policy for ${policy.subject} deleted successfully`,
@@ -177,7 +198,7 @@ export default function SecurityAccessPoliciesPage() {
     }
   };
 
-  const handleAddMembership = async (membership: AddMembershipRequest) => {
+  const handleAddMembership = async (membership: AddMembershipWithMetaRequest) => {
     setIsAddingMembership(true);
     try {
       await addMembership(membership, token);
@@ -290,9 +311,9 @@ export default function SecurityAccessPoliciesPage() {
   const handleManagePrincipalPolicies = async (principal: PrincipalDefinition) => {
     setSelectedPrincipal(principal);
     try {
-      const response = await listPrincipalPolicies(principal.name, token);
-      // response is PrincipalPolicyAssignment[] - extract policy_ids
-      setSelectedPrincipalPolicies(response.map(p => p.policy_id));
+      const response = await listPrincipalPolicies(principal.id || principal.name, token);
+      // response is ListDetailedPoliciesResponse - extract policy_ids from policies array
+      setSelectedPrincipalPolicies(response.policies.map(p => p.policy_id));
       setPrincipalPoliciesOpen(true);
     } catch {
       toast({

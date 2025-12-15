@@ -12,11 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Trash2 } from "lucide-react";
-import type { PolicyResponse } from "@/types/authorization";
+import type { PolicyWithMetaResponse } from "@/types/authorization";
 
 interface PoliciesTableProps {
-  policies: PolicyResponse[];
-  onDeletePolicy: (policy: PolicyResponse) => void;
+  policies: PolicyWithMetaResponse[];
+  onDeletePolicy: (policy: PolicyWithMetaResponse) => void;
   isDeleting?: boolean;
 }
 
@@ -37,6 +37,7 @@ export function PoliciesTable({
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead>Policy ID</TableHead>
           <TableHead>Subject</TableHead>
           <TableHead>Object</TableHead>
           <TableHead>Action</TableHead>
@@ -46,7 +47,8 @@ export function PoliciesTable({
       </TableHeader>
       <TableBody>
         {policies.map((policy, index) => (
-          <TableRow key={`${policy.subject}-${policy.object}-${policy.action}-${index}`}>
+          <TableRow key={`${policy.policy_id}-${policy.subject}-${policy.object}-${policy.action}-${index}`}>
+            <TableCell className="font-mono text-sm">{policy.policy_id}</TableCell>
             <TableCell className="font-mono text-sm">{policy.subject}</TableCell>
             <TableCell className="font-mono text-sm">{policy.object}</TableCell>
             <TableCell>
