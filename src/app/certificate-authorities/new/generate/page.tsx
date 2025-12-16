@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2, Shield } from "lucide-react";
+import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
+import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
@@ -18,15 +18,62 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
-import { formatISO } from 'date-fns';
+import { formatISO, add, format } from 'date-fns';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type SimplifiedInlineProfileFormValues, defaultSimplifiedFormValues } from '@/components/shared/SimplifiedInlineProfileForm';
+import { Form } from '@/components/ui/form';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
+import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
+
+// Helper to parse duration string (e.g., "5y", "30d") to human-readable format
+const formatDurationToHuman = (durationStr: string): string => {
+  const regex = /(\d+)(y|w|d|h|m|s)/g;
+  const parts: string[] = [];
+  let match;
+  while ((match = regex.exec(durationStr)) !== null) {
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    switch (unit) {
+      case 'y': parts.push(`${value} year${value !== 1 ? 's' : ''}`); break;
+      case 'w': parts.push(`${value} week${value !== 1 ? 's' : ''}`); break;
+      case 'd': parts.push(`${value} day${value !== 1 ? 's' : ''}`); break;
+      case 'h': parts.push(`${value} hour${value !== 1 ? 's' : ''}`); break;
+      case 'm': parts.push(`${value} minute${value !== 1 ? 's' : ''}`); break;
+      case 's': parts.push(`${value} second${value !== 1 ? 's' : ''}`); break;
+    }
+  }
+  return parts.join(', ');
+};
+
+// Helper to calculate future date from duration string
+const calculateExpirationDate = (durationStr: string): Date => {
+  const duration: { years?: number; weeks?: number; days?: number; hours?: number; minutes?: number; seconds?: number } = {};
+  const regex = /(\d+)(y|w|d|h|m|s)/g;
+  let match;
+  while ((match = regex.exec(durationStr)) !== null) {
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    switch (unit) {
+      case 'y': duration.years = value; break;
+      case 'w': duration.weeks = value; break;
+      case 'd': duration.days = value; break;
+      case 'h': duration.hours = value; break;
+      case 'm': duration.minutes = value; break;
+      case 's': duration.seconds = value; break;
+    }
+  }
+  return add(new Date(), duration);
+};
 
 export default function CreateCaGeneratePage() {
   const router = useRouter();
@@ -52,10 +99,25 @@ export default function CreateCaGeneratePage() {
 
   const [caExpiration, setCaExpiration] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '10y' });
 
-  // Profile state
+  // CA Certificate Profile state (for the CA's own certificate)
+  type CaProfileMode = 'none' | 'reuse' | 'inline';
+  const [caProfileMode, setCaProfileMode] = useState<CaProfileMode>('none');
+  const [selectedCaProfileId, setSelectedCaProfileId] = useState<string | null>(null);
+  const [caProfileWarning, setCaProfileWarning] = useState<string | null>(null);
+
+  // Form for inline CA certificate profile (simplified)
+  const caProfileForm = useForm<SimplifiedInlineProfileFormValues>({
+    resolver: zodResolver(simplifiedInlineProfileSchema),
+    defaultValues: defaultSimplifiedFormValues,
+  });
+
+  // Profile state (for certificates issued BY the new CA)
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // Track effective CA validity (overridden by profile when selected/defined inline)
+  const [effectiveCaValidity, setEffectiveCaValidity] = useState<{ description: string; date?: string; duration?: string } | null>(null);
 
 
   const [isParentCaModalOpen, setIsParentCaModalOpen] = useState(false);
@@ -97,6 +159,10 @@ export default function CreateCaGeneratePage() {
       } else {
         setProfileMode('create');
       }
+      // Initialize CA profile mode to first available if profiles exist
+      if (profilesResponse.list.length > 0) {
+        setSelectedCaProfileId(profilesResponse.list[0].id);
+      }
     } catch (err: any) {
       setErrorDependencies(err.message || 'Failed to load page dependencies.');
       setAvailableParentCAs([]);
@@ -112,6 +178,69 @@ export default function CreateCaGeneratePage() {
       loadDependencies();
     }
   }, [loadDependencies, authLoading]);
+
+  // Validate CA profile when selected in reuse mode
+  useEffect(() => {
+    if (caProfileMode === 'reuse' && selectedCaProfileId) {
+      const profile = availableProfiles.find(p => p.id === selectedCaProfileId);
+      if (profile && !profile.sign_as_ca) {
+        setCaProfileWarning('The selected profile does not have "Sign as CA" enabled. CA certificates should typically have this enabled to function properly.');
+      } else {
+        setCaProfileWarning(null);
+      }
+    } else {
+      setCaProfileWarning(null);
+    }
+  }, [caProfileMode, selectedCaProfileId, availableProfiles]);
+
+  // Watch inline profile validity for reactive updates
+  const inlineProfileValidity = caProfileForm.watch('validity');
+
+  // Calculate effective CA validity from profile when selected or defined inline
+  useEffect(() => {
+    if (caProfileMode === 'reuse' && selectedCaProfileId) {
+      const profile = availableProfiles.find(p => p.id === selectedCaProfileId);
+      if (profile) {
+        if (profile.validity.type === 'Duration' && profile.validity.duration) {
+          const humanReadable = formatDurationToHuman(profile.validity.duration);
+          const expirationDate = calculateExpirationDate(profile.validity.duration);
+          setEffectiveCaValidity({
+            description: `Profile "${profile.name}" validity: ${humanReadable}`,
+            date: format(expirationDate, 'PPP'),
+            duration: profile.validity.duration,
+          });
+        } else if (profile.validity.type === 'Date' && profile.validity.time) {
+          const expirationDate = new Date(profile.validity.time);
+          setEffectiveCaValidity({
+            description: `Profile "${profile.name}" validity: Until ${format(expirationDate, 'PPP')}`,
+            date: format(expirationDate, 'PPP'),
+          });
+        }
+      }
+    } else if (caProfileMode === 'inline') {
+      if (inlineProfileValidity.type === 'Duration' && inlineProfileValidity.durationValue) {
+        const humanReadable = formatDurationToHuman(inlineProfileValidity.durationValue);
+        const expirationDate = calculateExpirationDate(inlineProfileValidity.durationValue);
+        setEffectiveCaValidity({
+          description: `Inline profile validity: ${humanReadable}`,
+          date: format(expirationDate, 'PPP'),
+          duration: inlineProfileValidity.durationValue,
+        });
+      } else if (inlineProfileValidity.type === 'Date' && inlineProfileValidity.dateValue) {
+        setEffectiveCaValidity({
+          description: `Inline profile validity: Until ${format(inlineProfileValidity.dateValue, 'PPP')}`,
+          date: format(inlineProfileValidity.dateValue, 'PPP'),
+        });
+      } else if (inlineProfileValidity.type === 'Indefinite') {
+        setEffectiveCaValidity({
+          description: 'Inline profile validity: Indefinite (no expiration)',
+          date: 'No expiration date',
+        });
+      }
+    } else {
+      setEffectiveCaValidity(null);
+    }
+  }, [caProfileMode, selectedCaProfileId, availableProfiles, inlineProfileValidity]);
 
   const selectedEngine = useMemo(() => allCryptoEngines.find(e => e.id === cryptoEngineId), [allCryptoEngines, cryptoEngineId]);
 
@@ -227,6 +356,16 @@ export default function CreateCaGeneratePage() {
       return;
     }
 
+    // Validate CA profile inline mode
+    if (caProfileMode === 'inline') {
+      const isValid = await caProfileForm.trigger();
+      if (!isValid) {
+        toast({ title: "Validation Error", description: "Please fix the errors in the CA Certificate Profile form.", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     let keyBits: number;
     if (keyType === 'ECDSA') {
       keyBits = parseInt(keySpec.replace('P-', ''), 10);
@@ -252,9 +391,48 @@ export default function CreateCaGeneratePage() {
         bits: keyBits,
       },
       ca_expiration: formatExpirationForApi(caExpiration),
-      profile_id: selectedProfileId,
+      profile_id: selectedProfileId!,
       ca_type: "MANAGED",
     };
+
+    // Add CA certificate profile if specified
+    if (caProfileMode === 'reuse' && selectedCaProfileId) {
+      payload.ca_issuance_profile_id = selectedCaProfileId;
+    } else if (caProfileMode === 'inline') {
+      const formData = caProfileForm.getValues();
+      
+      let validityPayload: { type: "Duration" | "Date"; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
+      if (formData.validity.type === 'Duration' && formData.validity.durationValue) {
+        validityPayload = { type: 'Duration', duration: formData.validity.durationValue };
+      } else if (formData.validity.type === 'Date' && formData.validity.dateValue) {
+        validityPayload = { type: 'Date', time: formData.validity.dateValue.toISOString() };
+      } else if (formData.validity.type === 'Indefinite') {
+        validityPayload = { type: 'Date', time: INDEFINITE_DATE_API_VALUE };
+      }
+
+      // Simplified inline profile with forced values
+      const inlineProfile: CreateSigningProfilePayload = {
+        name: `Inline CA Profile - ${caId}`, // Temporary name for inline profile
+        description: 'Inline profile for CA certificate',
+        validity: validityPayload,
+        sign_as_ca: true, // Forced to true for CA certificates
+        honor_key_usage: false, // Forced to false - using inline definition
+        key_usage: formData.keyUsages || [],
+        honor_extended_key_usages: false, // Forced to false - using inline definition
+        extended_key_usages: formData.extendedKeyUsages || [],
+        honor_subject: true, // Forced to true - values from CA creation form
+        honor_extensions: false, // Forced to false
+        crypto_enforcement: {
+          enabled: false, // Forced to false
+          allow_rsa_keys: true,
+          allow_ecdsa_keys: true,
+          allowed_rsa_key_sizes: [],
+          allowed_ecdsa_key_sizes: [],
+        },
+      };
+
+      payload.ca_issuance_profile = inlineProfile;
+    }
 
     try {
       await createCa(payload, user!.access_token!);
@@ -329,6 +507,151 @@ export default function CreateCaGeneratePage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <SectionHeader icon={Shield} title="CA Certificate Profile" />
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Optionally specify an issuance profile for the CA&apos;s own certificate. This is different from the default issuance profile used when issuing certificates.
+                </p>
+                <div className="space-y-4">
+                  <Label>Profile Mode</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card 
+                      className={cn(
+                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
+                        caProfileMode === 'none' 
+                          ? "border-primary bg-primary/5 shadow-sm" 
+                          : "border-border hover:border-primary/50"
+                      )}
+                      onClick={() => setCaProfileMode('none')}
+                    >
+                      <CardHeader>
+                        <div className="flex items-center space-x-3">
+                          <div className={cn(
+                            "p-2 rounded-lg",
+                            caProfileMode === 'none' 
+                              ? "bg-primary text-primary-foreground" 
+                              : "bg-muted text-muted-foreground"
+                          )}>
+                            <Settings className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-semibold">No Profile</h3>
+                            <CardDescription className="text-sm">Use default settings</CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                    <Card 
+                      className={cn(
+                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
+                        caProfileMode === 'reuse' 
+                          ? "border-primary bg-primary/5 shadow-sm" 
+                          : "border-border hover:border-primary/50"
+                      )}
+                      onClick={() => setCaProfileMode('reuse')}
+                    >
+                      <CardHeader>
+                        <div className="flex items-center space-x-3">
+                          <div className={cn(
+                            "p-2 rounded-lg",
+                            caProfileMode === 'reuse' 
+                              ? "bg-primary text-primary-foreground" 
+                              : "bg-muted text-muted-foreground"
+                          )}>
+                            <BookText className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-semibold">Reuse Profile</h3>
+                            <CardDescription className="text-sm">Select existing profile</CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                    <Card 
+                      className={cn(
+                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
+                        caProfileMode === 'inline' 
+                          ? "border-primary bg-primary/5 shadow-sm" 
+                          : "border-border hover:border-primary/50"
+                      )}
+                      onClick={() => setCaProfileMode('inline')}
+                    >
+                      <CardHeader>
+                        <div className="flex items-center space-x-3">
+                          <div className={cn(
+                            "p-2 rounded-lg",
+                            caProfileMode === 'inline' 
+                              ? "bg-primary text-primary-foreground" 
+                              : "bg-muted text-muted-foreground"
+                          )}>
+                            <Settings className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-semibold">Define Inline</h3>
+                            <CardDescription className="text-sm">One-time profile definition</CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  </div>
+
+                  {caProfileMode === 'reuse' && (
+                    <div className="space-y-4 pt-4 border-t">
+                      <div className="space-y-2">
+                        <Label htmlFor="ca-profile-select">CA Certificate Issuance Profile</Label>
+                        <Select 
+                          value={selectedCaProfileId || ''} 
+                          onValueChange={(v) => setSelectedCaProfileId(v)}
+                          disabled={isLoadingDependencies || isSubmitting}
+                        >
+                          <SelectTrigger id="ca-profile-select" className="w-full md:w-1/2">
+                            <SelectValue placeholder="Select a profile..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableProfiles.length > 0 ? (
+                              availableProfiles.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="none" disabled>No profiles available</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {caProfileWarning && (
+                        <Alert variant="warning">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>{caProfileWarning}</AlertDescription>
+                        </Alert>
+                      )}
+                      {selectedCaProfileId && availableProfiles.find(p => p.id === selectedCaProfileId) && (
+                        <div className="pt-2">
+                          <IssuanceProfileCard profile={availableProfiles.find(p => p.id === selectedCaProfileId)!} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {caProfileMode === 'inline' && (
+                    <div className="pt-4 border-t space-y-4">
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription>
+                          This is a simplified inline profile for the CA certificate. Subject values are taken from the CA creation form, and &quot;Sign as CA&quot; is automatically enabled.
+                        </AlertDescription>
+                      </Alert>
+                      <Form {...caProfileForm}>
+                        <div className="space-y-4">
+                          <SimplifiedInlineProfileForm form={caProfileForm} />
+                        </div>
+                      </Form>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -421,8 +744,34 @@ export default function CreateCaGeneratePage() {
 
             <Card>
               <SectionHeader icon={CalendarDays} title="Expiration Settings" />
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <ExpirationInput idPrefix="ca-exp" label="CA Certificate Expiration" value={caExpiration} onValueChange={setCaExpiration} />
+              <CardContent className="space-y-4">
+                {effectiveCaValidity ? (
+                  <div className="space-y-4">
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        The CA certificate expiration is determined by the selected CA Certificate Profile.
+                      </AlertDescription>
+                    </Alert>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Validity Period</Label>
+                        <Input value={effectiveCaValidity.description} readOnly className="bg-muted/50" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Expiration Date</Label>
+                        <Input value={effectiveCaValidity.date || 'Calculated at creation'} readOnly className="bg-muted/50" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      The expiration settings from the CA Certificate Profile will be applied to this CA certificate.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ExpirationInput idPrefix="ca-exp" label="CA Certificate Expiration" value={caExpiration} onValueChange={setCaExpiration} />
+                  </div>
+                )}
               </CardContent>
             </Card>
 

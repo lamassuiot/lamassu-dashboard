@@ -577,6 +577,9 @@ export interface CreateCaPayload {
   };
   ca_expiration: { type: string; duration?: string; time?: string };
   ca_type: "MANAGED";
+  // Optional: Profile for the CA's own certificate
+  ca_issuance_profile_id?: string;
+  ca_issuance_profile?: CreateSigningProfilePayload;
 }
 
 export async function createCa(payload: CreateCaPayload, accessToken: string): Promise<void> {
