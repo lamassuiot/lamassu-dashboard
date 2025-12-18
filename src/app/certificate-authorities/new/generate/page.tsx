@@ -258,7 +258,10 @@ export default function CreateCaGeneratePage() {
         const curve = ECDSA_CURVE_OPTIONS.find(c => c.value.includes(String(size)));
         return curve || { value: String(size), label: `Unknown Curve ${size}` };
       }
-      return { value: String(size), label: `${size} bit` };
+      else if (keyType == 'RSA') {
+        return { value: String(size), label: `${size} bit` };
+      }
+      return { value: String(size), label: `${size}` };
     });
   }, [selectedEngine, keyType]);
 
