@@ -69,7 +69,7 @@ export default function CreateSigningProfilePage() {
         honor_extended_key_usages: data.honorExtendedKeyUsages,
         extended_key_usages: data.extendedKeyUsages || [],
         honor_subject: data.honorSubject,
-        honor_extensions: true,
+        honor_extensions: data.honorExtensions,
         crypto_enforcement: {
             enabled: data.cryptoEnforcement.enabled,
             allow_rsa_keys: data.cryptoEnforcement.allowRsa,

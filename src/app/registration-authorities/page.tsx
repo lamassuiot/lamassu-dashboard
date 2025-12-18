@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -28,13 +29,17 @@ import {
   Server,
   Search,
   X,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format, parseISO } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { cn, getCookie, setCookie } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
+import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
@@ -42,7 +47,7 @@ import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
 import { fetchRegistrationAuthorities, updateRaMetadata, type ApiRaItem, deleteRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { useToast } from '@/hooks/use-toast';
@@ -56,6 +61,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RegistrationAuthoritiesTable } from '@/components/ra/RegistrationAuthoritiesTable';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 
 const DetailRow: React.FC<{ icon: React.ElementType, label: string, value: React.ReactNode }> = ({ icon: Icon, label, value }) => (
@@ -68,6 +75,17 @@ const DetailRow: React.FC<{ icon: React.ElementType, label: string, value: React
     </div>
 );
 
+// Add SortConfig type
+export type SortableColumn = 'name' | 'creation_ts';
+export type SortDirection = 'asc' | 'desc';
+interface SortConfig {
+  column: SortableColumn;
+  direction: SortDirection;
+}
+
+const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
+const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
+
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -75,8 +93,12 @@ export default function RegistrationAuthoritiesPage() {
   
   const [ras, setRas] = useState<ApiRaItem[]>([]);
   const [allCAs, setAllCAs] = useState<CA[]>([]);
+  const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>();
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -84,10 +106,13 @@ export default function RegistrationAuthoritiesPage() {
   const [caFilterId, setCaFilterId] = useState<string | null>(null);
 
   // Pagination State
-  const [pageSize, setPageSize] = useState('6');
+  const [pageSize, setPageSize] = useState(GRID_PAGE_SIZES[0]);
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
+  
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ column: 'name', direction: 'asc' });
 
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [selectedRaForEnroll, setSelectedRaForEnroll] = useState<ApiRaItem | null>(null);
@@ -108,6 +133,29 @@ export default function RegistrationAuthoritiesPage() {
   useEffect(() => {
     setIsClientMounted(true);
   }, []);
+
+  // Load view mode from cookie
+  useEffect(() => {
+    if (isClientMounted) {
+      const savedViewMode = getCookie('user-view-mode');
+      const newViewMode = (savedViewMode === 'grid' || savedViewMode === 'list') ? savedViewMode : 'grid';
+      setViewMode(newViewMode);
+      setPageSize(newViewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0]);
+    }
+  }, [isClientMounted]);
+
+  // Save view mode to cookie when it changes and adjust page size
+  useEffect(() => {
+    if (viewMode && isClientMounted) {
+      setCookie('user-view-mode', viewMode);
+      const newPageSize = viewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0];
+      // Only change page size if it's not already in the correct set for the view mode
+      const currentOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
+      if (!currentOptions.includes(pageSize)) {
+          setPageSize(newPageSize);
+      }
+    }
+  }, [viewMode, isClientMounted, pageSize]);
   
   // Debounce search term
   useEffect(() => {
@@ -128,27 +176,40 @@ export default function RegistrationAuthoritiesPage() {
     setError(null);
     try {
         const params = new URLSearchParams();
-        params.append('sort_by', 'name');
-        params.append('sort_mode', 'asc');
-        params.append('page_size', pageSize);
+        if (sortConfig) {
+            let apiSortColumn = sortConfig.column as string;
+            if (apiSortColumn === 'creation_ts') {
+                apiSortColumn = 'creation_date';
+            }
+            params.append('sort_by', apiSortColumn);
+            params.append('sort_mode', sortConfig.direction);
+        } else {
+            params.append('sort_by', 'name');
+            params.append('sort_mode', 'asc');
+        }
 
+        params.append('page_size', pageSize);
         if (bookmarkToFetch) {
             params.append('bookmark', bookmarkToFetch);
         }
         
         if (debouncedSearchTerm.trim()) {
-            params.append('filter', `name[contains]${debouncedSearchTerm.trim()}`);
+            params.append('filter', `name[contains_ignorecase]${debouncedSearchTerm.trim()}`);
         }
 
-        const [raData, caData] = await Promise.all([
+        const [raData, caData, cryptoEnginesData] = await Promise.all([
             fetchRegistrationAuthorities(user.access_token, params),
             allCAs.length === 0 ? fetchAndProcessCAs(user.access_token) : Promise.resolve(null),
+            allCryptoEngines.length === 0 ? fetchCryptoEngines(user.access_token) : Promise.resolve(null),
         ]);
 
         setRas(raData.list || []);
         setNextTokenFromApi(raData.next || null);
         if (caData) {
             setAllCAs(caData);
+        }
+        if (cryptoEnginesData) {
+            setAllCryptoEngines(cryptoEnginesData);
         }
 
     } catch (err: any) {
@@ -158,14 +219,14 @@ export default function RegistrationAuthoritiesPage() {
     } finally {
         setIsLoading(false);
     }
-  }, [user, isAuthenticated, authLoading, pageSize, allCAs.length, debouncedSearchTerm]);
+  }, [user, isAuthenticated, authLoading, pageSize, allCAs.length, debouncedSearchTerm, sortConfig]);
 
 
   // Reset pagination when page size or filter changes
   useEffect(() => {
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
-  }, [pageSize, debouncedSearchTerm]);
+  }, [pageSize, debouncedSearchTerm, caFilterId, sortConfig]);
 
   useEffect(() => {
     // Gate fetching until the component is mounted and auth is resolved
@@ -193,6 +254,14 @@ export default function RegistrationAuthoritiesPage() {
   const getCaNameById = (caId: string) => {
     const ca = findCaById(caId, allCAs);
     return ca ? ca.name : caId;
+  };
+  
+  const requestSort = (column: SortableColumn) => {
+    let direction: SortDirection = 'asc';
+    if (sortConfig && sortConfig.column === column && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ column, direction });
   };
 
   const handleNextPage = () => {
@@ -279,6 +348,9 @@ export default function RegistrationAuthoritiesPage() {
     );
   }
 
+  const hasActiveFilters = searchTerm || caFilterId;
+  const pageSizeOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
+
   return (
     <>
     <div className="space-y-6 w-full pb-8">
@@ -300,7 +372,7 @@ export default function RegistrationAuthoritiesPage() {
         Manage policies for device enrollment and certificate issuance.
       </p>
 
-      <div className="flex flex-col md:flex-row gap-4 items-end mb-4 p-4 border rounded-lg bg-muted/30">
+      <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-grow w-full space-y-1.5">
           <Label htmlFor="ra-name-filter">Filter by Name</Label>
           <div className="relative">
@@ -315,7 +387,7 @@ export default function RegistrationAuthoritiesPage() {
             />
           </div>
         </div>
-         <div className="flex-grow w-full space-y-1.5">
+        <div className="flex-grow w-full space-y-1.5">
           <Label htmlFor="ca-filter-button">Filter by CA</Label>
           <div className="flex items-center gap-2">
             <Button
@@ -340,6 +412,17 @@ export default function RegistrationAuthoritiesPage() {
             )}
            </div>
         </div>
+        <div className="flex items-center space-x-2">
+            <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
+                variant="outline"
+            >
+                <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
+                <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
+            </ToggleGroup>
+        </div>
       </div>
 
       {error && (
@@ -350,17 +433,30 @@ export default function RegistrationAuthoritiesPage() {
         </Alert>
       )}
 
-      {!isLoading && !error && filteredRas.length === 0 && (
+      {!isLoading && !error && filteredRas.length === 0 ? (
         <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-            <h3 className="text-lg font-semibold text-muted-foreground">{searchTerm || caFilterId ? "No Matching RAs Found" : "No Registration Authorities Found"}</h3>
-            <p className="text-sm text-muted-foreground">{searchTerm || caFilterId ? "Try a different search term or filter." : "Get started by creating a new RA to define an enrollment policy."}</p>
+            <h3 className="text-lg font-semibold text-muted-foreground">{hasActiveFilters ? "No Matching RAs Found" : "No Registration Authorities Found"}</h3>
+            <p className="text-sm text-muted-foreground">{hasActiveFilters ? "Try a different search term or filter." : "Get started by creating a new RA to define an enrollment policy."}</p>
             <Button onClick={handleCreateNewRAClick} className="mt-4">
               <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
             </Button>
         </div>
-      )}
-
-      {!error && filteredRas.length > 0 && (
+      ) : viewMode === 'list' ? (
+        <RegistrationAuthoritiesTable
+            ras={filteredRas}
+            getCaNameById={getCaNameById}
+            allCAs={allCAs}
+            allCryptoEngines={allCryptoEngines}
+            onEdit={(raId) => router.push(`/registration-authorities/new?raId=${raId}`)}
+            onViewDevices={(raId) => router.push(`/devices?dms_owner=${raId}`)}
+            onShowMetadata={handleShowMetadata}
+            onOpenEnrollModal={handleOpenEnrollModal}
+            onOpenReEnrollModal={handleOpenReEnrollModal}
+            onDelete={setRaToDelete}
+            sortConfig={sortConfig}
+            requestSort={requestSort}
+        />
+      ) : (
         <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
             {filteredRas.map(ra => {
                 const profile = ra.settings.enrollment_settings.device_provisioning_profile;
@@ -402,11 +498,11 @@ export default function RegistrationAuthoritiesPage() {
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => router.push(`/devices?dms_owner=${ra.id}`)}>
                                             <RouterIcon className="mr-2 h-4 w-4" />
-                                            <span>Go to DMS owned devices</span>
+                                            <span>View Devices</span>
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => handleShowMetadata(ra)}>
                                             <BookText className="mr-2 h-4 w-4" />
-                                            <span>Show/Edit Metadata</span>
+                                            <span>Show Metadata</span>
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuSub>
@@ -431,7 +527,7 @@ export default function RegistrationAuthoritiesPage() {
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
                                             onClick={() => setRaToDelete(ra)}
-                                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                            className="text-destructive focus:text-destructive"
                                         >
                                             <Trash2 className="mr-2 h-4 w-4" />
                                             <span>Delete</span>
@@ -537,13 +633,14 @@ export default function RegistrationAuthoritiesPage() {
               <div className="flex items-center space-x-2">
                 <Label htmlFor="pageSizeSelectRaList" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
                 <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading || authLoading}>
-                  <SelectTrigger id="pageSizeSelectRaList" className="w-[80px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="6">6</SelectItem>
-                    <SelectItem value="9">9</SelectItem>
-                    <SelectItem value="15">15</SelectItem>
-                    <SelectItem value="30">30</SelectItem>
-                  </SelectContent>
+                    <SelectTrigger id="pageSizeSelectRaList" className="w-[80px]">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {pageSizeOptions.map(size => (
+                            <SelectItem key={size} value={size}>{size}</SelectItem>
+                        ))}
+                    </SelectContent>
                 </Select>
               </div>
               <div className="flex items-center space-x-2">
@@ -570,7 +667,7 @@ export default function RegistrationAuthoritiesPage() {
         onCaSelected={(ca) => { setCaFilterId(ca.id); setIsCaSelectorOpen(false); }}
         currentSelectedCaId={caFilterId}
         isAuthLoading={authLoading}
-        allCryptoEngines={[]}
+        allCryptoEngines={allCryptoEngines}
     />
       <EstEnrollModal
           isOpen={isEnrollModalOpen}
@@ -617,6 +714,3 @@ export default function RegistrationAuthoritiesPage() {
     </>
   );
 }
-
-
-    

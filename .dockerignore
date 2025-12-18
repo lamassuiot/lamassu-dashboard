@@ -12,7 +12,7 @@ out/
 .env*
 
 # IDE and editor files
-.vscode/
+#.vscode/
 .idea/
 *.swp
 *.swo
@@ -27,13 +27,13 @@ ehthumbs.db
 Thumbs.db
 
 # Git
-.git/
-.gitignore
+#.git/
+#.gitignore
 
 # Docker
-Dockerfile*
+#Dockerfile*
 docker-compose*.yml
-.dockerignore
+#.dockerignore
 
 # Testing
 coverage/

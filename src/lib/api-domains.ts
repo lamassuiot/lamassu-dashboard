@@ -3,7 +3,6 @@
 const getApiBaseUrl = (): string => {
     // 1. Check for configuration from config.js on the window object
     if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_API) {
-        console.log('Using LAMASSU_API from window.lamassuConfig');
         return (window as any).lamassuConfig.LAMASSU_API;
     }
     // 2. Fallback to the Next.js public environment variable
@@ -16,7 +15,7 @@ const getApiBaseUrl = (): string => {
     return '';
 };
 
-const getVaEstApiBaseUrl = (): string => {
+export const getPublicAPIUrl = (): string => {
     // 1. Check for the specific override for VA/EST endpoints
     if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_PUBLIC_API) {
         return (window as any).lamassuConfig.LAMASSU_PUBLIC_API;
@@ -25,15 +24,16 @@ const getVaEstApiBaseUrl = (): string => {
     return getApiBaseUrl();
 }
 
+export const get_KMS_API_BASE_URL = () => `${getApiBaseUrl()}/kms/v1`;
 export const get_CA_API_BASE_URL = () => `${getApiBaseUrl()}/ca/v1`;
 export const get_DEV_MANAGER_API_BASE_URL = () => `${getApiBaseUrl()}/devmanager/v1`;
 export const get_DMS_MANAGER_API_BASE_URL = () => `${getApiBaseUrl()}/dmsmanager/v1`;
 export const get_ALERTS_API_BASE_URL = () => `${getApiBaseUrl()}/alerts/v1`;
+export const get_VA_CORE_API_BASE_URL = () => `${getApiBaseUrl()}/va`;
+export const get_VA_API_BASE_URL = () => `${get_VA_CORE_API_BASE_URL()}/v1`;
 
 // These endpoints now use the potentially overridden base URL
-export const get_EST_API_BASE_URL = () => `${getVaEstApiBaseUrl()}/dmsmanager/.well-known/est`;
-export const get_VA_CORE_API_BASE_URL = () => `${getVaEstApiBaseUrl()}/va`;
-export const get_VA_API_BASE_URL = () => `${get_VA_CORE_API_BASE_URL()}/v1`;
+export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/est`;
 
 export const handleApiError = async (response: Response, defaultMessage: string) => {
     if (!response.ok) {

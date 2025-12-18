@@ -100,3 +100,8 @@
   --sidebar-accent-foreground: 0 0% 98%;
   --sidebar-border: 240 3.7% 15.9%;
 }
+
+.lamassu-logo-theme-filter {
+  /* For light theme: change blue SVG to #ff7f50 Coral Orange */
+  filter: invert(66%) sepia(81%) saturate(749%) hue-rotate(320deg) brightness(101%) contrast(101%);
+}

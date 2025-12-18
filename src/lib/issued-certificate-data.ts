@@ -1,3 +1,4 @@
+
 import type { CertificateData } from '@/types/certificate';
 import { get_CA_API_BASE_URL } from './api-domains';
 import { parseCertificatePemDetails } from './ca-data';
@@ -192,8 +193,7 @@ export async function updateCertificateStatus({
     body.revocation_reason = reason;
   }
   
-  // The API endpoint expects the serial number with hyphens instead of colons.
-  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
+  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
   
   const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
     method: 'PUT',
@@ -209,7 +209,9 @@ export async function updateCertificateStatus({
     try {
       const errJson = await response.json();
       errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) { /* Ignore parsing error */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for certificate status update:", e);
+    }
     
     const actionText = status === 'REVOKED' ? 'revoke' : 're-activate';
     throw new Error(`Failed to ${actionText} certificate: ${errorBody} (Status: ${response.status})`);
@@ -217,7 +219,7 @@ export async function updateCertificateStatus({
 }
 
 export async function updateCertificateMetadata(serialNumber: string, metadata: object, accessToken: string): Promise<void> {
-  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '-');
+  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
   const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
     method: 'PUT',
     headers: {
@@ -232,7 +234,58 @@ export async function updateCertificateMetadata(serialNumber: string, metadata: 
     try {
       const errJson = await response.json();
       errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) { /* Ignore */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for certificate metadata update:", e);
+    }
     throw new Error(`Failed to update certificate metadata: ${errorBody} (Status: ${response.status})`);
   }
+}
+
+// Import Certificate Types
+export interface ImportCertificateBody {
+  metadata: Record<string, any>;
+  certificate: string; // Base64 encoded certificate
+}
+
+export async function importCertificate(payload: ImportCertificateBody, accessToken: string): Promise<void> {
+  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/import`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorBody = 'Request failed.';
+    try {
+      const errJson = await response.json();
+      errorBody = errJson.err || errJson.message || errorBody;
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for certificate import:", e);
+    }
+    throw new Error(`Failed to import certificate: ${errorBody} (Status: ${response.status})`);
+  }
+}
+
+export async function deleteCertificate(serialNumber: string, accessToken: string): Promise<void> {
+    const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
+    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+        },
+    });
+
+    if (!response.ok) {
+        let errorBody = 'Request failed.';
+        try {
+            const errJson = await response.json();
+            errorBody = errJson.err || errJson.message || errorBody;
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for certificate deletion:", e);
+        }
+        throw new Error(`Failed to delete certificate: ${errorBody} (Status: ${response.status})`);
+    }
 }

@@ -24,6 +24,7 @@ import { SigningProfileSelector } from '@/components/shared/SigningProfileSelect
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { Separator } from '@/components/ui/separator';
 import { importCa, type ImportCaPayload, ab2hex, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -280,7 +281,7 @@ export default function CreateCaImportFullPage() {
                             <>
                             <DetailItem label="Subject" value={decodedImportedCertInfo.subject} isMono />
                             <DetailItem label="Issuer" value={decodedImportedCertInfo.issuer} isMono />
-                            <DetailItem label="Serial Number" value={decodedImportedCertInfo.serialNumber} isMono />
+                            <DetailItem label="Serial Number" value={<IdentifierDisplay value={decodedImportedCertInfo.serialNumber || ''} />} />
                             <DetailItem label="Is CA" value={<Badge variant={decodedImportedCertInfo.isCa ? "default" : "secondary"}>{decodedImportedCertInfo.isCa ? 'Yes' : 'No'}</Badge>} />
                             {!decodedImportedCertInfo.isCa && <Alert variant="warning" className="mt-2"><AlertTriangle className="h-4 w-4"/><AlertTitle>Not a CA Certificate</AlertTitle><AlertDescription>This certificate does not have the `isCA` basic constraint set to `TRUE`. It cannot be used to issue other certificates.</AlertDescription></Alert>}
                             </>

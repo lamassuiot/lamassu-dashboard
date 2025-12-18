@@ -56,9 +56,4 @@ export const revocationReasons: RevocationReason[] = [
     label: "AACompromise",
     description: "It is known, or suspected, that aspects of the Attribute Authority (AA) validated in the attribute certificate have been compromised.",
   },
-  {
-    value: "WeakAlgorithmOrKey",
-    label: "WeakAlgorithmOrKey",
-    description: "The certificate key uses a weak cryptographic algorithm, or the key is too short, or the key was generated in an unsafe manner.",
-  },
 ];

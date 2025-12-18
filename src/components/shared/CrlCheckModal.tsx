@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,7 +15,22 @@ import { format } from 'date-fns';
 import { DetailItem } from './DetailItem';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { revocationReasons } from '@/lib/revocation-reasons';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+
+// Integer to label mapping for DER-encoded CRL reason codes
+const crlReasonCodeMap: { [key: number]: string } = {
+  0: "Unspecified",
+  1: "KeyCompromise", 
+  2: "CACompromise",
+  3: "AffiliationChanged",
+  4: "Superseded",
+  5: "CessationOfOperation",
+  6: "CertificateHold",
+  8: "RemoveFromCRL",
+  9: "PrivilegeWithdrawn",
+  10: "AACompromise"
+};
+import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
 
 interface CrlCheckModalProps {
   isOpen: boolean;
@@ -60,8 +74,11 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
     const [showHttpWarning, setShowHttpWarning] = useState(false);
 
     useEffect(() => {
-        if (isOpen && ca?.crlDistributionPoints && ca.crlDistributionPoints.length > 0) {
-            setCrlUrl(ca.crlDistributionPoints[0]);
+        if (isOpen && ca?.subjectKeyId) {
+            // Construct CRL URL using LAMASSU_PUBLIC_API if defined, otherwise current UI host
+            let baseUrl = get_VA_CORE_API_BASE_URL();
+            const constructedCrlUrl = `${baseUrl}/crl/${ca.subjectKeyId}`;
+            setCrlUrl(constructedCrlUrl);
         } else {
             setCrlUrl('');
         }
@@ -89,7 +106,11 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
                 setEngine("webcrypto", getCrypto());
             }
 
-            const response = await fetch(crlUrl);
+            const response = await fetch(crlUrl,{
+                headers: {
+                    'Accept': 'application/pkix-crl, */*',
+                },
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch CRL. Server responded with HTTP ${response.status}`);
             }
@@ -108,7 +129,7 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
               const crlEntryExtension = cert.crlEntryExtensions?.extensions.find((ext: any) => ext.extnID === "2.5.29.21"); // id-ce-cRLReason
               if(crlEntryExtension) {
                 const reasonCode = (crlEntryExtension.parsedValue.valueBlock.valueDec);
-                return revocationReasons.find(r => parseInt(r.value, 10) === reasonCode)?.label || `Unknown (${reasonCode})`;
+                return crlReasonCodeMap[reasonCode] || `Unknown (${reasonCode})`;
               }
               return 'N/A';
             }
@@ -141,32 +162,29 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
                 <DialogHeader>
                     <DialogTitle className="flex items-center"><FileText className="mr-2 h-6 w-6 text-primary"/>CRL Viewer</DialogTitle>
                     <DialogDescription>
-                        Fetch and parse a Certificate Revocation List for CA: <span className="font-mono text-xs">{ca?.name}</span>.
+                        Fetch and parse the Certificate Revocation List issued by CA: <span className="font-mono text-xs">{ca?.name}</span>.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="py-2 space-y-4">
                     <div className="space-y-3">
                         <div>
-                            <Label htmlFor="crl-url-select">Select a discovered URL</Label>
-                            <Select value={crlUrl} onValueChange={setCrlUrl} disabled={isLoading || !ca?.crlDistributionPoints?.length}>
-                                <SelectTrigger id="crl-url-select">
-                                    <SelectValue placeholder="Select from certificate's CDP..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {ca?.crlDistributionPoints?.map(url => (
-                                        <SelectItem key={url} value={url}>{url}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
-                        </div>
-                        <div>
-                            <Label htmlFor="crl-url-input">Enter URL manually</Label>
-                            <Input id="crl-url-input" type="text" placeholder="http://crl.example.com/ca.crl" value={crlUrl} onChange={(e) => setCrlUrl(e.target.value)} disabled={isLoading} className="mt-1"/>
+                            <Label htmlFor="crl-url-input">CRL URL</Label>
+                            <Input 
+                                id="crl-url-input" 
+                                type="text" 
+                                placeholder="Enter CRL URL" 
+                                value={crlUrl} 
+                                onChange={(e) => setCrlUrl(e.target.value)} 
+                                disabled={isLoading} 
+                                className="mt-1 font-mono text-xs"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {ca?.subjectKeyId 
+                                    ? `Auto-generated URL using ${(typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_PUBLIC_API) ? 'LAMASSU_PUBLIC_API' : 'current domain'} + CA's SKI: ${ca.subjectKeyId}` 
+                                    : 'Enter the CRL URL manually'
+                                }
+                            </p>
                         </div>
                     </div>
                     {showHttpWarning && (
@@ -214,7 +232,7 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Serial Number</TableHead>
-                                                <TableHead>Revocation Date</TableHead>
+                                                <TableHead className="text-center">Revocation Date</TableHead>
                                                 <TableHead>Reason</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -222,7 +240,9 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
                                             {crlDetails.revokedCertificates.length > 0 ? (
                                                 crlDetails.revokedCertificates.map(cert => (
                                                     <TableRow key={cert.serialNumber}>
-                                                        <TableCell className="font-mono text-xs">{cert.serialNumber}</TableCell>
+                                                        <TableCell className="font-mono text-xs">
+                                                            <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
+                                                        </TableCell>
                                                         <TableCell>{cert.revocationDate}</TableCell>
                                                         <TableCell>{cert.reason}</TableCell>
                                                     </TableRow>

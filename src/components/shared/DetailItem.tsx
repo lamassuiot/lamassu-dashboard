@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 
 interface DetailItemProps {
   label: string;
@@ -10,29 +11,38 @@ interface DetailItemProps {
   fullWidthValue?: boolean;
   isMono?: boolean;
   className?: string;
+  showSeparator?: boolean;
 }
 
-export const DetailItem: React.FC<DetailItemProps> = ({ label, value, fullWidthValue, isMono, className }) => {
+export const DetailItem: React.FC<DetailItemProps> = ({ label, value, fullWidthValue, isMono, className, showSeparator = true }) => {
   if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
     return null;
   }
   return (
-    <div
-      className={cn(
-        `py-2 ${fullWidthValue ? 'grid grid-cols-1' : 'grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-4 items-baseline'}`,
-        className
-      )}
-    >
-      <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
-      <dd
+    <>
+      <div
         className={cn(
-          "text-sm text-foreground break-all min-w-0",
-          fullWidthValue ? 'mt-1' : 'mt-1 sm:mt-0',
-          isMono && "font-mono"
+          "group px-4 py-3 rounded-lg transition-all duration-200",
+          "hover:bg-muted/40 border border-transparent hover:border-border/50",
+          fullWidthValue ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4',
+          className
         )}
       >
-        {value}
-      </dd>
-    </div>
+        <dt className="text-sm font-semibold text-muted-foreground min-w-0 flex items-center">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/40 mr-2 group-hover:bg-primary/60 transition-colors" />
+          {label}
+        </dt>
+        <dd
+          className={cn(
+            "text-sm text-foreground min-w-0 sm:col-span-2 break-words",
+            fullWidthValue && 'col-span-1',
+            isMono && "font-mono text-xs"
+          )}
+        >
+          {value}
+        </dd>
+      </div>
+      {showSeparator && <Separator className="my-1" />}
+    </>
   );
 };

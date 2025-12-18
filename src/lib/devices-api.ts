@@ -1,5 +1,4 @@
 
-
 // src/lib/devices-api.ts
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 
@@ -113,4 +112,15 @@ export async function updateDeviceMetadata(deviceId: string, patchOperations: Pa
   if (!response.ok) {
     await handleApiError(response, 'Failed to update device metadata');
   }
+}
+
+export async function deleteDevice(deviceId: string, accessToken: string): Promise<void> {
+    const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}`;
+    const response = await fetch(url, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+        await handleApiError(response, 'Failed to delete device');
+    }
 }

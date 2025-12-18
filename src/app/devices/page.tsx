@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,16 +11,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare } from "lucide-react";
-import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
+import { DmsSelector } from '@/components/shared/DmsSelector';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { fetchDevices } from '@/lib/devices-api';
 import { useToast } from '@/hooks/use-toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
+import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -135,14 +137,36 @@ export default function DevicesPage() {
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [raForEnrollModal, setRaForEnrollModal] = useState<ApiRaItem | null>(null);
   const [deviceForEnrollModal, setDeviceForEnrollModal] = useState<DeviceData | null>(null);
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    id: true,
+    status: true,
+    deviceGroup: true,
+    createdAt: true,
+    tags: true,
+  });
+
+  const columns: ColumnConfig[] = [
+    { id: 'id', label: 'Device ID', visible: columnVisibility.id, disabled: true },
+    { id: 'status', label: 'Status', visible: columnVisibility.status },
+    { id: 'deviceGroup', label: 'Device Group', visible: columnVisibility.deviceGroup },
+    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
+    { id: 'tags', label: 'Tags', visible: columnVisibility.tags },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({
+      ...prev,
+      [columnId]: !prev[columnId],
+    }));
+  };
   
   const isInitialLoad = useRef(true);
-  const lastFetchKeyRef = useRef<string | null>(null);
 
   // Debounce search term
   useEffect(() => {
     const handler = setTimeout(() => {
-        // Guard to prevent debounce from firing on initial mount with empty string
         if (isInitialLoad.current && searchTerm === '') {
             return;
         }
@@ -154,18 +178,7 @@ export default function DevicesPage() {
     };
   }, [searchTerm]);
 
-  // Ref to store previous filter values to detect changes
-  const prevFiltersRef = useRef({
-      debouncedSearchTerm,
-      searchField,
-      statusFilter,
-      pageSize,
-      dmsOwnerFilter,
-      sortConfig,
-  });
-
-  // Main data fetching effect
-  useEffect(() => {
+  const fetchData = useCallback(async (bookmarkToFetch: string | null) => {
     if (authLoading || !isAuthenticated() || !user?.access_token) {
         if (!authLoading && !isAuthenticated()) {
             setApiError("User not authenticated.");
@@ -176,129 +189,75 @@ export default function DevicesPage() {
         return;
     }
     
-    // Check if filters have changed
-    const prevFilters = prevFiltersRef.current;
-    const filtersChanged =
-        prevFilters.debouncedSearchTerm !== debouncedSearchTerm ||
-        prevFilters.searchField !== searchField ||
-        prevFilters.statusFilter !== statusFilter ||
-        prevFilters.pageSize !== pageSize ||
-        prevFilters.dmsOwnerFilter !== dmsOwnerFilter ||
-        prevFilters.sortConfig?.column !== sortConfig?.column ||
-        prevFilters.sortConfig?.direction !== sortConfig?.direction;
-
-    const fetchKey = JSON.stringify({
-          page: currentPageIndex,
-          bookmark: bookmarkStack[currentPageIndex] || null,
-          debouncedSearchTerm,
-          searchField,
-          statusFilter,
-          pageSize,
-          dmsOwnerFilter,
-          sortConfig,
-      });
-      if (lastFetchKeyRef.current === fetchKey) {
-          return; // Prevent duplicate fetches with identical params
-      }
-      lastFetchKeyRef.current = fetchKey;
-
-    const fetchDevicesData = async () => {
-        setIsLoadingApi(true);
-        setApiError(null);
+    setIsLoadingApi(true);
+    setApiError(null);
+    
+    try {
+        const params = new URLSearchParams();
+        if (sortConfig) {
+            let apiSortColumn = sortConfig.column;
+            if(apiSortColumn === 'deviceGroup') {
+                apiSortColumn = 'dms_owner';
+            } else if (apiSortColumn === 'createdAt') {
+                apiSortColumn = 'creation_timestamp';
+            }
+            params.append('sort_by', apiSortColumn);
+            params.append('sort_mode', sortConfig.direction);
+        } else {
+             params.append('sort_by', 'creation_timestamp');
+             params.append('sort_mode', 'desc');
+        }
         
-        let localPageIndex = currentPageIndex;
-        let localBookmarkStack = bookmarkStack;
-
-        // If filters changed, force fetch from the first page
-        if (filtersChanged && !isInitialLoad.current) {
-            localPageIndex = 0;
-            localBookmarkStack = [null];
+        params.append('page_size', pageSize);
+        if (bookmarkToFetch) {
+            params.append('bookmark', bookmarkToFetch);
         }
+        
+        const filtersToApply: string[] = [];
+        if (dmsOwnerFilter) filtersToApply.push(`dms_owner[equal]${dmsOwnerFilter}`);
+        if (debouncedSearchTerm.trim() !== '') filtersToApply.push(`${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+        if (statusFilter !== 'ALL') filtersToApply.push(`status[equal]${statusFilter}`);
+        filtersToApply.forEach(f => params.append('filter', f));
 
-        try {
-            const params = new URLSearchParams();
-            
-            // Sorting
-            if (sortConfig) {
-                let apiSortColumn = sortConfig.column;
-                if(apiSortColumn === 'deviceGroup') {
-                    apiSortColumn = 'dms_owner';
-                } else if (apiSortColumn === 'createdAt') {
-                    apiSortColumn = 'creation_timestamp';
-                }
+        const data = await fetchDevices(user.access_token!, params);
+        const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
+            id: apiDevice.id,
+            displayId: apiDevice.id,
+            iconType: mapApiIconToIconType(apiDevice.icon),
+            icon_color: apiDevice.icon_color,
+            status: apiDevice.status as DeviceStatus,
+            deviceGroup: apiDevice.dms_owner,
+            createdAt: apiDevice.creation_timestamp,
+            tags: apiDevice.tags || [],
+        }));
 
-                params.append('sort_by', apiSortColumn);
-                params.append('sort_mode', sortConfig.direction);
-            } else {
-                 params.append('sort_by', 'creation_timestamp');
-                 params.append('sort_mode', 'desc');
-            }
-            
-            params.append('page_size', pageSize);
+        setDevices(transformedDevices);
+        setNextTokenFromApi(data.next);
+    } catch (error: any) {
+        console.error("Failed to fetch devices:", error);
+        setApiError(error.message || "An unknown error occurred while fetching devices.");
+        setDevices([]);
+        setNextTokenFromApi(null);
+    } finally {
+        setIsLoadingApi(false);
+        if (isInitialLoad.current) isInitialLoad.current = false;
+    }
+  }, [authLoading, isAuthenticated, user, sortConfig, pageSize, dmsOwnerFilter, debouncedSearchTerm, searchField, statusFilter]);
 
-            const bookmarkToFetch = localBookmarkStack[localPageIndex];
-            if (bookmarkToFetch) {
-                params.append('bookmark', bookmarkToFetch);
-            }
-            
-            const filtersToApply: string[] = [];
-            if (dmsOwnerFilter) {
-                filtersToApply.push(`dms_owner[equal]${dmsOwnerFilter}`);
-            }
-            if (debouncedSearchTerm.trim() !== '') {
-                filtersToApply.push(`${searchField}[contains]${debouncedSearchTerm.trim()}`);
-            }
-            if (statusFilter !== 'ALL') {
-                filtersToApply.push(`status[equal]${statusFilter}`);
-            }
-            filtersToApply.forEach(f => params.append('filter', f));
+  // Effect for filter changes
+  useEffect(() => {
+    if (!isInitialLoad.current) {
+        setCurrentPageIndex(0);
+        setBookmarkStack([null]);
+    }
+  }, [debouncedSearchTerm, searchField, statusFilter, pageSize, dmsOwnerFilter, sortConfig]);
 
-            const data = await fetchDevices(user.access_token!, params);
-
-            const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
-                id: apiDevice.id,
-                displayId: apiDevice.id,
-                iconType: mapApiIconToIconType(apiDevice.icon),
-                icon_color: apiDevice.icon_color,
-                status: apiDevice.status as DeviceStatus,
-                deviceGroup: apiDevice.dms_owner,
-                createdAt: apiDevice.creation_timestamp,
-                tags: apiDevice.tags || [],
-            }));
-
-            setDevices(transformedDevices);
-            setNextTokenFromApi(data.next);
-
-            // If filters changed, now we update the pagination state
-            if (filtersChanged && !isInitialLoad.current) {
-                setCurrentPageIndex(0);
-                setBookmarkStack([null]);
-            }
-            
-            // After a successful fetch, update the previous filters ref
-            prevFiltersRef.current = { debouncedSearchTerm, searchField, statusFilter, pageSize, dmsOwnerFilter, sortConfig };
-
-        } catch (error: any) {
-            console.error("Failed to fetch devices:", error);
-            setApiError(error.message || "An unknown error occurred while fetching devices.");
-            setDevices([]);
-            setNextTokenFromApi(null);
-        } finally {
-            setIsLoadingApi(false);
-            if (isInitialLoad.current) {
-                isInitialLoad.current = false;
-            }
-        }
-    };
-
-    fetchDevicesData();
-  }, [
-      user, isAuthenticated, authLoading, 
-      currentPageIndex, // Only pagination state should trigger this directly
-      bookmarkStack, 
-      // All filters are now handled internally by comparing to refs
-      debouncedSearchTerm, searchField, statusFilter, pageSize, dmsOwnerFilter, sortConfig
-  ]);
+  // Main data fetching effect
+  useEffect(() => {
+    if (bookmarkStack[currentPageIndex] !== undefined) {
+        fetchData(bookmarkStack[currentPageIndex]);
+    }
+  }, [currentPageIndex, bookmarkStack, fetchData]);
 
 
   const requestSort = (column: SortableColumn) => {
@@ -328,8 +287,11 @@ export default function DevicesPage() {
 
 
     return (
-      <TableHead className={cn("cursor-pointer hover:bg-muted/60", className)} onClick={() => requestSort(column)}>
-        <div className="flex items-center gap-1">
+      <TableHead className={cn("cursor-pointer hover:bg-muted/60", 
+        column === 'createdAt' && "text-center", 
+        className)} onClick={() => requestSort(column)}>
+        <div className={cn("flex items-center gap-1", 
+          column === 'createdAt' && "justify-center")}>
           {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
         </div>
       </TableHead>
@@ -347,6 +309,17 @@ export default function DevicesPage() {
 
   const handleViewDetails = (deviceIdValue: string) => {
     router.push(`/devices/details?deviceId=${deviceIdValue}`);
+  };
+
+  const handleDmsOwnerChange = (dmsId: string | null) => {
+    const currentParams = new URLSearchParams(searchParams.toString());
+    if (dmsId) {
+      currentParams.set('dms_owner', dmsId);
+    } else {
+      currentParams.delete('dms_owner');
+    }
+    const newQueryString = currentParams.toString();
+    router.push(`/devices${newQueryString ? `?${newQueryString}` : ''}`);
   };
 
   const handleOpenEnrollModal = async (device: DeviceData) => {
@@ -371,8 +344,7 @@ export default function DevicesPage() {
 
 
   const handleRefresh = () => {
-    // Re-trigger the main data fetching useEffect by creating a new but identical bookmarkStack
-    setBookmarkStack(prev => [...prev]);
+    fetchData(bookmarkStack[currentPageIndex]);
   };
 
   const handleNextPage = () => {
@@ -382,9 +354,8 @@ export default function DevicesPage() {
         setCurrentPageIndex(potentialNextPageIndex);
     }
     else if (nextTokenFromApi) {
-        const newPageBookmark = nextTokenFromApi;
         const newStack = bookmarkStack.slice(0, currentPageIndex + 1);
-        setBookmarkStack([...newStack, newPageBookmark]);
+        setBookmarkStack([...newStack, nextTokenFromApi]);
         setCurrentPageIndex(newStack.length);
     }
   };
@@ -426,20 +397,7 @@ export default function DevicesPage() {
         Overview of all registered IoT devices, their status, and associated groups.
       </p>
 
-      {dmsOwnerFilter && (
-        <Alert variant="default" className="my-4">
-          <AlertCircleIcon className="h-4 w-4" />
-          <AlertTitle>Filtering by Registration Authority</AlertTitle>
-          <AlertDescription>
-            Showing devices owned by <strong>{dmsOwnerFilter}</strong>.
-            <Button variant="link" onClick={() => router.push('/devices')} className="p-0 h-auto ml-2 text-primary">
-              Clear filter
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
         <div className="space-y-1">
           <Label htmlFor="searchTermInput">Search Term</Label>
           <div className="relative">
@@ -467,6 +425,15 @@ export default function DevicesPage() {
               <SelectItem value="tags">Tags</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="dmsOwnerFilter">Registration Authority</Label>
+          <DmsSelector
+            value={dmsOwnerFilter}
+            onChange={handleDmsOwnerChange}
+            disabled={isLoadingApi || authLoading}
+          />
         </div>
         
         <div className="space-y-1">
@@ -506,15 +473,22 @@ export default function DevicesPage() {
 
       {!apiError && sortedDevices.length > 0 && (
         <>
+          <div className="flex justify-end mb-2">
+            <ColumnSelector
+              columns={columns}
+              onColumnToggle={handleColumnToggle}
+              align="end"
+            />
+          </div>
           <div className={cn("overflow-x-auto transition-opacity duration-300", isLoadingApi && sortedDevices.length > 0 && "opacity-50 pointer-events-none")}>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableTableHeader column="id" title="ID" className="w-[250px]" />
-                  <SortableTableHeader column="status" title="Status" className="w-[120px]" />
-                  <SortableTableHeader column="deviceGroup" title="Device Group" className="w-[180px]" />
-                  <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />
-                  <TableHead>Tags</TableHead>
+                  {columnVisibility.id && <SortableTableHeader column="id" title="ID" className="w-[250px]" />}
+                  {columnVisibility.status && <SortableTableHeader column="status" title="Status" className="w-[120px]" />}
+                  {columnVisibility.deviceGroup && <SortableTableHeader column="deviceGroup" title="Device Group" className="w-[180px]" />}
+                  {columnVisibility.createdAt && <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />}
+                  {columnVisibility.tags && <TableHead>Tags</TableHead>}
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -523,32 +497,44 @@ export default function DevicesPage() {
                   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
                   return (
                     <TableRow key={device.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <DeviceIcon type={device.iconType} iconColor={iconColor} bgColor={bgColor} />
-                          <Button
-                            variant="link"
-                            className="font-medium truncate p-0 h-auto text-left"
-                            onClick={() => handleViewDetails(device.id)}
-                            title={`View details for ${device.displayId}`}
-                          >
-                            {device.displayId}
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell><StatusBadge status={device.status} /></TableCell>
-                      <TableCell><Badge variant="secondary" className="truncate" title={device.deviceGroup}>{device.deviceGroup}</Badge></TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                            <span className="text-xs">{format(parseISO(device.createdAt), 'dd/MM/yyyy HH:mm')}</span>
-                            <span className="text-xs text-muted-foreground">{formatDistanceToNowStrict(parseISO(device.createdAt))} ago</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {device.tags.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
-                        </div>
-                      </TableCell>
+                      {columnVisibility.id && (
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <DeviceIcon type={device.iconType} iconColor={iconColor} bgColor={bgColor} />
+                            <Button
+                              variant="link"
+                              className="font-medium truncate p-0 h-auto text-left"
+                              onClick={() => handleViewDetails(device.id)}
+                              title={`View details for ${device.displayId}`}
+                            >
+                              {device.displayId}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
+                      {columnVisibility.status && (
+                        <TableCell><StatusBadge status={device.status} /></TableCell>
+                      )}
+                      {columnVisibility.deviceGroup && (
+                        <TableCell><Badge variant="secondary" className="truncate" title={device.deviceGroup}>{device.deviceGroup}</Badge></TableCell>
+                      )}
+                      {columnVisibility.createdAt && (
+                        <TableCell>
+                          <DateDisplay 
+                            date={device.createdAt} 
+                            formatString="dd/MM/yyyy HH:mm"
+                            className="text-xs"
+                            relativeClassName="text-xs"
+                          />
+                        </TableCell>
+                      )}
+                      {columnVisibility.tags && (
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {device.tags.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

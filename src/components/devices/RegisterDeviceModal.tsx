@@ -1,46 +1,20 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
+import { DmsSelector, type DmsOption } from '@/components/shared/DmsSelector';
 import { Separator } from '../ui/separator';
-import { get_DMS_MANAGER_API_BASE_URL } from '@/lib/api-domains';
+import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { registerDevice } from '@/lib/devices-api';
-
-// Re-defining RA types here to avoid complex imports, but ideally these would be shared
-interface ApiRaDeviceProfile {
-  icon: string;
-  icon_color: string;
-  tags: string[];
-}
-interface ApiRaEnrollmentSettings {
-  registration_mode: string;
-  enrollment_ca: string;
-  device_provisioning_profile: ApiRaDeviceProfile;
-}
-interface ApiRaSettings {
-  enrollment_settings: ApiRaEnrollmentSettings;
-}
-interface ApiRaItem {
-  id: string;
-  name: string;
-  creation_ts: string;
-  settings: ApiRaSettings;
-}
-interface ApiRaListResponse {
-  next: string | null;
-  list: ApiRaItem[];
-}
 
 interface RegisterDeviceModalProps {
   isOpen: boolean;
@@ -53,11 +27,12 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   onOpenChange,
   onDeviceRegistered,
 }) => {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
   // Core state
   const [deviceId, setDeviceId] = useState('');
+  const [selectedRaId, setSelectedRaId] = useState<string | null>(null);
   const [selectedRa, setSelectedRa] = useState<ApiRaItem | null>(null);
 
   // Device profile state (defaults from RA, but editable)
@@ -67,9 +42,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   const [iconBgColor, setIconBgColor] = useState<string>('#e0e0e0');
 
   // Modal and loading states
-  const [ras, setRas] = useState<ApiRaItem[]>([]);
-  const [isLoadingRas, setIsLoadingRas] = useState(true);
-  const [errorRas, setErrorRas] = useState<string | null>(null);
+  const [isLoadingRa, setIsLoadingRa] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isIconModalOpen, setIsIconModalOpen] = useState(false);
 
@@ -77,6 +50,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setDeviceId(crypto.randomUUID());
+      setSelectedRaId(null);
       setSelectedRa(null);
       setTags([]);
       setIconName('Cpu');
@@ -85,57 +59,50 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
     }
   }, [isOpen]);
 
-  // Fetch RAs when modal opens
-  const fetchRAs = useCallback(async () => {
-    if (!isOpen || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()) {
-        setErrorRas("User not authenticated.");
-      }
-      setIsLoadingRas(false);
-      return;
-    }
-
-    setIsLoadingRas(true);
-    setErrorRas(null);
-    try {
-      const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms?page_size=100`, {
-        headers: { 'Authorization': `Bearer ${user.access_token}` },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch Registration Authorities.');
-      }
-      const data: ApiRaListResponse = await response.json();
-      setRas(data.list || []);
-    } catch (err: any) {
-      setErrorRas(err.message);
-    } finally {
-      setIsLoadingRas(false);
-    }
-  }, [isOpen, user?.access_token, isAuthenticated, authLoading]);
-
+  // Fetch full RA details when an RA is selected via DmsSelector
   useEffect(() => {
-    if (isOpen) {
-      fetchRAs();
-    }
-  }, [isOpen, fetchRAs]);
+    const fetchSelectedRa = async () => {
+      if (!selectedRaId || !isAuthenticated() || !user?.access_token) {
+        setSelectedRa(null);
+        return;
+      }
 
-  // Update device profile state when RA is selected
-  useEffect(() => {
-    if (selectedRa) {
-      const profile = selectedRa.settings.enrollment_settings.device_provisioning_profile;
-      setTags(profile.tags || []);
-      setIconName(profile.icon || 'Cpu');
-      const [parsedIconColor, parsedBgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
-      setIconColor(parsedIconColor || '#888888');
-      setIconBgColor(parsedBgColor || '#e0e0e0');
+      setIsLoadingRa(true);
+      try {
+        const ra = await fetchRaById(selectedRaId, user.access_token);
+        setSelectedRa(ra);
+        
+        // Update device profile from RA settings
+        const profile = ra.settings.enrollment_settings.device_provisioning_profile;
+        setTags(profile.tags || []);
+        setIconName(profile.icon || 'Cpu');
+        const [parsedIconColor, parsedBgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
+        setIconColor(parsedIconColor || '#888888');
+        setIconBgColor(parsedBgColor || '#e0e0e0');
+      } catch (error: any) {
+        console.error('Failed to fetch RA details:', error);
+        toast({ title: "Error", description: "Failed to load RA details", variant: "destructive" });
+        setSelectedRaId(null);
+      } finally {
+        setIsLoadingRa(false);
+      }
+    };
+
+    if (selectedRaId) {
+      fetchSelectedRa();
     } else {
       // Reset if RA is deselected
+      setSelectedRa(null);
       setTags([]);
       setIconName('Cpu');
       setIconColor('#888888');
       setIconBgColor('#e0e0e0');
     }
-  }, [selectedRa]);
+  }, [selectedRaId, isAuthenticated, user?.access_token, toast]);
+
+  const handleDmsChange = (value: string | null) => {
+    setSelectedRaId(value);
+  };
 
   const handleRegister = async () => {
     if (!deviceId.trim() || !selectedRa) {
@@ -182,13 +149,6 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
     }
   };
 
-  const handleRaSelectionChange = (raId: string) => {
-    const ra = ras.find(r => r.id === raId);
-    if (ra) {
-      setSelectedRa(ra);
-    }
-  };
-
   const handleIconSelected = (name: string) => {
     setIconName(name);
     // Don't close the modal on icon selection to allow color changes
@@ -225,37 +185,16 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
             </div>
             <div className="space-y-2">
               <Label htmlFor="ra-select">Registration Authority</Label>
-              {isLoadingRas ? (
-                <div className="flex items-center space-x-2 p-2 h-10 border rounded-md bg-muted/50 text-sm text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Loading RAs...</span>
-                </div>
-              ) : errorRas ? (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Error loading RAs</AlertTitle>
-                  <AlertDescription>
-                    {errorRas}
-                    <Button variant="link" size="sm" onClick={fetchRAs} className="p-0 h-auto">Try again?</Button>
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <Select
-                  value={selectedRa?.id}
-                  onValueChange={handleRaSelectionChange}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger id="ra-select">
-                    <SelectValue placeholder="Select an RA..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ras.map(ra => (
-                      <SelectItem key={ra.id} value={ra.id}>
-                        {ra.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <DmsSelector
+                value={selectedRaId}
+                onChange={handleDmsChange}
+                disabled={isSubmitting || isLoadingRa}
+                showAllOption={false}
+                placeholder="Select a Registration Authority..."
+                loadOnMount={isOpen}
+              />
+              {isLoadingRa && (
+                <p className="text-xs text-muted-foreground">Loading RA details...</p>
               )}
             </div>
             
@@ -294,7 +233,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button onClick={handleRegister} disabled={isSubmitting || isLoadingRas || !deviceId || !selectedRa}>
+            <Button onClick={handleRegister} disabled={isSubmitting || isLoadingRa || !deviceId || !selectedRa}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Register Device
             </Button>

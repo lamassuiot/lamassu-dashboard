@@ -3,7 +3,6 @@
 // Define the CA data structure
 import * as asn1js from "asn1js";
 import { Certificate, CRLDistributionPoints, BasicConstraints, ExtKeyUsage, RelativeDistinguishedNames, PublicKeyInfo, AuthorityKeyIdentifier } from "pkijs";
-import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { get_CA_API_BASE_URL, get_DEV_MANAGER_API_BASE_URL, handleApiError } from "./api-domains";
 
 // API Response Structures
@@ -73,8 +72,8 @@ export interface ApiResponseList {
 export interface CA {
   id: string;
   name: string;
-  issuer: string; // ID of the parent CA or "Self-signed"
   expires: string; // ISO date string from valid_to
+  issuer: string; // ID of the parent CA or "Self-signed"
   serialNumber: string;
   status: 'active' | 'expired' | 'revoked' | 'unknown'; // Added 'unknown' for safety
   keyAlgorithm: string;
@@ -328,7 +327,7 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedPem
             if (skiExtension?.parsedValue) {
                 const ski = skiExtension.parsedValue;
                 if (ski.valueBlock?.valueHex) {
-                    defaultResult.subjectKeyId = ab2hex(ski.valueBlock.valueHex, ':');
+                    defaultResult.subjectKeyId = ab2hex(ski.valueBlock.valueHex);
                 }
             }
         } catch(e) { console.error("Failed to parse Subject Key Identifier:", e); }
@@ -393,10 +392,21 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
   }
 
 
+  // Determine if self-signed by comparing AKI and SKI
+  // A certificate is self-signed if:
+  // 1. AKI equals SKI (both present and match), OR
+  // 2. AKI is missing/empty (root CAs might not have AKI), OR
+  // 3. Issuer metadata ID equals the CA's own ID
+  const isSelfSigned = 
+    (apiCa.certificate.authority_key_id && apiCa.certificate.subject_key_id && 
+     apiCa.certificate.authority_key_id === apiCa.certificate.subject_key_id) ||
+    (!apiCa.certificate.authority_key_id || apiCa.certificate.authority_key_id === '') ||
+    (apiCa.certificate.issuer_metadata.id === apiCa.id);
+
   return {
     id: apiCa.id,
     name: apiCa.certificate.subject.common_name || apiCa.id,
-    issuer: apiCa.certificate.issuer_metadata.id === apiCa.id || apiCa.level === 0 ? 'Self-signed' : apiCa.certificate.issuer_metadata.id,
+    issuer: isSelfSigned ? 'Self-signed' : apiCa.certificate.issuer_metadata.id,
     expires: apiCa.certificate.valid_to,
     serialNumber: apiCa.certificate.serial_number,
     status,
@@ -416,6 +426,7 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
     // Parsed fields are intentionally left undefined for lazy parsing
   };
 }
+
 
 // Helper to build hierarchy from a flat list of CAs
 function buildCaHierarchy(flatCaList: Omit<CA, 'children'>[]): CA[] {
@@ -460,11 +471,14 @@ export async function fetchAndProcessCAs(accessToken: string, apiQueryString?: s
     // Base URL setup
     const baseUrl = `${get_CA_API_BASE_URL()}/cas`;
     const initialParams = new URLSearchParams(apiQueryString);
-    initialParams.set('page_size', '25');
+    if (!initialParams.has('page_size')) {
+        initialParams.set('page_size', '100');
+    }
 
     while (hasNextPage) {
         const url = new URL(baseUrl);
         initialParams.forEach((value, key) => {
+            // Do not copy the bookmark from the initial string, we manage it ourselves.
             if(key !== 'bookmark') url.searchParams.append(key, value);
         });
 
@@ -538,34 +552,14 @@ export function findCaByCommonName(commonName: string | undefined | null, cas: C
   return null;
 }
 
-export async function fetchCryptoEngines(accessToken: string): Promise<ApiCryptoEngine[]> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/engines`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch crypto engines. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            if (errorJson && errorJson.err) {
-                errorMessage = `Failed to fetch crypto engines: ${errorJson.err}`;
-            } else if (errorJson && errorJson.message) {
-                errorMessage = `Failed to fetch crypto engines: ${errorJson.message}`;
-            }
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for crypto engines:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    const enginesData: ApiCryptoEngine[] = await response.json();
-    return enginesData;
-}
+
 
 // Function to create a CA
 export interface CreateCaPayload {
   parent_id: string | null;
   id: string;
   engine_id: string;
+  profile_id: string;
   subject: {
     country?: string;
     state_province?: string;
@@ -575,12 +569,17 @@ export interface CreateCaPayload {
     common_name: string;
   };
   key_metadata: {
-    type: string;
-    bits: number;
+    // For new key generation
+    type?: string;
+    bits?: number;
+    // For existing key reuse
+    key_id?: string;
   };
   ca_expiration: { type: string; duration?: string; time?: string };
-  profile_id: string | null;
   ca_type: "MANAGED";
+  // Optional: Profile for the CA's own certificate
+  ca_issuance_profile_id?: string;
+  ca_issuance_profile?: CreateSigningProfilePayload;
 }
 
 export interface CreateHybridCaPayload {
@@ -632,97 +631,6 @@ export async function createCa(payload: CreateCaPayload | CreateHybridCaPayload,
   }
 }
 
-// Function and type for creating a CA Request
-export interface CreateCaRequestPayload {
-  parent_id: string;
-  id: string;
-  engine_id: string;
-  subject: {
-    country?: string;
-    state_province?: string;
-    locality?: string;
-    organization?: string;
-    organization_unit?: string;
-    common_name: string;
-  };
-  key_metadata: {
-    type: string;
-    bits: number;
-  };
-  metadata: Record<string, any>;
-}
-
-export async function createCaRequest(payload: CreateCaRequestPayload, accessToken: string): Promise<void> {
-  const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to create CA request. Status: ${response.status}`;
-    try {
-      errorJson = await response.json();
-      errorMessage = `Failed to create CA request: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for CA request creation:", e);
-    }
-    throw new Error(errorMessage);
-  }
-}
-
-export interface CACertificateRequest {
-    id: string;
-    key_id: string;
-    metadata: Record<string, any>;
-    subject: { common_name: string };
-    creation_ts: string;
-    engine_id: string;
-    key_metadata: { type: string; bits: number };
-    status: 'PENDING' | 'ISSUED';
-    fingerprint: string;
-    csr: string; // Base64 encoded PEM
-}
-
-export async function fetchCaRequests(params: URLSearchParams, accessToken: string): Promise<{ list: CACertificateRequest[]; next: string | null }> {
-    const url = `${get_CA_API_BASE_URL()}/cas/requests?${params.toString()}`;
-    const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch CA requests. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Failed to fetch requests: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch(e) { /* ignore */ }
-        throw new Error(errorMessage);
-    }
-    return response.json();
-}
-
-export async function deleteCaRequest(requestId: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests/${requestId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to delete CA request. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
-        throw new Error(errorMessage);
-    }
-}
-
-
 // Function and type for importing a CA
 export interface ImportCaPayload {
   id: string;
@@ -752,7 +660,7 @@ export async function importCa(payload: ImportCaPayload, accessToken: string): P
       errorJson = await response.json();
       errorMessage = `Failed to import CA: ${errorJson.err || errorJson.message || 'Unknown error'}`;
     } catch (e) {
-      // Ignore if response is not JSON
+      console.error("Failed to parse error response as JSON for CA import:", e);
     }
     throw new Error(errorMessage);
   }
@@ -779,7 +687,9 @@ export async function updateCaMetadata(caId: string, patchOperations: PatchOpera
     try {
       const errJson = await response.json();
       errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) { /* Ignore */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for CA metadata update:", e);
+    }
     throw new Error(`Failed to update CA metadata: ${errorBody} (Status: ${response.status})`);
   }
 }
@@ -798,7 +708,9 @@ export async function fetchCaStats(caId: string, accessToken: string): Promise<C
         try {
             const errJson = await response.json();
             errorBody = errJson.err || errJson.message || errorBody;
-        } catch(e) { /* Ignore parsing error */ }
+        } catch(e) {
+            console.error("Failed to parse error response as JSON for CA stats:", e);
+        }
         throw new Error(`Failed to fetch CA statistics: ${errorBody} (Status: ${response.status})`);
     }
     return response.json();
@@ -823,7 +735,9 @@ export async function updateCaStatus(caId: string, status: 'ACTIVE' | 'REVOKED',
         try {
             errorJson = await response.json();
             errorMessage = `Status update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CA status update:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -844,7 +758,9 @@ export async function revokeCa(caId: string, reason: string, accessToken: string
     try {
       errorJson = await response.json();
       errorMessage = `Revocation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) { /* ignore json parse error */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for CA revocation:", e);
+    }
     throw new Error(errorMessage);
   }
 }
@@ -862,7 +778,9 @@ export async function deleteCa(caId: string, accessToken: string): Promise<void>
         try {
             errorJson = await response.json();
             errorMessage = `Deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CA deletion:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -878,112 +796,6 @@ export async function signCertificate(caId: string, payload: any, accessToken: s
         throw new Error(result.err || `Failed to issue certificate. Status: ${response.status}`);
     }
     return result;
-}
-
-export async function fetchCaRequestById(requestId: string, accessToken: string): Promise<any> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/requests?filter=id[equal]${requestId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    if (!response.ok) throw new Error("Failed to fetch CA request details.");
-    const data = await response.json();
-    const foundRequest = data.list?.[0];
-    if (foundRequest) {
-        return foundRequest;
-    }
-    throw new Error(`CA Request with ID "${requestId}" not found or is not pending.`);
-}
-
-export interface ApiKmsKey {
-  id: string;
-  name?: string;
-  algorithm: string;
-  size: string;
-  public_key: string;
-  status: string;
-  creation_ts: string;
-}
-
-export interface ApiKmsKeyListResponse {
-  next: string | null;
-  list: ApiKmsKey[];
-}
-
-
-export async function fetchKmsKeys(accessToken: string, apiQueryString?: string): Promise<ApiKmsKeyListResponse> {
-    const url = `${get_CA_API_BASE_URL()}/kms/keys?${apiQueryString || ''}`;
-    const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch KMS keys. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Failed to fetch keys: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore */}
-        throw new Error(errorMessage);
-    }
-    return response.json();
-}
-
-export async function signWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<any> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/sign`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload)
-    });
-    const result = await response.json();
-    if (!response.ok) {
-        throw new Error(result.err || result.message || `Signing failed with status ${response.status}`);
-    }
-    return result;
-}
-
-export async function verifyWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<{ valid: boolean }> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys/${encodeURIComponent(keyId)}/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload)
-    });
-    
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Verification failed with status ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Verification failed: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore json parse error */ }
-        throw new Error(errorMessage);
-    }
-
-    return response.json();
-}
-
-
-export async function createKmsKey(payload: { engine_id: string; algorithm: string; size: number; name: string }, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_CA_API_BASE_URL()}/kms/keys`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to create key. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Key creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
-        throw new Error(errorMessage);
-    }
 }
 
 export async function updateCaDefaultProfileId(caId: string, profileId: string | null, accessToken: string): Promise<void> {
@@ -1002,7 +814,9 @@ export async function updateCaDefaultProfileId(caId: string, profileId: string |
         try {
             errorJson = await response.json();
             errorMessage = `Update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CA default profile update:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -1043,12 +857,12 @@ export interface ApiSigningProfile {
 	honor_extended_key_usages: boolean;
 	extended_key_usages: string[];
 	honor_subject: boolean;
-	subject: {
+	subject?: {
 		organization?: string;
 		organizational_unit?: string;
 		country?: string;
-		locality?: string;
 		state?: string;
+		locality?: string;
 	};
 	honor_extensions: boolean;
     crypto_enforcement: {
@@ -1061,8 +875,8 @@ export interface ApiSigningProfile {
 }
 
 export interface ApiSigningProfileListResponse {
-  next: string | null;
-  list: ApiSigningProfile[];
+    next: string | null;
+    list: ApiSigningProfile[];
 }
 
 export async function fetchSigningProfiles(accessToken: string, params?: URLSearchParams): Promise<ApiSigningProfileListResponse> {
@@ -1074,19 +888,12 @@ export async function fetchSigningProfiles(accessToken: string, params?: URLSear
     const response = await fetch(url.toString(), {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch signing profiles. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Failed to fetch profiles: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore */}
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    
+    return handleApiError(response, 'Failed to fetch signing profiles');
 }
 
 export interface CreateSigningProfilePayload {
+    id?: string;
     name: string;
     description?: string;
     validity: {
@@ -1132,7 +939,9 @@ export async function createSigningProfile(payload: CreateSigningProfilePayload,
         try {
             errorJson = await response.json();
             errorMessage = `Profile creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for signing profile creation:", e);
+        }
         throw new Error(errorMessage);
     }
     return response.json();
@@ -1148,7 +957,9 @@ export async function fetchSigningProfileById(profileId: string, accessToken: st
         try {
             errorJson = await response.json();
             errorMessage = `Failed to fetch profile: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) { /* ignore */}
+        } catch(e) {
+            console.error("Failed to parse error response as JSON for signing profile fetch:", e);
+        }
         throw new Error(errorMessage);
     }
     return response.json();
@@ -1169,7 +980,9 @@ export async function updateSigningProfile(profileId: string, payload: CreateSig
         try {
             errorJson = await response.json();
             errorMessage = `Profile update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for signing profile update:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -1187,7 +1000,9 @@ export async function deleteSigningProfile(profileId: string, accessToken: strin
         try {
             errorJson = await response.json();
             errorMessage = `Profile deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for signing profile deletion:", e);
+        }
         throw new Error(errorMessage);
     }
 }

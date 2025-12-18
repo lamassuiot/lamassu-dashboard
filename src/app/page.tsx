@@ -3,11 +3,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DeviceStatusChartCard } from '@/components/home/DeviceStatusChartCard';
 import { CaExpiryTimeline } from '@/components/home/CaExpiryTimeline';
 import { SummaryStatsCard } from '@/components/home/SummaryStatsCard';
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, fetchCryptoEngines, fetchCaStatsSummary } from '@/lib/ca-data';
+import { fetchAndProcessCAs, fetchCaStatsSummary } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,6 +19,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
 import { fetchDmsStats } from '@/lib/dms-api';
 import { fetchDeviceStats } from '@/lib/devices-api';
+
 
 // Helper function from old page.tsx
 function flattenCAs(cas: CA[]): CA[] {
@@ -43,6 +46,7 @@ interface SummaryStats {
 
 export default function HomePage() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const searchParams = useSearchParams();
 
   // State for timeline
   const [allCAs, setAllCAs] = useState<CA[]>([]);
@@ -142,11 +146,12 @@ export default function HomePage() {
   const anyTimelineLoading = isLoadingCAs || isLoadingEngines || authLoading;
   const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats || authLoading;
 
+
   return (
     <div className="w-full space-y-8">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-start">
         <Button onClick={loadInitialData} variant="outline" disabled={isReloading}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
+          <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
         </Button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">

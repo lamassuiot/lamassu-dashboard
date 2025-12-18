@@ -1,13 +1,13 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Landmark, List, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, FileSignature, Search, UploadCloud, FileText } from "lucide-react";
+import { Landmark, List, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, UploadCloud, FileText } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, fetchCryptoEngines } from '@/lib/ca-data';
+import { fetchAndProcessCAs } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import dynamic from 'next/dynamic';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAuth } from '@/contexts/AuthContext';
@@ -176,9 +176,6 @@ export default function CertificateAuthoritiesPage() {
               <h1 className="text-2xl font-headline font-semibold">Certification Authorities</h1> 
             </div>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" onClick={() => router.push('/certificate-authorities/requests')}>
-                <FileSignature className="mr-2 h-4 w-4" /> Manage CA Requests
-              </Button>
               <Button variant="default" onClick={handleCreateNewCAClick}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Create New CA
               </Button>
@@ -186,7 +183,7 @@ export default function CertificateAuthoritiesPage() {
           </div>
           <p className="text-sm text-muted-foreground mb-4">Manage your Certification Authority configurations and trust stores.</p> 
 
-          <div className="flex flex-col md:flex-row gap-4 items-end mb-4 p-4 border rounded-lg bg-muted/30">
+          <div className="flex flex-col md:flex-row gap-4 items-end mb-4">
             <div className="flex-grow w-full space-y-1.5">
                 <Label htmlFor="ca-filter">Filter by Name</Label>
                 <div className="relative">

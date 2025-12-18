@@ -1,46 +1,55 @@
 :root {
-  --header-height: 3rem; /* h-14 */
-  --secondary-logo-display: none;
+    --header-height: 50px;
+    --secondary-logo-display: flex;
+    --secondary-logo-url: url('/themes/green/ikerlan.png');
 }
 
 :root:not(.dark) {
     /* IK-Theme Light Mode */
-    --background: 220 13% 96%; /* #f2f4f7 - Light Gray */
-    --foreground: 224 71% 4%; /* #080f1e - Nearly Black */
+    --background: 220 13% 96%;
+    /* #f2f4f7 - Light Gray */
+    --foreground: 224 71% 4%;
+    /* #080f1e - Nearly Black */
 
-    --card: 255 100% 100%; /* #ffffff - White */
+    --card: 255 100% 100%;
+    /* #ffffff - White */
     --card-foreground: 224 71% 4%;
 
     --popover: 255 100% 100%;
     --popover-foreground: 224 71% 4%;
 
-    --primary: 96 64% 59%; /* #6cc24a - Ikerlan Green */
+    --primary: 96 64% 59%;
+    /* #6cc24a - Ikerlan Green */
     --primary-foreground: 224 71% 4%;
 
-    --secondary: 220 13% 92%; /* #e9ebee */
+    --secondary: 220 13% 92%;
+    /* #e9ebee */
     --secondary-foreground: 224 71% 4%;
 
     --muted: 220 13% 92%;
-    --muted-foreground: 220 9% 46%; /* #6c757d */
+    --muted-foreground: 220 9% 46%;
+    /* #6c757d */
 
-    --accent: 220 13% 88%; /* #dadfe5 */
+    --accent: 220 13% 88%;
+    /* #dadfe5 */
     --accent-foreground: 224 71% 4%;
 
-    --destructive: 0 84% 60%; /* #f83232 */
+    --destructive: 0 84% 60%;
+    /* #f83232 */
     --destructive-foreground: 0 0% 98%;
 
     --border: 220 13% 88%;
-    --input: 220 13% 94%; /* #edf0f2 */
+    --input: 220 13% 94%;
+    /* #edf0f2 */
     --ring: 96 64% 59%;
-    
+
     --header-background: 255 100% 100%;
     --header-foreground: 224 71% 4%;
-    --header-height: 3.5rem;
 
     --sidebar-background: 220 13% 96%;
     --sidebar-foreground: 224 71% 4%;
-    --sidebar-primary: 38 92% 50%;
-    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
     --sidebar-accent: 220 13% 88%;
     --sidebar-accent-foreground: 224 71% 4%;
     --sidebar-border: 220 13% 88%;
@@ -48,41 +57,49 @@
 
 .dark {
     /* IK-Theme Dark Mode */
-    --background: 224 71% 4%; /* #080f1e - Nearly Black */
-    --foreground: 0 0% 98%; /* #fafafa - Near White */
+    --background: 224 5% 10%;
+    /* #080f1e - Nearly Black */
+    --foreground: 0 0% 98%;
+    /* #fafafa - Near White */
 
-    --card: 220 13% 11%; /* #1a1c20 */
+    --card: 220 13% 11%;
+    /* #1a1c20 */
     --card-foreground: 0 0% 98%;
 
     --popover: 224 71% 4%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 96 64% 59%; /* #6cc24a - Ikerlan Green */
+    --primary: 96 64% 59%;
+    /* #6cc24a - Ikerlan Green */
     --primary-foreground: 224 71% 4%;
 
-    --secondary: 220 13% 18%; /* #282b30 */
+    --secondary: 220 13% 18%;
+    /* #282b30 */
     --secondary-foreground: 0 0% 98%;
 
     --muted: 220 13% 18%;
-    --muted-foreground: 220 9% 46%; /* #6c757d */
+    --muted-foreground: 220 9% 46%;
+    /* #6c757d */
 
-    --accent: 220 13% 24%; /* #373a40 */
+    --accent: 220 13% 24%;
+    /* #373a40 */
     --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 72% 51%; /* #e5484d */
+    --destructive: 0 72% 51%;
+    /* #e5484d */
     --destructive-foreground: 0 0% 98%;
 
     --border: 220 13% 24%;
     --input: 220 13% 18%;
     --ring: 96 64% 59%;
-    
+
     --header-background: 224 71% 4%;
     --header-foreground: 0 0% 98%;
 
     --sidebar-background: 224 71% 4%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 38 92% 50%;
-    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
     --sidebar-accent: 220 13% 24%;
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 220 13% 24%;
@@ -91,9 +108,42 @@
 /* Light theme specific logo color */
 header img[alt="LamassuIoT Logo"] {
     filter: invert(1) brightness(0) sepia(1) saturate(0) hue-rotate(0deg) brightness(0.2);
+    height: 1.5rem;
 }
 
 /* Dark theme specific logo color */
 .dark header img[alt="LamassuIoT Logo"] {
-    filter: none; /* Revert to the original white logo on dark theme */
+    filter: none;
+}
+
+.lamassu-logo-theme-filter {
+    /* For light theme: change SVG to #6cc24a (green) */
+    filter: invert(66%) sepia(24%) saturate(1102%) hue-rotate(61deg) brightness(92%) contrast(92%);
+}
+
+.dark header .secondary-logo {
+    filter: grayscale(1) invert(1);
+}
+
+.dark header .tertiary-logo {
+    filter: grayscale(1) invert(1);
+}
+
+/* Inject LKS logo next to Ikerlan logo using CSS */
+header {
+    position: relative;
+}
+
+/* Dark theme filter for injected LKS logo */
+.dark header .secondary-logo::after {
+    filter: grayscale(1) invert(1);
+}
+
+/* Dark theme specific logo color */
+.dark header button svg {
+    color: white;
+}
+
+.secondary-logo {
+    aspect-ratio: 200 / 40;
 }

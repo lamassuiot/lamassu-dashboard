@@ -90,6 +90,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
                     case 'expires': sortByApiField = 'valid_to'; break;
                     case 'status': sortByApiField = 'status'; break;
                     case 'validFrom': sortByApiField = 'valid_from'; break;
+                    case 'revocationTime': sortByApiField = 'revocation_timestamp'; break;
                     default: sortByApiField = 'valid_from';
                 }
                 apiParams.append('sort_by', sortByApiField);
@@ -113,7 +114,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
                 if (searchField === 'commonName') {
                     filtersToApply.push(`subject.common_name[contains]${debouncedSearchTerm.trim()}`);
                 } else if (searchField === 'serialNumber') {
-                    filtersToApply.push(`serial_number[contains]${debouncedSearchTerm.trim()}`);
+                    filtersToApply.push(`serial_number[contains_ignorecase]${debouncedSearchTerm.trim()}`);
                 }
             }
             filtersToApply.forEach(f => apiParams.append('filter', f));

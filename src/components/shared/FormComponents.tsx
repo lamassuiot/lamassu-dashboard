@@ -25,7 +25,8 @@ export const SwitchFormField: React.FC<{
   label: string;
   description: string;
   icon?: React.ElementType;
-}> = ({ control, name, label, description, icon: Icon }) => (
+  disabled?: boolean;
+}> = ({ control, name, label, description, icon: Icon, disabled = false }) => (
   <FormField
     control={control}
     name={name}
@@ -39,7 +40,7 @@ export const SwitchFormField: React.FC<{
           <FormDescription>{description}</FormDescription>
         </div>
         <FormControl>
-          <Switch checked={field.value} onCheckedChange={field.onChange} />
+          <Switch checked={field.value} onCheckedChange={field.onChange} disabled={disabled} />
         </FormControl>
       </FormItem>
     )}

@@ -6,6 +6,7 @@ import { FileText, CheckCircle, AlertTriangle, Clock } from "lucide-react";
 import type { CertificateData } from '@/types/certificate';
 import { format, parseISO, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface SelectableCertificateItemProps {
   certificate: CertificateData;
@@ -71,7 +72,7 @@ export const SelectableCertificateItem: React.FC<SelectableCertificateItemProps>
                 {certificate.subject || certificate.fileName}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-                SN: <span className="font-mono">{certificate.serialNumber}</span>
+                SN: <IdentifierDisplay value={certificate.serialNumber} className="text-xs" />
             </p>
             <p className="text-xs text-muted-foreground truncate" title={certificate.issuer}>
                 Issuer: {certificate.issuer}

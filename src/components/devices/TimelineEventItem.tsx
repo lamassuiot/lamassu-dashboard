@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { CheckCircle, XCircle, AlertTriangle, History, Edit, Info, HelpCircle, FileText, ShieldAlert, ShieldCheck, Landmark } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
+import { IdentifierDisplay } from '../shared/IdentifierDisplay';
 
 // This interface must match the one defined in DeviceDetailsClient.tsx
 // It's copied here to avoid circular dependency issues with shared types.
@@ -51,7 +52,7 @@ const eventTypeVisuals: Record<string, { display: string; colorClass: string; Ic
   'CREATED': { display: 'Created', colorClass: 'bg-green-500', Icon: CheckCircle },
   'STATUS-UPDATED': { display: 'Status Update', colorClass: 'bg-blue-500', Icon: Edit },
   'PROVISIONED': { display: 'Provisioned', colorClass: 'bg-emerald-500', Icon: CheckCircle },
-  'RE-PROVISIONED': { display: 'Re-Provisioned', colorClass: 'bg-purple-500', Icon: History },
+  'RENEWED': { display: 'Renewed', colorClass: 'bg-purple-500', Icon: History },
   'DELETED': { display: 'Deleted', colorClass: 'bg-red-500', Icon: XCircle },
   'ERROR': { display: 'Error', colorClass: 'bg-orange-500', Icon: AlertTriangle },
   'DEFAULT': { display: 'Event', colorClass: 'bg-gray-400', Icon: Info },
@@ -91,7 +92,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
                 <Badge variant="secondary" className={cn("text-xs font-semibold", visuals.colorClass, "text-white dark:text-white")}>
                     {visuals.display.toUpperCase()}
                 </Badge>
-                {event.eventType === 'RE-PROVISIONED' && (
+                {event.eventType === 'RENEWED' && (
                     <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" title="Device identity was updated with a new certificate version."/>
                 )}
             </div>
@@ -107,10 +108,10 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
                             <div>
                                 <Button
                                     variant="link"
-                                    className="p-0 h-auto font-mono text-xs text-foreground"
+                                    className="p-0 h-auto text-xs text-foreground"
                                     onClick={() => router.push(`/certificates/details?certificateId=${event.certificate?.serialNumber}`)}
                                 >
-                                    SN: {event.certificate.serialNumber}
+                                    SN: <IdentifierDisplay value={event.certificate.serialNumber} className="text-xs" />
                                 </Button>
                                 <div className="mt-1">
                                     <ApiStatusBadge status={event.certificate.apiStatus} />
@@ -184,3 +185,5 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
     </li>
   );
 };
+
+    

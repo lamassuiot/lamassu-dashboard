@@ -155,7 +155,9 @@ export async function createOrUpdateRa(
         try {
             errorJson = await response.json();
             errorMessage = `RA ${isEditMode ? 'update' : 'creation'} failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for RA creation/update:", e);
+        }
         throw new Error(errorMessage);
     }
 }
@@ -231,8 +233,7 @@ export async function deleteRa(raId: string, accessToken: string): Promise<void>
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
-
     if (!response.ok) {
-        await handleApiError(response, 'Failed to delete Registration Authority');
+        await handleApiError(response, 'Failed to delete RA');
     }
 }

@@ -2,15 +2,13 @@
 
 'use client';
 
-import React, { useState } from 'react'; 
+import React from 'react'; 
 import type { CA } from '@/lib/ca-data';
 import { Tree, TreeNode } from 'react-organizational-chart';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch'; 
-import { Label } from '@/components/ui/label'; 
-import { ZoomIn, ZoomOut, RotateCcw, Key } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 // cn import is not strictly needed here anymore unless more complex styling is added
 // import { cn } from '@/lib/utils'; 
@@ -23,8 +21,6 @@ interface CaHierarchyViewProps {
 }
 
 export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, allCAs, allCryptoEngines }) => {
-  const [showKmsKeyIds, setShowKmsKeyIds] = useState(false); 
-
   if (cas.length === 0) {
     return (
       <p className="text-muted-foreground text-center p-4">No Certification Authorities to display in hierarchy view.</p>
@@ -43,7 +39,7 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
           <CaVisualizerCard
             ca={ca}
             onClick={handleNodeClick}
-            className="mx-auto w-auto min-w-[330px] max-w-[380px]"
+            className="mx-auto w-auto min-w-[330px] max-w-[380px] border-2 border-primary"
             allCryptoEngines={currentAllCryptoEngines} 
           />
         }
@@ -59,22 +55,6 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
 
   return (
     <div className="w-full h-[calc(100vh-200px)] border rounded-md relative overflow-hidden flex flex-col">
-      <div className="p-2 border-b bg-muted/30 flex items-center justify-between">
-         <div className="flex items-center space-x-1">
-        </div>
-        <div className="flex items-center space-x-2">
-          <Key className="h-4 w-4 text-muted-foreground" />
-          <Label htmlFor="showKmsKeysToggle" className="text-sm font-medium text-muted-foreground">
-            Show KMS Key IDs
-          </Label>
-          <Switch
-            id="showKmsKeysToggle"
-            checked={showKmsKeyIds}
-            onCheckedChange={setShowKmsKeyIds}
-            aria-label="Toggle KMS Key ID visibility"
-          />
-        </div>
-      </div>
       <div className="flex-grow relative">
         <TransformWrapper
           initialScale={1}
@@ -104,14 +84,14 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
                   {cas.map((rootCa) => (
                     <Tree
                       key={rootCa.id}
-                      lineWidth={'2px'}
-                      lineColor={'hsl(var(--border))'} 
+                      lineWidth={'3px'}
+                      lineColor={'hsl(var(--primary))'} 
                       lineBorderRadius={'5px'}
                       label={
                         <CaVisualizerCard
                           ca={rootCa}
                           onClick={handleRootNodeClick}
-                          className="mx-auto w-auto min-w-[330px] max-w-[380px]"
+                          className="mx-auto w-auto min-w-[330px] max-w-[380px] border-2 border-primary"
                           allCryptoEngines={allCryptoEngines} 
                         />
                       }

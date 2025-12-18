@@ -3,10 +3,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn } from '@/lib/utils';
+import { cn, getCookie, setCookie } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
@@ -21,10 +21,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
+import { CAsUsingProfileModal } from '@/components/shared/CAsUsingProfileModal';
 
+export type SortableProfileColumn = 'name';
+export type SortDirection = 'asc' | 'desc';
+
+export interface ProfileSortConfig {
+  column: SortableProfileColumn;
+  direction: SortDirection;
+}
+
+const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
+const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
 export default function SigningProfilesPage() {
   const router = useRouter();
@@ -34,18 +47,50 @@ export default function SigningProfilesPage() {
   const [profiles, setProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isClientMounted, setIsClientMounted] = useState(false);
 
   // Filtering, Sorting, Pagination State
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [pageSize, setPageSize] = useState('6');
+  const [pageSize, setPageSize] = useState(GRID_PAGE_SIZES[0]);
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<ProfileSortConfig | null>({ column: 'name', direction: 'asc' });
 
   // State for deletion
   const [profileToDelete, setProfileToDelete] = useState<ApiSigningProfile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // State for usage modal
+  const [profileForUsage, setProfileForUsage] = useState<ApiSigningProfile | null>(null);
+
+  useEffect(() => {
+    setIsClientMounted(true);
+  }, []);
+
+  // Load view mode from cookie
+  useEffect(() => {
+    if (isClientMounted) {
+      const savedViewMode = getCookie('user-view-mode');
+      const newViewMode = (savedViewMode === 'grid' || savedViewMode === 'list') ? savedViewMode : 'grid';
+      setViewMode(newViewMode);
+      setPageSize(newViewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0]);
+    }
+  }, [isClientMounted]);
+
+  // Save view mode to cookie when it changes and adjust page size
+  useEffect(() => {
+    if (viewMode && isClientMounted) {
+      setCookie('user-view-mode', viewMode);
+      const newPageSize = viewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0];
+      const currentOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
+      if (!currentOptions.includes(pageSize)) {
+          setPageSize(newPageSize);
+      }
+    }
+  }, [viewMode, isClientMounted, pageSize]);
 
   // Debounce search term
   useEffect(() => {
@@ -59,7 +104,7 @@ export default function SigningProfilesPage() {
   useEffect(() => {
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
-  }, [pageSize, debouncedSearchTerm]);
+  }, [pageSize, debouncedSearchTerm, sortConfig]);
 
 
   const fetchProfiles = useCallback(async (bookmarkToFetch: string | null) => {
@@ -72,8 +117,14 @@ export default function SigningProfilesPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      params.append('sort_by', 'name');
-      params.append('sort_mode', 'asc');
+      if (sortConfig) {
+        params.append('sort_by', sortConfig.column);
+        params.append('sort_mode', sortConfig.direction);
+      } else {
+        params.append('sort_by', 'name');
+        params.append('sort_mode', 'asc');
+      }
+      
       params.append('page_size', pageSize);
       if (bookmarkToFetch) {
         params.append('bookmark', bookmarkToFetch);
@@ -92,7 +143,7 @@ export default function SigningProfilesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.access_token, authLoading, pageSize, debouncedSearchTerm]);
+  }, [isAuthenticated, user?.access_token, authLoading, pageSize, debouncedSearchTerm, sortConfig]);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated()) {
@@ -131,6 +182,10 @@ export default function SigningProfilesPage() {
   const handleDeleteProfileClick = (profile: ApiSigningProfile) => {
     setProfileToDelete(profile);
   };
+
+  const handleViewUsageClick = (profile: ApiSigningProfile) => {
+    setProfileForUsage(profile);
+  };
   
   const handleConfirmDelete = async () => {
     if (!profileToDelete || !user?.access_token) {
@@ -151,9 +206,19 @@ export default function SigningProfilesPage() {
     }
   };
   
+  const requestSort = (column: SortableProfileColumn) => {
+    let direction: SortDirection = 'asc';
+    if (sortConfig && sortConfig.column === column && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ column, direction });
+  };
+  
   const hasActiveFilters = !!debouncedSearchTerm;
+  const pageSizeOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
 
-  if (authLoading || (isLoading && profiles.length === 0)) {
+
+  if (!isClientMounted || authLoading || (isLoading && profiles.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -183,7 +248,7 @@ export default function SigningProfilesPage() {
         Manage templates that define how certificates are signed, including duration, subject attributes, and extensions.
       </p>
 
-       <div className="flex flex-col md:flex-row gap-4 items-end mb-4 p-4 border rounded-lg bg-muted/30">
+       <div className="flex flex-col sm:flex-row gap-4 items-end mb-4">
             <div className="flex-grow w-full space-y-1.5">
                 <Label htmlFor="profile-filter">Filter by Name</Label>
                 <div className="relative">
@@ -197,6 +262,17 @@ export default function SigningProfilesPage() {
                     />
                 </div>
             </div>
+            <div className="flex items-center space-x-2">
+                <ToggleGroup
+                    type="single"
+                    value={viewMode}
+                    onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
+                    variant="outline"
+                >
+                    <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
+                    <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
+                </ToggleGroup>
+            </div>
        </div>
 
       {error && (
@@ -208,16 +284,28 @@ export default function SigningProfilesPage() {
       )}
 
       {!isLoading && !error && profiles.length > 0 ? (
-        <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
-          {profiles.map((profile) => (
-            <IssuanceProfileCard
-              key={profile.id}
-              profile={profile}
-              onEdit={() => handleEditProfile(profile.id)}
-              onDelete={() => handleDeleteProfileClick(profile)}
+          viewMode === 'grid' ? (
+            <div className={cn("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6", isLoading && "opacity-50")}>
+              {profiles.map((profile) => (
+                <IssuanceProfileCard
+                  key={profile.id}
+                  profile={profile}
+                  onEdit={() => handleEditProfile(profile.id)}
+                  onDelete={() => handleDeleteProfileClick(profile)}
+                  onViewUsage={() => handleViewUsageClick(profile)}
+                />
+              ))}
+            </div>
+          ) : (
+             <SigningProfilesTable 
+                profiles={profiles} 
+                sortConfig={sortConfig}
+                requestSort={requestSort}
+                onEdit={handleEditProfile} 
+                onDelete={handleDeleteProfileClick} 
+                onViewUsage={handleViewUsageClick}
             />
-          ))}
-        </div>
+          )
       ) : (
          !isLoading && !error && (
             <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
@@ -241,10 +329,9 @@ export default function SigningProfilesPage() {
                 <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading || authLoading}>
                   <SelectTrigger id="pageSizeSelectProfileList" className="w-[80px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="6">6</SelectItem>
-                    <SelectItem value="9">9</SelectItem>
-                    <SelectItem value="15">15</SelectItem>
-                    <SelectItem value="30">30</SelectItem>
+                    {pageSizeOptions.map(size => (
+                      <SelectItem key={size} value={size}>{size}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -281,6 +368,15 @@ export default function SigningProfilesPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+
+    {profileForUsage && (
+        <CAsUsingProfileModal
+            isOpen={!!profileForUsage}
+            onOpenChange={(isOpen) => !isOpen && setProfileForUsage(null)}
+            profileId={profileForUsage.id}
+            profileName={profileForUsage.name}
+        />
+    )}
     </>
   );
 }

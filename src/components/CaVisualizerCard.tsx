@@ -31,7 +31,7 @@ const StatusIcon: React.FC<{ status: CA['status']; expires: string }> = ({ statu
 const getStatusAndExpiryText = (ca: CA): { text: string; isCritical: boolean } => {
   const expiryDate = parseISO(ca.expires);
   const isExpired = isPast(expiryDate);
-  
+
   if (ca.status === 'revoked') {
     return { text: 'Revoked', isCritical: true };
   }
@@ -43,7 +43,7 @@ const getStatusAndExpiryText = (ca: CA): { text: string; isCritical: boolean } =
 
 
 export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, className, onClick, allCryptoEngines }) => {
-  
+
   const cardBaseClasses = "rounded-lg border bg-primary/5 dark:bg-primary/10 border-blue-800/40 dark:border-blue-300/40 shadow-sm transition-shadow w-full";
   const clickableClasses = onClick ? "hover:shadow-md hover:bg-primary/10 dark:hover:bg-primary/20 cursor-pointer" : "";
 
@@ -58,7 +58,7 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
   } else {
     IconComponent = <Landmark className={cn("h-6 w-6 flex-shrink-0", "text-primary")} />;
   }
-  
+
   const { text: statusText, isCritical } = getStatusAndExpiryText(ca);
 
   const cardInnerContent = (

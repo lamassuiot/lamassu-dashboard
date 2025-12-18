@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -8,16 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit } from "lucide-react";
+import { ArrowLeft, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit, X } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, findCaById, fetchCryptoEngines, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
+import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal'; 
-import { SelectableCaTreeItem } from '@/components/shared/SelectableCaTreeItem'; 
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { DialogFooter, DialogClose } from '@/components/ui/dialog'; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from '@/components/ui/separator';
@@ -58,8 +57,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [raData, setRaData] = useState<ApiRaItem | null>(null);
-  const [isLoadingRA, setIsLoadingRA] = useState(isEditMode);
-  const [errorRA, setErrorRA] = useState<string | null>(null);
 
   // Form State
   const [raName, setRaName] = useState('');
@@ -150,17 +147,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const fetchRaDetails = useCallback(async () => {
     if (!raIdFromQuery || !isAuthenticated() || !user?.access_token) return;
-    setIsLoadingRA(true);
-    setErrorRA(null);
     try {
         const data = await fetchRaById(raIdFromQuery, user.access_token);
         setRaData(data);
     } catch (err: any) {
-        setErrorRA(err.message);
-    } finally {
-        setIsLoadingRA(false);
+       toast({ title: "Operation Failed", description: err.message, variant: "destructive" });
     }
-  }, [raIdFromQuery, user?.access_token, isAuthenticated]);
+  }, [raIdFromQuery, user?.access_token, isAuthenticated, toast]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -180,7 +173,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         
         const { enrollment_settings, reenrollment_settings, server_keygen_settings, ca_distribution_settings } = settings;
         setRegistrationMode(enrollment_settings.registration_mode);
-        setProtocol(enrollment_settings.protocol === 'EST_RFC7030' ? 'EST' : 'CMP');
+        setProtocol(enrollment_settings.protocol === 'EST_RFC7030' ? 'EST' : 'None');
         setIssuanceProfileId(enrollment_settings.issuance_profile_id || null);
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
         setAllowOverrideEnrollment(enrollment_settings.enable_replaceable_enrollment);
@@ -283,7 +276,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         return;
     }
     
-    const protocolMapping = { 'EST': 'EST_RFC7030', 'CMP': 'CMP_RFC4210' };
+    const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'None': '' };
     const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE' };
     
     const estSettings: any = {
@@ -322,7 +315,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     if (enableKeyGeneration) {
         const bits = serverKeygenType === 'ECDSA' 
             ? ({ 'P-256': 256, 'P-384': 384, 'P-521': 521 }[serverKeygenSpec] || 256)
-            : parseInt(serverKeygenSpec, 10);
+            : Number.parseInt(serverKeygenSpec, 10);
         keySettings = { type: serverKeygenType, bits };
     }
     const payload: RaCreationPayload = {
@@ -332,7 +325,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       settings: {
         enrollment_settings: {
           enrollment_ca: enrollmentCa.id,
-          protocol: protocolMapping[protocol as keyof typeof protocolMapping],
+          protocol: protocolMapping[protocol],
           enable_replaceable_enrollment: allowOverrideEnrollment,
           verify_csr_signature: verifyCsrSignature,
           issuance_profile_id: issuanceProfileId || undefined,
@@ -379,51 +372,43 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     }
   };
 
-  const renderMultiSelectCaDialogContent = (
-    currentMultiSelectedCAs: CA[],
-    setterForMultiSelectedCAs: React.Dispatch<React.SetStateAction<CA[]>>,
-    setIsOpen: (open: boolean) => void 
-  ) => {
-    const toggleCaSelectionInList = (caToToggle: CA) => {
-        setterForMultiSelectedCAs(prev => 
-            prev.find(c => c.id === caToToggle.id) 
-            ? prev.filter(c => c.id !== caToToggle.id) 
-            : [...prev, caToToggle]
-        );
-    };
-    return (
-      <>
-        {(isLoadingDependencies || authLoading) && <div className="flex items-center justify-center h-72"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">{authLoading ? "Authenticating..." : "Loading CAs..."}</p></div>}
-        {errorDependencies && !isLoadingDependencies && !authLoading && <Alert variant="destructive" className="my-4"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error Loading Data</AlertTitle><AlertDescription>{errorDependencies} <Button variant="link" onClick={loadDependencies} className="p-0 h-auto">Try again?</Button></AlertDescription></Alert>}
-        {!isLoadingDependencies && !authLoading && !errorDependencies && availableCAsForSelection.length > 0 && (
-          <ScrollArea className="h-72 my-4 border rounded-md"><ul className="space-y-0.5 p-2">{availableCAsForSelection.map((ca) => (<SelectableCaTreeItem key={ca.id} ca={ca} level={0} onSelect={() => {}} showCheckbox={true} isMultiSelected={!!currentMultiSelectedCAs.find(sel => sel.id === ca.id)} onMultiSelectToggle={toggleCaSelectionInList} _currentMultiSelectedCAsPassedToDialog={currentMultiSelectedCAs} allCryptoEngines={allCryptoEngines}/>))}</ul></ScrollArea>
-        )}
-        <DialogFooter><DialogClose asChild><Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Done</Button></DialogClose></DialogFooter>
-      </>
-    );
-  };
-  
-  if (authLoading || (isEditMode && isLoadingRA)) {
-      return (
-          <div className="flex flex-col items-center justify-center flex-1 p-8">
-              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-              <p className="text-lg text-muted-foreground">{authLoading ? "Authenticating..." : "Loading RA Details..."}</p>
-          </div>
-      );
+  const handleAddValidationCa = (ca: CA) => {
+    if (!validationCAs.some(vca => vca.id === ca.id)) {
+        setValidationCAs(prev => [...prev, ca]);
+    }
+    setIsValidationCaModalOpen(false);
   }
 
-  if (isEditMode && errorRA) {
-      return (
-          <div className="w-full space-y-4 p-4">
-              <Button variant="outline" onClick={() => router.back()} className="mb-4"><ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs</Button>
-              <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error Loading RA</AlertTitle><AlertDescription>{errorRA}</AlertDescription></Alert>
-          </div>
-      );
+  const handleRemoveValidationCa = (caId: string) => {
+    setValidationCAs(prev => prev.filter(vca => vca.id !== caId));
   }
-  
-  const sectionHeadingStyle = "text-lg font-semibold flex items-center mb-3 mt-15";
-  const SelectedIconComponent = getLucideIconByName(selectedDeviceIconName);
+
+  const handleAddAdditionalValidationCa = (ca: CA) => {
+    if (!additionalValidationCAs.some(vca => vca.id === ca.id)) {
+        setAdditionalValidationCAs(prev => [...prev, ca]);
+    }
+    setIsAdditionalValidationCaModalOpen(false);
+  }
+
+  const handleRemoveAdditionalValidationCa = (caId: string) => {
+    setAdditionalValidationCAs(prev => prev.filter(vca => vca.id !== caId));
+  }
+
+  const handleAddManagedCa = (ca: CA) => {
+    if (!managedCAs.some(mca => mca.id === ca.id)) {
+        setManagedCAs(prev => [...prev, ca]);
+    }
+    setIsManagedCaModalOpen(false);
+  };
+
+  const handleRemoveManagedCa = (caId: string) => {
+    setManagedCAs(prev => prev.filter(mca => mca.id !== caId));
+  };
+
+
   const currentServerKeygenSpecOptions = serverKeygenType === 'RSA' ? serverKeygenRsaBits : serverKeygenEcdsaCurves;
+
+
   const PageIcon = isEditMode ? Edit : PlusCircle;
 
   return (
@@ -468,10 +453,10 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   <div className="pt-2">
                   <Label htmlFor="deviceIconButton">Device Icon</Label>
                   <Button id="deviceIconButton" type="button" variant="outline" onClick={() => setIsDeviceIconModalOpen(true)} className="w-full justify-start text-left font-normal flex items-center gap-2 mt-1">
-                      {SelectedIconComponent ? (
+                      {getLucideIconByName(selectedDeviceIconName) ? (
                       <div className="flex items-center gap-2">
                           <div className="p-1 rounded-sm flex items-center justify-center" style={{ backgroundColor: selectedDeviceIconBgColor }}>
-                          <SelectedIconComponent className="h-5 w-5" style={{ color: selectedDeviceIconColor }} />
+                          {React.createElement(getLucideIconByName(selectedDeviceIconName)!, { className: "h-5 w-5", style: { color: selectedDeviceIconColor } })}
                           </div>
                           {selectedDeviceIconName}
                       </div>
@@ -485,7 +470,16 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               <Card className="border-border shadow-sm rounded-md">
                 <SectionHeader icon={Key} title="Enrollment Settings" />
                 <CardContent className="space-y-4">
-                  <div><Label htmlFor="protocol">Protocol</Label><Select value={protocol} onValueChange={setProtocol}><SelectTrigger id="protocol" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EST">EST</SelectItem><SelectItem value="CMP">CMP</SelectItem></SelectContent></Select></div>
+                  <div>
+                    <Label htmlFor="protocol">Protocol</Label>
+                    <Select value={protocol} onValueChange={setProtocol}>
+                        <SelectTrigger id="protocol" className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="EST">EST</SelectItem>
+                            <SelectItem value="None">None</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  </div>
               <div>
                 <Label htmlFor="enrollmentCa">Enrollment CA</Label>
                 <Button type="button" variant="outline" onClick={() => setIsEnrollmentCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}</Button>
@@ -566,9 +560,28 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               {authMode === 'Client Certificate' && (
                   <div className="space-y-4 pt-2 border-t mt-4">
                       <h4 className="font-medium text-md text-muted-foreground pt-2">Client Certificate Auth Settings</h4>
-                      <div><Label htmlFor="validationCAs">Validation CAs</Label><Button type="button" variant="outline" onClick={() => setIsValidationCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : validationCAs.length > 0 ? `Selected ${validationCAs.length} CA(s) - Click to modify` : "Select Validation CAs..."}</Button>{validationCAs.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{validationCAs.map(ca => <CaVisualizerCard key={ca.id} ca={ca} className="shadow-none border-border max-w-xs" allCryptoEngines={allCryptoEngines} />)}</div>}</div>
+                      <div>
+                        <Label>Validation CAs</Label>
+                        <div className="mt-2 space-y-2">
+                            {validationCAs.length > 0 ? (
+                                validationCAs.map(ca => (
+                                    <div key={ca.id} className="flex items-center gap-2 group">
+                                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveValidationCa(ca.id)}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-muted-foreground italic text-center p-2">No validation CAs selected.</p>
+                            )}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setIsValidationCaModalOpen(true)} className="mt-2">
+                           <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
+                        </Button>
+                      </div>
                       <div className="flex items-center space-x-2 pt-2"><Switch id="allowExpiredAuth" checked={allowExpiredAuth} onCheckedChange={setAllowExpiredAuth} /><Label htmlFor="allowExpiredAuth">Allow Authenticating Expired Certificates</Label></div>
-                      <div><Label htmlFor="chainValidationLevel" className="flex items-center">Chain Validation Level<TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>-1 equals full chain validation.</p></TooltipContent></Tooltip></TooltipProvider></Label><Input id="chainValidationLevel" type="number" value={chainValidationLevel} onChange={(e) => setChainValidationLevel(parseInt(e.target.value))} className="mt-1" /></div>
+                      <div><Label htmlFor="chainValidationLevel" className="flex items-center">Chain Validation Level<TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>-1 equals full chain validation.</p></TooltipContent></Tooltip></TooltipProvider></Label><Input id="chainValidationLevel" type="number" value={chainValidationLevel} onChange={(e) => setChainValidationLevel(Number.parseInt(e.target.value))} className="mt-1" /></div>
                   </div>
               )}
 
@@ -668,7 +681,26 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   <DurationInput id="allowedRenewalDelta" label="Allowed Renewal Delta" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Max time after expiry a cert can be renewed."/>
                   <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry to start allowing renewals."/>
                   <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when renewal is critical."/>
-                  <div><Label htmlFor="additionalValidationCAs">Additional Validation CAs (for re-enrollment)</Label><Button type="button" variant="outline" onClick={() => setIsAdditionalValidationCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : additionalValidationCAs.length > 0 ? `Selected ${additionalValidationCAs.length} CA(s)` : "Select CAs..."}</Button>{additionalValidationCAs.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{additionalValidationCAs.map(ca => <CaVisualizerCard key={ca.id} ca={ca} className="shadow-none border-border max-w-xs" allCryptoEngines={allCryptoEngines}/>)}</div>}</div>
+                  <div>
+                    <Label htmlFor="additionalValidationCAs">Additional Validation CAs (for re-enrollment)</Label>
+                    <div className="mt-2 space-y-2">
+                            {additionalValidationCAs.length > 0 ? (
+                                additionalValidationCAs.map(ca => (
+                                    <div key={ca.id} className="flex items-center gap-2 group">
+                                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-muted-foreground italic text-center p-2">No additional validation CAs selected.</p>
+                            )}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setIsAdditionalValidationCaModalOpen(true)} className="mt-2">
+                           <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
+                        </Button>
+                  </div>
                 </CardContent>
               </Card>
               <Separator className="my-6"/>
@@ -716,7 +748,27 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                       </p>
                     </div>
                     <Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
-                  </div><div><Label htmlFor="managedCAs">Managed CAs</Label><Button type="button" variant="outline" onClick={() => setIsManagedCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : managedCAs.length > 0 ? `Selected ${managedCAs.length} CA(s)` : "Select CAs..."}</Button>{managedCAs.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{managedCAs.map(ca => (<CaVisualizerCard key={ca.id} ca={ca} className="shadow-none border-border max-w-xs" allCryptoEngines={allCryptoEngines}/>))}</div>}</div>
+                  </div>
+                  <div>
+                    <Label>Managed CAs</Label>
+                    <div className="mt-2 space-y-2">
+                        {managedCAs.length > 0 ? (
+                            managedCAs.map(ca => (
+                                <div key={ca.id} className="flex items-center gap-2 group">
+                                    <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-sm text-muted-foreground italic text-center p-2">No managed CAs selected.</p>
+                        )}
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setIsManagedCaModalOpen(true)} className="mt-2">
+                       <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
               <div className="flex justify-end space-x-2 pt-8">
@@ -729,10 +781,46 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           </form>
         </div>
       </div>
+      <CaSelectorModal 
+        isOpen={isValidationCaModalOpen} 
+        onOpenChange={setIsValidationCaModalOpen} 
+        title="Add Validation CA" 
+        description="Select a CA to add to the validation list." 
+        availableCAs={availableCAsForSelection} 
+        isLoadingCAs={isLoadingDependencies} 
+        errorCAs={errorDependencies} 
+        loadCAsAction={loadDependencies} 
+        onCaSelected={handleAddValidationCa}
+        isAuthLoading={authLoading}
+        allCryptoEngines={allCryptoEngines}
+      />
+      <CaSelectorModal
+        isOpen={isAdditionalValidationCaModalOpen}
+        onOpenChange={setIsAdditionalValidationCaModalOpen}
+        title="Add Additional Validation CA"
+        description="Select a CA to add for re-enrollment validation."
+        availableCAs={availableCAsForSelection}
+        isLoadingCAs={isLoadingDependencies}
+        errorCAs={errorDependencies}
+        loadCAsAction={loadDependencies}
+        onCaSelected={handleAddAdditionalValidationCa}
+        isAuthLoading={authLoading}
+        allCryptoEngines={allCryptoEngines}
+      />
+      <CaSelectorModal
+        isOpen={isManagedCaModalOpen}
+        onOpenChange={setIsManagedCaModalOpen}
+        title="Add Managed CA"
+        description="Select a CA to include in the distribution list."
+        availableCAs={availableCAsForSelection}
+        isLoadingCAs={isLoadingDependencies}
+        errorCAs={errorDependencies}
+        loadCAsAction={loadDependencies}
+        onCaSelected={handleAddManagedCa}
+        isAuthLoading={authLoading}
+        allCryptoEngines={allCryptoEngines}
+      />
       <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setEnrollmentCa(ca); setIsEnrollmentCaModalOpen(false); }} currentSelectedCaId={enrollmentCa?.id} isAuthLoading={authLoading} allCryptoEngines={allCryptoEngines} />
-      <CaSelectorModal isOpen={isValidationCaModalOpen} onOpenChange={setIsValidationCaModalOpen} title="Select Validation CAs" description="Choose CAs to validate client certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={() => {}} isAuthLoading={authLoading} allCryptoEngines={allCryptoEngines}>{renderMultiSelectCaDialogContent(validationCAs, setValidationCAs, setIsValidationCaModalOpen)}</CaSelectorModal>
-      <CaSelectorModal isOpen={isAdditionalValidationCaModalOpen} onOpenChange={setIsAdditionalValidationCaModalOpen} title="Select Additional Validation CAs" description="Choose CAs for re-enrollment validation." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={() => {}} isAuthLoading={authLoading} allCryptoEngines={allCryptoEngines}>{renderMultiSelectCaDialogContent(additionalValidationCAs, setAdditionalValidationCAs, setIsAdditionalValidationCaModalOpen)}</CaSelectorModal>
-      <CaSelectorModal isOpen={isManagedCaModalOpen} onOpenChange={setIsManagedCaModalOpen} title="Select Managed CAs" description="Choose CAs for the CA certs endpoint." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={() => {}} isAuthLoading={authLoading} allCryptoEngines={allCryptoEngines}>{renderMultiSelectCaDialogContent(managedCAs, setManagedCAs, setIsManagedCaModalOpen)}</CaSelectorModal>
       <DeviceIconSelectorModal
         isOpen={isDeviceIconModalOpen}
         onOpenChange={setIsDeviceIconModalOpen}
@@ -745,3 +833,5 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     </div>
   );
 }
+
+

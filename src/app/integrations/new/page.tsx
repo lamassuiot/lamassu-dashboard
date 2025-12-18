@@ -1,18 +1,18 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, AlertTriangle, Loader2, Network } from "lucide-react";
+import { ArrowLeft, PlusCircle, Loader2, Network } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Alert, AlertDescription as AlertDescUI, AlertTitle } from "@/components/ui/alert";
-import { fetchAllRegistrationAuthorities, updateRaMetadata, type ApiRaItem } from '@/lib/dms-api';
+import { fetchRaById, updateRaMetadata } from '@/lib/dms-api';
+import { DmsSelector } from '@/components/shared/DmsSelector';
 
 export default function CreateIntegrationPage() {
   const router = useRouter();
@@ -20,12 +20,8 @@ export default function CreateIntegrationPage() {
   const { config } = useConfig();
   const { toast } = useToast();
 
-  const [ras, setRas] = useState<ApiRaItem[]>([]);
-  const [isLoadingRas, setIsLoadingRas] = useState(true);
-  const [errorRas, setErrorRas] = useState<string | null>(null);
-
   const [connectors, setConnectors] = useState<string[]>([]);
-  const [selectedRaId, setSelectedRaId] = useState<string>('');
+  const [selectedRaId, setSelectedRaId] = useState<string | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -45,25 +41,9 @@ export default function CreateIntegrationPage() {
     }
   }, [config]);
 
-  const loadRAs = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) return;
-    setIsLoadingRas(true);
-    setErrorRas(null);
-    try {
-      const data = await fetchAllRegistrationAuthorities(user.access_token);
-      setRas(data);
-    } catch (err: any) {
-      setErrorRas(err.message);
-    } finally {
-      setIsLoadingRas(false);
-    }
-  }, [user, isAuthenticated]);
-
-  useEffect(() => {
-    if (!authLoading) {
-      loadRAs();
-    }
-  }, [authLoading, loadRAs]);
+  const handleDmsChange = (value: string | null) => {
+    setSelectedRaId(value);
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -75,10 +55,8 @@ export default function CreateIntegrationPage() {
     setIsSubmitting(true);
 
     try {
-      const selectedRa = ras.find(r => r.id === selectedRaId);
-      if (!selectedRa) {
-        throw new Error("Selected Registration Authority not found.");
-      }
+      // Fetch the full RA data to check existing metadata
+      const selectedRa = await fetchRaById(selectedRaId, user.access_token);
 
       // The key for the new integration in the metadata
       const newIntegrationKey = `lamassu.io/iot/${selectedConnectorId}`;
@@ -134,18 +112,13 @@ export default function CreateIntegrationPage() {
           <CardContent className="space-y-6">
               <div className="space-y-2">
                   <Label htmlFor="ra-select">Registration Authority</Label>
-                  {isLoadingRas || authLoading ? (
-                      <div className="flex items-center space-x-2 h-10"><Loader2 className="h-5 w-5 animate-spin"/><p>Loading RAs...</p></div>
-                  ) : errorRas ? (
-                      <Alert variant="destructive"><AlertTriangle className="h-4 w-4"/><AlertTitle>Error</AlertTitle><AlertDescUI>{errorRas}</AlertDescUI></Alert>
-                  ) : (
-                      <Select value={selectedRaId} onValueChange={setSelectedRaId} disabled={isSubmitting}>
-                          <SelectTrigger id="ra-select"><SelectValue placeholder="Select an RA to add an integration to..."/></SelectTrigger>
-                          <SelectContent>
-                              {ras.map(ra => <SelectItem key={ra.id} value={ra.id}>{ra.name}</SelectItem>)}
-                          </SelectContent>
-                      </Select>
-                  )}
+                  <DmsSelector
+                    value={selectedRaId}
+                    onChange={handleDmsChange}
+                    disabled={isSubmitting || authLoading}
+                    showAllOption={false}
+                    placeholder="Select an RA to add an integration to..."
+                  />
               </div>
               <div className="space-y-2">
                   <Label htmlFor="connector-select">Connector</Label>

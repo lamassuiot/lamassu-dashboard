@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import { CertificateList } from '@/components/CertificateList';
 import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import type { CertificateData } from '@/types/certificate';
-import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X, Upload } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchAndProcessCAs, fetchCryptoEngines, type CA, findCaById } from '@/lib/ca-data';
+import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -21,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePaginatedCertificateFetcher, type ApiStatusFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom';
+export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime';
 export type SortDirection = 'asc' | 'desc';
 
 export interface CertSortConfig {
@@ -234,6 +235,9 @@ export default function CertificatesPage() {
             <Button onClick={refreshCertificates} variant="outline" disabled={isLoadingApi && certificates.length > 0}>
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && certificates.length > 0 && "animate-spin")} /> Refresh List
             </Button>
+            <Button onClick={() => router.push('/certificates/import')} variant="outline">
+                <Upload className="mr-2 h-4 w-4" /> Import Certificate
+            </Button>
             <Button onClick={() => handleOpenCaSelector('issue')} variant="default">
                 <PlusCircle className="mr-2 h-4 w-4" /> Issue Certificate
             </Button>
@@ -241,18 +245,20 @@ export default function CertificatesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-        <div className="relative col-span-1 md:col-span-1">
+        <div className="col-span-1 md:col-span-1">
             <Label htmlFor="certSearchTermInput">Search Term</Label>
-            <Search className="absolute left-3 top-[calc(50%+6px)] -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-                id="certSearchTermInput"
-                type="text"
-                placeholder="Enter search term..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 mt-1"
-                disabled={isLoadingApi || authLoading}
-            />
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                    id="certSearchTermInput"
+                    type="text"
+                    placeholder="Enter search term..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 mt-1"
+                    disabled={isLoadingApi || authLoading}
+                />
+            </div>
         </div>
         <div className="col-span-1 md:col-span-1">
             <Label htmlFor="certSearchFieldSelect">Search In</Label>

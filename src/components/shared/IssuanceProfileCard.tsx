@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash2, Eye } from "lucide-react";
+import { Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash2, Eye, Users } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
@@ -25,10 +25,13 @@ interface IssuanceProfileCardProps {
   className?: string;
   onEdit?: () => void;
   onDelete?: () => void;
+  onViewUsage?: () => void;
 }
 
-export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profile, className, onEdit, onDelete }) => {
+export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profile, className, onEdit, onDelete, onViewUsage }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [usageCount, setUsageCount] = useState<number | null>(null);
+
   const allowedKeyTypes = [];
   if (profile.crypto_enforcement?.allow_rsa_keys) allowedKeyTypes.push('RSA');
   if (profile.crypto_enforcement?.allow_ecdsa_keys) allowedKeyTypes.push('ECDSA');
@@ -75,9 +78,11 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
               <CardDescription className="text-xs pt-1 text-muted-foreground max-w-xs line-clamp-2">{profile.description}</CardDescription>
             </div>
           </div>
-          {profile.sign_as_ca && (
-            <Badge variant="default" className="ml-2 text-xs px-2 py-1 bg-green-600/90 text-white">CA</Badge>
-          )}
+          <div className="flex items-center space-x-1">
+            {profile.sign_as_ca && (
+              <Badge variant="default" className="text-xs px-2 py-1 bg-green-600/90 text-white">CA</Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-2 text-sm flex-grow pt-0">
           <DetailRow icon={Clock} label="Validity" value={(() => {
@@ -87,9 +92,12 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
               case 'Duration':
                 return profile.validity.duration ? `Duration: ${profile.validity.duration}` : "Not specified";
               case 'Date':
+                 if (profile.validity.time?.startsWith('9999-12-31')) {
+                    return "Never Expires";
+                 }
                 return profile.validity.time ? `Until: ${new Date(profile.validity.time).toLocaleDateString()}` : "Not specified";
               case 'Indefinite':
-                return "Indefinite";
+                return "Never Expires";
               default:
                 return "Not specified";
             }
@@ -118,14 +126,16 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
         </CardContent>
         {onEdit && onDelete && (
           <CardFooter className="border-t pt-2 pb-2 bg-muted/30 flex justify-end gap-2 min-h-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="mr-auto"
-              onClick={() => setIsDetailsModalOpen(true)}
-            >
-              <Eye className="mr-1.5 h-3.5 w-3.5"/> View Raw
-            </Button>
+            <div className="mr-auto flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setIsDetailsModalOpen(true)}>
+                    <Eye className="mr-1.5 h-3.5 w-3.5"/> View Raw
+                </Button>
+                {onViewUsage && (
+                  <Button variant="outline" size="sm" onClick={onViewUsage}>
+                      <Users className="mr-1.5 h-3.5 w-3.5"/> View Usage
+                  </Button>
+                )}
+            </div>
             <Button
               variant="destructive"
               size="sm"

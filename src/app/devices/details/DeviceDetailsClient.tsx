@@ -13,6 +13,7 @@ import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } fr
 import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { CompactDateDisplay, DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from 'lucide-react';
 import { TimelineEventItem, type TimelineEventDisplayData } from '@/components/devices/TimelineEventItem';
@@ -25,10 +26,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
-import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation } from '@/lib/devices-api';
+import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
+import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface CertificateHistoryEntry {
   version: string;
@@ -89,9 +92,14 @@ export default function DeviceDetailsClient() {
   // State for decommissioning
   const [isDecommissionModalOpen, setIsDecommissionModalOpen] = useState(false);
   const [isDecommissioning, setIsDecommissioning] = useState(false);
+
+  // State for permanent deletion
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // State for integrations and force update
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
+  const [availableIntegrations, setAvailableIntegrations] = useState<DiscoveredIntegration[]>([]);
   const [activeIntegration, setActiveIntegration] = useState<DiscoveredIntegration | null>(null);
   const [raForIntegration, setRaForIntegration] = useState<ApiRaItem | null>(null);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
@@ -123,11 +131,21 @@ export default function DeviceDetailsClient() {
             discoverIntegrations(user.access_token),
             fetchRaById(dmsOwnerId, user.access_token)
         ]);
-        const integration = discovered.find(int => int.raId === dmsOwnerId && int.type === 'AWS_IOT_CORE');
-        setActiveIntegration(integration || null);
+        
+        const integrationsForRa = discovered.filter(int => int.raId === dmsOwnerId);
+        setAvailableIntegrations(integrationsForRa);
+
+        if (integrationsForRa.length > 0) {
+            setActiveIntegration(integrationsForRa[0]); // Default to the first one
+        } else {
+            setActiveIntegration(null);
+        }
+        
         setRaForIntegration(raDetails);
+
     } catch(err) {
         console.error("Failed to load integrations for device details page:", err);
+        setAvailableIntegrations([]);
         setActiveIntegration(null);
         setRaForIntegration(null);
     }
@@ -163,6 +181,7 @@ export default function DeviceDetailsClient() {
         if (data.dms_owner) {
             fetchIntegrationData(data.dms_owner);
         } else {
+            setAvailableIntegrations([]);
             setActiveIntegration(null);
             setRaForIntegration(null);
         }
@@ -238,7 +257,7 @@ export default function DeviceDetailsClient() {
             const certPromises = pageIdentities.map(async ({ version, serialNumber }) => {
                 const { certificates } = await fetchIssuedCertificates({
                     accessToken: user.access_token!,
-                    apiQueryString: `filter=serial_number[equal]${serialNumber}&page_size=1`
+                    apiQueryString: `filter=serial_number[equal_ignorecase]${serialNumber}&page_size=1`
                 });
                 const certData = certificates[0];
                 if (!certData) return null;
@@ -294,7 +313,7 @@ export default function DeviceDetailsClient() {
             let versionToFind: string | null = null;
             if (rawEvent.type === 'PROVISIONED') {
                 versionToFind = '0';
-            } else if (rawEvent.type === 'RE-PROVISIONED') {
+            } else if (rawEvent.type === 'RENEWED' || (rawEvent.type === 'EVENT' && rawEvent.description.startsWith('New Active Version'))) {
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
             }
@@ -311,7 +330,7 @@ export default function DeviceDetailsClient() {
                 const certPromises = serialsToFetch.map(serialNumber => 
                     fetchIssuedCertificates({
                         accessToken: user.access_token!,
-                        apiQueryString: `filter=serial_number[equal]${serialNumber}&page_size=1`
+                        apiQueryString: `filter=serial_number[equal_ignorecase]${serialNumber}&page_size=1`
                     }).then(result => result.certificates[0])
                 );
                 
@@ -352,11 +371,13 @@ export default function DeviceDetailsClient() {
             let detailsNode: React.ReactNode = null;
             let certificateInfo: CertificateHistoryEntry | undefined = undefined;
             let versionToFind: string | null = null;
+            let eventType = rawEvent.type;
 
             if (rawEvent.type === 'PROVISIONED') {
                 versionToFind = '0';
                 if (!rawEvent.description) title = 'Device Provisioned with Initial Certificate';
-            } else if (rawEvent.type === 'RE-PROVISIONED') {
+            } else if (rawEvent.type === 'RENEWED' || (rawEvent.type === 'EVENT' && rawEvent.description.startsWith('New Active Version'))) {
+                eventType = 'RENEWED'; // Normalize event type for display
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
             }
@@ -365,7 +386,7 @@ export default function DeviceDetailsClient() {
                 const serial = device.identity.versions[versionToFind];
                 certificateInfo = updatedFetchedCerts.get(serial);
                  if (!certificateInfo) {
-                    detailsNode = <div className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/><p className="text-xs text-muted-foreground font-mono">Loading Cert... SN: {serial.substring(0, 12)}...</p></div>;
+                    detailsNode = <div className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/><p className="text-xs text-muted-foreground">Loading Cert... SN: <IdentifierDisplay value={serial.substring(0, 24)} className="text-xs" />...</p></div>;
                 }
             }
 
@@ -375,7 +396,7 @@ export default function DeviceDetailsClient() {
 
             const prevTimestamp = index < allRawEvents.length - 1 ? parseISO(allRawEvents[index + 1].timestampStr) : null;
             
-            return { id: rawEvent.timestampStr, timestamp, eventType: rawEvent.type, title, details: detailsNode, certificate: certificateInfo, relativeTime: formatDistanceToNowStrict(timestamp) + ' ago', secondaryRelativeTime: prevTimestamp ? formatDistanceStrict(timestamp, prevTimestamp) + ' later' : undefined };
+            return { id: rawEvent.timestampStr, timestamp, eventType: eventType, title, details: detailsNode, certificate: certificateInfo, relativeTime: formatDistanceToNowStrict(timestamp) + ' ago', secondaryRelativeTime: prevTimestamp ? formatDistanceStrict(timestamp, prevTimestamp) + ' later' : undefined };
         });
 
         setTimelineEvents(processedTimelineEvents);
@@ -515,8 +536,7 @@ export default function DeviceDetailsClient() {
             description: "Device has been successfully decommissioned.",
         });
         setIsDecommissionModalOpen(false);
-        routerHook.push('/devices'); // Redirect to the list page
-
+        fetchDeviceDetails(); // Re-fetch details to show updated status
     } catch (e: any) {
         toast({
             title: "Decommission Failed",
@@ -527,8 +547,37 @@ export default function DeviceDetailsClient() {
         setIsDecommissioning(false);
     }
   };
+
+  const handleDeleteConfirm = async () => {
+    if (!deviceId || !user?.access_token) {
+        toast({
+            title: "Error",
+            description: "Cannot delete device. Device ID or authentication is missing.",
+            variant: "destructive"
+        });
+        return;
+    }
+    setIsDeleting(true);
+    try {
+        await deleteDevice(deviceId, user.access_token);
+        toast({
+            title: "Success!",
+            description: "Device has been permanently deleted.",
+        });
+        setIsDeleteModalOpen(false);
+        routerHook.push('/devices'); // Redirect to the list page
+    } catch (e: any) {
+        toast({
+            title: "Deletion Failed",
+            description: e.message,
+            variant: "destructive"
+        });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
   
-  const handleForceUpdateConfirm = async (actions: string[]) => {
+  const handleForceUpdateConfirm = async (configKey: string, actions: string[]) => {
     if (!device?.dms_owner || !deviceId || !user?.access_token || !activeIntegration) {
         toast({ title: "Error", description: "Missing data required for force update.", variant: "destructive" });
         return;
@@ -537,7 +586,7 @@ export default function DeviceDetailsClient() {
     try {
         const patch: PatchOperation = {
             op: 'add', // or 'replace' if the key might exist
-            path: `/${activeIntegration.configKey.replace(/\//g, '~1')}`,
+            path: `/${configKey.replace(/\//g, '~1')}`,
             value: { actions }
         };
         await updateDeviceMetadata(deviceId, [patch], user.access_token);
@@ -618,14 +667,18 @@ export default function DeviceDetailsClient() {
               <div className="flex items-center space-x-2 mt-1">
                 <DeviceStatusBadge status={device.status as any} />
                 <span className="text-xs text-muted-foreground">
-                  Created: {format(creationDate, 'dd MMM yyyy, HH:mm')} ({formatDistanceToNowStrict(creationDate)} ago)
+                  Created: <CompactDateDisplay 
+                    date={device.creation_timestamp} 
+                    formatString="dd MMM yyyy, HH:mm"
+                    className="inline"
+                  />
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
-            {activeIntegration && (
+            {availableIntegrations.length > 0 && (
               <Button variant="outline" onClick={() => setIsForceUpdateModalOpen(true)}>
                 <Zap className="mr-2 h-4 w-4" /> Force Update
               </Button>
@@ -636,6 +689,12 @@ export default function DeviceDetailsClient() {
             <Button variant="destructive" onClick={() => setIsDecommissionModalOpen(true)} disabled={device.status === 'DECOMMISSIONED'}>
               <Trash2 className="mr-2 h-4 w-4" /> Decommission
             </Button>
+            {device.status === 'DECOMMISSIONED' && (
+                <Button variant="destructive" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
+                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+                    {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+                </Button>
+            )}
           </div>
         </div>
         {device.tags && device.tags.length > 0 && (
@@ -721,8 +780,8 @@ export default function DeviceDetailsClient() {
                         <TableHead>Status</TableHead>
                         <TableHead className="hidden md:table-cell">Common Name</TableHead>
                         <TableHead className="hidden lg:table-cell">CA</TableHead>
-                        <TableHead className="hidden lg:table-cell">Valid From</TableHead>
-                        <TableHead className="hidden lg:table-cell">Valid To</TableHead>
+                        <TableHead className="hidden lg:table-cell text-center">Valid From</TableHead>
+                        <TableHead className="hidden lg:table-cell text-center">Valid To</TableHead>
                         <TableHead className="hidden md:table-cell">Lifespan</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -734,11 +793,11 @@ export default function DeviceDetailsClient() {
                           <TableCell className="font-mono text-xs">
                             <Button
                                 variant="link"
-                                className="p-0 h-auto font-mono text-xs"
+                                className="p-0 h-auto text-xs"
                                 onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
                                 title={`View details for certificate ${cert.serialNumber}`}
                             >
-                                {cert.serialNumber}
+                                <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
                             </Button>
                           </TableCell>
                           <TableCell>
@@ -775,8 +834,8 @@ export default function DeviceDetailsClient() {
                                 cert.ca
                                 )}
                           </TableCell>
-                          <TableCell className="hidden lg:table-cell">{format(parseISO(cert.validFrom), 'dd/MM/yy HH:mm')}</TableCell>
-                          <TableCell className="hidden lg:table-cell">{format(parseISO(cert.validTo), 'dd/MM/yy HH:mm')}</TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validFrom} formatString="dd/MM/yy HH:mm" className="text-xs" /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString="dd/MM/yy HH:mm" className="text-xs" highlightExpired /></TableCell>
                           <TableCell className="hidden md:table-cell">{cert.lifespan}</TableCell>
                           <TableCell>
                             <Button variant="ghost" size="icon" title="View Certificate Details" onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>
@@ -878,15 +937,26 @@ export default function DeviceDetailsClient() {
         deviceName={device.id}
         isDecommissioning={isDecommissioning}
       />
+      <DeleteDeviceModal
+        isOpen={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        onConfirm={handleDeleteConfirm}
+        deviceName={device.id}
+        isDeleting={isDeleting}
+       />
       <ForceUpdateModal
         isOpen={isForceUpdateModalOpen}
         onOpenChange={setIsForceUpdateModalOpen}
-        onConfirm={handleForceUpdateConfirm}
+        onConfirm={(configKey,actions) => handleForceUpdateConfirm(configKey, actions)}
         device={device}
         ra={raForIntegration}
-        integration={activeIntegration}
+        availableIntegrations={availableIntegrations}
+        activeIntegration={activeIntegration}
+        setActiveIntegration={setActiveIntegration}
         isUpdating={isForcingUpdate}
       />
     </div>
   );
 }
+
+    

@@ -127,7 +127,9 @@ export async function subscribeToAlert(payload: SubscriptionPayload, accessToken
     try {
       errorJson = await response.json();
       errorMessage = `Subscription failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) { /* ignore json parse error */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for subscription:", e);
+    }
     throw new Error(errorMessage);
   }
 }
@@ -148,7 +150,9 @@ export async function updateSubscription(subscriptionId: string, payload: Subscr
     try {
       errorJson = await response.json();
       errorMessage = `Update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) { /* ignore json parse error */ }
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for subscription update:", e);
+    }
     throw new Error(errorMessage);
   }
 }
@@ -170,7 +174,7 @@ export async function unsubscribeFromAlert(subscriptionId: string, accessToken: 
         errorMessage = `Failed to unsubscribe: ${errorJson.message}`;
       }
     } catch (e) {
-      // Ignore parsing error
+      console.error("Failed to parse error response as JSON for unsubscribe:", e);
     }
     throw new Error(errorMessage);
   }
