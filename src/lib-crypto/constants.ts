@@ -16,6 +16,7 @@ export const SIGNATURE_OID_MAP: Record<string, string> = {
   MLDSA_44: "2.16.840.1.101.3.4.3.17",
   MLDSA_65: "2.16.840.1.101.3.4.3.18",
   MLDSA_87: "2.16.840.1.101.3.4.3.19",
+  Ed25519_PURE: "1.3.101.112",
 };
 
 /**
@@ -55,6 +56,7 @@ export const SIGNATURE_ALGORITHMS = [
   "MLDSA_44",
   "MLDSA_65",
   "MLDSA_87",
+  "Ed25519_PURE",
 ] as const;
 
 export type SignatureAlgorithm = (typeof SIGNATURE_ALGORITHMS)[number];
