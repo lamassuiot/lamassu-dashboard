@@ -62,6 +62,8 @@ export default function CreateKmsKeyPage() {
   const [keyType, setKeyType] = useState('RSA');
   const [rsaKeySize, setRsaKeySize] = useState('2048');
   const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
+  const [mldsaSecurityLevel, setMLDSASecurityLevel] = useState('65');
+  const [ed25519KeySize, setEd25519KeySize] = useState('256');
 
   const [importKeyName, setImportKeyName] = useState('');
   const [privateKeyPem, setPrivateKeyPem] = useState('');
@@ -115,8 +117,15 @@ export default function CreateKmsKeyPage() {
     const keyTypeDetail = supportedKeyTypes.find(kt => kt.type === value);
     if (keyTypeDetail && keyTypeDetail.sizes.length > 0) {
       const firstSize = keyTypeDetail.sizes[0];
-      if (value === 'RSA') setRsaKeySize(firstSize.toString());
-      else if (value === 'ECDSA') setEcdsaCurve(firstSize.toString());
+      if (value === 'RSA') {
+        setRsaKeySize(firstSize.toString());
+      } else if (value === 'ECDSA') {
+        setEcdsaCurve(firstSize.toString());
+      } else if (value === 'ML-DSA') {
+        setMLDSASecurityLevel(firstSize.toString());
+      } else if (value === 'Ed25519') {
+        setEd25519KeySize(firstSize.toString());
+      }
     }
   };
 
@@ -128,19 +137,25 @@ export default function CreateKmsKeyPage() {
 
   const keySpecLabel = (() => {
     if (keyType === 'RSA') return 'RSA Key Size';
-    if (keyType === 'ECDSA') return 'ECDSA Curve';
+    else if (keyType === 'ECDSA') return 'ECDSA Curve';
+    else if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
+    else if (keyType === 'Ed25519') return 'Ed25519 Key Size';
     return 'Key Specification';
   })();
 
   const currentKeySpecValue = (() => {
     if (keyType === 'RSA') return rsaKeySize;
     if (keyType === 'ECDSA') return ecdsaCurve;
+    if (keyType === 'ML-DSA') return mldsaSecurityLevel;
+    if (keyType === 'Ed25519') return ed25519KeySize;
     return '';
   })();
 
   const handleKeySpecChange = (value: string) => {
     if (keyType === 'RSA') setRsaKeySize(value);
     else if (keyType === 'ECDSA') setEcdsaCurve(value);
+    else if (keyType === 'ML-DSA') setMLDSASecurityLevel(value);
+    else if (keyType === 'Ed25519') setEd25519KeySize(value);
   };
 
   const handleMetadataChange = (value: string | undefined) => {
@@ -173,11 +188,60 @@ export default function CreateKmsKeyPage() {
       let parsedMetadata: Record<string, any> | undefined;
       if (metadata.trim() && metadata.trim() !== '{}') {
         try {
+<<<<<<< HEAD
           parsedMetadata = JSON.parse(metadata);
         } catch {
           sileo.error({ title: "Validation Error", description: "Metadata must be valid JSON." });
           setIsSubmitting(false);
           return;
+=======
+            // Get the current size/spec value based on key type
+            let sizeValue: number;
+            if (keyType === 'RSA') {
+                sizeValue = parseInt(rsaKeySize, 10);
+            } else if (keyType === 'ECDSA') {
+                // For ECDSA, we might have curve names like 'P-256' or just numbers
+                if (ecdsaCurve.includes('P-')) {
+                    sizeValue = parseInt(ecdsaCurve.replace('P-', ''), 10);
+                } else {
+                    // If it's already a number, parse it
+                    sizeValue = parseInt(ecdsaCurve, 10);
+                }
+            }
+            else if (keyType === 'ML-DSA') {
+                sizeValue = parseInt(mldsaSecurityLevel.replace('ML-DSA-', ''), 10);
+            } else if (keyType === 'Ed25519') {
+                sizeValue = parseInt(ed25519KeySize, 10);
+            } else {
+                // For other key types, try to parse as number
+                sizeValue = parseInt(currentKeySpecValue, 10);
+                if (isNaN(sizeValue)) {
+                    sizeValue = 0; // fallback
+                }
+            }
+
+            const payload = {
+                engine_id: cryptoEngineId,
+                name: keyName.trim(),
+                algorithm: keyType,
+                size: sizeValue,
+                ...(tags.length > 0 && { tags }),
+                ...(parsedMetadata && Object.keys(parsedMetadata).length > 0 && { metadata: parsedMetadata }),
+            };
+            
+            await createKmsKey(payload);
+
+            sileo.success({
+                title: "Key Pair Created",
+                description: `Key pair with name "${keyName.trim()}" has been successfully created.`
+            });
+            router.push('/kms/keys');
+
+        } catch (error: any) {
+            sileo.error({ title: "Creation Failed", description: error.message });
+        } finally {
+            setIsSubmitting(false);
+>>>>>>> 113b68d (Modified the KMS interface to support the creation and operation of ML-DSA and Ed25519 keys.)
         }
       }
 

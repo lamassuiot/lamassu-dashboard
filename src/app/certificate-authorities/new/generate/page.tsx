@@ -285,6 +285,7 @@ export default function CreateCaGeneratePage() {
     if (keyType === 'RSA') return 'RSA Key Size';
     if (keyType === 'ECDSA') return 'ECDSA Curve';
     if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
+    if (keyType === 'Ed25519') return 'Ed25519 Key Size';
     return 'Key Specification';
   }, [keyType]);
 
@@ -292,6 +293,7 @@ export default function CreateCaGeneratePage() {
     if (innerKeyType === 'RSA') return 'Inner RSA Key Size';
     if (innerKeyType === 'ECDSA') return 'Inner ECDSA Curve';
     if (innerKeyType === 'ML-DSA') return 'Inner ML-DSA Security Level';
+    if (innerKeyType === 'Ed25519') return 'Inner Ed25519 Key Size';
     return 'Inner Key Specification';
   }, [innerKeyType]);
 
@@ -354,7 +356,12 @@ export default function CreateCaGeneratePage() {
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
     // Key spec will be reset by the useEffect above
-  };
+  }; 
+
+  const handleInnerKeyTypeChange = (value: string) => {
+    setInnerKeyType(value)
+    // Key spec will be reset by the useEffect above
+  }
 
   const handleInnerKeyTypeChange = (value: string) => {
     setInnerKeyType(value);
@@ -479,7 +486,7 @@ export default function CreateCaGeneratePage() {
         };
 
     if (caProfileMode === 'reuse' && selectedCaProfileId) {
-      payload.ca_issuance_profile_id = selectedCaProfileId;
+        payload.ca_issuance_profile_id = selectedCaProfileId;
     } else if (caProfileMode === 'inline') {
       const formData = caProfileForm.getValues();
 

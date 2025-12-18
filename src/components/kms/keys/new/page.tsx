@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
-import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
+import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS } from '@/lib/form-options';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { createKmsKey } from '@/lib/kms-data';
 
@@ -47,6 +47,8 @@ export default function CreateKmsKeyPage() {
   const [keyType, setKeyType] = useState('RSA');
   const [rsaKeySize, setRsaKeySize] = useState('2048');
   const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
+  const [mldsaSecurityLevel, setMLDSASecurityLevel] = useState('65');
+  const [ed25519Size, setEd25519Size] = useState('256');
 
   // Import Key Pair mode fields
   const [privateKeyPem, setPrivateKeyPem] = useState('');
@@ -64,30 +66,42 @@ export default function CreateKmsKeyPage() {
       setRsaKeySize('2048');
     } else if (value === 'ECDSA') {
       setEcdsaCurve('P-256');
+    } else if (value === 'ML-DSA') {
+      setMLDSASecurityLevel('65');
+    } else if (value === 'Ed25519') {
+      setEd25519Size('256');
     }
   };
 
   const currentKeySpecOptions = (() => {
     if (keyType === 'RSA') return RSA_KEY_SIZE_OPTIONS;
     if (keyType === 'ECDSA') return ECDSA_CURVE_OPTIONS;
+    if (keyType === 'ML-DSA') return MLDSA_SECURITY_LEVEL_OPTIONS;
+    if (keyType === 'Ed25519') return [{ value: '256', label: '256 bit' }];
     return [];
   })();
 
   const keySpecLabel = (() => {
     if (keyType === 'RSA') return 'RSA Key Size';
     if (keyType === 'ECDSA') return 'ECDSA Curve';
+    if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
+    if (keyType === 'Ed25519') return 'Ed25519 Key Size';
     return 'Key Specification';
   })();
 
   const currentKeySpecValue = (() => {
     if (keyType === 'RSA') return rsaKeySize;
     if (keyType === 'ECDSA') return ecdsaCurve;
+    if (keyType === 'ML-DSA') return mldsaSecurityLevel;
+    if (keyType === 'Ed25519') return ed25519Size;
     return '';
   })();
 
   const handleKeySpecChange = (value: string) => {
     if (keyType === 'RSA') setRsaKeySize(value);
     else if (keyType === 'ECDSA') setEcdsaCurve(value);
+    else if (keyType === 'ML-DSA') setMLDSASecurityLevel(value);
+    else if (keyType === 'Ed25519') setEd25519Size(value);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -114,6 +128,10 @@ export default function CreateKmsKeyPage() {
             } else if (keyType === 'ECDSA') {
                 const sizeMap: { [key: string]: number } = { 'P-256': 256, 'P-384': 384, 'P-521': 521 };
                 size = sizeMap[ecdsaCurve];
+            } else if (keyType === 'ML-DSA') {
+                size = parseInt(mldsaSecurityLevel.replace('ML-DSA-', ''), 10);
+            } else if (keyType === 'Ed25519') {
+                size = parseInt(ed25519Size, 10);
             }
 
             const payload = {
