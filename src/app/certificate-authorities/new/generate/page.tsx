@@ -269,7 +269,10 @@ export default function CreateCaGeneratePage() {
         );
         return option || { value: sizeValue, label: `ML-DSA ${normalizedSize}` };
       }
-      return { value: sizeValue, label: `${sizeValue} bit` };
+      if (type === 'RSA') {
+        return { value: sizeValue, label: `${sizeValue} bit` };
+      }
+      return { value: sizeValue, label: sizeValue };
     });
   }, [selectedEngine]);
 
