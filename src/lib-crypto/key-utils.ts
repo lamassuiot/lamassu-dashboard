@@ -14,7 +14,7 @@ import { PSS_ALGO_PARAMS, MLDSA_ALGORITHMS } from "./constants";
  */
 export function getKeyImportParams(
   algorithm: string,
-): EcKeyImportParams | RsaHashedImportParams | RsaPssParams {
+): AlgorithmIdentifier | EcKeyImportParams | RsaHashedImportParams | RsaPssParams {
   switch (algorithm) {
     case "ECDSA_SHA_256":
       return { name: "ECDSA", namedCurve: "P-256" };
@@ -47,6 +47,9 @@ export function getKeyImportParams(
         hash: { name: "SHA-512" },
         saltLength: PSS_ALGO_PARAMS["RSASSA_PSS_SHA_512"].saltLength,
       };
+
+    case "Ed25519_PURE":
+      return { name: "Ed25519" };
 
     default:
       if (MLDSA_ALGORITHMS.has(algorithm)) {

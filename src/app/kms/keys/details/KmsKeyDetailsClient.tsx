@@ -47,7 +47,7 @@ interface KmsKeyDetailed {
   id: string;
   alias: string;
   keyTypeDisplay: string;
-  algorithm: 'RSA' | 'ECDSA' | 'MLDSA' | 'Unknown';
+  algorithm: 'RSA' | 'ECDSA' | 'MLDSA' | 'Ed25519' | 'Unknown';
   keySize?: string | number;
   hasPrivateKey: boolean;
   publicKeyPem?: string;
@@ -381,6 +381,7 @@ export default function KmsKeyDetailsClient() {
         if (algoUpper === 'RSA') normalizedAlgorithm = 'RSA';
         else if (algoUpper === 'ECDSA') normalizedAlgorithm = 'ECDSA';
         else if (algoUpper.startsWith('MLDSA') || algoUpper.startsWith('ML_DSA')) normalizedAlgorithm = 'MLDSA';
+        else if (algoUpper === 'ED25519') normalizedAlgorithm = 'Ed25519';
         else normalizedAlgorithm = 'Unknown';
 
         // For MLDSA, ensure keySize is the parameter-set number (44 / 65 / 87).
@@ -396,7 +397,6 @@ export default function KmsKeyDetailsClient() {
             }
           }
         }
-
         const detailedKey: KmsKeyDetailed = {
           id: apiKey.pkcs11_uri,
           alias: apiKey.name || apiKey.key_id,
@@ -443,6 +443,10 @@ export default function KmsKeyDetailsClient() {
           setSignAlgorithm(defaultMldsaAlgo);
           setVerifyAlgorithm(defaultMldsaAlgo);
           setCsrSignAlgorithm(defaultMldsaAlgo);
+        } else if (detailedKey.algorithm === 'Ed25519') {
+          setSignAlgorithm('Ed25519_PURE');
+          setVerifyAlgorithm('Ed25519_PURE');
+          setCsrSignAlgorithm('Ed25519_PURE');
         }
 
       } else {
@@ -661,6 +665,9 @@ export default function KmsKeyDetailsClient() {
       // Restrict to the exact parameter set of this key (44 / 65 / 87).
       const sizeStr = String(keyDetails.keySize ?? '');
       return algo !== `MLDSA_${sizeStr}`;
+    }
+    if (keyDetails.algorithm === 'Ed25519') {
+      return algo !== 'Ed25519_PURE';
     }
 
     return true; // Disable for unknown key types

@@ -297,6 +297,7 @@ export default function CreateCaGeneratePage() {
     if (keyType === 'RSA') return 'RSA Key Size';
     if (keyType === 'ECDSA') return 'ECDSA Curve';
     if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
+    if (keyType === 'Ed25519') return 'Ed25519 Key Size';
     return 'Key Specification';
   }, [keyType]);
 
@@ -304,6 +305,7 @@ export default function CreateCaGeneratePage() {
     if (innerKeyType === 'RSA') return 'Inner RSA Key Size';
     if (innerKeyType === 'ECDSA') return 'Inner ECDSA Curve';
     if (innerKeyType === 'ML-DSA') return 'Inner ML-DSA Security Level';
+    if (innerKeyType === 'Ed25519') return 'Inner Ed25519 Key Size';
     return 'Inner Key Specification';
   }, [innerKeyType]);
 
@@ -370,7 +372,9 @@ export default function CreateCaGeneratePage() {
 
   const handleInnerKeyTypeChange = (value: string) => {
     setInnerKeyType(value);
+    // Key spec will be reset by the useEffect above
   };
+
   const handleParentCaSelectFromModal = (ca: CA) => {
     if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
       sileo.error({
