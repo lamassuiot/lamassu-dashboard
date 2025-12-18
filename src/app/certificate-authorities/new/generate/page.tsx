@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
+import { fetchAndProcessCAs, createCa, type CreateCaPayload, type CreateHybridCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
@@ -91,6 +91,8 @@ export default function CreateCaGeneratePage() {
 
   const [keyType, setKeyType] = useState('RSA');
   const [keySpec, setKeySpec] = useState('');
+  const [innerKeyType, setInnerKeyType] = useState('RSA');
+  const [innerKeySpec, setInnerKeySpec] = useState('');
 
   const [country, setCountry] = useState('');
   const [stateProvince, setStateProvince] = useState('');
@@ -260,11 +262,36 @@ export default function CreateCaGeneratePage() {
     });
   }, [selectedEngine, keyType]);
 
+  const currentInnerKeySpecOptions = useMemo(() => {
+    if (!selectedEngine) return [];
+
+    const keyTypeDetails = selectedEngine.supported_key_types.find(kt => kt.type.toUpperCase() === innerKeyType.toUpperCase());
+    if (!keyTypeDetails) return [];
+
+    return keyTypeDetails.sizes.map(size => {
+      if (innerKeyType === 'ECDSA') {
+        const curve = ECDSA_CURVE_OPTIONS.find(c => c.value.includes(String(size)));
+        return curve || { value: String(size), label: `Unknown Curve ${size}` };
+      }
+      return { value: String(size), label: `${size} bit` };
+    });
+  }, [selectedEngine, innerKeyType]);
+
   const keySpecLabel = useMemo(() => {
     if (keyType === 'RSA') return 'RSA Key Size';
     if (keyType === 'ECDSA') return 'ECDSA Curve';
+    if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
+    if (keyType === 'Ed25519') return 'Ed25519 Key Size';
     return 'Key Specification';
   }, [keyType]);
+  
+  const innerKeySpecLabel = useMemo(() => {
+    if (innerKeyType === 'RSA') return 'RSA Key Size';
+    if (innerKeyType === 'ECDSA') return 'ECDSA Curve';
+    if (innerKeyType === 'ML-DSA') return 'ML-DSA Security Level';
+    if (innerKeyType === 'Ed25519') return 'Ed25519 Key Size';
+    return 'Key Specification';
+  }, [innerKeyType]);
 
   // Effect to update keySpec when options change
   useEffect(() => {
@@ -280,6 +307,20 @@ export default function CreateCaGeneratePage() {
     }
   }, [currentKeySpecOptions, keyType]);
 
+  // Effect to update innerKeySpec when options change
+  useEffect(() => {
+    if (currentInnerKeySpecOptions.length > 0) {
+      const defaultSpec = innerKeyType === 'RSA' ? '2048' : innerKeyType === 'ECDSA' ? 'P-256' : currentInnerKeySpecOptions[0].value;
+      if (currentInnerKeySpecOptions.some(opt => opt.value === defaultSpec)) {
+        setKeySpec(defaultSpec);
+      } else {
+        setKeySpec(currentInnerKeySpecOptions[0].value);
+      }
+    } else {
+      setKeySpec('');
+    }
+  }, [currentInnerKeySpecOptions, innerKeyType]);
+
 
   const handleCaTypeChange = (value: string) => {
     setCaType(value);
@@ -294,7 +335,12 @@ export default function CreateCaGeneratePage() {
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
     // Key spec will be reset by the useEffect above
-  };
+  }; 
+
+  const handleInnerKeyTypeChange = (value: string) => {
+    setInnerKeyType(value)
+    // Key spec will be reset by the useEffect above
+  }
 
   const handleParentCaSelectFromModal = (ca: CA) => {
     if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
@@ -367,7 +413,22 @@ export default function CreateCaGeneratePage() {
       }
     }
 
-    const payload: CreateCaPayload = isHybridCa ?
+    let keyBits: number;
+    if (keyType === 'ECDSA') {
+      keyBits = parseInt(keySpec.replace('P-', ''), 10);
+    } else {
+      keyBits = parseInt(keySpec, 10);
+    }
+
+    let innerKeyBits: number;
+    if (innerKeyType === 'ECDSA') {
+      innerKeyBits = parseInt(innerKeySpec.replace('P-', ''), 10);
+    } else {
+      innerKeyBits = parseInt(innerKeySpec, 10);
+    }
+
+
+    const payload: any = isHybridCa ?
         {
           parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
           id: caId,
@@ -382,11 +443,11 @@ export default function CreateCaGeneratePage() {
           },
           outer_key_metadata: {
             type: keyType,
-            bits: keyType === 'ECDSA' ? mapEcdsaCurveToBits(keySize) : parseInt(keySize),
+            bits: keyBits,
           },
           inner_key_metadata: {
             type: innerKeyType,
-            bits: innerKeyType === 'ECDSA' ? mapEcdsaCurveToBits(innerKeySize) : parseInt(innerKeySize),
+            bits: innerKeyBits,
           },
           ca_expiration: formatExpirationForApi(caExpiration),
           profile_id: selectedProfileId,
@@ -408,7 +469,7 @@ export default function CreateCaGeneratePage() {
           },
           key_metadata: {
             type: keyType,
-            bits: keyType === 'ECDSA' ? mapEcdsaCurveToBits(keySize) : parseInt(keySize),
+            bits: keyBits,
           },
           ca_expiration: formatExpirationForApi(caExpiration),
           profile_id: selectedProfileId,
@@ -417,7 +478,7 @@ export default function CreateCaGeneratePage() {
 
     // Add CA certificate profile if specified
     if (caProfileMode === 'reuse' && selectedCaProfileId) {
-      payload.ca_issuance_profile_id = selectedCaProfileId;
+        payload.ca_issuance_profile_id = selectedCaProfileId;
     } else if (caProfileMode === 'inline') {
       const formData = caProfileForm.getValues();
       
@@ -523,13 +584,11 @@ export default function CreateCaGeneratePage() {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="keySize">{keyType === 'ECDSA' ? 'ECDSA Curve' : keyType === 'ML-DSA' ? 'ML-DSA Security Level' : 'Key Size'}</Label>
-                    <Select value={keySize} onValueChange={setKeySize}>
-                      <SelectTrigger id="keySize"><SelectValue /></SelectTrigger>
+                    <Label htmlFor="keySpec">{keySpecLabel}</Label>
+                    <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
+                      <SelectTrigger id="keySpec"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {engineSupportedKeySizes.map(ks => (
-                          <SelectItem key={ks} value={ks}>{ks}</SelectItem>
-                        ))}
+                        {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -547,24 +606,22 @@ export default function CreateCaGeneratePage() {
                       <Select value={innerKeyType} onValueChange={handleInnerKeyTypeChange}>
                         <SelectTrigger id="innerKeyType"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {engineSupportedKeyTypes.map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          {selectedEngine?.supported_key_types.map(kt => (
+                            <SelectItem key={kt.type} value={kt.type}>{kt.type}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="innrKeySize">{innerKeyType === 'ECDSA' ? 'ECDSA Curve' : innerKeyType === 'ML-DSA' ? 'ML-DSA Security Level' : 'Inner Key Size'}</Label>
-                      <Select value={innerKeySize} onValueChange={setInnerKeySize}>
-                        <SelectTrigger id="innerKeySize"><SelectValue /></SelectTrigger>
+                      <Label htmlFor="innerKeySpec">{innerKeySpecLabel}</Label>
+                      <Select value={innerKeySpec} onValueChange={setInnerKeySpec} disabled={!selectedEngine || currentInnerKeySpecOptions.length === 0 || isSubmitting}>
+                        <SelectTrigger id="innerKeySpec"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {engineSupportedInnerKeySizes.map(ks => (
-                            <SelectItem key={ks} value={ks}>{ks}</SelectItem>
-                          ))}
+                          {currentInnerKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
+                    </div>
                 }
               </CardContent>
             </Card>

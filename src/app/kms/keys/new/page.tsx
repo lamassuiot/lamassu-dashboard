@@ -63,6 +63,8 @@ export default function CreateKmsKeyPage() {
   const [keyType, setKeyType] = useState('RSA');
   const [rsaKeySize, setRsaKeySize] = useState('2048');
   const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
+  const [mldsaSecurityLevel, setMLDSASecurityLevel] = useState('65');
+  const [ed25519KeySize, setEd25519KeySize] = useState('256');
 
   // Import Key Pair mode fields
   const [importKeyName, setImportKeyName] = useState('');
@@ -143,6 +145,10 @@ export default function CreateKmsKeyPage() {
         setRsaKeySize(firstSize.toString());
       } else if (value === 'ECDSA') {
         setEcdsaCurve(firstSize.toString());
+      } else if (value === 'ML-DSA') {
+        setMLDSASecurityLevel(firstSize.toString());
+      } else if (value === 'Ed25519') {
+        setEd25519KeySize(firstSize.toString());
       }
     }
   };
@@ -160,19 +166,25 @@ export default function CreateKmsKeyPage() {
 
   const keySpecLabel = (() => {
     if (keyType === 'RSA') return 'RSA Key Size';
-    if (keyType === 'ECDSA') return 'ECDSA Curve';
+    else if (keyType === 'ECDSA') return 'ECDSA Curve';
+    else if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
+    else if (keyType === 'Ed25519') return 'Ed25519 Key Size';
     return 'Key Specification';
   })();
 
   const currentKeySpecValue = (() => {
     if (keyType === 'RSA') return rsaKeySize;
     if (keyType === 'ECDSA') return ecdsaCurve;
+    if (keyType === 'ML-DSA') return mldsaSecurityLevel;
+    if (keyType === 'Ed25519') return ed25519KeySize;
     return '';
   })();
 
   const handleKeySpecChange = (value: string) => {
     if (keyType === 'RSA') setRsaKeySize(value);
     else if (keyType === 'ECDSA') setEcdsaCurve(value);
+    else if (keyType === 'ML-DSA') setMLDSASecurityLevel(value);
+    else if (keyType === 'E25519') setEd25519KeySize(value);
   };
 
   const handleMetadataChange = (value: string | undefined) => {
@@ -235,6 +247,11 @@ export default function CreateKmsKeyPage() {
                     // If it's already a number, parse it
                     sizeValue = parseInt(ecdsaCurve, 10);
                 }
+            }
+            else if (keyType === 'ML-DSA') {
+                sizeValue = parseInt(mldsaSecurityLevel.replace('ML-DSA-', ''), 10);
+            } else if (keyType === 'Ed25519') {
+                sizeValue = parseInt(ed25519KeySize, 10);
             } else {
                 // For other key types, try to parse as number
                 sizeValue = parseInt(currentKeySpecValue, 10);

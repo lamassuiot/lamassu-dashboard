@@ -606,6 +606,9 @@ export interface CreateHybridCaPayload {
   profile_id: string | null;
   ca_type: "MANAGED";
   hybrid_certificate_type: string;
+  // Optional: Profile for the CA's own certificate
+  ca_issuance_profile_id?: string;
+  ca_issuance_profile?: CreateSigningProfilePayload;
 }
 
 export async function createCa(payload: CreateCaPayload | CreateHybridCaPayload, accessToken: string, isHybrid: boolean): Promise<void> {
