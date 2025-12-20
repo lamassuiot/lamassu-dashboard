@@ -26,11 +26,23 @@ export const getPublicAPIUrl = (): string => {
 
 
 export const get_KMS_API_BASE_URL = () => `${getApiBaseUrl()}/kms/v1`;
+export const get_KMS_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/kms`;
+
 export const get_CA_API_BASE_URL = () => `${getApiBaseUrl()}/ca/v1`;
+export const get_CA_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/ca`;
+
 export const get_DEV_MANAGER_API_BASE_URL = () => `${getApiBaseUrl()}/devmanager/v1`;
+export const get_DEV_MANAGER_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/devmanager`;
+
 export const get_DMS_MANAGER_API_BASE_URL = () => `${getApiBaseUrl()}/dmsmanager/v1`;
+export const get_DMS_MANAGER_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/dmsmanager`;
+
 export const get_ALERTS_API_BASE_URL = () => `${getApiBaseUrl()}/alerts/v1`;
+export const get_ALERTS_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/alerts`;
+
 export const get_VA_CORE_API_BASE_URL = () => `${getApiBaseUrl()}/va`;
+export const get_VA_CORE_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/va`;
+
 export const get_VA_API_BASE_URL = () => `${get_VA_CORE_API_BASE_URL()}/v1`;
 export const get_WFX_API_BASE_URL = () => `${getApiBaseUrl()}/wfx/nbi/v1`;
 

@@ -6,6 +6,7 @@ import './globals.css';
 import { ThemedToaster } from '@/components/shared/ThemedToaster';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -29,7 +30,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow} from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -151,6 +152,7 @@ const navigationConfig: NavGroup[] = [
     label: 'TOOLS',
     items: [
       { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
+      { href: '/openapi-spec', label: 'OpenAPI Spec', icon: BookOpen },
     ],
   },
 ];
@@ -660,12 +662,14 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ConfigProvider>
           <AuthProvider>
-            <IdentifierDisplayProvider>
-              <React.Suspense fallback={<LoadingState />}>
-                <InnerLayout>{children}</InnerLayout>
-              </React.Suspense>
-              <ThemedToaster offset={{ top: 40 }} />
-            </IdentifierDisplayProvider>
+            <ThemeProvider>
+              <IdentifierDisplayProvider>
+                <React.Suspense fallback={<LoadingState />}>
+                  <InnerLayout>{children}</InnerLayout>
+                </React.Suspense>
+                <ThemedToaster offset={{ top: 40 }} />
+              </IdentifierDisplayProvider>
+            </ThemeProvider>
           </AuthProvider>
         </ConfigProvider>
       </body>
