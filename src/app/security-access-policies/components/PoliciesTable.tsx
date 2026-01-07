@@ -12,12 +12,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Eye, FileText, Users, UserCog } from "lucide-react";
-import type { GroupedPolicy } from "@/types/authorization";
+import type { GroupedPolicy, PrincipalDefinition } from "@/types/authorization";
 import { PolicyDetailsDialog } from "./PolicyDetailsDialog";
 import { ManagePolicyPrincipalsDialog } from "./ManagePolicyPrincipalsDialog";
 
 interface PoliciesTableProps {
   groupedPolicies: GroupedPolicy[];
+  principals: PrincipalDefinition[];
   onDeletePolicy: (policyId: string) => void;
   onUpdate?: () => void;
   isDeleting?: boolean;
@@ -25,6 +26,7 @@ interface PoliciesTableProps {
 
 export function PoliciesTable({
   groupedPolicies,
+  principals,
   onDeletePolicy,
   onUpdate,
   isDeleting,
@@ -33,6 +35,22 @@ export function PoliciesTable({
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [managePrincipalsDialogOpen, setManagePrincipalsDialogOpen] = useState(false);
   const [policyToManage, setPolicyToManage] = useState<GroupedPolicy | null>(null);
+
+  // Create a map from principal ID to principal name for quick lookup
+  const principalIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    principals.forEach((principal) => {
+      // Use id if available, otherwise use name as fallback
+      const key = principal.id || principal.name;
+      map.set(key, principal.name);
+    });
+    return map;
+  }, [principals]);
+
+  // Function to get principal display name
+  const getPrincipalDisplayName = (principalId: string): string => {
+    return principalIdToName.get(principalId) || principalId;
+  };
 
   const handleViewDetails = (policy: GroupedPolicy) => {
     setSelectedPolicy(policy);
@@ -86,7 +104,7 @@ export function PoliciesTable({
                     <div className="flex flex-wrap gap-1 max-w-md">
                       {policy.principals.slice(0, 3).map((principal) => (
                         <Badge key={principal} variant="outline" className="font-mono text-xs">
-                          {principal}
+                          {getPrincipalDisplayName(principal)}
                         </Badge>
                       ))}
                       {policy.principals.length > 3 && (
@@ -136,6 +154,7 @@ export function PoliciesTable({
         open={detailsDialogOpen}
         onOpenChange={setDetailsDialogOpen}
         policy={selectedPolicy}
+        principals={principals}
       />
 
       <ManagePolicyPrincipalsDialog

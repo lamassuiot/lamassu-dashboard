@@ -385,3 +385,30 @@ export interface GroupedPoliciesResponse {
   total_policies: number;
   total_rules: number;
 }
+
+// =============================================================================
+// ENTITY CONFIGURATION
+// =============================================================================
+
+export interface EntityRelationship {
+  name: string;
+  relation_with: string;
+  column: string;
+  column_type: string;
+}
+
+export interface Entity {
+  name: string;
+  description: string;
+  db_name: string;
+  schema: string;
+  table: string;
+  column_id: string;
+  supports_list_action: boolean;
+  actions: string[];
+  relationships?: EntityRelationship[] | null;
+}
+
+export interface ListEntitiesResponse {
+  entities: Entity[];
+}

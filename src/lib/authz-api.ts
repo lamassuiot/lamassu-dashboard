@@ -34,6 +34,8 @@ import type {
   CreateMappingRequest,
   ListMappingsResponse,
   PrincipalType,
+  // Entity types
+  ListEntitiesResponse,
 } from "@/types/authorization";
 
 const getAuthzApiUrl = (): string => {
@@ -211,7 +213,7 @@ export async function checkAccess(
   request: CheckAccessRequest,
   token?: string
 ): Promise<CheckAccessResponse> {
-  const response = await fetch(`${getAuthzApiUrl()}/v1/check`, {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/check/policy`, {
     method: "POST",
     headers: getHeaders(token),
     body: JSON.stringify(request),
@@ -397,22 +399,20 @@ export async function resolvePrincipal(
   return handleApiError(response, "Failed to resolve principal");
 }
 
-// Check access with auth context
-export async function checkAccessWithAuth(
-  request: CheckAccessWithAuthRequest,
-  token?: string
-): Promise<CheckAccessWithAuthResponse> {
-  const response = await fetch(`${getAuthzApiUrl()}/v1/check/with-auth`, {
-    method: "POST",
-    headers: getHeaders(token),
-    body: JSON.stringify(request),
-  });
-  return handleApiError(response, "Failed to check access with auth");
-}
-
 // =============================================================================
-// Note: Policy-principal relationships are managed through the policy_id field
-// when creating policies and memberships. There is no separate /v1/mappings endpoint.
-// - To assign a policy to a principal: Create policy with policy_id
-// - To get principals for a policy: GET /v1/policies/{policy_id} returns principals array
-// - To get policies for a principal: GET /v1/principals/{id}/policies
+// ENTITIES
+// =============================================================================
+
+/**
+ * List all entity configurations
+ * GET /v1/entities
+ * 
+ * Returns all entity types with their supported actions and relationships
+ */
+export async function listEntities(token?: string): Promise<ListEntitiesResponse> {
+  const response = await fetch(`${getAuthzApiUrl()}/v1/entities`, {
+    method: "GET",
+    headers: getHeaders(token),
+  });
+  return handleApiError(response, "Failed to list entities");
+}

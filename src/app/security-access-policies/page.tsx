@@ -37,7 +37,6 @@ import {
   listPrincipalPolicies,
   assignPolicyToPrincipal,
   removePolicyFromPrincipal,
-  checkAccessWithAuth,
   resolvePrincipal,
   listResources,
   getFilter,
@@ -368,10 +367,6 @@ export default function SecurityAccessPoliciesPage() {
       title: 'Policy removed',
       description: `Policy ${policyName} removed from ${principalName}`,
     });
-  };
-
-  const handleCheckAccessWithAuth = async (request: CheckAccessWithAuthRequest) => {
-    return await checkAccessWithAuth(request, token);
   };
 
   const handleResolvePrincipal = async (request: ResolvePrincipalRequest) => {
@@ -864,6 +859,7 @@ export default function SecurityAccessPoliciesPage() {
               ) : (
                 <PoliciesTable
                   groupedPolicies={groupedPolicies}
+                  principals={principals}
                   onDeletePolicy={handleDeletePolicy}
                   onUpdate={() => fetchPolicies(true)}
                   isDeleting={isDeletingPolicy}

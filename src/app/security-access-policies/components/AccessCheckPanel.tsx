@@ -52,7 +52,6 @@ export function AccessCheckPanel({ onCheckAccess, onListResources }: AccessCheck
   // List Resources Tab State
   const [listPrincipal, setListPrincipal] = useState("");
   const [listEntityType, setListEntityType] = useState("");
-  const [listAction, setListAction] = useState("");
   const [listResult, setListResult] = useState<ListResourcesResponse | null>(null);
   const [isListLoading, setIsListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
@@ -102,7 +101,7 @@ export function AccessCheckPanel({ onCheckAccess, onListResources }: AccessCheck
   };
 
   const handleListResources = async () => {
-    if (!listPrincipal || !listEntityType || !listAction || !onListResources) return;
+    if (!listPrincipal || !listEntityType || !onListResources) return;
 
     setIsListLoading(true);
     setListError(null);
@@ -110,7 +109,7 @@ export function AccessCheckPanel({ onCheckAccess, onListResources }: AccessCheck
       const response = await onListResources({
         principal: listPrincipal,
         entity_type: listEntityType,
-        action: listAction,
+        action: "list",
       });
       setListResult(response);
     } catch (err) {
@@ -261,40 +260,24 @@ export function AccessCheckPanel({ onCheckAccess, onListResources }: AccessCheck
                 </Select>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Entity Type</Label>
-                  <Select value={listEntityType} onValueChange={setListEntityType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="device">Device</SelectItem>
-                      <SelectItem value="certificate">Certificate</SelectItem>
-                      <SelectItem value="dms">DMS</SelectItem>
-                      <SelectItem value="device_group">Device Group</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Action</Label>
-                  <Select value={listAction} onValueChange={setListAction}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select action" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="read">Read</SelectItem>
-                      <SelectItem value="write">Write</SelectItem>
-                      <SelectItem value="delete">Delete</SelectItem>
-                      <SelectItem value="manage">Manage</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid gap-2">
+                <Label>Entity Type</Label>
+                <Select value={listEntityType} onValueChange={setListEntityType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="device">Device</SelectItem>
+                    <SelectItem value="certificate">Certificate</SelectItem>
+                    <SelectItem value="dms">DMS</SelectItem>
+                    <SelectItem value="device_group">Device Group</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <Button
                 onClick={handleListResources}
-                disabled={isListLoading || !listPrincipal || !listEntityType || !listAction}
+                disabled={isListLoading || !listPrincipal || !listEntityType}
               >
                 {isListLoading ? "Loading..." : "List Resources"}
               </Button>

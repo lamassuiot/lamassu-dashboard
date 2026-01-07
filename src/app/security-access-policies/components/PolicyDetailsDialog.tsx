@@ -19,22 +19,39 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Users, Shield } from "lucide-react";
-import type { GroupedPolicy } from "@/types/authorization";
+import type { GroupedPolicy, PrincipalDefinition } from "@/types/authorization";
 
 interface PolicyDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   policy: GroupedPolicy | null;
+  principals: PrincipalDefinition[];
 }
 
 export function PolicyDetailsDialog({
   open,
   onOpenChange,
   policy,
+  principals,
 }: PolicyDetailsDialogProps) {
   if (!policy) {
     return null;
   }
+
+  // Create a map from principal ID to principal name for quick lookup
+  const principalIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    principals.forEach((principal) => {
+      const key = principal.id || principal.name;
+      map.set(key, principal.name);
+    });
+    return map;
+  }, [principals]);
+
+  // Function to get principal display name
+  const getPrincipalDisplayName = (principalId: string): string => {
+    return principalIdToName.get(principalId) || principalId;
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,7 +110,7 @@ export function PolicyDetailsDialog({
               <div className="flex flex-wrap gap-2">
                 {policy.principals.map((principal) => (
                   <Badge key={principal} variant="secondary" className="font-mono">
-                    {principal}
+                    {getPrincipalDisplayName(principal)}
                   </Badge>
                 ))}
               </div>

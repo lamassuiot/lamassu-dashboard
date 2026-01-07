@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AddPolicyRequest, HierarchyType } from "@/types/authorization";
+import { useAuth } from "@/contexts/AuthContext";
+import { listEntities } from "@/lib/authz-api";
+import type { AddPolicyRequest, HierarchyType, Entity } from "@/types/authorization";
 
 interface AddPolicyDialogProps {
   open: boolean;
@@ -38,6 +40,56 @@ export function AddPolicyDialog({
   const [resourceId, setResourceId] = useState("");
   const [action, setAction] = useState("");
   const [hierarchy, setHierarchy] = useState<HierarchyType>("none");
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [loadingEntities, setLoadingEntities] = useState(false);
+  
+  const { user } = useAuth();
+  const token = user?.access_token;
+
+  // Fetch entities when dialog opens
+  useEffect(() => {
+    if (open && entities.length === 0) {
+      fetchEntities();
+    }
+  }, [open]);
+
+  const fetchEntities = async () => {
+    setLoadingEntities(true);
+    try {
+      const response = await listEntities(token);
+      setEntities(response.entities || []);
+    } catch (error) {
+      console.error("Failed to fetch entities:", error);
+      // Fallback to default entities if API fails
+      setEntities([
+        { name: "dms", description: "DMS", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read", "write"] },
+        { name: "device", description: "Device", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read"] },
+        { name: "certificate", description: "Certificate", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read", "write", "delete", "revoke"] },
+        { name: "device_group", description: "Device Group", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read", "write", "delete"] },
+      ]);
+    } finally {
+      setLoadingEntities(false);
+    }
+  };
+
+  // Get available actions based on selected entity
+  const getAvailableActions = () => {
+    const selectedEntity = entities.find(e => e.name === resourceType);
+    
+    if (!selectedEntity) {
+      return [];
+    }
+    
+    // Start with entity-specific actions
+    const actions = [...selectedEntity.actions];
+    
+    // Add "list" action if the entity supports it
+    if (selectedEntity.supports_list_action && !actions.includes("list")) {
+      actions.unshift("list");
+    }
+    
+    return actions;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +112,14 @@ export function AddPolicyDialog({
     onOpenChange(newOpen);
   };
 
+  const handleResourceTypeChange = (value: string) => {
+    setResourceType(value);
+    // Reset action when resource type changes since available actions may differ
+    setAction("");
+  };
+
+  const availableActions = getAvailableActions();
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
@@ -76,15 +136,16 @@ export function AddPolicyDialog({
               <Label>Resource</Label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Select value={resourceType} onValueChange={setResourceType}>
+                  <Select value={resourceType} onValueChange={handleResourceTypeChange} disabled={loadingEntities}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Type" />
+                      <SelectValue placeholder={loadingEntities ? "Loading..." : "Type"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="dms">DMS</SelectItem>
-                      <SelectItem value="device">Device</SelectItem>
-                      <SelectItem value="certificate">Certificate</SelectItem>
-                      <SelectItem value="device_group">Device Group</SelectItem>
+                      {entities.map((entity) => (
+                        <SelectItem key={entity.name} value={entity.name}>
+                          {entity.description || entity.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -104,15 +165,16 @@ export function AddPolicyDialog({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="action">Action</Label>
-              <Select value={action} onValueChange={setAction}>
+              <Select value={action} onValueChange={setAction} disabled={!resourceType}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select action" />
+                  <SelectValue placeholder={resourceType ? "Select action" : "Select resource type first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="read">Read</SelectItem>
-                  <SelectItem value="write">Write</SelectItem>
-                  <SelectItem value="delete">Delete</SelectItem>
-                  <SelectItem value="manage">Manage</SelectItem>
+                  {availableActions.map((act) => (
+                    <SelectItem key={act} value={act}>
+                      {act.charAt(0).toUpperCase() + act.slice(1)}
+                    </SelectItem>
+                  ))}
                   <SelectItem value="*">* (All actions)</SelectItem>
                 </SelectContent>
               </Select>
