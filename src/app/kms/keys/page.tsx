@@ -59,6 +59,8 @@ export default function KmsKeysPage() {
   // Filter State
   const [aliasSearchTerm, setAliasSearchTerm] = useState<string>('');
   const [debouncedAliasSearchTerm, setDebouncedAliasSearchTerm] = useState<string>('');
+  const [metadataSearchTerm, setMetadataSearchTerm] = useState<string>('');
+  const [debouncedMetadataSearchTerm, setDebouncedMetadataSearchTerm] = useState<string>('');
 
   // Debounce effect for alias search
   useEffect(() => {
@@ -70,6 +72,17 @@ export default function KmsKeysPage() {
 
     return () => clearTimeout(timer);
   }, [aliasSearchTerm, debouncedAliasSearchTerm]);
+
+  // Debounce effect for metadata search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (metadataSearchTerm !== debouncedMetadataSearchTerm) {
+        setDebouncedMetadataSearchTerm(metadataSearchTerm);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [metadataSearchTerm, debouncedMetadataSearchTerm]);
 
 
   const loadData = useCallback(async (bookmark: string | null) => {
@@ -101,6 +114,11 @@ export default function KmsKeysPage() {
         params.append('filter', `name[contains_ignorecase]${debouncedAliasSearchTerm.trim()}`);
       }
 
+      // Add metadata filter if search term is provided
+      if (debouncedMetadataSearchTerm.trim() !== '') {
+        params.append('filter', `metadata[jsonpath]${encodeURIComponent(debouncedMetadataSearchTerm.trim())}`);
+      }
+
       const keysResponse = await fetchKmsKeys(user.access_token, params);
 
       const transformedKeys: KmsKey[] = (keysResponse.list || []).map((apiKey) => {
@@ -129,7 +147,7 @@ export default function KmsKeysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, authLoading, isAuthenticated, allCryptoEngines, pageSize, debouncedAliasSearchTerm]);
+  }, [user?.access_token, authLoading, isAuthenticated, allCryptoEngines, pageSize, debouncedAliasSearchTerm, debouncedMetadataSearchTerm]);
 
   useEffect(() => {
     // Reset pagination when page size changes
@@ -142,6 +160,12 @@ export default function KmsKeysPage() {
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
   }, [debouncedAliasSearchTerm]);
+
+  useEffect(() => {
+    // Reset pagination when metadata search term changes
+    setCurrentPageIndex(0);
+    setBookmarkStack([null]);
+  }, [debouncedMetadataSearchTerm]);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated()) {
@@ -256,7 +280,7 @@ export default function KmsKeysPage() {
       )}
 
       {/* Filter Section */}
-      <div className="grid grid-cols-1 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
         <div className="space-y-1">
           <Label htmlFor="aliasSearchInput">Filter by Name, ID or Alias</Label>
           <div className="relative">
@@ -283,23 +307,64 @@ export default function KmsKeysPage() {
             )}
           </div>
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="metadataSearchInput">Filter by Metadata (JSONPath)</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+            <Input
+              id="metadataSearchInput"
+              type="text"
+              placeholder="e.g., $[?(@.key=='value')]"
+              value={metadataSearchTerm}
+              onChange={(e) => setMetadataSearchTerm(e.target.value)}
+              className="w-full pl-10"
+              disabled={isLoading}
+            />
+            {metadataSearchTerm && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                onClick={() => setMetadataSearchTerm('')}
+                disabled={isLoading}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Active Filters Indicator */}
-      {debouncedAliasSearchTerm && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Active filter:</span>
-          <Badge variant="secondary" className="text-xs">
-            Alias contains "{debouncedAliasSearchTerm}"
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-              onClick={() => setAliasSearchTerm('')}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </Badge>
+      {(debouncedAliasSearchTerm || debouncedMetadataSearchTerm) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+          <span>Active filters:</span>
+          {debouncedAliasSearchTerm && (
+            <Badge variant="secondary" className="text-xs">
+              Alias contains "{debouncedAliasSearchTerm}"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => setAliasSearchTerm('')}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
+          {debouncedMetadataSearchTerm && (
+            <Badge variant="secondary" className="text-xs">
+              Metadata JSONPath: "{debouncedMetadataSearchTerm}"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => setMetadataSearchTerm('')}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
         </div>
       )}
 
