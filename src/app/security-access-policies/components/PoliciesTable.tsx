@@ -11,27 +11,37 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Eye, FileText, Users } from "lucide-react";
+import { Trash2, Eye, FileText, Users, UserCog } from "lucide-react";
 import type { GroupedPolicy } from "@/types/authorization";
 import { PolicyDetailsDialog } from "./PolicyDetailsDialog";
+import { ManagePolicyPrincipalsDialog } from "./ManagePolicyPrincipalsDialog";
 
 interface PoliciesTableProps {
   groupedPolicies: GroupedPolicy[];
   onDeletePolicy: (policyId: string) => void;
+  onUpdate?: () => void;
   isDeleting?: boolean;
 }
 
 export function PoliciesTable({
   groupedPolicies,
   onDeletePolicy,
+  onUpdate,
   isDeleting,
 }: PoliciesTableProps) {
   const [selectedPolicy, setSelectedPolicy] = useState<GroupedPolicy | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [managePrincipalsDialogOpen, setManagePrincipalsDialogOpen] = useState(false);
+  const [policyToManage, setPolicyToManage] = useState<GroupedPolicy | null>(null);
 
   const handleViewDetails = (policy: GroupedPolicy) => {
     setSelectedPolicy(policy);
     setDetailsDialogOpen(true);
+  };
+
+  const handleManagePrincipals = (policy: GroupedPolicy) => {
+    setPolicyToManage(policy);
+    setManagePrincipalsDialogOpen(true);
   };
 
   if (groupedPolicies.length === 0) {
@@ -101,6 +111,14 @@ export function PoliciesTable({
                   <Button
                     variant="ghost"
                     size="icon"
+                    onClick={() => handleManagePrincipals(policy)}
+                    title="Manage principals"
+                  >
+                    <UserCog className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => onDeletePolicy(policy.policy_id)}
                     disabled={isDeleting}
                     title="Delete policy"
@@ -118,6 +136,17 @@ export function PoliciesTable({
         open={detailsDialogOpen}
         onOpenChange={setDetailsDialogOpen}
         policy={selectedPolicy}
+      />
+
+      <ManagePolicyPrincipalsDialog
+        open={managePrincipalsDialogOpen}
+        onOpenChange={setManagePrincipalsDialogOpen}
+        policy={policyToManage}
+        onUpdate={() => {
+          if (onUpdate) {
+            onUpdate();
+          }
+        }}
       />
     </>
   );

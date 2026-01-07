@@ -46,7 +46,7 @@ import {
 import type {
   PrincipalMembershipResponse,
   ResourceHierarchyResponse,
-  AddPolicyWithMetaRequest,
+  AddPolicyRequest,
   AddMembershipWithMetaRequest,
   CheckAccessRequest,
   PrincipalDefinition,
@@ -177,13 +177,13 @@ export default function SecurityAccessPoliciesPage() {
     fetchPolicies();
   }, [fetchPolicies]);
 
-  const handleAddPolicy = async (policy: AddPolicyWithMetaRequest) => {
+  const handleAddPolicy = async (policy: AddPolicyRequest) => {
     setIsAddingPolicy(true);
     try {
       await createPolicy(policy, token);
       toast({
         title: 'Policy added',
-        description: `Policy for ${policy.subject} added successfully`,
+        description: 'Policy added successfully',
       });
       setAddPolicyOpen(false);
       await fetchPolicies(true);
@@ -865,6 +865,7 @@ export default function SecurityAccessPoliciesPage() {
                 <PoliciesTable
                   groupedPolicies={groupedPolicies}
                   onDeletePolicy={handleDeletePolicy}
+                  onUpdate={() => fetchPolicies(true)}
                   isDeleting={isDeletingPolicy}
                 />
               )}

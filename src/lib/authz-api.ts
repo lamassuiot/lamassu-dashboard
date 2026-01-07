@@ -83,11 +83,11 @@ export async function listPolicyIDs(token?: string): Promise<ListPolicyIDsRespon
 }
 
 /**
- * Create a new policy with metadata
+ * Create a new policy
  * POST /v1/policies
  */
 export async function createPolicy(
-  request: AddPolicyWithMetaRequest,
+  request: AddPolicyRequest,
   token?: string
 ): Promise<AddPolicyWithMetaResponse> {
   const response = await fetch(`${getAuthzApiUrl()}/v1/policies`, {

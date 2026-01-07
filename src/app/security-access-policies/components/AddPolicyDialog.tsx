@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,14 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AddPolicyWithMetaRequest, HierarchyType, PrincipalDefinition } from "@/types/authorization";
-import { listPrincipals } from "@/lib/authz-api";
-import { useAuth } from "@/contexts/AuthContext";
+import type { AddPolicyRequest, HierarchyType } from "@/types/authorization";
 
 interface AddPolicyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddPolicy: (policy: AddPolicyWithMetaRequest) => Promise<void>;
+  onAddPolicy: (policy: AddPolicyRequest) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -36,47 +34,19 @@ export function AddPolicyDialog({
   onAddPolicy,
   isLoading,
 }: AddPolicyDialogProps) {
-  const [policyId, setPolicyId] = useState("");
-  const [subject, setSubject] = useState("");
   const [resourceType, setResourceType] = useState("");
   const [resourceId, setResourceId] = useState("");
   const [action, setAction] = useState("");
   const [hierarchy, setHierarchy] = useState<HierarchyType>("none");
-  const [principals, setPrincipals] = useState<PrincipalDefinition[]>([]);
-  const [loadingPrincipals, setLoadingPrincipals] = useState(false);
-  
-  const { user } = useAuth();
-  const token = user?.access_token;
-
-  useEffect(() => {
-    if (open) {
-      fetchPrincipals();
-    }
-  }, [open]);
-
-  const fetchPrincipals = async () => {
-    setLoadingPrincipals(true);
-    try {
-      const response = await listPrincipals(undefined, token);
-      setPrincipals(response.principals || []);
-    } catch (error) {
-      console.error("Failed to fetch principals:", error);
-      setPrincipals([]);
-    } finally {
-      setLoadingPrincipals(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const object = `${resourceType}:${resourceId}`;
-    await onAddPolicy({ policy_id: policyId, subject, object, action, hierarchy });
+    await onAddPolicy({ object, action, hierarchy });
     resetForm();
   };
 
   const resetForm = () => {
-    setPolicyId("");
-    setSubject("");
     setResourceType("");
     setResourceId("");
     setAction("");
@@ -96,50 +66,12 @@ export function AddPolicyDialog({
         <DialogHeader>
           <DialogTitle>Add Policy</DialogTitle>
           <DialogDescription>
-            Create a new access policy rule. Policies define who (subject) can do what (action) on
-            which resources (object).
+            Create a new access policy rule. Policies define what actions can be performed on
+            which resources.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="policyId">Policy ID</Label>
-              <Input
-                id="policyId"
-                placeholder="e.g., alice-device-policy"
-                value={policyId}
-                onChange={(e) => setPolicyId(e.target.value)}
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                A unique identifier to group related policy rules
-              </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="subject">Principal Selector</Label>
-              <Select value={subject} onValueChange={setSubject} disabled={loadingPrincipals}>
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingPrincipals ? "Loading principals..." : "Select a principal"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {principals.length === 0 && !loadingPrincipals ? (
-                    <SelectItem value="none" disabled>No principals available</SelectItem>
-                  ) : (
-                    principals.map((principal) => (
-                      <SelectItem key={principal.id || principal.name} value={principal.id || principal.name}>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{principal.name}</span>
-                          <span className="text-xs text-muted-foreground">({principal.type})</span>
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Select which principal will be granted access
-              </p>
-            </div>
             <div className="grid gap-2">
               <Label>Resource</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -208,7 +140,7 @@ export function AddPolicyDialog({
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !policyId || !subject || !resourceType || !resourceId || !action}>
+            <Button type="submit" disabled={isLoading || !resourceType || !resourceId || !action}>
               {isLoading ? "Adding..." : "Add Policy"}
             </Button>
           </DialogFooter>

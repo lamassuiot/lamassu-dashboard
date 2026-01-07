@@ -232,18 +232,12 @@ export interface ListDetailedPoliciesResponse {
 
 // Policy Requests
 export interface AddPolicyRequest {
-  subject: string;
   object: string;
   action: string;
   hierarchy: HierarchyType;
 }
 
-export interface AddPolicyWithMetaRequest extends AddPolicyRequest {
-  policy_id: string;
-}
-
 export interface DeletePolicyRequest {
-  subject: string;
   object: string;
   action: string;
   hierarchy: HierarchyType;
