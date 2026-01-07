@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Shield, Plus, FileText, Users, TestTube, Trash2, Download, Upload, RefreshCw, AlertCircle, Key, User, Fingerprint } from 'lucide-react';
+import { Shield, Plus, FileText, Users, TestTube, Eye, Download, Upload, RefreshCw, AlertCircle, Key, User, Fingerprint } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,17 +10,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import RelationshipsFlowDiagram from '@/components/shared/RelationshipsFlowDiagram';
-
+ 
 import { PoliciesTable } from './components/PoliciesTable';
 import { MembershipsTable } from './components/MembershipsTable';
 import { AddPolicyDialog } from './components/AddPolicyDialog';
 import { AddMembershipDialog } from './components/AddMembershipDialog';
 import { AccessCheckPanel } from './components/AccessCheckPanel';
-import { AdvancedTestingComponent } from './components/AdvancedTestingComponent';
 import { PrincipalsTable } from './components/PrincipalsTable';
 import { AddPrincipalDialog } from './components/AddPrincipalDialog';
 import { PrincipalPoliciesDialog } from './components/PrincipalPoliciesDialog';
-import { AuthTestPanel } from './components/AuthTestPanel';
 
 import {
   listPolicyIDs,
@@ -41,6 +39,8 @@ import {
   removePolicyFromPrincipal,
   checkAccessWithAuth,
   resolvePrincipal,
+  listResources,
+  getFilter,
 } from '@/lib/authz-api';
 
 import type {
@@ -55,6 +55,10 @@ import type {
   CheckAccessWithAuthRequest,
   ResolvePrincipalRequest,
   PolicyWithMetaResponse,
+  GroupedPolicy,
+  ListResourcesRequest,
+  GetFilterRequest,
+  HierarchyType,
 } from '@/types/authorization';
 
 import {
@@ -71,6 +75,7 @@ import {
 export default function SecurityAccessPoliciesPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [policies, setPolicies] = useState<PolicyWithMetaResponse[]>([]);
+  const [groupedPolicies, setGroupedPolicies] = useState<GroupedPolicy[]>([]);
   const [policyIds, setPolicyIds] = useState<string[]>([]);
   const [memberships, setMemberships] = useState<PrincipalMembershipResponse[]>([]);
   const [resourceHierarchy, setResourceHierarchy] = useState<ResourceHierarchyResponse[]>([]);
@@ -118,25 +123,42 @@ export default function SecurityAccessPoliciesPage() {
       const ids = policyIdsResponse.policy_ids || [];
       setPolicyIds(ids);
       
-      // Fetch details for each policy
-      const allPolicies: PolicyWithMetaResponse[] = [];
+      // Fetch details for each policy using new format
+      const allGroupedPolicies: GroupedPolicy[] = [];
       const allMemberships: PrincipalMembershipResponse[] = [];
       
       await Promise.all(
         ids.map(async (policyId) => {
           try {
             const policyDetails = await getPolicy(policyId, token);
-            allPolicies.push(...(policyDetails.policies || []));
+            allGroupedPolicies.push({
+              policy_id: policyDetails.policy_id,
+              rules: policyDetails.rules,
+              principals: policyDetails.principals,
+              rule_count: policyDetails.count,
+            });
           } catch {
             // Skip policies that fail to load
           }
         })
       );
       
+      // Convert new format to legacy for backwards compatibility where needed
+      const allPolicies: PolicyWithMetaResponse[] = allGroupedPolicies.flatMap((gp) =>
+        gp.rules.map((rule) => ({
+          policy_id: gp.policy_id,
+          subject: rule.sub,
+          object: rule.obj,
+          action: rule.act,
+          hierarchy: rule.eft as HierarchyType,
+        }))
+      );
+      
       setPolicies(allPolicies);
       setMemberships(allMemberships);
       setResourceHierarchy([]);
       setPrincipals(principalsResponse.principals || []);
+      setGroupedPolicies(allGroupedPolicies);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load policies';
       setError(message);
@@ -177,13 +199,13 @@ export default function SecurityAccessPoliciesPage() {
     }
   };
 
-  const handleDeletePolicy = async (policy: PolicyWithMetaResponse) => {
+  const handleDeletePolicy = async (policyId: string) => {
     setIsDeletingPolicy(true);
     try {
-      await deletePolicy(policy.policy_id, token);
+      await deletePolicy(policyId, token);
       toast({
         title: 'Policy deleted',
-        description: `Policy for ${policy.subject} deleted successfully`,
+        description: `Policy ${policyId} deleted successfully`,
       });
       await fetchPolicies(true);
     } catch (err) {
@@ -243,6 +265,14 @@ export default function SecurityAccessPoliciesPage() {
 
   const handleCheckAccess = async (request: CheckAccessRequest) => {
     return await checkAccess(request, token);
+  };
+
+  const handleListResources = async (request: ListResourcesRequest) => {
+    return await listResources(request, token);
+  };
+
+  const handleGetFilter = async (request: GetFilterRequest) => {
+    return await getFilter(request, token);
   };
 
   // Principal management functions
@@ -503,169 +533,227 @@ export default function SecurityAccessPoliciesPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Principals</CardTitle>
-                <Key className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-16" />
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{principals.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Identity definitions
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+          {/* System Status Banner */}
+          <Card className="border-l-4 border-l-primary">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-primary" />
+                    Authorization System Status
+                  </CardTitle>
+                  <CardDescription>
+                    ReBAC policy engine managing access control for Lamassu PKI resources
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => fetchPolicies(true)} disabled={isRefreshing}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-primary/10 p-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Policy Sets</p>
+                    <div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-12" /> : groupedPolicies.length}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-blue-500/10 p-2">
+                    <Shield className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Access Rules</p>
+                    <div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-12" /> : policies.length}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-green-500/10 p-2">
+                    <Key className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Principals</p>
+                    <div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-12" /> : principals.length}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-orange-500/10 p-2">
+                    <Users className="h-5 w-5 text-orange-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Memberships</p>
+                    <div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-12" /> : memberships.length}</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Policies</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-16" />
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{policies.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Active access control policies
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Memberships</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-16" />
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{memberships.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Principal-scope assignments
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Hierarchical Policies</CardTitle>
-                <Shield className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-16" />
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">
-                      {policies.filter(p => p.hierarchy === 'children').length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Policies with child inheritance
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Resource Hierarchy</CardTitle>
-                <TestTube className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-16" />
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{resourceHierarchy.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Parent-child relationships
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
+          {/* Policy Sets Overview */}
+          <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Common authorization management tasks</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button className="w-full justify-start" variant="outline" onClick={() => setAddPrincipalOpen(true)}>
-                  <Key className="h-4 w-4 mr-2" />
-                  Add New Principal
-                </Button>
-                <Button className="w-full justify-start" variant="outline" onClick={() => setAddPolicyOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add New Policy
-                </Button>
-                <Button className="w-full justify-start" variant="outline" onClick={() => setAddMembershipOpen(true)}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Add Membership
-                </Button>
-                <Button className="w-full justify-start" variant="outline" onClick={() => setActiveTab('test')}>
-                  <TestTube className="h-4 w-4 mr-2" />
-                  Test Access Control
-                </Button>
-                <Button
-                  className="w-full justify-start text-destructive"
-                  variant="outline"
-                  onClick={() => setClearAllOpen(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear All Policies
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Policy Distribution</CardTitle>
-                <CardDescription>Breakdown of policy types by action</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Policy Sets Overview
+                </CardTitle>
+                <CardDescription>
+                  Active policy sets with assigned principals
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
-                  renderLoadingSkeleton()
-                ) : policies.length === 0 ? (
-                  <p className="text-center py-4 text-muted-foreground">No policies configured</p>
-                ) : (
                   <div className="space-y-3">
-                    {Object.entries(
-                      policies.reduce((acc, p) => {
-                        acc[p.action] = (acc[p.action] || 0) + 1;
-                        return acc;
-                      }, {} as Record<string, number>)
-                    ).map(([action, count]) => (
-                      <div key={action} className="flex items-center justify-between">
-                        <Badge variant="outline">{action}</Badge>
-                        <span className="text-sm font-medium">{count} {count === 1 ? 'policy' : 'policies'}</span>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    ))}
+                  </div>
+                ) : groupedPolicies.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Shield className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="font-medium">No policy sets configured</p>
+                    <p className="text-sm">Create a policy to get started</p>
+                    <Button className="mt-4" onClick={() => setAddPolicyOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First Policy
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {groupedPolicies.map((policy) => (
+                      <div
+                        key={policy.policy_id}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono text-sm font-medium truncate">{policy.policy_id}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="secondary" className="text-xs">
+                              {policy.rule_count} {policy.rule_count === 1 ? 'rule' : 'rules'}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              <Users className="h-3 w-3 mr-1" />
+                              {policy.principals.length} {policy.principals.length === 1 ? 'principal' : 'principals'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setActiveTab('policies')}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Access Control Analysis
+                </CardTitle>
+                <CardDescription>
+                  Breakdown of permissions and hierarchy settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isLoading ? (
+                  renderLoadingSkeleton()
+                ) : policies.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">No policies to analyze</p>
+                ) : (
+                  <>
+                    {/* Actions Distribution */}
+                    <div>
+                      <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <Badge variant="outline" className="h-5 w-5 rounded-full p-0 items-center justify-center">1</Badge>
+                        Permissions by Action
+                      </h4>
+                      <div className="space-y-2">
+                        {Object.entries(
+                          policies.reduce((acc, p) => {
+                            acc[p.action] = (acc[p.action] || 0) + 1;
+                            return acc;
+                          }, {} as Record<string, number>)
+                        )
+                          .sort(([, a], [, b]) => b - a)
+                          .map(([action, count]) => (
+                            <div key={action} className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-primary" />
+                                <Badge variant="outline" className="font-mono">{action}</Badge>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="h-2 bg-primary/20 rounded-full overflow-hidden" style={{ width: '60px' }}>
+                                  <div
+                                    className="h-full bg-primary rounded-full"
+                                    style={{ width: `${(count / policies.length) * 100}%` }}
+                                  />
+                                </div>
+                                <span className="text-sm font-medium w-8 text-right">{count}</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Hierarchy Settings */}
+                    <div className="pt-4 border-t">
+                      <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <Badge variant="outline" className="h-5 w-5 rounded-full p-0 items-center justify-center">2</Badge>
+                        Hierarchy Configuration
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 border rounded-lg">
+                          <p className="text-xs text-muted-foreground mb-1">Children Inheritance</p>
+                          <p className="text-xl font-bold">
+                            {policies.filter(p => p.hierarchy === 'children').length}
+                          </p>
+                          <Badge variant="default" className="mt-1 text-xs">Cascading</Badge>
+                        </div>
+                        <div className="p-3 border rounded-lg">
+                          <p className="text-xs text-muted-foreground mb-1">Direct Access Only</p>
+                          <p className="text-xl font-bold">
+                            {policies.filter(p => p.hierarchy === 'none').length}
+                          </p>
+                          <Badge variant="secondary" className="mt-1 text-xs">Explicit</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
-          <AccessCheckPanel onCheckAccess={handleCheckAccess} />
+          {/* Access Check Panel */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TestTube className="h-5 w-5" />
+                Access Check
+              </CardTitle>
+              <CardDescription>
+                Quickly test if a principal has access to a resource
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AccessCheckPanel onCheckAccess={handleCheckAccess} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="principals" className="space-y-6">
@@ -775,7 +863,7 @@ export default function SecurityAccessPoliciesPage() {
                 renderError()
               ) : (
                 <PoliciesTable
-                  policies={policies}
+                  groupedPolicies={groupedPolicies}
                   onDeletePolicy={handleDeletePolicy}
                   isDeleting={isDeletingPolicy}
                 />
@@ -839,19 +927,16 @@ export default function SecurityAccessPoliciesPage() {
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Test Access Control</h2>
               <p className="text-muted-foreground">
-                Simulate access control decisions for principals and resources
+                Test authorization checks, list accessible resources, and generate SQL filters
               </p>
             </div>
           </div>
 
-          <AccessCheckPanel onCheckAccess={handleCheckAccess} />
-
-          <AuthTestPanel 
-            onCheckAccessWithAuth={handleCheckAccessWithAuth}
-            onResolvePrincipal={handleResolvePrincipal}
+          <AccessCheckPanel
+            onCheckAccess={handleCheckAccess}
+            onListResources={handleListResources}
+            onGetFilter={handleGetFilter}
           />
-
-          <AdvancedTestingComponent />
         </TabsContent>
       </Tabs>
 

@@ -19,6 +19,7 @@ import type {
   GetFilterRequest,
   GetFilterResponse,
   ListDetailedPoliciesResponse,
+  NewPolicyResponse,
   // Principal types
   PrincipalDefinition,
   CreatePrincipalRequest,
@@ -98,15 +99,37 @@ export async function createPolicy(
 }
 
 /**
- * Get policy details by policy ID
+ * Get policy details by policy ID (New Format v2.0.0)
  * GET /v1/policies/{policy_id}
+ * 
+ * Returns policy in new structured format with sub/obj/act/eft rules
  */
 export async function getPolicy(
   policyId: string,
   token?: string
-): Promise<GetPoliciesByIDResponse> {
+): Promise<NewPolicyResponse> {
   const response = await fetch(
     `${getAuthzApiUrl()}/v1/policies/${encodeURIComponent(policyId)}`,
+    {
+      method: "GET",
+      headers: getHeaders(token),
+    }
+  );
+  return handleApiError(response, "Failed to get policy");
+}
+
+/**
+ * Get policy details by policy ID (Legacy Format)
+ * GET /v1/policies/legacy/{policy_id}
+ * 
+ * @deprecated Use getPolicy() instead for new format
+ */
+export async function getLegacyPolicy(
+  policyId: string,
+  token?: string
+): Promise<GetPoliciesByIDResponse> {
+  const response = await fetch(
+    `${getAuthzApiUrl()}/v1/policies/legacy/${encodeURIComponent(policyId)}`,
     {
       method: "GET",
       headers: getHeaders(token),
@@ -388,54 +411,8 @@ export async function checkAccessWithAuth(
 }
 
 // =============================================================================
-// POLICY-PRINCIPAL MAPPINGS
-// =============================================================================
-
-// List all mappings
-export async function listMappings(
-  policyId?: string,
-  principalId?: string,
-  token?: string
-): Promise<ListMappingsResponse> {
-  const params = new URLSearchParams();
-  if (policyId) params.append("policy_id", policyId);
-  if (principalId) params.append("principal_id", principalId);
-  const queryString = params.toString();
-  const url = queryString
-    ? `${getAuthzApiUrl()}/v1/mappings?${queryString}`
-    : `${getAuthzApiUrl()}/v1/mappings`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getHeaders(token),
-  });
-  return handleApiError(response, "Failed to list mappings");
-}
-
-// Create a mapping
-export async function createMapping(
-  request: CreateMappingRequest,
-  token?: string
-): Promise<PolicyPrincipalMapping> {
-  const response = await fetch(`${getAuthzApiUrl()}/v1/mappings`, {
-    method: "POST",
-    headers: getHeaders(token),
-    body: JSON.stringify(request),
-  });
-  return handleApiError(response, "Failed to create mapping");
-}
-
-// Delete a mapping
-export async function deleteMapping(
-  policyId: string,
-  principalId: string,
-  token?: string
-): Promise<MessageResponse> {
-  const response = await fetch(
-    `${getAuthzApiUrl()}/v1/mappings/${encodeURIComponent(policyId)}/${encodeURIComponent(principalId)}`,
-    {
-      method: "DELETE",
-      headers: getHeaders(token),
-    }
-  );
-  return handleApiError(response, "Failed to delete mapping");
-}
+// Note: Policy-principal relationships are managed through the policy_id field
+// when creating policies and memberships. There is no separate /v1/mappings endpoint.
+// - To assign a policy to a principal: Create policy with policy_id
+// - To get principals for a policy: GET /v1/policies/{policy_id} returns principals array
+// - To get policies for a principal: GET /v1/principals/{id}/policies

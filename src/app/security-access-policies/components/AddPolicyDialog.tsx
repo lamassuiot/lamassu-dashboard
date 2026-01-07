@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AddPolicyWithMetaRequest, HierarchyType } from "@/types/authorization";
+import type { AddPolicyWithMetaRequest, HierarchyType, PrincipalDefinition } from "@/types/authorization";
+import { listPrincipals } from "@/lib/authz-api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AddPolicyDialogProps {
   open: boolean;
@@ -36,12 +38,38 @@ export function AddPolicyDialog({
 }: AddPolicyDialogProps) {
   const [policyId, setPolicyId] = useState("");
   const [subject, setSubject] = useState("");
-  const [object, setObject] = useState("");
+  const [resourceType, setResourceType] = useState("");
+  const [resourceId, setResourceId] = useState("");
   const [action, setAction] = useState("");
   const [hierarchy, setHierarchy] = useState<HierarchyType>("none");
+  const [principals, setPrincipals] = useState<PrincipalDefinition[]>([]);
+  const [loadingPrincipals, setLoadingPrincipals] = useState(false);
+  
+  const { user } = useAuth();
+  const token = user?.access_token;
+
+  useEffect(() => {
+    if (open) {
+      fetchPrincipals();
+    }
+  }, [open]);
+
+  const fetchPrincipals = async () => {
+    setLoadingPrincipals(true);
+    try {
+      const response = await listPrincipals(undefined, token);
+      setPrincipals(response.principals || []);
+    } catch (error) {
+      console.error("Failed to fetch principals:", error);
+      setPrincipals([]);
+    } finally {
+      setLoadingPrincipals(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const object = `${resourceType}:${resourceId}`;
     await onAddPolicy({ policy_id: policyId, subject, object, action, hierarchy });
     resetForm();
   };
@@ -49,7 +77,8 @@ export function AddPolicyDialog({
   const resetForm = () => {
     setPolicyId("");
     setSubject("");
-    setObject("");
+    setResourceType("");
+    setResourceId("");
     setAction("");
     setHierarchy("none");
   };
@@ -87,40 +116,74 @@ export function AddPolicyDialog({
               </p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="subject">Subject</Label>
-              <Input
-                id="subject"
-                placeholder="e.g., user:alice, dms:DMS-PROD"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                required
-              />
+              <Label htmlFor="subject">Principal Selector</Label>
+              <Select value={subject} onValueChange={setSubject} disabled={loadingPrincipals}>
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingPrincipals ? "Loading principals..." : "Select a principal"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {principals.length === 0 && !loadingPrincipals ? (
+                    <SelectItem value="none" disabled>No principals available</SelectItem>
+                  ) : (
+                    principals.map((principal) => (
+                      <SelectItem key={principal.id || principal.name} value={principal.id || principal.name}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{principal.name}</span>
+                          <span className="text-xs text-muted-foreground">({principal.type})</span>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
-                The principal that will be granted access (format: type:identifier)
+                Select which principal will be granted access
               </p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="object">Object</Label>
-              <Input
-                id="object"
-                placeholder="e.g., device:*, certificate:CERT-123"
-                value={object}
-                onChange={(e) => setObject(e.target.value)}
-                required
-              />
+              <Label>Resource</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Select value={resourceType} onValueChange={setResourceType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dms">DMS</SelectItem>
+                      <SelectItem value="device">Device</SelectItem>
+                      <SelectItem value="certificate">Certificate</SelectItem>
+                      <SelectItem value="device_group">Device Group</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Input
+                    id="resourceId"
+                    placeholder="Resource ID (e.g., *, DEVICE-123)"
+                    value={resourceId}
+                    onChange={(e) => setResourceId(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">
-                The resource to grant access to. Use * for wildcard (format: type:identifier)
+                Select the resource type and specify the identifier. Use * for wildcard
               </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="action">Action</Label>
-              <Input
-                id="action"
-                placeholder="e.g., read, write, delete"
-                value={action}
-                onChange={(e) => setAction(e.target.value)}
-                required
-              />
+              <Select value={action} onValueChange={setAction}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select action" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="read">Read</SelectItem>
+                  <SelectItem value="write">Write</SelectItem>
+                  <SelectItem value="delete">Delete</SelectItem>
+                  <SelectItem value="manage">Manage</SelectItem>
+                  <SelectItem value="*">* (All actions)</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 The action that will be allowed on the resource
               </p>
@@ -145,7 +208,7 @@ export function AddPolicyDialog({
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !policyId || !subject || !object || !action}>
+            <Button type="submit" disabled={isLoading || !policyId || !subject || !resourceType || !resourceId || !action}>
               {isLoading ? "Adding..." : "Add Policy"}
             </Button>
           </DialogFooter>

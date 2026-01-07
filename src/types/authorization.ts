@@ -362,3 +362,32 @@ export interface GetFilterResponse {
   full_query: string;
   access_check_sql: string;
 }
+
+// New Policy Data Model Format (v2.0.0)
+export interface PolicyRuleSpec {
+  sub: string;  // subject
+  obj: string;  // object
+  act: string;  // action
+  eft: 'none' | 'children';  // effect/hierarchy
+}
+
+export interface NewPolicyResponse {
+  policy_id: string;
+  rules: PolicyRuleSpec[];
+  principals: string[];  // Array of principal UUIDs
+  count: number;
+}
+
+// Grouped Policy Types for Display
+export interface GroupedPolicy {
+  policy_id: string;
+  rules: PolicyRuleSpec[];  // Using new format
+  principals: string[]; // Principal UUIDs assigned to this policy
+  rule_count: number;
+}
+
+export interface GroupedPoliciesResponse {
+  grouped_policies: GroupedPolicy[];
+  total_policies: number;
+  total_rules: number;
+}
