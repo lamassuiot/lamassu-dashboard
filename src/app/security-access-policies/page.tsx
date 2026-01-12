@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Shield, Plus, FileText, Users, TestTube, Eye, Download, Upload, RefreshCw, AlertCircle, Key, User, Fingerprint } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,9 +13,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import RelationshipsFlowDiagram from '@/components/shared/RelationshipsFlowDiagram';
  
 import { PoliciesTable } from './components/PoliciesTable';
-import { MembershipsTable } from './components/MembershipsTable';
-import { AddPolicyDialog } from './components/AddPolicyDialog';
-import { AddMembershipDialog } from './components/AddMembershipDialog';
 import { AccessCheckPanel } from './components/AccessCheckPanel';
 import { PrincipalsTable } from './components/PrincipalsTable';
 import { AddPrincipalDialog } from './components/AddPrincipalDialog';
@@ -25,8 +23,6 @@ import {
   getPolicy,
   createPolicy,
   deletePolicy,
-  addMembership,
-  deleteMembership,
   checkAccess,
   bulkLoadPolicies,
   clearAllPolicies,
@@ -43,10 +39,8 @@ import {
 } from '@/lib/authz-api';
 
 import type {
-  PrincipalMembershipResponse,
   ResourceHierarchyResponse,
   AddPolicyRequest,
-  AddMembershipWithMetaRequest,
   CheckAccessRequest,
   PrincipalDefinition,
   CreatePrincipalRequest,
@@ -57,7 +51,6 @@ import type {
   GroupedPolicy,
   ListResourcesRequest,
   GetFilterRequest,
-  HierarchyType,
 } from '@/types/authorization';
 
 import {
@@ -76,7 +69,6 @@ export default function SecurityAccessPoliciesPage() {
   const [policies, setPolicies] = useState<PolicyWithMetaResponse[]>([]);
   const [groupedPolicies, setGroupedPolicies] = useState<GroupedPolicy[]>([]);
   const [policyIds, setPolicyIds] = useState<string[]>([]);
-  const [memberships, setMemberships] = useState<PrincipalMembershipResponse[]>([]);
   const [resourceHierarchy, setResourceHierarchy] = useState<ResourceHierarchyResponse[]>([]);
   const [principals, setPrincipals] = useState<PrincipalDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,17 +76,12 @@ export default function SecurityAccessPoliciesPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
-  const [addPolicyOpen, setAddPolicyOpen] = useState(false);
-  const [addMembershipOpen, setAddMembershipOpen] = useState(false);
   const [addPrincipalOpen, setAddPrincipalOpen] = useState(false);
   const [principalPoliciesOpen, setPrincipalPoliciesOpen] = useState(false);
   const [selectedPrincipal, setSelectedPrincipal] = useState<PrincipalDefinition | null>(null);
   const [selectedPrincipalPolicies, setSelectedPrincipalPolicies] = useState<string[]>([]);
-  const [isAddingPolicy, setIsAddingPolicy] = useState(false);
-  const [isAddingMembership, setIsAddingMembership] = useState(false);
   const [isAddingPrincipal, setIsAddingPrincipal] = useState(false);
   const [isDeletingPolicy, setIsDeletingPolicy] = useState(false);
-  const [isDeletingMembership, setIsDeletingMembership] = useState(false);
   const [isDeletingPrincipal, setIsDeletingPrincipal] = useState(false);
 
   // Clear all confirmation dialog
@@ -124,7 +111,6 @@ export default function SecurityAccessPoliciesPage() {
       
       // Fetch details for each policy using new format
       const allGroupedPolicies: GroupedPolicy[] = [];
-      const allMemberships: PrincipalMembershipResponse[] = [];
       
       await Promise.all(
         ids.map(async (policyId) => {
@@ -132,6 +118,8 @@ export default function SecurityAccessPoliciesPage() {
             const policyDetails = await getPolicy(policyId, token);
             allGroupedPolicies.push({
               policy_id: policyDetails.policy_id,
+              name: policyDetails.name,
+              description: policyDetails.description,
               rules: policyDetails.rules,
               principals: policyDetails.principals,
               rule_count: policyDetails.count,
@@ -149,12 +137,11 @@ export default function SecurityAccessPoliciesPage() {
           subject: rule.sub,
           object: rule.obj,
           action: rule.act,
-          hierarchy: rule.eft as HierarchyType,
+          child_rules: rule.child_rules,
         }))
       );
       
       setPolicies(allPolicies);
-      setMemberships(allMemberships);
       setResourceHierarchy([]);
       setPrincipals(principalsResponse.principals || []);
       setGroupedPolicies(allGroupedPolicies);
@@ -176,28 +163,6 @@ export default function SecurityAccessPoliciesPage() {
     fetchPolicies();
   }, [fetchPolicies]);
 
-  const handleAddPolicy = async (policy: AddPolicyRequest) => {
-    setIsAddingPolicy(true);
-    try {
-      await createPolicy(policy, token);
-      toast({
-        title: 'Policy added',
-        description: 'Policy added successfully',
-      });
-      setAddPolicyOpen(false);
-      await fetchPolicies(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add policy';
-      toast({
-        title: 'Error adding policy',
-        description: message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsAddingPolicy(false);
-    }
-  };
-
   const handleDeletePolicy = async (policyId: string) => {
     setIsDeletingPolicy(true);
     try {
@@ -216,49 +181,6 @@ export default function SecurityAccessPoliciesPage() {
       });
     } finally {
       setIsDeletingPolicy(false);
-    }
-  };
-
-  const handleAddMembership = async (membership: AddMembershipWithMetaRequest) => {
-    setIsAddingMembership(true);
-    try {
-      await addMembership(membership, token);
-      toast({
-        title: 'Membership added',
-        description: `${membership.principal} added to ${membership.scope}`,
-      });
-      setAddMembershipOpen(false);
-      await fetchPolicies(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add membership';
-      toast({
-        title: 'Error adding membership',
-        description: message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsAddingMembership(false);
-    }
-  };
-
-  const handleDeleteMembership = async (membership: PrincipalMembershipResponse) => {
-    setIsDeletingMembership(true);
-    try {
-      await deleteMembership(membership, token);
-      toast({
-        title: 'Membership deleted',
-        description: `${membership.principal} removed from ${membership.scope}`,
-      });
-      await fetchPolicies(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete membership';
-      toast({
-        title: 'Error deleting membership',
-        description: message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeletingMembership(false);
     }
   };
 
@@ -383,14 +305,11 @@ export default function SecurityAccessPoliciesPage() {
   }));
 
   const handleExport = () => {
-    // Generate CSV content from current policies and memberships
+    // Generate CSV content from current policies
     let csvContent = '# Policies\n';
     policies.forEach(p => {
-      csvContent += `p,${p.subject},${p.object},${p.action},${p.hierarchy}\n`;
-    });
-    csvContent += '# Memberships\n';
-    memberships.forEach(m => {
-      csvContent += `g,${m.principal},${m.scope}\n`;
+      const childRulesStr = p.child_rules ? JSON.stringify(p.child_rules) : '';
+      csvContent += `p,${p.subject},${p.object},${p.action},${childRulesStr}\n`;
     });
 
     // Download as file
@@ -406,7 +325,7 @@ export default function SecurityAccessPoliciesPage() {
 
     toast({
       title: 'Export complete',
-      description: 'Policies and memberships exported to CSV',
+      description: 'Policies exported to CSV',
     });
   };
 
@@ -425,7 +344,7 @@ export default function SecurityAccessPoliciesPage() {
           const result = await bulkLoadPolicies({ csv_content: csvContent }, token);
           toast({
             title: 'Import complete',
-            description: `Loaded ${result.policies_loaded} policies and ${result.memberships_loaded} memberships`,
+            description: `Loaded ${result.policies_loaded} policies`,
           });
           await fetchPolicies(true);
         } catch (err) {
@@ -448,7 +367,7 @@ export default function SecurityAccessPoliciesPage() {
       await clearAllPolicies(token);
       toast({
         title: 'All policies cleared',
-        description: 'All policies and memberships have been removed',
+        description: 'All policies have been removed',
       });
       setClearAllOpen(false);
       await fetchPolicies(true);
@@ -492,7 +411,7 @@ export default function SecurityAccessPoliciesPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Security Access & Policies</h1>
             <p className="text-muted-foreground">
-              Manage ReBAC policies and memberships for your PKI infrastructure
+              Manage ReBAC policies for your PKI infrastructure
             </p>
           </div>
         </div>
@@ -518,11 +437,10 @@ export default function SecurityAccessPoliciesPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="principals">Principals</TabsTrigger>
           <TabsTrigger value="policies">Policies</TabsTrigger>
-          <TabsTrigger value="memberships">Memberships</TabsTrigger>
           <TabsTrigger value="relationships">Relationships</TabsTrigger>
           <TabsTrigger value="test">Test Access</TabsTrigger>
         </TabsList>
@@ -548,7 +466,7 @@ export default function SecurityAccessPoliciesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-primary/10 p-2">
                     <FileText className="h-5 w-5 text-primary" />
@@ -574,15 +492,6 @@ export default function SecurityAccessPoliciesPage() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Principals</p>
                     <div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-12" /> : principals.length}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-orange-500/10 p-2">
-                    <Users className="h-5 w-5 text-orange-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Memberships</p>
-                    <div className="text-2xl font-bold">{isLoading ? <Skeleton className="h-8 w-12" /> : memberships.length}</div>
                   </div>
                 </div>
               </div>
@@ -616,9 +525,11 @@ export default function SecurityAccessPoliciesPage() {
                     <Shield className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p className="font-medium">No policy sets configured</p>
                     <p className="text-sm">Create a policy to get started</p>
-                    <Button className="mt-4" onClick={() => setAddPolicyOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create First Policy
+                    <Button className="mt-4" asChild>
+                      <Link href="/security-access-policies/policies/new">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create First Policy
+                      </Link>
                     </Button>
                   </div>
                 ) : (
@@ -709,20 +620,20 @@ export default function SecurityAccessPoliciesPage() {
                     <div className="pt-4 border-t">
                       <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                         <Badge variant="outline" className="h-5 w-5 rounded-full p-0 items-center justify-center">2</Badge>
-                        Hierarchy Configuration
+                        Child Access Configuration
                       </h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="p-3 border rounded-lg">
-                          <p className="text-xs text-muted-foreground mb-1">Children Inheritance</p>
+                          <p className="text-xs text-muted-foreground mb-1">With Child Rules</p>
                           <p className="text-xl font-bold">
-                            {policies.filter(p => p.hierarchy === 'children').length}
+                            {policies.filter(p => p.child_rules && Object.keys(p.child_rules).length > 0).length}
                           </p>
                           <Badge variant="default" className="mt-1 text-xs">Cascading</Badge>
                         </div>
                         <div className="p-3 border rounded-lg">
                           <p className="text-xs text-muted-foreground mb-1">Direct Access Only</p>
                           <p className="text-xl font-bold">
-                            {policies.filter(p => p.hierarchy === 'none').length}
+                            {policies.filter(p => !p.child_rules || Object.keys(p.child_rules).length === 0).length}
                           </p>
                           <Badge variant="secondary" className="mt-1 text-xs">Explicit</Badge>
                         </div>
@@ -838,9 +749,11 @@ export default function SecurityAccessPoliciesPage() {
                 Define what subjects can perform which actions on resources
               </p>
             </div>
-            <Button onClick={() => setAddPolicyOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Policy
+            <Button asChild>
+              <Link href="/security-access-policies/policies/new">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Policy
+              </Link>
             </Button>
           </div>
 
@@ -863,43 +776,6 @@ export default function SecurityAccessPoliciesPage() {
                   onDeletePolicy={handleDeletePolicy}
                   onUpdate={() => fetchPolicies(true)}
                   isDeleting={isDeletingPolicy}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="memberships" className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight">Principal Memberships</h2>
-              <p className="text-muted-foreground">
-                Assign principals to scopes to inherit permissions
-              </p>
-            </div>
-            <Button onClick={() => setAddMembershipOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Membership
-            </Button>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Memberships</CardTitle>
-              <CardDescription>
-                Principal-to-scope assignments for permission inheritance
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                renderLoadingSkeleton()
-              ) : error ? (
-                renderError()
-              ) : (
-                <MembershipsTable
-                  memberships={memberships}
-                  onDeleteMembership={handleDeleteMembership}
-                  isDeleting={isDeletingMembership}
                 />
               )}
             </CardContent>
@@ -932,26 +808,11 @@ export default function SecurityAccessPoliciesPage() {
           <AccessCheckPanel
             onCheckAccess={handleCheckAccess}
             onListResources={handleListResources}
-            onGetFilter={handleGetFilter}
           />
         </TabsContent>
       </Tabs>
 
       {/* Dialogs */}
-      <AddPolicyDialog
-        open={addPolicyOpen}
-        onOpenChange={setAddPolicyOpen}
-        onAddPolicy={handleAddPolicy}
-        isLoading={isAddingPolicy}
-      />
-
-      <AddMembershipDialog
-        open={addMembershipOpen}
-        onOpenChange={setAddMembershipOpen}
-        onAddMembership={handleAddMembership}
-        isLoading={isAddingMembership}
-      />
-
       <AddPrincipalDialog
         open={addPrincipalOpen}
         onOpenChange={setAddPrincipalOpen}
@@ -974,7 +835,7 @@ export default function SecurityAccessPoliciesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Clear All Policies?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action will permanently delete all policies and memberships. This cannot be undone.
+              This action will permanently delete all policies. This cannot be undone.
               Consider exporting your current policies before proceeding.
             </AlertDialogDescription>
           </AlertDialogHeader>

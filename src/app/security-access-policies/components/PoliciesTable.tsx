@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -13,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Eye, FileText, Users, UserCog } from "lucide-react";
 import type { GroupedPolicy, PrincipalDefinition } from "@/types/authorization";
-import { PolicyDetailsDialog } from "./PolicyDetailsDialog";
 import { ManagePolicyPrincipalsDialog } from "./ManagePolicyPrincipalsDialog";
 
 interface PoliciesTableProps {
@@ -31,8 +31,7 @@ export function PoliciesTable({
   onUpdate,
   isDeleting,
 }: PoliciesTableProps) {
-  const [selectedPolicy, setSelectedPolicy] = useState<GroupedPolicy | null>(null);
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const router = useRouter();
   const [managePrincipalsDialogOpen, setManagePrincipalsDialogOpen] = useState(false);
   const [policyToManage, setPolicyToManage] = useState<GroupedPolicy | null>(null);
 
@@ -53,8 +52,7 @@ export function PoliciesTable({
   };
 
   const handleViewDetails = (policy: GroupedPolicy) => {
-    setSelectedPolicy(policy);
-    setDetailsDialogOpen(true);
+    router.push(`/security-access-policies/policies/details?id=${encodeURIComponent(policy.policy_id)}`);
   };
 
   const handleManagePrincipals = (policy: GroupedPolicy) => {
@@ -84,8 +82,14 @@ export function PoliciesTable({
         <TableBody>
           {groupedPolicies.map((policy) => (
             <TableRow key={policy.policy_id}>
-              <TableCell className="font-mono text-sm font-medium">
-                {policy.policy_id}
+              <TableCell>
+                <div className="space-y-1">
+                  <div className="text-lg font-semibold">{policy.name}</div>
+                  {policy.description && (
+                    <div className="text-sm text-muted-foreground">{policy.description}</div>
+                  )}
+                  <div className="font-mono text-xs text-muted-foreground">{policy.policy_id}</div>
+                </div>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
@@ -149,13 +153,6 @@ export function PoliciesTable({
           ))}
         </TableBody>
       </Table>
-
-      <PolicyDetailsDialog
-        open={detailsDialogOpen}
-        onOpenChange={setDetailsDialogOpen}
-        policy={selectedPolicy}
-        principals={principals}
-      />
 
       <ManagePolicyPrincipalsDialog
         open={managePrincipalsDialogOpen}

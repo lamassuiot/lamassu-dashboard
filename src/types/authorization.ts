@@ -171,7 +171,11 @@ export interface ListMappingsResponse {
 // POLICY TYPES
 // =============================================================================
 
-export type HierarchyType = "none" | "children";
+// Recursive child access structure
+export interface ChildAccess {
+  actions: string[];
+  children?: Record<string, ChildAccess>;  // Recursive!
+}
 
 // Used for principal policy assignment UI
 export interface Policy {
@@ -186,7 +190,7 @@ export interface PolicyResponse {
   subject: string;
   object: string;
   action: string;
-  hierarchy: HierarchyType;
+  child_rules?: Record<string, ChildAccess>;  // Replaces hierarchy
 }
 
 export interface PolicyWithMetaResponse extends PolicyResponse {
@@ -208,7 +212,7 @@ export interface PolicyRuleResponse {
   subject: string;
   object: string;
   action: string;
-  hierarchy: HierarchyType;
+  child_rules?: Record<string, ChildAccess>;
 }
 
 export interface MembershipRuleResponse {
@@ -231,16 +235,22 @@ export interface ListDetailedPoliciesResponse {
 }
 
 // Policy Requests
-export interface AddPolicyRequest {
+export interface PolicyRuleCreate {
   object: string;
   action: string;
-  hierarchy: HierarchyType;
+  child_rules?: Record<string, ChildAccess>;
+}
+
+export interface AddPolicyRequest {
+  name: string;
+  description: string;
+  rules: PolicyRuleCreate[];
 }
 
 export interface DeletePolicyRequest {
   object: string;
   action: string;
-  hierarchy: HierarchyType;
+  child_rules?: Record<string, ChildAccess>;
 }
 
 // Policy Responses
@@ -362,11 +372,13 @@ export interface PolicyRuleSpec {
   sub: string;  // subject
   obj: string;  // object
   act: string;  // action
-  eft: 'none' | 'children';  // effect/hierarchy
+  child_rules?: Record<string, ChildAccess>;  // Recursive hierarchical access
 }
 
 export interface NewPolicyResponse {
   policy_id: string;
+  name: string;
+  description: string;
   rules: PolicyRuleSpec[];
   principals: string[];  // Array of principal UUIDs
   count: number;
@@ -375,6 +387,8 @@ export interface NewPolicyResponse {
 // Grouped Policy Types for Display
 export interface GroupedPolicy {
   policy_id: string;
+  name: string;
+  description: string;
   rules: PolicyRuleSpec[];  // Using new format
   principals: string[]; // Principal UUIDs assigned to this policy
   rule_count: number;

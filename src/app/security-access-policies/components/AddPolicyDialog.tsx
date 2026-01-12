@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { listEntities } from "@/lib/authz-api";
-import type { AddPolicyRequest, HierarchyType, Entity } from "@/types/authorization";
+import type { AddPolicyRequest, Entity, ChildAccess } from "@/types/authorization";
 
 interface AddPolicyDialogProps {
   open: boolean;
@@ -36,10 +36,12 @@ export function AddPolicyDialog({
   onAddPolicy,
   isLoading,
 }: AddPolicyDialogProps) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [resourceType, setResourceType] = useState("");
   const [resourceId, setResourceId] = useState("");
   const [action, setAction] = useState("");
-  const [hierarchy, setHierarchy] = useState<HierarchyType>("none");
+  const [childRules, setChildRules] = useState<Record<string, ChildAccess> | undefined>(undefined);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [loadingEntities, setLoadingEntities] = useState(false);
   
@@ -93,16 +95,28 @@ export function AddPolicyDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const object = `${resourceType}:${resourceId}`;
-    await onAddPolicy({ object, action, hierarchy });
+    const ruleWithChildRules: any = {
+      object: `${resourceType}:${resourceId}`,
+      action,
+    };
+    if (childRules && Object.keys(childRules).length > 0) {
+      ruleWithChildRules.child_rules = childRules;
+    }
+    await onAddPolicy({ 
+      name, 
+      description, 
+      rules: [ruleWithChildRules]
+    });
     resetForm();
   };
 
   const resetForm = () => {
+    setName("");
+    setDescription("");
     setResourceType("");
     setResourceId("");
     setAction("");
-    setHierarchy("none");
+    setChildRules(undefined);
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -132,6 +146,32 @@ export function AddPolicyDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Policy Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g., Device Read Policy"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                A descriptive name for this policy
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                placeholder="e.g., Allows reading device information"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                A brief description of what this policy allows
+              </p>
+            </div>
             <div className="grid gap-2">
               <Label>Resource</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -202,7 +242,7 @@ export function AddPolicyDialog({
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !resourceType || !resourceId || !action}>
+            <Button type="submit" disabled={isLoading || !name || !description || !resourceType || !resourceId || !action}>
               {isLoading ? "Adding..." : "Add Policy"}
             </Button>
           </DialogFooter>

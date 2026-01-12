@@ -29,8 +29,9 @@ import type {
   ListResourcesRequest,
   ListResourcesResponse,
   PrincipalDefinition,
+  Entity,
 } from "@/types/authorization";
-import { listPrincipals } from "@/lib/authz-api";
+import { listPrincipals, listEntities } from "@/lib/authz-api";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface AccessCheckPanelProps {
@@ -60,11 +61,16 @@ export function AccessCheckPanel({ onCheckAccess, onListResources }: AccessCheck
   const [principals, setPrincipalsList] = useState<PrincipalDefinition[]>([]);
   const [loadingPrincipals, setLoadingPrincipals] = useState(false);
   
+  // Entities for action options
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [loadingEntities, setLoadingEntities] = useState(false);
+  
   const { user } = useAuth();
   const token = user?.access_token;
 
   useEffect(() => {
     fetchPrincipals();
+    fetchEntities();
   }, []);
 
   const fetchPrincipals = async () => {
@@ -78,6 +84,51 @@ export function AccessCheckPanel({ onCheckAccess, onListResources }: AccessCheck
     } finally {
       setLoadingPrincipals(false);
     }
+  };
+
+  const fetchEntities = async () => {
+    setLoadingEntities(true);
+    try {
+      const response = await listEntities(token);
+      setEntities(response.entities || []);
+    } catch (error) {
+      console.error("Failed to fetch entities:", error);
+      // Fallback to default entities if API fails
+      setEntities([
+        { name: "ca", description: "CA", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read", "write", "create", "update", "delete", "import", "revoke"] },
+        { name: "dms", description: "DMS", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read", "write", "create", "update", "delete"] },
+        { name: "device", description: "Device", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read", "write", "create", "update", "delete", "enroll", "revoke"] },
+        { name: "certificate", description: "Certificate", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read", "write", "create", "delete", "revoke", "renew"] },
+        { name: "device_group", description: "Device Group", db_name: "", schema: "", table: "", column_id: "", supports_list_action: true, actions: ["read", "write", "create", "update", "delete"] },
+      ]);
+    } finally {
+      setLoadingEntities(false);
+    }
+  };
+
+  // Get actions relevant to the current resource type
+  const getRelevantActions = () => {
+    // Extract resource type from resource string (e.g., "device:DEV-001" -> "device")
+    const resourceType = checkResource.split(':')[0]?.toLowerCase().trim();
+    
+    if (!resourceType) {
+      // No resource type specified, return common actions
+      return ["read", "write", "create", "update", "delete", "list", "manage"];
+    }
+    
+    // Find matching entity
+    const entity = entities.find(e => e.name === resourceType);
+    
+    if (entity) {
+      const actions = [...entity.actions];
+      if (entity.supports_list_action) {
+        actions.push("list");
+      }
+      return actions.sort();
+    }
+    
+    // Fallback to common actions
+    return ["read", "write", "create", "update", "delete", "list", "manage"];
   };
 
   const handleCheckAccess = async () => {
@@ -175,17 +226,24 @@ export function AccessCheckPanel({ onCheckAccess, onListResources }: AccessCheck
                 </div>
                 <div className="grid gap-2">
                   <Label>Action</Label>
-                  <Select value={checkAction} onValueChange={setCheckAction}>
+                  <Select value={checkAction} onValueChange={setCheckAction} disabled={!checkResource}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select action" />
+                      <SelectValue placeholder={checkResource ? "Select action" : "Enter resource first"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="read">Read</SelectItem>
-                      <SelectItem value="write">Write</SelectItem>
-                      <SelectItem value="delete">Delete</SelectItem>
-                      <SelectItem value="manage">Manage</SelectItem>
+                      {getRelevantActions().map((action) => (
+                        <SelectItem key={action} value={action}>
+                          {action.charAt(0).toUpperCase() + action.slice(1)}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="*">* (All actions)</SelectItem>
                     </SelectContent>
                   </Select>
+                  {checkResource && (
+                    <p className="text-xs text-muted-foreground">
+                      Actions for: {checkResource.split(':')[0] || 'resource type'}
+                    </p>
+                  )}
                 </div>
               </div>
 

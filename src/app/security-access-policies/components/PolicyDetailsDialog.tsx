@@ -149,9 +149,11 @@ export function PolicyDetailsDialog({
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={rule.eft === "children" ? "default" : "secondary"}>
-                            {rule.eft === "children" ? "Children" : "None"}
-                          </Badge>
+                          {rule.child_rules && Object.keys(rule.child_rules).length > 0 ? (
+                            <Badge variant="default">Has Child Rules</Badge>
+                          ) : (
+                            <Badge variant="secondary">Direct Only</Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
