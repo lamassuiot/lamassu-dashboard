@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2, Tag } from "lucide-react";
+import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2, Tag, Activity, RefreshCw, Sliders, AlertTriangle, ChartLine } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
@@ -22,6 +22,9 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { TagInput } from '@/components/shared/TagInput';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { queryQrngHmin, queryQrngRavg, queryQrngQfactor, queryQrngHminHistory, queryQrngRavgHistory, queryQrngQfactorHistory } from '@/lib/prometheus-utils';
 
 // Monaco Editor dynamic import to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
@@ -57,6 +60,34 @@ export default function CreateKmsKeyPage() {
   const { user } = useAuth();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
+  // Cookie utilities
+  const getCookie = (name: string): string | null => {
+    if (typeof document === 'undefined') return null;
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+  };
+
+  const setCookie = (name: string, value: string, days: number = 365) => {
+    if (typeof document === 'undefined') return;
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+  };
+
+  // Load thresholds from cookies or use defaults
+  const getInitialThreshold = (cookieName: string, defaultValue: number): number => {
+    const saved = getCookie(cookieName);
+    if (saved) {
+      const parsed = parseFloat(saved);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+        return parsed;
+      }
+    }
+    return defaultValue;
+  };
+
   // New Key Pair mode fields
   const [keyName, setKeyName] = useState('');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
@@ -76,13 +107,35 @@ export default function CreateKmsKeyPage() {
   const [metadata, setMetadata] = useState('{}');
   const [metadataError, setMetadataError] = useState<string | null>(null);
   
+  // Monitoring metrics
+  const [qrngHminValue, setQrngHminValue] = useState<number | null>(null);
+  const [qrngRavgValue, setQrngRavgValue] = useState<number | null>(null);
+  const [qrngQfactorValue, setQrngQfactorValue] = useState<number | null>(null);
+  const [isLoadingMetric, setIsLoadingMetric] = useState(false);
+  
+  // Metric thresholds (loaded from cookies)
+  const [qrngHminThreshold, setQrngHminThreshold] = useState<number>(() => getInitialThreshold('qrng_hmin_threshold', 0.5));
+  const [qrngRavgThreshold, setQrngRavgThreshold] = useState<number>(() => getInitialThreshold('qrng_ravg_threshold', 0.5));
+  const [qrngQfactorThreshold, setQrngQfactorThreshold] = useState<number>(() => getInitialThreshold('qrng_qfactor_threshold', 0.5));
+  const [adjustingMetric, setAdjustingMetric] = useState<'hmin' | 'ravg' | 'qfactor' | null>(null);
+  const [tempThreshold, setTempThreshold] = useState<string>('');
+  
+  // Historical data for graphs
+  const [showHminGraph, setShowHminGraph] = useState(false);
+  const [showRavgGraph, setShowRavgGraph] = useState(false);
+  const [showQfactorGraph, setShowQfactorGraph] = useState(false);
+  const [hminHistory, setHminHistory] = useState<Array<{timestamp: number, value: number}>>([]);
+  const [ravgHistory, setRavgHistory] = useState<Array<{timestamp: number, value: number}>>([]);
+  const [qfactorHistory, setQfactorHistory] = useState<Array<{timestamp: number, value: number}>>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Crypto engines state
   const [cryptoEngines, setCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingEngines, setIsLoadingEngines] = useState(true);
 
-  // Load crypto engines on component mount
+  // Load crypto engines and qrng_hmin metric on component mount
   useEffect(() => {
     const loadCryptoEngines = async () => {
       if (!user?.access_token) {
@@ -112,6 +165,78 @@ export default function CreateKmsKeyPage() {
       loadCryptoEngines();
     }
   }, [user?.access_token, cryptoEngineId]);
+
+  // Function to load QRNG metrics - can be called on mount or manually
+  const loadQrngMetrics = async (showLoading = true) => {
+    if (showLoading) {
+      setIsLoadingMetric(true);
+    }
+    try {
+      const [hminValue, ravgValue, qfactorValue] = await Promise.all([
+        queryQrngHmin(),
+        queryQrngRavg(),
+        queryQrngQfactor()
+      ]);
+      setQrngHminValue(hminValue);
+      setQrngRavgValue(ravgValue);
+      setQrngQfactorValue(qfactorValue);
+    } catch (error) {
+      console.error('Failed to load qrng metrics:', error);
+    } finally {
+      if (showLoading) {
+        setIsLoadingMetric(false);
+      }
+    }
+  };
+
+  // Function to load historical data for a specific metric
+  const loadHistoricalData = async (metric: 'hmin' | 'ravg' | 'qfactor', showLoading = true) => {
+    if (showLoading) {
+      setIsLoadingHistory(true);
+    }
+    try {
+      if (metric === 'hmin') {
+        const data = await queryQrngHminHistory(15);
+        setHminHistory(data);
+        setShowHminGraph(true);
+      } else if (metric === 'ravg') {
+        const data = await queryQrngRavgHistory(15);
+        setRavgHistory(data);
+        setShowRavgGraph(true);
+      } else {
+        const data = await queryQrngQfactorHistory(15);
+        setQfactorHistory(data);
+        setShowQfactorGraph(true);
+      }
+    } catch (error) {
+      console.error(`Failed to load ${metric} history:`, error);
+    } finally {
+      if (showLoading) {
+        setIsLoadingHistory(false);
+      }
+    }
+  };
+
+  // Load and auto-refresh qrng metrics every 10 seconds
+  useEffect(() => {
+    loadQrngMetrics();
+    
+    const intervalId = setInterval(() => {
+      loadQrngMetrics(false); // Don't show loading during auto-refresh
+      // Also refresh historical data if graphs are visible
+      if (showHminGraph) {
+        loadHistoricalData('hmin', false); // Don't show loading during auto-refresh
+      }
+      if (showRavgGraph) {
+        loadHistoricalData('ravg', false); // Don't show loading during auto-refresh
+      }
+      if (showQfactorGraph) {
+        loadHistoricalData('qfactor', false); // Don't show loading during auto-refresh
+      }
+    }, 10000);
+    
+    return () => clearInterval(intervalId);
+  }, [showHminGraph, showRavgGraph, showQfactorGraph]);
 
   // Get supported key types from selected crypto engine
   const selectedEngine = cryptoEngines.find(engine => engine.id === cryptoEngineId);
@@ -243,13 +368,34 @@ export default function CreateKmsKeyPage() {
                 }
             }
 
+            // Prepare metadata with qrng metrics if available
+            let finalMetadata = parsedMetadata || {};
+            if (qrngHminValue !== null) {
+                finalMetadata = {
+                    ...finalMetadata,
+                    qrng_hmin: qrngHminValue.toString()
+                };
+            }
+            if (qrngRavgValue !== null) {
+                finalMetadata = {
+                    ...finalMetadata,
+                    qrng_ravg: qrngRavgValue.toString()
+                };
+            }
+            if (qrngQfactorValue !== null) {
+                finalMetadata = {
+                    ...finalMetadata,
+                    qrng_qfactor: qrngQfactorValue.toString()
+                };
+            }
+
             const payload = {
                 engine_id: cryptoEngineId,
                 name: keyName.trim(),
                 algorithm: keyType,
                 size: sizeValue,
                 ...(tags.length > 0 && { tags }),
-                ...(parsedMetadata && Object.keys(parsedMetadata).length > 0 && { metadata: parsedMetadata }),
+                ...(Object.keys(finalMetadata).length > 0 && { metadata: finalMetadata }),
             };
             
             await createKmsKey(payload, user.access_token);
@@ -494,6 +640,352 @@ export default function CreateKmsKeyPage() {
               </Card>
             )}
 
+            {/* Monitoring Metrics */}
+            {(selectedMode === 'newKeyPair' || selectedMode === 'importKeyPair') && (
+              <Card>
+                <SectionHeader icon={Activity} title="Monitoring Metrics" />
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between -mt-2 mb-4">
+                    <p className="text-sm text-muted-foreground">
+                      Real-time metrics (auto-refreshes every 10 seconds)
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={loadQrngMetrics}
+                      disabled={isLoadingMetric}
+                      className="h-8 gap-2"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${isLoadingMetric ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>QRNG Minimum Entropy (qrng_hmin)</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAdjustingMetric('hmin');
+                          setTempThreshold(qrngHminThreshold.toString());
+                        }}
+                        className="h-7 w-7 p-0"
+                      >
+                        <Sliders className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="mt-2">
+                      {isLoadingMetric ? (
+                        <Badge variant="outline" className="text-sm">
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Loading metric...
+                        </Badge>
+                      ) : qrngHminValue !== null ? (
+                        <Badge 
+                          variant={qrngHminValue >= qrngHminThreshold ? "default" : "outline"}
+                          className={`text-sm font-mono ${
+                            qrngHminValue >= qrngHminThreshold 
+                              ? 'bg-primary text-primary-foreground' 
+                              : 'border-orange-500 text-orange-500 bg-orange-50 dark:bg-orange-950'
+                          }`}
+                        >
+                          {qrngHminValue.toFixed(6)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-sm">
+                          Metric not available
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Quantum Random Number Generator minimum entropy value (threshold: {qrngHminThreshold})
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>QRNG Running Average (qrng_ravg)</Label>
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (showRavgGraph) {
+                              setShowRavgGraph(false);
+                            } else {
+                              loadHistoricalData('ravg');
+                            }
+                          }}
+                          className="h-7 w-7 p-0"
+                          disabled={isLoadingHistory}
+                        >
+                          <ChartLine className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setAdjustingMetric('ravg');
+                            setTempThreshold(qrngRavgThreshold.toString());
+                          }}
+                          className="h-7 w-7 p-0"
+                        >
+                          <Sliders className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      {isLoadingMetric ? (
+                        <Badge variant="outline" className="text-sm">
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Loading metric...
+                        </Badge>
+                      ) : qrngRavgValue !== null ? (
+                        <Badge 
+                          variant={qrngRavgValue >= qrngRavgThreshold ? "default" : "outline"}
+                          className={`text-sm font-mono ${
+                            qrngRavgValue >= qrngRavgThreshold 
+                              ? 'bg-primary text-primary-foreground' 
+                              : 'border-orange-500 text-orange-500 bg-orange-50 dark:bg-orange-950'
+                          }`}
+                        >
+                          {qrngRavgValue.toFixed(6)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-sm">
+                          Metric not available
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Running average of QRNG entropy values (threshold: {qrngRavgThreshold})
+                    </p>
+                    
+                    {/* History Graph */}
+                    {showRavgGraph && (
+                      <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Last 15 Minutes</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowRavgGraph(false)}
+                            className="h-6 text-xs"
+                          >
+                            Hide
+                          </Button>
+                        </div>
+                        {isLoadingHistory ? (
+                          <div className="h-48 flex items-center justify-center">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          </div>
+                        ) : ravgHistory.length > 0 ? (() => {
+                          const values = ravgHistory.map(d => d.value);
+                          const minValue = Math.min(...values);
+                          const maxValue = Math.max(...values);
+                          const padding = (maxValue - minValue) * 0.1 || 0.1;
+                          const yMin = Math.max(0, minValue - padding);
+                          const yMax = Math.min(1, maxValue + padding);
+                          
+                          return (
+                            <ResponsiveContainer width="100%" height={200}>
+                              <LineChart data={ravgHistory}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis 
+                                  dataKey="timestamp" 
+                                  tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                                  tick={{fontSize: 11}}
+                                />
+                                <YAxis 
+                                  tick={{fontSize: 11}} 
+                                  domain={[yMin, yMax]}
+                                  tickFormatter={(value) => value.toFixed(3)}
+                                />
+                                <Tooltip 
+                                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                                  formatter={(value: number) => value.toFixed(6)}
+                                />
+                                <ReferenceLine 
+                                  y={qrngRavgThreshold} 
+                                  stroke="#f97316" 
+                                  strokeWidth={3}
+                                  strokeDasharray="5 5"
+                                  label={{ 
+                                    value: `Threshold: ${qrngRavgThreshold}`, 
+                                    position: 'right', 
+                                    fontSize: 11,
+                                    fill: '#f97316',
+                                    fontWeight: 'bold'
+                                  }}
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="value" 
+                                  stroke="hsl(var(--primary))" 
+                                  strokeWidth={2}
+                                  dot={false}
+                                  isAnimationActive={false}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          );
+                        })() : (
+                          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                            No historical data available
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>QRNG Quality Factor (qrng_qfactor)</Label>
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (showQfactorGraph) {
+                              setShowQfactorGraph(false);
+                            } else {
+                              loadHistoricalData('qfactor');
+                            }
+                          }}
+                          className="h-7 w-7 p-0"
+                          disabled={isLoadingHistory}
+                        >
+                          <ChartLine className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setAdjustingMetric('qfactor');
+                            setTempThreshold(qrngQfactorThreshold.toString());
+                          }}
+                          className="h-7 w-7 p-0"
+                        >
+                          <Sliders className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      {isLoadingMetric ? (
+                        <Badge variant="outline" className="text-sm">
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Loading metric...
+                        </Badge>
+                      ) : qrngQfactorValue !== null ? (
+                        <Badge 
+                          variant={qrngQfactorValue >= qrngQfactorThreshold ? "default" : "outline"}
+                          className={`text-sm font-mono ${
+                            qrngQfactorValue >= qrngQfactorThreshold 
+                              ? 'bg-primary text-primary-foreground' 
+                              : 'border-orange-500 text-orange-500 bg-orange-50 dark:bg-orange-950'
+                          }`}
+                        >
+                          {qrngQfactorValue.toFixed(6)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-sm">
+                          Metric not available
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      QRNG quality factor measurement (threshold: {qrngQfactorThreshold})
+                    </p>
+                    
+                    {/* History Graph */}
+                    {showQfactorGraph && (
+                      <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Last 15 Minutes</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowQfactorGraph(false)}
+                            className="h-6 text-xs"
+                          >
+                            Hide
+                          </Button>
+                        </div>
+                        {isLoadingHistory ? (
+                          <div className="h-48 flex items-center justify-center">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          </div>
+                        ) : qfactorHistory.length > 0 ? (() => {
+                          const values = qfactorHistory.map(d => d.value);
+                          const minValue = Math.min(...values);
+                          const maxValue = Math.max(...values);
+                          const padding = (maxValue - minValue) * 0.1 || 0.1;
+                          const yMin = Math.max(0, minValue - padding);
+                          const yMax = Math.min(1, maxValue + padding);
+                          
+                          return (
+                            <ResponsiveContainer width="100%" height={200}>
+                              <LineChart data={qfactorHistory}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis 
+                                  dataKey="timestamp" 
+                                  tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                                  tick={{fontSize: 11}}
+                                />
+                                <YAxis 
+                                  tick={{fontSize: 11}} 
+                                  domain={[yMin, yMax]}
+                                  tickFormatter={(value) => value.toFixed(3)}
+                                />
+                                <Tooltip 
+                                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                                  formatter={(value: number) => value.toFixed(6)}
+                                />
+                                <ReferenceLine 
+                                  y={qrngQfactorThreshold} 
+                                  stroke="#f97316" 
+                                  strokeWidth={3}
+                                  strokeDasharray="5 5"
+                                  label={{ 
+                                    value: `Threshold: ${qrngQfactorThreshold}`, 
+                                    position: 'right', 
+                                    fontSize: 11,
+                                    fill: '#f97316',
+                                    fontWeight: 'bold'
+                                  }}
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="value" 
+                                  stroke="hsl(var(--primary))" 
+                                  strokeWidth={2}
+                                  dot={false}
+                                  isAnimationActive={false}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          );
+                        })() : (
+                          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                            No historical data available
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Tags and Metadata - Common for newKeyPair and importKeyPair */}
             {(selectedMode === 'newKeyPair' || selectedMode === 'importKeyPair') && (
               <Card>
@@ -611,6 +1103,25 @@ export default function CreateKmsKeyPage() {
               </Card>
             )}
 
+            {/* Warning if metrics below threshold */}
+            {(selectedMode === 'newKeyPair' || selectedMode === 'importKeyPair') && 
+             ((qrngHminValue !== null && qrngHminValue < qrngHminThreshold) || 
+              (qrngRavgValue !== null && qrngRavgValue < qrngRavgThreshold) ||
+              (qrngQfactorValue !== null && qrngQfactorValue < qrngQfactorThreshold)) && (
+              <Alert variant="default" className="border-orange-500 bg-orange-50 dark:bg-orange-950">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                <AlertDescription className="text-orange-800 dark:text-orange-200">
+                  <strong>Warning:</strong> One or more QRNG metrics are below the configured threshold. 
+                  {qrngHminValue !== null && qrngHminValue < qrngHminThreshold && 
+                    ` qrng_hmin: ${qrngHminValue.toFixed(6)} < ${qrngHminThreshold}`}
+                  {qrngRavgValue !== null && qrngRavgValue < qrngRavgThreshold && 
+                    ` qrng_ravg: ${qrngRavgValue.toFixed(6)} < ${qrngRavgThreshold}`}
+                  {qrngQfactorValue !== null && qrngQfactorValue < qrngQfactorThreshold && 
+                    ` qrng_qfactor: ${qrngQfactorValue.toFixed(6)} < ${qrngQfactorThreshold}`}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="flex justify-end pt-4">
               <Button type="submit" size="lg" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
@@ -622,6 +1133,67 @@ export default function CreateKmsKeyPage() {
           </form>
         </div>
       </div>
+
+      {/* Threshold Adjustment Dialog */}
+      <Dialog open={adjustingMetric !== null} onOpenChange={(open) => !open && setAdjustingMetric(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adjust Threshold</DialogTitle>
+            <DialogDescription>
+              Set the threshold for {adjustingMetric === 'hmin' ? 'qrng_hmin (Minimum Entropy)' : adjustingMetric === 'ravg' ? 'qrng_ravg (Running Average)' : 'qrng_qfactor (Quality Factor)'}.
+              Values below this threshold will be highlighted in orange.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="threshold-input">Threshold Value</Label>
+            <Input
+              id="threshold-input"
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              value={tempThreshold}
+              onChange={(e) => setTempThreshold(e.target.value)}
+              className="mt-2"
+              placeholder="Enter threshold (e.g., 0.5)"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAdjustingMetric(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                const value = parseFloat(tempThreshold);
+                if (!isNaN(value) && value >= 0 && value <= 1) {
+                  if (adjustingMetric === 'hmin') {
+                    setQrngHminThreshold(value);
+                    setCookie('qrng_hmin_threshold', value.toString());
+                  } else if (adjustingMetric === 'ravg') {
+                    setQrngRavgThreshold(value);
+                    setCookie('qrng_ravg_threshold', value.toString());
+                  } else {
+                    setQrngQfactorThreshold(value);
+                    setCookie('qrng_qfactor_threshold', value.toString());
+                  }
+                  setAdjustingMetric(null);
+                  toast({ 
+                    title: "Threshold Updated", 
+                    description: `${adjustingMetric === 'hmin' ? 'qrng_hmin' : adjustingMetric === 'ravg' ? 'qrng_ravg' : 'qrng_qfactor'} threshold set to ${value}` 
+                  });
+                }
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
