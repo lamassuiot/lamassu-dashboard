@@ -5,7 +5,6 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Copy, Check, Edit, Save, X, Loader2 } from "lucide-react";
 import type { ToastProps } from '@/components/ui/toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -141,11 +140,23 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
         </div>
       ) : (
         rawJsonData && Object.keys(rawJsonData).length > 0 ? (
-          <ScrollArea className="h-96 w-full rounded-md border p-4 bg-muted/30">
-            <pre className="text-xs whitespace-pre-wrap break-all font-mono">
-              {JSON.stringify(rawJsonData, null, 2)}
-            </pre>
-          </ScrollArea>
+          <div className="border rounded-md overflow-hidden">
+            <Editor
+              height="30rem"
+              defaultLanguage="json"
+              value={content}
+              theme="vs-dark"
+              options={{ 
+                minimap: { enabled: false }, 
+                automaticLayout: true,
+                readOnly: true,
+                domReadOnly: true,
+                cursorStyle: 'line',
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+              }}
+            />
+          </div>
         ) : (
            <p className="text-sm text-muted-foreground p-4 text-center border rounded-md bg-muted/20">
               No metadata available for this item.
@@ -155,3 +166,4 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
     </div>
   );
 };
+
