@@ -218,7 +218,13 @@ export async function updateCertificateStatus({
   }
 }
 
-export async function updateCertificateMetadata(serialNumber: string, metadata: object, accessToken: string): Promise<void> {
+export interface PatchOperation {
+  op: "add" | "remove" | "replace";
+  path: string;
+  value?: any;
+}
+
+export async function updateCertificateMetadata(serialNumber: string, patchOperations: PatchOperation[], accessToken: string): Promise<void> {
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
   const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
     method: 'PUT',
@@ -226,7 +232,7 @@ export async function updateCertificateMetadata(serialNumber: string, metadata: 
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
     },
-    body: JSON.stringify(metadata),
+    body: JSON.stringify({ patches: patchOperations }),
   });
 
   if (!response.ok) {
@@ -240,6 +246,7 @@ export async function updateCertificateMetadata(serialNumber: string, metadata: 
     throw new Error(`Failed to update certificate metadata: ${errorBody} (Status: ${response.status})`);
   }
 }
+
 
 // Import Certificate Types
 export interface ImportCertificateBody {

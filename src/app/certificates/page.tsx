@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
+import { MetadataFilterManager } from '@/components/shared/MetadataFilterManager';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useToast } from '@/hooks/use-toast';
 import { usePaginatedCertificateFetcher, type ApiStatusFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
@@ -311,29 +312,13 @@ export default function CertificatesPage() {
         </div>
         <div className="col-span-1 md:col-span-1">
             <Label htmlFor="certMetadataSearchInput">Metadata (JSONPath)</Label>
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                    id="certMetadataSearchInput"
-                    type="text"
-                    placeholder="e.g., $[?(@.key=='value')]"
-                    value={metadataSearchTerm}
-                    onChange={(e) => setMetadataSearchTerm(e.target.value)}
-                    className="w-full pl-10 mt-1"
-                    disabled={isLoadingApi || authLoading}
-                />
-                {metadataSearchTerm && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                        onClick={() => setMetadataSearchTerm('')}
-                        disabled={isLoadingApi}
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
-                )}
-            </div>
+            <MetadataFilterManager
+                value={metadataSearchTerm}
+                onChange={setMetadataSearchTerm}
+                disabled={isLoadingApi || authLoading}
+                placeholder="e.g., $.key > value"
+                className="mt-1"
+            />
         </div>
       </div>
 

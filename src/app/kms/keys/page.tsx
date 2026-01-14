@@ -20,6 +20,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey } from '@/lib/kms-data';
 import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
+import { MetadataFilterManager } from '@/components/shared/MetadataFilterManager';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -309,29 +310,11 @@ export default function KmsKeysPage() {
         </div>
         <div className="space-y-1">
           <Label htmlFor="metadataSearchInput">Filter by Metadata (JSONPath)</Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-            <Input
-              id="metadataSearchInput"
-              type="text"
-              placeholder="e.g., $[?(@.key=='value')]"
-              value={metadataSearchTerm}
-              onChange={(e) => setMetadataSearchTerm(e.target.value)}
-              className="w-full pl-10"
-              disabled={isLoading}
-            />
-            {metadataSearchTerm && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                onClick={() => setMetadataSearchTerm('')}
-                disabled={isLoading}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+          <MetadataFilterManager
+            value={metadataSearchTerm}
+            onChange={setMetadataSearchTerm}
+            disabled={isLoading}
+          />
         </div>
       </div>
 
