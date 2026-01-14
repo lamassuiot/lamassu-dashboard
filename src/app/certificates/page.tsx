@@ -10,6 +10,7 @@ import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, Refre
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -77,10 +78,12 @@ export default function CertificatesPage() {
     error: apiError,
     pageSize, setPageSize,
     searchTerm, setSearchTerm,
+    debouncedSearchTerm,
     searchField, setSearchField,
     statusFilter, setStatusFilter,
     caIdFilter, setCaIdFilter,
     metadataSearchTerm, setMetadataSearchTerm,
+    debouncedMetadataSearchTerm,
     sortConfig, requestSort,
     currentPageIndex,
     nextTokenFromApi,
@@ -94,6 +97,7 @@ export default function CertificatesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const [caSelectorMode, setCaSelectorMode] = useState<'issue' | 'filter'>('filter');
+  const [focusedField, setFocusedField] = useState<'search' | 'metadata' | null>(null);
 
   // CA and Engine data is still fetched here as it's a page-level concern
   const [allCAs, setAllCAs] = useState<CA[]>([]);
@@ -246,8 +250,17 @@ export default function CertificatesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-        <div className="col-span-1 md:col-span-1">
+      <div 
+        className="grid grid-cols-1 md:grid-cols-[var(--col1)_var(--col2)_var(--col3)_var(--col4)_var(--col5)] gap-3 items-end transition-grid duration-500 ease-in-out"
+        style={{
+          '--col1': focusedField === 'search' ? '4fr' : focusedField ? '1fr' : '3fr',
+          '--col2': focusedField ? '1fr' : '2fr',
+          '--col3': focusedField ? '1fr' : '3fr',
+          '--col4': focusedField ? '1fr' : '2fr',
+          '--col5': focusedField === 'metadata' ? '4fr' : focusedField ? '1fr' : '2fr',
+        } as React.CSSProperties}
+      >
+        <div>
             <Label htmlFor="certSearchTermInput">Search Term</Label>
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -257,14 +270,20 @@ export default function CertificatesPage() {
                     placeholder="Enter search term..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    onFocus={() => setFocusedField('search')}
+                    onBlur={() => setFocusedField(null)}
                     className="w-full pl-10 mt-1"
                     disabled={isLoadingApi || authLoading}
                 />
             </div>
         </div>
-        <div className="col-span-1 md:col-span-1">
+        <div>
             <Label htmlFor="certSearchFieldSelect">Search In</Label>
-            <Select value={searchField} onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)} disabled={isLoadingApi || authLoading}>
+            <Select 
+                value={searchField} 
+                onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)} 
+                disabled={isLoadingApi || authLoading}
+            >
                 <SelectTrigger id="certSearchFieldSelect" className="w-full mt-1">
                     <SelectValue />
                 </SelectTrigger>
@@ -274,7 +293,7 @@ export default function CertificatesPage() {
                 </SelectContent>
             </Select>
         </div>
-        <div className="col-span-1 md:col-span-1">
+        <div>
             <Label htmlFor="ca-filter-button">CA Issuer</Label>
             <div className="flex items-center gap-2 mt-1">
                 <Button
@@ -299,9 +318,13 @@ export default function CertificatesPage() {
                 )}
             </div>
         </div>
-        <div className="col-span-1 md:col-span-1">
+        <div>
             <Label htmlFor="certStatusFilterSelect">Status</Label>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ApiStatusFilterValue)} disabled={isLoadingApi || authLoading}>
+            <Select 
+                value={statusFilter} 
+                onValueChange={(value) => setStatusFilter(value as ApiStatusFilterValue)} 
+                disabled={isLoadingApi || authLoading}
+            >
                 <SelectTrigger id="certStatusFilterSelect" className="w-full mt-1">
                     <SelectValue />
                 </SelectTrigger>
@@ -310,7 +333,7 @@ export default function CertificatesPage() {
                 </SelectContent>
             </Select>
         </div>
-        <div className="col-span-1 md:col-span-1">
+        <div>
             <Label htmlFor="certMetadataSearchInput">Metadata (JSONPath)</Label>
             <MetadataFilterManager
                 value={metadataSearchTerm}
@@ -318,9 +341,69 @@ export default function CertificatesPage() {
                 disabled={isLoadingApi || authLoading}
                 placeholder="e.g., $.key > value"
                 className="mt-1"
+                onFocusChange={(focused) => setFocusedField(focused ? 'metadata' : null)}
             />
         </div>
       </div>
+
+      {/* Active Filters Indicator */}
+      {(debouncedSearchTerm || statusFilter !== 'ALL' || caIdFilter || debouncedMetadataSearchTerm) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+          <span>Active filters:</span>
+          {debouncedSearchTerm && (
+            <Badge variant="secondary" className="text-xs">
+              {searchField === 'commonName' ? 'Common Name' : 'Serial Number'} contains "{debouncedSearchTerm}"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => setSearchTerm('')}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
+          {statusFilter !== 'ALL' && (
+            <Badge variant="secondary" className="text-xs">
+              Status: {statusFilter}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => setStatusFilter('ALL')}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
+          {caIdFilter && selectedCaForFilter && (
+            <Badge variant="secondary" className="text-xs">
+              CA Issuer: {selectedCaForFilter.name}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => setCaIdFilter(null)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
+          {debouncedMetadataSearchTerm && (
+            <Badge variant="secondary" className="text-xs">
+              Metadata JSONPath: "{debouncedMetadataSearchTerm}"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => setMetadataSearchTerm('')}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
+        </div>
+      )}
 
       {(apiError || errorCAs || errorCryptoEngines) && (
         <Alert variant="destructive">

@@ -50,6 +50,7 @@ export default function KmsKeysPage() {
   const [keyToDelete, setKeyToDelete] = useState<KmsKey | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [focusedField, setFocusedField] = useState<'alias' | 'metadata' | null>(null);
 
   // Pagination State
   const [pageSize, setPageSize] = useState('10');
@@ -281,7 +282,13 @@ export default function KmsKeysPage() {
       )}
 
       {/* Filter Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+      <div 
+        className="grid grid-cols-1 md:grid-cols-[var(--col1)_var(--col2)] gap-4 items-end transition-grid duration-500 ease-in-out"
+        style={{
+          '--col1': focusedField === 'alias' ? '2fr' : focusedField === 'metadata' ? '1fr' : '1fr',
+          '--col2': focusedField === 'metadata' ? '2fr' : focusedField === 'alias' ? '1fr' : '1fr',
+        } as React.CSSProperties}
+      >
         <div className="space-y-1">
           <Label htmlFor="aliasSearchInput">Filter by Name, ID or Alias</Label>
           <div className="relative">
@@ -292,6 +299,8 @@ export default function KmsKeysPage() {
               placeholder="Search by key alias..."
               value={aliasSearchTerm}
               onChange={(e) => setAliasSearchTerm(e.target.value)}
+              onFocus={() => setFocusedField('alias')}
+              onBlur={() => setFocusedField(null)}
               className="w-full pl-10"
               disabled={isLoading}
             />
@@ -314,6 +323,7 @@ export default function KmsKeysPage() {
             value={metadataSearchTerm}
             onChange={setMetadataSearchTerm}
             disabled={isLoading}
+            onFocusChange={(focused) => setFocusedField(focused ? 'metadata' : null)}
           />
         </div>
       </div>

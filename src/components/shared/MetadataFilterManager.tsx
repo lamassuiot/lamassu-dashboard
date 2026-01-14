@@ -35,6 +35,7 @@ interface MetadataFilterManagerProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  onFocusChange?: (isFocused: boolean) => void;
 }
 
 export function MetadataFilterManager({
@@ -43,8 +44,10 @@ export function MetadataFilterManager({
   disabled = false,
   placeholder = "e.g., $.key > value",
   className,
+  onFocusChange,
 }: MetadataFilterManagerProps) {
   const [savedFilters, setSavedFilters] = useState<MetadataFilterQuery[]>([]);
+  const [isFocused, setIsFocused] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -168,6 +171,14 @@ export function MetadataFilterManager({
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onFocus={() => {
+            setIsFocused(true);
+            onFocusChange?.(true);
+          }}
+          onBlur={() => {
+            setIsFocused(false);
+            onFocusChange?.(false);
+          }}
           className="w-full pl-10 pr-24"
           disabled={disabled}
         />
