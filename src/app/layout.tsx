@@ -127,6 +127,7 @@ const navigationConfig: NavGroup[] = [
     label: 'IoT',
     items: [
       { href: '/devices', label: 'Devices', icon: Router },
+      { href: '/device-groups', label: 'Device Groups', icon: Users },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
     ],
   },
