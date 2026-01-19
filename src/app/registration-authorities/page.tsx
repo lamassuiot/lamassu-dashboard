@@ -8,7 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Users,
+  ClipboardCheck,
   PlusCircle,
   Loader2,
   AlertTriangle,
@@ -356,7 +356,7 @@ export default function RegistrationAuthoritiesPage() {
     <div className="space-y-6 w-full pb-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <Users className="h-8 w-8 text-primary" />
+          <ClipboardCheck className="h-8 w-8 text-primary" />
           <h1 className="text-2xl font-headline font-semibold">Registration Authorities</h1>
         </div>
         <div className="flex items-center space-x-2">

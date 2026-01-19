@@ -29,7 +29,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -119,7 +119,7 @@ const navigationConfig: NavGroup[] = [
       { href: '/certificates', label: 'Certificates', icon: FileText },
       { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
       { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon },
-      { href: '/registration-authorities', label: 'Registration Authorities', icon: Users },
+      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck },
       { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck },
     ],
   },
@@ -127,7 +127,7 @@ const navigationConfig: NavGroup[] = [
     label: 'IoT',
     items: [
       { href: '/devices', label: 'Devices', icon: Router },
-      { href: '/device-groups', label: 'Device Groups', icon: Users },
+      { href: '/device-groups', label: 'Device Groups', icon: Layers },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
     ],
   },

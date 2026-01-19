@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Search, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Layers, Plus, Search, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { getDeviceGroups, deleteDeviceGroup } from '@/lib/device-groups-api';
@@ -111,7 +111,7 @@ export default function DeviceGroupsPage() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
         <div className="flex items-center space-x-3">
           <div className={cn("p-1.5 rounded-md inline-flex items-center justify-center")} style={{ backgroundColor: '#F0F8FF' }}>
-            <Users className={cn("h-5 w-5")} style={{ color: '#0f67ff' }} />
+            <Layers className={cn("h-8 w-8")} style={{ color: '#0f67ff' }} />
           </div>
           <h1 className="text-2xl font-headline font-semibold">Device Groups</h1>
         </div>
