@@ -15,13 +15,10 @@ interface ChartData {
 }
 
 const statusConfig: { [key: string]: { label: string; color: string } } = {
-  ACTIVE: { label: 'Active', color: 'rgb(34, 197, 94)' },
-  NO_IDENTITY: { label: 'No Identity', color: '#3b82f6' },
-  DECOMMISSIONED: { label: 'Decommissioned', color: '#9ca3af' },
-  EXPIRING_SOON: { label: 'Expiring Soon', color: '#f97316' },
-  RENEWAL_PENDING: { label: 'Renewal Pending', color: '#eab308' },
-  REVOKED: { label: 'Revoked', color: '#ef4444' },
-  EXPIRED: { label: 'Expired', color: '#8b5cf6' },
+  OK: { label: 'OK', color: 'rgb(34, 197, 94)' }, // green
+  WARN: { label: 'Warning', color: '#eab308' }, // yellow
+  ERROR: { label: 'Error', color: '#ef4444' }, // red
+  DECOMMISSIONED: { label: 'Decommissioned', color: '#9ca3af' }, // gray
 };
 
 // Custom Legend Component

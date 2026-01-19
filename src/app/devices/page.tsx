@@ -23,8 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
-
-type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
+import type { DeviceStatus } from '@/lib/devices-api';
 
 interface DeviceData {
   id: string;
@@ -46,36 +45,23 @@ interface SortConfig {
 }
 
 const statusSortOrder: Record<DeviceStatus, number> = {
-  'ACTIVE': 0,
-  'EXPIRING_SOON': 1,
-  'RENEWAL_PENDING': 2,
-  'NO_IDENTITY': 3,
-  'EXPIRED': 4,
-  'REVOKED': 5,
-  'DECOMMISSIONED': 6,
+  'OK': 0,
+  'WARN': 1,
+  'ERROR': 2,
+  'DECOMMISSIONED': 3,
 };
-
 
 export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
   let badgeClass = "";
   switch (status) {
-    case 'ACTIVE':
+    case 'OK':
       badgeClass = "bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-300 dark:border-green-700";
       break;
-    case 'RENEWAL_PENDING':
-        badgeClass = "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700";
-        break;
-    case 'EXPIRING_SOON':
-        badgeClass = "bg-orange-100 text-orange-700 dark:bg-orange-700/30 dark:text-orange-300 border-orange-300 dark:border-orange-700";
-        break;
-    case 'EXPIRED':
-        badgeClass = "bg-purple-100 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300 border-purple-300 dark:border-purple-700";
-        break;
-    case 'REVOKED':
-        badgeClass = "bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-300 dark:border-red-700";
-        break;
-    case 'NO_IDENTITY':
-      badgeClass = "bg-sky-100 text-sky-700 dark:bg-sky-700/30 dark:text-sky-300 border-sky-300 dark:border-sky-700";
+    case 'WARN':
+      badgeClass = "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700";
+      break;
+    case 'ERROR':
+      badgeClass = "bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-300 dark:border-red-700";
       break;
     case 'DECOMMISSIONED':
       badgeClass = "bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400 border-gray-400 dark:border-gray-600";
@@ -83,7 +69,7 @@ export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
     default:
       badgeClass = "bg-muted text-muted-foreground border-border";
   }
-  return <Badge variant="outline" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
+  return <Badge variant="outline" className={cn("text-xs capitalize", badgeClass)}>{status.toLowerCase()}</Badge>;
 };
 
 export const mapApiIconToIconType = (apiIcon: string): string => {
@@ -547,11 +533,6 @@ export default function DevicesPage() {
                             <DropdownMenuItem onClick={() => handleViewDetails(device.id)}>
                               <Eye className="mr-2 h-4 w-4" /> View Details
                             </DropdownMenuItem>
-                            {device.status === 'NO_IDENTITY' && (
-                                <DropdownMenuItem onClick={() => handleOpenEnrollModal(device)}>
-                                    <TerminalSquare className="mr-2 h-4 w-4" /> EST Enroll...
-                                </DropdownMenuItem>
-                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

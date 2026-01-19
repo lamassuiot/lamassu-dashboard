@@ -2,19 +2,27 @@
 // src/lib/devices-api.ts
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 
+// Device status enum - simplified to 4 values
+export type DeviceStatus = 'OK' | 'WARN' | 'ERROR' | 'DECOMMISSIONED';
+
+// Identity slot status enum - explicit status values
+export type IdentitySlotStatus = 'NOT_SET' | 'ACTIVE' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED';
+
+// DMS binding mode enum
+export type DmsBindingMode = 'PROVISIONED' | 'RE-PROVISIONED' | 'RENEWED';
+
 // Interfaces based on usage in components
 export interface ApiDeviceIdentity {
-  status: string;
+  status: IdentitySlotStatus;
   active_version: number;
   type: string;
   versions: Record<string, string>;
-  events?: Record<string, { type: string; description: string }>;
 }
 
 export interface ApiDevice {
   id: string;
   tags: string[];
-  status: string;
+  status: DeviceStatus;
   icon: string;
   icon_color: string;
   creation_timestamp: string;
@@ -22,7 +30,6 @@ export interface ApiDevice {
   dms_owner: string;
   identity: ApiDeviceIdentity | null;
   slots: Record<string, any>;
-  events?: Record<string, { type: string; description: string }>;
 }
 
 export interface ApiResponse {
@@ -33,13 +40,10 @@ export interface ApiResponse {
 export interface DeviceStats {
     total: number;
     status_distribution: {
-        ACTIVE: number;
+        OK: number;
+        WARN: number;
+        ERROR: number;
         DECOMMISSIONED: number;
-        EXPIRED: number;
-        EXPIRING_SOON: number;
-        NO_IDENTITY: number;
-        RENEWAL_PENDING: number;
-        REVOKED: number;
     };
 }
 
@@ -123,4 +127,63 @@ export async function deleteDevice(deviceId: string, accessToken: string): Promi
     if (!response.ok) {
         await handleApiError(response, 'Failed to delete device');
     }
+}
+
+// Device Events interfaces and functions
+
+export interface DeviceEvent {
+    id: string;
+    device_id: string;
+    timestamp: string; // ISO 8601 format
+    event_type: string;
+    message: string;
+    slot_id?: string;
+    source?: string;
+    structured_field?: Record<string, any>;
+}
+
+export interface DeviceEventsResponse {
+    list: DeviceEvent[];
+    next?: string;
+}
+
+export interface CreateDeviceEventPayload {
+    timestamp: string; // ISO 8601 format
+    event_type: string;
+    message: string;
+    slot_id?: string;
+    source?: string;
+    structured_field?: Record<string, any>;
+}
+
+export async function fetchDeviceEvents(
+    deviceId: string,
+    accessToken: string,
+    params?: URLSearchParams
+): Promise<DeviceEventsResponse> {
+    const url = new URL(`${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events`);
+    if (params) {
+        params.forEach((value, key) => url.searchParams.append(key, value));
+    }
+    const response = await fetch(url.toString(), {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    return handleApiError(response, 'Failed to fetch device events');
+}
+
+export async function createDeviceEvent(
+    deviceId: string,
+    payload: CreateDeviceEventPayload,
+    accessToken: string
+): Promise<DeviceEvent> {
+    const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    return handleApiError(response, 'Failed to create device event');
 }

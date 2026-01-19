@@ -163,17 +163,28 @@ export async function createOrUpdateRa(
 }
 
 
-export async function bindIdentityToDevice(deviceId: string, certificateSerialNumber: string, accessToken: string): Promise<void> {
+export async function bindIdentityToDevice(
+    deviceId: string, 
+    certificateSerialNumber: string, 
+    accessToken: string,
+    bindingMode?: 'PROVISIONED' | 'RE-PROVISIONED' | 'RENEWED'
+): Promise<void> {
+    const body: any = {
+        device_id: deviceId,
+        certificate_serial_number: certificateSerialNumber
+    };
+    
+    if (bindingMode) {
+        body.binding_mode = bindingMode;
+    }
+    
     const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/bind-identity`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify({
-            device_id: deviceId,
-            certificate_serial_number: certificateSerialNumber
-        })
+        body: JSON.stringify(body)
     });
     if (!response.ok) {
         await handleApiError(response, 'Failed to assign identity');

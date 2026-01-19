@@ -32,6 +32,9 @@ import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { EventsTimeline } from '@/components/devices/EventsTimeline';
+import { CreateEventModal } from '@/components/devices/CreateEventModal';
+import { IdentitySlotStatusBadge } from '@/components/devices/IdentitySlotStatusBadge';
 
 interface CertificateHistoryEntry {
   version: string;
@@ -88,6 +91,10 @@ export default function DeviceDetailsClient() {
   // State for assigning identity
   const [isAssignIdentityModalOpen, setIsAssignIdentityModalOpen] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // State for events
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
+  const [eventsRefreshKey, setEventsRefreshKey] = useState(0);
 
   // State for decommissioning
   const [isDecommissionModalOpen, setIsDecommissionModalOpen] = useState(false);
@@ -213,18 +220,18 @@ export default function DeviceDetailsClient() {
 
 
   // Effect to process raw events once when device data is available
+  // NOTE: Inline events have been deprecated in favor of the new Events API.
+  // The old timeline tab below still uses this legacy approach, but the new Events tab
+  // uses the dedicated events endpoint for better performance and filtering.
   useEffect(() => {
     if (!device) return;
 
+    // Legacy timeline processing - kept for backwards compatibility with old Timeline tab
     const combinedRawEvents: { timestampStr: string; type: string; description: string; source: 'device' | 'identity' }[] = [];
-    Object.entries(device.events || {}).forEach(([ts, event]) => {
-      combinedRawEvents.push({ timestampStr: ts, ...(event as any), source: 'device' });
-    });
-    if (device.identity?.events) {
-      Object.entries(device.identity.events).forEach(([ts, event]) => {
-        combinedRawEvents.push({ timestampStr: ts, ...(event as any), source: 'identity' });
-      });
-    }
+    
+    // Note: device.events and identity.events are deprecated and may be empty
+    // Use the new Events tab for comprehensive event tracking
+    
     combinedRawEvents.sort((a, b) => parseISO(b.timestampStr).getTime() - parseISO(a.timestampStr).getTime());
     setAllRawEvents(combinedRawEvents);
   }, [device]);
@@ -488,7 +495,7 @@ export default function DeviceDetailsClient() {
     }
   };
 
-  const handleAssignIdentityConfirm = async (certificateSerialNumber: string) => {
+  const handleAssignIdentityConfirm = async (certificateSerialNumber: string, bindingMode?: 'PROVISIONED' | 'RE-PROVISIONED' | 'RENEWED') => {
     if (!deviceId || !user?.access_token) {
         toast({
             title: "Error",
@@ -499,7 +506,7 @@ export default function DeviceDetailsClient() {
     }
     setIsAssigning(true);
     try {
-        await bindIdentityToDevice(deviceId, certificateSerialNumber, user.access_token);
+        await bindIdentityToDevice(deviceId, certificateSerialNumber, user.access_token, bindingMode);
 
         toast({
             title: "Success!",
@@ -684,8 +691,15 @@ export default function DeviceDetailsClient() {
               </Button>
             )}
             <Button onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
+              <PlusCircle className="mr-2 h-4 w-4" /> 
+              {device.identity ? 'Re-assign Identity' : 'Assign Identity'}
             </Button>
+            {device.identity && device.identity.status && (
+              <div className="flex items-center">
+                <span className="text-sm text-muted-foreground mr-2">Identity:</span>
+                <IdentitySlotStatusBadge status={device.identity.status} />
+              </div>
+            )}
             <Button variant="destructive" onClick={() => setIsDecommissionModalOpen(true)} disabled={device.status === 'DECOMMISSIONED'}>
               <Trash2 className="mr-2 h-4 w-4" /> Decommission
             </Button>
@@ -707,9 +721,22 @@ export default function DeviceDetailsClient() {
       <Tabs defaultValue="certificatesHistory" className="w-full">
         <TabsList>
           <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
+          <TabsTrigger value="events"><Zap className="mr-2 h-4 w-4" />Events</TabsTrigger>
           <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
           <TabsTrigger value="metadata"><SlidersHorizontal className="mr-2 h-4 w-4" />Metadata</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="events">
+          <Card>
+            <CardContent className="pt-6">
+              <EventsTimeline 
+                deviceId={deviceId!} 
+                onCreateEvent={() => setIsCreateEventModalOpen(true)}
+                key={eventsRefreshKey}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="timeline">
           <Card>
@@ -930,6 +957,20 @@ export default function DeviceDetailsClient() {
         deviceRaId={device.dms_owner}
         isAssigning={isAssigning}
       />
+      
+      <CreateEventModal
+        isOpen={isCreateEventModalOpen}
+        onClose={() => setIsCreateEventModalOpen(false)}
+        deviceId={deviceId || ''}
+        onEventCreated={() => {
+          setEventsRefreshKey(prev => prev + 1);
+          toast({
+            title: 'Event Created',
+            description: 'Device event has been created successfully',
+          });
+        }}
+      />
+      
       <DecommissionDeviceModal
         isOpen={isDecommissionModalOpen}
         onOpenChange={setIsDecommissionModalOpen}

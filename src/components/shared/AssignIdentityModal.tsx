@@ -21,6 +21,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchRaById } from '@/lib/dms-api';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
 import { Separator } from '../ui/separator';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
@@ -29,7 +30,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '..
 interface AssignIdentityModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAssignConfirm: (certificateSerialNumber: string) => void;
+  onAssignConfirm: (certificateSerialNumber: string, bindingMode?: 'PROVISIONED' | 'RE-PROVISIONED' | 'RENEWED') => void;
   deviceId: string;
   deviceRaId?: string;
   isAssigning: boolean;
@@ -66,6 +67,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
 
   // View state
   const [view, setView] = useState<'select' | 'issue'>('select');
+  const [bindingMode, setBindingMode] = useState<'PROVISIONED' | 'RE-PROVISIONED' | 'RENEWED'>('PROVISIONED');
   
   // State for 'select' view
   const [eligibleCerts, setEligibleCerts] = useState<CertificateData[]>([]);
@@ -101,6 +103,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
         setCaFilter('');
         setRecommendedCAs([]);
         setOtherCAs([]);
+        setBindingMode('PROVISIONED');
     }
   }, [isOpen]);
 
@@ -215,7 +218,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
     setCertCurrentPageIndex(prev => prev - 1);
   };
   const handleConfirm = () => {
-    if (selectedCert) onAssignConfirm(selectedCert.serialNumber);
+    if (selectedCert) onAssignConfirm(selectedCert.serialNumber, bindingMode);
   };
   const handleClose = () => {
       if(!isAssigning) onOpenChange(false);
@@ -242,6 +245,28 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
 
   const renderSelectView = () => (
     <div className="flex-grow my-4 overflow-hidden flex flex-col min-h-[300px]">
+        {/* Binding Mode Selector */}
+        <div className="mb-4 flex-shrink-0">
+          <Label htmlFor="binding-mode-select" className="text-sm font-medium mb-2 block">
+            Binding Mode
+          </Label>
+          <Select value={bindingMode} onValueChange={(value: any) => setBindingMode(value)}>
+            <SelectTrigger id="binding-mode-select" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PROVISIONED">Provisioned (Initial Provisioning)</SelectItem>
+              <SelectItem value="RE-PROVISIONED">Re-Provisioned (New Identity)</SelectItem>
+              <SelectItem value="RENEWED">Renewed (Certificate Renewal)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            {bindingMode === 'PROVISIONED' && 'Initial device provisioning with first identity'}
+            {bindingMode === 'RE-PROVISIONED' && 'Device reprovisioning with a new identity'}
+            {bindingMode === 'RENEWED' && 'Certificate renewal for existing identity'}
+          </p>
+        </div>
+        
         {isLoadingCerts ? (
             <div className="flex-grow flex items-center justify-center h-full">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
