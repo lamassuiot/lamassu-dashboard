@@ -34,6 +34,7 @@ interface DeviceData {
   status: DeviceStatus;
   deviceGroup: string;
   createdAt: string;
+  expirationDate?: string;
   tags: string[];
   lastSeen?: string;
   ipAddress?: string;
@@ -144,6 +145,7 @@ export default function DevicesPage() {
     status: true,
     deviceGroup: true,
     createdAt: true,
+    expirationDate: true,
     tags: true,
   });
 
@@ -152,6 +154,7 @@ export default function DevicesPage() {
     { id: 'status', label: 'Status', visible: columnVisibility.status },
     { id: 'deviceGroup', label: 'Device Group', visible: columnVisibility.deviceGroup },
     { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
+    { id: 'expirationDate', label: 'Expiration Date', visible: columnVisibility.expirationDate },
     { id: 'tags', label: 'Tags', visible: columnVisibility.tags },
   ];
 
@@ -228,6 +231,7 @@ export default function DevicesPage() {
             status: apiDevice.status as DeviceStatus,
             deviceGroup: apiDevice.dms_owner,
             createdAt: apiDevice.creation_timestamp,
+            expirationDate: apiDevice.identity?.expiration_date,
             tags: apiDevice.tags || [],
         }));
 
@@ -276,22 +280,22 @@ export default function DevicesPage() {
     const isSorted = sortConfig?.column === column;
     let Icon = ChevronsUpDown;
     if (isSorted) {
-      if (column === 'createdAt') {
+      if (column === 'createdAt' || column === 'expirationDate') {
         Icon = sortConfig?.direction === 'asc' ? ArrowUp01 : ArrowDown10;
       } else {
         Icon = sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ;
       }
-    } else if (column === 'createdAt') {
+    } else if (column === 'createdAt' || column === 'expirationDate') {
          Icon = ChevronsUpDown;
     }
 
 
     return (
       <TableHead className={cn("cursor-pointer hover:bg-muted/60", 
-        column === 'createdAt' && "text-center", 
+        (column === 'createdAt' || column === 'expirationDate') && "text-center", 
         className)} onClick={() => requestSort(column)}>
         <div className={cn("flex items-center gap-1", 
-          column === 'createdAt' && "justify-center")}>
+          (column === 'createdAt' || column === 'expirationDate') && "justify-center")}>
           {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
         </div>
       </TableHead>
@@ -488,6 +492,7 @@ export default function DevicesPage() {
                   {columnVisibility.status && <SortableTableHeader column="status" title="Status" className="w-[120px]" />}
                   {columnVisibility.deviceGroup && <SortableTableHeader column="deviceGroup" title="Device Group" className="w-[180px]" />}
                   {columnVisibility.createdAt && <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />}
+                  {columnVisibility.expirationDate && <TableHead className="text-center w-[180px]">Expiration Date</TableHead>}
                   {columnVisibility.tags && <TableHead>Tags</TableHead>}
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
@@ -526,6 +531,20 @@ export default function DevicesPage() {
                             className="text-xs"
                             relativeClassName="text-xs"
                           />
+                        </TableCell>
+                      )}
+                      {columnVisibility.expirationDate && (
+                        <TableCell>
+                          {device.expirationDate ? (
+                            <DateDisplay 
+                              date={device.expirationDate} 
+                              formatString="dd/MM/yyyy HH:mm"
+                              className="text-xs"
+                              relativeClassName="text-xs"
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">N/A</span>
+                          )}
                         </TableCell>
                       )}
                       {columnVisibility.tags && (
