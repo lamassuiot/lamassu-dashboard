@@ -368,26 +368,7 @@ export default function CreateKmsKeyPage() {
                 }
             }
 
-            // Prepare metadata with qrng metrics if available
             let finalMetadata = parsedMetadata || {};
-            if (qrngHminValue !== null) {
-                finalMetadata = {
-                    ...finalMetadata,
-                    qrng_hmin: qrngHminValue.toString()
-                };
-            }
-            if (qrngRavgValue !== null) {
-                finalMetadata = {
-                    ...finalMetadata,
-                    qrng_ravg: qrngRavgValue.toString()
-                };
-            }
-            if (qrngQfactorValue !== null) {
-                finalMetadata = {
-                    ...finalMetadata,
-                    qrng_qfactor: qrngQfactorValue.toString()
-                };
-            }
 
             const payload = {
                 engine_id: cryptoEngineId,
