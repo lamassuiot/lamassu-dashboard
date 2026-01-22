@@ -89,6 +89,10 @@ const SIGNATURE_OID_MAP: Record<string, string> = {
   "ECDSA_SHA_256": "1.2.840.10045.4.3.2",
   "ECDSA_SHA_384": "1.2.840.10045.4.3.3",
   "ECDSA_SHA_512": "1.2.840.10045.4.3.4",
+  "MLDSA_44_PURE": "2.16.840.1.101.3.4.3.17",
+  "MLDSA_65_PURE": "2.16.840.1.101.3.4.3.18",
+  "MLDSA_87_PURE": "2.16.840.1.101.3.4.3.19",
+  "Ed25519_PURE": "1.3.101.112",
 };
 
 const ECDSA_RAW_SIGNATURE_LENGTHS: Record<string, number> = {
@@ -115,7 +119,7 @@ interface KmsKeyDetailed {
   id: string;
   alias: string;
   keyTypeDisplay: string;
-  algorithm: 'RSA' | 'ECDSA' | 'Unknown';
+  algorithm: 'RSA' | 'ECDSA' | 'ML-DSA' | 'Ed25519' | 'Unknown'; // TODO: fix hardcoding
   keySize?: string | number;
   hasPrivateKey: boolean;
   publicKeyPem?: string;
@@ -124,10 +128,12 @@ interface KmsKeyDetailed {
   metadata?: Record<string, any>;
 }
 
+// TODO: Fix this, it should not be hardcoded
 const signatureAlgorithms = [
   'RSASSA_PSS_SHA_256', 'RSASSA_PSS_SHA_384', 'RSASSA_PSS_SHA_512',
   'RSASSA_PKCS1_V1_5_SHA_256', 'RSASSA_PKCS1_V1_5_SHA_384', 'RSASSA_PKCS1_V1_5_SHA_512',
-  'ECDSA_SHA_256', 'ECDSA_SHA_384', 'ECDSA_SHA_512',
+  'ECDSA_SHA_256', 'ECDSA_SHA_384', 'ECDSA_SHA_512', 'MLDSA_44_PURE', 'MLDSA_65_PURE',
+  'MLDSA_87_PURE', 'Ed25519_PURE'
 ];
 
 export default function KmsKeyDetailsClient() {
@@ -416,12 +422,12 @@ export default function KmsKeyDetailsClient() {
           pem = "Error: Could not decode or format public key.";
         }
 
-        const algorithm = apiKey.algorithm.toUpperCase() as KmsKeyDetailed['algorithm'];
+        const algorithm = apiKey.algorithm as KmsKeyDetailed['algorithm'];
         const detailedKey: KmsKeyDetailed = {
           id: apiKey.pkcs11_uri,
           alias: apiKey.name || apiKey.key_id,
           keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
-          algorithm: ['RSA', 'ECDSA'].includes(algorithm) ? algorithm : 'Unknown',
+          algorithm: ['RSA', 'ECDSA', 'ML-DSA', 'Ed25519'].includes(algorithm) ? algorithm : 'Unknown',
           keySize: apiKey.size,
           hasPrivateKey: apiKey.has_private_key,
           publicKeyPem: pem,
@@ -452,6 +458,19 @@ export default function KmsKeyDetailsClient() {
           setSignAlgorithm(defaultEcdsaAlgo);
           setVerifyAlgorithm(defaultEcdsaAlgo);
           setCsrSignAlgorithm(defaultEcdsaAlgo);
+        } else if (detailedKey.algorithm === 'ML-DSA') {
+          let mldsaAlgo = "";
+          if (detailedKey.keySize === 44) mldsaAlgo = 'MLDSA_44_PURE';
+          else if (detailedKey.keySize === 65) mldsaAlgo = 'MLDSA_65_PURE';
+          else if (detailedKey.keySize === 87) mldsaAlgo = 'MLDSA_87_PURE';
+
+          setSignAlgorithm(mldsaAlgo);
+          setVerifyAlgorithm(mldsaAlgo);
+          setCsrSignAlgorithm(mldsaAlgo);
+        } else if (detailedKey.algorithm === "Ed25519") {
+          setSignAlgorithm('Ed25519_PURE');
+          setVerifyAlgorithm('Ed25519_PURE');
+          setCsrSignAlgorithm('Ed25519_PURE');
         }
 
       } else {

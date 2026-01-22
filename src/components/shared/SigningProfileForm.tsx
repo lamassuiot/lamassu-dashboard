@@ -165,9 +165,10 @@ const mapEcdsaCurveToBitSize = (curve: string): number => {
 
 interface SigningProfileFormProps {
   form: UseFormReturn<SigningProfileFormValues>;
+  enforceSignAsCa?: boolean;
 }
 
-export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form }) => {
+export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, enforceSignAsCa = false }) => {
   // Watch form values for conditional rendering
   const watchCryptoEnforcement = form.watch("cryptoEnforcement");
   const watchHonorSubject = form.watch("honorSubject");
@@ -239,6 +240,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form }) 
             label="Sign as Certificate Authority"
             description="Allow certificates signed with this profile to act as intermediate CAs. This enables the `isCA:TRUE` basic constraint."
             icon={Shield}
+            disabled={enforceSignAsCa}
           />
           
           <SwitchFormField

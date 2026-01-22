@@ -405,6 +405,12 @@ export default function CertificateAuthorityDetailsClient() {
                       {caDetails.caType && (
                         <Badge variant="secondary" className="text-xs">{caDetails.caType.replace(/_/g, ' ').toUpperCase()}</Badge>
                       )}
+                      {(caDetails.keyAlgorithm.toUpperCase().startsWith("ML-DSA") || caDetails.rawApiData?.metadata["lamassu.io/certificate/chameleon"]) && (
+                        <Badge className="text-xs">PQC</Badge>
+                      )}
+                      {caDetails.rawApiData?.metadata["lamassu.io/certificate/chameleon"] && (
+                        <Badge className="text-xs">HYBRID</Badge>
+                      )}
                       {cryptoEngine && (
                         <div className="border-l-2 border-border pl-2">
                             <CryptoEngineViewer engine={cryptoEngine} />

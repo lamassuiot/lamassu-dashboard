@@ -188,15 +188,6 @@ export default function RequestCaCsrPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label htmlFor="keySize">{keyType === 'ECDSA' ? 'ECDSA Curve' : 'Key Size'}</Label>
-                    <Select value={keySize} onValueChange={setKeySize}>
-                      <SelectTrigger id="keySize"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {currentKeySizeOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
               </CardContent>
             </Card>

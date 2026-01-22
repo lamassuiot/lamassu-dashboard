@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import {
+  get_KMS_API_BASE_URL,
   get_CA_API_BASE_URL,
   get_DEV_MANAGER_API_BASE_URL,
   get_DMS_MANAGER_API_BASE_URL,
@@ -28,6 +29,7 @@ interface ServiceStatus {
 export function servicesToCheck() 
 { 
     return [
+    { name: 'KMS Service', url: get_KMS_API_BASE_URL() },
     { name: 'CA Service', url: get_CA_API_BASE_URL() },
     { name: 'Device Manager', url: get_DEV_MANAGER_API_BASE_URL() },
     { name: 'DMS Manager', url: get_DMS_MANAGER_API_BASE_URL() },

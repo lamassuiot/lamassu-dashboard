@@ -31,8 +31,7 @@ import { fetchKmsKeys, type ApiKmsKey } from '@/lib/kms-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPast, parseISO } from 'date-fns';
-import ELK from 'elkjs/lib/elk.bundled.js';
-import { toPng } from 'html-to-image';
+import { Badge } from "@/components/ui/badge";
 
 interface CaGraphViewProps {
   cas: CA[];
@@ -40,10 +39,8 @@ interface CaGraphViewProps {
   router: ReturnType<typeof import('next/navigation').useRouter>;
 }
 
-interface CaNodeData extends Record<string, unknown> {
-  ca: CA;
-  onClick: () => void;
-}
+const NODE_WIDTH = 350;
+const NODE_HEIGHT = 60;
 
 interface CryptoEngineNodeData extends Record<string, unknown> {
   engine?: ApiCryptoEngine;
@@ -250,21 +247,19 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
         </div>
         {statusBadge}
       </div>
-
-      {/* Info row */}
-      <div className="flex items-center justify-between gap-2">
-        <p className={cn('text-[11px] font-mono truncate flex-1', subtextColor)}>
-          {ca.id}
-        </p>
-        {ca.issuer === 'Self-signed' ? (
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 border border-indigo-300 dark:border-indigo-700">
-            <span className="text-[10px] font-medium text-indigo-700 dark:text-indigo-300">Root CA</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600">
-            <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300">Intermediate CA</span>
-          </div>
+      <div className="flex-grow min-w-0">
+        <p className={cn('font-semibold truncate', titleColor)}>
+        {ca.name}
+        &nbsp;
+        {(ca.keyAlgorithm.toUpperCase().startsWith("ML-DSA") || ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"]) && (
+          <Badge className="text-xs">PQC</Badge>
         )}
+        &nbsp;
+        {ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"] && (
+          <Badge className="text-xs">HYBRID</Badge>
+        )}
+        </p>
+        <p className={cn('text-xs font-mono truncate', subtextColor)}>ID: {ca.id.substring(0, 8)}...</p>
       </div>
     </div>
   );
