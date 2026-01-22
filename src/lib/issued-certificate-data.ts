@@ -1,4 +1,3 @@
-
 import type { CertificateData } from '@/types/certificate';
 import { get_CA_API_BASE_URL } from './api-domains';
 import { parseCertificatePemDetails } from './ca-data';
@@ -107,6 +106,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
     fingerprintSha256: parsedDetails.fingerprintSha256,
     issuerCaId: apiCert.issuer_metadata.id,
     rawApiData: apiCert,
+    isCa: apiCert.is_ca,
     // Populate fields from parsed details
     sans: parsedDetails.sans,
     signatureAlgorithm: parsedDetails.signatureAlgorithm,

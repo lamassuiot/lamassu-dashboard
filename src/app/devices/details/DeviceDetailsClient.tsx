@@ -8,10 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap, Workflow } from 'lucide-react';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap, Layers, Workflow, CheckCircle2, XCircle, GitBranch, Filter } from 'lucide-react';
 import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/app/devices/page';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict, isValid } from 'date-fns';
+import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict, isValid, isWithinInterval, startOfDay, endOfDay, subDays, subMonths, subYears } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CompactDateDisplay, DateDisplay } from '@/components/shared/DateDisplay';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { RevocationModal } from '@/components/shared/RevocationModal';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
@@ -34,7 +35,7 @@ import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { JobWorkflowModal } from '@/components/devices/JobWorkflowModal';
 import { UpdateStatusTab } from '@/components/devices/UpdateStatusTab';
-import { transitionJob } from '@/lib/iot-api';
+import { transitionJob, fetchDeviceJobsPaginated, type PaginatedJobsResponse } from '@/lib/iot-api';
 
 
 interface CertificateHistoryEntry {
@@ -62,6 +63,7 @@ export default function DeviceDetailsClient() {
   const routerHook = useRouter();
   const deviceId = searchParams.get('deviceId'); 
   const tabParam = searchParams.get('tab');
+  const jobIdParam = searchParams.get('jobId'); // Read jobId from URL
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
@@ -106,57 +108,95 @@ export default function DeviceDetailsClient() {
   // State for workflow selection (shared between tabs)
   const [selectedWorkflowName, setSelectedWorkflowName] = useState<string>('');
   const [selectedJobId, setSelectedJobId] = useState<string>('');
+  
+  // State for job filters
+  const [timeRange, setTimeRange] = useState<string>('all');
+  const [jobWorkflowFilter, setJobWorkflowFilter] = useState<string>('all');
+  const [jobStatusFilter, setJobStatusFilter] = useState<string>('all');
+  
+  // State for job transition (to show loading indicator without full page reload)
+  const [transitioningJobId, setTransitioningJobId] = useState<string | null>(null);
 
-  // Process jobs from raw events for the selectors
+  // State for full job data from API (contains definition with artifacts, version, etc.)
+  const [fullJobsData, setFullJobsData] = useState<DeviceJob[]>([]);
+  // Pagination state for jobs
+  const [jobsNextBookmark, setJobsNextBookmark] = useState<string | null>(null);
+  const [hasMoreJobs, setHasMoreJobs] = useState<boolean>(false);
+  const [isLoadingMoreJobs, setIsLoadingMoreJobs] = useState<boolean>(false);
+
+  // Process jobs from raw events for the selectors and merge with full API data
   const jobs = useMemo(() => {
     if (!allRawEvents) return [];
     
     const jobMap = new Map();
 
     allRawEvents.forEach(event => {
-        if (event.type === 'STATUS-UPDATED') {
-            try {
-                const parsedData = JSON.parse(event.description);
-                if (parsedData.data?.job) {
-                    const jobData = parsedData.data.job;
-                    const eventTime = event.timestampStr || new Date().toISOString();
-                    
-                    const historyEntry = {
-                        mtime: eventTime,
-                        status: {
-                          state: jobData.status.state,
-                          message: jobData.status.message,
-                          clientId: jobData.clientId,
-                          definitionHash: jobData.status.definitionHash,
-                          progress: jobData.status.progress,
-                          context: jobData.status.context,
-                        }
-                    };
-
-                    let jobDetail = jobMap.get(jobData.id);
-
-                    if (jobDetail) {
-                        // Update mtime if this event is newer
-                        const eventDate = parseISO(eventTime);
-                        const currentDate = parseISO(jobDetail.mtime);
-                        if (isValid(eventDate) && (!jobDetail.mtime || !isValid(currentDate) || eventDate > currentDate)) {
-                           jobDetail.status = jobData.status;
-                           jobDetail.mtime = eventTime;
-                        }
-                        jobDetail.history.push(historyEntry);
-                    } else {
-                        // Create new JobDetail entry
-                        jobDetail = {
-                            ...jobData,
-                            history: [historyEntry],
-                            mtime: eventTime,
-                        };
-                        jobMap.set(jobData.id, jobDetail);
-                    }
-                }
-            } catch {
-                // Ignore non-JSON or malformed descriptions
+        if (event.type === 'device.events.update' || event.type === 'lamaassu.io/device-event/wfx/update/job') {
+            let jobData = null;
+            if (event.data?.job) {
+                jobData = event.data.job;
+            } else {
+                try {
+                    const parsedData = JSON.parse(event.description);
+                    if (parsedData.data?.job) {
+                        jobData = parsedData.data.job;
+                    } 
+                } catch {}
             }
+
+            if (jobData) {
+                const eventTime = event.timestampStr || new Date().toISOString();
+                
+                const historyEntry = {
+                    mtime: eventTime,
+                    status: {
+                      state: jobData.status.state,
+                      message: jobData.status.message,
+                      clientId: jobData.clientId,
+                      definitionHash: jobData.status.definitionHash,
+                      progress: jobData.status.progress,
+                      context: jobData.status.context,
+                    }
+                };
+
+                let jobDetail = jobMap.get(jobData.id);
+
+                if (jobDetail) {
+                    // Update mtime if this event is newer
+                    const eventDate = parseISO(eventTime);
+                    const currentDate = parseISO(jobDetail.mtime);
+                    if (isValid(eventDate) && (!jobDetail.mtime || !isValid(currentDate) || eventDate > currentDate)) {
+                       jobDetail.status = jobData.status;
+                       jobDetail.mtime = eventTime;
+                    }
+                    jobDetail.history.push(historyEntry);
+                } else {
+                    // Create new JobDetail entry
+                    jobDetail = {
+                        ...jobData,
+                        history: [historyEntry],
+                        mtime: eventTime,
+                    };
+                    jobMap.set(jobData.id, jobDetail);
+                }
+            }
+        }
+    });
+
+    // Merge with full job data from API (to get definition.artifacts, definition.version, workflow)
+    fullJobsData.forEach(fullJob => {
+        const existingJob = jobMap.get(fullJob.id);
+        if (existingJob) {
+            // Merge API data into the event-based job (preserving history from events)
+            existingJob.definition = fullJob.definition;
+            existingJob.workflow = fullJob.workflow;
+            existingJob.tags = fullJob.tags;
+        } else {
+            // Job exists in API but not in events - add it
+            jobMap.set(fullJob.id, {
+                ...fullJob,
+                history: [],
+            });
         }
     });
 
@@ -169,7 +209,14 @@ export default function DeviceDetailsClient() {
     return jobArray.sort((a: any, b: any) => 
         parseISO(b.mtime).getTime() - parseISO(a.mtime).getTime()
     );
-  }, [allRawEvents]);
+  }, [allRawEvents, fullJobsData]);
+
+  // Sync workflow filter with selected workflow
+  useEffect(() => {
+    if (jobWorkflowFilter !== 'all') {
+      setSelectedWorkflowName(jobWorkflowFilter);
+    }
+  }, [jobWorkflowFilter]);
 
   // Auto-select first workflow if none selected and jobs are available
   useEffect(() => {
@@ -187,6 +234,17 @@ export default function DeviceDetailsClient() {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
+
+  // Handle jobId parameter from URL - set selected job when navigating from launch details
+  useEffect(() => {
+    if (jobIdParam && jobs.length > 0) {
+      // Check if the jobId exists in the jobs list
+      const jobExists = jobs.some((job: any) => job.id === jobIdParam);
+      if (jobExists) {
+        setSelectedJobId(jobIdParam);
+      }
+    }
+  }, [jobIdParam, jobs]);
   
   // State for integrations and force update
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
@@ -319,6 +377,58 @@ export default function DeviceDetailsClient() {
     combinedRawEvents.sort((a, b) => parseISO(b.timestampStr).getTime() - parseISO(a.timestampStr).getTime());
     setAllRawEvents(combinedRawEvents);
   }, [device]);
+
+  // Effect to fetch full job data from API (for definition.artifacts, version, etc.)
+  useEffect(() => {
+    if (!device?.dms_owner || !deviceId || !user?.access_token) return;
+
+    const fetchFullJobData = async () => {
+      try {
+        const result = await fetchDeviceJobsPaginated({
+          dmsId: device.dms_owner!,
+          deviceId: deviceId,
+          accessToken: user.access_token!,
+          limit: 10,
+        });
+        setFullJobsData(result.jobs);
+        setJobsNextBookmark(result.next);
+        setHasMoreJobs(result.hasMore);
+      } catch (err) {
+        console.debug('Failed to fetch full job data:', err);
+        // Silently fail - the UI will show fallback values
+      }
+    };
+
+    fetchFullJobData();
+  }, [device?.dms_owner, deviceId, user?.access_token]);
+
+  // Function to load more jobs
+  const loadMoreJobs = useCallback(async () => {
+    if (!device?.dms_owner || !deviceId || !user?.access_token || !jobsNextBookmark || isLoadingMoreJobs) return;
+    
+    setIsLoadingMoreJobs(true);
+    try {
+      const result = await fetchDeviceJobsPaginated({
+        dmsId: device.dms_owner!,
+        deviceId: deviceId,
+        accessToken: user.access_token!,
+        limit: 10,
+        bookmark: jobsNextBookmark,
+      });
+      setFullJobsData(prev => [...prev, ...result.jobs]);
+      setJobsNextBookmark(result.next);
+      setHasMoreJobs(result.hasMore);
+    } catch (err) {
+      console.debug('Failed to load more jobs:', err);
+      toast({
+        variant: "destructive",
+        title: "Failed to load more jobs",
+        description: "Please try again.",
+      });
+    } finally {
+      setIsLoadingMoreJobs(false);
+    }
+  }, [device?.dms_owner, deviceId, user?.access_token, jobsNextBookmark, isLoadingMoreJobs, toast]);
 
 
   // Effect for History Tab Pagination (remains independent)
@@ -472,17 +582,47 @@ export default function DeviceDetailsClient() {
                 eventType = 'RENEWED'; // Normalize event type for display
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
-            } else if (rawEvent.type === 'STATUS-UPDATED') {
-                try {
-                    const parsedData = JSON.parse(rawEvent.description);
-                    if (parsedData.data?.job) {
-                        eventData = parsedData.data;
-                        title = `Job Status: ${eventData.job.status.state}`;
-                        detailsNode = <p className="text-xs text-muted-foreground">Job ID: <span className="font-mono">{eventData.job.id}</span></p>;
+            } else if (rawEvent.type === 'device.events.update' || rawEvent.type === 'lamaassu.io/device-event/wfx/update/job') {
+                let jobData = null;
+                if (rawEvent.data?.job) {
+                    eventData = rawEvent.data;
+                    jobData = rawEvent.data.job;
+                } else {
+                    try {
+                        const parsedData = JSON.parse(rawEvent.description);
+                        if (parsedData.data?.job) {
+                            eventData = parsedData.data;
+                            jobData = parsedData.data.job;
+                        }
+                    } catch {
+                        // It's not JSON, so treat it as a plain string.
+                        title = rawEvent.description;
                     }
-                } catch {
-                    // It's not JSON, so treat it as a plain string.
-                    title = rawEvent.description;
+                }
+                
+                if (jobData) {
+                    title = `Job Status: ${jobData.status.state}`;
+                    const hasContext = jobData.status.context?.lines && jobData.status.context.lines.length > 0;
+                    detailsNode = (
+                        <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Job ID: <span className="font-mono">{jobData.id}</span></p>
+                            {hasContext ? (
+                                <div className="mt-2 space-y-1">
+                                    <p className="text-xs font-semibold text-foreground">Error Details:</p>
+                                    {jobData.status.context.lines.map((line: string, idx: number) => (
+                                        <p key={idx} className="text-xs font-mono bg-muted px-2 py-1 rounded text-destructive">
+                                            {line}
+                                        </p>
+                                    ))}
+                                    {jobData.status.clientId && (
+                                        <p className="text-xs text-muted-foreground">Client ID: {jobData.status.clientId}</p>
+                                    )}
+                                </div>
+                            ) : jobData.status.message ? (
+                                <p className="text-xs text-muted-foreground mt-1">{jobData.status.message}</p>
+                            ) : null}
+                        </div>
+                    );
                 }
             }
             
@@ -722,6 +862,9 @@ export default function DeviceDetailsClient() {
       return;
     }
 
+    // Set transitioning state to show loading indicator
+    setTransitioningJobId(jobId);
+
     try {
       await transitionJob({
         jobId,
@@ -731,22 +874,69 @@ export default function DeviceDetailsClient() {
         accessToken: user.access_token,
       });
 
+      // Optimistically update the local events to reflect the new state
+      // This creates a synthetic event that updates the job state immediately
+      const now = new Date().toISOString();
+      const syntheticEvent = {
+        timestampStr: now,
+        type: 'lamaassu.io/device-event/wfx/update/job',
+        description: JSON.stringify({
+          data: {
+            job: {
+              id: jobId,
+              status: {
+                state: targetState,
+                message: `Manually transitioned to ${targetState} via dashboard`,
+                progress: 0,
+              },
+              clientId: deviceId,
+            }
+          }
+        }),
+        source: 'device' as const,
+      };
+
+      // Add the synthetic event to the beginning of allRawEvents
+      setAllRawEvents(prevEvents => [syntheticEvent, ...prevEvents]);
+
       toast({
         title: 'Transition Successful',
         description: `Job transitioned to ${targetState}.`,
       });
 
-      // Refresh device data to show updated job status
-      if (deviceId) {
-        fetchDeviceDetails();
-      }
+      // Background refresh after a short delay to sync with server
+      // This won't cause a visible reload since we already updated the UI
+      setTimeout(async () => {
+        if (deviceId && user?.access_token) {
+          try {
+            const data = await fetchDeviceById(deviceId, user.access_token);
+            if (data) {
+              setDevice(data);
+            }
+          } catch (err) {
+            // Silently ignore AbortError and other background refresh failures
+            // The UI is already updated with the optimistic event
+            if (err instanceof Error && err.name !== 'AbortError') {
+              console.debug('Background refresh failed:', err.message);
+            }
+          }
+        }
+      }, 2000);
+
     } catch (error) {
+      // Ignore AbortError - can happen due to React strict mode double render or navigation
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.debug('Transition request was aborted');
+        return;
+      }
       console.error('Error transitioning job:', error);
       toast({
         title: 'Transition Failed',
         description: error instanceof Error ? error.message : 'Failed to transition job.',
         variant: 'destructive',
       });
+    } finally {
+      setTransitioningJobId(null);
     }
   };
 
@@ -850,64 +1040,277 @@ export default function DeviceDetailsClient() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <TabsList>
-            <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
-            <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
-            <TabsTrigger value="updateStatus"><Workflow className="mr-2 h-4 w-4" />Update Status</TabsTrigger>
-            <TabsTrigger value="metadata"><SlidersHorizontal className="mr-2 h-4 w-4" />Metadata</TabsTrigger>
-          </TabsList>
+        <div className="flex flex-col gap-4 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <TabsList>
+              <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
+              <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
+              <TabsTrigger value="updateStatus"><Workflow className="mr-2 h-4 w-4" />Update Status</TabsTrigger>
+              <TabsTrigger value="metadata"><SlidersHorizontal className="mr-2 h-4 w-4" />Metadata</TabsTrigger>
+            </TabsList>
+          </div>
           
-          {/* Workflow Selectors - Only show when on timeline or updateStatus tabs */}
-          {(activeTab === 'timeline' || activeTab === 'updateStatus') && (
-            <div className="inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
-              <Select value={selectedWorkflowName || ''} onValueChange={setSelectedWorkflowName}>
-                <SelectTrigger className="inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-medium transition-all border-0 bg-transparent shadow-none focus:ring-0 h-8">
-                  <SelectValue>
-                    Workflow: {selectedWorkflowName === 'wfx.workflow.dau.direct' ? 'Direct Update' : 
-                              selectedWorkflowName === 'wfx.workflow.dau.phased' ? 'Phased Update' : 
-                              selectedWorkflowName || 'None Selected'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {[...new Set(jobs.map(job => job.workflow?.name).filter(Boolean))].map(workflowName => (
-                    <SelectItem key={workflowName} value={workflowName}>
-                      {workflowName === 'wfx.workflow.dau.direct' ? 'Direct Update' : 
-                       workflowName === 'wfx.workflow.dau.phased' ? 'Phased Update' : 
-                       workflowName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Select 
-                value={selectedJobId || 'latest'} 
-                onValueChange={setSelectedJobId}
-                disabled={jobs.length === 0}
-              >
-                <SelectTrigger className="inline-flex items-center justify-center whitespace-nowrap px-3 py-1.5 text-sm font-medium transition-all border-l border-border/50 border-t-0 border-r-0 border-b-0 bg-transparent shadow-none focus:ring-0 h-8">
-                  <SelectValue>
-                    Job: {(() => {
-                      if (selectedJobId === 'latest' || !selectedJobId) return 'Latest Job';
-                      const selectedJob = jobs.find(job => job.id === selectedJobId);
-                      return selectedJob ? `Job ${selectedJob.id.slice(-8)} - ${selectedJob.status?.state || 'Unknown'}` : 'None Selected';
-                    })()}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="latest">Latest Job</SelectItem>
-                  {jobs
-                    .filter(job => !selectedWorkflowName || job.workflow?.name === selectedWorkflowName)
-                    .slice(0, 10) // Limit to 10 jobs for dropdown performance
-                    .map(job => (
-                      <SelectItem key={job.id} value={job.id}>
-                        Job {job.id.slice(-8)} - {job.status?.state || 'Unknown'}
-                      </SelectItem>
-                    ))
-                  }
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Job Selector Bar - Only show when on timeline or updateStatus tabs */}
+          {(activeTab === 'timeline' || activeTab === 'updateStatus') && jobs.length > 0 && (
+            <Card className="p-4 space-y-4">
+              {/* Filters Row */}
+              <div className="flex flex-wrap items-end gap-4 pb-4 border-b">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">Date Range</Label>
+                  <Select value={timeRange} onValueChange={setTimeRange}>
+                    <SelectTrigger className="h-9 w-[180px]">
+                      <SelectValue placeholder="All Time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Time</SelectItem>
+                      <SelectItem value="24h">Last 24 Hours</SelectItem>
+                      <SelectItem value="7d">Last 7 Days</SelectItem>
+                      <SelectItem value="30d">Last 30 Days</SelectItem>
+                      <SelectItem value="1y">Last Year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">Workflow</Label>
+                  <Select value={jobWorkflowFilter} onValueChange={setJobWorkflowFilter}>
+                    <SelectTrigger className="h-9 w-[180px]">
+                      <SelectValue placeholder="All Workflows" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Workflows</SelectItem>
+                      <SelectItem value="wfx.workflow.dau.direct">Direct</SelectItem>
+                      <SelectItem value="wfx.workflow.dau.phased">Phased</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">Status</Label>
+                  <Select value={jobStatusFilter} onValueChange={setJobStatusFilter}>
+                    <SelectTrigger className="h-9 w-[150px]">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="error">With Errors</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(timeRange !== 'all' || jobWorkflowFilter !== 'all' || jobStatusFilter !== 'all') && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-9 px-3 text-muted-foreground hover:text-primary"
+                    onClick={() => {
+                      setTimeRange('all');
+                      setJobWorkflowFilter('all');
+                      setJobStatusFilter('all');
+                    }}
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 w-full">
+                  <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Job:</span>
+                  <Select 
+                    value={selectedJobId || 'latest'} 
+                    onValueChange={setSelectedJobId}
+                    disabled={jobs.length === 0}
+                  >
+                    <SelectTrigger className="h-10 flex-1 bg-background">
+                      {(() => {
+                        if (selectedJobId === 'latest' || !selectedJobId) {
+                          return <span className="text-muted-foreground">Select a job to view...</span>;
+                        }
+                        const selectedJob = jobs.find(job => job.id === selectedJobId);
+                        if (!selectedJob) return <span className="text-muted-foreground">None Selected</span>;
+                        const jobDate = selectedJob.mtime ? format(parseISO(selectedJob.mtime), 'dd MMM yyyy') : 'N/A';
+                        const packName = selectedJob.definition?.artifacts?.[0]?.name || `Job ${selectedJob.id.substring(0, 8)}`;
+                        const version = selectedJob.definition?.version || '';
+                        const isPhased = selectedJob.workflow?.name === 'wfx.workflow.dau.phased';
+                        const isError = selectedJob.status?.state === 'TERMINATED' || selectedJob.status?.state === 'FAILED';
+                        const isCompleted = selectedJob.status?.state === 'ACTIVATED' || selectedJob.status?.state === 'INSTALLED';
+                        return (
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            {isPhased ? <Layers className="h-4 w-4 text-purple-600 shrink-0" /> : <Zap className="h-4 w-4 text-amber-600 shrink-0" />}
+                            <span className="text-muted-foreground text-xs shrink-0">{jobDate}</span>
+                            <span className="truncate font-medium shrink min-w-0">{packName}</span>
+                            {version && <Badge variant="outline" className="text-xs shrink-0">v{version}</Badge>}
+                            {isCompleted && <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+                            {isError && <XCircle className="h-3.5 w-3.5 text-red-600 shrink-0" />}
+                            {!isCompleted && !isError && <Clock className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
+                          </div>
+                        );
+                      })()}
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[400px] w-[var(--radix-select-trigger-width)]">
+                      {(() => {
+                        // Apply filters
+                        const now = new Date();
+                        const filteredJobs = jobs.filter(job => {
+                          // Time filter
+                          if (timeRange !== 'all' && job.mtime) {
+                            const jobDate = parseISO(job.mtime);
+                            const now = new Date();
+                            let start;
+                            
+                            switch (timeRange) {
+                              case '24h':
+                                start = subDays(now, 1);
+                                break;
+                              case '7d':
+                                start = subDays(now, 7);
+                                break;
+                              case '30d':
+                                start = subDays(now, 30);
+                                break;
+                              case '1y':
+                                start = subYears(now, 1);
+                                break;
+                              default:
+                                start = null;
+                            }
+
+                            if (start && jobDate < start) return false;
+                          }
+                          // Workflow filter
+                          if (jobWorkflowFilter !== 'all' && job.workflow?.name !== jobWorkflowFilter) return false;
+                          // Status filter
+                          const isError = job.status?.state === 'TERMINATED' || job.status?.state === 'FAILED';
+                          const isCompleted = job.status?.state === 'ACTIVATED' || job.status?.state === 'INSTALLED';
+                          if (jobStatusFilter === 'error' && !isError) return false;
+                          if (jobStatusFilter === 'completed' && !isCompleted) return false;
+                          if (jobStatusFilter === 'in_progress' && (isError || isCompleted)) return false;
+                          return true;
+                        });
+
+                        // Group jobs by status
+                        const completedJobs = filteredJobs.filter(job => 
+                          job.status?.state === 'ACTIVATED' || job.status?.state === 'INSTALLED'
+                        );
+                        const errorJobs = filteredJobs.filter(job => 
+                          job.status?.state === 'TERMINATED' || job.status?.state === 'FAILED'
+                        );
+                        const inProgressJobs = filteredJobs.filter(job => 
+                          job.status?.state !== 'ACTIVATED' && 
+                          job.status?.state !== 'INSTALLED' && 
+                          job.status?.state !== 'TERMINATED' && 
+                          job.status?.state !== 'FAILED'
+                        );
+
+                        const renderJobItem = (job: any) => {
+                          const jobDate = job.mtime ? format(parseISO(job.mtime), 'dd MMM yyyy') : 'N/A';
+                          const packName = job.definition?.artifacts?.[0]?.name || `Job ${job.id.substring(0, 8)}`;
+                          const version = job.definition?.version || '';
+                          const isPhased = job.workflow?.name === 'wfx.workflow.dau.phased';
+                          return (
+                            <SelectItem key={job.id} value={job.id} className="py-2.5 pr-3">
+                              <div className="flex items-center gap-3 w-full pl-2">
+                                <div className="shrink-0">
+                                  {isPhased ? (
+                                    <Layers className="h-4 w-4 text-purple-600" />
+                                  ) : (
+                                    <Zap className="h-4 w-4 text-amber-600" />
+                                  )}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium truncate">{packName}</span>
+                                    {version && <Badge variant="outline" className="text-xs shrink-0">v{version}</Badge>}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">{jobDate}</span>
+                                </div>
+                              </div>
+                            </SelectItem>
+                          );
+                        };
+
+                        if (filteredJobs.length === 0) {
+                          return (
+                            <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                              <Filter className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                              <p className="font-medium">No jobs found</p>
+                              <p className="text-xs mt-1">Try adjusting your filters</p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="divide-y">
+                            {completedJobs.length > 0 && (
+                              <div>
+                                <div className="px-3 py-2 text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-2 bg-green-50/80 dark:bg-green-950/40">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  <span>Completed</span>
+                                  <span className="ml-auto text-green-600/70 dark:text-green-400/70">{completedJobs.length}</span>
+                                </div>
+                                <div className="py-1">
+                                  {completedJobs.slice(0, 10).map(renderJobItem)}
+                                </div>
+                              </div>
+                            )}
+                            {inProgressJobs.length > 0 && (
+                              <div>
+                                <div className="px-3 py-2 text-xs font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-2 bg-blue-50/80 dark:bg-blue-950/40">
+                                  <Clock className="h-3.5 w-3.5" />
+                                  <span>In Progress</span>
+                                  <span className="ml-auto text-blue-600/70 dark:text-blue-400/70">{inProgressJobs.length}</span>
+                                </div>
+                                <div className="py-1">
+                                  {inProgressJobs.slice(0, 10).map(renderJobItem)}
+                                </div>
+                              </div>
+                            )}
+                            {errorJobs.length > 0 && (
+                              <div>
+                                <div className="px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-400 flex items-center gap-2 bg-red-50/80 dark:bg-red-950/40">
+                                  <XCircle className="h-3.5 w-3.5" />
+                                  <span>With Errors</span>
+                                  <span className="ml-auto text-red-600/70 dark:text-red-400/70">{errorJobs.length}</span>
+                                </div>
+                                <div className="py-1">
+                                  {errorJobs.slice(0, 10).map(renderJobItem)}
+                                </div>
+                              </div>
+                            )}
+                            {/* Load More Button */}
+                            {hasMoreJobs && (
+                              <div className="px-3 py-2 border-t">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="w-full text-xs text-muted-foreground hover:text-primary"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    loadMoreJobs();
+                                  }}
+                                  disabled={isLoadingMoreJobs}
+                                >
+                                  {isLoadingMoreJobs ? (
+                                    <>
+                                      <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                      Loading...
+                                    </>
+                                  ) : (
+                                    'Load more jobs...'
+                                  )}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </SelectContent>
+                  </Select>
+                </div>
+            </Card>
           )}
         </div>
         
@@ -919,6 +1322,7 @@ export default function DeviceDetailsClient() {
             onWorkflowChange={setSelectedWorkflowName}
             onJobChange={setSelectedJobId}
             onJobTransition={handleJobTransition}
+            isTransitioning={!!transitioningJobId}
           />
         </TabsContent>
 
@@ -972,6 +1376,8 @@ export default function DeviceDetailsClient() {
               onWorkflowChange={setSelectedWorkflowName}
               onJobChange={setSelectedJobId}
               onJobTransition={handleJobTransition}
+              isTransitioning={!!transitioningJobId}
+              processedJobs={jobs}
             />
           </div>
         </TabsContent>

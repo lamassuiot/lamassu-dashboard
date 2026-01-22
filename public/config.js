@@ -18,8 +18,8 @@ window.lamassuConfig = {
     // The base URL for all backend API services (CA, DMS, DevManager, etc.).
     // This should be the root of your API gateway or load balancer.
     // Example: "https://api.yourdomain.com"    
-    LAMASSU_API: "https://lab.lamassu.io/api",
-    // LAMASSU_API: "https://localhost:8443/api",
+    //LAMASSU_API: "https://lab.lamassu.io/api",
+    LAMASSU_API: "http://localhost:8080/api",
     LAMASSU_UPDATES_API: "http://localhost:10090/v1",
 
     // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.
@@ -30,7 +30,7 @@ window.lamassuConfig = {
     // --- Authentication (OIDC) ---
     // Set to `false` to disable OIDC authentication and use a mock user for development.
     // In a production environment, this should always be `true`.
-    LAMASSU_AUTH_ENABLED: true,
+    LAMASSU_AUTH_ENABLED: false,
   
     // The OIDC provider's URL. All OIDC endpoints (.well-known, authorization, token)
     // are relative to this authority.

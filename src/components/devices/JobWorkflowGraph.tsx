@@ -27,7 +27,7 @@ import type {
 import dagre from '@dagrejs/dagre';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Play, CheckCircle, AlertTriangle, Check, X, Cpu, Code, Zap } from 'lucide-react';
+import { Play, CheckCircle, AlertTriangle, Check, X, Cpu, Code, Zap, Loader2 } from 'lucide-react';
 import { NodeStatusIndicator } from '@/components/node-status-indicator';
 import { BaseNode, BaseNodeContent } from '@/components/base-node';
 import { formatDistanceToNow, differenceInSeconds } from 'date-fns';
@@ -426,7 +426,7 @@ const VerticalConnectionEdge = (props: any) => {
   );
 };
 
-const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string[], jobHistory: JobHistoryEntry[], mainFlowStates: string[], workflowDefinition: DeviceJobWorkflow, direction = 'TB') => {
+const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string[], jobHistory: JobHistoryEntry[], mainFlowStates: string[], workflowDefinition: DeviceJobWorkflow, direction = 'TB', shouldHighlight = false) => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   dagreGraph.setGraph({ rankdir: direction, ranksep: 80, nodesep: 60, align: 'UL' });
@@ -533,7 +533,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
       const targetNode = layoutedNodes.find(n => n.id === edge.target.trim());
       return sourceNode && targetNode;
     })
-    .map((edge, index) => {
+  .map((edge, index) => {
       // Determine if this path was actually taken for error coloring
       const wasTerminalReached = historyStates.includes(edge.target.trim());
       let lastStateBeforeTerminal = null;
@@ -553,8 +553,8 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
       
       // Color red if this is the actual path taken to a terminal state
       const isActualTerminalPath = wasTerminalReached && edge.source.trim() === lastStateBeforeTerminal;
-      const sourceVisited = isStateVisited(edge.source, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
-      const targetVisited = isStateVisited(edge.target, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
+  const sourceVisited = isStateVisited(edge.source, mainFlowStates, historyStates, actualCurrentState ?? undefined, workflowDefinition);
+  const targetVisited = isStateVisited(edge.target, mainFlowStates, historyStates, actualCurrentState ?? undefined, workflowDefinition);
       const wasSourceSkipped = isStateSkipped(edge.source, mainFlowStates, historyStates, actualCurrentState || undefined, workflowDefinition);
       
       // Check if this terminal edge goes FROM the current state AND not to TERMINATED (for animation)
@@ -566,7 +566,11 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
       
       let strokeWidth = 2;
       
-      if (isActualTerminalPath && edge.target === 'TERMINATED') {
+      if ((edge.data as any)?.isWfx && shouldHighlight) {
+        // Highlight terminal edge if WFX and highlighting is enabled (special: amber)
+        stroke = '#F59E0B';
+        strokeWidth = 3;
+      } else if (isActualTerminalPath && edge.target === 'TERMINATED') {
         // Actual terminal path to TERMINATED: red color and thicker
         stroke = 'hsl(var(--destructive))';
         strokeWidth = 3; // Make red paths thicker
@@ -620,8 +624,8 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
       // Find current state from job history or passed currentState
       const actualCurrentState = jobHistory.length > 0 ? jobHistory[jobHistory.length - 1]?.status?.state : null;
       
-      const sourceVisited = isStateVisited(edge.source, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
-      const targetVisited = isStateVisited(edge.target, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
+  const sourceVisited = isStateVisited(edge.source, mainFlowStates, historyStates, actualCurrentState ?? undefined, workflowDefinition);
+  const targetVisited = isStateVisited(edge.target, mainFlowStates, historyStates, actualCurrentState ?? undefined, workflowDefinition);
       const currentStateToUse = actualCurrentState;
       
       // An edge is "current" if it goes FROM the current state TO the next ideal state
@@ -636,7 +640,12 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
       let animated = false;
       let animationDuration = '2s';
       
-      if (isCurrentEdge) {
+  if (edge.data?.isWfx && shouldHighlight) {
+        // WFX transitions: use yellow/orange color to indicate manual action required
+        stroke = '#F59E0B'; // amber-500
+        animated = true;
+        animationDuration = '1.5s';
+      } else if (isCurrentEdge) {
         // Current state edge: will vibrate between visited (blue) and non-visited (gray) colors in component
         stroke = 'hsl(var(--primary))'; // Start with blue visited color
         animated = true;
@@ -750,6 +759,8 @@ const CustomNode = ({
   onStateClick,
   workflowDefinition,
   onTransition,
+  isTransitioning,
+  showWfxHighlights,
 }: {
   data: {
     label: string;
@@ -764,10 +775,13 @@ const CustomNode = ({
     wasSkipped?: boolean;
     hasImmediate?: boolean;
     eligibleType?: string;
+    hasWfx?: boolean;
   };
   onStateClick?: (stateData: any) => void;
   workflowDefinition?: DeviceJobWorkflow;
   onTransition?: (targetState: string) => void;
+  isTransitioning?: boolean;
+  showWfxHighlights?: boolean;
 }) => {
   const { label, icon: Icon, isVisited, isTerminal, isError, isCurrent, lastEvent, currentState, jobHistory = [] } = data;
   
@@ -858,6 +872,19 @@ const CustomNode = ({
     opacity = 0.6;
   }
 
+  // WFX - Manual action states should be highlighted with amber color if not terminal
+  if (data.hasWfx && !isTerminal && showWfxHighlights) {
+    borderColor = '#F59E0B';
+    backgroundColor = 'rgba(245, 158, 11, 0.06)';
+    textColor = 'hsl(var(--muted-foreground))';
+  }
+
+  // When visual mode is enabled, set non-WFX normal states to primary color to increase contrast
+  if (showWfxHighlights && !data.hasWfx && !isTerminal) {
+    borderColor = 'hsl(var(--primary))';
+    textColor = 'hsl(var(--card-foreground))';
+  }
+
   const nodeContent = (
     <div 
       className={cn(
@@ -880,6 +907,24 @@ const CustomNode = ({
       draggable={false}
       title="Click to show info"
     >
+
+      {/* Attention Icon - Top Left Corner for WFX-eligible states */}
+  {data.hasWfx && showWfxHighlights && (
+        <div className="absolute top-1.5 left-1.5 z-10 flex items-center">
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="text-yellow-600">
+                  <AlertTriangle className={`w-3.5 h-3.5`} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <p>Requires manual action</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
 
       {/* Eligible Type Icon - Top Right Corner */}
       {data.eligibleType && data.eligibleType !== 'UNKNOWN' && (
@@ -1052,9 +1097,14 @@ const CustomNode = ({
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  className="bg-primary text-primary-foreground hover:bg-primary/80 active:scale-95 rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:shadow transition-all duration-150 flex items-center gap-0.5"
+                  className={cn(
+                    "bg-primary text-primary-foreground hover:bg-primary/80 active:scale-95 rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:shadow transition-all duration-150 flex items-center gap-0.5",
+                    isTransitioning && "opacity-70 cursor-wait"
+                  )}
+                  disabled={isTransitioning}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (isTransitioning) return;
                     console.log('[Transition Button] Clicked for state:', label);
                     console.log('[Transition Button] workflowDefinition:', workflowDefinition);
                     console.log('[Transition Button] onTransition:', onTransition);
@@ -1080,12 +1130,16 @@ const CustomNode = ({
                     }
                   }}
                 >
-                  <Play className="w-2.5 h-2.5 fill-current" />
-                  Next
+                  {isTransitioning ? (
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  ) : (
+                    <Play className="w-2.5 h-2.5 fill-current" />
+                  )}
+                  {isTransitioning ? 'Wait...' : 'Next'}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">
-                Advance to next state
+                {isTransitioning ? 'Transitioning...' : 'Advance to next state'}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -1199,11 +1253,23 @@ const CustomNode = ({
                         <div className="text-xs text-muted-foreground">
                           State: {event.status.state}
                         </div>
-                        {event.status.message && (
+                        {event.status.context?.lines && event.status.context.lines.length > 0 ? (
+                          <div className="mt-2 space-y-1">
+                            <div className="text-xs font-medium text-red-600 dark:text-red-400">Error Details:</div>
+                            {event.status.context.lines.map((line: string, idx: number) => (
+                              <div key={idx} className="text-xs font-mono bg-red-50 dark:bg-red-950 p-1 rounded text-red-700 dark:text-red-400">
+                                {line}
+                              </div>
+                            ))}
+                            {event.status.clientId && (
+                              <div className="text-xs text-muted-foreground mt-1">Client ID: {event.status.clientId}</div>
+                            )}
+                          </div>
+                        ) : event.status.message ? (
                           <div className="text-xs mt-1 text-blue-600 bg-blue-50 dark:bg-blue-950 p-1 rounded">
                             <span className="font-medium">Message:</span> {event.status.message}
                           </div>
-                        )}
+                        ) : null}
                         {event.status.reason && (
                           <div className="text-xs mt-1 text-orange-600 bg-orange-50 dark:bg-orange-950 p-1 rounded">
                             <span className="font-medium">Reason:</span> {event.status.reason}
@@ -1230,9 +1296,11 @@ interface JobWorkflowGraphProps {
   jobHistory?: JobHistoryEntry[];
   currentState?: string;
   onTransition?: (targetState: string) => void;
+  isTransitioning?: boolean;
+  showWfxHighlights?: boolean;
 }
 
-export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jobHistory = [], currentState, onTransition }) => {
+export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jobHistory = [], currentState, onTransition, isTransitioning, showWfxHighlights = false }) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedState, setSelectedState] = useState<any>(null);
@@ -1240,6 +1308,9 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
   const handleStateClick = (stateData: any) => {
     setSelectedState(stateData);
   };
+
+  // Local stable flag to avoid referential mistakes in nested closures
+  const shouldHighlight = !!showWfxHighlights;
 
   // Resolve the workflow definition - use passed workflow if it has states, otherwise fall back to hardcoded
   const resolvedWorkflow = useMemo(() => {
@@ -1283,7 +1354,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
       console.log('[DEBUG] Workflow states:', workflowDefinition.states.map(s => s.name));
     }
     
-    const initialNodes: Node[] = workflowDefinition.states.map((state: DeviceJobWorkflowState) => {
+  const initialNodes: Node[] = workflowDefinition.states.map((state: DeviceJobWorkflowState) => {
       const isTerminal = state.name === 'TERMINATED' || state.name === 'ACTIVATED';
       const isCurrent = actualCurrentState === state.name;
       const Icon = state.name === 'TERMINATED' ? AlertTriangle : state.name === 'ACTIVATED' ? CheckCircle : Play;
@@ -1294,13 +1365,21 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
       
       // Determine if state was actually visited using comprehensive logic like skipped detection
       // This includes immediate states that were effectively visited when later states are reached
-      const isVisited = isStateVisited(state.name, mainFlowStates, historyStates, actualCurrentState, workflowDefinition);
+  const isVisited = isStateVisited(state.name, mainFlowStates, historyStates, actualCurrentState ?? undefined, workflowDefinition);
       
       // Check if this state has immediate transitions
       const hasImmediate = hasImmediateTransition(state.name, workflowDefinition);
 
       // Determine the eligible type for this state
       const eligibleType = getStateEligibleType(state.name, workflowDefinition);
+      // Check if this state is involved in any WFX transition (either source or target), but ignore IMMEDIATE actions
+      // Only mark a node as requiring WFX if it is the source (previous state) of a WFX transition
+      const hasWfx = workflowDefinition.transitions?.some((t: any) => {
+        const eligible = !!(t.eligible && String(t.eligible).toUpperCase() === 'WFX');
+        // Consider only non-IMMEDIATE actions; some workflows may have t.action == 'IMMEDIATE'
+        const isImmediate = !!(t.action && String(t.action).toUpperCase() === 'IMMEDIATE');
+        return t.from === state.name && eligible && !isImmediate;
+      }) || false;
 
       return {
         id: state.name.trim(),
@@ -1318,6 +1397,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
           wasSkipped,
           hasImmediate,
           eligibleType,
+          hasWfx,
           workflowDefinition
         },
         position: { x: 0, y: 0 },
@@ -1327,7 +1407,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
     });
 
     const nodeIds = new Set(initialNodes.map((n) => n.id));
-    const initialEdges: Edge[] = workflowDefinition.transitions
+  const initialEdges: Edge[] = workflowDefinition.transitions
       .filter((t: DeviceJobWorkflowTransition) => 
         t.from && t.to && 
         nodeIds.has(t.from.trim()) && 
@@ -1354,13 +1434,14 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
           data: {
             sourceVisited: historyStates.includes(t.from),
             targetVisited: historyStates.includes(t.to),
+            isWfx: !!(t.eligible && String(t.eligible).toUpperCase() === 'WFX' && !(t.action && String(t.action).toUpperCase() === 'IMMEDIATE')),
             isCurrent: currentState === t.to,
           },
           type: edgeType,
         };
       });
 
-    return getLayoutedElements(initialNodes, initialEdges, historyStates, jobHistory, mainFlowStates, workflowDefinition);
+  return getLayoutedElements(initialNodes, initialEdges, historyStates, jobHistory, mainFlowStates, workflowDefinition, 'TB', shouldHighlight);
   }, [resolvedWorkflow, jobHistory, currentState]);
 
   useEffect(() => {
@@ -1372,8 +1453,8 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
   const handleEdgesChange: OnEdgesChange = (changes) => setEdges((eds) => applyEdgeChanges(changes, eds));
 
   const nodeTypes = useMemo(() => ({
-    custom: (props: any) => <CustomNode {...props} onStateClick={handleStateClick} workflowDefinition={resolvedWorkflow} onTransition={onTransition} />
-  }), [resolvedWorkflow, onTransition]);
+    custom: (props: any) => <CustomNode {...props} onStateClick={handleStateClick} workflowDefinition={resolvedWorkflow} onTransition={onTransition} isTransitioning={isTransitioning} showWfxHighlights={showWfxHighlights} />
+  }), [resolvedWorkflow, onTransition, isTransitioning, showWfxHighlights]);
 
   const edgeTypes = useMemo(() => ({ 
     leftDown: LeftDownEdge, 
@@ -1436,6 +1517,19 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
                       {event.status.message && (
                         <div className="text-muted-foreground text-xs mt-1 italic">{event.status.message}</div>
                       )}
+                      {event.status.context?.lines && event.status.context.lines.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <div className="text-xs font-semibold text-destructive">Error Details:</div>
+                          {event.status.context.lines.map((line: string, idx: number) => (
+                            <div key={idx} className="text-xs font-mono bg-destructive/10 px-2 py-1 rounded text-destructive">
+                              {line}
+                            </div>
+                          ))}
+                          {event.status.clientId && (
+                            <div className="text-xs text-muted-foreground mt-1">Client ID: {event.status.clientId}</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1483,6 +1577,7 @@ export const JobWorkflowGraph: React.FC<JobWorkflowGraphProps> = ({ workflow, jo
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           fitView
+          fitViewOptions={{ padding: 0.2, includeHiddenNodes: false }}
           nodesDraggable={false}
           nodesConnectable={false}
           nodesFocusable={false}

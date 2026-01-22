@@ -5,6 +5,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
+import { QueryClientProvider } from '@/contexts/QueryClientProvider';
 import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -148,6 +149,34 @@ const navigationConfig: NavGroup[] = [
     ],
   },
 ];
+
+const allNavItems = navigationConfig.flatMap(group => group.items);
+
+function isNavItemActive(itemHref: string, currentPath: string): boolean {
+  if (itemHref === currentPath) return true;
+  
+  // Check for sub-paths (e.g. /details associated with parent)
+  if (itemHref !== '/' && currentPath.startsWith(itemHref)) {
+     // If strict prefix check for boundary (e.g. /kms/keys vs /kms/keys2)
+     if (currentPath.length > itemHref.length && currentPath[itemHref.length] !== '/') {
+         return false; 
+     }
+
+     // Check if there is a more specific nav item that matches the current path
+     // This handles the case where /kms/keys/sym-keys is a child of /kms/keys
+     const moreSpecificMatch = allNavItems.find(other => 
+         other.href !== itemHref && 
+         other.href.length > itemHref.length &&
+         other.href.startsWith(itemHref) &&
+         (currentPath === other.href || currentPath.startsWith(other.href + '/'))
+     );
+
+     if (moreSpecificMatch) return false;
+
+     return true;
+  }
+  return false;
+}
 
 function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): BreadcrumbItem[] {
   const pathSegments = pathname.split('/').filter(segment => segment);
@@ -476,6 +505,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
             <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
               {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
               {children}
+            </SidebarInset>
             </div>
           ) : (
             <div className="flex flex-1 overflow-hidden">
@@ -534,7 +564,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                             <SidebarMenuItem key={item.href}>
                               <SidebarMenuButton
                                 asChild
-                                isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
+                                isActive={isNavItemActive(item.href, pathname)}
                                 tooltip={{ children: item.label, side: 'right', align: 'center' }}
                               >
                                 <Link href={item.href} className="flex items-center w-full justify-start">
@@ -740,12 +770,14 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ConfigProvider>
           <AuthProvider>
-            <IdentifierDisplayProvider>
-              <React.Suspense fallback={<LoadingState />}>
-                <InnerLayout>{children}</InnerLayout>
-              </React.Suspense>
-              <Toaster />
-            </IdentifierDisplayProvider>
+            <QueryClientProvider>
+              <IdentifierDisplayProvider>
+                <React.Suspense fallback={<LoadingState />}>
+                  <InnerLayout>{children}</InnerLayout>
+                </React.Suspense>
+                <Toaster />
+              </IdentifierDisplayProvider>
+            </QueryClientProvider>
           </AuthProvider>
         </ConfigProvider>
       </body>

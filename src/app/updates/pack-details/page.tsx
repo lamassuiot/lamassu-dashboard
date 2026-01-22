@@ -11,7 +11,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchUpdatePacks, fetchUpdatePackArtifacts, fetchUpdatePackDescriptor } from '@/lib/iot-api';
+import { fetchKmsKey, type ApiKmsKey } from '@/lib/kms-data';
 import type { UpdatePack } from '@/types/iot';
+import type { UpdatePacksResponse } from '@/lib/iot-api';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -30,11 +32,13 @@ export default function UpdatePackDetailsPage() {
   const packName = searchParams.get('packName');
 
   // Fetch all update packs for this DMS
-  const { data: updatePacks = [], isLoading } = useQuery<UpdatePack[], Error>({
+  const { data: updatePacksResponse, isLoading } = useQuery<UpdatePacksResponse, Error>({
     queryKey: ['updatePacks', dmsId],
-    queryFn: () => fetchUpdatePacks({ dmsId: dmsId!, accessToken: user!.access_token! }),
+    queryFn: () => fetchUpdatePacks({ dmsId: dmsId!, accessToken: user!.access_token! }, { pageSize: 50 }),
     enabled: !!dmsId && !!user?.access_token,
   });
+
+  const updatePacks = updatePacksResponse?.list || [];
 
   // Fetch artifacts for the specific pack
   const { data: artifacts = [], isLoading: artifactsLoading } = useQuery<string[], Error>({
@@ -56,6 +60,13 @@ export default function UpdatePackDetailsPage() {
 
   // Find the specific pack
   const updatePack = updatePacks.find(pack => pack.name === packName);
+
+  // Fetch signing key details if available
+  const { data: signingKey } = useQuery<ApiKmsKey, Error>({
+    queryKey: ['kmsKey', updatePack?.signature_key_id],
+    queryFn: () => fetchKmsKey(updatePack!.signature_key_id!, user!.access_token!),
+    enabled: !!updatePack?.signature_key_id && !!user?.access_token,
+  });
 
   const handleDownload = () => {
     if (!updatePack?.uri) {
@@ -258,16 +269,40 @@ export default function UpdatePackDetailsPage() {
             Signature and encryption settings for this update
           </p>
           <div className="space-y-4">
-            <div className={`flex items-center gap-3 p-3 rounded-lg border ${updatePack?.alg_sign ? 'bg-accent/50 border-border' : 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800'}`}>
-              <PenTool className={`h-5 w-5 ${updatePack?.alg_sign ? 'text-primary' : 'text-red-600 dark:text-red-400'}`} />
+            <div className={`flex items-center gap-3 p-3 rounded-lg border ${updatePack?.signature_alg_name || updatePack?.alg_sign ? 'bg-accent/50 border-border' : 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800'}`}>
+              <PenTool className={`h-5 w-5 ${updatePack?.signature_alg_name || updatePack?.alg_sign ? 'text-primary' : 'text-red-600 dark:text-red-400'}`} />
               <div className="flex-1">
                 <p className="text-sm font-medium">Digital Signature</p>
-                <p className={`text-xs mt-1 ${updatePack?.alg_sign ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400'}`}>
-                  {updatePack?.alg_sign ? `${updatePack.alg_sign} Algorithm` : 'Not specified'}
-                </p>
+                <div className={`text-xs mt-1 ${updatePack?.signature_alg_name || updatePack?.alg_sign ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400'}`}>
+                  {updatePack?.signature_alg_name ? (
+                     <>
+                      {updatePack.signature_alg_name}
+                      {signingKey && (
+                        <span className="block mt-0.5 opacity-80">
+                           {signingKey.algorithm} Key: {signingKey.size} bits
+                        </span>
+                      )}
+                      {updatePack.signature_key_id && (
+                        <span className="block mt-1">
+                          Key ID:{' '}
+                          <Link 
+                            href={`/kms/keys/details?keyId=${encodeURIComponent(updatePack.signature_key_id)}`}
+                            className="text-primary hover:underline font-mono"
+                          >
+                            {updatePack.signature_key_id.substring(0, 16)}...
+                          </Link>
+                        </span>
+                      )}
+                     </>
+                  ) : updatePack?.alg_sign ? (
+                    `${updatePack.alg_sign} Algorithm`
+                  ) : (
+                    'Not specified'
+                  )}
+                </div>
               </div>
-              <Badge variant="secondary" className={updatePack?.alg_sign ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100" : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100"}>
-                {updatePack?.alg_sign ? 'Signed' : 'Unsigned'}
+              <Badge variant="secondary" className={updatePack?.signature_alg_name || updatePack?.alg_sign ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100" : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100"}>
+                {updatePack?.signature_alg_name || updatePack?.alg_sign ? 'Signed' : 'Unsigned'}
               </Badge>
             </div>
             
@@ -303,29 +338,45 @@ export default function UpdatePackDetailsPage() {
 
             <Separator />
 
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Certificate</span>
+            {updatePack?.signature_certificate && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Signature Certificate</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(updatePack.signature_certificate!);
+                      toast({
+                        title: "Copied",
+                        description: "Certificate copied to clipboard"
+                      });
+                    }}
+                  >
+                    <Copy className="mr-2 h-3 w-3" />
+                    Copy
+                  </Button>
+                </div>
+                <div className="relative">
+                  <pre className="font-mono text-xs bg-muted p-3 rounded-md border overflow-x-auto max-h-48 overflow-y-auto">
+                    {updatePack.signature_certificate}
+                  </pre>
+                </div>
               </div>
-              {updatePack?.alg_sign ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    toast({
-                      title: "Download Started",
-                      description: "Downloading certificate"
-                    });
-                  }}
-                >
-                  <Download className="mr-2 h-3 w-3" />
-                  certificate.pem
-                </Button>
-              ) : (
-                <span className="text-xs text-muted-foreground">Not available</span>
-              )}
-            </div>
+            )}
+
+            {!updatePack?.signature_certificate && (updatePack?.alg_sign || updatePack?.signature_alg_name) && (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Certificate</span>
+                </div>
+                <span className="text-xs text-muted-foreground">Not available in this pack version</span>
+              </div>
+            )}
           </div>
         </div>
 

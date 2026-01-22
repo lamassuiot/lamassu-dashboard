@@ -13,11 +13,13 @@ import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
-import { fetchCurrentLaunches, fetchDeviceJobsForLaunch, transitionJobs } from '@/lib/iot-api';
+import { fetchCurrentLaunches, fetchAllDeviceJobs, transitionJobs, fetchLaunchDetails } from '@/lib/iot-api';
 import type { LaunchItem, DeviceJob, LaunchListResponse } from '@/types/iot';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { Skeleton } from '@/components/ui/skeleton';
+import { JobWorkflowGraph } from '@/components/devices/JobWorkflowGraph';
 
 // Helper function to check if a workflow is phased
 const isPhasedWorkflow = (workflowType?: string): boolean => {
@@ -77,14 +79,25 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
   
   const { data: jobs, isLoading, refetch } = useQuery<DeviceJob[], Error>({
     queryKey: ['phasedWorkflowStates', dmsId, launch.id, ...allDeviceIdsForQuery],
-    queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ 
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ 
       dmsId, 
       deviceIds: allDeviceIdsForQuery, 
-      accessToken: accessToken! 
-    }),
+      accessToken: accessToken!,
+      targetLaunchId: launch.id,
+    }, { signal }),
     enabled: allDeviceIdsForQuery.length > 0 && !!accessToken,
     refetchInterval: 5000,
   });
+
+  // Memoize the workflow to prevent re-renders and ensure stable reference for JobWorkflowGraph
+  const memoizedWorkflow = React.useMemo(() => {
+    const relJobs = jobs?.filter(job => job.definition.launchID === launch.id) || [];
+    const first = relJobs.find(job => job.workflow?.transitions);
+    return first?.workflow;
+  }, [jobs, launch.id]);
+
+  // Stable empty job history to avoid passing new array each render and triggering re-render loops
+  const emptyJobHistory = React.useMemo(() => [] as any[], []);
 
   if (isLoading) {
     return (
@@ -222,6 +235,10 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
       queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', dmsId, launch.id] });
       queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
     } catch (error) {
+      // Ignore AbortError - can happen due to React strict mode or navigation
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       toast({
         variant: "destructive",
         title: "Transition Failed",
@@ -232,8 +249,35 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
     }
   };
 
+  // Memoized below (computed from jobs and launch.id) to keep hooks order stable
+
   return (
     <div className="space-y-3">
+      {/* See all states toggle - shows the full workflow graph */}
+      <div className="flex items-center justify-between">
+        <div />
+        {memoizedWorkflow && (
+          <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="all-states" className="border-none">
+            <AccordionTrigger className="text-xs py-2">See all states</AccordionTrigger>
+            <AccordionContent>
+              <Card className="border">
+                <CardContent className="p-0">
+                  <div className="h-[400px] w-full">
+                    <JobWorkflowGraph
+                      workflow={memoizedWorkflow}
+                      jobHistory={emptyJobHistory}
+                      currentState={undefined}
+                      showWfxHighlights={true}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+          </Accordion>
+        )}
+      </div>
       {hasPendingActions && (
         <div className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
           Pending action required
@@ -305,9 +349,20 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
             </div>
             <div className="flex items-center gap-2">
               {hasDevicesWaiting && (
-                <Badge className="animate-pulse text-xs bg-yellow-500 hover:bg-yellow-500 text-yellow-950">
-                  Action required!
-                </Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge className="animate-pulse text-xs bg-yellow-500 hover:bg-yellow-500 text-yellow-950">
+                        Action Required!
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-sm">
+                        {devicesAtState} device{devicesAtState > 1 ? 's' : ''} will move on to state: <span className="font-mono">{to}</span>
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               <TooltipProvider>
                 <Tooltip>
@@ -347,14 +402,17 @@ interface DeviceJobStatusRowProps {
   deviceId: string;
   targetLaunchId: string;
   accessToken: string | null;
+  onTransitionComplete?: () => void;
 }
 
-function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: DeviceJobStatusRowProps) {
+function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken, onTransitionComplete }: DeviceJobStatusRowProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [isTransitioning, setIsTransitioning] = React.useState(false);
 
-  const { data: jobs, isLoading, error } = useQuery<DeviceJob[], Error>({
+  const { data: jobs, isLoading, error, refetch } = useQuery<DeviceJob[], Error>({
     queryKey: ['deviceJobs', dmsId, deviceId, targetLaunchId],
-    queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ dmsId, deviceIds: [deviceId], accessToken: accessToken! }, { signal }),
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ dmsId, deviceIds: [deviceId], accessToken: accessToken!, targetLaunchId }, { signal }),
     enabled: !!accessToken,
     refetchInterval: 5000, // Poll every 5 seconds for active devices
   });
@@ -370,11 +428,72 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: De
   const activeDevices = activeLaunchesData?.active_launches || [];
   const isDeviceActive = activeDevices.includes(deviceId);
 
+  const relevantJob = jobs?.find(job => job.definition.launchID === targetLaunchId);
+
+  // Get WFX-eligible transitions for this job
+  const wfxTransitions = React.useMemo(() => {
+    if (!relevantJob?.workflow) return [];
+    return extractWfxEligibleTransitions(relevantJob.workflow);
+  }, [relevantJob]);
+
+  // Check if the current state is at a WFX transition point (waiting for action)
+  const currentWfxTransition = React.useMemo(() => {
+    if (!relevantJob || wfxTransitions.length === 0) return null;
+    const currentState = relevantJob.status.state;
+    return wfxTransitions.find(t => t.from === currentState);
+  }, [relevantJob, wfxTransitions]);
+
+  const handleTransition = async () => {
+    if (!accessToken || !relevantJob || !currentWfxTransition) return;
+    
+    setIsTransitioning(true);
+    
+    try {
+      const result = await transitionJobs([{
+        jobId: relevantJob.id,
+        state: currentWfxTransition.to,
+        message: `Transition from ${currentWfxTransition.from} to ${currentWfxTransition.to}`,
+        progress: 0,
+      }], accessToken);
+
+      if (result.succeeded.length > 0) {
+        toast({
+          title: "Transition Successful",
+          description: `Device transitioned to ${currentWfxTransition.to}`,
+        });
+        refetch();
+        queryClient.invalidateQueries({ queryKey: ['phasedWorkflowStates', dmsId, targetLaunchId] });
+        queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', dmsId, targetLaunchId] });
+        onTransitionComplete?.();
+      }
+
+      if (result.failed.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Transition Failed",
+          description: result.failed[0]?.error || "Unknown error",
+        });
+      }
+    } catch (error) {
+      // Ignore AbortError - can happen due to React strict mode or navigation
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      toast({
+        variant: "destructive",
+        title: "Transition Failed",
+        description: (error as Error).message,
+      });
+    } finally {
+      setIsTransitioning(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <TableRow>
         <TableCell className="font-mono text-xs py-2">{deviceId}</TableCell>
-        <TableCell colSpan={7} className="text-muted-foreground py-2">
+        <TableCell colSpan={8} className="text-muted-foreground py-2">
           <div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading job status...</div>
         </TableCell>
       </TableRow>
@@ -384,14 +503,12 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: De
     return (
       <TableRow>
         <TableCell className="font-mono text-xs py-2">{deviceId}</TableCell>
-        <TableCell colSpan={7} className="text-destructive py-2">
+        <TableCell colSpan={8} className="text-destructive py-2">
           <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Error: {error.message}</div>
         </TableCell>
       </TableRow>
     );
   }
-
-  const relevantJob = jobs?.find(job => job.definition.launchID === targetLaunchId);
 
   // If device is active but no job yet, show as executing
   if (!relevantJob && isDeviceActive) {
@@ -411,7 +528,7 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: De
             <span className="font-medium text-blue-600 dark:text-blue-400">Executing</span>
           </div>
         </TableCell>
-        <TableCell colSpan={6} className="text-muted-foreground italic py-2">
+        <TableCell colSpan={7} className="text-muted-foreground italic py-2">
           Rollout in progress, waiting for job assignment...
         </TableCell>
       </TableRow>
@@ -422,7 +539,7 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: De
     return (
       <TableRow>
         <TableCell className="font-mono text-xs py-2">{deviceId}</TableCell>
-        <TableCell colSpan={7} className="text-muted-foreground italic py-2">
+        <TableCell colSpan={8} className="text-muted-foreground italic py-2">
           No job associated with this launch.
         </TableCell>
       </TableRow>
@@ -444,8 +561,14 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: De
     iconColor = "text-primary";
   }
 
+  // Highlight row if action is required
+  const needsAction = !!currentWfxTransition;
+  const rowClassName = needsAction 
+    ? "text-xs bg-yellow-50 dark:bg-yellow-950/20" 
+    : "text-xs";
+
   return (
-    <TableRow className="text-xs">
+    <TableRow className={rowClassName}>
       <TableCell className="font-mono py-2">
         <span 
           className="cursor-pointer hover:underline text-primary"
@@ -461,18 +584,50 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: De
         </div>
       </TableCell>
       <TableCell className="py-2">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" className="font-mono text-xs cursor-help">{state}</Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-sm">
-                {relevantJob.status.message || 'No additional message available'}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <div className="flex items-center gap-2 flex-nowrap">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className={`font-mono text-xs cursor-help whitespace-nowrap ${needsAction ? 'border-yellow-400 bg-yellow-100 text-yellow-700' : ''}`}>
+                  {state}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-lg">
+                {relevantJob.status.context?.lines && relevantJob.status.context.lines.length > 0 ? (
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold mb-2">Error Details:</p>
+                    {relevantJob.status.context.lines.map((line: string, idx: number) => (
+                      <p key={idx} className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                        {line}
+                      </p>
+                    ))}
+                    {relevantJob.status.clientId && (
+                      <p className="text-xs text-muted-foreground mt-2">Client ID: {relevantJob.status.clientId}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm">
+                    {relevantJob.status.message || 'No additional message available'}
+                  </p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          {needsAction && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge className="text-xs bg-yellow-500 hover:bg-yellow-500 text-yellow-950 animate-pulse whitespace-nowrap">
+                    Action Required
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-sm">{1} device will move on to state: <span className="font-mono">{currentWfxTransition?.to || 'N/A'}</span></p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
       </TableCell>
       <TableCell className="py-2 truncate w-[200px]">{relevantJob.definition.artifacts[0]?.name || 'N/A'}</TableCell>
       <TableCell className="font-mono py-2">{relevantJob.id}</TableCell>
@@ -483,13 +638,41 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: De
         {relevantJob.mtime ? format(parseISO(relevantJob.mtime), "Pp") : 'N/A'}
       </TableCell>
       <TableCell className="py-2">
+        {currentWfxTransition ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="default"
+                  disabled={isTransitioning}
+                  onClick={handleTransition}
+                  className="gap-1 bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
+                >
+                  {isTransitioning ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  )}
+                  Next
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Transition to {currentWfxTransition.to}</p>
+                <p className="text-xs text-muted-foreground">{currentWfxTransition.description}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
+      </TableCell>
+      <TableCell className="py-2">
         <Button
           variant="outline"
           size="sm"
           onClick={() => router.push(`/devices/details?deviceId=${deviceId}&dmsId=${dmsId}&jobId=${relevantJob.id}&tab=timeline`)}
         >
           <Eye className="h-4 w-4 mr-1" />
-          Show full workflow
+          Workflow
         </Button>
       </TableCell>
     </TableRow>
@@ -522,13 +705,12 @@ export default function LaunchDetailsPage() {
   // Fetch the specific launch
   const { data: launchItem, isLoading, error } = useQuery<LaunchItem, Error>({
     queryKey: ['launch', dmsId, launchId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!user?.access_token || !dmsId || !launchId) {
         throw new Error('Missing required parameters');
       }
 
-      const launchResponse = await fetchCurrentLaunches({ dmsId, accessToken: user.access_token });
-      const launch = launchResponse.list?.find(l => l.id === launchId);
+      const launch = await fetchLaunchDetails({ dmsId, accessToken: user.access_token, launchId }, { signal });
       
       if (!launch) {
         throw new Error('Launch not found');
@@ -543,7 +725,7 @@ export default function LaunchDetailsPage() {
   // Fetch active launches - MUST be called before any conditional returns
   const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
     queryKey: ['activeLaunches', dmsId],
-    queryFn: () => fetchCurrentLaunches({ dmsId, accessToken: user?.access_token! }),
+  queryFn: ({ signal }) => fetchCurrentLaunches({ dmsId, accessToken: user?.access_token! }, { signal }),
     enabled: !!user?.access_token && !!dmsId,
     refetchInterval: pollingInterval,
   });
@@ -562,6 +744,10 @@ export default function LaunchDetailsPage() {
 
       toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for launch: ${launchItem.name}`});
     } catch (error) {
+      // Ignore AbortError - can happen due to React strict mode or navigation
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       toast({ variant: "destructive", title: "Refresh Failed", description: (error as Error).message });
     } finally {
       setIsRefreshingJobs(false);
@@ -735,6 +921,10 @@ export default function LaunchDetailsPage() {
                     }, 30000);
 
                   } catch (error) {
+                    // Ignore AbortError - can happen due to React strict mode or navigation
+                    if (error instanceof Error && error.name === 'AbortError') {
+                      return;
+                    }
                     console.error('Error executing launch:', error);
                     setIsExecuting(false);
                     setExecutionStartTime(null);
@@ -808,16 +998,16 @@ export default function LaunchDetailsPage() {
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">Update Pack ID</label>
-            <p className="text-sm font-medium font-mono text-xs break-all">
+            <div className="text-sm font-medium font-mono text-xs break-all">
               {launchItem.update_pack_id || 'Not Set'}
               {launchItem.update_pack_id && (
                 <Badge variant="secondary" className="ml-2">Immutable</Badge>
               )}
-            </p>
+            </div>
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">Auto Mode</label>
-            <p className="text-sm font-medium flex items-center gap-2">
+            <div className="text-sm font-medium flex items-center gap-2">
               {launchItem.auto ? (
                 <>
                   <Badge variant="default" className="bg-green-500 hover:bg-green-600">Automatic</Badge>
@@ -829,7 +1019,7 @@ export default function LaunchDetailsPage() {
                   <span className="text-xs text-muted-foreground">Manual execution required</span>
                 </>
               )}
-            </p>
+            </div>
           </div>
           {launchItem.test_device_id && (
             <div className="space-y-1 md:col-span-2">
@@ -873,13 +1063,14 @@ export default function LaunchDetailsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[140px]">Device ID</TableHead>
-                  <TableHead className="w-[120px]">Status</TableHead>
-                  <TableHead className="w-[110px]">Job State</TableHead>
-                  <TableHead className="w-[200px]">Artifact</TableHead>
-                  <TableHead className="w-[150px]">Job ID</TableHead>
-                  <TableHead className="w-[130px]">Started</TableHead>
-                  <TableHead className="w-[130px]">Last Update</TableHead>
-                  <TableHead className="w-[140px]">Actions</TableHead>
+                  <TableHead className="w-[100px]">Status</TableHead>
+                  <TableHead className="w-[180px]">Job State</TableHead>
+                  <TableHead className="w-[180px]">Artifact</TableHead>
+                  <TableHead className="w-[140px]">Job ID</TableHead>
+                  <TableHead className="w-[120px]">Started</TableHead>
+                  <TableHead className="w-[120px]">Last Update</TableHead>
+                  <TableHead className="w-[80px]">Action</TableHead>
+                  <TableHead className="w-[100px]">Details</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

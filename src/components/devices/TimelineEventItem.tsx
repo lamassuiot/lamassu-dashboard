@@ -52,7 +52,8 @@ interface TimelineEventItemProps {
 
 const eventTypeVisuals: Record<string, { display: string; colorClass: string; Icon: React.ElementType }> = {
   'CREATED': { display: 'Created', colorClass: 'bg-green-500', Icon: CheckCircle },
-  'STATUS-UPDATED': { display: 'Status Update', colorClass: 'bg-blue-500', Icon: Edit },
+  'device.events.update': { display: 'Status Update', colorClass: 'bg-blue-500', Icon: Edit },
+  'lamaassu.io/device-event/wfx/update/job': { display: 'Status Update', colorClass: 'bg-blue-500', Icon: Edit },
   'PROVISIONED': { display: 'Provisioned', colorClass: 'bg-emerald-500', Icon: CheckCircle },
   'RENEWED': { display: 'Renewed', colorClass: 'bg-purple-500', Icon: History },
   'DELETED': { display: 'Deleted', colorClass: 'bg-red-500', Icon: XCircle },
@@ -68,7 +69,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
   const isRevoked = event.certificate?.apiStatus === 'REVOKED';
   const isOnHold = isRevoked && event.certificate?.revocationReason === 'CertificateHold';
 
-  const isWorkflowEvent = event.eventType === 'STATUS-UPDATED' && event.data?.job;
+  const isWorkflowEvent = (event.eventType === 'device.events.update' || event.eventType === 'lamaassu.io/device-event/wfx/update/job') && event.data?.job;
 
   return (
     <li className="flex gap-4 py-3 relative">

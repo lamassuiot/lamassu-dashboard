@@ -1,5 +1,3 @@
-
-
 export interface Device {
   id: string;
   name: string;
@@ -48,6 +46,16 @@ export interface UpdatePack {
   createdAt?: string; // ISO Date string
   binaryFileName?: string; // Name of the uploaded binary file
   generationError?: string; // Error message if SWU generation failed
+  
+  // Security fields
+  encryption_key_name?: string;
+  encryption_alg_name?: string;
+  encryption_iv?: string;
+  sw_desc_encrypted?: boolean;
+  signature_key_id?: string;
+  signature_alg_name?: string;
+  alg_sign?: string; // Legacy/Alternative
+  signature_certificate?: string; // PEM-encoded certificate used for signing
 }
 
 export interface LaunchItem {
@@ -65,6 +73,7 @@ export interface LaunchItem {
   test_device_id?: string;
   update_pack_id?: string; // Immutable - cannot be changed after creation
   auto?: boolean; // Auto mode toggle
+  version?: number; // Version from the update pack
 }
 
 export interface LaunchListResponse {

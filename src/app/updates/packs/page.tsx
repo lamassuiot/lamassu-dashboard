@@ -41,8 +41,8 @@ export default function UpdatePacksPage() {
       if (!user?.access_token || availableDms.length === 0) return [];
 
       const allPacksPromises = availableDms.map(dms =>
-        fetchUpdatePacks({ dmsId: dms.id, accessToken: user.access_token! }, { signal })
-          .then(packs => packs.map(pack => ({ ...pack, dmsId: dms.id, dmsName: dms.name })))
+        fetchUpdatePacks({ dmsId: dms.id, accessToken: user.access_token! }, { pageSize: 50 }, { signal })
+          .then(response => response.list.map(pack => ({ ...pack, dmsId: dms.id, dmsName: dms.name })))
           .catch(() => []) // Return empty array on error for this DMS
       );
 

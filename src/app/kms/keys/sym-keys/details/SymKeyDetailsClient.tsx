@@ -138,8 +138,8 @@ export default function SymKeyDetailsClient() {
 
     try {
       const userId = user.profile?.sub || user.profile?.email || 'default-user';
-      const allKeys = await fetchSymmetricKeys(userId, user.access_token);
-      const key = allKeys.find(k => k.id === keyId);
+      const response = await fetchSymmetricKeys(userId, user.access_token);
+      const key = response.list.find(k => k.id === keyId);
 
       if (key) {
         setKeyDetails(key);
@@ -1197,7 +1197,7 @@ export default function SymKeyDetailsClient() {
                         <p className="text-sm font-medium">
                           {(() => {
                             const algo = keyDetails.algorithm.toUpperCase();
-                            if (algo === 'ASCON80PQ') return 'Post-quantum Resistant';
+                            if (algo === 'ASCON80PQ') return '80-bit Quantum Security';
                             if (algo.includes('256')) return '128-bit Quantum Security';
                             if (algo.includes('192')) return '96-bit Quantum Security';
                             if (algo.includes('128') || algo.includes('ASCON')) return '64-bit Quantum Security';
@@ -1207,8 +1207,7 @@ export default function SymKeyDetailsClient() {
                         <p className="text-xs text-muted-foreground">
                           {(() => {
                             const algo = keyDetails.algorithm.toUpperCase();
-                            if (algo === 'ASCON80PQ') return 'Enhanced key length provides quantum resistance';
-                            return 'Reduced by Grover\'s algorithm';
+                            if (algo === 'ASCON80PQ') return 'Provides increased post-quantum security through an extended key length'
                           })()}
                         </p>
                       </div>

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { KeyRound, PlusCircle, MoreVertical, Trash2, AlertTriangle, Loader2, RefreshCw, Lock, HelpCircle } from "lucide-react";
+import { KeyRound, PlusCircle, MoreVertical, Trash2, AlertTriangle, Loader2, RefreshCw, Lock, HelpCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,6 +20,8 @@ import { SymmetricKeyStrengthIndicator } from '@/components/shared/SymmetricKeyS
 import { ResourceConsumptionIndicator } from '@/components/shared/LightweightIndicator';
 import { AEADIndicator } from '@/components/shared/AEADIndicator';
 import { SYM_KEY_ALGORITHMS } from '@/lib/key-spec-constants';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface SymKey extends ApiSymKey {
   displayName: string;
@@ -42,7 +44,13 @@ export default function SymKeysPage() {
   const [keyToDelete, setKeyToDelete] = useState<SymKey | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  const loadData = useCallback(async () => {
+  // Pagination State
+  const [pageSize, setPageSize] = useState('10');
+  const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
+
+  const loadData = useCallback(async (bookmark: string | null) => {
     if (authLoading || !isAuthenticated() || !user?.access_token) {
       if (!authLoading && !isAuthenticated()) {
         setError("User not authenticated. Please log in.");
@@ -57,25 +65,63 @@ export default function SymKeysPage() {
     try {
       // Use user profile sub or email as user_id
       const userId = user.profile?.sub || user.profile?.email || 'default-user';
-      const keysArray = await fetchSymmetricKeys(userId, user.access_token);
+      const response = await fetchSymmetricKeys(userId, user.access_token, {
+        pageSize: parseInt(pageSize),
+        bookmark: bookmark || undefined,
+        sortBy: 'created_at',
+        sortMode: 'desc'
+      });
       
-      const transformedKeys: SymKey[] = (keysArray || []).map((key) => ({
+      const transformedKeys: SymKey[] = (response.list || []).map((key) => ({
         ...key,
         displayName: key.id,
       }));
 
       setKeys(transformedKeys);
+      setNextTokenFromApi(response.next);
     } catch (err: any) {
       setError(err.message || "An unknown error occurred while fetching symmetric keys.");
       setKeys([]);
+      setNextTokenFromApi(null);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, user?.profile, authLoading, isAuthenticated]);
+  }, [user?.access_token, user?.profile, authLoading, isAuthenticated, pageSize]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    // Reset pagination when page size changes
+    setCurrentPageIndex(0);
+    setBookmarkStack([null]);
+  }, [pageSize]);
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated()) {
+      loadData(bookmarkStack[currentPageIndex]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, isAuthenticated, currentPageIndex, bookmarkStack]);
+
+  const handleRefresh = () => {
+    loadData(bookmarkStack[currentPageIndex]);
+  };
+
+  const handleNextPage = () => {
+    if (isLoading || !nextTokenFromApi) return;
+    const potentialNextPageIndex = currentPageIndex + 1;
+    // If the next page is already in our stack (e.g., user went back then forward)
+    if (potentialNextPageIndex < bookmarkStack.length) {
+      setCurrentPageIndex(potentialNextPageIndex);
+    } else {
+      // Otherwise, add the new bookmark and move to it
+      setBookmarkStack(prev => [...prev, nextTokenFromApi]);
+      setCurrentPageIndex(prev => prev + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (isLoading || currentPageIndex === 0) return;
+    setCurrentPageIndex(prev => prev - 1);
+  };
 
   const confirmDeleteKey = (key: SymKey) => {
     setKeyToDelete(key);
@@ -123,7 +169,7 @@ export default function SymKeysPage() {
           <h1 className="text-2xl font-headline font-semibold">Key Management Service - Symmetric Keys</h1>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={loadData} variant="outline" disabled={isLoading}>
+          <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
           <Link href="/kms/keys/sym-keys/new">
@@ -141,11 +187,12 @@ export default function SymKeysPage() {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error Loading Data</AlertTitle>
-          <AlertDescription>{error} <Button variant="link" onClick={loadData} className="p-0 h-auto">Try again?</Button></AlertDescription>
+          <AlertDescription>{error} <Button variant="link" onClick={handleRefresh} className="p-0 h-auto">Try again?</Button></AlertDescription>
         </Alert>
       )}
 
       {!isLoading && !error && keys.length > 0 ? (
+        <div className={cn("space-y-4", isLoading && "opacity-50 pointer-events-none")}>
         <TooltipProvider>
           <div className="overflow-x-auto">
             <Table>
@@ -263,6 +310,35 @@ export default function SymKeysPage() {
           </Table>
         </div>
         </TooltipProvider>
+          <div className="flex justify-between items-center mt-4">
+            <div className="flex items-center space-x-2">
+              <Label htmlFor="pageSizeSelectSymKeys" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
+              <Select
+                value={pageSize}
+                onValueChange={(value) => { setPageSize(value); }}
+                disabled={isLoading || authLoading}
+              >
+                <SelectTrigger id="pageSizeSelectSymKeys" className="w-[80px]">
+                  <SelectValue placeholder="Page size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
+                <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+              </Button>
+              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
+                Next <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : (
         !isLoading && !error && (
           <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">

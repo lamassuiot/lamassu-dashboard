@@ -16,15 +16,26 @@ import type { UpdatePack } from '@/types/iot';
 export default function CreateUpdatePackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { selectedDms } = useDms();
+  const { selectedDms, setSelectedDms, availableDms } = useDms();
   const { user } = useAuth();
 
   const mode = searchParams.get('mode') || 'new'; // 'new' or 'update'
   const basePackId = searchParams.get('basePackId');
+  const dmsIdParam = searchParams.get('dmsId');
+
+  // Switch DMS if dmsId param is provided and different from current
+  useEffect(() => {
+    if (dmsIdParam && availableDms.length > 0 && selectedDms?.id !== dmsIdParam) {
+      const target = availableDms.find(d => d.id === dmsIdParam);
+      if (target) {
+        setSelectedDms(target);
+      }
+    }
+  }, [dmsIdParam, availableDms, selectedDms, setSelectedDms]);
 
   const { data: fetchedUpdatePacks } = useQuery<UpdatePack[], Error>({
     queryKey: ['updatePacks', selectedDms?.id],
-    queryFn: () => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }),
+    queryFn: () => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }).then(res => res.list),
     enabled: !!selectedDms && !!user?.access_token && mode === 'update',
     select: (data) => {
       return data.map(pack => {

@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, Settings2, Pencil, X, PackageCheck, AlertTriangle, AlertCircle, RefreshCw, Eye, Info, CheckCircle2, Check, Loader2, Clock, Package, Plus, MoreVertical, PlusCircle, ArrowLeft, ChevronDown, ChevronRight, XCircle, Ban, Rocket, Zap, Layers, ArrowRight } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PlayCircle, Settings2, Pencil, X, PackageCheck, AlertTriangle, AlertCircle, RefreshCw, Eye, Info, CheckCircle2, Check, Loader2, Clock, Package, Plus, MoreVertical, PlusCircle, ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, XCircle, Ban, Rocket, Zap, Layers, ArrowRight } from 'lucide-react';
 import type { UpdateStrategy, LaunchItem, ApiGlobalStrategy, UpdatePack, DeviceJob, LaunchListResponse } from '@/types/iot';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -43,7 +44,9 @@ import {
   fetchCurrentLaunches, 
   triggerGlobalLaunchApi, 
   triggerItemRollout,
-  fetchDeviceJobsForLaunch,
+  fetchAllDeviceJobs,
+  fetchAllLaunches,
+  fetchLaunchesByUpdatePack,
   updateLaunchStrategy,
   transitionJobs,
 } from '@/lib/iot-api';
@@ -62,7 +65,7 @@ interface UpdatePackWithStatus extends UpdatePack {
   devicesWithJob: number;
   completedDevices: number;
   failedDevices: number;
-  status: 'Rolling Out' | 'Completed' | 'Paused' | 'Failed' | 'Not Started' | 'Partial Completed' | 'Action Required';
+  status: 'Rolling Out' | 'Completed' | 'Paused' | 'Failed' | 'Not Started' | 'Partial Completed';
   errorRate: number;
   rolloutProgress: number;
   targetTags: string[];
@@ -94,11 +97,13 @@ function EditableGlobalStrategyDisplay() {
     enabled: !!dmsId && !!user?.access_token,
   });
 
-  const { data: updatePacks = [], isLoading: isLoadingPacks, error: updatePacksError } = useQuery<UpdatePack[], Error>({
+  const { data: updatePacksResponse, isLoading: isLoadingPacks, error: updatePacksError } = useQuery({
     queryKey: ['updatePacks', dmsId],
-    queryFn: ({ signal }) => fetchUpdatePacks({ dmsId: dmsId!, accessToken: user!.access_token! }, { signal }),
+    queryFn: ({ signal }) => fetchUpdatePacks({ dmsId: dmsId!, accessToken: user!.access_token! }, { pageSize: 50 }, { signal }),
     enabled: !!dmsId && !!user?.access_token,
   });
+  
+  const updatePacks = updatePacksResponse?.list || [];
 
   const strategyMutation = useMutation({
     mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy({dmsId: dmsId!, strategyData, accessToken: user!.access_token!}),
@@ -114,9 +119,27 @@ function EditableGlobalStrategyDisplay() {
 
   const globalLaunchMutation = useMutation({
     mutationFn: () => triggerGlobalLaunchApi({dmsId: dmsId!, accessToken: user!.access_token!}),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast({ title: "Launch Prepared", description: data.message || "Successfully prepared launch based on global strategy." });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
+      
+      // Reset pagination by invalidating pack-specific queries
+      queryClient.invalidateQueries({ queryKey: ['packLaunches'] });
+      
+      // Immediately refetch to show new launch
+      await queryClient.refetchQueries({ queryKey: ['currentLaunches', dmsId] });
+      await queryClient.refetchQueries({ queryKey: ['allLaunches'] });
+      
+      // If the response contains a launch ID, mark it as started for immediate polling
+      if (data.launch_id || data.launchId || data.id) {
+        const newLaunchId = data.launch_id || data.launchId || data.id;
+        // Note: startStoredLaunch is not available in this component, but the polling will start automatically
+      }
+      
+      // Refetch again after a short delay to ensure we catch the new launch
+      setTimeout(async () => {
+        await queryClient.refetchQueries({ queryKey: ['currentLaunches', dmsId] });
+        await queryClient.refetchQueries({ queryKey: ['allLaunches'] });
+      }, 500);
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: "Launch Preparation Failed", description: err.message });
@@ -327,7 +350,7 @@ interface DeviceJobStatusRowProps {
 function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: DeviceJobStatusRowProps) {
   const { data: jobs, isLoading, error } = useQuery<DeviceJob[], Error>({
     queryKey: ['deviceJobs', dmsId, deviceId, targetLaunchId],
-  queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ dmsId, deviceIds: [deviceId], accessToken: accessToken! }, { signal }),
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ dmsId, deviceIds: [deviceId], accessToken: accessToken!, targetLaunchId }, { signal }),
     enabled: !!accessToken,
   });
 
@@ -603,7 +626,7 @@ function LaunchNameCell({ launch, dmsId, accessToken, onClick }: LaunchNameCellP
 
   const { data: jobs, isLoading: isLoadingJobVersion, isFetched: isJobVersionFetched } = useQuery<DeviceJob[], Error>({
     queryKey: ['deviceJobsForVersion', dmsId, firstDeviceIdWithJob, launch.id],
-  queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ dmsId, deviceIds: [firstDeviceIdWithJob!], accessToken: accessToken! }, { signal }),
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ dmsId, deviceIds: [firstDeviceIdWithJob!], accessToken: accessToken!, targetLaunchId: launch.id }, { signal }),
     enabled: !!firstDeviceIdWithJob && !!accessToken,
   });
 
@@ -654,7 +677,6 @@ function JobExecutionProgressCell({ dmsId, launchItem, accessToken }: JobExecuti
     queryKey: ['activeLaunches', dmsId],
   queryFn: ({ signal }) => fetchCurrentLaunches({ dmsId, accessToken: accessToken! }, { signal }),
     enabled: !!accessToken,
-    refetchInterval: 2000,
   });
 
   const activeDevices = activeLaunchesData?.active_launches || [];
@@ -674,7 +696,7 @@ function JobExecutionProgressCell({ dmsId, launchItem, accessToken }: JobExecuti
 
   const { data: allJobs, isLoading, error } = useQuery<DeviceJob[], Error>({
     queryKey: ['launchJobStats', dmsId, launchItem.id, ...launchItem.devices_with_job],
-  queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ dmsId, deviceIds: launchItem.devices_with_job, accessToken: accessToken! }, { signal }),
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ dmsId, deviceIds: launchItem.devices_with_job, accessToken: accessToken!, targetLaunchId: launchItem.id }, { signal }),
     enabled: launchItem.devices_with_job.length > 0 && !!accessToken,
   });
 
@@ -1029,15 +1051,17 @@ interface LaunchStatusCellProps {
 
 function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, startedLaunchTotals }: LaunchStatusCellProps) {
   // Fetch job statuses for all devices in this launch
+  // Use fetchAllDeviceJobs to handle pagination and find jobs for older launches
   const { data: jobs, isLoading } = useQuery<DeviceJob[], Error>({
     queryKey: ['launchJobStatuses', dmsId, launch.id, ...launch.devices_with_job],
-  queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ 
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ 
       dmsId, 
       deviceIds: launch.devices_with_job, 
-      accessToken: accessToken! 
-    }),
+      accessToken: accessToken!,
+      targetLaunchId: launch.id, // Stop fetching once we find jobs for this launch
+    }, { signal }),
     enabled: launch.devices_with_job.length > 0 && !!accessToken,
-    refetchInterval: 5000,
+    refetchInterval: (startedLaunches && startedLaunches.has(launch.id)) ? 3000 : false,
   });
 
   // Fetch active launches to get devices currently executing
@@ -1049,11 +1073,15 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
 
   const activeDevices = activeLaunchesData?.active_launches || [];
 
-  // Check if this is a phased workflow with devices waiting for action
+  // Filter jobs relevant to this launch
+  const relevantJobs = React.useMemo(() => {
+    if (!jobs) return [] as DeviceJob[];
+    return jobs.filter(job => job.definition.launchID === launch.id);
+  }, [jobs, launch.id]);
+
+  // Check if this is a phased workflow with devices waiting for action (WFX transitions)
   const hasPhasedDevicesWaiting = React.useMemo(() => {
     if (!jobs || jobs.length === 0) return false;
-    
-    const relevantJobs = jobs.filter(job => job.definition.launchID === launch.id);
     const firstJobWithWorkflow = relevantJobs.find(job => job.workflow?.transitions);
     const wfxTransitions = extractWfxEligibleTransitions(firstJobWithWorkflow?.workflow);
     
@@ -1064,7 +1092,26 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
       const devicesAtState = relevantJobs.filter(job => job.status.state === from).length;
       return devicesAtState > 0;
     });
-  }, [jobs, launch.id]);
+  }, [relevantJobs]);
+
+  // Also detect if any WFX-eligible transitions exist in the workflow (for phased workflows)
+  const hasWfxTransitions = React.useMemo(() => {
+    const firstJobWithWorkflow = relevantJobs.find(job => job.workflow?.transitions);
+    const wfx = extractWfxEligibleTransitions(firstJobWithWorkflow?.workflow);
+    return wfx.length > 0;
+  }, [relevantJobs]);
+
+  // Determine if this launch is phased to be used in non-hook logic and memos
+  const isPhasedLaunch = isPhasedWorkflow(launch.workflow_type);
+  const isPhasedLaunchDetected = isPhasedLaunch || hasWfxTransitions;
+
+  const hasActiveJobsInNonTerminalState = React.useMemo(() => {
+    if (relevantJobs.length === 0 || !isPhasedLaunchDetected) return false;
+    return relevantJobs.some(job => {
+      const state = job.status.state;
+      return state !== 'ACTIVATED' && state !== 'INSTALLED' && state !== 'TERMINATED';
+    });
+  }, [relevantJobs, isPhasedLaunchDetected]);
 
   const calculateStatus = (): UpdatePackWithStatus['status'] => {
     if (!jobs || jobs.length === 0) {
@@ -1128,10 +1175,9 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
     const activeCount = combinedActiveSet.size;
     const totalProcessed = completedCount + failedCount + activeCount;
 
-    // If we have active devices, it's still rolling out (but check for phased waiting below)
+    // If we have active devices, it's still rolling out
+    // The action required indicator will show separately when devices are waiting
     if (activeCount > 0) {
-      // If there are devices waiting in phased rollout, show Action Required
-      if (hasPhasedDevicesWaiting) return 'Action Required';
       return 'Rolling Out';
     }
 
@@ -1146,9 +1192,8 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
       return failedCount > completedCount ? 'Failed' : 'Completed';
     }
 
-    // If there are devices waiting in phased rollout, show Action Required
-    if (hasPhasedDevicesWaiting) return 'Action Required';
-
+    // If there are devices waiting in phased rollout but no active count, still show Rolling Out
+    // The indicator will show separately
     return 'Rolling Out';
   };
 
@@ -1162,6 +1207,16 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
   }
 
   const status = calculateStatus();
+
+  // Show Action Required for phased launches that are actively rolling out
+  // Either: jobs are waiting at WFX transitions, OR it's a phased launch with active jobs in non-terminal state,
+  // OR it's a phased launch with active devices (even before jobs are created)
+  const hasActiveDevices = (launch.active_launches && launch.active_launches.length > 0) || 
+    activeDevices.some(deviceId => launch.devices_with_job.includes(deviceId) || launch.devices_without_job.includes(deviceId));
+  
+  const showActionRequiredIndicator = hasPhasedDevicesWaiting || 
+    (isPhasedLaunchDetected && hasActiveJobsInNonTerminalState) ||
+    (isPhasedLaunch && hasActiveDevices && status === 'Rolling Out');
 
   // Calculate completion percentage for display
   let completionPercent = 0;
@@ -1197,21 +1252,37 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
   }
 
   return (
-    <Badge variant="outline" className={`flex items-center gap-1 min-w-[100px] justify-center whitespace-nowrap ${
-      status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-100' :
-      status === 'Rolling Out' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
-      status === 'Action Required' ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 animate-pulse' :
-      status === 'Failed' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' :
-      status === 'Partial Completed' ? 'bg-yellow-50 text-yellow-600 border-yellow-200 hover:bg-yellow-50' :
-      'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
-    }`}>
-      {status === 'Rolling Out' && <Clock className="h-3 w-3" />}
-      {status === 'Action Required' && <AlertCircle className="h-3 w-3" />}
-      {status === 'Completed' && <Check className="h-3 w-3 stroke-[3]" />}
-      {status === 'Failed' && <AlertTriangle className="h-3 w-3" />}
-      {status === 'Partial Completed' && <AlertTriangle className="h-3 w-3" />}
-      {status === 'Partial Completed' ? `Partial Completed (${completionPercent}% success)` : status}
-    </Badge>
+    <div className="flex items-center gap-1">
+      <Badge variant="outline" className={`flex items-center gap-1 min-w-[100px] justify-center whitespace-nowrap ${
+        status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-100' :
+        status === 'Rolling Out' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
+        status === 'Failed' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' :
+        status === 'Partial Completed' ? 'bg-yellow-50 text-yellow-600 border-yellow-200 hover:bg-yellow-50' :
+        'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
+      }`}>
+        {status === 'Rolling Out' && <Clock className="h-3 w-3" />}
+        {status === 'Completed' && <Check className="h-3 w-3 stroke-[3]" />}
+        {status === 'Failed' && <AlertTriangle className="h-3 w-3" />}
+        {status === 'Partial Completed' && <AlertTriangle className="h-3 w-3" />}
+        {status === 'Partial Completed' ? `Partial (${completionPercent}%)` : status}
+      </Badge>
+      {/* Action Required warning triangle icon next to badge */}
+      {showActionRequiredIndicator && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 border border-yellow-400 text-yellow-600 rounded-full animate-pulse cursor-help">
+                <AlertTriangle className="h-3.5 w-3.5" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-semibold">Action Required</p>
+              <p className="text-xs">Devices waiting for manual intervention</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
   );
 }
 
@@ -1230,13 +1301,14 @@ function LaunchProgressCell({ launch, dmsId, accessToken, startedLaunches, start
   const queryClient = useQueryClient();
   const { data: jobs } = useQuery<DeviceJob[], Error>({
     queryKey: ['launchJobStatuses', dmsId, launch.id, ...launch.devices_with_job],
-  queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ 
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ 
       dmsId, 
       deviceIds: launch.devices_with_job, 
-      accessToken: accessToken! 
-    }),
+      accessToken: accessToken!,
+      targetLaunchId: launch.id,
+    }, { signal }),
     enabled: launch.devices_with_job.length > 0 && !!accessToken,
-    refetchInterval: (startedLaunches && startedLaunches.has(launch.id)) ? 5000 : false,
+    refetchInterval: (startedLaunches && startedLaunches.has(launch.id)) ? 3000 : false,
   });
 
   // Fetch active launches to get devices currently executing
@@ -1339,39 +1411,48 @@ function LaunchProgressCell({ launch, dmsId, accessToken, startedLaunches, start
 
   return (
     <div className="flex items-center gap-2">
-      <div className="relative h-2 flex-1 rounded-full overflow-hidden bg-muted">
-        {/* Completed layer (now at the top/left) */}
+      <div className="relative h-2 flex-1 rounded-full overflow-hidden bg-muted shadow-inner">
+        {/* Completed layer (now at the top/left) - smooth gradient with glow */}
         {completedPercent > 0 && (
           <div
-            className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-primary/90 z-30 transition-all duration-500 ease-out"
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary via-primary to-primary/90 z-30 transition-all duration-700 ease-in-out shadow-sm"
             style={{ width: `${completedPercent}%` }}
-          />
+          >
+            {/* Subtle shine effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          </div>
         )}
-        {/* Failed layer (after completed) */}
+        {/* Failed layer (after completed) - with warning glow */}
         {failedPercent > 0 && (
           <div
-            className="absolute top-0 h-full bg-destructive z-20 transition-all duration-500 ease-out"
+            className="absolute top-0 h-full bg-gradient-to-r from-destructive to-destructive/90 z-20 transition-all duration-700 ease-in-out shadow-sm"
             style={{ left: `${completedPercent}%`, width: `${failedPercent}%` }}
-          />
+          >
+            {/* Warning pulse */}
+            <div className="absolute inset-0 bg-white/10 animate-pulse" />
+          </div>
         )}
-        {/* Active layer on top: smooth gradient transition from completed to active */}
-  {activePercent > 0 && cappedCompletedCount < displayTotal && (
+        {/* Active layer on top: animated gradient with shimmer */}
+        {activePercent > 0 && cappedCompletedCount < displayTotal && (
           <div
-            className="absolute top-0 h-full bg-yellow-500 z-10 transition-all duration-500 ease-out overflow-hidden"
+            className="absolute top-0 h-full bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 z-10 transition-all duration-700 ease-in-out overflow-hidden shadow-sm"
             style={{ left: `${completedPercent + failedPercent}%`, width: `${activePercent}%` }}
           >
-            <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.3)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px] animate-[shimmer_1s_linear_infinite]" />
+            {/* Animated shimmer/progress stripe effect */}
+            <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.4)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px] animate-[shimmer_1s_linear_infinite]" />
+            {/* Subtle pulse */}
+            <div className="absolute inset-0 bg-white/20 animate-pulse" />
           </div>
         )}
         {/* Remaining/pending background */}
         {processedPercent < 100 && (
           <div
-            className={`absolute top-0 h-full ${pendingAssignedCount > 0 ? 'bg-muted/80' : 'bg-muted'} z-0 transition-all duration-500 ease-out`}
+            className={`absolute top-0 h-full ${pendingAssignedCount > 0 ? 'bg-muted/80' : 'bg-muted'} z-0 transition-all duration-700 ease-in-out`}
             style={{ left: `${completedPercent + failedPercent + activePercent}%`, width: `${100 - processedPercent}%` }}
           />
         )}
       </div>
-      <span className="text-xs font-medium min-w-[45px] text-right transition-all duration-300">
+      <span className="text-xs font-medium min-w-[45px] text-right transition-all duration-500 tabular-nums">
         {cappedCompletedCount}/{displayTotal} ({Math.round((cappedCompletedCount / displayTotal) * 100)}%)
       </span>
     </div>
@@ -1389,13 +1470,13 @@ interface LaunchErrorRateCellProps {
 function LaunchErrorRateCell({ launch, dmsId, accessToken }: LaunchErrorRateCellProps) {
   const { data: jobs } = useQuery<DeviceJob[], Error>({
     queryKey: ['launchJobStatuses', dmsId, launch.id, ...launch.devices_with_job],
-  queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ 
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ 
       dmsId, 
       deviceIds: launch.devices_with_job, 
-      accessToken: accessToken! 
-    }),
+      accessToken: accessToken!,
+      targetLaunchId: launch.id,
+    }, { signal }),
     enabled: launch.devices_with_job.length > 0 && !!accessToken,
-    refetchInterval: 5000,
   });
 
   const totalDevices = launch.devices_with_job.length + launch.devices_without_job.length;
@@ -1433,16 +1514,29 @@ function UpdatePackStatusCell({ pack, dmsId, accessToken }: UpdatePackStatusCell
   // Collect all device IDs that have jobs across all launches for this pack
   const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
   
-  // Fetch job statuses for all devices
+  // Get all launch IDs for this pack to enable pagination search
+  const launchIds = pack.launches.map(l => l.id);
+  
+  // Fetch job statuses for all devices - use pagination to find jobs for all launches
   const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
     queryKey: ['packJobStatuses', dmsId, pack.id, ...allDeviceIdsWithJobs],
-  queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ 
-      dmsId, 
-      deviceIds: allDeviceIdsWithJobs, 
-      accessToken: accessToken! 
-    }),
+    queryFn: async ({ signal }) => {
+      // For pack-level queries, we need to find jobs for any of the pack's launches
+      // Fetch with pagination, stopping when we find jobs for each launch
+      const jobs: DeviceJob[] = [];
+      for (const deviceId of allDeviceIdsWithJobs) {
+        const deviceJobs = await fetchAllDeviceJobs({ 
+          dmsId, 
+          deviceIds: [deviceId], 
+          accessToken: accessToken!,
+        }, { signal });
+        // Only keep jobs that belong to this pack's launches
+        const relevantJobs = deviceJobs.filter(job => launchIds.includes(job.definition.launchID));
+        jobs.push(...relevantJobs);
+      }
+      return jobs;
+    },
     enabled: allDeviceIdsWithJobs.length > 0 && !!accessToken,
-    refetchInterval: 5000, // Refresh every 5 seconds for real-time updates
   });
 
   // Calculate real status based on job states
@@ -1500,6 +1594,8 @@ function UpdatePackStatusCell({ pack, dmsId, accessToken }: UpdatePackStatusCell
       }
     }
 
+    // Note: Do NOT change status to 'Action Required' at pack-level here - we'll compute an indicator outside and show it next to the status when needed.
+
     return { status, completedCount, failedCount, inProgressCount };
   };
 
@@ -1514,31 +1610,56 @@ function UpdatePackStatusCell({ pack, dmsId, accessToken }: UpdatePackStatusCell
 
   const { status, completedCount, failedCount, inProgressCount } = calculateRealStatus();
 
+  // Compute pack-level WFX waiting indicator
+  const packRelevantJobs = allJobs ? allJobs.filter(job => pack.launches.some(l => job.definition.launchID === l.id)) : [];
+  const packFirstJobWithWorkflow = packRelevantJobs.find(job => job.workflow?.transitions);
+  const packWfxTransitions = extractWfxEligibleTransitions(packFirstJobWithWorkflow?.workflow);
+  const packHasWfxWaiting = packWfxTransitions.length > 0 && packWfxTransitions.some(({ from }) => packRelevantJobs.some(job => job.status.state === from));
+  const showPackActionRequired = packHasWfxWaiting && status === 'Rolling Out';
+
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge variant="outline" className={`flex items-center gap-1 min-w-[100px] justify-center whitespace-nowrap ${
-            status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-100' :
-            status === 'Rolling Out' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
-            status === 'Failed' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' :
-            'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
-          }`}>
-            {status === 'Rolling Out' && <Clock className="h-3 w-3" />}
-            {status === 'Completed' && <Check className="h-3 w-3 stroke-[3]" />}
-            {status === 'Failed' && <AlertTriangle className="h-3 w-3" />}
-            {status}
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent>
-          <div className="text-xs space-y-1">
-            <div>Completed: {completedCount}</div>
-            <div>In Progress: {inProgressCount}</div>
-            <div>Failed: {failedCount}</div>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <div className="flex items-center gap-1">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className={`flex items-center gap-1 min-w-[100px] justify-center whitespace-nowrap ${
+              status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-100' :
+              status === 'Rolling Out' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
+              status === 'Failed' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' :
+              'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
+            }`}>
+              {status === 'Rolling Out' && <Clock className="h-3 w-3" />}
+              {status === 'Completed' && <Check className="h-3 w-3 stroke-[3]" />}
+              {status === 'Failed' && <AlertTriangle className="h-3 w-3" />}
+              {status}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="text-xs space-y-1">
+              <div>Completed: {completedCount}</div>
+              <div>In Progress: {inProgressCount}</div>
+              <div>Failed: {failedCount}</div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      {/* Action Required warning triangle icon next to badge */}
+      {showPackActionRequired && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 border border-yellow-400 text-yellow-600 rounded-full animate-pulse cursor-help">
+                <AlertTriangle className="h-3.5 w-3.5" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-semibold">Action Required</p>
+              <p className="text-xs">Devices waiting for manual intervention</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
   );
 }
 
@@ -1551,16 +1672,24 @@ interface UpdatePackProgressCellProps {
 
 function UpdatePackProgressCell({ pack, dmsId, accessToken }: UpdatePackProgressCellProps) {
   const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
+  const launchIds = pack.launches.map(l => l.id);
   
   const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
     queryKey: ['packJobStatuses', dmsId, pack.id, ...allDeviceIdsWithJobs],
-  queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ 
-      dmsId, 
-      deviceIds: allDeviceIdsWithJobs, 
-      accessToken: accessToken! 
-    }),
+    queryFn: async ({ signal }) => {
+      const jobs: DeviceJob[] = [];
+      for (const deviceId of allDeviceIdsWithJobs) {
+        const deviceJobs = await fetchAllDeviceJobs({ 
+          dmsId, 
+          deviceIds: [deviceId], 
+          accessToken: accessToken!,
+        }, { signal });
+        const relevantJobs = deviceJobs.filter(job => launchIds.includes(job.definition.launchID));
+        jobs.push(...relevantJobs);
+      }
+      return jobs;
+    },
     enabled: allDeviceIdsWithJobs.length > 0 && !!accessToken,
-    refetchInterval: 5000,
   });
 
   // Fetch active launches to get devices currently executing
@@ -1682,16 +1811,24 @@ interface UpdatePackErrorRateCellProps {
 
 function UpdatePackErrorRateCell({ pack, dmsId, accessToken }: UpdatePackErrorRateCellProps) {
   const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
+  const launchIds = pack.launches.map(l => l.id);
   
   const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
     queryKey: ['packJobStatuses', dmsId, pack.id, ...allDeviceIdsWithJobs],
-    queryFn: () => fetchDeviceJobsForLaunch({ 
-      dmsId, 
-      deviceIds: allDeviceIdsWithJobs, 
-      accessToken: accessToken! 
-    }),
+    queryFn: async ({ signal }) => {
+      const jobs: DeviceJob[] = [];
+      for (const deviceId of allDeviceIdsWithJobs) {
+        const deviceJobs = await fetchAllDeviceJobs({ 
+          dmsId, 
+          deviceIds: [deviceId], 
+          accessToken: accessToken!,
+        }, { signal });
+        const relevantJobs = deviceJobs.filter(job => launchIds.includes(job.definition.launchID));
+        jobs.push(...relevantJobs);
+      }
+      return jobs;
+    },
     enabled: allDeviceIdsWithJobs.length > 0 && !!accessToken,
-    refetchInterval: 5000,
   });
 
   if (isLoading || !allJobs) {
@@ -1781,9 +1918,10 @@ interface PhasedWorkflowStatesProps {
   launch: LaunchItem;
   dmsId: string;
   accessToken: string | null;
+  startStoredLaunch?: (launchId: string) => void;
 }
 
-function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStatesProps) {
+function PhasedWorkflowStates({ launch, dmsId, accessToken, startStoredLaunch }: PhasedWorkflowStatesProps) {
   const queryClient = useQueryClient();
   const [isTransitioning, setIsTransitioning] = React.useState<string | null>(null);
   
@@ -1797,13 +1935,13 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
   
   const { data: jobs, isLoading, refetch } = useQuery<DeviceJob[], Error>({
     queryKey: ['phasedWorkflowStates', dmsId, launch.id, ...allDeviceIdsForQuery],
-    queryFn: ({ signal }) => fetchDeviceJobsForLaunch({ 
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ 
       dmsId, 
       deviceIds: allDeviceIdsForQuery, 
-      accessToken: accessToken! 
-    }),
+      accessToken: accessToken!,
+      targetLaunchId: launch.id,
+    }, { signal }),
     enabled: allDeviceIdsForQuery.length > 0 && !!accessToken,
-    refetchInterval: 5000,
   });
 
   if (isLoading) {
@@ -1944,10 +2082,15 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
         console.error('Failed transitions:', result.failed);
       }
 
+      // Mark launch as started for smooth polling
+      if (startStoredLaunch) startStoredLaunch(launch.id);
+      
       // Refresh data
       refetch();
       queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', dmsId, launch.id] });
       queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
+      queryClient.invalidateQueries({ queryKey: ['activeLaunches', dmsId] });
+      queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
     } catch (error) {
       toast({
         variant: "destructive",
@@ -2033,7 +2176,7 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
               <div className="flex items-center gap-2">
                 {hasDevicesWaiting && (
                   <Badge className="animate-pulse text-xs bg-yellow-500 hover:bg-yellow-500 text-yellow-950">
-                    Action required!
+                    Action Required!
                   </Badge>
                 )}
                 <TooltipProvider>
@@ -2081,8 +2224,11 @@ interface LaunchRowWithWorkflowStatesProps {
   clearStartedLaunch?: (launchId: string) => void;
   onViewLaunchDetails: (launch: LaunchItem) => void;
   onExecuteLaunch: (launchId: string) => void;
-  onCancelAuto: (launchId: string) => void;
+  onCancelAuto: (launchId: string, workflowType?: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased') => void;
   isCancellingAuto: boolean;
+  startStoredLaunch?: (launchId: string) => void;
+  executingLaunches?: Set<string>;
+  packVersion?: number; // Fallback version from pack if launch.version is not available
 }
 
 function LaunchRowWithWorkflowStates({
@@ -2097,6 +2243,9 @@ function LaunchRowWithWorkflowStates({
   onExecuteLaunch,
   onCancelAuto,
   isCancellingAuto,
+  startStoredLaunch,
+  executingLaunches,
+  packVersion,
 }: LaunchRowWithWorkflowStatesProps) {
   const [isPhasedExpanded, setIsPhasedExpanded] = React.useState(false);
   const isPhased = isPhasedWorkflow(launch.workflow_type);
@@ -2171,6 +2320,11 @@ function LaunchRowWithWorkflowStates({
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {(launch.version !== undefined || packVersion !== undefined) && (
+                <Badge variant="secondary" className="text-xs font-medium ml-2">
+                  v{launch.version ?? packVersion}
+                </Badge>
+              )}
             </div>
             <div className="text-xs text-muted-foreground mt-1 font-mono break-all pl-9">
               ID: {launch.id}
@@ -2238,6 +2392,7 @@ function LaunchRowWithWorkflowStates({
               const devicesNeedingExecution = launch.devices_without_job.length + launchActiveDevices.length;
               const isAutoEnabled = launch.auto === true;
               const isLaunchStarted = startedLaunches?.has(launch.id);
+              const isExecuting = executingLaunches?.has(launch.id);
               const hasActiveDevices = launchActiveDevices.length > 0;
 
               return devicesNeedingExecution > 0 && (
@@ -2266,7 +2421,7 @@ function LaunchRowWithWorkflowStates({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => onCancelAuto(launch.id)}
+                            onClick={() => onCancelAuto(launch.id, launch.workflow_type)}
                             className="gap-2 border border-destructive/50 text-destructive hover:bg-destructive/10 hover:border-destructive hover:text-destructive"
                             disabled={isCancellingAuto}
                           >
@@ -2288,21 +2443,30 @@ function LaunchRowWithWorkflowStates({
                         <div>
                           <Button
                             size="sm"
-                            variant={isLaunchStarted ? "default" : "outline"}
+                            variant={isLaunchStarted || isExecuting ? "default" : "outline"}
                             onClick={() => onExecuteLaunch(launch.id)}
+                            disabled={launch.rollout_value === 0 || isExecuting}
                             className={`gap-2 ${
-                              isLaunchStarted
+                              isLaunchStarted || isExecuting
                                 ? "bg-primary hover:bg-primary/90"
                                 : ""
-                            }`}
+                            } ${launch.rollout_value === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                           >
-                            <PlayCircle className="h-4 w-4" />
-                            {isLaunchStarted ? "Executed" : "Execute"}
+                            {isExecuting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <PlayCircle className="h-4 w-4" />
+                            )}
+                            {launch.rollout_value === 0 
+                              ? "Modify strategy to resume" 
+                              : (isExecuting ? "Executing..." : isLaunchStarted ? "Executed" : "Execute")}
                           </Button>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Apply strategy to {devicesNeedingExecution} device(s)</p>
+                        <p>{launch.rollout_value === 0 
+                          ? "Rollout value is 0. Modify the launch strategy to resume execution." 
+                          : `Apply strategy to ${devicesNeedingExecution} device(s)`}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -2328,6 +2492,7 @@ function LaunchRowWithWorkflowStates({
           launch={launch}
           dmsId={dmsId}
           accessToken={accessToken}
+          startStoredLaunch={startStoredLaunch}
         />
       )}
     </div>
@@ -2339,8 +2504,8 @@ interface UpdatePackGroupProps {
   pack: UpdatePackWithStatus;
   dmsId: string;
   accessToken: string | null;
-  onNewLaunch: (packId: string, packName: string, version: number) => void;
-  onNewVersion: (packId: string) => void;
+  onNewLaunch: (packId: string, packName: string, version: number, dmsId?: string) => void;
+  onNewVersion: (packId: string, dmsId?: string) => void;
   onViewLaunchDetails: (launch: LaunchItem) => void;
   startedLaunches?: Set<string>;
   startedLaunchTotals?: Map<string, number>;
@@ -2353,15 +2518,77 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
   const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [localStartedLaunches, setLocalStartedLaunches] = React.useState<Set<string>>(new Set());
-  const [cancelAutoLaunchId, setCancelAutoLaunchId] = React.useState<string | null>(null);
+  const [executingLaunches, setExecutingLaunches] = React.useState<Set<string>>(new Set());
+  const [cancelAutoLaunch, setCancelAutoLaunch] = React.useState<{ launchId: string; workflowType?: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased' } | null>(null);
   
-  // Mutation to cancel auto mode
-  const { mutate: cancelAutoMutate, isLoading: isCancellingAuto } = useMutation({
-    mutationFn: ({ launchId }: { launchId: string }) => 
+  // Pagination state for launches
+  const [launchesPageSize, setLaunchesPageSize] = React.useState(5);
+  const [launchesBookmark, setLaunchesBookmark] = React.useState<string | null>(null);
+  const [bookmarkStack, setBookmarkStack] = React.useState<string[]>([]);
+  const [hasMoreLaunches, setHasMoreLaunches] = React.useState(false);
+  
+  // Fetch additional launches when page size or bookmark changes
+  // DISABLED: pack.launches already contains the launches from the parent query
+  // Fetching again causes issues with matching since we don't know if update_pack_id stores UUID or name
+  const { data: launchesData, isLoading: isLoadingLaunches } = useQuery({
+    queryKey: ['packLaunches', pack.name, pack.version, dmsId, launchesPageSize, launchesBookmark],
+    queryFn: async () => {
+      // Return null to disable this query - we'll use pack.launches instead
+      return null;
+    },
+    enabled: false, // Disabled - rely on parent pack.launches data
+    enabled: !!accessToken && isExpanded,
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchInterval: (localStartedLaunches.size > 0 || (startedLaunches && startedLaunches.size > 0)) ? 5000 : false,
+  });
+  
+  // Update hasMoreLaunches when data changes
+  React.useEffect(() => {
+    // Since we're using pack.launches, check if we need pagination
+    // For now, just show all launches from pack
+    setHasMoreLaunches(false);
+  }, [pack.launches]);
+
+  // Use pack.launches from parent (already filtered and loaded)
+  // Apply client-side pagination if needed
+  const displayedLaunches = React.useMemo(() => {
+    // Just use pack.launches - it already contains the launches for this pack
+    return pack.launches;
+  }, [pack.launches]);
+  
+  const handleNextPage = () => {
+    if (launchesData?.next) {
+      // Save current bookmark to stack before moving forward
+      setBookmarkStack(prev => [...prev, launchesBookmark || '']);
+      setLaunchesBookmark(launchesData.next);
+    }
+  };
+  
+  const handlePreviousPage = () => {
+    // Pop the last bookmark from stack to go back
+    setBookmarkStack(prev => {
+      if (prev.length === 0) return prev;
+      const newStack = [...prev];
+      const previousBookmark = newStack.pop();
+      setLaunchesBookmark(previousBookmark === '' ? null : previousBookmark || null);
+      return newStack;
+    });
+  };
+  
+  // Mutation to cancel auto mode - sets to manual with rollout_value 0, explicitly preserving workflow_type
+  const { mutate: cancelAutoMutate, isPending: isCancellingAuto } = useMutation({
+    mutationFn: ({ launchId, workflowType }: { launchId: string; workflowType?: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased' }) => 
       updateLaunchStrategy({
         dmsId,
         launchId,
-        strategyData: { auto: false },
+        strategyData: { 
+          auto: false,
+          rollout_type: 'numeric',
+          rollout_value: 0,
+          // Explicitly preserve the workflow_type - backend may reset to default if not included
+          workflow_type: workflowType
+        },
         accessToken: accessToken!
       }),
     onSuccess: (data, { launchId }) => {
@@ -2371,7 +2598,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
       });
       queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
       queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
-      setCancelAutoLaunchId(null);
+      setCancelAutoLaunch(null);
     },
     onError: (err: Error) => {
       toast({ 
@@ -2379,11 +2606,36 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
         title: "Failed to Cancel Auto Deploy", 
         description: err.message 
       });
-      setCancelAutoLaunchId(null);
+      setCancelAutoLaunch(null);
     },
   });
   
   const handleLaunchExecute = async (launchId: string) => {
+    // Store launch reference before API call - check both displayedLaunches and pack.launches
+    const launch = displayedLaunches.find(l => l.id === launchId) || pack.launches.find(l => l.id === launchId);
+    
+    // Immediately mark as executing for instant visual feedback
+    setExecutingLaunches(prev => {
+      const n = new Set(prev);
+      n.add(launchId);
+      return n;
+    });
+    
+    // Optimistically mark as started for immediate UI updates
+    setLocalStartedLaunches(prev => {
+      const n = new Set(prev);
+      n.add(launchId);
+      return n;
+    });
+    
+    if (startStoredLaunch) startStoredLaunch(launchId);
+    
+    // Store the total for display immediately to avoid UI dropouts
+    if (launch && updateLaunchTotal) {
+      const allDeviceIds = Array.from(new Set([...launch.devices_with_job, ...launch.devices_without_job, ...(launch.active_launches || [])]));
+      updateLaunchTotal(launchId, allDeviceIds.length);
+    }
+    
     try {
       const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/rollout`, {
         method: 'POST',
@@ -2396,40 +2648,42 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
       if (!response.ok) {
         throw new Error(`Failed to execute launch: ${response.statusText}`);
       }
-
-  // Mark as started locally
-  setLocalStartedLaunches(prev => {
-    const n = new Set(prev);
-    n.add(launchId);
-    return n;
-  });
-  // Also mark globally so LaunchProgressCell can use stored totals during transient changes
-  if (startStoredLaunch) startStoredLaunch(launchId);
-  // Store the total for display immediately to avoid UI dropouts
-  const launch = pack.launches.find(l => l.id === launchId);
-  if (launch && updateLaunchTotal) {
-    const allDeviceIds = Array.from(new Set([...launch.devices_with_job, ...launch.devices_without_job, ...(launch.active_launches || [])]));
-    updateLaunchTotal(launchId, allDeviceIds.length);
-  }
       
       toast({
         title: "Launch Executed",
         description: `Launch ${launchId.slice(-4)} has been successfully executed.`,
       });
 
-      // Refresh the launches data to show updated status
-      queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
-      queryClient.invalidateQueries({ queryKey: ['activeLaunches', dmsId] });
-      // Also invalidate the specific launch data
-      queryClient.invalidateQueries({ queryKey: ['launch', dmsId, launchId] });
+      // Immediately refetch all relevant queries to show updated status and progress
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['allLaunches'] }),
+        queryClient.refetchQueries({ queryKey: ['activeLaunches', dmsId] }),
+        queryClient.refetchQueries({ queryKey: ['launchJobStatuses', dmsId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['launchJobStats', dmsId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', dmsId, launchId] }),
+      ]);
 
     } catch (error) {
       console.error('Error executing launch:', error);
+      
+      // Revert optimistic updates on error
+      setLocalStartedLaunches(prev => {
+        const n = new Set(prev);
+        n.delete(launchId);
+        return n;
+      });
+      
       toast({
         variant: "destructive",
         title: "Launch Execution Failed",
         description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    } finally {
+      // Remove from executing state
+      setExecutingLaunches(prev => {
+        const n = new Set(prev);
+        n.delete(launchId);
+        return n;
       });
     }
   };
@@ -2462,7 +2716,26 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <span>{pack.dmsName}</span>
                   <span>•</span>
-                  <span>{pack.launches.length} launch{pack.launches.length !== 1 ? 'es' : ''}</span>
+                  <div className="flex items-center gap-2">
+                    <span>Show:</span>
+                    <Select
+                      value={launchesPageSize.toString()}
+                      onValueChange={(value) => {
+                        setLaunchesPageSize(parseInt(value));
+                        setLaunchesBookmark(null);
+                      }}
+                    >
+                      <SelectTrigger className="w-[70px] h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2472,7 +2745,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
               <Button
                 size="sm"
                 variant="default"
-                onClick={() => onNewLaunch(pack.id, pack.name, pack.version)}
+                onClick={() => onNewLaunch(pack.id, pack.name, pack.version, dmsId)}
                 className="gap-2 bg-primary hover:bg-primary/90"
               >
                 <PlayCircle className="h-4 w-4" />
@@ -2512,7 +2785,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onNewVersion(pack.id)}
+                onClick={() => onNewVersion(pack.id, dmsId)}
                 className="gap-2"
               >
                 <PlusCircle className="h-4 w-4" />
@@ -2525,7 +2798,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
       
       {isExpanded && (
         <div className="p-4">
-          {pack.launches.length === 0 ? (
+          {displayedLaunches.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center rounded-lg border-2 border-dashed">
               <Info className="h-12 w-12 text-muted-foreground mb-3" />
               <p className="text-lg font-medium text-foreground">No launches found for this update pack</p>
@@ -2533,7 +2806,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
                 Create a new launch to start deploying version {pack.version} to your devices.
               </p>
               <Button
-                onClick={() => onNewLaunch(pack.id, pack.name, pack.version)}
+                onClick={() => onNewLaunch(pack.id, pack.name, pack.version, dmsId)}
                 disabled={!pack.uri}
                 className={`bg-primary hover:bg-primary/90 ${!pack.uri ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
               >
@@ -2560,30 +2833,55 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
               </Button>
             </div>
           ) : (
-            <div className="space-y-2">
-              {pack.launches.map((launch) => (
-                <LaunchRowWithWorkflowStates
-                  key={launch.id}
-                  launch={launch}
-                  dmsId={dmsId}
-                  accessToken={accessToken}
-                  startedLaunches={startedLaunches}
-                  startedLaunchTotals={startedLaunchTotals}
-                  updateLaunchTotal={updateLaunchTotal}
-                  clearStartedLaunch={clearStartedLaunch}
-                  onViewLaunchDetails={onViewLaunchDetails}
-                  onExecuteLaunch={handleLaunchExecute}
-                  onCancelAuto={(launchId) => setCancelAutoLaunchId(launchId)}
-                  isCancellingAuto={isCancellingAuto}
-                />
-              ))}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {displayedLaunches.map((launch) => (
+                  <LaunchRowWithWorkflowStates
+                    key={launch.id}
+                    launch={launch}
+                    dmsId={dmsId}
+                    accessToken={accessToken}
+                    startedLaunches={startedLaunches}
+                    startedLaunchTotals={startedLaunchTotals}
+                    updateLaunchTotal={updateLaunchTotal}
+                    clearStartedLaunch={clearStartedLaunch}
+                    onViewLaunchDetails={onViewLaunchDetails}
+                    onExecuteLaunch={handleLaunchExecute}
+                    onCancelAuto={(launchId, workflowType) => setCancelAutoLaunch({ launchId, workflowType })}
+                    isCancellingAuto={isCancellingAuto}
+                    startStoredLaunch={startStoredLaunch}
+                    executingLaunches={executingLaunches}
+                    packVersion={pack.version}
+                  />
+                ))}
+              </div>
+              {/* Pagination disabled since we're using parent data
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePreviousPage}
+                  disabled={bookmarkStack.length === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleNextPage}
+                  disabled={!hasMoreLaunches}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              */}
             </div>
           )}
         </div>
       )}
       
       {/* Cancel Auto Deploy Confirmation Dialog */}
-      <AlertDialog open={!!cancelAutoLaunchId} onOpenChange={(open) => !open && setCancelAutoLaunchId(null)}>
+      <AlertDialog open={!!cancelAutoLaunch} onOpenChange={(open) => !open && setCancelAutoLaunch(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
@@ -2600,8 +2898,11 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
             <AlertDialogCancel>Keep Auto Mode</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (cancelAutoLaunchId) {
-                  cancelAutoMutate({ launchId: cancelAutoLaunchId });
+                if (cancelAutoLaunch) {
+                  cancelAutoMutate({ 
+                    launchId: cancelAutoLaunch.launchId, 
+                    workflowType: cancelAutoLaunch.workflowType as 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased' | undefined 
+                  });
                 }
               }}
               className="bg-destructive hover:bg-destructive/90"
@@ -2624,15 +2925,44 @@ export default function UpdatesPage() {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = React.useState(false);
   const [isStrategyDialogOpen, setIsStrategyDialogOpen] = React.useState(false);
   const [selectedPackForLaunch, setSelectedPackForLaunch] = React.useState<string | null>(null);
-  const [startedLaunches, setStartedLaunches] = React.useState<Set<string>>(new Set());
-  const [startedLaunchTotals, setStartedLaunchTotals] = React.useState<Map<string, number>>(new Map());
-  const { user } = useAuth();
-  const { availableDms, selectedDms } = useDms();
-
   // Get filter parameters from URL
   const packNameFilter = searchParams.get('packName');
   const dmsIdFilter = searchParams.get('dmsId');
+
+  const [startedLaunches, setStartedLaunches] = React.useState<Set<string>>(new Set());
+  const [startedLaunchTotals, setStartedLaunchTotals] = React.useState<Map<string, number>>(new Map());
+  const [filterDmsId, setFilterDmsId] = React.useState<string>(dmsIdFilter || "all");
   
+  // Update filter when URL param changes
+  React.useEffect(() => {
+    setFilterDmsId(dmsIdFilter || "all");
+  }, [dmsIdFilter]);
+  
+  const { user } = useAuth();
+  const { availableDms, selectedDms, setSelectedDms } = useDms();
+  
+  // Fetch update packs from ALL DMSs (for the list view)
+  const { data: allDmsUpdatePacks = [], isLoading: isLoadingAllPacks } = useQuery({
+    queryKey: ['allDmsUpdatePacks', user?.access_token, availableDms.map(d => d.id).join(',')],
+    queryFn: async () => {
+      if (!user?.access_token || availableDms.length === 0) return [];
+      
+      const promises = availableDms.map(async dms => {
+        try {
+          const res = await fetchUpdatePacks({ dmsId: dms.id, accessToken: user.access_token! }, { pageSize: 100 });
+          return res.list.map(p => ({ ...p, dmsId: dms.id, dmsName: dms.name }));
+        } catch (e) {
+          console.error(`Failed to fetch packs for DMS ${dms.id}`, e);
+          return [];
+        }
+      });
+      
+      const results = await Promise.all(promises);
+      return results.flat();
+    },
+    enabled: !!user?.access_token && availableDms.length > 0
+  });
+
   // Fetch global strategy for the selected DMS (needed for Prepare Launch button)
   const { data: globalStrategy, isLoading: isLoadingGlobalStrategy } = useQuery<ApiGlobalStrategy | null, Error>({
     queryKey: ['globalStrategy', selectedDms?.id],
@@ -2641,11 +2971,20 @@ export default function UpdatesPage() {
   });
 
   // Fetch update packs for strategy configuration
-  const { data: updatePacks = [], isLoading: isLoadingUpdatePacks } = useQuery<UpdatePack[], Error>({
+  const { data: updatePacksResponse2, isLoading: isLoadingUpdatePacks } = useQuery({
     queryKey: ['updatePacks', selectedDms?.id],
-  queryFn: ({ signal }) => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }, { signal }),
+    queryFn: ({ signal }) => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }, { signal }),
     enabled: !!selectedDms?.id && !!user?.access_token,
   });
+  
+  // Use packs from the global cache if available for the selected DMS to avoid loading states when switching
+  const updatePacks = React.useMemo(() => {
+    if (selectedDms && allDmsUpdatePacks.length > 0) {
+      const filtered = allDmsUpdatePacks.filter((p: any) => p.dmsId === selectedDms.id);
+      if (filtered.length > 0) return filtered;
+    }
+    return updatePacksResponse2?.list || [];
+  }, [allDmsUpdatePacks, selectedDms, updatePacksResponse2?.list]);
 
   // Strategy save mutation
   const strategyMutation = useMutation({
@@ -2688,9 +3027,26 @@ export default function UpdatesPage() {
         strategyConfig: config
       });
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast({ title: "Launch Prepared", description: data.message || "Successfully prepared launch based on configured strategy." });
-      queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
+      
+      // Reset pagination by invalidating pack-specific queries
+      queryClient.invalidateQueries({ queryKey: ['packLaunches'] });
+      
+      // Immediately refetch to show new launch
+      await queryClient.refetchQueries({ queryKey: ['allLaunches'] });
+      
+      // If the response contains a launch ID, mark it as started for immediate polling
+      if (data.launch_id || data.launchId || data.id) {
+        const newLaunchId = data.launch_id || data.launchId || data.id;
+        if (startStoredLaunch) startStoredLaunch(newLaunchId);
+      }
+      
+      // Refetch again after a short delay to ensure we catch the new launch
+      setTimeout(async () => {
+        await queryClient.refetchQueries({ queryKey: ['allLaunches'] });
+      }, 500);
+      
       setIsStrategyDialogOpen(false);
     },
     onError: (err: Error) => {
@@ -2732,52 +3088,88 @@ export default function UpdatesPage() {
         ? availableDms.filter(dms => dms.id === dmsIdFilter)
         : availableDms;
       
-      const allLaunchesPromises = dmsToQuery.map(dms => 
-        fetchCurrentLaunches({ dmsId: dms.id, accessToken: user.access_token! })
-          .then(launchResponse => launchResponse.list?.map(launch => ({ ...launch, dmsName: dms.name })) || [])
-          .catch(() => []) // Return empty array on error for this DMS
-      );
-      
-      const launchesArrays = await Promise.all(allLaunchesPromises);
-      let filteredLaunches = launchesArrays.flat();
-
-      // Filter by pack name if provided
+      // If we have a pack filter, fetch all launches
       if (packNameFilter) {
+        const allLaunchesPromises = dmsToQuery.map(dms => 
+          fetchAllLaunches({ dmsId: dms.id, accessToken: user.access_token! })
+            .then(launches => launches.map(launch => ({ ...launch, dmsName: dms.name })))
+            .catch(() => []) // Return empty array on error for this DMS
+        );
+        
+        const launchesArrays = await Promise.all(allLaunchesPromises);
+        let filteredLaunches = launchesArrays.flat();
+
         filteredLaunches = filteredLaunches.filter(launch => 
           launch.name.includes(packNameFilter) || 
           launch.name === packNameFilter ||
           launch.name.startsWith(packNameFilter)
         );
+
+        return filteredLaunches;
+      }
+      
+      // Otherwise, fetch 5 launches per pack
+      const allPackLaunches: LaunchItemWithDms[] = [];
+      
+      for (const dms of dmsToQuery) {
+        // Fetch update packs for this DMS
+        try {
+          const packsResponse = await fetchUpdatePacks({ 
+            dmsId: dms.id, 
+            accessToken: user.access_token! 
+          }, { pageSize: 50 });
+          
+          // For each pack, fetch the latest 5 launches
+          const packLaunchPromises = packsResponse.list.map(pack =>
+            fetchLaunchesByUpdatePack({
+              dmsId: dms.id,
+              accessToken: user.access_token!,
+              updatePackId: pack.id,
+              pageSize: 5,
+              sortBy: 'exec_date',
+              sortMode: 'desc'
+            })
+              .then(response => 
+                (response.list || []).map(launch => ({ ...launch, dmsName: dms.name }))
+              )
+              .catch(() => [])
+          );
+          
+          const packLaunchesArrays = await Promise.all(packLaunchPromises);
+          allPackLaunches.push(...packLaunchesArrays.flat());
+        } catch (err) {
+          console.error(`Error fetching packs/launches for DMS ${dms.id}:`, err);
+        }
       }
 
-      return filteredLaunches;
+      return allPackLaunches;
     },
     enabled: !!user?.access_token && availableDms.length > 0,
-    refetchInterval: startedLaunches.size > 0 ? 2000 : false,
+    refetchInterval: startedLaunches.size > 0 ? 3000 : false,
   });
 
   const itemRolloutMutation = useMutation({
     mutationFn: ({ dmsId, launchId }: { dmsId: string; launchId: string }) => 
       triggerItemRollout({ dmsId, launchId, accessToken: user!.access_token! }),
-    onSuccess: (data, { dmsId, launchId }) => {
+    onSuccess: async (data, { dmsId, launchId }) => {
       toast({ title: "Rollout Triggered", description: data.message || `Rollout for item ${launchId} started.` });
-      queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
-      queryClient.invalidateQueries({ queryKey: ['launchJobStats', dmsId, launchId] });
-      queryClient.invalidateQueries({ queryKey: ['deviceJobs', dmsId] }); 
+      
       const launch = allLaunches.find(l => l.id === launchId);
-      if (launch) {
-        launch.devices_with_job.forEach(deviceId => {
-            queryClient.invalidateQueries({ queryKey: ['deviceJobs', dmsId, deviceId, launchId] });
-        });
-      }
       // Mark launch as started globally to preserve ui totals during transient changes
       if (launch && updateLaunchTotal) {
         const allDeviceIds = Array.from(new Set([...launch.devices_with_job, ...launch.devices_without_job, ...(launch.active_launches || [])]));
         updateLaunchTotal(launchId, allDeviceIds.length);
       }
       startStoredLaunch && startStoredLaunch(launchId);
-  // Refresh active launches too so the progress cell can pick up activity quickly
-  queryClient.invalidateQueries({ queryKey: ['activeLaunches', dmsId] });
+      
+      // Immediately refetch to show updated status and progress
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['allLaunches'] }),
+        queryClient.refetchQueries({ queryKey: ['activeLaunches', dmsId] }),
+        queryClient.refetchQueries({ queryKey: ['launchJobStatuses', dmsId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['launchJobStats', dmsId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', dmsId, launchId] }),
+      ]);
     },
     onError: (err: Error, { launchId }) => {
       toast({ variant: "destructive", title: `Rollout Failed for ${launchId}`, description: err.message });
@@ -2802,36 +3194,6 @@ export default function UpdatesPage() {
     updatePackId: selectedPackForLaunch || updatePacks.find(p => p.name === globalStrategy?.update_pack_id)?.id || undefined,
   };
 
-  // Helper function to extract pack name and version from launch name
-  const extractPackInfo = (launchName: string): { name: string; version: number } | null => {
-    // Try to extract version from launch name
-    const versionMatch = launchName.match(/(?:_v|\sV)([0-9]+(?:\.[0-9]+)*)/i);
-    if (versionMatch && versionMatch[1]) {
-      const versionParts = versionMatch[1].split('.');
-      const version = parseInt(versionParts[0], 10);
-      // Remove version suffix to get pack name
-      const name = launchName.replace(/(?:_v|\sV)([0-9]+(?:\.[0-9]+)*).*$/i, '').trim();
-      return { name, version };
-    }
-    
-    // If no version found, try to match with existing packs
-    const matchedPack = updatePacks.find(pack => 
-      launchName.includes(pack.name) || launchName.startsWith(pack.name)
-    );
-    
-    if (matchedPack) {
-      return { name: matchedPack.name, version: matchedPack.version };
-    }
-    
-    // If no match found, assume the launch name is the pack name and use version 1
-    // This handles removed packs that still have launches
-    if (launchName.trim()) {
-      return { name: launchName.trim(), version: 1 };
-    }
-    
-    return null;
-  };
-
   // Group launches by update pack
   const groupedLaunches = React.useMemo(() => {
     if (packNameFilter || !user?.access_token) return { activePacks: [], removedPacks: [] };
@@ -2840,70 +3202,59 @@ export default function UpdatesPage() {
     const packsMap = new Map<string, UpdatePackWithStatus>();
     
     // Initialize with all update packs (these are active packs)
-    availableDms.forEach(dms => {
-      // We'll need to fetch packs for each DMS - for now use selectedDms packs
-      if (dms.id === selectedDms?.id && updatePacks.length > 0) {
-        updatePacks.forEach(pack => {
-          const key = `${dms.id}-${pack.name}-${pack.version}`;
-          if (!packsMap.has(key)) {
-            packsMap.set(key, {
-              ...pack,
-              dmsId: dms.id,
-              dmsName: dms.name,
-              launches: [],
-              totalDevices: 0,
-              devicesWithJob: 0,
-              completedDevices: 0,
-              failedDevices: 0,
-              status: 'Not Started',
-              errorRate: 0,
-              rolloutProgress: 0,
-              targetTags: [],
-              hasLaunchForCurrentVersion: false,
-              hasActiveLaunch: false,
-              isRemoved: false,
-            });
-          }
+    allDmsUpdatePacks.forEach((pack: any) => {
+      // Filter by DMS
+      if (filterDmsId !== 'all' && pack.dmsId !== filterDmsId) return;
+
+      const key = `${pack.dmsId}-${pack.name}-${pack.version}`;
+      if (!packsMap.has(key)) {
+        packsMap.set(key, {
+          ...pack,
+          // dmsId and dmsName are already in pack object
+          launches: [],
+          totalDevices: 0,
+          devicesWithJob: 0,
+          completedDevices: 0,
+          failedDevices: 0,
+          status: 'Not Started',
+          errorRate: 0,
+          rolloutProgress: 0,
+          targetTags: [],
+          hasLaunchForCurrentVersion: false,
+          hasActiveLaunch: false,
+          isRemoved: false,
         });
       }
     });
-    
+
     // Add launches to their respective packs
     allLaunches.forEach(launch => {
-      // Extract pack name and version from launch name
-      const packInfo = extractPackInfo(launch.name);
-      if (packInfo) {
-        const key = `${launch.dms_id}-${packInfo.name}-${packInfo.version}`;
-        let packWithStatus = packsMap.get(key);
-        
-        if (!packWithStatus) {
-          // Create a pack entry if it doesn't exist
-          // Only mark as removed if it's from the selected DMS and doesn't exist in updatePacks
-          const isRemoved = !!(selectedDms && launch.dms_id === selectedDms.id && !updatePacks.some(p => p.name === packInfo.name && p.version === packInfo.version));
-          packWithStatus = {
-            id: `${launch.dms_id}-${packInfo.name}`,
-            name: packInfo.name,
-            version: packInfo.version,
-            type: 'firmware',
-            dmsId: launch.dms_id,
-            dmsName: launch.dmsName || '',
-            launches: [],
-            totalDevices: 0,
-            devicesWithJob: 0,
-            completedDevices: 0,
-            failedDevices: 0,
-            status: 'Not Started',
-            errorRate: 0,
-            rolloutProgress: 0,
-            targetTags: [],
-            hasLaunchForCurrentVersion: false,
-            hasActiveLaunch: false,
-            isRemoved: isRemoved,
-          };
-          packsMap.set(key, packWithStatus);
-        }
-        
-        // Now packWithStatus is guaranteed to be defined
+      // Filter by DMS
+      if (filterDmsId !== 'all' && launch.dms_id !== filterDmsId) return;
+
+      // Match launch to pack using update_pack_id
+      // update_pack_id should match the pack's name or id
+      if (!launch.update_pack_id) return; // Skip launches without pack reference
+      
+      const matchedPack = allDmsUpdatePacks.find((p: any) => {
+        // Try matching by name (most common) or by id
+        const nameMatches = p.name?.toLowerCase() === launch.update_pack_id?.toLowerCase();
+        const idMatches = p.id === launch.update_pack_id;
+        const dmsMatches = p.dmsId === launch.dms_id;
+        return dmsMatches && (nameMatches || idMatches);
+      });
+      
+      if (!matchedPack) return; // Skip if we can't find the pack
+      
+      const key = `${launch.dms_id}-${matchedPack.name}-${matchedPack.version}`;
+      let packWithStatus = packsMap.get(key);
+      
+      if (!packWithStatus) {
+        // This shouldn't happen since we initialized all packs, but handle it
+        packWithStatus = packsMap.get(key);
+      }
+      
+      if (packWithStatus) {
         packWithStatus.launches.push(launch);
         packWithStatus.totalDevices += launch.devices_with_job.length + launch.devices_without_job.length;
         packWithStatus.devicesWithJob += launch.devices_with_job.length;
@@ -2949,16 +3300,34 @@ export default function UpdatesPage() {
       activePacks: sortPacks(activePacks),
       removedPacks: sortPacks(removedPacks),
     };
-  }, [allLaunches, updatePacks, availableDms, selectedDms, packNameFilter, user]);
+  }, [allLaunches, allDmsUpdatePacks, filterDmsId, packNameFilter, user]);
 
-  const handleNewLaunch = (packId: string, packName: string, version: number) => {
+  const handleNewLaunch = (packId: string, packName: string, version: number, dmsId?: string) => {
+    // If dmsId is provided and different from currently selected, update selectedDms
+    if (dmsId && dmsId !== selectedDms?.id) {
+      const newDms = availableDms.find(d => d.id === dmsId);
+      if (newDms) {
+        setSelectedDms(newDms);
+      }
+    }
     // Set the selected pack and open strategy dialog
     setSelectedPackForLaunch(packId);
     setIsStrategyDialogOpen(true);
   };
 
-  const handleNewVersion = (packId: string) => {
-    router.push(`/updates/create?mode=update&basePackId=${encodeURIComponent(packId)}`);
+  const handleNewVersion = (packId: string, dmsId?: string) => {
+    // If dmsId is provided and different from currently selected, update selectedDms
+    if (dmsId && dmsId !== selectedDms?.id) {
+      const newDms = availableDms.find(d => d.id === dmsId);
+      if (newDms) {
+        setSelectedDms(newDms);
+      }
+    }
+    let url = `/updates/create?mode=update&basePackId=${encodeURIComponent(packId)}`;
+    if (dmsId) {
+      url += `&dmsId=${encodeURIComponent(dmsId)}`;
+    }
+    router.push(url);
   };
 
   const handleViewLaunchDetails = (launch: LaunchItem) => {
@@ -3030,6 +3399,21 @@ export default function UpdatesPage() {
         </div>
         {!packNameFilter && (
           <div className="flex items-center gap-3">
+            <div className="w-[180px]">
+              <Select value={filterDmsId} onValueChange={setFilterDmsId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All DMS" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All DMS</SelectItem>
+                  {availableDms.map((dms) => (
+                    <SelectItem key={dms.id} value={dms.id}>
+                      {dms.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button onClick={() => router.push('/updates/packs')} variant="outline">
               <Package className="h-4 w-4 mr-2" />
               View Update Packs

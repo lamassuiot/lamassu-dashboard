@@ -1,4 +1,3 @@
-
 // src/app/updates/create_update/page.tsx
 "use client";
 
@@ -98,6 +97,7 @@ function ExistingUpdatePacks({
   const [packForDescriptorView, setPackForDescriptorView] = React.useState<UpdatePack | null>(null);
   const { user } = useAuth();
   const { selectedDms } = useDms();
+  const router = useRouter();
 
   React.useEffect(() => {
     if (data) {
@@ -206,7 +206,7 @@ function ExistingUpdatePacks({
                   <TableRow 
                     key={pack.id} 
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/updates/packs/${pack.name}`)}
+                    onClick={() => router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&dmsId=${selectedDms?.id}`)}
                   >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -215,7 +215,7 @@ function ExistingUpdatePacks({
                           className="text-primary hover:text-primary/80 underline cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/updates/packs/${pack.name}`);
+                            router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&dmsId=${selectedDms?.id}`);
                           }}
                         >
                           {pack.name}
@@ -292,7 +292,7 @@ export default function UpdatePacksPage() {
 
   const { data: fetchedUpdatePacks, error: fetchError, isLoading: isFetching, refetch } = useQuery<UpdatePack[], Error>({
     queryKey: ['updatePacks', selectedDms?.id],
-    queryFn: () => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }),
+    queryFn: () => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }).then(res => res.list),
     enabled: !!selectedDms && !!user?.access_token,
     select: (data) => { 
       return data.map(pack => {

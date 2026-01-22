@@ -383,17 +383,27 @@ export default function DeviceDetailsClient() {
                 eventType = 'RENEWED'; // Normalize event type for display
                 const versionSetMatch = rawEvent.description.match(/New Active Version set to (\d+)/);
                 if (versionSetMatch) versionToFind = versionSetMatch[1];
-            } else if (rawEvent.type === 'STATUS-UPDATED') {
-                try {
-                    const parsedData = JSON.parse(rawEvent.description);
-                    if (parsedData.data?.job) {
-                        eventData = parsedData.data;
-                        title = `Job Status: ${eventData.job.status.state}`;
-                        detailsNode = <p className="text-xs text-muted-foreground">Job ID: <span className="font-mono">{eventData.job.id}</span></p>;
+            } else if (rawEvent.type === 'device.events.update' || rawEvent.type === 'lamaassu.io/device-event/wfx/update/job') {
+                let jobData = null;
+                if (rawEvent.data?.job) {
+                    eventData = rawEvent.data;
+                    jobData = rawEvent.data.job;
+                } else {
+                    try {
+                        const parsedData = JSON.parse(rawEvent.description);
+                        if (parsedData.data?.job) {
+                            eventData = parsedData.data;
+                            jobData = parsedData.data.job;
+                        }
+                    } catch {
+                        // It's not JSON, so treat it as a plain string.
+                        title = rawEvent.description;
                     }
-                } catch {
-                    // It's not JSON, so treat it as a plain string.
-                    title = rawEvent.description;
+                }
+
+                if (jobData) {
+                    title = `Job Status: ${jobData.status.state}`;
+                    detailsNode = <p className="text-xs text-muted-foreground">Job ID: <span className="font-mono">{jobData.id}</span></p>;
                 }
             }
             

@@ -556,7 +556,7 @@ export default function RegistrationAuthoritiesPage() {
                             label="Device Tags" 
                             value={
                                 <div className="flex flex-wrap gap-1">
-                                    {ra.settings.enrollment_settings.device_provisioning_profile.tags.map(tag => (
+                                    {ra.settings.enrollment_settings.device_provisioning_profile.tags?.map(tag => (
                                         <Badge key={tag} variant="secondary">{tag}</Badge>
                                     ))}
                                 </div>

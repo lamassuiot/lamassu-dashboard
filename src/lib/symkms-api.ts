@@ -44,6 +44,11 @@ export interface SymmetricKey {
     creation_ts?: string;
 }
 
+export interface SymmetricKeysResponse {
+    list: SymmetricKey[];
+    next: string | null;
+}
+
 export interface CreateSymmetricKeyRequest {
     user_id: string;
     algorithm: string;
@@ -51,9 +56,28 @@ export interface CreateSymmetricKeyRequest {
     key?: string;  // Base64 encoded key for import (optional - if not provided, API generates)
 }
 
-export const fetchSymmetricKeys = async (userId: string, token: string): Promise<SymmetricKey[]> => {
+export interface FetchSymmetricKeysOptions {
+    pageSize?: number;
+    bookmark?: string;
+    sortBy?: 'created_at' | 'id' | 'algorithm';
+    sortMode?: 'asc' | 'desc';
+}
+
+export const fetchSymmetricKeys = async (
+    userId: string, 
+    token: string, 
+    options?: FetchSymmetricKeysOptions
+): Promise<SymmetricKeysResponse> => {
     const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
-    const url = `${baseUrl}?user_id=${encodeURIComponent(userId)}`;
+    
+    const params = new URLSearchParams();
+    params.set('user_id', userId);
+    if (options?.pageSize) params.set('page_size', options.pageSize.toString());
+    if (options?.bookmark) params.set('bookmark', options.bookmark);
+    if (options?.sortBy) params.set('sort_by', options.sortBy);
+    if (options?.sortMode) params.set('sort_mode', options.sortMode);
+    
+    const url = `${baseUrl}?${params.toString()}`;
     
     const response = await fetch(url, {
         method: 'GET',
@@ -64,11 +88,16 @@ export const fetchSymmetricKeys = async (userId: string, token: string): Promise
     });
 
     const data = await handleApiError(response, 'Failed to fetch symmetric keys');
+    
     // Handle response that might be an array or an object with a list/keys property
     if (Array.isArray(data)) {
-        return data;
+        return { list: data, next: null };
     }
-    return data.list || data.keys || [];
+    
+    return {
+        list: data.list || data.keys || [],
+        next: data.next || null
+    };
 };
 
 export const createSymmetricKey = async (request: CreateSymmetricKeyRequest, token: string): Promise<SymmetricKey> => {

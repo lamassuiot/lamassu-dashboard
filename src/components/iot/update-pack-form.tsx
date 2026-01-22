@@ -26,12 +26,30 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, CheckCircle, XCircle, HelpCircle, PackageCheck, FileUp, Settings2, Rocket, FileText } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDms } from '@/contexts/DmsContext';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSymmetricKeys, type SymmetricKey } from '@/lib/symkms-api';
+import { fetchKmsKeys, type ApiKmsKey } from '@/lib/kms-data';
+import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import type { CertificateData } from '@/types/certificate';
 import { useQuery } from '@tanstack/react-query';
 
+const RSA_SIGNING_METHODS = [
+  "RSASSA_PSS_SHA_256", 
+  "RSASSA_PSS_SHA_384", 
+  "RSASSA_PSS_SHA_512",
+  "RSASSA_PKCS1_V1_5_SHA_256", 
+  "RSASSA_PKCS1_V1_5_SHA_384", 
+  "RSASSA_PKCS1_V1_5_SHA_512"
+];
+
+const ECDSA_SIGNING_METHODS = [
+  "ECDSA_SHA_256", 
+  "ECDSA_SHA_384", 
+  "ECDSA_SHA_512"
+];
 
 const updatePackFormSchema = z.object({
   name: z.string()
@@ -41,7 +59,10 @@ const updatePackFormSchema = z.object({
   version: z.coerce.number().int().positive("Version must be a positive integer."),
   dmsId: z.string().min(1, "Please select a Device Management System."),
   type: z.enum(["rawfile", "firmware", "other"]),
-  signingAlgorithm: z.enum(["none", "ecdsa-p256", "ecdsa-p384", "rsa-2048", "rsa-3072", "rsa-4096"]).optional(),
+  signingAlgorithm: z.string().optional(),
+  signingKeyId: z.string().optional(),
+  signingMethod: z.string().optional(),
+  signingCertificate: z.string().optional(),
   encryptionKeyId: z.string().optional(),
   descriptorEncrypted: z.boolean().optional(),
   encryptAllFiles: z.boolean().optional(),
@@ -102,11 +123,25 @@ export function UpdatePackForm({
   const [showSecurityWarningDialog, setShowSecurityWarningDialog] = useState(false);
 
   // Fetch available symmetric keys for encryption
-  const { data: symmetricKeys = [] } = useQuery<SymmetricKey[], Error>({
+  const { data: symmetricKeysResponse } = useQuery({
     queryKey: ['symmetricKeys', user?.profile?.sub],
     queryFn: () => fetchSymmetricKeys(user!.profile.sub!, user!.access_token!),
     enabled: !!user?.profile?.sub && !!user?.access_token,
   });
+  
+  const symmetricKeys = symmetricKeysResponse?.list || [];
+
+  // Fetch available KMS keys for signing
+  const { data: signingKeysResponse } = useQuery({
+    queryKey: ['signingKeys', user?.profile?.sub],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      return fetchKmsKeys(user!.access_token!, params);
+    },
+    enabled: !!user?.profile?.sub && !!user?.access_token,
+  });
+
+  const signingKeys = signingKeysResponse?.list || [];
 
   const form = useForm<UpdatePackFormValues>({
     resolver: zodResolver(updatePackFormSchema),
@@ -121,6 +156,24 @@ export function UpdatePackForm({
       encryptAllFiles: false
     } as any,
   });
+
+  // Fetch certificates for the selected signing key
+  const selectedSigningKeyId = form.watch('signingKeyId');
+  const { data: certificatesResponse } = useQuery({
+    queryKey: ['keyCertificates', selectedSigningKeyId],
+    queryFn: async () => {
+      if (!selectedSigningKeyId || selectedSigningKeyId === 'none') return { certificates: [] };
+      const params = new URLSearchParams();
+      params.set('key_id', selectedSigningKeyId);
+      return fetchIssuedCertificates({
+        accessToken: user!.access_token!,
+        apiQueryString: params.toString()
+      });
+    },
+    enabled: !!selectedSigningKeyId && selectedSigningKeyId !== 'none' && !!user?.access_token,
+  });
+
+  const keyCertificates = certificatesResponse?.certificates || [];
 
   useEffect(() => {
     setBinaryFiles([]);
@@ -504,7 +557,8 @@ export function UpdatePackForm({
     
     // Get form values to check for signing/encryption
     const formValues = form.getValues();
-    const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
+    const hasSigning = (formValues.signingKeyId && formValues.signingKeyId !== 'none') || 
+                       (!!formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none');
     const hasEncryption = formValues.encryptionKeyId && formValues.encryptionKeyId !== 'none' && formValues.encryptionKeyId !== '';
     const selectedKey = symmetricKeys.find(k => k.id === formValues.encryptionKeyId);
     
@@ -519,9 +573,10 @@ export function UpdatePackForm({
     
     // Add signing step if signing algorithm is selected
     if (hasSigning) {
+      const algoName = formValues.signingMethod || formValues.signingAlgorithm || 'Unknown Algorithm';
       dynamicSteps.push({
         id: stepCounter++,
-        title: `Sign with ${formValues.signingAlgorithm?.toUpperCase()}`,
+        title: `Sign with ${algoName.toUpperCase()}`,
         icon: Settings2,
         status: 'pending',
         message: "Waiting for file uploads..."
@@ -715,14 +770,15 @@ export function UpdatePackForm({
       // Handle signing step if algorithm is selected
       let currentStepId = 4;
       if (hasSigning) {
-        updateStepStatus(currentStepId, 'in-progress', `Applying ${formValues.signingAlgorithm?.toUpperCase()} signature...`);
+        const algoName = formValues.signingMethod || formValues.signingAlgorithm || 'Unknown Algorithm';
+        updateStepStatus(currentStepId, 'in-progress', `Applying ${algoName.toUpperCase()} signature...`);
         setOverallProgress(70);
         
         // Simulate signing process with random delay (0.5-1s)
         const signingDelay = 500 + Math.random() * 500;
         await new Promise(resolve => setTimeout(resolve, signingDelay));
         
-        updateStepStatus(currentStepId, 'success', `Successfully signed with ${formValues.signingAlgorithm?.toUpperCase()}`);
+        updateStepStatus(currentStepId, 'success', `Successfully signed with ${algoName.toUpperCase()}`);
         currentStepId++;
       }
       
@@ -742,9 +798,20 @@ export function UpdatePackForm({
       updateStepStatus(currentStepId, 'in-progress', 'Triggering .swu file generation...');
       
       // Prepare SWU generation payload with encryption parameters if selected
-      const swuPayload: any = {};
+      const swuPayload: any = {
+        user: user.profile.sub
+      };
+
+      // Add signing parameters
+      if (hasSigning) {
+        swuPayload.signature_key_id = formValues.signingKeyId;
+        swuPayload.signature_alg_name = formValues.signingMethod;
+        
+        const selectedCert = keyCertificates.find(c => c.serialNumber === formValues.signingCertificate);
+        swuPayload.signature_certificate = selectedCert?.pemData || formValues.signingCertificate;
+      }
+
       if (formValues.encryptionKeyId && selectedKey) {
-        swuPayload.user = user.profile.sub;
         swuPayload.encryption_key_name = selectedKey.id;
         swuPayload.encryption_alg_name = convertToSWUGeneratorAlgorithmName(selectedKey.algorithm);
         swuPayload.sw_desc_encrypted = formValues.descriptorEncrypted || false;
@@ -773,7 +840,7 @@ export function UpdatePackForm({
           'Authorization': `Bearer ${user.access_token}`,
           'Content-Type': 'application/json'
         },
-        body: Object.keys(swuPayload).length > 0 ? JSON.stringify(swuPayload) : undefined,
+        body: JSON.stringify(swuPayload),
       });
       if (!generateSwuResponse.ok) {
         const errorData = await generateSwuResponse.json().catch(() => ({ details: `Status: ${generateSwuResponse.status} - ${generateSwuResponse.statusText}` }));
@@ -882,7 +949,7 @@ export function UpdatePackForm({
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
-                        disabled={isProcessingSwu}
+                        disabled={isProcessingSwu || formModeActual === 'newVersion'}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -897,7 +964,11 @@ export function UpdatePackForm({
                           ))}
                         </SelectContent>
                       </Select>
-                      <FormDescription>Select the DMS where this update pack will be created.</FormDescription>
+                      <FormDescription>
+                        {formModeActual === 'newVersion' 
+                          ? "DMS is locked when creating a new version of an existing pack." 
+                          : "Select the DMS where this update pack will be created."}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -954,7 +1025,24 @@ export function UpdatePackForm({
                   name="type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Type</FormLabel>
+                      <FormLabel className="flex items-center gap-2">
+                        Type
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="font-semibold mb-1">Firmware:</p>
+                              <p className="text-xs mb-2">Requires device restart to activate the update</p>
+                              <p className="font-semibold mb-1">Raw File:</p>
+                              <p className="text-xs mb-2">Does not require device restart - updates on-the-fly</p>
+                              <p className="font-semibold mb-1">Both:</p>
+                              <p className="text-xs">Contains both firmware and raw file components</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
@@ -966,8 +1054,24 @@ export function UpdatePackForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="rawfile">Raw File</SelectItem>
-                          <SelectItem value="firmware">Firmware</SelectItem>
+                          <SelectItem value="rawfile">
+                            <div className="flex flex-col">
+                              <span>Raw File</span>
+                              <span className="text-xs text-muted-foreground">No restart required</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="firmware">
+                            <div className="flex flex-col">
+                              <span>Firmware</span>
+                              <span className="text-xs text-muted-foreground">Requires device restart</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="both">
+                            <div className="flex flex-col">
+                              <span>Both</span>
+                              <span className="text-xs text-muted-foreground">Firmware + Raw File</span>
+                            </div>
+                          </SelectItem>
                           <SelectItem value="other">Other Type</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1087,150 +1191,281 @@ export function UpdatePackForm({
               
               {/* Security Configuration - Moved after Files */}
               <h3 className="text-lg font-semibold pt-4 border-t">Step 3: Security Configuration</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="signingAlgorithm"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Signing Algorithm</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select signing algorithm" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">No Signing</SelectItem>
-                          <SelectItem value="ecdsa-p256">ECDSA-P256</SelectItem>
-                          <SelectItem value="ecdsa-p384">ECDSA-P384</SelectItem>
-                          <SelectItem value="rsa-2048">RSA-2048</SelectItem>
-                          <SelectItem value="rsa-3072">RSA-3072</SelectItem>
-                          <SelectItem value="rsa-4096">RSA-4096</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>Digital signature algorithm for update verification</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                
+                {/* Signing Section */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-sm text-muted-foreground border-b pb-2">Signing Configuration</h4>
+                  <FormField
+                    control={form.control}
+                    name="signingKeyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Signing Key</FormLabel>
+                        <Select 
+                          onValueChange={(val) => {
+                            field.onChange(val);
+                            form.setValue('signingMethod', '');
+                            form.setValue('signingCertificate', '');
+                          }} 
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select signing key" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">No Signing</SelectItem>
+                            {signingKeys.map((key) => (
+                              <SelectItem key={key.key_id} value={key.key_id}>
+                                {key.name || key.key_id} ({key.algorithm})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>Select the KMS key to sign this update pack</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                {/* Encryption Key Selection */}
-                <FormField
-                  control={form.control}
-                  name="encryptionKeyId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Keys</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select encryption key" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">No Encryption</SelectItem>
-                          {symmetricKeys.map((key) => (
-                            <SelectItem key={key.id} value={key.id}>
-                              {key.id} ({key.algorithm})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>Select a symmetric key for encryption</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                  <FormField
+                    control={form.control}
+                    name="signingMethod"
+                    render={({ field }) => {
+                      const selectedKeyId = form.watch('signingKeyId');
+                      const selectedKey = signingKeys.find(k => k.key_id === selectedKeyId);
+                      
+                      if (!selectedKeyId || selectedKeyId === 'none') return null;
 
-              {/* File Encryption Options - show when key is selected */}
-              {form.watch('encryptionKeyId') && form.watch('encryptionKeyId') !== 'none' && form.watch('encryptionKeyId') !== '' && (
-                <div className="space-y-3">
-                  <div className="space-y-3">
-                    <FormLabel className="text-sm font-medium">Encryption Options</FormLabel>
+                      let methods: string[] = [];
+                      if (selectedKey?.algorithm === 'RSA') {
+                        methods = RSA_SIGNING_METHODS;
+                      } else if (selectedKey?.algorithm === 'ECDSA') {
+                        methods = ECDSA_SIGNING_METHODS;
+                      }
 
-                    <FormField
-                      control={form.control}
-                      name="descriptorEncrypted"
-                      render={({ field }) => (
+                      return (
                         <FormItem>
-                          <div className="flex flex-col space-y-2">
-                            <Button
-                              type="button"
-                              variant={field.value ? "default" : "outline"}
-                              onClick={() => field.onChange(!field.value)}
-                              className={`justify-start h-auto p-4 ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
-                            >
-                              <div className="flex items-center space-x-3">
-                                <div className={`w-4 h-4 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
-                                <div className="text-left">
-                                  <div className="font-medium">Encrypt Descriptor</div>
-                                  <div className="text-xs opacity-80">Encrypt the software update descriptor file</div>
-                                </div>
-                              </div>
-                            </Button>
-                          </div>
+                          <FormLabel>Signing Method</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select signing method" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {methods.map((method) => (
+                                <SelectItem key={method} value={method}>
+                                  {method}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Algorithm specific signing method</FormDescription>
+                          <FormMessage />
                         </FormItem>
-                      )}
-                    />
+                      );
+                    }}
+                  />
 
-                    <FormField
-                      control={form.control}
-                      name="encryptAllFiles"
-                      render={({ field }) => (
+                  <FormField
+                    control={form.control}
+                    name="signingCertificate"
+                    render={({ field }) => {
+                      const selectedKeyId = form.watch('signingKeyId');
+                      
+                      if (!selectedKeyId || selectedKeyId === 'none') return null;
+
+                      // Filter certificates relevant for signing (Digital Signature or Non Repudiation or Code Signing)
+                      const signingCertificates = keyCertificates.filter(cert => {
+                        // Ensure isCa is NOT true (we want leaf/end-entity certificates)
+                        if (cert.isCa === true) return false;
+
+                        // Filter out revoked certificates
+                        if (cert.apiStatus === 'REVOKED') return false;
+
+                        // If EKU is present, prioritize CodeSigning check if available
+                        if (cert.extendedKeyUsage && cert.extendedKeyUsage.includes('CodeSigning')) return true;
+
+                        // Check standard Key Usage
+                        if (cert.keyUsage && cert.keyUsage.length > 0) {
+                           return cert.keyUsage.includes('digitalSignature') || cert.keyUsage.includes('nonRepudiation');
+                        }
+                        
+                        // If no key usage info defined, include it conservatively
+                        return true;
+                      });
+
+                      return (
                         <FormItem>
-                          <div className="flex flex-col space-y-2">
-                            <Button
-                              type="button"
-                              variant={field.value ? "default" : "outline"}
-                              onClick={() => field.onChange(!field.value)}
-                              className={`justify-start h-auto p-4 ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
-                            >
-                              <div className="flex items-center space-x-3">
-                                <div className={`w-4 h-4 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
-                                <div className="text-left">
-                                  <div className="font-medium">Encrypt All Files</div>
-                                  <div className="text-xs opacity-80">Encrypt all files listed in the software update descriptor</div>
-                                </div>
-                              </div>
-                            </Button>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                          <FormLabel>Certificate <span className="text-destructive">*</span></FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select certificate" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {signingCertificates.length === 0 ? (
+                                <SelectItem value="no-certs" disabled>
+                                  No signing certificates available for this key
+                                </SelectItem>
+                              ) : (
+                                signingCertificates.map((cert) => {
+                                  const issuerName = cert.issuer.split(',').find(p => p.trim().startsWith('CN='))?.split('=')[1] || cert.issuer;
+                                  const dateStr = new Date(cert.validFrom).toLocaleDateString();
+                                  // Clean subject for display
+                                  const subjectName = cert.subject.split(',').find(p => p.trim().startsWith('CN='))?.split('=')[1] || cert.subject;
 
-                  {/* Individual file encryption options */}
-                  {descriptorRequiredFiles.length > 0 && !form.watch('encryptAllFiles') && (
+                                  // Format usages for display
+                                  const usages = [
+                                    ...(cert.keyUsage || []).filter(u => u === 'digitalSignature' || u === 'nonRepudiation'),
+                                    ...(cert.extendedKeyUsage || []).filter(u => u === 'CodeSigning')
+                                  ].join(', ');
+                                  
+                                  const usageDisplay = usages ? `[${usages}]` : '';
+
+                                  return (
+                                    <SelectItem key={cert.serialNumber} value={cert.serialNumber}>
+                                      <span>{subjectName}</span>
+                                      <span className="ml-2 text-xs text-muted-foreground">
+                                         | {usageDisplay} Issued by: {issuerName} | {dateStr} | {cert.serialNumber.slice(0, 8)}...
+                                      </span>
+                                    </SelectItem>
+                                  );
+                                })
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>Select the certificate to use for signing (filtered by signing capability)</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                </div>
+
+                {/* Encryption Section */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-sm text-muted-foreground border-b pb-2">Encryption Configuration</h4>
+                  <FormField
+                    control={form.control}
+                    name="encryptionKeyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Encryption Key</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select encryption key" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">No Encryption</SelectItem>
+                            {symmetricKeys.map((key) => (
+                              <SelectItem key={key.id} value={key.id}>
+                                {key.id} ({key.algorithm})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>Select a symmetric key for encryption</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* File Encryption Options - show when key is selected */}
+                  {form.watch('encryptionKeyId') && form.watch('encryptionKeyId') !== 'none' && form.watch('encryptionKeyId') !== '' && (
                     <div className="space-y-3">
-                      <FormLabel className="text-sm font-medium">Or encrypt individual files:</FormLabel>
-                      <div className="space-y-2">
-                        {descriptorRequiredFiles.map((fileName, index) => (
-                          <FormField
-                            key={fileName}
-                            control={form.control}
-                            name={`encryptFile_${index}`}
-                            render={({ field }) => (
-                              <Button
-                                type="button"
-                                variant={field.value ? "default" : "outline"}
-                                onClick={() => field.onChange(!field.value)}
-                                className={`justify-start h-auto p-3 w-full ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
-                              >
-                                <div className="flex items-center space-x-3">
-                                  <div className={`w-3 h-3 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
-                                  <div className="text-left font-medium text-sm">{fileName}</div>
-                                </div>
-                              </Button>
-                            )}
-                          />
-                        ))}
+                      <div className="space-y-3">
+                        <FormLabel className="text-sm font-medium">Encryption Options</FormLabel>
+
+                        <FormField
+                          control={form.control}
+                          name="descriptorEncrypted"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex flex-col space-y-2">
+                                <Button
+                                  type="button"
+                                  variant={field.value ? "default" : "outline"}
+                                  onClick={() => field.onChange(!field.value)}
+                                  className={`justify-start h-auto p-4 ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <div className={`w-4 h-4 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
+                                    <div className="text-left">
+                                      <div className="font-medium">Encrypt Descriptor</div>
+                                      <div className="text-xs opacity-80">Encrypt the software update descriptor file</div>
+                                    </div>
+                                  </div>
+                                </Button>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="encryptAllFiles"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex flex-col space-y-2">
+                                <Button
+                                  type="button"
+                                  variant={field.value ? "default" : "outline"}
+                                  onClick={() => field.onChange(!field.value)}
+                                  className={`justify-start h-auto p-4 ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
+                                >
+                                  <div className="flex items-center space-x-3">
+                                    <div className={`w-4 h-4 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
+                                    <div className="text-left">
+                                      <div className="font-medium">Encrypt All Files</div>
+                                      <div className="text-xs opacity-80">Encrypt all files listed in the software update descriptor</div>
+                                    </div>
+                                  </div>
+                                </Button>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
                       </div>
+
+                      {/* Individual file encryption options */}
+                      {descriptorRequiredFiles.length > 0 && !form.watch('encryptAllFiles') && (
+                        <div className="space-y-3">
+                          <FormLabel className="text-sm font-medium">Or encrypt individual files:</FormLabel>
+                          <div className="space-y-2">
+                            {descriptorRequiredFiles.map((fileName, index) => (
+                              <FormField
+                                key={fileName}
+                                control={form.control}
+                                name={`encryptFile_${index}`}
+                                render={({ field }) => (
+                                  <Button
+                                    type="button"
+                                    variant={field.value ? "default" : "outline"}
+                                    onClick={() => field.onChange(!field.value)}
+                                    className={`justify-start h-auto p-3 w-full ${field.value ? 'bg-primary text-primary-foreground' : ''}`}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <div className={`w-3 h-3 rounded-full ${field.value ? 'bg-primary-foreground' : 'bg-muted'}`} />
+                                      <div className="text-left font-medium text-sm">{fileName}</div>
+                                    </div>
+                                  </Button>
+                                )}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+              </div>
 
             </form>
           </Form>
@@ -1239,7 +1474,8 @@ export function UpdatePackForm({
             <Button
               onClick={() => {
                 const formValues = form.getValues();
-                const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
+                const hasSigning = (formValues.signingKeyId && formValues.signingKeyId !== 'none') || 
+                                   (!!formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none');
                 const hasEncryption = formValues.encryptionKeyId && formValues.encryptionKeyId !== 'none' && formValues.encryptionKeyId !== '';
                 
                 if (!hasSigning && !hasEncryption) {

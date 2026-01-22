@@ -65,7 +65,7 @@ export function LaunchStrategyClient({ params }: LaunchStrategyClientProps) {
     queryFn: () => fetchUpdatePacks({
       dmsId: dmsId!,
       accessToken: user!.access_token!
-    }),
+    }, { pageSize: 50 }).then(res => res.list),
     enabled: !!dmsId && !!user?.access_token,
   });
 

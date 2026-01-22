@@ -23,4 +23,5 @@ export interface CertificateData {
   caIssuersUrls?: string[];
   keyUsage?: string[];
   extendedKeyUsage?: string[];
+  isCa?: boolean;
 }
