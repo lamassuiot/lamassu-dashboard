@@ -24,7 +24,7 @@ import { TagInput } from '@/components/shared/TagInput';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { queryQrngHmin, queryQrngRavg, queryQrngQfactor, queryQrngHminHistory, queryQrngRavgHistory, queryQrngQfactorHistory } from '@/lib/prometheus-utils';
+import { queryQrngHmin, queryQrngRavg, queryQrngQfactor, queryQrngVcomp, queryQrngTemp, queryQrngHminHistory, queryQrngRavgHistory, queryQrngQfactorHistory, queryQrngVcompHistory, queryQrngTempHistory } from '@/lib/prometheus-utils';
 
 // Monaco Editor dynamic import to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
@@ -111,22 +111,31 @@ export default function CreateKmsKeyPage() {
   const [qrngHminValue, setQrngHminValue] = useState<number | null>(null);
   const [qrngRavgValue, setQrngRavgValue] = useState<number | null>(null);
   const [qrngQfactorValue, setQrngQfactorValue] = useState<number | null>(null);
+  const [qrngVcompValue, setQrngVcompValue] = useState<number | null>(null);
+  const [qrngTempValue, setQrngTempValue] = useState<number | null>(null);
   const [isLoadingMetric, setIsLoadingMetric] = useState(false);
   
   // Metric thresholds (loaded from cookies)
   const [qrngHminThreshold, setQrngHminThreshold] = useState<number>(() => getInitialThreshold('qrng_hmin_threshold', 0.5));
   const [qrngRavgThreshold, setQrngRavgThreshold] = useState<number>(() => getInitialThreshold('qrng_ravg_threshold', 0.5));
   const [qrngQfactorThreshold, setQrngQfactorThreshold] = useState<number>(() => getInitialThreshold('qrng_qfactor_threshold', 0.5));
-  const [adjustingMetric, setAdjustingMetric] = useState<'hmin' | 'ravg' | 'qfactor' | null>(null);
+  const [qrngVcompThreshold, setQrngVcompThreshold] = useState<number>(() => getInitialThreshold('qrng_vcomp_threshold', 0.5));
+  const [qrngTempThreshold, setQrngTempThreshold] = useState<number>(() => getInitialThreshold('qrng_temp_threshold', 0.5));
+  const [adjustingMetric, setAdjustingMetric] = useState<'hmin' | 'ravg' | 'qfactor' | 'vcomp' | 'temp' | null>(null);
   const [tempThreshold, setTempThreshold] = useState<string>('');
   
   // Historical data for graphs
   const [showHminGraph, setShowHminGraph] = useState(false);
   const [showRavgGraph, setShowRavgGraph] = useState(false);
   const [showQfactorGraph, setShowQfactorGraph] = useState(false);
+  const [showVcompGraph, setShowVcompGraph] = useState(false);
+  const [showTempGraph, setShowTempGraph] = useState(false);
   const [hminHistory, setHminHistory] = useState<Array<{timestamp: number, value: number}>>([]);
   const [ravgHistory, setRavgHistory] = useState<Array<{timestamp: number, value: number}>>([]);
   const [qfactorHistory, setQfactorHistory] = useState<Array<{timestamp: number, value: number}>>([]);
+  const [vcompHistory, setVcompHistory] = useState<Array<{timestamp: number, value: number}>>([]);
+  const [tempHistory, setTempHistory] = useState<Array<{timestamp: number, value: number}>>([]);
+  const [historyTimeRange, setHistoryTimeRange] = useState<15 | 30 | 60>(15);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -172,14 +181,18 @@ export default function CreateKmsKeyPage() {
       setIsLoadingMetric(true);
     }
     try {
-      const [hminValue, ravgValue, qfactorValue] = await Promise.all([
+      const [hminValue, ravgValue, qfactorValue, vcompValue, tempValue] = await Promise.all([
         queryQrngHmin(),
         queryQrngRavg(),
-        queryQrngQfactor()
+        queryQrngQfactor(),
+        queryQrngVcomp(),
+        queryQrngTemp()
       ]);
       setQrngHminValue(hminValue);
       setQrngRavgValue(ravgValue);
       setQrngQfactorValue(qfactorValue);
+      setQrngVcompValue(vcompValue);
+      setQrngTempValue(tempValue);
     } catch (error) {
       console.error('Failed to load qrng metrics:', error);
     } finally {
@@ -190,23 +203,31 @@ export default function CreateKmsKeyPage() {
   };
 
   // Function to load historical data for a specific metric
-  const loadHistoricalData = async (metric: 'hmin' | 'ravg' | 'qfactor', showLoading = true) => {
+  const loadHistoricalData = async (metric: 'hmin' | 'ravg' | 'qfactor' | 'vcomp' | 'temp', showLoading = true) => {
     if (showLoading) {
       setIsLoadingHistory(true);
     }
     try {
       if (metric === 'hmin') {
-        const data = await queryQrngHminHistory(15);
+        const data = await queryQrngHminHistory(historyTimeRange);
         setHminHistory(data);
         setShowHminGraph(true);
       } else if (metric === 'ravg') {
-        const data = await queryQrngRavgHistory(15);
+        const data = await queryQrngRavgHistory(historyTimeRange);
         setRavgHistory(data);
         setShowRavgGraph(true);
-      } else {
-        const data = await queryQrngQfactorHistory(15);
+      } else if (metric === 'qfactor') {
+        const data = await queryQrngQfactorHistory(historyTimeRange);
         setQfactorHistory(data);
         setShowQfactorGraph(true);
+      } else if (metric === 'vcomp') {
+        const data = await queryQrngVcompHistory(historyTimeRange);
+        setVcompHistory(data);
+        setShowVcompGraph(true);
+      } else {
+        const data = await queryQrngTempHistory(historyTimeRange);
+        setTempHistory(data);
+        setShowTempGraph(true);
       }
     } catch (error) {
       console.error(`Failed to load ${metric} history:`, error);
@@ -233,10 +254,16 @@ export default function CreateKmsKeyPage() {
       if (showQfactorGraph) {
         loadHistoricalData('qfactor', false); // Don't show loading during auto-refresh
       }
+      if (showVcompGraph) {
+        loadHistoricalData('vcomp', false); // Don't show loading during auto-refresh
+      }
+      if (showTempGraph) {
+        loadHistoricalData('temp', false); // Don't show loading during auto-refresh
+      }
     }, 10000);
     
     return () => clearInterval(intervalId);
-  }, [showHminGraph, showRavgGraph, showQfactorGraph]);
+  }, [showHminGraph, showRavgGraph, showQfactorGraph, showVcompGraph, showTempGraph, historyTimeRange]);
 
   // Get supported key types from selected crypto engine
   const selectedEngine = cryptoEngines.find(engine => engine.id === cryptoEngineId);
@@ -630,17 +657,32 @@ export default function CreateKmsKeyPage() {
                     <p className="text-sm text-muted-foreground">
                       Real-time metrics (auto-refreshes every 10 seconds)
                     </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={loadQrngMetrics}
-                      disabled={isLoadingMetric}
-                      className="h-8 gap-2"
-                    >
-                      <RefreshCw className={`h-3 w-3 ${isLoadingMetric ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Select 
+                        value={historyTimeRange.toString()} 
+                        onValueChange={(value) => setHistoryTimeRange(parseInt(value) as 15 | 30 | 60)}
+                      >
+                        <SelectTrigger className="h-8 w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="15">15 min</SelectItem>
+                          <SelectItem value="30">30 min</SelectItem>
+                          <SelectItem value="60">1 hour</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={loadQrngMetrics}
+                        disabled={isLoadingMetric}
+                        className="h-8 gap-2"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${isLoadingMetric ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
+                    </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between">
@@ -751,7 +793,9 @@ export default function CreateKmsKeyPage() {
                     {showRavgGraph && (
                       <div className="mt-4 p-4 border rounded-lg bg-muted/30">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">Last 15 Minutes</span>
+                          <span className="text-sm font-medium">
+                            Last {historyTimeRange === 60 ? '1 Hour' : `${historyTimeRange} Minutes`}
+                          </span>
                           <Button
                             type="button"
                             variant="ghost"
@@ -890,7 +934,9 @@ export default function CreateKmsKeyPage() {
                     {showQfactorGraph && (
                       <div className="mt-4 p-4 border rounded-lg bg-muted/30">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">Last 15 Minutes</span>
+                          <span className="text-sm font-medium">
+                            Last {historyTimeRange === 60 ? '1 Hour' : `${historyTimeRange} Minutes`}
+                          </span>
                           <Button
                             type="button"
                             variant="ghost"
@@ -938,6 +984,288 @@ export default function CreateKmsKeyPage() {
                                   strokeDasharray="5 5"
                                   label={{ 
                                     value: `Threshold: ${qrngQfactorThreshold}`, 
+                                    position: 'right', 
+                                    fontSize: 11,
+                                    fill: '#f97316',
+                                    fontWeight: 'bold'
+                                  }}
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="value" 
+                                  stroke="hsl(var(--primary))" 
+                                  strokeWidth={2}
+                                  dot={false}
+                                  isAnimationActive={false}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          );
+                        })() : (
+                          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                            No historical data available
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>QRNG Voltage Comparison (qrng_vcomp)</Label>
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (showVcompGraph) {
+                              setShowVcompGraph(false);
+                            } else {
+                              loadHistoricalData('vcomp');
+                            }
+                          }}
+                          className="h-7 w-7 p-0"
+                          disabled={isLoadingHistory}
+                        >
+                          <ChartLine className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setAdjustingMetric('vcomp');
+                            setTempThreshold(qrngVcompThreshold.toString());
+                          }}
+                          className="h-7 w-7 p-0"
+                        >
+                          <Sliders className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      {isLoadingMetric ? (
+                        <Badge variant="outline" className="text-sm">
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Loading metric...
+                        </Badge>
+                      ) : qrngVcompValue !== null ? (
+                        <Badge 
+                          variant={qrngVcompValue >= qrngVcompThreshold ? "default" : "outline"}
+                          className={`text-sm font-mono ${
+                            qrngVcompValue >= qrngVcompThreshold 
+                              ? 'bg-primary text-primary-foreground' 
+                              : 'border-orange-500 text-orange-500 bg-orange-50 dark:bg-orange-950'
+                          }`}
+                        >
+                          {qrngVcompValue.toFixed(6)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-sm">
+                          Metric not available
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      QRNG voltage comparison value (threshold: {qrngVcompThreshold})
+                    </p>
+                    
+                    {/* History Graph */}
+                    {showVcompGraph && (
+                      <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">
+                            Last {historyTimeRange === 60 ? '1 Hour' : `${historyTimeRange} Minutes`}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowVcompGraph(false)}
+                            className="h-6 text-xs"
+                          >
+                            Hide
+                          </Button>
+                        </div>
+                        {isLoadingHistory ? (
+                          <div className="h-48 flex items-center justify-center">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          </div>
+                        ) : vcompHistory.length > 0 ? (() => {
+                          const values = vcompHistory.map(d => d.value);
+                          const minValue = Math.min(...values);
+                          const maxValue = Math.max(...values);
+                          const padding = (maxValue - minValue) * 0.1 || 0.1;
+                          const yMin = Math.max(0, minValue - padding);
+                          const yMax = Math.min(1, maxValue + padding);
+                          
+                          return (
+                            <ResponsiveContainer width="100%" height={200}>
+                              <LineChart data={vcompHistory}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis 
+                                  dataKey="timestamp" 
+                                  tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                                  tick={{fontSize: 11}}
+                                />
+                                <YAxis 
+                                  tick={{fontSize: 11}} 
+                                  domain={[yMin, yMax]}
+                                  tickFormatter={(value) => value.toFixed(3)}
+                                />
+                                <Tooltip 
+                                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                                  formatter={(value: number) => value.toFixed(6)}
+                                />
+                                <ReferenceLine 
+                                  y={qrngVcompThreshold} 
+                                  stroke="#f97316" 
+                                  strokeWidth={3}
+                                  strokeDasharray="5 5"
+                                  label={{ 
+                                    value: `Threshold: ${qrngVcompThreshold}`, 
+                                    position: 'right', 
+                                    fontSize: 11,
+                                    fill: '#f97316',
+                                    fontWeight: 'bold'
+                                  }}
+                                />
+                                <Line 
+                                  type="monotone" 
+                                  dataKey="value" 
+                                  stroke="hsl(var(--primary))" 
+                                  strokeWidth={2}
+                                  dot={false}
+                                  isAnimationActive={false}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          );
+                        })() : (
+                          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                            No historical data available
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>QRNG Temperature (qrng_temp)</Label>
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (showTempGraph) {
+                              setShowTempGraph(false);
+                            } else {
+                              loadHistoricalData('temp');
+                            }
+                          }}
+                          className="h-7 w-7 p-0"
+                          disabled={isLoadingHistory}
+                        >
+                          <ChartLine className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setAdjustingMetric('temp');
+                            setTempThreshold(qrngTempThreshold.toString());
+                          }}
+                          className="h-7 w-7 p-0"
+                        >
+                          <Sliders className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      {isLoadingMetric ? (
+                        <Badge variant="outline" className="text-sm">
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Loading metric...
+                        </Badge>
+                      ) : qrngTempValue !== null ? (
+                        <Badge 
+                          variant={qrngTempValue >= qrngTempThreshold ? "default" : "outline"}
+                          className={`text-sm font-mono ${
+                            qrngTempValue >= qrngTempThreshold 
+                              ? 'bg-primary text-primary-foreground' 
+                              : 'border-orange-500 text-orange-500 bg-orange-50 dark:bg-orange-950'
+                          }`}
+                        >
+                          {qrngTempValue.toFixed(6)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-sm">
+                          Metric not available
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      QRNG temperature measurement (threshold: {qrngTempThreshold})
+                    </p>
+                    
+                    {/* History Graph */}
+                    {showTempGraph && (
+                      <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">
+                            Last {historyTimeRange === 60 ? '1 Hour' : `${historyTimeRange} Minutes`}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowTempGraph(false)}
+                            className="h-6 text-xs"
+                          >
+                            Hide
+                          </Button>
+                        </div>
+                        {isLoadingHistory ? (
+                          <div className="h-48 flex items-center justify-center">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          </div>
+                        ) : tempHistory.length > 0 ? (() => {
+                          const values = tempHistory.map(d => d.value);
+                          const minValue = Math.min(...values);
+                          const maxValue = Math.max(...values);
+                          const padding = (maxValue - minValue) * 0.1 || 0.1;
+                          const yMin = Math.max(0, minValue - padding);
+                          const yMax = Math.min(1, maxValue + padding);
+                          
+                          return (
+                            <ResponsiveContainer width="100%" height={200}>
+                              <LineChart data={tempHistory}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis 
+                                  dataKey="timestamp" 
+                                  tickFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                                  tick={{fontSize: 11}}
+                                />
+                                <YAxis 
+                                  tick={{fontSize: 11}} 
+                                  domain={[yMin, yMax]}
+                                  tickFormatter={(value) => value.toFixed(3)}
+                                />
+                                <Tooltip 
+                                  labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                                  formatter={(value: number) => value.toFixed(6)}
+                                />
+                                <ReferenceLine 
+                                  y={qrngTempThreshold} 
+                                  stroke="#f97316" 
+                                  strokeWidth={3}
+                                  strokeDasharray="5 5"
+                                  label={{ 
+                                    value: `Threshold: ${qrngTempThreshold}`, 
                                     position: 'right', 
                                     fontSize: 11,
                                     fill: '#f97316',
@@ -1088,7 +1416,9 @@ export default function CreateKmsKeyPage() {
             {(selectedMode === 'newKeyPair' || selectedMode === 'importKeyPair') && 
              ((qrngHminValue !== null && qrngHminValue < qrngHminThreshold) || 
               (qrngRavgValue !== null && qrngRavgValue < qrngRavgThreshold) ||
-              (qrngQfactorValue !== null && qrngQfactorValue < qrngQfactorThreshold)) && (
+              (qrngQfactorValue !== null && qrngQfactorValue < qrngQfactorThreshold) ||
+              (qrngVcompValue !== null && qrngVcompValue < qrngVcompThreshold) ||
+              (qrngTempValue !== null && qrngTempValue < qrngTempThreshold)) && (
               <Alert variant="default" className="border-orange-500 bg-orange-50 dark:bg-orange-950">
                 <AlertTriangle className="h-4 w-4 text-orange-600" />
                 <AlertDescription className="text-orange-800 dark:text-orange-200">
@@ -1099,6 +1429,10 @@ export default function CreateKmsKeyPage() {
                     ` qrng_ravg: ${qrngRavgValue.toFixed(6)} < ${qrngRavgThreshold}`}
                   {qrngQfactorValue !== null && qrngQfactorValue < qrngQfactorThreshold && 
                     ` qrng_qfactor: ${qrngQfactorValue.toFixed(6)} < ${qrngQfactorThreshold}`}
+                  {qrngVcompValue !== null && qrngVcompValue < qrngVcompThreshold && 
+                    ` qrng_vcomp: ${qrngVcompValue.toFixed(6)} < ${qrngVcompThreshold}`}
+                  {qrngTempValue !== null && qrngTempValue < qrngTempThreshold && 
+                    ` qrng_temp: ${qrngTempValue.toFixed(6)} < ${qrngTempThreshold}`}
                 </AlertDescription>
               </Alert>
             )}
@@ -1121,7 +1455,7 @@ export default function CreateKmsKeyPage() {
           <DialogHeader>
             <DialogTitle>Adjust Threshold</DialogTitle>
             <DialogDescription>
-              Set the threshold for {adjustingMetric === 'hmin' ? 'qrng_hmin (Minimum Entropy)' : adjustingMetric === 'ravg' ? 'qrng_ravg (Running Average)' : 'qrng_qfactor (Quality Factor)'}.
+              Set the threshold for {adjustingMetric === 'hmin' ? 'qrng_hmin (Minimum Entropy)' : adjustingMetric === 'ravg' ? 'qrng_ravg (Running Average)' : adjustingMetric === 'qfactor' ? 'qrng_qfactor (Quality Factor)' : adjustingMetric === 'vcomp' ? 'qrng_vcomp (Voltage Comparison)' : 'qrng_temp (Temperature)'}.
               Values below this threshold will be highlighted in orange.
             </DialogDescription>
           </DialogHeader>
@@ -1158,14 +1492,20 @@ export default function CreateKmsKeyPage() {
                   } else if (adjustingMetric === 'ravg') {
                     setQrngRavgThreshold(value);
                     setCookie('qrng_ravg_threshold', value.toString());
-                  } else {
+                  } else if (adjustingMetric === 'qfactor') {
                     setQrngQfactorThreshold(value);
                     setCookie('qrng_qfactor_threshold', value.toString());
+                  } else if (adjustingMetric === 'vcomp') {
+                    setQrngVcompThreshold(value);
+                    setCookie('qrng_vcomp_threshold', value.toString());
+                  } else {
+                    setQrngTempThreshold(value);
+                    setCookie('qrng_temp_threshold', value.toString());
                   }
                   setAdjustingMetric(null);
                   toast({ 
                     title: "Threshold Updated", 
-                    description: `${adjustingMetric === 'hmin' ? 'qrng_hmin' : adjustingMetric === 'ravg' ? 'qrng_ravg' : 'qrng_qfactor'} threshold set to ${value}` 
+                    description: `${adjustingMetric === 'hmin' ? 'qrng_hmin' : adjustingMetric === 'ravg' ? 'qrng_ravg' : adjustingMetric === 'qfactor' ? 'qrng_qfactor' : adjustingMetric === 'vcomp' ? 'qrng_vcomp' : 'qrng_temp'} threshold set to ${value}` 
                   });
                 }
               }}

@@ -81,6 +81,24 @@ export async function queryQrngQfactor(): Promise<number | null> {
 }
 
 /**
+ * Query the qrng_vcomp metric from Prometheus
+ * This metric represents the voltage comparison value from QRNG
+ * @returns The qrng_vcomp value, or null if not available
+ */
+export async function queryQrngVcomp(): Promise<number | null> {
+    return queryPrometheusMetric('qrng_vcomp');
+}
+
+/**
+ * Query the qrng_temp metric from Prometheus
+ * This metric represents the temperature measurement from QRNG
+ * @returns The qrng_temp value, or null if not available
+ */
+export async function queryQrngTemp(): Promise<number | null> {
+    return queryPrometheusMetric('qrng_temp');
+}
+
+/**
  * Query a Prometheus range metric for historical data
  * @param metric The metric name to query
  * @param durationMinutes How many minutes of history to fetch
@@ -151,4 +169,22 @@ export async function queryQrngRavgHistory(durationMinutes: number = 15): Promis
  */
 export async function queryQrngQfactorHistory(durationMinutes: number = 15): Promise<Array<{timestamp: number, value: number}>> {
     return queryPrometheusRangeMetric('qrng_qfactor', durationMinutes);
+}
+
+/**
+ * Query historical qrng_vcomp data
+ * @param durationMinutes How many minutes of history to fetch (default 15)
+ * @returns Array of historical data points
+ */
+export async function queryQrngVcompHistory(durationMinutes: number = 15): Promise<Array<{timestamp: number, value: number}>> {
+    return queryPrometheusRangeMetric('qrng_vcomp', durationMinutes);
+}
+
+/**
+ * Query historical qrng_temp data
+ * @param durationMinutes How many minutes of history to fetch (default 15)
+ * @returns Array of historical data points
+ */
+export async function queryQrngTempHistory(durationMinutes: number = 15): Promise<Array<{timestamp: number, value: number}>> {
+    return queryPrometheusRangeMetric('qrng_temp', durationMinutes);
 }
