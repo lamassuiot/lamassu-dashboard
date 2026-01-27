@@ -82,8 +82,8 @@ export default function CertificatesPage() {
     searchField, setSearchField,
     statusFilter, setStatusFilter,
     caIdFilter, setCaIdFilter,
-    metadataSearchTerm, setMetadataSearchTerm,
-    debouncedMetadataSearchTerm,
+    metadataFilters, setMetadataFilters,
+    debouncedMetadataFilters,
     sortConfig, requestSort,
     currentPageIndex,
     nextTokenFromApi,
@@ -336,8 +336,8 @@ export default function CertificatesPage() {
         <div>
             <Label htmlFor="certMetadataSearchInput">Metadata (JSONPath)</Label>
             <MetadataFilterManager
-                value={metadataSearchTerm}
-                onChange={setMetadataSearchTerm}
+                value={metadataFilters}
+                onChange={setMetadataFilters}
                 disabled={isLoadingApi || authLoading}
                 placeholder="e.g., $.key > value"
                 className="mt-1"
@@ -347,7 +347,7 @@ export default function CertificatesPage() {
       </div>
 
       {/* Active Filters Indicator */}
-      {(debouncedSearchTerm || statusFilter !== 'ALL' || caIdFilter || debouncedMetadataSearchTerm) && (
+      {(debouncedSearchTerm || statusFilter !== 'ALL' || caIdFilter || debouncedMetadataFilters.length > 0) && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
           <span>Active filters:</span>
           {debouncedSearchTerm && (
@@ -389,19 +389,20 @@ export default function CertificatesPage() {
               </Button>
             </Badge>
           )}
-          {debouncedMetadataSearchTerm && (
-            <Badge variant="secondary" className="text-xs">
-              Metadata JSONPath: "{debouncedMetadataSearchTerm}"
+          {debouncedMetadataFilters.length > 0 && debouncedMetadataFilters.map((item, index) => (
+            <Badge key={index} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
+              Metadata: {item.name || item.filter}
               <Button
                 variant="ghost"
                 size="sm"
                 className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setMetadataSearchTerm('')}
+                onClick={() => setMetadataFilters(prev => prev.filter((_, i) => i !== index))}
+                title={item.name ? `Filter: ${item.filter}` : undefined}
               >
                 <X className="h-3 w-3" />
               </Button>
             </Badge>
-          )}
+          ))}
         </div>
       )}
 

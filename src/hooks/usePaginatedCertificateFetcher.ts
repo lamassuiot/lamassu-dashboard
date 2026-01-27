@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import type { CertSortConfig, SortDirection, SortableCertColumn } from '@/app/certificates/page';
+import type { MetadataFilter } from '@/components/shared/MetadataFilterManager';
 
 const API_STATUS_VALUES_FOR_FILTER = {
   ALL: 'ALL',
@@ -43,8 +44,8 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   const [statusFilter, setStatusFilter] = useState<ApiStatusFilterValue>('ALL');
   const [caIdFilter, setCaIdFilter] = useState<string | null>(caId);
   const [sortConfig, setSortConfig] = useState<CertSortConfig | null>({ column: 'validFrom', direction: 'desc' });
-  const [metadataSearchTerm, setMetadataSearchTerm] = useState('');
-  const [debouncedMetadataSearchTerm, setDebouncedMetadataSearchTerm] = useState('');
+  const [metadataFilters, setMetadataFilters] = useState<MetadataFilter[]>([]);
+  const [debouncedMetadataFilters, setDebouncedMetadataFilters] = useState<MetadataFilter[]>([]);
   
   // Ref to track if this is the very first load to prevent extra renders
   const isInitialLoad = useRef(true);
@@ -61,16 +62,16 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Debounce metadata search term
+  // Debounce metadata filters
   useEffect(() => {
     const handler = setTimeout(() => {
-      if (isInitialLoad.current && metadataSearchTerm === '') {
+      if (isInitialLoad.current && metadataFilters.length === 0) {
         return;
       }
-      setDebouncedMetadataSearchTerm(metadataSearchTerm);
+      setDebouncedMetadataFilters(metadataFilters);
     }, 500);
     return () => clearTimeout(handler);
-  }, [metadataSearchTerm]);
+  }, [metadataFilters]);
 
   
   // This is now the ONLY data fetching effect.
@@ -130,9 +131,11 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
                     filtersToApply.push(`serial_number[contains_ignorecase]${debouncedSearchTerm.trim()}`);
                 }
             }
-            if (debouncedMetadataSearchTerm.trim() !== '') {
-                filtersToApply.push(`metadata[jsonpath]${encodeURIComponent(debouncedMetadataSearchTerm.trim())}`);
-            }
+            debouncedMetadataFilters.forEach(item => {
+                if (item.filter.trim() !== '') {
+                    filtersToApply.push(`metadata[jsonpath]${encodeURIComponent(item.filter.trim())}`);
+                }
+            });
             filtersToApply.forEach(f => apiParams.append('filter', f));
             
             const result = await fetchIssuedCertificates({
@@ -170,7 +173,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
         setCurrentPageIndex(0);
         setBookmarkStack([null]);
     }
-  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, sortConfig, caIdFilter, debouncedMetadataSearchTerm]);
+  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, sortConfig, caIdFilter, debouncedMetadataFilters]);
 
 
   const handleNextPage = () => {
@@ -220,8 +223,8 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     searchField, setSearchField,
     statusFilter, setStatusFilter,
     caIdFilter, setCaIdFilter,
-    metadataSearchTerm, setMetadataSearchTerm,
-    debouncedMetadataSearchTerm,
+    metadataFilters, setMetadataFilters,
+    debouncedMetadataFilters,
     sortConfig, requestSort,
     currentPageIndex,
     nextTokenFromApi,
