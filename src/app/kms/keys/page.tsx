@@ -320,6 +320,7 @@ export default function KmsKeysPage() {
         <div className="space-y-1">
           <Label htmlFor="metadataSearchInput">Filter by Metadata (JSONPath)</Label>
           <MetadataFilterManager
+            id="metadataSearchInput"
             value={metadataFilters}
             onChange={setMetadataFilters}
             disabled={isLoading}
@@ -345,14 +346,14 @@ export default function KmsKeysPage() {
               </Button>
             </Badge>
           )}
-          {debouncedMetadataFilters.length > 0 && debouncedMetadataFilters.map((item, index) => (
-            <Badge key={index} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
+          {metadataFilters.length > 0 && metadataFilters.map((item) => (
+            <Badge key={item.filter} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
               Metadata: {item.name || item.filter}
               <Button
                 variant="ghost"
                 size="sm"
                 className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setMetadataFilters(prev => prev.filter((_, i) => i !== index))}
+                onClick={() => setMetadataFilters(prev => prev.filter(f => f.filter !== item.filter))}
                 title={item.name ? `Filter: ${item.filter}` : undefined}
               >
                 <X className="h-3 w-3" />

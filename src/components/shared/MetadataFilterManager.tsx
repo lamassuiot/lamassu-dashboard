@@ -42,6 +42,7 @@ interface MetadataFilterManagerProps {
   placeholder?: string;
   className?: string;
   onFocusChange?: (isFocused: boolean) => void;
+  id?: string;
 }
 
 export function MetadataFilterManager({
@@ -51,6 +52,7 @@ export function MetadataFilterManager({
   placeholder = "e.g., $.key > value",
   className,
   onFocusChange,
+  id,
 }: MetadataFilterManagerProps) {
   const [savedFilters, setSavedFilters] = useState<MetadataFilterQuery[]>([]);
   const [isFocused, setIsFocused] = useState(false);
@@ -198,7 +200,7 @@ export function MetadataFilterManager({
         {value.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {value.map((item, index) => (
-              <Badge key={index} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
+              <Badge key={item.filter} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
                 {item.name || item.filter}
                 <Button
                   variant="ghost"
@@ -219,6 +221,7 @@ export function MetadataFilterManager({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
           <Input
+            id={id}
             type="text"
             placeholder={placeholder}
             value={currentInput}
