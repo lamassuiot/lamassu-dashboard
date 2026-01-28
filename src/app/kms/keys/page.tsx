@@ -20,7 +20,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey } from '@/lib/kms-data';
 import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
-import { MetadataFilterManager } from '@/components/shared/MetadataFilterManager';
+import { MetadataFilterManager, type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -61,8 +61,8 @@ export default function KmsKeysPage() {
   // Filter State
   const [aliasSearchTerm, setAliasSearchTerm] = useState<string>('');
   const [debouncedAliasSearchTerm, setDebouncedAliasSearchTerm] = useState<string>('');
-  const [metadataSearchTerm, setMetadataSearchTerm] = useState<string>('');
-  const [debouncedMetadataSearchTerm, setDebouncedMetadataSearchTerm] = useState<string>('');
+  const [metadataFilters, setMetadataFilters] = useState<MetadataFilter[]>([]);
+  const [debouncedMetadataFilters, setDebouncedMetadataFilters] = useState<MetadataFilter[]>([]);
 
   // Debounce effect for alias search
   useEffect(() => {
@@ -75,16 +75,14 @@ export default function KmsKeysPage() {
     return () => clearTimeout(timer);
   }, [aliasSearchTerm, debouncedAliasSearchTerm]);
 
-  // Debounce effect for metadata search
+  // Debounce effect for metadata filters
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (metadataSearchTerm !== debouncedMetadataSearchTerm) {
-        setDebouncedMetadataSearchTerm(metadataSearchTerm);
-      }
+      setDebouncedMetadataFilters(metadataFilters);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [metadataSearchTerm, debouncedMetadataSearchTerm]);
+  }, [metadataFilters]);
 
 
   const loadData = useCallback(async (bookmark: string | null) => {
@@ -116,10 +114,12 @@ export default function KmsKeysPage() {
         params.append('filter', `name[contains_ignorecase]${debouncedAliasSearchTerm.trim()}`);
       }
 
-      // Add metadata filter if search term is provided
-      if (debouncedMetadataSearchTerm.trim() !== '') {
-        params.append('filter', `metadata[jsonpath]${encodeURIComponent(debouncedMetadataSearchTerm.trim())}`);
-      }
+      // Add metadata filters if provided
+      debouncedMetadataFilters.forEach(item => {
+        if (item.filter.trim() !== '') {
+          params.append('filter', `metadata[jsonpath]${encodeURIComponent(item.filter.trim())}`);
+        }
+      });
 
       const keysResponse = await fetchKmsKeys(user.access_token, params);
 
@@ -149,7 +149,7 @@ export default function KmsKeysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, authLoading, isAuthenticated, allCryptoEngines, pageSize, debouncedAliasSearchTerm, debouncedMetadataSearchTerm]);
+  }, [user?.access_token, authLoading, isAuthenticated, allCryptoEngines, pageSize, debouncedAliasSearchTerm, debouncedMetadataFilters]);
 
   useEffect(() => {
     // Reset pagination when page size changes
@@ -164,10 +164,10 @@ export default function KmsKeysPage() {
   }, [debouncedAliasSearchTerm]);
 
   useEffect(() => {
-    // Reset pagination when metadata search term changes
+    // Reset pagination when metadata filters change
     setCurrentPageIndex(0);
     setBookmarkStack([null]);
-  }, [debouncedMetadataSearchTerm]);
+  }, [debouncedMetadataFilters]);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated()) {
@@ -320,8 +320,9 @@ export default function KmsKeysPage() {
         <div className="space-y-1">
           <Label htmlFor="metadataSearchInput">Filter by Metadata (JSONPath)</Label>
           <MetadataFilterManager
-            value={metadataSearchTerm}
-            onChange={setMetadataSearchTerm}
+            id="metadataSearchInput"
+            value={metadataFilters}
+            onChange={setMetadataFilters}
             disabled={isLoading}
             onFocusChange={(focused) => setFocusedField(focused ? 'metadata' : null)}
           />
@@ -329,7 +330,7 @@ export default function KmsKeysPage() {
       </div>
 
       {/* Active Filters Indicator */}
-      {(debouncedAliasSearchTerm || debouncedMetadataSearchTerm) && (
+      {(debouncedAliasSearchTerm || debouncedMetadataFilters.length > 0) && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
           <span>Active filters:</span>
           {debouncedAliasSearchTerm && (
@@ -345,19 +346,20 @@ export default function KmsKeysPage() {
               </Button>
             </Badge>
           )}
-          {debouncedMetadataSearchTerm && (
-            <Badge variant="secondary" className="text-xs">
-              Metadata JSONPath: "{debouncedMetadataSearchTerm}"
+          {metadataFilters.length > 0 && metadataFilters.map((item) => (
+            <Badge key={item.filter} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
+              Metadata: {item.name || item.filter}
               <Button
                 variant="ghost"
                 size="sm"
                 className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setMetadataSearchTerm('')}
+                onClick={() => setMetadataFilters(prev => prev.filter(f => f.filter !== item.filter))}
+                title={item.name ? `Filter: ${item.filter}` : undefined}
               >
                 <X className="h-3 w-3" />
               </Button>
             </Badge>
-          )}
+          ))}
         </div>
       )}
 
