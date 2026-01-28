@@ -1,24 +1,29 @@
 # Stage 1: Build the Next.js application
-FROM node:20-alpine AS builder
+FROM node:24 AS builder
+
+# Install pnpm via wget script and set PATH
+ENV PNPM_HOME="/root/.local/share/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
 
 # Set working directory
 WORKDIR /app
+RUN apt update && apt install -y git 
 
-RUN apk add --no-cache git
-
-# Copy package.json and package-lock.json (or yarn.lock)
+# Copy package.json and pnpm-lock.yaml
 COPY package*.json ./
+COPY pnpm-lock.yaml ./
 
 # Install dependencies
-# Using npm ci for cleaner installs in CI/build environments
-RUN npm ci
+# Using pnpm for package management
+RUN pnpm i
 
 # Copy the rest of the application code
 COPY . .
 
 # Build the application
 # This will output to the 'out' directory due to `output: 'export'` in next.config.ts
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Serve the static files with Nginx
 FROM nginx:stable-alpine
