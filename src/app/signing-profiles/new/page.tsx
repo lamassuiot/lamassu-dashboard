@@ -62,7 +62,7 @@ export default function CreateSigningProfilePage() {
     const payload: CreateSigningProfilePayload = {
         name: data.profileName,
         description: data.description,
-        validity: validityPayload,
+        validity: validityPayload as { type: "Duration" | "Date"; duration?: string; time?: string },
         sign_as_ca: data.signAsCa,
         honor_key_usage: data.honorKeyUsage,
         key_usage: data.keyUsages || [],

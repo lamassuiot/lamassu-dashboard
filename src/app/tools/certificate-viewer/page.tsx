@@ -353,7 +353,7 @@ export default function CertificateViewerPage() {
                 };
             } catch (e: any) {
                 console.error("Failed to fetch or parse issuer from AIA:", e);
-                toast({ title: "AIA Fetch Failed", description: `Could not retrieve the issuer certificate from ${issuerUrl}.`, variant: "warning" });
+                toast({ title: "AIA Fetch Failed", description: `Could not retrieve the issuer certificate from ${issuerUrl}.`, variant: "destructive" });
             }
         }
         

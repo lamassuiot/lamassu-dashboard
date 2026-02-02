@@ -68,6 +68,8 @@ export default function EditSigningProfilePage() {
   }, [user?.access_token, fetchProfile, isEditMode]);
   
 
+  type ExpirationConfig = { type: 'Duration'; durationValue: string } | { type: 'Date'; dateValue: Date } | { type: 'Indefinite' };
+
   const mapApiProfileToFormValues = (profile: ApiSigningProfile): SigningProfileFormValues => {
     const crypto = profile.crypto_enforcement || {};
     
@@ -132,7 +134,7 @@ export default function EditSigningProfilePage() {
     const payload: CreateSigningProfilePayload = {
         name: data.profileName,
         description: data.description,
-        validity: validityPayload,
+        validity: validityPayload as { type: "Duration" | "Date"; duration?: string; time?: string },
         sign_as_ca: data.signAsCa,
         honor_key_usage: data.honorKeyUsage,
         key_usage: data.keyUsages || [],

@@ -10,10 +10,6 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    // This is needed to allow the Next.js dev server to accept requests from the Firebase Studio preview environment.
-    allowedDevOrigins: ["*.cluster-c3a7z3wnwzapkx3rfr5kz62dac.cloudworkstations.dev"],
-  },
   images: {
     // When using `output: 'export'`, the default `next/image` loader is not supported.
     // However, remotePatterns for external image providers like placehold.co will still work,

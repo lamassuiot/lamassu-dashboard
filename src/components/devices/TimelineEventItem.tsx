@@ -17,7 +17,7 @@ import { IdentifierDisplay } from '../shared/IdentifierDisplay';
 interface CertificateHistoryEntry {
   version: string;
   serialNumber: string;
-  apiStatus?: string;
+  apiStatus: string;
   revocationReason?: string;
   revocationTimestamp?: string;
   isSuperseded: boolean;
@@ -93,7 +93,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
                     {visuals.display.toUpperCase()}
                 </Badge>
                 {event.eventType === 'RENEWED' && (
-                    <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" title="Device identity was updated with a new certificate version."/>
+                    <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                 )}
             </div>
         </div>

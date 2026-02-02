@@ -32,16 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import Image from 'next/image';
 import AwsIcon from '../aws.svg';
-
-
-export const IntegrationIcon: React.FC<{ type: DiscoveredIntegration['type'] }> = ({ type }) => {
-    switch (type) {
-        case 'AWS_IOT_CORE':
-            return <Image src={AwsIcon} alt="AWS IoT Core Icon" className="h-6 w-6" width={24} height={24} />;
-        default:
-            return <Blocks className="h-6 w-6 text-primary" />;
-    }
-};
+import { IntegrationIcon } from '@/components/integrations/IntegrationIcon';
 
 export default function IntegrationsPage() {
   const router = useRouter();
