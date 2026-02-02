@@ -5,19 +5,21 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronRight } from "lucide-react";
+import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronRight, Settings } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
-import { findCaById, fetchAndProcessCAs, updateCaMetadata, fetchCaStats, revokeCa, deleteCa, parseCertificatePemDetails, updateCaStatus } from '@/lib/ca-data';
+import { findCaById, fetchAndProcessCAs, updateCaMetadata, fetchCaStats, revokeCa, deleteCa, parseCertificatePemDetails, updateCaStatus, reissueCa } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { RevocationModal } from '@/components/shared/RevocationModal';
 import { CrlCheckModal } from '@/components/shared/CrlCheckModal';
 import { DeleteCaModal } from '@/components/shared/DeleteCaModal';
+import { ReissueCaModal } from '@/components/shared/ReissueCaModal';
 
 import { InformationTabContent } from '@/components/shared/details-tabs/InformationTabContent';
 import { PemTabContent } from '@/components/shared/details-tabs/PemTabContent';
@@ -82,6 +84,10 @@ export default function CertificateAuthorityDetailsClient() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [caToDelete, setCaToDelete] = useState<CA | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [isReissueModalOpen, setIsReissueModalOpen] = useState(false);
+  const [caToReissue, setCaToReissue] = useState<CA | null>(null);
+  const [isReissuing, setIsReissuing] = useState(false);
 
   const [isCrlModalOpen, setIsCrlModalOpen] = useState(false);
   const [caForCrlCheck, setCaForCrlCheck] = useState<CA | null>(null);
@@ -285,6 +291,43 @@ export default function CertificateAuthorityDetailsClient() {
     }
   };
 
+  const handleReissueCA = () => {
+    if (caDetails) {
+      setCaToReissue(caDetails);
+      setIsReissueModalOpen(true);
+    }
+  };
+
+  const handleConfirmReissueCA = async (payload: { profile_id?: string; profile?: any }) => {
+    if (!caToReissue || !user?.access_token) {
+      toast({ title: "Error", description: "Cannot reissue CA. Details or authentication missing.", variant: "destructive" });
+      return;
+    }
+
+    setIsReissuing(true);
+    setIsReissueModalOpen(false); // Close modal immediately
+
+    try {
+      await reissueCa(caToReissue.id, payload, user.access_token);
+      toast({
+        title: "Certification Authority Reissued",
+        description: `Certification Authority "${caToReissue.name}" has been successfully reissued.`,
+        variant: "default"
+      });
+      // Reload CA data to reflect the new certificate
+      loadInitialData();
+    } catch (error: any) {
+      toast({
+        title: "Reissue Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsReissuing(false);
+      setCaToReissue(null);
+    }
+  };
+
   const handleOpenCrlModal = () => {
     if (caDetails) {
       setCaForCrlCheck(caDetails);
@@ -438,6 +481,23 @@ export default function CertificateAuthorityDetailsClient() {
                   {isDeleting ? 'Deleting...' : 'Permanently Delete'}
               </Button>
           )}
+          <div className="ml-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {caDetails.status !== 'revoked' && (
+                  <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Reissue CA
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full p-6">
@@ -527,6 +587,20 @@ export default function CertificateAuthorityDetailsClient() {
             onConfirm={handleConfirmDeleteCA}
             caName={caToDelete.name}
             isDeleting={isDeleting}
+        />
+      )}
+      {caToReissue && (
+        <ReissueCaModal
+          isOpen={isReissueModalOpen}
+          onClose={() => {
+            if (isReissuing) return;
+            setIsReissueModalOpen(false);
+            setCaToReissue(null);
+          }}
+          onConfirm={handleConfirmReissueCA}
+          caName={caToReissue.name}
+          caExpirationDate={caToReissue.expires}
+          isReissuing={isReissuing}
         />
       )}
       {caForCrlCheck && (

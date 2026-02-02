@@ -579,6 +579,9 @@ export interface CreateCaPayload {
   };
   ca_expiration: { type: string; duration?: string; time?: string };
   ca_type: "MANAGED";
+  // Optional: Profile for the CA's own certificate
+  ca_issuance_profile_id?: string;
+  ca_issuance_profile?: CreateSigningProfilePayload;
 }
 
 export async function createCa(payload: CreateCaPayload, accessToken: string): Promise<void> {
@@ -756,6 +759,36 @@ export async function deleteCa(caId: string, accessToken: string): Promise<void>
         }
         throw new Error(errorMessage);
     }
+}
+
+export interface ReissueCAPayload {
+    profile?: CreateSigningProfilePayload;
+    profile_id?: string;
+}
+
+export async function reissueCa(caId: string, payload: ReissueCAPayload, accessToken: string): Promise<ApiCaItem> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/cas/${caId}/reissue`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to reissue CA. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Reissue failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for CA reissue:", e);
+        }
+        throw new Error(errorMessage);
+    }
+
+    return response.json();
 }
 
 export async function signCertificate(caId: string, payload: any, accessToken: string): Promise<any> {

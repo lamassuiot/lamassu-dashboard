@@ -8,6 +8,7 @@ export interface ApiDeviceIdentity {
   active_version: number;
   type: string;
   versions: Record<string, string>;
+  expiration_date?: string;
   events?: Record<string, { type: string; description: string }>;
 }
 

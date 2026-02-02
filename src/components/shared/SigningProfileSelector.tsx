@@ -180,14 +180,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
               </Button>
            </div>
            <Form {...form}>
-              <form 
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  form.handleSubmit(handleProfileCreationSubmit)(e);
-                }} 
-                className="space-y-4"
-              >
+              <div className="space-y-4">
                 <SigningProfileForm form={form} />
                 <div className="flex justify-end">
                     <Button 
@@ -203,7 +196,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
                       Create and Select Profile
                     </Button>
                 </div>
-              </form>
+              </div>
             </Form>
        </div>
     );

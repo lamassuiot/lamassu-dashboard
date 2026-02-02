@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { CertificateData } from '@/types/certificate';
 import type { CA } from '@/lib/ca-data';
-import { fetchIssuedCertificates, updateCertificateStatus, updateCertificateMetadata, deleteCertificate } from '@/lib/issued-certificate-data';
+import { fetchIssuedCertificates, updateCertificateStatus, updateCertificateMetadata, deleteCertificate, type PatchOperation } from '@/lib/issued-certificate-data';
 import { fetchAndProcessCAs, findCaById, parseCertificatePemDetails } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
@@ -323,11 +323,11 @@ export default function CertificateDetailsClient() { // Renamed component
     setIsAkiModalOpen(true);
   };
   
-  const handleUpdateCertMetadata = async (serialNumber: string, metadata: object) => {
+  const handleUpdateCertMetadata = async (serialNumber: string, patchOperations: PatchOperation[]) => {
     if (!user?.access_token) {
         throw new Error("User not authenticated.");
     }
-    await updateCertificateMetadata(serialNumber, metadata, user.access_token);
+    await updateCertificateMetadata(serialNumber, patchOperations, user.access_token);
   };
 
   const handleConfirmDelete = async () => {
