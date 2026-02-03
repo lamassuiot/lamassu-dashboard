@@ -125,29 +125,8 @@ export async function fetchUpdatePackDescriptor({ dmsId, packName, accessToken }
   }
 }
 
-export async function fetchGlobalStrategy({ dmsId, accessToken }: ApiParams, opts?: ApiCallOptions): Promise<ApiGlobalStrategy | null> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/strategy`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-    signal: opts?.signal ?? undefined,
-  });
-  if (response.status === 404) {
-    return null;
-  }
-  return handleApiError(response, 'Failed to fetch global strategy');
-}
-
-export async function updateGlobalStrategy({ dmsId, strategyData, accessToken }: ApiParams & { strategyData: Partial<ApiGlobalStrategy> }, opts?: ApiCallOptions): Promise<ApiGlobalStrategy> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/strategy`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(strategyData),
-    signal: opts?.signal ?? undefined,
-  });
-  return handleApiError(response, 'Failed to update global strategy');
-}
+// Global strategy endpoints removed - no longer supported by backend
+// Strategy is now configured per-launch only
 
 export async function fetchCurrentLaunches({ dmsId, accessToken, limit, bookmark }: ApiParams & { limit?: number; bookmark?: string }, opts?: ApiCallOptions): Promise<LaunchListResponse> {
   const params = new URLSearchParams();
@@ -295,18 +274,31 @@ export async function fetchJobsByLaunch({
   };
 }
 
-export async function triggerGlobalLaunchApi({ dmsId, accessToken, strategyConfig }: ApiParams & { strategyConfig?: Partial<ApiGlobalStrategy> }, opts?: ApiCallOptions): Promise<any> {
+// Launch creation payload - all strategy fields are now required
+export interface CreateLaunchPayload {
+  update_pack_name: string;
+  workflow_type: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
+  rollout_type: 'numeric' | 'percentage';
+  rollout_value: number;
+  test_device_id?: string;
+  auto?: boolean;
+}
+
+export async function createLaunch({ dmsId, accessToken, launchData }: ApiParams & { launchData: CreateLaunchPayload }, opts?: ApiCallOptions): Promise<any> {
   const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch`, {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
     },
-    body: strategyConfig ? JSON.stringify(strategyConfig) : undefined,
+    body: JSON.stringify(launchData),
     signal: opts?.signal ?? undefined,
   });
-  return handleApiError(response, 'Failed to trigger global launch');
+  return handleApiError(response, 'Failed to create launch');
 }
+
+// Deprecated: Use createLaunch instead
+export const triggerGlobalLaunchApi = createLaunch;
 
 export async function triggerItemRollout({ dmsId, launchId, accessToken }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<any> {
   const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/rollout`, {

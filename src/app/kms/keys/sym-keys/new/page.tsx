@@ -25,19 +25,19 @@ const ALGORITHM_TYPES = [
 // Key size/variant options based on algorithm type
 const KEY_VARIANTS: Record<string, Array<{ value: string, label: string }>> = {
   'AES-CBC': [
-    { value: 'AES_128_CBC', label: '128 bits' },
-    { value: 'AES_192_CBC', label: '192 bits' },
-    { value: 'AES_256_CBC', label: '256 bits' },
+    { value: 'AES-128-CBC', label: '128 bits' },
+    { value: 'AES-192-CBC', label: '192 bits' },
+    { value: 'AES-256-CBC', label: '256 bits' },
   ],
   'AES-CTR': [
-    { value: 'AES_128_CTR', label: '128 bits' },
-    { value: 'AES_192_CTR', label: '192 bits' },
-    { value: 'AES_256_CTR', label: '256 bits' },
+    { value: 'AES-128-CTR', label: '128 bits' },
+    { value: 'AES-192-CTR', label: '192 bits' },
+    { value: 'AES-256-CTR', label: '256 bits' },
   ],
   'AES-GCM': [
-    { value: 'AES_128_GCM', label: '128 bits' },
-    { value: 'AES_192_GCM', label: '192 bits' },
-    { value: 'AES_256_GCM', label: '256 bits' },
+    { value: 'AES-128-GCM', label: '128 bits' },
+    { value: 'AES-192-GCM', label: '192 bits' },
+    { value: 'AES-256-GCM', label: '256 bits' },
   ],
   'Ascon': [
     { value: 'Ascon128', label: 'Ascon-128' },
@@ -65,11 +65,11 @@ const creationModes = [
 const generateRandomKey = (algorithm: string): string => {
   let keyLengthBytes: number;
   
-  if (algorithm.startsWith('AES_256_')) {
+  if (algorithm.startsWith('AES-256-')) {
     keyLengthBytes = 32; // 256 bits
-  } else if (algorithm.startsWith('AES_192_')) {
+  } else if (algorithm.startsWith('AES-192-')) {
     keyLengthBytes = 24; // 192 bits
-  } else if (algorithm.startsWith('AES_128_')) {
+  } else if (algorithm.startsWith('AES-128-')) {
     keyLengthBytes = 16; // 128 bits
   } else if (algorithm.startsWith('Ascon128')) {
     keyLengthBytes = 16; // 128 bits
@@ -119,7 +119,7 @@ export default function CreateSymKeyPage() {
   // Form fields
   const [keyName, setKeyName] = useState('');
   const [algorithmType, setAlgorithmType] = useState('AES-GCM');
-  const [keyVariant, setKeyVariant] = useState('AES_256_GCM');
+  const [keyVariant, setKeyVariant] = useState('AES-256-GCM');
   const [importKeyValue, setImportKeyValue] = useState('');
   const [keyFormat, setKeyFormat] = useState<'hex' | 'base64'>('hex');
   const [tags, setTags] = useState('');

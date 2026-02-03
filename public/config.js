@@ -20,7 +20,12 @@ window.lamassuConfig = {
     // Example: "https://api.yourdomain.com"    
     //LAMASSU_API: "https://lab.lamassu.io/api",
     LAMASSU_API: "http://localhost:8080/api",
-    LAMASSU_UPDATES_API: "http://localhost:10090/v1",
+    
+    // (Optional) Base URL for Updates and SymKMS API services
+    // Both /updates/v1 and /symkms/v1 paths will be appended to this base URL
+    // If not provided, will default to LAMASSU_API
+    LAMASSU_UPDATES_API: "http://localhost:10091",
+    
 
     // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.
     // If not provided, these endpoints will be based on the LAMASSU_API value.

@@ -23,11 +23,12 @@ RUN npm run build
 # Stage 2: Serve the static files with Nginx
 FROM nginx:stable-alpine
 
-ENV OIDC_ENABLED=true
+ENV OIDC_ENABLED=false
 ENV CLOUD_CONNECTORS=[]
 ENV UI_FOOTER_ENABLED=false
 
 #ENV LAMASSU_API
+#ENV LAMASSU_UPDATES_API
 #ENV OIDC_AUTHORITY
 #ENV OIDC_CLIENT_ID
 

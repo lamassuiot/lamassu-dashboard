@@ -65,7 +65,7 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
           {IconComponent}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 truncate" title={ca.name}>
+          <div className="text-sm font-semibold text-blue-800 dark:text-blue-300 truncate" title={ca.name}>
             {ca.name}
             &nbsp;
             &nbsp;
@@ -76,7 +76,7 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
             {ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"] && (
               <Badge className="text-xs">HYBRID</Badge>
             )}
-          </p>
+          </div>
           <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")} title={statusText}>
             {statusText}
           </p>

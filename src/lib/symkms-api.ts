@@ -1,5 +1,5 @@
 // src/lib/symkms-api.ts
-import { handleApiError, get_CLIENT_UPDATES_API_BASE_URL } from './api-domains';
+import { handleApiError, get_CLIENT_SYMKMS_API_BASE_URL } from './api-domains';
 
 // Utility functions for key format conversion
 export const hexToBase64 = (hex: string): string => {
@@ -29,11 +29,6 @@ export const base64ToHex = (base64: string): string => {
         .map(byte => byte.toString(16).padStart(2, '0'))
         .join('')
         .toUpperCase();
-};
-
-const get_CLIENT_SYMKMS_API_BASE_URL = (): string => {
-    const updatesBase = get_CLIENT_UPDATES_API_BASE_URL();
-    return `${updatesBase}/symkms`;
 };
 
 export interface SymmetricKey {

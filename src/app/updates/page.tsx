@@ -38,11 +38,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { 
-  fetchGlobalStrategy, 
-  updateGlobalStrategy, 
   fetchUpdatePacks, 
   fetchCurrentLaunches, 
-  triggerGlobalLaunchApi, 
+  createLaunch,
+  type CreateLaunchPayload,
   triggerItemRollout,
   fetchAllDeviceJobs,
   fetchAllLaunches,
@@ -84,261 +83,7 @@ const formatWorkflowType = (workflowType?: ApiGlobalStrategy['workflow_type']) =
   return String(workflowType);
 };
 
-function EditableGlobalStrategyDisplay() {
-  const queryClient = useQueryClient();
-  const [isEditing, setIsEditing] = React.useState(false);
-  const { user } = useAuth();
-  const { selectedDms } = useDms();
-  const dmsId = selectedDms?.id;
-
-  const { data: globalStrategy, isLoading: isLoadingStrategy, error: globalStrategyError, refetch: refetchStrategy } = useQuery<ApiGlobalStrategy | null, Error>({
-    queryKey: ['globalStrategy', dmsId],
-    queryFn: ({ signal }) => fetchGlobalStrategy({ dmsId: dmsId!, accessToken: user!.access_token! }, { signal }),
-    enabled: !!dmsId && !!user?.access_token,
-  });
-
-  const { data: updatePacksResponse, isLoading: isLoadingPacks, error: updatePacksError } = useQuery({
-    queryKey: ['updatePacks', dmsId],
-    queryFn: ({ signal }) => fetchUpdatePacks({ dmsId: dmsId!, accessToken: user!.access_token! }, { pageSize: 50 }, { signal }),
-    enabled: !!dmsId && !!user?.access_token,
-  });
-  
-  const updatePacks = updatePacksResponse?.list || [];
-
-  const strategyMutation = useMutation({
-    mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy({dmsId: dmsId!, strategyData, accessToken: user!.access_token!}),
-    onSuccess: () => {
-      toast({ title: "Global Strategy Updated", description: "The global strategy has been successfully updated." });
-      queryClient.invalidateQueries({ queryKey: ['globalStrategy', dmsId] });
-      setIsEditing(false);
-    },
-    onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Strategy Update Failed", description: err.message });
-    },
-  });
-
-  const globalLaunchMutation = useMutation({
-    mutationFn: () => triggerGlobalLaunchApi({dmsId: dmsId!, accessToken: user!.access_token!}),
-    onSuccess: async (data) => {
-      toast({ title: "Launch Prepared", description: data.message || "Successfully prepared launch based on global strategy." });
-      
-      // Reset pagination by invalidating pack-specific queries
-      queryClient.invalidateQueries({ queryKey: ['packLaunches'] });
-      
-      // Immediately refetch to show new launch
-      await queryClient.refetchQueries({ queryKey: ['currentLaunches', dmsId] });
-      await queryClient.refetchQueries({ queryKey: ['allLaunches'] });
-      
-      // If the response contains a launch ID, mark it as started for immediate polling
-      if (data.launch_id || data.launchId || data.id) {
-        const newLaunchId = data.launch_id || data.launchId || data.id;
-        // Note: startStoredLaunch is not available in this component, but the polling will start automatically
-      }
-      
-      // Refetch again after a short delay to ensure we catch the new launch
-      setTimeout(async () => {
-        await queryClient.refetchQueries({ queryKey: ['currentLaunches', dmsId] });
-        await queryClient.refetchQueries({ queryKey: ['allLaunches'] });
-      }, 500);
-    },
-    onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Launch Preparation Failed", description: err.message });
-    },
-  });
-
-  const handleStrategySave = (formDataFromForm: UpdateStrategy) => {
-    const selectedPack = updatePacks.find(p => p.id === formDataFromForm.updatePackId);
-    const packIdForApi = selectedPack ? selectedPack.name : undefined;
-
-    const apiPayload: Partial<ApiGlobalStrategy> = {
-      workflow_type: formDataFromForm.workflowType,
-      rollout_type: formDataFromForm.rolloutType,
-      rollout_value: formDataFromForm.rolloutValue,
-      test_device_id: formDataFromForm.testDeviceId || undefined,
-      update_pack_id: packIdForApi,
-      auto: formDataFromForm.auto || false,
-    };
-
-    Object.keys(apiPayload).forEach(key => {
-      const typedKey = key as keyof ApiGlobalStrategy;
-      if (apiPayload[typedKey] === undefined || apiPayload[typedKey] === null) {
-        delete apiPayload[typedKey];
-      }
-    });
-
-    strategyMutation.mutate(apiPayload);
-  };
-
-  const getUpdatePackName = (packIdFromStrategy?: string) => {
-    if (!packIdFromStrategy || !updatePacks || updatePacks.length === 0) return 'N/A';
-    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(packIdFromStrategy);
-
-    let pack;
-    if (isUuid) {
-      pack = updatePacks.find(p => p.id === packIdFromStrategy);
-    } else {
-      pack = updatePacks.find(p => p.name === packIdFromStrategy);
-    }
-
-    if (pack) return `${pack.name} v${pack.version}`;
-    return packIdFromStrategy;
-  };
-
-
-  if (isLoadingStrategy || isLoadingPacks) {
-    return (
-      <Card className="mb-6 shadow-md">
-        <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="h-4 w-2/3" />
-          <Skeleton className="h-4 w-1/2" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (globalStrategyError && globalStrategy !== null) {
-    return (
-      <Card className="mb-6 shadow-md">
-        <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-destructive">
-                <AlertTriangle className="h-5 w-5" /> Error Loading Strategy
-            </CardTitle>
-      <Button variant="outline" size="sm" onClick={() => refetchStrategy()}>
-        <RefreshCw className="mr-2 h-4 w-4" /> Retry
-      </Button>
-        </CardHeader>
-        <CardContent>
-          <p className="text-destructive-foreground">{globalStrategyError.message}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (updatePacksError) {
-     return (
-      <Card className="mb-6 shadow-md">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" /> Error Loading Update Packs
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-destructive-foreground">{updatePacksError.message}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (isEditing) {
-     const formInitialData: UpdateStrategy = globalStrategy ? {
-      workflowType: globalStrategy.workflow_type,
-      rolloutType: globalStrategy.rollout_type,
-      rolloutValue: globalStrategy.rollout_value,
-      testDeviceId: globalStrategy.test_device_id || undefined,
-      updatePackId: updatePacks.find(p => p.name === globalStrategy.update_pack_id)?.id ||
-                      updatePacks.find(p => p.id === globalStrategy.update_pack_id)?.id ||
-                      undefined,
-    } : {
-      workflowType: "wfx.workflow.dau.direct",
-      rolloutType: "percentage",
-      rolloutValue: 10,
-      testDeviceId: undefined,
-      updatePackId: undefined,
-    };
-
-    return (
-      <Card className="mb-6 shadow-md">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Pencil className="h-5 w-5 text-accent" />
-              {globalStrategy ? "Edit Global Update Strategy" : "Configure Global Update Strategy"}
-            </CardTitle>
-            <Button variant="ghost" size="icon" onClick={() => setIsEditing(false)}>
-              <X className="h-5 w-5" />
-              <span className="sr-only">Cancel Editing</span>
-            </Button>
-          </div>
-          <CardDescription className="mt-1">
-            {globalStrategy ? "Modify the global update strategy details below." : "Define the global update strategy for the first time."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <UpdateStrategyForm
-            strategy={formInitialData}
-            availableUpdatePacks={updatePacks || []}
-            onStrategySavedOrUpdated={handleStrategySave}
-          />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="mb-6 shadow-md">
-      <CardHeader className="pb-4">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Settings2 className="h-6 w-6 text-accent" />
-              Global Update Strategy
-            </CardTitle>
-            <CardDescription className="mt-1">
-              {globalStrategy ? "Current active strategy for global rollouts." : "No global strategy configured."}
-            </CardDescription>
-          </div>
-          <div className='flex flex-col sm:flex-row gap-2'>
-            <Button variant="outline" onClick={() => setIsEditing(true)}>
-              <Pencil className="mr-2 h-4 w-4" /> {globalStrategy ? "Edit Strategy" : "Configure Strategy"}
-            </Button>
-            <Button onClick={() => globalLaunchMutation.mutate()} disabled={globalLaunchMutation.isPending || !globalStrategy} className="bg-primary hover:bg-primary/90">
-              <PackageCheck className="mr-2 h-4 w-4" />
-              {globalLaunchMutation.isPending ? "Preparing..." : "Prepare Launch"}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      {globalStrategy ? (
-        <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 pt-0">
-          <div className="space-y-1 rounded-md border border-border/70 p-3 bg-muted/20 shadow-sm">
-            <p className="text-xs font-medium text-muted-foreground">Workflow Type</p>
-            <p className="text-sm text-foreground">{formatWorkflowType(globalStrategy.workflow_type)}</p>
-          </div>
-          <div className="space-y-1 rounded-md border border-border/70 p-3 bg-muted/20 shadow-sm">
-            <p className="text-xs font-medium text-muted-foreground">Rollout Details</p>
-            <p className="text-sm text-foreground">
-              {globalStrategy.rollout_type === 'percentage' ? `${globalStrategy.rollout_value}% of devices` : `${globalStrategy.rollout_value} fixed devices`}
-            </p>
-          </div>
-          {globalStrategy.test_device_id && (
-            <div className="space-y-1 rounded-md border border-border/70 p-3 bg-muted/20 shadow-sm">
-              <p className="text-xs font-medium text-muted-foreground">Test Device</p>
-              <p className="text-sm font-mono text-xs text-foreground">{globalStrategy.test_device_id}</p>
-            </div>
-          )}
-          {globalStrategy.update_pack_id && (
-            <div className="space-y-1 rounded-md border border-border/70 p-3 bg-muted/20 shadow-sm">
-              <p className="text-xs font-medium text-muted-foreground">Default Update Pack</p>
-              <p className="text-sm text-foreground">{getUpdatePackName(globalStrategy.update_pack_id)}</p>
-            </div>
-          )}
-        </CardContent>
-      ) : (
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center bg-muted/30 rounded-md">
-            <Info className="h-10 w-10 text-muted-foreground mb-3" />
-            <p className="text-lg font-medium text-foreground">No Global Strategy Configured</p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Click "{globalStrategyError && globalStrategy === null ? 'Retry Loading or ' : ''}Configure Strategy" above to set up the global update strategy.
-            </p>
-          </div>
-        </CardContent>
-      )}
-    </Card>
-  );
-}
+// Global strategy display component removed - strategy is now per-launch only
 
 interface DeviceJobStatusRowProps {
   dmsId: string;
@@ -2963,13 +2708,6 @@ export default function UpdatesPage() {
     enabled: !!user?.access_token && availableDms.length > 0
   });
 
-  // Fetch global strategy for the selected DMS (needed for Prepare Launch button)
-  const { data: globalStrategy, isLoading: isLoadingGlobalStrategy } = useQuery<ApiGlobalStrategy | null, Error>({
-    queryKey: ['globalStrategy', selectedDms?.id],
-    queryFn: () => fetchGlobalStrategy({ dmsId: selectedDms!.id, accessToken: user!.access_token! }),
-    enabled: !!selectedDms?.id && !!user?.access_token,
-  });
-
   // Fetch update packs for strategy configuration
   const { data: updatePacksResponse2, isLoading: isLoadingUpdatePacks } = useQuery({
     queryKey: ['updatePacks', selectedDms?.id],
@@ -2986,49 +2724,20 @@ export default function UpdatesPage() {
     return updatePacksResponse2?.list || [];
   }, [allDmsUpdatePacks, selectedDms, updatePacksResponse2?.list]);
 
-  // Strategy save mutation
-  const strategyMutation = useMutation({
-    mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateGlobalStrategy({dmsId: selectedDms!.id, strategyData, accessToken: user!.access_token!}),
-    onSuccess: (data, strategyData) => {
-      toast({ title: "Strategy Configured", description: "The launch strategy has been successfully configured." });
-      queryClient.invalidateQueries({ queryKey: ['globalStrategy', selectedDms?.id] });
-      // After saving strategy, trigger the launch WITH the strategy config
-      globalLaunchMutation.mutate(strategyData);
-      setIsStrategyDialogOpen(false);
-      // Clear selected pack when dialog closes
-      setSelectedPackForLaunch(null);
-    },
-    onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Strategy Configuration Failed", description: err.message });
-    },
-  });
-
-  // Global launch mutation for Prepare Launch button
-  const globalLaunchMutation = useMutation({
-    mutationFn: (strategyConfig?: Partial<ApiGlobalStrategy>) => {
-      // If no strategy provided, fetch from current globalStrategy
-      const config = strategyConfig || (globalStrategy ? {
-        workflow_type: globalStrategy.workflow_type,
-        rollout_type: globalStrategy.rollout_type,
-        rollout_value: globalStrategy.rollout_value,
-        test_device_id: globalStrategy.test_device_id,
-        update_pack_id: globalStrategy.update_pack_id,
-        auto: globalStrategy.auto || false,
-      } : {
-        workflow_type: 'wfx.workflow.dau.direct', // Default to direct workflow when no global strategy exists
-        rollout_type: 'percentage',
-        rollout_value: 10,
-        auto: false,
-      });
-      
-      return triggerGlobalLaunchApi({
-        dmsId: selectedDms!.id, 
+  // Launch creation mutation - requires all strategy fields
+  const createLaunchMutation = useMutation({
+    mutationFn: (launchData: CreateLaunchPayload) => {
+      if (!selectedDms?.id) {
+        throw new Error('No DMS selected');
+      }
+      return createLaunch({
+        dmsId: selectedDms.id,
         accessToken: user!.access_token!,
-        strategyConfig: config
+        launchData
       });
     },
     onSuccess: async (data) => {
-      toast({ title: "Launch Prepared", description: data.message || "Successfully prepared launch based on configured strategy." });
+      toast({ title: "Launch Created", description: data.message || "Successfully created new launch with configured strategy." });
       
       // Reset pagination by invalidating pack-specific queries
       queryClient.invalidateQueries({ queryKey: ['packLaunches'] });
@@ -3048,33 +2757,36 @@ export default function UpdatesPage() {
       }, 500);
       
       setIsStrategyDialogOpen(false);
+      setSelectedPackForLaunch(null);
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Launch Preparation Failed", description: err.message });
+      toast({ variant: "destructive", title: "Launch Creation Failed", description: err.message });
     },
   });
 
   const handleStrategySave = (formDataFromForm: UpdateStrategy) => {
-    const selectedPack = updatePacks.find(p => p.id === formDataFromForm.updatePackId);
-    const packIdForApi = selectedPack ? selectedPack.name : undefined;
+    if (!formDataFromForm.updatePackId) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Please select an update pack" });
+      return;
+    }
 
-    const apiPayload: Partial<ApiGlobalStrategy> = {
+    const selectedPack = updatePacks.find(p => p.id === formDataFromForm.updatePackId);
+    if (!selectedPack) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Selected update pack not found" });
+      return;
+    }
+
+    // Create launch payload with all required strategy fields
+    const launchPayload: CreateLaunchPayload = {
+      update_pack_name: selectedPack.name, // Backend expects pack name
       workflow_type: formDataFromForm.workflowType,
       rollout_type: formDataFromForm.rolloutType,
       rollout_value: formDataFromForm.rolloutValue,
       test_device_id: formDataFromForm.testDeviceId || undefined,
-      update_pack_id: packIdForApi,
       auto: formDataFromForm.auto || false,
     };
 
-    Object.keys(apiPayload).forEach(key => {
-      const typedKey = key as keyof ApiGlobalStrategy;
-      if (apiPayload[typedKey] === undefined || apiPayload[typedKey] === null) {
-        delete apiPayload[typedKey];
-      }
-    });
-
-    strategyMutation.mutate(apiPayload);
+    createLaunchMutation.mutate(launchPayload);
   };
 
   // Fetch all launches from all DMS instances
@@ -3176,22 +2888,23 @@ export default function UpdatesPage() {
     },
   });
   
-  const isLoading = isLoadingLaunches || isLoadingUpdatePacks || isLoadingGlobalStrategy;
+  const isLoading = isLoadingLaunches || isLoadingUpdatePacks;
 
-  // Get update pack name from globalStrategy
+  // Get update pack name from update packs list
   const getUpdatePackName = (packId?: string) => {
     if (!packId) return 'Not Set';
     const pack = updatePacks.find(p => p.name === packId || p.id === packId);
     return pack ? `${pack.name} v${pack.version}` : packId;
   };
 
-  // Prepare form initial data with numeric as default
+  // Prepare form initial data with defaults
   const formInitialData: UpdateStrategy = {
-    workflowType: 'wfx.workflow.dau.direct', // Always default to direct workflow
-    rolloutType: globalStrategy?.rollout_type || 'numeric',
-    rolloutValue: globalStrategy?.rollout_value || 10,
-    testDeviceId: globalStrategy?.test_device_id || undefined,
-    updatePackId: selectedPackForLaunch || updatePacks.find(p => p.name === globalStrategy?.update_pack_id)?.id || undefined,
+    workflowType: 'wfx.workflow.dau.direct', // Default to direct workflow
+    rolloutType: 'numeric', // Default to numeric rollout
+    rolloutValue: 10, // Default rollout value
+    testDeviceId: undefined,
+    updatePackId: selectedPackForLaunch || undefined,
+    auto: false,
   };
 
   // Group launches by update pack
@@ -3256,12 +2969,14 @@ export default function UpdatesPage() {
       
       if (packWithStatus) {
         packWithStatus.launches.push(launch);
-        packWithStatus.totalDevices += launch.devices_with_job.length + launch.devices_without_job.length;
-        packWithStatus.devicesWithJob += launch.devices_with_job.length;
+        const devicesWithJobCount = (launch.devices_with_job?.length) ?? 0;
+        const devicesWithoutJobCount = (launch.devices_without_job?.length) ?? 0;
+        packWithStatus.totalDevices += devicesWithJobCount + devicesWithoutJobCount;
+        packWithStatus.devicesWithJob += devicesWithJobCount;
         packWithStatus.hasLaunchForCurrentVersion = true;
         
         // Check if this launch has devices without jobs (active launch)
-        if (launch.devices_without_job.length > 0) {
+        if (devicesWithoutJobCount > 0) {
           packWithStatus.hasActiveLaunch = true;
         }
       }
@@ -3683,11 +3398,11 @@ export default function UpdatesPage() {
         <DialogContent className="max-w-3xl max-h-[90vh]">
           <DialogHeader className="pr-8">
             <DialogTitle className="flex items-center gap-2">
-              <Settings2 className="h-5 w-5 text-primary" />
-              Configure Launch Strategy
+              <Rocket className="h-5 w-5 text-primary" />
+              Create New Launch
             </DialogTitle>
             <DialogDescription>
-              Configure the rollout strategy for your next firmware update launch. This will determine how updates are deployed to your device fleet.
+              Configure and create a new firmware update launch. All strategy parameters are required for each launch (rollout type, workflow, and target devices).
             </DialogDescription>
           </DialogHeader>
           
@@ -3742,18 +3457,18 @@ export default function UpdatesPage() {
             <Button 
               type="submit"
               form="launch-strategy-form"
-              disabled={globalLaunchMutation.isPending} 
+              disabled={createLaunchMutation.isPending} 
               className="w-full h-12 bg-primary hover:bg-primary/90 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {globalLaunchMutation.isPending ? (
+              {createLaunchMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Preparing...
+                  Creating Launch...
                 </>
               ) : (
                 <>
                   <Rocket className="h-5 w-5 mr-2" />
-                  Prepare Launch
+                  Create Launch
                 </>
               )}
             </Button>
