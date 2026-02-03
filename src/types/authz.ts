@@ -1,0 +1,122 @@
+// Authorization & Security Type Definitions
+
+export interface Rule {
+  entityType: string;
+  actions: string[];
+  relations: RelationRule[];
+  directGrants?: string[];
+}
+
+export interface RelationRule {
+  to: string;
+  via: string;
+  actions: string[];
+  relations?: RelationRule[];
+}
+
+export interface Policy {
+  id: string;
+  name: string;
+  description: string;
+  rules: Rule[];
+}
+
+// Principal Auth Config Types
+export interface ClaimCondition {
+  claim: string;
+  operator: 'equals' | 'contains' | 'matches';
+  value: string;
+}
+
+export interface ApiKeyAuthConfig {
+  apiKeyHash?: string; // bcrypt hash, populated server-side
+}
+
+export interface OIDCAuthConfig {
+  issuer: string;
+  claims: ClaimCondition[];
+}
+
+export interface X509AuthConfig {
+  caFingerprint: string;
+  matchMode: 'serial_and_ca' | 'cn' | 'any_from_ca';
+  serialNumber?: string;
+  subjectCn?: string;
+}
+
+export type PrincipalType = 'api_key' | 'oidc' | 'x509';
+
+export type AuthConfig = ApiKeyAuthConfig | OIDCAuthConfig | X509AuthConfig;
+
+export interface Principal {
+  id: string;
+  name: string;
+  type: PrincipalType;
+  authConfig: AuthConfig;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PolicyGrant {
+  principalId: string;
+  policyId: string;
+  policyName: string;
+  grantedAt: string;
+}
+
+export interface SchemaDefinition {
+  entityType: string;
+  tableName: string;
+  primaryKey: string;
+  relations: Record<string, RelationConfig>;
+  atomicActions?: string[]; // actions requiring entity ID: read, write, delete, etc.
+  globalActions?: string[]; // actions not requiring entity ID: create, list, etc.
+}
+
+export interface RelationConfig {
+  name: string;
+  targetEntity: string;
+  foreignKey: string;
+}
+
+export interface PolicyStats {
+  id: string;
+  name: string;
+  ruleCount: number;
+  principalCount: number;
+  sizeBytes?: number;
+  lastModified?: string;
+}
+
+export interface AuthorizeRequest {
+  principalId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+}
+
+export interface AuthorizeResponse {
+  allowed: boolean;
+  principalId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+}
+
+export interface FilterRequest {
+  principalId: string;
+  entityType: string;
+}
+
+export interface FilterResponse {
+  whereClause: string;
+  args: any[];
+  principalId: string;
+  entityType: string;
+}
+
+export interface ErrorResponse {
+  error: string;
+  details?: Record<string, string>;
+}

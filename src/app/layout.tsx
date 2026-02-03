@@ -30,7 +30,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -96,6 +96,11 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'job-manager': "Job Manager",
   'jobs': "Jobs",
   'workflows': "Workflows",
+  'authz': "Authorization",
+  'policies': "Policies",
+  'principals': "Principals",
+  'schemas': "Schemas",
+  'test': "Authorization Test",
 };
 
 interface NavItem {
@@ -142,6 +147,15 @@ const navigationConfig: NavGroup[] = [
     items: [
       { href: '/job-manager/jobs', label: 'Jobs', icon: ClipboardList },
       { href: '/job-manager/workflows', label: 'Workflows', icon: Workflow },
+    ],
+  },
+  {
+    label: 'AUTHZ & SECURITY',
+    items: [
+      { href: '/authz/policies', label: 'Policies', icon: Lock },
+      { href: '/authz/principals', label: 'Principals', icon: UserCheck },
+      { href: '/authz/schemas', label: 'Schemas', icon: Database },
+      { href: '/authz/test', label: 'Authorization Test', icon: TestTube2 },
     ],
   },
   {

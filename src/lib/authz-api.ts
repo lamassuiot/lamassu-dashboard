@@ -1,0 +1,209 @@
+// Authorization & Security API Client
+import { handleApiError } from './api-domains';
+import type {
+  Policy,
+  Principal,
+  SchemaDefinition,
+  PolicyStats,
+  AuthorizeRequest,
+  AuthorizeResponse,
+  FilterRequest,
+  FilterResponse,
+} from '@/types/authz';
+
+const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_AUTZ_API) {
+    return (window as any).lamassuConfig.LAMASSU_AUTZ_API;
+  }
+
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+  return '';
+};
+
+export const get_AUTHZ_API_BASE_URL = () => `${getApiBaseUrl()}/v1`;
+
+/**
+ * Get the currently selected principal from localStorage or default to 'admin'
+ */
+const getSelectedPrincipal = (): string => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('selectedPrincipal') || 'admin';
+  }
+  return 'admin';
+};
+
+/**
+ * Get headers with principal context for authorization requests
+ */
+const getAuthzHeaders = (): HeadersInit => {
+  const selectedPrincipal = getSelectedPrincipal();
+  return {
+    'Content-Type': 'application/json',
+    'X-Principal-ID': selectedPrincipal === 'admin' ? 'admin-mode' : selectedPrincipal,
+  };
+};
+
+// ===========================
+// Policy API Endpoints
+// ===========================
+
+export async function createPolicy(policy: Omit<Policy, 'id'> & { id: string }): Promise<Policy> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/policies`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(policy),
+  });
+  return handleApiError(response, 'Failed to create policy');
+}
+
+export async function listPolicies(): Promise<{ policies: Policy[]; count: number }> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/policies`, {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  return handleApiError(response, 'Failed to list policies');
+}
+
+export async function getPolicy(id: string): Promise<Policy> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}`, {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  return handleApiError(response, `Failed to get policy ${id}`);
+}
+
+export async function updatePolicy(id: string, policy: Omit<Policy, 'id'>): Promise<Policy> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}`, {
+    method: 'PUT',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(policy),
+  });
+  return handleApiError(response, `Failed to update policy ${id}`);
+}
+
+export async function deletePolicy(id: string): Promise<void> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}`, {
+    method: 'DELETE',
+    headers: getAuthzHeaders(),
+  });
+  await handleApiError(response, `Failed to delete policy ${id}`);
+}
+
+export async function getPolicyStats(id: string): Promise<PolicyStats> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}/stats`, {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  return handleApiError(response, `Failed to get policy stats for ${id}`);
+}
+
+// ===========================
+// Principal API Endpoints
+// ===========================
+
+export async function createPrincipal(principal: Omit<Principal, 'createdAt' | 'updatedAt'>): Promise<Principal> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/principals`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(principal),
+  });
+  return handleApiError(response, 'Failed to create principal');
+}
+
+export async function listPrincipals(activeOnly = false): Promise<{ principals: Principal[]; count: number }> {
+  const url = new URL(`${get_AUTHZ_API_BASE_URL()}/principals`);
+  if (activeOnly) {
+    url.searchParams.append('activeOnly', 'true');
+  }
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  return handleApiError(response, 'Failed to list principals');
+}
+
+export async function getPrincipal(id: string): Promise<Principal> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/principals/${id}`, {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  return handleApiError(response, `Failed to get principal ${id}`);
+}
+
+export async function updatePrincipal(id: string, principal: Partial<Principal>): Promise<Principal> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/principals/${id}`, {
+    method: 'PUT',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(principal),
+  });
+  return handleApiError(response, `Failed to update principal ${id}`);
+}
+
+export async function deletePrincipal(id: string): Promise<void> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/principals/${id}`, {
+    method: 'DELETE',
+    headers: getAuthzHeaders(),
+  });
+  await handleApiError(response, `Failed to delete principal ${id}`);
+}
+
+export async function getPrincipalPolicies(id: string): Promise<{ policies: any[] }> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/principals/${id}/policies`, {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  return handleApiError(response, `Failed to get policies for principal ${id}`);
+}
+
+export async function grantPolicy(principalId: string, policyId: string, grantedBy?: string): Promise<void> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/principals/${principalId}/policies`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify({ policyId, grantedBy }),
+  });
+  await handleApiError(response, `Failed to grant policy ${policyId} to principal ${principalId}`);
+}
+
+export async function revokePolicy(principalId: string, policyId: string): Promise<void> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/principals/${principalId}/policies/${policyId}`, {
+    method: 'DELETE',
+    headers: getAuthzHeaders(),
+  });
+  await handleApiError(response, `Failed to revoke policy ${policyId} from principal ${principalId}`);
+}
+
+// ===========================
+// Schema API Endpoints
+// ===========================
+
+export async function getSchemas(): Promise<SchemaDefinition[]> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/schemas`, {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  return handleApiError(response, 'Failed to get schemas');
+}
+
+// ===========================
+// Authorization Test Endpoints
+// ===========================
+
+export async function authorize(request: AuthorizeRequest): Promise<AuthorizeResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/authorize`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to authorize request');
+}
+
+export async function getFilter(request: FilterRequest): Promise<FilterResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/filter`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to get filter');
+}
