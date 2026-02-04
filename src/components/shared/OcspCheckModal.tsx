@@ -19,7 +19,8 @@ import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
 // Helper functions for downloads
-const downloadFile = (data: ArrayBuffer, filename: string, mimeType: string) => {
+const downloadFile = (data: ArrayBuffer | null, filename: string, mimeType: string) => {
+    if (!data) return;
     const blob = new Blob([data], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -248,10 +249,10 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                                                 {requestPemCopied ? <Check className="mr-2 h-4 w-4 text-green-500"/> : <Copy className="mr-2 h-4 w-4"/>}
                                                 {requestPemCopied ? 'Copied' : 'Copy PEM'}
                                             </Button>
-                                            <Button variant="outline" size="sm" onClick={() => downloadPem(responseDetails?.requestDer, 'OCSP REQUEST', 'ocsp_request.pem')} disabled={!responseDetails?.requestDer}>
+                                            <Button variant="outline" size="sm" onClick={() => downloadPem(responseDetails?.requestDer ?? null, 'OCSP REQUEST', 'ocsp_request.pem')} disabled={!responseDetails?.requestDer}>
                                                 <Download className="mr-2 h-4 w-4"/>Download PEM
                                             </Button>
-                                            <Button variant="outline" size="sm" onClick={() => downloadFile(responseDetails?.requestDer!, 'ocsp_request.der', 'application/ocsp-request')} disabled={!responseDetails?.requestDer}>
+                                            <Button variant="outline" size="sm" onClick={() => downloadFile(responseDetails?.requestDer ?? null, 'ocsp_request.der', 'application/ocsp-request')} disabled={!responseDetails?.requestDer}>
                                                 <Download className="mr-2 h-4 w-4"/>Download DER
                                             </Button>
                                         </div>
@@ -263,10 +264,10 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                                                 {responsePemCopied ? <Check className="mr-2 h-4 w-4 text-green-500"/> : <Copy className="mr-2 h-4 w-4"/>}
                                                 {responsePemCopied ? 'Copied' : 'Copy PEM'}
                                             </Button>
-                                            <Button variant="outline" size="sm" onClick={() => downloadPem(responseDetails?.responseDer, 'OCSP RESPONSE', 'ocsp_response.pem')} disabled={!responseDetails?.responseDer}>
+                                            <Button variant="outline" size="sm" onClick={() => downloadPem(responseDetails?.responseDer ?? null, 'OCSP RESPONSE', 'ocsp_response.pem')} disabled={!responseDetails?.responseDer}>
                                                 <Download className="mr-2 h-4 w-4"/>Download PEM
                                             </Button>
-                                            <Button variant="outline" size="sm" onClick={() => downloadFile(responseDetails?.responseDer!, 'ocsp_response.der', 'application/ocsp-response')} disabled={!responseDetails?.responseDer}>
+                                            <Button variant="outline" size="sm" onClick={() => downloadFile(responseDetails?.responseDer ?? null, 'ocsp_response.der', 'application/ocsp-response')} disabled={!responseDetails?.responseDer}>
                                                 <Download className="mr-2 h-4 w-4"/>Download DER
                                             </Button>
                                         </div>

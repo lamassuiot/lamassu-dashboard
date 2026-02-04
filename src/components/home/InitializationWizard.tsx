@@ -151,7 +151,7 @@ export const InitializationWizard: React.FC = () => {
         }
         
         if (typeof window !== 'undefined' && window.crypto) {
-            setEngine("webcrypto", getCrypto());
+            setEngine("webcrypto", getCrypto() ?? undefined);
         }
 
         setIsTestRunning(true);
@@ -229,7 +229,7 @@ export const InitializationWizard: React.FC = () => {
                         const caCert = createdCaList[0];
                         testCaCertSerialNumber = caCert.serialNumber; // Store the CA's own certificate serial
                         addLog("Found CA cert with serial number.", 'info', testCaCertSerialNumber);
-                        const parsedDetails = await parseCertificatePemDetails(caCert.pemData);
+                        const parsedDetails = await parseCertificatePemDetails(caCert.pemData!);
                         addLog("OCSP URLs found:", 'success', parsedDetails.ocspUrls?.join(', ') || 'None');
                         addLog("CRL URLs found:", 'success', parsedDetails.crlDistributionPoints?.join(', ') || 'None');
                     } else {
@@ -515,7 +515,7 @@ export const InitializationWizard: React.FC = () => {
                 },
             };
             
-            await createSigningProfile(payload, user.access_token);
+            await createSigningProfile(payload as any, user.access_token);
             toast({ title: "Success!", description: "Default Issuance Profile created." });
             checkFinalStepStatus(); // Re-check to update the button state
         } catch (e: any) {

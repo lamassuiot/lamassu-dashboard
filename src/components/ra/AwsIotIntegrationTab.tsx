@@ -440,7 +440,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
                         <FormField control={form.control} name="groups" render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Thing Groups</FormLabel>
-                                <FormControl><TagInput {...field} placeholder="Add thing groups..."/></FormControl>
+                                <FormControl><TagInput {...field} value={field.value || []} placeholder="Add thing groups..."/></FormControl>
                             </FormItem>
                         )}/>
                         

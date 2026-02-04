@@ -152,7 +152,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
         return { id: ca.id, content: contentElement, start: expiryDate, className };
       }).filter(Boolean);
 
-      timelineInstance.current.setItems(new DataSet(itemsData as any));
+      timelineInstance.current.setItems(itemsData as any);
       timelineInstance.current.fit();
     }
   }, [isReadyForTimeline, cas, allCryptoEngines, router]);

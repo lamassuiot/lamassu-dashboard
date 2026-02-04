@@ -1,0 +1,52 @@
+name: CI TypeScript Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      
+jobs:
+  tscheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+            fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript checks
+        id: typecheck
+        run: |
+          set +e
+          OUTPUT=$(npm run typecheck 2>&1)
+          EXIT_CODE=$?
+          echo "$OUTPUT"
+          
+          # Count TypeScript errors (lines containing "error TS")
+          ERROR_COUNT=$(echo "$OUTPUT" | grep -c "error TS" || echo "0")
+          
+          echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
+          echo ""
+          echo "========================================"
+          echo "TypeScript Check Summary"
+          echo "========================================"
+          echo "Total errors found: $ERROR_COUNT"
+          echo "========================================"
+          
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "❌ TypeScript check failed with $ERROR_COUNT error(s)"
+            exit 1
+          else
+            echo "✅ TypeScript check passed with no errors"
+            exit 0
+          fi

@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { Duration } from 'date-fns';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -199,7 +200,7 @@ export default function IssueCertificateFormClient() {
 
   // --- Effects ---
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.crypto) setEngine("webcrypto", getCrypto());
+    if (typeof window !== 'undefined' && window.crypto) setEngine("webcrypto", getCrypto() ?? undefined);
   }, []);
   
   useEffect(() => {

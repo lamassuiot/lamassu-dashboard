@@ -150,8 +150,10 @@ const formatPkijsPublicKeyInfo = (publicKeyInfo: PublicKeyInfo): string => {
   const algoOid = publicKeyInfo.algorithm.algorithmId;
   const algoName = OID_MAP[algoOid] || algoOid;
   let details = "";
-  if (algoName === "EC" && publicKeyInfo.algorithm.parameters && (publicKeyInfo.algorithm.parameters as any).valueBlock) {
-      const curveOid = (publicKeyInfo.algorithm.parameters as any).valueBlock.value as string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const algo = publicKeyInfo.algorithm as any;
+  if (algoName === "EC" && algo.parameters && algo.parameters.valueBlock) {
+      const curveOid = algo.parameters.valueBlock.value as string;
       details = `(Curve: ${OID_MAP[curveOid] || curveOid})`;
   } else if (algoName === "RSA" && publicKeyInfo.parsedKey && (publicKeyInfo.parsedKey as any).modulus) {
       const modulusBytes = (publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex.byteLength;
@@ -274,7 +276,7 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedPem
                 const basicConstraints = bcExtension.parsedValue as BasicConstraints;
                 defaultResult.isCa = basicConstraints.cA;
                 if (basicConstraints.pathLenConstraint !== undefined) {
-                    defaultResult.pathLenConstraint = basicConstraints.pathLenConstraint;
+                    defaultResult.pathLenConstraint = Number(basicConstraints.pathLenConstraint);
                 }
             }
         } catch(e) { console.error("Failed to parse Basic Constraints:", e); }
@@ -284,13 +286,13 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedPem
             if (sanExtension?.parsedValue) {
                 const sanValue = sanExtension.parsedValue;
                 if (sanValue.altNames && Array.isArray(sanValue.altNames)) {
-                    sanValue.altNames.forEach(name => {
-                        if (name.type === 1) defaultResult.sans.push(`Email: ${name.value}`);
-                        else if (name.type === 2) defaultResult.sans.push(`DNS: ${name.value}`);
-                        else if (name.type === 6) defaultResult.sans.push(`URI: ${name.value}`);
+                    sanValue.altNames.forEach((name: any) => {
+                        if (name.type === 1) defaultResult.sans!.push(`Email: ${name.value}`);
+                        else if (name.type === 2) defaultResult.sans!.push(`DNS: ${name.value}`);
+                        else if (name.type === 6) defaultResult.sans!.push(`URI: ${name.value}`);
                         else if (name.type === 7) {
                             const ipBytes = Array.from(new Uint8Array(name.value.valueBlock.valueHex));
-                            defaultResult.sans.push(`IP: ${ipBytes.join('.')}`);
+                            defaultResult.sans!.push(`IP: ${ipBytes.join('.')}`);
                         }
                     });
                 }
@@ -306,7 +308,7 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedPem
 
               for (let i = 0; i < KEY_USAGE_NAMES.length; i++) {
                 if (keyUsage.length && (keyUsage[Math.floor(i / 8)] & (1 << (7 - (i % 8))))) {
-                  defaultResult.keyUsage.push(KEY_USAGE_NAMES[i]);
+                  defaultResult.keyUsage!.push(KEY_USAGE_NAMES[i]);
                 }
               }
              }
@@ -317,7 +319,7 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedPem
             if (ekuExtension?.parsedValue) {
                 const ekuValue = ekuExtension.parsedValue as ExtKeyUsage;
                 ekuValue.keyPurposes.forEach((oid: string) => {
-                    defaultResult.extendedKeyUsage.push(EKU_OID_MAP[oid] || oid);
+                    defaultResult.extendedKeyUsage!.push(EKU_OID_MAP[oid] || oid);
                 });
             }
         } catch(e) { console.error("Failed to parse Extended Key Usage:", e); }

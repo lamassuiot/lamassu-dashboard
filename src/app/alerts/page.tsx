@@ -152,7 +152,7 @@ export default function AlertsPage() {
           subscriptionsMap.set(sub.event_type, []);
         }
         
-        let displayValue = sub.channel.type;
+        let displayValue: string = sub.channel.type;
         if(sub.channel.type === 'EMAIL' && sub.channel.config.email) {
             displayValue = `${sub.channel.type}: ${sub.channel.config.email}`;
         } else if (sub.channel.type === 'WEBHOOK' && sub.channel.config.name) {

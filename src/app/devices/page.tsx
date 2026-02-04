@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
+import { StatusBadge, DeviceIcon, mapApiIconToIconType } from '@/components/devices/DeviceComponents';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -42,7 +43,7 @@ interface DeviceData {
 }
 
 interface SortConfig {
-  column: SortableColumn;
+  column: string;
   direction: SortDirection;
 }
 
@@ -56,56 +57,6 @@ const statusSortOrder: Record<DeviceStatus, number> = {
   'DECOMMISSIONED': 6,
 };
 
-
-export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
-  let badgeClass = "";
-  switch (status) {
-    case 'ACTIVE':
-      badgeClass = "bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-300 dark:border-green-700";
-      break;
-    case 'RENEWAL_PENDING':
-        badgeClass = "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700";
-        break;
-    case 'EXPIRING_SOON':
-        badgeClass = "bg-orange-100 text-orange-700 dark:bg-orange-700/30 dark:text-orange-300 border-orange-300 dark:border-orange-700";
-        break;
-    case 'EXPIRED':
-        badgeClass = "bg-purple-100 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300 border-purple-300 dark:border-purple-700";
-        break;
-    case 'REVOKED':
-        badgeClass = "bg-red-100 text-red-700 dark:bg-red-700/30 dark:text-red-300 border-red-300 dark:border-red-700";
-        break;
-    case 'NO_IDENTITY':
-      badgeClass = "bg-sky-100 text-sky-700 dark:bg-sky-700/30 dark:text-sky-300 border-sky-300 dark:border-sky-700";
-      break;
-    case 'DECOMMISSIONED':
-      badgeClass = "bg-gray-100 text-gray-600 dark:bg-gray-800/30 dark:text-gray-400 border-gray-400 dark:border-gray-600";
-      break;
-    default:
-      badgeClass = "bg-muted text-muted-foreground border-border";
-  }
-  return <Badge variant="outline" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
-};
-
-export const mapApiIconToIconType = (apiIcon: string): string => {
-  return apiIcon || 'HelpCircle'; // Pass through name, or default.
-};
-
-export const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string; }> = ({ type, iconColor, bgColor }) => {
-  const IconComponent = getLucideIconByName(type);
-
-  return (
-    <div className={cn("p-1.5 rounded-md inline-flex items-center justify-center")} style={{ backgroundColor: bgColor || '#F0F8FF' }}>
-      {IconComponent ? (
-        <IconComponent className={cn("h-5 w-5")} style={{ color: iconColor || '#0f67ff' }} />
-      ) : (
-        <HelpCircle className={cn("h-5 w-5")} style={{ color: iconColor || '#0f67ff' }} />
-      )}
-    </div>
-  );
-};
-
-type SortableColumn = 'id' | 'status' | 'deviceGroup' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
 export default function DevicesPage() {
@@ -128,7 +79,7 @@ export default function DevicesPage() {
 
   // Sorting and pagination states
   const [pageSize, setPageSize] = useState<string>('10');
-  const [sortConfig, setSortConfig] = useState<SortConfig | null>({column: 'createdAt', direction: 'desc'});
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ column: 'createdAt', direction: 'desc' });
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
@@ -164,107 +115,107 @@ export default function DevicesPage() {
       [columnId]: !prev[columnId],
     }));
   };
-  
+
   const isInitialLoad = useRef(true);
 
   // Debounce search term
   useEffect(() => {
     const handler = setTimeout(() => {
-        if (isInitialLoad.current && searchTerm === '') {
-            return;
-        }
-        setDebouncedSearchTerm(searchTerm);
+      if (isInitialLoad.current && searchTerm === '') {
+        return;
+      }
+      setDebouncedSearchTerm(searchTerm);
     }, 500);
 
     return () => {
-        clearTimeout(handler);
+      clearTimeout(handler);
     };
   }, [searchTerm]);
 
   const fetchData = useCallback(async (bookmarkToFetch: string | null) => {
     if (authLoading || !isAuthenticated() || !user?.access_token) {
-        if (!authLoading && !isAuthenticated()) {
-            setApiError("User not authenticated.");
-        }
-        setIsLoadingApi(false);
-        setDevices([]);
-        setNextTokenFromApi(null);
-        return;
+      if (!authLoading && !isAuthenticated()) {
+        setApiError("User not authenticated.");
+      }
+      setIsLoadingApi(false);
+      setDevices([]);
+      setNextTokenFromApi(null);
+      return;
     }
-    
+
     setIsLoadingApi(true);
     setApiError(null);
-    
+
     try {
-        const params = new URLSearchParams();
-        if (sortConfig) {
-            let apiSortColumn = sortConfig.column;
-            if(apiSortColumn === 'deviceGroup') {
-                apiSortColumn = 'dms_owner';
-            } else if (apiSortColumn === 'createdAt') {
-                apiSortColumn = 'creation_timestamp';
-            }
-            params.append('sort_by', apiSortColumn);
-            params.append('sort_mode', sortConfig.direction);
-        } else {
-             params.append('sort_by', 'creation_timestamp');
-             params.append('sort_mode', 'desc');
+      const params = new URLSearchParams();
+      if (sortConfig) {
+        let apiSortColumn = sortConfig.column;
+        if (apiSortColumn === 'deviceGroup') {
+          apiSortColumn = 'dms_owner';
+        } else if (apiSortColumn === 'createdAt') {
+          apiSortColumn = 'creation_timestamp';
         }
-        
-        params.append('page_size', pageSize);
-        if (bookmarkToFetch) {
-            params.append('bookmark', bookmarkToFetch);
-        }
-        
-        const filtersToApply: string[] = [];
-        if (dmsOwnerFilter) filtersToApply.push(`dms_owner[equal]${dmsOwnerFilter}`);
-        if (debouncedSearchTerm.trim() !== '') filtersToApply.push(`${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
-        if (statusFilter !== 'ALL') filtersToApply.push(`status[equal]${statusFilter}`);
-        filtersToApply.forEach(f => params.append('filter', f));
+        params.append('sort_by', apiSortColumn);
+        params.append('sort_mode', sortConfig.direction);
+      } else {
+        params.append('sort_by', 'creation_timestamp');
+        params.append('sort_mode', 'desc');
+      }
 
-        const data = await fetchDevices(user.access_token!, params);
-        const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
-            id: apiDevice.id,
-            displayId: apiDevice.id,
-            iconType: mapApiIconToIconType(apiDevice.icon),
-            icon_color: apiDevice.icon_color,
-            status: apiDevice.status as DeviceStatus,
-            deviceGroup: apiDevice.dms_owner,
-            createdAt: apiDevice.creation_timestamp,
-            expirationDate: apiDevice.identity?.expiration_date,
-            tags: apiDevice.tags || [],
-        }));
+      params.append('page_size', pageSize);
+      if (bookmarkToFetch) {
+        params.append('bookmark', bookmarkToFetch);
+      }
 
-        setDevices(transformedDevices);
-        setNextTokenFromApi(data.next);
+      const filtersToApply: string[] = [];
+      if (dmsOwnerFilter) filtersToApply.push(`dms_owner[equal]${dmsOwnerFilter}`);
+      if (debouncedSearchTerm.trim() !== '') filtersToApply.push(`${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+      if (statusFilter !== 'ALL') filtersToApply.push(`status[equal]${statusFilter}`);
+      filtersToApply.forEach(f => params.append('filter', f));
+
+      const data = await fetchDevices(user.access_token!, params);
+      const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
+        id: apiDevice.id,
+        displayId: apiDevice.id,
+        iconType: mapApiIconToIconType(apiDevice.icon),
+        icon_color: apiDevice.icon_color,
+        status: apiDevice.status as DeviceStatus,
+        deviceGroup: apiDevice.dms_owner,
+        createdAt: apiDevice.creation_timestamp,
+        expirationDate: apiDevice.identity?.expiration_date,
+        tags: apiDevice.tags || [],
+      }));
+
+      setDevices(transformedDevices);
+      setNextTokenFromApi(data.next);
     } catch (error: any) {
-        console.error("Failed to fetch devices:", error);
-        setApiError(error.message || "An unknown error occurred while fetching devices.");
-        setDevices([]);
-        setNextTokenFromApi(null);
+      console.error("Failed to fetch devices:", error);
+      setApiError(error.message || "An unknown error occurred while fetching devices.");
+      setDevices([]);
+      setNextTokenFromApi(null);
     } finally {
-        setIsLoadingApi(false);
-        if (isInitialLoad.current) isInitialLoad.current = false;
+      setIsLoadingApi(false);
+      if (isInitialLoad.current) isInitialLoad.current = false;
     }
   }, [authLoading, isAuthenticated, user, sortConfig, pageSize, dmsOwnerFilter, debouncedSearchTerm, searchField, statusFilter]);
 
   // Effect for filter changes
   useEffect(() => {
     if (!isInitialLoad.current) {
-        setCurrentPageIndex(0);
-        setBookmarkStack([null]);
+      setCurrentPageIndex(0);
+      setBookmarkStack([null]);
     }
   }, [debouncedSearchTerm, searchField, statusFilter, pageSize, dmsOwnerFilter, sortConfig]);
 
   // Main data fetching effect
   useEffect(() => {
     if (bookmarkStack[currentPageIndex] !== undefined) {
-        fetchData(bookmarkStack[currentPageIndex]);
+      fetchData(bookmarkStack[currentPageIndex]);
     }
   }, [currentPageIndex, bookmarkStack, fetchData]);
 
 
-  const requestSort = (column: SortableColumn) => {
+  const requestSort = (column: string) => {
     let direction: SortDirection = 'asc';
     if (sortConfig && sortConfig.column === column && sortConfig.direction === 'asc') {
       direction = 'desc';
@@ -276,7 +227,7 @@ export default function DevicesPage() {
     return [...devices];
   }, [devices]);
 
-  const SortableTableHeader: React.FC<{ column: SortableColumn; title: string; className?: string }> = ({ column, title, className }) => {
+  const SortableTableHeader: React.FC<{ column: string; title: string; className?: string }> = ({ column, title, className }) => {
     const isSorted = sortConfig?.column === column;
     let Icon = ChevronsUpDown;
     if (isSorted) {
@@ -286,15 +237,15 @@ export default function DevicesPage() {
         Icon = sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ;
       }
     } else if (column === 'createdAt' || column === 'expirationDate') {
-         Icon = ChevronsUpDown;
+      Icon = ChevronsUpDown;
     }
 
 
     return (
-      <TableHead className={cn("cursor-pointer hover:bg-muted/60", 
-        (column === 'createdAt' || column === 'expirationDate') && "text-center", 
+      <TableHead className={cn("cursor-pointer hover:bg-muted/60",
+        (column === 'createdAt' || column === 'expirationDate') && "text-center",
         className)} onClick={() => requestSort(column)}>
-        <div className={cn("flex items-center gap-1", 
+        <div className={cn("flex items-center gap-1",
           (column === 'createdAt' || column === 'expirationDate') && "justify-center")}>
           {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
         </div>
@@ -328,8 +279,8 @@ export default function DevicesPage() {
 
   const handleOpenEnrollModal = async (device: DeviceData) => {
     if (!user?.access_token) {
-        toast({ title: 'Authentication Error', description: 'You must be logged in.', variant: 'destructive' });
-        return;
+      toast({ title: 'Authentication Error', description: 'You must be logged in.', variant: 'destructive' });
+      return;
     }
 
     setDeviceForEnrollModal(device);
@@ -338,11 +289,11 @@ export default function DevicesPage() {
 
     // Fetch RA details after opening the modal to show loading state inside
     try {
-        const raData = await fetchRaById(device.deviceGroup, user.access_token);
-        setRaForEnrollModal(raData);
+      const raData = await fetchRaById(device.deviceGroup, user.access_token);
+      setRaForEnrollModal(raData);
     } catch (err: any) {
-        toast({ title: 'Error Fetching RA Details', description: err.message, variant: 'destructive' });
-        setIsEnrollModalOpen(false); // Close on error
+      toast({ title: 'Error Fetching RA Details', description: err.message, variant: 'destructive' });
+      setIsEnrollModalOpen(false); // Close on error
     }
   };
 
@@ -355,12 +306,12 @@ export default function DevicesPage() {
     if (isLoadingApi) return;
     const potentialNextPageIndex = currentPageIndex + 1;
     if (potentialNextPageIndex < bookmarkStack.length) {
-        setCurrentPageIndex(potentialNextPageIndex);
+      setCurrentPageIndex(potentialNextPageIndex);
     }
     else if (nextTokenFromApi) {
-        const newStack = bookmarkStack.slice(0, currentPageIndex + 1);
-        setBookmarkStack([...newStack, nextTokenFromApi]);
-        setCurrentPageIndex(newStack.length);
+      const newStack = bookmarkStack.slice(0, currentPageIndex + 1);
+      setBookmarkStack([...newStack, nextTokenFromApi]);
+      setCurrentPageIndex(newStack.length);
     }
   };
 
@@ -441,7 +392,7 @@ export default function DevicesPage() {
             disabled={isLoadingApi || authLoading}
           />
         </div>
-        
+
         <div className="space-y-1">
           <Label htmlFor="statusFilter">Status</Label>
           <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as DeviceStatus | 'ALL')} disabled={isLoadingApi || authLoading}>
@@ -463,9 +414,9 @@ export default function DevicesPage() {
       </div>
 
       {isLoadingApi && !sortedDevices.length && (
-         <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg text-muted-foreground">Loading devices...</p>
+        <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+          <p className="text-lg text-muted-foreground">Loading devices...</p>
         </div>
       )}
 
@@ -527,8 +478,8 @@ export default function DevicesPage() {
                       )}
                       {columnVisibility.createdAt && (
                         <TableCell>
-                          <DateDisplay 
-                            date={device.createdAt} 
+                          <DateDisplay
+                            date={device.createdAt}
                             formatString="dd/MM/yyyy HH:mm"
                             className="text-xs"
                             relativeClassName="text-xs"
@@ -538,8 +489,8 @@ export default function DevicesPage() {
                       {columnVisibility.expirationDate && (
                         <TableCell>
                           {device.expirationDate ? (
-                            <DateDisplay 
-                              date={device.expirationDate} 
+                            <DateDisplay
+                              date={device.expirationDate}
                               formatString="dd/MM/yyyy HH:mm"
                               className="text-xs"
                               relativeClassName="text-xs"
@@ -569,9 +520,9 @@ export default function DevicesPage() {
                               <Eye className="mr-2 h-4 w-4" /> View Details
                             </DropdownMenuItem>
                             {device.status === 'NO_IDENTITY' && (
-                                <DropdownMenuItem onClick={() => handleOpenEnrollModal(device)}>
-                                    <TerminalSquare className="mr-2 h-4 w-4" /> EST Enroll...
-                                </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenEnrollModal(device)}>
+                                <TerminalSquare className="mr-2 h-4 w-4" /> EST Enroll...
+                              </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -587,41 +538,41 @@ export default function DevicesPage() {
 
       {!apiError && (sortedDevices.length > 0 || isLoadingApi || hasActiveFilters) && (
         <div className="flex justify-between items-center mt-4">
-            <div className="flex items-center space-x-2">
-              <Label htmlFor="pageSizeSelectBottom" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-              <Select
-                value={pageSize}
-                onValueChange={(value) => setPageSize(value)}
-                disabled={isLoadingApi || authLoading}
-              >
-                <SelectTrigger id="pageSizeSelectBottom" className="w-[80px]">
-                  <SelectValue placeholder="Page size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="pageSizeSelectBottom" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
+            <Select
+              value={pageSize}
+              onValueChange={(value) => setPageSize(value)}
+              disabled={isLoadingApi || authLoading}
+            >
+              <SelectTrigger id="pageSizeSelectBottom" className="w-[80px]">
+                <SelectValue placeholder="Page size" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-            <div className="flex items-center space-x-2">
-                <Button
-                    onClick={handlePreviousPage}
-                    disabled={isLoadingApi || currentPageIndex === 0}
-                    variant="outline"
-                >
-                    <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-                </Button>
-                <Button
-                    onClick={handleNextPage}
-                    disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
-                    variant="outline"
-                >
-                    Next <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-            </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              onClick={handlePreviousPage}
+              disabled={isLoadingApi || currentPageIndex === 0}
+              variant="outline"
+            >
+              <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+            </Button>
+            <Button
+              onClick={handleNextPage}
+              disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
+              variant="outline"
+            >
+              Next <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
 

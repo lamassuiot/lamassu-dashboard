@@ -59,7 +59,7 @@ export default function EstCaCertsPage() {
     const parseCertificates = useCallback(async (pemData: string) => {
         if (!pemData) return [];
         if (typeof window !== 'undefined') {
-          setEngine("webcrypto", getCrypto());
+          setEngine("webcrypto", getCrypto() ?? undefined);
         }
 
         const parsed: ParsedCaCert[] = [];

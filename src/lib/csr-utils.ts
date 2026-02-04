@@ -38,8 +38,10 @@ function formatPkijsPublicKeyInfo(publicKeyInfo: PkijsPublicKeyInfo): string {
   const algoOid = publicKeyInfo.algorithm.algorithmId;
   const algoName = OID_MAP[algoOid] || algoOid;
   let details = "";
-  if (algoName === "EC" && publicKeyInfo.algorithm.parameters) {
-      const curveOid = (publicKeyInfo.algorithm.parameters as any).valueBlock.value as string;
+  
+  const algorithm = publicKeyInfo.algorithm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (algoName === "EC" && algorithm.parameters) {
+      const curveOid = algorithm.parameters.valueBlock.value as string;
       details = `(Curve: ${OID_MAP[curveOid] || curveOid})`;
   } else if (algoName === "RSA" && publicKeyInfo.parsedKey) {
       const modulusBytes = (publicKeyInfo.parsedKey as any).modulus.valueBlock.valueHex.byteLength;
@@ -78,7 +80,7 @@ function formatPkijsBasicConstraints(extensions: PkijsExtension[]): string | nul
 export async function parseCsr(pem: string): Promise<DecodedCsrInfo> {
   try {
     if (typeof window !== 'undefined') {
-      setEngine("webcrypto", getCrypto());
+      setEngine("webcrypto", getCrypto() ?? undefined);
     }
     const pemContent = pem.replace(/-----(BEGIN|END) (NEW )?CERTIFICATE REQUEST-----/g, "").replace(/\s+/g, "");
     const derBuffer = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0)).buffer;

@@ -103,7 +103,7 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
 
         try {
             if (typeof window !== 'undefined') {
-                setEngine("webcrypto", getCrypto());
+                setEngine("webcrypto", getCrypto() ?? undefined);
             }
 
             const response = await fetch(crlUrl,{

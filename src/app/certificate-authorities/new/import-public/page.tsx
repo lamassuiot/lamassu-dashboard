@@ -105,7 +105,10 @@ export default function CreateCaImportPublicPage() {
         id: crypto.randomUUID(),
         ca: window.btoa(importedCaCertPem),
         ca_chain: [],
-        ca_type: "EXTERNAL_PUBLIC"
+        ca_type: "EXTERNAL_PUBLIC",
+        engine_id: '',
+        private_key: '',
+        parent_id: ''
     };
     
     try {

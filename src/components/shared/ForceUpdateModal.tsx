@@ -20,7 +20,7 @@ import type { ApiDevice } from '@/lib/devices-api';
 import type { ApiRaItem } from '@/lib/dms-api';
 import type { DiscoveredIntegration } from '@/lib/integrations-api';
 import { DetailItem } from './DetailItem';
-import { IntegrationIcon } from '@/app/integrations/page';
+import { IntegrationIcon } from '@/components/integrations/IntegrationIcon';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface ForceUpdateModalProps {
