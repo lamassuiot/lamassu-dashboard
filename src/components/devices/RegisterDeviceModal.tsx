@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
-import { DmsSelector, type DmsOption } from '@/components/shared/DmsSelector';
+import { DmsSelector } from '@/components/shared/DmsSelector';
 import { Separator } from '../ui/separator';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { registerDevice } from '@/lib/devices-api';

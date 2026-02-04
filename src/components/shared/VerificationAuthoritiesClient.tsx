@@ -270,16 +270,14 @@ export function VerificationAuthoritiesClient() { // Renamed component
 
   return (
     <div className="space-y-6 w-full pb-8">
+      <div className="flex items-center space-x-3">
+        <ShieldCheck className="h-8 w-8 text-primary" />
+        <h1 className="text-2xl font-headline font-semibold">Validation Authority (VA) Configuration</h1>
+      </div>
+      <p className="text-sm text-muted-foreground">Configure VA settings per Certificate Authority.</p>
+
       <div>
-        <div className="p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <ShieldCheck className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-headline font-semibold">Validation Authority (VA) Configuration</h1>
-          </div>
-          <p className="text-sm text-muted-foreground">Configure VA settings per Certificate Authority.</p>
-        </div>
-        <div className="p-6 pt-0">
-          <div className="mb-6 space-y-1">
+        <div className="mb-6 space-y-1">
             <Label htmlFor="ca-select-button" className="block text-base font-medium">
               Select Certificate Authority to Configure
             </Label>
@@ -458,7 +456,6 @@ export function VerificationAuthoritiesClient() { // Renamed component
               <p className="text-sm text-muted-foreground">Choose a Certificate Authority from the selector above to view or edit its VA settings.</p>
             </div>
           )}
-        </div>
       </div>
     </div>
   );
