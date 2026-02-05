@@ -5,10 +5,36 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, AlertCircle, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, Edit, Trash2, CheckCircle, XCircle, Plus } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { getPrincipal, getPrincipalPolicies } from '@/lib/authz-api';
-import type { Principal } from '@/types/authz';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
+import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies } from '@/lib/authz-api';
+import type { Principal, Policy } from '@/types/authz';
 
 function PrincipalDetailsContent() {
   const router = useRouter();
@@ -17,8 +43,14 @@ function PrincipalDetailsContent() {
 
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [policies, setPolicies] = useState<any[]>([]);
+  const [allPolicies, setAllPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [grantDialogOpen, setGrantDialogOpen] = useState(false);
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [selectedPolicyId, setSelectedPolicyId] = useState('');
+  const [selectedPolicyToRevoke, setSelectedPolicyToRevoke] = useState<any | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (principalId) {
@@ -31,18 +63,55 @@ function PrincipalDetailsContent() {
     if (!principalId) return;
     try {
       setLoading(true);
-      const [principalData, policiesData] = await Promise.all([
+      const [principalData, policiesData, allPoliciesData] = await Promise.all([
         getPrincipal(principalId),
         getPrincipalPolicies(principalId).catch(() => ({ policies: [] })),
+        listPolicies().catch(() => ({ policies: [], count: 0 })),
       ]);
       setPrincipal(principalData);
       setPolicies(policiesData.policies || []);
+      setAllPolicies(allPoliciesData.policies || []);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load principal details');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGrantPolicy = async () => {
+    if (!principalId || !selectedPolicyId) return;
+    try {
+      setSubmitting(true);
+      await grantPolicy(principalId, selectedPolicyId);
+      setGrantDialogOpen(false);
+      setSelectedPolicyId('');
+      loadPrincipalDetails();
+    } catch (err: any) {
+      setError(err.message || 'Failed to grant policy');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRevokePolicy = async () => {
+    if (!principalId || !selectedPolicyToRevoke) return;
+    try {
+      setSubmitting(true);
+      await revokePolicy(principalId, selectedPolicyToRevoke.policyId);
+      setRevokeDialogOpen(false);
+      setSelectedPolicyToRevoke(null);
+      loadPrincipalDetails();
+    } catch (err: any) {
+      setError(err.message || 'Failed to revoke policy');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getAvailablePolicies = () => {
+    const assignedPolicyIds = policies.map(p => p.policyId);
+    return allPolicies.filter(p => !assignedPolicyIds.includes(p.id));
   };
 
   if (loading) {
@@ -217,10 +286,18 @@ function PrincipalDetailsContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Assigned Policies</CardTitle>
-          <CardDescription>
-            {policies.length} {policies.length === 1 ? 'policy' : 'policies'} assigned
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Assigned Policies</CardTitle>
+              <CardDescription>
+                {policies.length} {policies.length === 1 ? 'policy' : 'policies'} assigned
+              </CardDescription>
+            </div>
+            <Button onClick={() => setGrantDialogOpen(true)} size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Assign Policy
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {policies.length === 0 ? (
@@ -235,18 +312,30 @@ function PrincipalDetailsContent() {
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div>
-                    <p className="font-medium">{policy.name}</p>
+                    <p className="font-medium">{policy.policyName}</p>
                     <p className="text-sm text-muted-foreground">
                       Granted: {new Date(policy.grantedAt).toLocaleDateString()}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => router.push(`/authz/policies/details?policyId=${policy.id}`)}
-                  >
-                    View Policy
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => router.push(`/authz/policies/details?policyId=${policy.policyId}`)}
+                    >
+                      View Policy
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPolicyToRevoke(policy);
+                        setRevokeDialogOpen(true);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -265,6 +354,83 @@ function PrincipalDetailsContent() {
           </pre>
         </CardContent>
       </Card>
+
+      {/* Grant Policy Dialog */}
+      <Dialog open={grantDialogOpen} onOpenChange={setGrantDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Policy</DialogTitle>
+            <DialogDescription>
+              Grant a policy to this principal
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="policy">Select Policy</Label>
+              <Select
+                value={selectedPolicyId}
+                onValueChange={setSelectedPolicyId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a policy..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailablePolicies().length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      All policies are already assigned
+                    </div>
+                  ) : (
+                    getAvailablePolicies().map((policy) => (
+                      <SelectItem key={policy.id} value={policy.id}>
+                        {policy.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setGrantDialogOpen(false);
+                setSelectedPolicyId('');
+              }}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleGrantPolicy}
+              disabled={submitting || !selectedPolicyId}
+            >
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Assign Policy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke Policy Dialog */}
+      <AlertDialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke Policy</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to revoke the policy &quot;{selectedPolicyToRevoke?.policyName}&quot; from this principal?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRevokePolicy} disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Revoke Policy
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

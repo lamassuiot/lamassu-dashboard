@@ -13,11 +13,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertCircle, CheckCircle, XCircle, Play } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, XCircle, Play, Filter } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { authorize, listPrincipals, getSchemas } from '@/lib/authz-api';
-import type { Principal, SchemaDefinition, AuthorizeResponse } from '@/types/authz';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { authorize, getFilter, listPrincipals, getSchemas } from '@/lib/authz-api';
+import type { Principal, SchemaDefinition, AuthorizeResponse, FilterResponse } from '@/types/authz';
 
 export default function AuthorizationTestPage() {
   const [principals, setPrincipals] = useState<Principal[]>([]);
@@ -25,11 +26,16 @@ export default function AuthorizationTestPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AuthorizeResponse | null>(null);
+  const [filterResult, setFilterResult] = useState<FilterResponse | null>(null);
   const [formData, setFormData] = useState({
     principalId: '',
     action: '',
     entityType: '',
     entityId: '',
+  });
+  const [filterFormData, setFilterFormData] = useState({
+    principalId: '',
+    entityType: '',
   });
 
   useEffect(() => {
@@ -84,6 +90,37 @@ export default function AuthorizationTestPage() {
     setError(null);
   };
 
+  const handleTestFilter = async () => {
+    if (!filterFormData.principalId || !filterFormData.entityType) {
+      setError('All fields are required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getFilter({
+        principalId: filterFormData.principalId,
+        entityType: filterFormData.entityType,
+      });
+      setFilterResult(response);
+    } catch (err: any) {
+      setError(err.message || 'Filter test failed');
+      setFilterResult(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetFilter = () => {
+    setFilterFormData({
+      principalId: '',
+      entityType: '',
+    });
+    setFilterResult(null);
+    setError(null);
+  };
+
   const getAvailableActions = (): string[] => {
     if (!formData.entityType) return [];
     const schema = schemas.find((s) => s.entityType === formData.entityType);
@@ -107,7 +144,14 @@ export default function AuthorizationTestPage() {
         </Alert>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <Tabs defaultValue="authorize" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="authorize">Authorize Test</TabsTrigger>
+          <TabsTrigger value="filter">Get Filter Test</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="authorize" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
         {/* Input Form */}
         <Card>
           <CardHeader>
@@ -309,6 +353,167 @@ export default function AuthorizationTestPage() {
           </CardContent>
         </Card>
       )}
+        </TabsContent>
+
+        <TabsContent value="filter" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Filter Input Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Filter Parameters</CardTitle>
+                <CardDescription>
+                  Configure the filter test parameters
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="filter-principal">Principal</Label>
+                  <Select
+                    value={filterFormData.principalId}
+                    onValueChange={(value) =>
+                      setFilterFormData({ ...filterFormData, principalId: value })
+                    }
+                  >
+                    <SelectTrigger id="filter-principal">
+                      <SelectValue placeholder="Select principal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {principals.map((principal) => (
+                        <SelectItem key={principal.id} value={principal.id}>
+                          {principal.name}
+                          <Badge variant="secondary" className="ml-2">
+                            {principal.type}
+                          </Badge>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="filter-entityType">Entity Type</Label>
+                  <Select
+                    value={filterFormData.entityType}
+                    onValueChange={(value) =>
+                      setFilterFormData({ ...filterFormData, entityType: value })
+                    }
+                  >
+                    <SelectTrigger id="filter-entityType">
+                      <SelectValue placeholder="Select entity type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {schemas.map((schema) => (
+                        <SelectItem key={schema.entityType} value={schema.entityType}>
+                          {schema.entityType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
+                <div className="flex gap-2">
+                  <Button onClick={handleTestFilter} disabled={loading} className="flex-1">
+                    {loading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Filter className="mr-2 h-4 w-4" />
+                    )}
+                    Get Filter
+                  </Button>
+                  <Button variant="outline" onClick={handleResetFilter}>
+                    Reset
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Filter Result Display */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Filter Result</CardTitle>
+                <CardDescription>
+                  SQL WHERE clause and arguments
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!filterResult ? (
+                  <div className="flex items-center justify-center py-12 text-muted-foreground">
+                    Run a test to see results
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="font-medium text-muted-foreground">Principal ID</p>
+                        <p className="font-mono">{filterResult.principalId}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-muted-foreground">Entity Type</p>
+                        <Badge variant="outline">{filterResult.entityType}</Badge>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-3">
+                      <div>
+                        <p className="font-medium text-muted-foreground mb-2">WHERE Clause</p>
+                        <pre className="bg-muted p-3 rounded-lg overflow-auto text-xs font-mono">
+                          {filterResult.whereClause || '(no filter - full access)'}
+                        </pre>
+                      </div>
+
+                      {filterResult.args && filterResult.args.length > 0 && (
+                        <div>
+                          <p className="font-medium text-muted-foreground mb-2">Arguments</p>
+                          <pre className="bg-muted p-3 rounded-lg overflow-auto text-xs font-mono">
+                            {JSON.stringify(filterResult.args, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    <details className="border rounded-lg">
+                      <summary className="cursor-pointer p-3 hover:bg-muted text-sm font-medium">
+                        View Full Response
+                      </summary>
+                      <pre className="bg-muted p-4 overflow-auto text-xs">
+                        {JSON.stringify(filterResult, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Filter Request Summary */}
+          {filterFormData.principalId && filterFormData.entityType && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Request Summary</CardTitle>
+                <CardDescription>Current filter test configuration</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm">
+                  {JSON.stringify(
+                    {
+                      principalId: filterFormData.principalId,
+                      entityType: filterFormData.entityType,
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

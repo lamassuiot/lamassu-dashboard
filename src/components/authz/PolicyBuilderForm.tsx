@@ -40,6 +40,7 @@ interface PolicyBuilderFormProps {
 export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormProps) {
   const [schemas, setSchemas] = useState<SchemaDefinition[]>([]);
   const [loadingSchemas, setLoadingSchemas] = useState(true);
+  const [openAccordionValue, setOpenAccordionValue] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const fetchSchemas = async () => {
@@ -56,6 +57,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
   }, []);
 
   const addRule = () => {
+    const newIndex = rules.length;
     onChange([
       ...rules,
       {
@@ -65,6 +67,8 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
         directGrants: [],
       },
     ]);
+    // Auto-expand the newly added rule
+    setOpenAccordionValue(`rule-${newIndex}`);
   };
 
   const updateRule = (index: number, updated: Rule) => {
@@ -87,19 +91,28 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
       )}
 
       {rules.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No rules defined yet. Click the button below to add your first rule.</p>
+        <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/30">
+          <p className="text-muted-foreground">No rules defined yet. Click the button below to add your first rule.</p>
         </div>
       ) : (
-        <Accordion type="single" collapsible className="w-full">
+        <Accordion 
+          type="single" 
+          collapsible 
+          className="w-full space-y-3"
+          value={openAccordionValue}
+          onValueChange={setOpenAccordionValue}
+        >
           {rules.map((rule, index) => (
-            <AccordionItem key={index} value={`rule-${index}`}>
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2 flex-1">
-                  <Badge variant="outline">Rule {index + 1}</Badge>
-                  <span className="text-sm">
-                    {rule.entityType || 'Untitled'} - {rule.actions.length} action(s)
+            <AccordionItem key={index} value={`rule-${index}`} className="border-2 rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline py-4">
+                <div className="flex items-center gap-3 flex-1">
+                  <Badge variant="default" className="font-semibold">Rule {index + 1}</Badge>
+                  <span className="text-sm font-medium">
+                    {rule.entityType || 'Untitled'}
                   </span>
+                  <Badge variant="outline" className="ml-auto">
+                    {rule.actions.length} action{rule.actions.length !== 1 ? 's' : ''}
+                  </Badge>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
@@ -115,7 +128,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
         </Accordion>
       )}
 
-      <Button onClick={addRule} className="w-full">
+      <Button onClick={addRule} className="w-full" size="lg" variant="outline">
         <Plus className="mr-2 h-4 w-4" />
         Add Rule
       </Button>
@@ -193,16 +206,16 @@ function RuleEditor({ rule, onChange, onDelete, schemas }: RuleEditorProps) {
   };
 
   return (
-    <Card>
+    <Card className="border-2">
       <CardContent className="pt-6 space-y-6">
         {/* Entity Type */}
         <div className="space-y-2">
-          <Label>Entity Type *</Label>
+          <Label className="text-sm font-semibold text-foreground">Entity Type *</Label>
           <Select
             value={rule.entityType}
             onValueChange={(value) => onChange({ ...rule, entityType: value, actions: [] })}
           >
-            <SelectTrigger>
+            <SelectTrigger className="bg-background">
               <SelectValue placeholder="Select entity type..." />
             </SelectTrigger>
             <SelectContent>
@@ -216,15 +229,15 @@ function RuleEditor({ rule, onChange, onDelete, schemas }: RuleEditorProps) {
         </div>
 
         {/* Actions */}
-        <div className="space-y-2">
-          <Label>Actions *</Label>
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold text-foreground">Actions *</Label>
           {!rule.entityType ? (
             <p className="text-sm text-muted-foreground italic">Select an entity type first</p>
           ) : availableActions.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">No actions available for this entity type</p>
           ) : (
             <>
-              <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto">
+              <div className="border-2 rounded-lg p-4 space-y-2.5 max-h-[200px] overflow-y-auto bg-muted/30">
                 {availableActions.map((action) => (
                   <div key={action} className="flex items-center space-x-2">
                     <Checkbox
@@ -261,16 +274,17 @@ function RuleEditor({ rule, onChange, onDelete, schemas }: RuleEditorProps) {
         </div>
 
         {/* Direct Grants */}
-        <div className="space-y-2">
-          <Label>Direct Grants (Optional)</Label>
+        <div className="space-y-3">
+          <Label className="text-sm font-semibold text-foreground">Direct Grants (Optional)</Label>
           <div className="flex gap-2">
             <Input
               value={grantInput}
               onChange={(e) => setGrantInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addGrant()}
               placeholder="Enter principal ID"
+              className="bg-background"
             />
-            <Button onClick={addGrant} size="sm">
+            <Button onClick={addGrant} size="sm" variant="outline">
               <Plus className="h-4 w-4" />
             </Button>
           </div>
@@ -292,9 +306,9 @@ function RuleEditor({ rule, onChange, onDelete, schemas }: RuleEditorProps) {
         </div>
 
         {/* Relations */}
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label>Relations</Label>
+            <Label className="text-sm font-semibold text-foreground">Relations</Label>
             <Button onClick={addRelation} size="sm" variant="outline">
               <Plus className="mr-2 h-4 w-4" />
               Add Relation

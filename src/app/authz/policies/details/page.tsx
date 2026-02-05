@@ -85,7 +85,7 @@ function PolicyDetailsContent() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}>
             <Edit className="mr-2 h-4 w-4" />
             Edit
           </Button>

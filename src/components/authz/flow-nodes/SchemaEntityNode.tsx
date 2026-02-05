@@ -13,6 +13,7 @@ import { Database, Key, Plus, X } from 'lucide-react';
 import type { SchemaDefinition } from '@/types/authz';
 
 interface NestedRuleConfig {
+  sourceEntity: string;
   targetEntity: string;
   relationName: string;
   enabled: boolean;
@@ -28,7 +29,7 @@ interface SchemaEntityNodeProps {
     directGrants?: string[];
     nestedRules?: NestedRuleConfig[];
     onUpdate?: (data: { actions: string[]; directGrants: string[] }) => void;
-    onNestedRuleUpdate?: (targetEntity: string, relationName: string, data: { enabled: boolean; actions: string[] }) => void;
+    onNestedRuleUpdate?: (sourceEntity: string, targetEntity: string, relationName: string, data: { enabled: boolean; actions: string[] }) => void;
   };
 }
 
@@ -186,18 +187,18 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
               
               return (
                 <div
-                  key={`${rule.targetEntity}-${rule.relationName}`}
+                  key={`${rule.sourceEntity}-${rule.targetEntity}-${rule.relationName}`}
                   className="border-2 border-amber-500 rounded-md p-2 space-y-2 bg-amber-50/50 dark:bg-amber-950/30"
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-semibold">
-                      → {rule.targetEntity}
+                      ← {rule.sourceEntity}
                       <span className="text-muted-foreground ml-1">via {rule.relationName}</span>
                     </div>
                     <Switch
                       checked={rule.enabled}
                       onCheckedChange={(checked) =>
-                        onNestedRuleUpdate?.(rule.targetEntity, rule.relationName, {
+                        onNestedRuleUpdate?.(rule.sourceEntity, rule.targetEntity, rule.relationName, {
                           enabled: checked,
                           actions: rule.actions,
                         })
@@ -213,20 +214,20 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
                         {ruleActions.map((action) => (
                           <div key={action} className="flex items-center gap-2">
                             <Checkbox
-                              id={`${rule.targetEntity}-${rule.relationName}-${action}`}
+                              id={`${rule.sourceEntity}-${rule.targetEntity}-${rule.relationName}-${action}`}
                               checked={rule.actions.includes(action)}
                               onCheckedChange={(checked) => {
                                 const newActions = checked
                                   ? [...rule.actions, action]
                                   : rule.actions.filter((a) => a !== action);
-                                onNestedRuleUpdate?.(rule.targetEntity, rule.relationName, {
+                                onNestedRuleUpdate?.(rule.sourceEntity, rule.targetEntity, rule.relationName, {
                                   enabled: rule.enabled,
                                   actions: newActions,
                                 });
                               }}
                             />
                             <label
-                              htmlFor={`${rule.targetEntity}-${rule.relationName}-${action}`}
+                              htmlFor={`${rule.sourceEntity}-${rule.targetEntity}-${rule.relationName}-${action}`}
                               className="text-xs cursor-pointer flex-1"
                             >
                               {action}

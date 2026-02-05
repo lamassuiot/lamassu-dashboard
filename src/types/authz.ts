@@ -33,7 +33,6 @@ export interface ApiKeyAuthConfig {
 }
 
 export interface OIDCAuthConfig {
-  issuer: string;
   claims: ClaimCondition[];
 }
 

@@ -15,15 +15,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -33,18 +24,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Plus, Trash2, Loader2, AlertCircle, Eye, CheckCircle, XCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { listPrincipals, createPrincipal, deletePrincipal, updatePrincipal } from '@/lib/authz-api';
+import { listPrincipals, deletePrincipal, updatePrincipal } from '@/lib/authz-api';
 import type { Principal, PrincipalType } from '@/types/authz';
 
 export default function PrincipalsPage() {
@@ -52,15 +35,8 @@ export default function PrincipalsPage() {
   const [principals, setPrincipals] = useState<Principal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [openDialog, setOpenDialog] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPrincipal, setSelectedPrincipal] = useState<Principal | null>(null);
-  const [formData, setFormData] = useState({
-    id: crypto.randomUUID(),
-    name: '',
-    type: 'api_key' as PrincipalType,
-    active: true,
-  });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -81,42 +57,7 @@ export default function PrincipalsPage() {
   };
 
   const handleCreatePrincipal = () => {
-    setFormData({
-      id: crypto.randomUUID(),
-      name: '',
-      type: 'api_key',
-      active: true,
-    });
-    setOpenDialog(true);
-  };
-
-  const handleSubmit = async () => {
-    try {
-      setSubmitting(true);
-      // Default auth config based on type
-      let authConfig: any = {};
-      if (formData.type === 'api_key') {
-        authConfig = { apiKeyHash: '' };
-      } else if (formData.type === 'oidc') {
-        authConfig = { issuer: '', claims: [] };
-      } else if (formData.type === 'x509') {
-        authConfig = { caFingerprint: '', matchMode: 'any_from_ca' };
-      }
-
-      await createPrincipal({
-        id: formData.id,
-        name: formData.name,
-        type: formData.type,
-        authConfig,
-        active: formData.active,
-      });
-      setOpenDialog(false);
-      loadPrincipals();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create principal');
-    } finally {
-      setSubmitting(false);
-    }
+    router.push('/authz/principals/new');
   };
 
   const handleDelete = async () => {
@@ -177,76 +118,10 @@ export default function PrincipalsPage() {
             Manage authentication principals and identities
           </p>
         </div>
-        <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-          <DialogTrigger asChild>
-            <Button onClick={handleCreatePrincipal}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Principal
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Principal</DialogTitle>
-              <DialogDescription>
-                Add a new authentication principal
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Principal Name</Label>
-                <Input
-                  id="name"
-                  placeholder="Enter principal name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="type">Principal Type</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={(value: PrincipalType) =>
-                    setFormData({ ...formData, type: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="api_key">API Key</SelectItem>
-                    <SelectItem value="oidc">OIDC</SelectItem>
-                    <SelectItem value="x509">X.509 Certificate</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="active"
-                  checked={formData.active}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, active: checked })
-                  }
-                />
-                <Label htmlFor="active">Active</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setOpenDialog(false)}
-                disabled={submitting}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleSubmit} disabled={submitting}>
-                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Principal
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={handleCreatePrincipal}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Principal
+        </Button>
       </div>
 
       {error && (
