@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, Download as DownloadIcon, X as XIcon, Settings2, BookText, KeyRound } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -158,6 +159,7 @@ export default function IssueCertificateFormClient() {
   // UX State for copy buttons
   const [privateKeyCopied, setPrivateKeyCopied] = useState(false);
   const [issuedCertCopied, setIssuedCertCopied] = useState(false);
+  const [certDisplayTab, setCertDisplayTab] = useState<'leaf' | 'chain'>('leaf');
 
   const validityWarning = useMemo(() => {
     if (!issuerCa || !validity) return null;
@@ -195,6 +197,14 @@ export default function IssueCertificateFormClient() {
     }
     return null;
   }, [profileMode, selectedProfileId, signingProfiles]);
+
+  const fullChainPem = useMemo(() => {
+    if (!issuedCertificate?.pem || !issuerCa?.rawApiData?.certificate?.certificate) return '';
+    const leafCert = issuedCertificate.pem;
+    const caCertBase64 = issuerCa.rawApiData.certificate.certificate;
+    const caCertPem = window.atob(caCertBase64);
+    return `${leafCert}\n${caCertPem}`;
+  }, [issuedCertificate, issuerCa]);
 
 
   // --- Effects ---
@@ -764,19 +774,30 @@ export default function IssueCertificateFormClient() {
                         <p className="text-muted-foreground">The certificate has been provisioned. Remember to save your private key if you generated one in the browser.</p>
                         
                         <div className="space-y-2 text-left">
-                            <div className="flex justify-between items-center">
-                            <h3 className="font-medium">Issued Certificate PEM</h3>
-                            <div className="flex space-x-2">
-                                <Button type="button" variant="outline" size="sm" onClick={() => handleCopy(issuedCertificate?.pem || '', "Certificate", setIssuedCertCopied)}>
-                                {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500"/> : <Copy className="mr-1 h-4 w-4"/>}
-                                {issuedCertCopied ? 'Copied' : 'Copy'}
-                                </Button>
-                                <Button type="button" variant="outline" size="sm" onClick={() => handleDownload(issuedCertificate?.pem || '', "certificate.pem", "application/x-pem-file")}>
-                                <DownloadIcon className="mr-1 h-4 w-4"/>Download
-                                </Button>
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="font-medium">Issued Certificate PEM</h3>
+                                <div className="flex space-x-2">
+                                    <Button type="button" variant="outline" size="sm" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
+                                    {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500"/> : <Copy className="mr-1 h-4 w-4"/>}
+                                    {issuedCertCopied ? 'Copied' : 'Copy'}
+                                    </Button>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
+                                    <DownloadIcon className="mr-1 h-4 w-4"/>Download
+                                    </Button>
+                                </div>
                             </div>
-                            </div>
-                            <Textarea readOnly value={issuedCertificate?.pem || ''} rows={10} className="font-mono bg-muted/50"/>
+                            <Tabs value={certDisplayTab} onValueChange={(v) => setCertDisplayTab(v as 'leaf' | 'chain')} className="w-full">
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="leaf">Leaf Certificate</TabsTrigger>
+                                    <TabsTrigger value="chain">Full Chain</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="leaf" className="mt-2">
+                                    <Textarea readOnly value={issuedCertificate?.pem || ''} rows={10} className="font-mono bg-muted/50"/>
+                                </TabsContent>
+                                <TabsContent value="chain" className="mt-2">
+                                    <Textarea readOnly value={fullChainPem} rows={14} className="font-mono bg-muted/50"/>
+                                </TabsContent>
+                            </Tabs>
                         </div>
 
                         {generatedPrivateKeyPem && (
