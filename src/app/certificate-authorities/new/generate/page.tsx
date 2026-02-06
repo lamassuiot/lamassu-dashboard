@@ -460,20 +460,19 @@ export default function CreateCaGeneratePage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center space-x-3">
-            <KeyRound className="h-8 w-8 text-primary" />
+      <div className="space-y-6">
+        <div className="flex items-center space-x-3">
+          <KeyRound className="h-8 w-8 text-primary" />
+          <div>
             <h1 className="text-2xl font-headline font-semibold">
               Create New Certification Authority (New Key Pair)
             </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Provision a new Root or Intermediate Certification Authority. A new cryptographic key pair will be generated and managed by LamassuIoT.
+            </p>
           </div>
-          <CardDescription>
-            Provision a new Root or Intermediate Certification Authority. A new cryptographic key pair will be generated and managed by LamassuIoT.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-8">
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-8">
             <Card>
               <SectionHeader icon={KeyRound} title="KMS: New Key Pair Generation settings" />
               <CardContent className="space-y-4">
@@ -529,7 +528,7 @@ export default function CreateCaGeneratePage() {
                       )}
                       onClick={() => setCaProfileMode('none')}
                     >
-                      <CardHeader>
+                      <CardHeader className="p-4">
                         <div className="flex items-center space-x-3">
                           <div className={cn(
                             "p-2 rounded-lg",
@@ -541,7 +540,7 @@ export default function CreateCaGeneratePage() {
                           </div>
                           <div>
                             <h3 className="text-base font-semibold">No Profile</h3>
-                            <CardDescription className="text-sm">Use default settings</CardDescription>
+                            <CardDescription className="text-xs">Use default settings</CardDescription>
                           </div>
                         </div>
                       </CardHeader>
@@ -555,7 +554,7 @@ export default function CreateCaGeneratePage() {
                       )}
                       onClick={() => setCaProfileMode('reuse')}
                     >
-                      <CardHeader>
+                      <CardHeader className="p-4">
                         <div className="flex items-center space-x-3">
                           <div className={cn(
                             "p-2 rounded-lg",
@@ -567,7 +566,7 @@ export default function CreateCaGeneratePage() {
                           </div>
                           <div>
                             <h3 className="text-base font-semibold">Reuse Profile</h3>
-                            <CardDescription className="text-sm">Select existing profile</CardDescription>
+                            <CardDescription className="text-xs">Select existing profile</CardDescription>
                           </div>
                         </div>
                       </CardHeader>
@@ -581,7 +580,7 @@ export default function CreateCaGeneratePage() {
                       )}
                       onClick={() => setCaProfileMode('inline')}
                     >
-                      <CardHeader>
+                      <CardHeader className="p-4">
                         <div className="flex items-center space-x-3">
                           <div className={cn(
                             "p-2 rounded-lg",
@@ -593,7 +592,7 @@ export default function CreateCaGeneratePage() {
                           </div>
                           <div>
                             <h3 className="text-base font-semibold">Define Inline</h3>
-                            <CardDescription className="text-sm">One-time profile definition</CardDescription>
+                            <CardDescription className="text-xs">One-time profile definition</CardDescription>
                           </div>
                         </div>
                       </CardHeader>
@@ -799,8 +798,7 @@ export default function CreateCaGeneratePage() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
 
       <CaSelectorModal
         isOpen={isParentCaModalOpen}

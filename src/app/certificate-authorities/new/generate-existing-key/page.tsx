@@ -418,20 +418,20 @@ export default function CreateCaExistingKeyPage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center space-x-3">
-            <KeyRound className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-headline font-semibold">
-              Create New Certification Authority (Existing Key)
-            </h1>
-          </div>
-          <CardDescription>
+      <div className="flex items-center space-x-3">
+        <KeyRound className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-2xl font-headline font-semibold">
+            Create New Certification Authority (Existing Key)
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Provision a new Root or Intermediate Certification Authority using an existing KMS key. Reuse a previously generated key pair.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-8">
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
             <Card>
               <SectionHeader icon={KeyRound} title="KMS: Reuse Existing Key" />
               <CardContent className="space-y-4">
@@ -737,15 +737,14 @@ export default function CreateCaExistingKeyPage() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-end pt-4">
-              <Button type="submit" size="lg" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
-                {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          <div className="flex justify-end pt-4">
+            <Button type="submit" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
+              {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
+            </Button>
+          </div>
+        </form>
+      </div>
 
       <CaSelectorModal
         isOpen={isParentCaModalOpen}

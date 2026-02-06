@@ -7,12 +7,12 @@ import { z } from 'zod';
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Settings2, KeyRound, ListChecks, Info, Shield } from "lucide-react";
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
-import { SectionHeader, SwitchFormField } from '@/components/shared/FormComponents';
+import { SwitchFormField } from '@/components/shared/FormComponents';
 
 // Constants for better maintainability
 const NESTED_CONTAINER_STYLES = "space-y-4 p-4 border rounded-md ml-4 -mt-4 bg-background";
@@ -178,9 +178,11 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
   return (
     <div className="space-y-6">
       {/* Basic Information Section */}
-      <Card>
-        <SectionHeader icon={Info} title="Basic Information" />
-        <CardContent className="space-y-4">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b">
+          <Info className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Basic Information</h3>
+        </div>
           <FormField
             control={form.control}
             name="profileName"
@@ -208,14 +210,15 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
               </FormItem>
             )}
           />
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Policy Configuration Section */}
-      <Card>
-        <SectionHeader icon={Settings2} title="Policy Configuration" />
-        <CardContent className="space-y-6">
-          <FormField
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 pb-2 border-b">
+          <Settings2 className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Policy Configuration</h3>
+        </div>
+        <FormField
             control={form.control}
             name="validity"
             render={({ field }) => (
@@ -243,16 +246,28 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
             disabled={enforceSignAsCa}
           />
           
-          <SwitchFormField
-            control={form.control}
-            name="honorSubject"
-            label="Honor Subject From CSR"
-            description="Use the Subject DN fields from the CSR. If off, you can specify override values."
-          />
-          
-          {!watchHonorSubject && (
-            <div className={NESTED_CONTAINER_STYLES}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <Label htmlFor="honor-subject" className="font-medium">Honor Subject From CSR</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Use the Subject DN fields from the CSR. If off, you can specify override values.
+                </p>
+              </div>
+              <FormField
+                control={form.control}
+                name="honorSubject"
+                render={({ field }) => (
+                  <FormControl>
+                    <Switch id="honor-subject" checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                )}
+              />
+            </div>
+            
+            {!watchHonorSubject && (
+              <div className="space-y-3 pt-3 border-t">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="overrideCountry" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Country (C)</FormLabel>
@@ -293,23 +308,37 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
                   These fields will be appended to or replace other subject attributes.
                 </p>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </div>
+      </div>
 
       {/* Cryptographic Settings Section */}
-      <Card>
-        <SectionHeader icon={KeyRound} title="Cryptographic Settings" />
-        <CardContent className="space-y-6">
-          <SwitchFormField
-            control={form.control}
-            name="cryptoEnforcement.enabled"
-            label="Enable Crypto Enforcement"
-            description="Enforce specific key types (RSA, ECDSA) and their parameters."
-          />
-          {watchCryptoEnforcement && watchCryptoEnforcement.enabled && (
-            <div className="space-y-4 p-4 border rounded-md ml-4 -mt-4 bg-background">
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 pb-2 border-b">
+          <KeyRound className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Cryptographic Settings</h3>
+        </div>
+        <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <Label htmlFor="crypto-enforcement" className="font-medium">Enable Crypto Enforcement</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Enforce specific key types (RSA, ECDSA) and their parameters.
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name="cryptoEnforcement.enabled"
+              render={({ field }) => (
+                <FormControl>
+                  <Switch id="crypto-enforcement" checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+              )}
+            />
+          </div>
+            {watchCryptoEnforcement && watchCryptoEnforcement.enabled && (
+              <div className="space-y-4 pt-3 border-t">
               <FormField control={form.control} name="cryptoEnforcement.allowRsa" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between"><FormLabel>Allow RSA Keys</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
               {watchCryptoEnforcement.allowRsa && (
                 <FormField control={form.control} name="cryptoEnforcement.allowedRsaKeySizes" render={() => (
@@ -354,22 +383,36 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Certificate Usage Policies Section */}
-      <Card>
-        <SectionHeader icon={ListChecks} title="Certificate Usage Policies" />
-        <CardContent className="space-y-6">
-          <SwitchFormField
-            control={form.control}
-            name="honorKeyUsage"
-            label="Honor Key Usage From CSR"
-            description="Use the Key Usage extension from the CSR. If off, specify usages below."
-          />
-          
-          {!watchHonorKeyUsage && (
-            <div className={NESTED_CONTAINER_STYLES}>
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 pb-2 border-b">
+          <ListChecks className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Certificate Usage Policies</h3>
+        </div>
+        <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <Label htmlFor="honor-key-usage" className="font-medium">Honor Key Usage From CSR</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Use the Key Usage extension from the CSR. If off, specify usages below.
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name="honorKeyUsage"
+              render={({ field }) => (
+                <FormControl>
+                  <Switch id="honor-key-usage" checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+              )}
+            />
+          </div>
+            
+            {!watchHonorKeyUsage && (
+              <div className="space-y-3 pt-3 border-t">
               <FormField 
                 control={form.control} 
                 name="keyUsages"
@@ -410,16 +453,29 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
               />
             </div>
           )}
+        </div>
           
-          <SwitchFormField
-            control={form.control}
-            name="honorExtendedKeyUsages"
-            label="Honor Extended Key Usage From CSR"
-            description="Use the Extended Key Usage (EKU) extension from the CSR. If off, specify EKUs below."
-          />
+        <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <Label htmlFor="honor-extended-key-usage" className="font-medium">Honor Extended Key Usage From CSR</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Use the Extended Key Usage (EKU) extension from the CSR. If off, specify EKUs below.
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name="honorExtendedKeyUsages"
+              render={({ field }) => (
+                <FormControl>
+                  <Switch id="honor-extended-key-usage" checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+              )}
+            />
+          </div>
           
           {!watchHonorExtendedKeyUsages && (
-            <div className={NESTED_CONTAINER_STYLES}>
+            <div className="space-y-3 pt-3 border-t">
               <FormField 
                 control={form.control} 
                 name="extendedKeyUsages"
@@ -460,15 +516,17 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
               />
             </div>
           )}
+        </div>
 
+        <div>
           <SwitchFormField
             control={form.control}
             name="honorExtensions"
             label="Honor Certificate Extensions From CSR"
             description="Preserve certificate extensions from the Certificate Signing Request (CSR). Currently, only Subject Alternative Name (SAN) extensions are supported. Note: Key Usage (KU) and Extended Key Usage (EKU) extensions have their own dedicated switches above."
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };

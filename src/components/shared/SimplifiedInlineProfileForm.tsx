@@ -6,9 +6,7 @@ import { z } from 'zod';
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { CalendarDays, ListChecks } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
-import { SectionHeader } from '@/components/shared/FormComponents';
 
 const NESTED_CONTAINER_STYLES = "space-y-4 p-4 border rounded-md ml-4 -mt-4 bg-background";
 
@@ -78,9 +76,12 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
   return (
     <div className="space-y-6">
       {/* Validity Section */}
-      <Card>
-        <SectionHeader icon={CalendarDays} title="Validity" />
-        <CardContent className="space-y-4">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b">
+          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Validity</h3>
+        </div>
+        <div className="space-y-4">
           <FormField
             control={form.control}
             name="validity"
@@ -99,22 +100,25 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
               </FormItem>
             )}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Certificate Usage Policies Section */}
-      <Card>
-        <SectionHeader icon={ListChecks} title="Certificate Usage Policies" />
-        <CardContent className="space-y-6">
-          <div className={NESTED_CONTAINER_STYLES}>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b">
+          <ListChecks className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Certificate Usage Policies</h3>
+        </div>
+        <div className="space-y-4 bg-muted/30 p-4 rounded-lg border">
+          <div className="space-y-3">
             <FormField 
               control={form.control} 
               name="keyUsages"
               render={() => (
                 <FormItem>
-                  <FormLabel>Key Usage</FormLabel>
-                  <FormDescription>Select the key usages for the CA certificate.</FormDescription>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 mt-2 border p-3 rounded-md shadow-sm bg-background">
+                  <FormLabel className="text-sm font-medium">Key Usage</FormLabel>
+                  <FormDescription className="text-xs">Select the key usages for the CA certificate.</FormDescription>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 mt-2 p-3 rounded-md bg-background">
                     {keyUsageOptions.map((item) => (
                       <FormField 
                         key={item} 
@@ -147,15 +151,15 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
             />
           </div>
 
-          <div className={NESTED_CONTAINER_STYLES}>
+          <div className="space-y-3">
             <FormField 
               control={form.control} 
               name="extendedKeyUsages"
               render={() => (
                 <FormItem>
-                  <FormLabel>Extended Key Usage</FormLabel>
-                  <FormDescription>Select the extended key usages (EKUs) for the CA certificate.</FormDescription>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 mt-2 border p-3 rounded-md shadow-sm bg-background">
+                  <FormLabel className="text-sm font-medium">Extended Key Usage</FormLabel>
+                  <FormDescription className="text-xs">Select the extended key usages (EKUs) for the CA certificate.</FormDescription>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 mt-2 p-3 rounded-md bg-background">
                     {extendedKeyUsageOptions.map((item) => (
                       <FormField 
                         key={item} 
@@ -187,8 +191,8 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
               )}
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
