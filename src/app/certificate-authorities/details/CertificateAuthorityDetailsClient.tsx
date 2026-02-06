@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronRight, Settings } from "lucide-react";
+import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronRight, Settings, ShieldCheck } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -449,10 +449,18 @@ export default function CertificateAuthorityDetailsClient() {
                         <Badge variant="secondary" className="text-xs">{caDetails.caType.replace(/_/g, ' ').toUpperCase()}</Badge>
                       )}
                       {cryptoEngine && (
-                        <div className="border-l-2 border-border pl-2">
+                        <div className="border-l-2 border-border pl-2 flex items-center gap-2">
                             <CryptoEngineViewer engine={cryptoEngine} />
+                            {caDetails.rawApiData?.certificate?.key_metadata && (
+                              <Badge variant="secondary" className="text-xs">
+                                {caDetails.rawApiData.certificate.key_metadata.type}
+                                {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}-bit`}
+                                {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
+                              </Badge>
+                            )}
                         </div>
                       )}
+
                     </div>
                 </div>
               </div>
@@ -465,38 +473,55 @@ export default function CertificateAuthorityDetailsClient() {
           </div>
         </div>
 
-        <div className="p-6 flex flex-wrap gap-2 border-b">
-          <Button variant="outline" onClick={handleOpenCrlModal}><Download className="mr-2 h-4 w-4" /> Download/View CRL</Button>
-          {isCaOnHold ? (
-            <Button variant="outline" onClick={handleReactivateCA}><ShieldAlert className="mr-2 h-4 w-4" />Re-activate CA</Button>
-          ) : caDetails.status !== 'revoked' ? (
-              <Button variant="destructive" onClick={handleCARevocation} disabled={isRevoking}>
+        <div className="px-6 py-4 border-b bg-muted/30">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleOpenCrlModal}>
+                <Download className="mr-2 h-4 w-4" /> Download/View CRL
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => routerHook.push(`/verification-authorities?caId=${caDetails.id}`)}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4" /> Go to VA Role
+              </Button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 ml-auto">
+              {isCaOnHold ? (
+                <Button variant="outline" size="sm" onClick={handleReactivateCA}>
+                  <ShieldAlert className="mr-2 h-4 w-4" />Re-activate CA
+                </Button>
+              ) : caDetails.status !== 'revoked' ? (
+                <Button variant="destructive" size="sm" onClick={handleCARevocation} disabled={isRevoking}>
                   {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldAlert className="mr-2 h-4 w-4" />}
                   {isRevoking ? 'Revoking...' : 'Revoke CA'}
-              </Button>
-          ) : null}
-          {caDetails.status === 'revoked' && (
-              <Button variant="destructive" onClick={handleDeleteCA} disabled={isDeleting}>
+                </Button>
+              ) : null}
+              {caDetails.status === 'revoked' && (
+                <Button variant="destructive" size="sm" onClick={handleDeleteCA} disabled={isDeleting}>
                   {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
                   {isDeleting ? 'Deleting...' : 'Permanently Delete'}
-              </Button>
-          )}
-          <div className="ml-auto">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Settings className="h-4 w-4" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {caDetails.status !== 'revoked' && (
-                  <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Reissue CA
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Settings className="h-4 w-4 mr-2" />
+                    More
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {caDetails.status !== 'revoked' && (
+                    <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Reissue CA
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
 

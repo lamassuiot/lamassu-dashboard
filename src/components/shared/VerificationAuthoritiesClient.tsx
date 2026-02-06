@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,8 @@ const downloadFile = (data: ArrayBuffer, filename: string, mimeType: string) => 
 
 
 export function VerificationAuthoritiesClient() { // Renamed component
+  const searchParams = useSearchParams();
+  const caIdFromUrl = searchParams.get('caId');
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [selectedCaForConfig, setSelectedCaForConfig] = useState<CA | null>(null);
@@ -193,6 +196,16 @@ export function VerificationAuthoritiesClient() { // Renamed component
     }
   }, [selectedCaForConfig, fetchCurrentVaConfig]);
 
+  // Auto-select CA from URL parameter
+  useEffect(() => {
+    if (caIdFromUrl && availableCAs.length > 0 && !selectedCaForConfig) {
+      const caFromUrl = availableCAs.find(ca => ca.id === caIdFromUrl);
+      if (caFromUrl) {
+        setSelectedCaForConfig(caFromUrl);
+      }
+    }
+  }, [caIdFromUrl, availableCAs, selectedCaForConfig, toast]);
+
   const handleCaSelectedForConfiguration = (ca: CA) => {
     setSelectedCaForConfig(ca);
     setIsCaSelectModalOpen(false);
@@ -288,7 +301,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
               className="w-full md:w-2/3 lg:w-1/2 justify-start text-left font-normal"
               disabled={isLoadingCAs || authLoading}
             >
-              {isLoadingCAs || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedCaForConfig ? `${selectedCaForConfig.name} (${selectedCaForConfig.id.substring(0, 8)}...)` : "Click to Select a CA...")}
+              {isLoadingCAs || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedCaForConfig ? `${selectedCaForConfig.name} (${selectedCaForConfig.id})` : "Click to Select a CA...")}
             </Button>
           </div>
 
