@@ -5,7 +5,26 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, AlertCircle, Edit, Trash2, CheckCircle, XCircle, Plus } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Loader2, 
+  AlertCircle, 
+  Edit, 
+  Trash2, 
+  CheckCircle, 
+  XCircle, 
+  Plus,
+  Shield,
+  Calendar,
+  Key,
+  Link2,
+  MoreVertical,
+  Copy,
+  Check,
+  FileJson,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
@@ -32,9 +51,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
-import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies } from '@/lib/authz-api';
+import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies, getPolicy } from '@/lib/authz-api';
 import type { Principal, Policy } from '@/types/authz';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 
 function PrincipalDetailsContent() {
   const router = useRouter();
@@ -43,6 +80,7 @@ function PrincipalDetailsContent() {
 
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [policies, setPolicies] = useState<any[]>([]);
+  const [enrichedPolicies, setEnrichedPolicies] = useState<Array<{ grantedPolicy: any; fullPolicy: Policy | null }>>([]);
   const [allPolicies, setAllPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +89,10 @@ function PrincipalDetailsContent() {
   const [selectedPolicyId, setSelectedPolicyId] = useState('');
   const [selectedPolicyToRevoke, setSelectedPolicyToRevoke] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+  const [jsonExpanded, setJsonExpanded] = useState(true);
+  const [expandedPolicies, setExpandedPolicies] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     if (principalId) {
@@ -71,6 +113,26 @@ function PrincipalDetailsContent() {
       setPrincipal(principalData);
       setPolicies(policiesData.policies || []);
       setAllPolicies(allPoliciesData.policies || []);
+      
+      // Fetch full policy details for each assigned policy
+      const assignedPolicies = policiesData.policies || [];
+      if (assignedPolicies.length > 0) {
+        const enriched = await Promise.all(
+          assignedPolicies.map(async (grantedPolicy) => {
+            try {
+              const fullPolicy = await getPolicy(grantedPolicy.policyId);
+              return { grantedPolicy, fullPolicy };
+            } catch (err) {
+              console.error(`Failed to fetch policy ${grantedPolicy.policyId}:`, err);
+              return { grantedPolicy, fullPolicy: null };
+            }
+          })
+        );
+        setEnrichedPolicies(enriched);
+      } else {
+        setEnrichedPolicies([]);
+      }
+      
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load principal details');
@@ -114,6 +176,37 @@ function PrincipalDetailsContent() {
     return allPolicies.filter(p => !assignedPolicyIds.includes(p.id));
   };
 
+  const togglePolicyJson = (policyId: string) => {
+    setExpandedPolicies((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(policyId)) {
+        newSet.delete(policyId);
+      } else {
+        newSet.add(policyId);
+      }
+      return newSet;
+    });
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
+  const getPrincipalTypeIcon = (type: string) => {
+    switch (type) {
+      case 'api_key':
+        return <Key className="h-5 w-5" />;
+      case 'oidc':
+        return <Link2 className="h-5 w-5" />;
+      case 'x509':
+        return <Shield className="h-5 w-5" />;
+      default:
+        return <Shield className="h-5 w-5" />;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -138,35 +231,70 @@ function PrincipalDetailsContent() {
   }
 
   const renderAuthConfig = () => {
+    if (!principal) return null;
+    
     const { authConfig, type } = principal;
 
     if (type === 'api_key') {
       return (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            API Key authentication configuration
-          </p>
-          <Badge variant="secondary">API Key Hash Configured</Badge>
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border">
+            <Key className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-sm">API Key Authentication</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Authenticates using a hashed API key for programmatic access
+              </p>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">STATUS</p>
+            <Badge variant="secondary" className="mt-1">
+              <Check className="mr-1 h-3 w-3" />
+              API Key Hash Configured
+            </Badge>
+          </div>
         </div>
       );
     }
 
-    if (type === 'oidc' && 'issuer' in authConfig) {
+    if (type === 'oidc') {
+      const oidcConfig = authConfig as any;
       return (
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-medium">Issuer</p>
-            <p className="text-sm text-muted-foreground font-mono">{authConfig.issuer}</p>
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border">
+            <Link2 className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-sm">OpenID Connect (OIDC)</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Authenticates via OIDC provider claims
+              </p>
+            </div>
           </div>
-          {authConfig.claims && authConfig.claims.length > 0 && (
-            <div>
-              <p className="text-sm font-medium mb-2">Claims</p>
+
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">ISSUER</p>
+            <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto">
+              {String(oidcConfig.issuer)}
+            </code>
+          </div>
+
+          {oidcConfig.claims && oidcConfig.claims.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">CLAIM CONDITIONS</p>
               <div className="space-y-2">
-                {authConfig.claims.map((claim, index) => (
-                  <div key={index} className="text-sm border-l-2 pl-3">
-                    <span className="font-mono">{claim.claim}</span>
-                    <span className="text-muted-foreground"> {claim.operator} </span>
-                    <span className="font-mono">&quot;{claim.value}&quot;</span>
+                {oidcConfig.claims.map((claim: any, index: number) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg text-sm border"
+                  >
+                    <Badge variant="outline" className="font-mono text-xs shrink-0">
+                      {claim.claim}
+                    </Badge>
+                    <span className="text-muted-foreground shrink-0">{claim.operator}</span>
+                    <code className="font-mono text-xs bg-background px-2 py-0.5 rounded flex-1 overflow-x-auto">
+                      {claim.value}
+                    </code>
                   </div>
                 ))}
               </div>
@@ -176,184 +304,449 @@ function PrincipalDetailsContent() {
       );
     }
 
-    if (type === 'x509' && 'caFingerprint' in authConfig) {
+    if (type === 'x509') {
+      const x509Config = authConfig as any;
       return (
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-medium">CA Fingerprint</p>
-            <p className="text-sm text-muted-foreground font-mono break-all">
-              {authConfig.caFingerprint}
-            </p>
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border">
+            <Shield className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-sm">X.509 Certificate (mTLS)</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Authenticates using client certificates for secure device/service authentication
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium">Match Mode</p>
-            <Badge variant="outline">{authConfig.matchMode}</Badge>
-          </div>
-          {authConfig.serialNumber && (
-            <div>
-              <p className="text-sm font-medium">Serial Number</p>
-              <p className="text-sm text-muted-foreground font-mono">{authConfig.serialNumber}</p>
+
+          {x509Config.caFingerprint && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">CA FINGERPRINT</p>
+              <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto break-all">
+                {x509Config.caFingerprint}
+              </code>
             </div>
           )}
-          {authConfig.subjectCn && (
-            <div>
-              <p className="text-sm font-medium">Subject CN</p>
-              <p className="text-sm text-muted-foreground">{authConfig.subjectCn}</p>
+
+          {x509Config.matchMode && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">MATCH MODE</p>
+              <Badge variant="outline" className="mt-1">{String(x509Config.matchMode).replace(/_/g, ' ')}</Badge>
+            </div>
+          )}
+
+          {x509Config.serialNumber && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">SERIAL NUMBER</p>
+              <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto">
+                {x509Config.serialNumber}
+              </code>
+            </div>
+          )}
+
+          {x509Config.subjectCn && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">SUBJECT CN</p>
+              <p className="text-sm font-medium">{x509Config.subjectCn}</p>
             </div>
           )}
         </div>
       );
     }
 
-    return <p className="text-sm text-muted-foreground">No authentication configuration</p>;
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+        <p className="text-sm">No authentication configuration available</p>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      {/* Hero Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-4 flex-1">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={() => router.push('/authz/principals')}
+            className="mt-1"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold">{principal.name}</h1>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge>{principal.type}</Badge>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                {getPrincipalTypeIcon(principal.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-3xl font-bold truncate">{principal.name}</h1>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="secondary" className="font-mono text-xs">
+                {principal.type.toUpperCase()}
+              </Badge>
               {principal.active ? (
-                <Badge variant="outline" className="gap-1">
+                <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200">
                   <CheckCircle className="h-3 w-3" />
                   Active
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="gap-1">
+                <Badge variant="outline" className="gap-1 bg-gray-50 text-gray-600 border-gray-200">
                   <XCircle className="h-3 w-3" />
                   Inactive
                 </Badge>
               )}
+              <Separator orientation="vertical" className="h-4" />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                Created {new Date(principal.createdAt).toLocaleDateString()}
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2">
+              <code className="text-xs bg-muted px-2 py-1 rounded border">
+                {principal.id}
+              </code>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => copyToClipboard(principal.id)}
+                className="h-7 px-2"
+              >
+                {copiedId ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </Button>
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Edit className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <Button variant="destructive">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </Button>
-        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Principal
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Principal
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Authentication Configuration</CardTitle>
-            <CardDescription>Principal authentication details</CardDescription>
-          </CardHeader>
-          <CardContent>{renderAuthConfig()}</CardContent>
-        </Card>
+      <Separator />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Metadata</CardTitle>
-            <CardDescription>Principal information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <p className="text-sm font-medium">Principal ID</p>
-              <p className="text-sm text-muted-foreground font-mono">{principal.id}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Created At</p>
-              <p className="text-sm text-muted-foreground">
-                {new Date(principal.createdAt).toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Updated At</p>
-              <p className="text-sm text-muted-foreground">
-                {new Date(principal.updatedAt).toLocaleString()}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="policies">
+            Policies
+            {policies.length > 0 && (
+              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                {policies.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="raw">Raw JSON</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Authentication Configuration */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Authentication Configuration
+                </CardTitle>
+                <CardDescription>
+                  How this principal authenticates
+                </CardDescription>
+              </CardHeader>
+              <CardContent>{renderAuthConfig()}</CardContent>
+            </Card>
+
+            {/* Metadata */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Metadata
+                </CardTitle>
+                <CardDescription>
+                  Timestamps and system information
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">CREATED</p>
+                  <DateDisplay 
+                    date={principal.createdAt} 
+                    formatString="MMM dd, yyyy"
+                    className="text-sm"
+                    highlightExpired={false}
+                  />
+                </div>
+                <Separator />
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">LAST UPDATED</p>
+                  <DateDisplay 
+                    date={principal.updatedAt} 
+                    formatString="MMM dd, yyyy"
+                    className="text-sm"
+                    highlightExpired={false}
+                  />
+                </div>
+                <Separator />
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">PRINCIPAL ID</p>
+                  <div className="flex items-center gap-2">
+                    <code className="text-xs bg-muted px-2 py-1 rounded flex-1 overflow-x-auto">
+                      {principal.id}
+                    </code>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Status</p>
+                    <p className="text-2xl font-bold mt-1">
+                      {principal.active ? 'Active' : 'Inactive'}
+                    </p>
+                  </div>
+                  {principal.active ? (
+                    <CheckCircle className="h-10 w-10 text-green-600" />
+                  ) : (
+                    <XCircle className="h-10 w-10 text-gray-400" />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Assigned Policies</p>
+                    <p className="text-2xl font-bold mt-1">{policies.length}</p>
+                  </div>
+                  <Shield className="h-10 w-10 text-blue-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Auth Type</p>
+                    <p className="text-2xl font-bold mt-1">{principal.type.toUpperCase()}</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    {getPrincipalTypeIcon(principal.type)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Policies Tab */}
+        <TabsContent value="policies" className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Assigned Policies</CardTitle>
-              <CardDescription>
-                {policies.length} {policies.length === 1 ? 'policy' : 'policies'} assigned
-              </CardDescription>
+              <h3 className="text-lg font-semibold">Policy Assignments</h3>
+              <p className="text-sm text-muted-foreground">
+                Manage policies assigned to this principal
+              </p>
             </div>
-            <Button onClick={() => setGrantDialogOpen(true)} size="sm">
+            <Button onClick={() => setGrantDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Assign Policy
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
+
           {policies.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No policies assigned to this principal
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {policies.map((policy, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center space-y-3">
+                  <div className="flex justify-center">
+                    <div className="p-3 rounded-full bg-muted">
+                      <Shield className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  </div>
                   <div>
-                    <p className="font-medium">{policy.policyName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Granted: {new Date(policy.grantedAt).toLocaleDateString()}
+                    <p className="font-medium">No policies assigned</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Assign a policy to grant permissions to this principal
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => router.push(`/authz/policies/details?policyId=${policy.policyId}`)}
-                    >
-                      View Policy
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedPolicyToRevoke(policy);
-                        setRevokeDialogOpen(true);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button variant="outline" onClick={() => setGrantDialogOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Assign First Policy
+                  </Button>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Policy</TableHead>
+                    <TableHead>Granted At</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {enrichedPolicies.map(({ grantedPolicy, fullPolicy }) => {
+                    const isExpanded = expandedPolicies.has(grantedPolicy.policyId);
+                    return (
+                      <TableRow key={grantedPolicy.policyId}>
+                        <TableCell colSpan={3}>
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-1">
+                                <button
+                                  onClick={() => router.push(`/authz/policies/details?policyId=${grantedPolicy.policyId}`)}
+                                  className="font-medium hover:underline text-left"
+                                >
+                                  {fullPolicy?.name || grantedPolicy.policyName}
+                                </button>
+                                {fullPolicy?.description && (
+                                  <p className="text-sm text-muted-foreground">{fullPolicy.description}</p>
+                                )}
+                                <p className="text-xs text-muted-foreground font-mono">{grantedPolicy.policyId}</p>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                <DateDisplay 
+                                  date={grantedPolicy.grantedAt} 
+                                  formatString="MMM dd, yyyy"
+                                  className="text-sm"
+                                  highlightExpired={false}
+                                />
+                              </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Principal JSON</CardTitle>
-          <CardDescription>Complete principal definition</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-96 text-xs">
-            {JSON.stringify(principal, null, 2)}
-          </pre>
-        </CardContent>
-      </Card>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => togglePolicyJson(grantedPolicy.policyId)}
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => router.push(`/authz/policies/details?policyId=${grantedPolicy.policyId}`)}
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedPolicyToRevoke(grantedPolicy);
+                                    setRevokeDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {isExpanded && fullPolicy && (
+                              <div className="mt-3 pt-3 border-t">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <FileJson className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm font-medium">Policy Definition</span>
+                                </div>
+                                <pre className="bg-muted p-3 rounded-lg overflow-auto max-h-[400px] text-xs">
+                                  {JSON.stringify(fullPolicy, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Raw JSON Tab */}
+        <TabsContent value="raw">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileJson className="h-5 w-5" />
+                    Complete Principal Definition
+                  </CardTitle>
+                  <CardDescription>
+                    Raw JSON representation of this principal
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setJsonExpanded(!jsonExpanded)}
+                  className="flex items-center gap-2"
+                >
+                  {jsonExpanded ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Collapse
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Expand
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            {jsonExpanded && (
+              <CardContent>
+                <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[600px] text-xs">
+                  {JSON.stringify(principal, null, 2)}
+                </pre>
+              </CardContent>
+            )}
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Grant Policy Dialog */}
       <Dialog open={grantDialogOpen} onOpenChange={setGrantDialogOpen}>

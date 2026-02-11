@@ -29,7 +29,7 @@ import {
 import { Plus, Trash2, AlertCircle, ChevronRight, Loader2, X } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { Rule, RelationRule, SchemaDefinition } from '@/types/authz';
-import { getSchemas } from '@/lib/authz-api';
+import { getSchemas, findAmbiguousEntityTypes } from '@/lib/authz-api';
 
 interface PolicyBuilderFormProps {
   rules: Rule[];
@@ -41,12 +41,14 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
   const [schemas, setSchemas] = useState<SchemaDefinition[]>([]);
   const [loadingSchemas, setLoadingSchemas] = useState(true);
   const [openAccordionValue, setOpenAccordionValue] = useState<string | undefined>(undefined);
+  const [ambiguousTypes, setAmbiguousTypes] = useState<Map<string, string[]>>(new Map());
 
   useEffect(() => {
     const fetchSchemas = async () => {
       try {
         const data = await getSchemas();
         setSchemas(data);
+        setAmbiguousTypes(findAmbiguousEntityTypes(data));
       } catch (err) {
         console.error('Failed to fetch schemas:', err);
       } finally {
@@ -121,6 +123,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                   onChange={(updated) => updateRule(index, updated)}
                   onDelete={() => deleteRule(index)}
                   schemas={schemas}
+                  ambiguousTypes={ambiguousTypes}
                 />
               </AccordionContent>
             </AccordionItem>
@@ -141,9 +144,10 @@ interface RuleEditorProps {
   onChange: (rule: Rule) => void;
   onDelete: () => void;
   schemas: SchemaDefinition[];
+  ambiguousTypes: Map<string, string[]>;
 }
 
-function RuleEditor({ rule, onChange, onDelete, schemas }: RuleEditorProps) {
+function RuleEditor({ rule, onChange, onDelete, schemas, ambiguousTypes }: RuleEditorProps) {
   const [grantInput, setGrantInput] = useState('');
 
   const selectedSchema = schemas.find((s) => s.entityType === rule.entityType);
@@ -221,11 +225,27 @@ function RuleEditor({ rule, onChange, onDelete, schemas }: RuleEditorProps) {
             <SelectContent>
               {schemas.map((schema) => (
                 <SelectItem key={schema.entityType} value={schema.entityType}>
-                  {schema.entityType}
+                  <div className="flex items-center gap-2">
+                    <span>{schema.entityType}</span>
+                    {schema.namespace && (
+                      <Badge variant="outline" className="text-xs">
+                        {schema.namespace}
+                      </Badge>
+                    )}
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {rule.entityType && ambiguousTypes.has(rule.entityType) && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Warning: Entity type &quot;{rule.entityType}&quot; exists in multiple namespaces: {ambiguousTypes.get(rule.entityType)?.join(', ')}
+                {'. '}Consider using qualified names like &quot;{ambiguousTypes.get(rule.entityType)?.[0]}.{rule.entityType}&quot; for clarity.
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         {/* Actions */}

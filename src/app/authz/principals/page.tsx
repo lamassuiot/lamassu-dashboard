@@ -132,12 +132,6 @@ export default function PrincipalsPage() {
       )}
 
       <div>
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold">Principals</h2>
-          <p className="text-sm text-muted-foreground">
-            {principals.length} {principals.length === 1 ? 'principal' : 'principals'} configured
-          </p>
-        </div>
         <Table>
           <TableHeader>
               <TableRow>
@@ -158,7 +152,17 @@ export default function PrincipalsPage() {
               ) : (
                 principals.map((principal) => (
                   <TableRow key={principal.id}>
-                    <TableCell className="font-medium">{principal.name}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => handleViewDetails(principal)}
+                          className="font-medium text-left hover:underline focus:underline"
+                        >
+                          {principal.name}
+                        </button>
+                        <p className="text-sm text-muted-foreground font-mono">{principal.id}</p>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={getPrincipalTypeColor(principal.type)}>
                         {principal.type}

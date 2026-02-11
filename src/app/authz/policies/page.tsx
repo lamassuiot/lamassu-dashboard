@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -127,7 +126,17 @@ export default function PoliciesPage() {
             ) : (
               policies.map((policy) => (
                 <TableRow key={policy.id}>
-                  <TableCell className="font-medium">{policy.name}</TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => handleViewDetails(policy)}
+                        className="font-medium text-left hover:underline focus:underline"
+                      >
+                        {policy.name}
+                      </button>
+                      <p className="text-sm text-muted-foreground font-mono">{policy.id}</p>
+                    </div>
+                  </TableCell>
                   <TableCell className="max-w-md truncate">
                     {policy.description}
                   </TableCell>

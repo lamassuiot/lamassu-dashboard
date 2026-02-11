@@ -41,7 +41,7 @@ import { Plus, AlertCircle, Loader2, Workflow } from 'lucide-react';
 import type { Rule, RelationRule, SchemaDefinition } from '@/types/authz';
 import { SchemaEntityNode } from './flow-nodes/SchemaEntityNode';
 import { NestedRuleEdge } from './flow-nodes/NestedRuleEdge';
-import { getSchemas } from '@/lib/authz-api';
+import { getSchemas, findAmbiguousEntityTypes } from '@/lib/authz-api';
 import Dagre from '@dagrejs/dagre';
 
 interface PolicyBuilderFlowProps {
@@ -103,6 +103,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
   const [availableActions, setAvailableActions] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [selectedRuleIndex, setSelectedRuleIndex] = useState<number | null>(null);
+  const [ambiguousTypes, setAmbiguousTypes] = useState<Map<string, string[]>>(new Map());
   const isSyncingFromFlow = useRef(false);
   
   // Create stable key for rules to avoid infinite loops
@@ -119,6 +120,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       setLoadingSchemas(true);
       const data = await getSchemas();
       setSchemas(data);
+      setAmbiguousTypes(findAmbiguousEntityTypes(data));
       setSchemaError(null);
     } catch (err: any) {
       setSchemaError(err.message || 'Failed to load schemas');
@@ -906,11 +908,26 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                 <SelectContent>
                   {schemas.map((schema) => (
                     <SelectItem key={schema.entityType} value={schema.entityType}>
-                      {schema.entityType}
+                      <div className="flex items-center gap-2">
+                        <span>{schema.entityType}</span>
+                        {schema.namespace && (
+                          <Badge variant="outline" className="text-xs">
+                            {schema.namespace}
+                          </Badge>
+                        )}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedEntityType && ambiguousTypes.has(selectedEntityType) && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Warning: Entity type &quot;{selectedEntityType}&quot; exists in multiple namespaces: {ambiguousTypes.get(selectedEntityType)?.join(', ')}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           </div>
 

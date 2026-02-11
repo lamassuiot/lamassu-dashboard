@@ -34,6 +34,16 @@ export default function SchemasPage() {
     }
   };
 
+  // Group schemas by namespace
+  const groupedSchemas: { [namespace: string]: SchemaDefinition[] } = {};
+  schemas.forEach(schema => {
+    const namespace = schema.namespace || 'default';
+    if (!groupedSchemas[namespace]) {
+      groupedSchemas[namespace] = [];
+    }
+    groupedSchemas[namespace].push(schema);
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -73,110 +83,127 @@ export default function SchemasPage() {
         </TabsList>
 
         <TabsContent value="grid" className="mt-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            {schemas.length === 0 ? (
-              <Card className="col-span-2">
-                <CardContent className="py-12">
-                  <p className="text-muted-foreground text-center">
-                    No schemas configured
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              schemas.map((schema) => (
-                <Card key={schema.entityType} className="col-span-1">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <Database className="h-5 w-5" />
-                        {schema.entityType}
-                      </CardTitle>
-                      <Badge variant="outline">{schema.tableName}</Badge>
-                    </div>
-                    <CardDescription>
-                      Primary Key: <code className="text-xs">{schema.primaryKey}</code>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Atomic Actions */}
-                    {schema.atomicActions && schema.atomicActions.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                          <Key className="h-4 w-4" />
-                          Atomic Actions
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {schema.atomicActions.map((action, index) => (
-                            <Badge key={index} variant="secondary">
-                              {action}
-                            </Badge>
-                          ))}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Actions requiring entity ID
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Global Actions */}
-                    {schema.globalActions && schema.globalActions.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold mb-2">Global Actions</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {schema.globalActions.map((action, index) => (
-                            <Badge key={index} variant="outline">
-                              {action}
-                            </Badge>
-                          ))}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Actions not requiring entity ID
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Relations */}
-                    {Object.keys(schema.relations).length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                          <LinkIcon className="h-4 w-4" />
-                          Relations
-                        </h4>
-                        <div className="space-y-2">
-                          {Object.entries(schema.relations).map(([key, relation]) => (
-                            <div
-                              key={key}
-                              className="border rounded-lg p-3 space-y-1"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm">{relation.name}</span>
-                                <Badge variant="secondary" className="text-xs">
-                                  {relation.targetEntity}
-                                </Badge>
+          {schemas.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <p className="text-muted-foreground text-center">
+                  No schemas configured
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-8">
+              {Object.entries(groupedSchemas).map(([namespace, namespaceSchemas]) => (
+                <div key={namespace} className="space-y-4">
+                  {/* Namespace Header */}
+                  <div className="flex items-center gap-3">
+                    <Badge variant="default" className="text-sm px-3 py-1">
+                      {namespace}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      {namespaceSchemas.length} {namespaceSchemas.length === 1 ? 'schema' : 'schemas'}
+                    </span>
+                  </div>
+                  
+                  {/* Schemas Grid */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {namespaceSchemas.map((schema) => (
+                      <Card key={`${namespace}-${schema.entityType}`}>
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="flex items-center gap-2">
+                              <Database className="h-5 w-5" />
+                              {schema.entityType}
+                            </CardTitle>
+                            <Badge variant="outline">{schema.tableName}</Badge>
+                          </div>
+                          <CardDescription>
+                            Primary Key: <code className="text-xs">{schema.primaryKey}</code>
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {/* Atomic Actions */}
+                          {schema.atomicActions && schema.atomicActions.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                                <Key className="h-4 w-4" />
+                                Atomic Actions
+                              </h4>
+                              <div className="flex flex-wrap gap-2">
+                                {schema.atomicActions.map((action, index) => (
+                                  <Badge key={index} variant="secondary">
+                                    {action}
+                                  </Badge>
+                                ))}
                               </div>
-                              <div className="text-xs text-muted-foreground font-mono">
-                                FK: {relation.foreignKey}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Actions requiring entity ID
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Global Actions */}
+                          {schema.globalActions && schema.globalActions.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2">Global Actions</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {schema.globalActions.map((action, index) => (
+                                  <Badge key={index} variant="outline">
+                                    {action}
+                                  </Badge>
+                                ))}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Actions not requiring entity ID
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Relations */}
+                          {Object.keys(schema.relations).length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                                <LinkIcon className="h-4 w-4" />
+                                Relations
+                              </h4>
+                              <div className="space-y-2">
+                                {Object.entries(schema.relations).map(([key, relation]) => (
+                                  <div
+                                    key={key}
+                                    className="border rounded-lg p-3 space-y-1"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium text-sm">{relation.name}</span>
+                                      <Badge variant="secondary" className="text-xs">
+                                        {relation.targetEntity}
+                                      </Badge>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground font-mono">
+                                      FK: {relation.foreignKey}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                          )}
 
-                    {/* Schema JSON Preview */}
-                    <details className="border rounded-lg">
-                      <summary className="cursor-pointer p-3 hover:bg-muted text-sm font-medium">
-                        View Full Schema
-                      </summary>
-                      <pre className="bg-muted p-4 overflow-auto text-xs">
-                        {JSON.stringify(schema, null, 2)}
-                      </pre>
-                    </details>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
+                          {/* Schema JSON Preview */}
+                          <details className="border rounded-lg">
+                            <summary className="cursor-pointer p-3 hover:bg-muted text-sm font-medium">
+                              View Full Schema
+                            </summary>
+                            <pre className="bg-muted p-4 overflow-auto text-xs">
+                              {JSON.stringify(schema, null, 2)}
+                            </pre>
+                          </details>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="flow" className="mt-6">

@@ -183,7 +183,69 @@ export async function getSchemas(): Promise<SchemaDefinition[]> {
     method: 'GET',
     headers: getAuthzHeaders(),
   });
-  return handleApiError(response, 'Failed to get schemas');
+  const data = await handleApiError(response, 'Failed to get schemas');
+  
+  // Handle both old array format and new grouped format
+  if (Array.isArray(data)) {
+    // Old format: flat array
+    return data;
+  } else {
+    // New format: grouped by authorization namespace
+    const schemas: SchemaDefinition[] = [];
+    Object.entries(data).forEach(([namespace, namespaceSchemas]) => {
+      (namespaceSchemas as SchemaDefinition[]).forEach(schema => {
+        schemas.push({ ...schema, namespace });
+      });
+    });
+    return schemas;
+  }
+}
+
+export async function getGroupedSchemas(): Promise<{ [namespace: string]: SchemaDefinition[] }> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/schemas`, {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  const data = await handleApiError(response, 'Failed to get schemas');
+  
+  // Handle both old array format and new grouped format
+  if (Array.isArray(data)) {
+    // Old format: return as "default" namespace
+    return { default: data };
+  } else {
+    // New format: return as-is but add namespace to each schema
+    const grouped: { [namespace: string]: SchemaDefinition[] } = {};
+    Object.entries(data).forEach(([namespace, namespaceSchemas]) => {
+      grouped[namespace] = (namespaceSchemas as SchemaDefinition[]).map(schema => ({
+        ...schema,
+        namespace
+      }));
+    });
+    return grouped;
+  }
+}
+
+export function findAmbiguousEntityTypes(schemas: SchemaDefinition[]): Map<string, string[]> {
+  const entityTypeMap = new Map<string, string[]>();
+  
+  schemas.forEach(schema => {
+    const namespace = schema.namespace || 'default';
+    const existing = entityTypeMap.get(schema.entityType) || [];
+    if (!existing.includes(namespace)) {
+      existing.push(namespace);
+      entityTypeMap.set(schema.entityType, existing);
+    }
+  });
+  
+  // Return only ambiguous types (exist in multiple namespaces)
+  const ambiguous = new Map<string, string[]>();
+  entityTypeMap.forEach((namespaces, entityType) => {
+    if (namespaces.length > 1) {
+      ambiguous.set(entityType, namespaces);
+    }
+  });
+  
+  return ambiguous;
 }
 
 // ===========================

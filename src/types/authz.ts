@@ -71,6 +71,11 @@ export interface SchemaDefinition {
   relations: Record<string, RelationConfig>;
   atomicActions?: string[]; // actions requiring entity ID: read, write, delete, etc.
   globalActions?: string[]; // actions not requiring entity ID: create, list, etc.
+  namespace?: string; // authorization namespace: pki, iot, etc.
+}
+
+export interface GroupedSchemas {
+  [namespace: string]: SchemaDefinition[];
 }
 
 export interface RelationConfig {

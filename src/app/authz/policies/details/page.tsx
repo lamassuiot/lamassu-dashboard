@@ -5,10 +5,40 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Loader2, 
+  AlertCircle, 
+  Edit, 
+  Trash2,
+  Shield,
+  Users,
+  FileText,
+  MoreVertical,
+  Copy,
+  Check,
+  FileJson,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  Zap,
+  GitBranch,
+  CheckCircle2,
+  Link
+} from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 import { getPolicy, getPolicyStats } from '@/lib/authz-api';
 import type { Policy, PolicyStats } from '@/types/authz';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 
 function PolicyDetailsContent() {
   const router = useRouter();
@@ -19,6 +49,10 @@ function PolicyDetailsContent() {
   const [stats, setStats] = useState<PolicyStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
+  const [jsonExpanded, setJsonExpanded] = useState(true);
+  const [expandedRules, setExpandedRules] = useState<Set<number>>(new Set());
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     if (policyId) {
@@ -37,12 +71,31 @@ function PolicyDetailsContent() {
       ]);
       setPolicy(policyData);
       setStats(statsData);
+      
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load policy details');
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleRuleJson = (ruleIndex: number) => {
+    setExpandedRules((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(ruleIndex)) {
+        newSet.delete(ruleIndex);
+      } else {
+        newSet.add(ruleIndex);
+      }
+      return newSet;
+    });
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
   };
 
   if (loading) {
@@ -70,144 +123,352 @@ function PolicyDetailsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      {/* Hero Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-4">
           <Button
             variant="outline"
             size="icon"
             onClick={() => router.push('/authz/policies')}
+            className="mt-1"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold">{policy.name}</h1>
-            <p className="text-muted-foreground mt-1">{policy.description}</p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">{policy.name}</h1>
+                <div className="flex items-center gap-2 mt-3">
+                  <code className="text-xs bg-muted px-2 py-1 rounded border">
+                    {policy.id}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(policy.id)}
+                    className="h-7 px-2"
+                  >
+                    {copiedId ? (
+                      <Check className="h-3.5 w-3.5 text-green-600" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            {policy.description && (
+              <p className="text-muted-foreground max-w-2xl">{policy.description}</p>
+            )}
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <Button variant="destructive">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </Button>
-        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Policy
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Policy
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {stats && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Rules</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.ruleCount}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Principals</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.principalCount}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Last Modified</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm">
-                {stats.lastModified ? new Date(stats.lastModified).toLocaleString() : 'N/A'}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <Separator />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Policy Rules</CardTitle>
-          <CardDescription>
-            {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'} defined
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {policy.rules.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No rules defined for this policy
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {policy.rules.map((rule, index) => (
-                <div key={index} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline">Rule {index + 1}</Badge>
-                    <Badge>{rule.entityType}</Badge>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold mb-2">Actions</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {rule.actions.map((action, actionIndex) => (
-                        <Badge key={actionIndex} variant="secondary">
-                          {action}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  {rule.directGrants && rule.directGrants.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">Direct Grants</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {rule.directGrants.map((grant, grantIndex) => (
-                          <Badge key={grantIndex} variant="outline">
-                            {grant}
-                          </Badge>
-                        ))}
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="raw">Raw JSON</TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Stats Cards */}
+          {stats && (
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Rules</CardTitle>
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.ruleCount}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {policy.rules.length === 1 ? 'rule' : 'rules'} defined
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Assigned Principals</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.principalCount}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats.principalCount === 1 ? 'principal has' : 'principals have'} this policy
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Last Modified</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {stats.lastModified ? (
+                    <DateDisplay 
+                      date={stats.lastModified} 
+                      formatString="MMM dd, yyyy"
+                      className="text-sm font-medium"
+                      highlightExpired={false}
+                    />
+                  ) : (
+                    <div className="text-sm text-muted-foreground">N/A</div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Policy Rules */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Policy Rules
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'} defining permissions and access control
+                </p>
+              </div>
+            </div>
+
+            {policy.rules.length === 0 ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center space-y-3">
+                    <div className="flex justify-center">
+                      <div className="p-3 rounded-full bg-muted">
+                        <Shield className="h-8 w-8 text-muted-foreground" />
                       </div>
                     </div>
-                  )}
-                  {rule.relations && rule.relations.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-semibold mb-2">Relations</h4>
-                      <div className="space-y-2">
-                        {rule.relations.map((relation, relIndex) => (
-                          <div key={relIndex} className="text-sm border-l-2 pl-3">
-                            <div className="font-mono text-xs">
-                              {relation.to} via {relation.via}
+                      <p className="font-medium">No rules defined</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        This policy has no rules configured
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {policy.rules.map((rule, index) => {
+                  const isExpanded = expandedRules.has(index);
+                  return (
+                    <Card key={index} className="overflow-hidden">
+                      <CardHeader className="bg-muted/50 pb-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                              {index + 1}
                             </div>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {relation.actions.map((action, actionIndex) => (
-                                <Badge key={actionIndex} variant="secondary" className="text-xs">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <CardTitle className="text-base">
+                                  {rule.entityType}
+                                </CardTitle>
+                                <Badge variant="secondary" className="text-xs">
+                                  Entity Type
+                                </Badge>
+                              </div>
+                              <CardDescription className="text-xs mt-0.5">
+                                {rule.actions.length} {rule.actions.length === 1 ? 'action' : 'actions'}
+                                {rule.directGrants && rule.directGrants.length > 0 && (
+                                  <>, {rule.directGrants.length} direct {rule.directGrants.length === 1 ? 'grant' : 'grants'}</>
+                                )}
+                                {rule.relations && rule.relations.length > 0 && (
+                                  <>, {rule.relations.length} {rule.relations.length === 1 ? 'relation' : 'relations'}</>
+                                )}
+                              </CardDescription>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRuleJson(index)}
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      
+                      <CardContent className="pt-4">
+                        <div className="space-y-4">
+                          {/* Actions Section */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Zap className="h-4 w-4 text-amber-500" />
+                              <span>Actions</span>
+                              <Badge variant="outline" className="text-xs">
+                                {rule.actions.length}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 pl-6">
+                              {rule.actions.map((action, actionIndex) => (
+                                <Badge key={actionIndex} variant="secondary" className="text-xs font-mono">
                                   {action}
                                 </Badge>
                               ))}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Policy JSON</CardTitle>
-          <CardDescription>Complete policy definition</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-96 text-xs">
-            {JSON.stringify(policy, null, 2)}
-          </pre>
-        </CardContent>
-      </Card>
+                          {/* Direct Grants Section */}
+                          {rule.directGrants && rule.directGrants.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                <span>Direct Grants</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {rule.directGrants.length}
+                                </Badge>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 pl-6">
+                                {rule.directGrants.map((grant, grantIndex) => (
+                                  <Badge key={grantIndex} variant="default" className="text-xs font-mono bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-500/20">
+                                    {grant}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Relations Section */}
+                          {rule.relations && rule.relations.length > 0 && (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <GitBranch className="h-4 w-4 text-blue-500" />
+                                <span>Relations</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {rule.relations.length}
+                                </Badge>
+                              </div>
+                              <div className="space-y-2 pl-6">
+                                {rule.relations.map((relation, relIndex) => (
+                                  <Card key={relIndex} className="border-l-2 border-l-blue-500">
+                                    <CardContent className="py-3 px-4">
+                                      <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                          <Link className="h-3.5 w-3.5 text-muted-foreground" />
+                                          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
+                                            {relation.to}
+                                          </code>
+                                          <span className="text-xs text-muted-foreground">via</span>
+                                          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
+                                            {relation.via}
+                                          </code>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                          {relation.actions.map((action, actionIndex) => (
+                                            <Badge key={actionIndex} variant="secondary" className="text-xs font-mono">
+                                              {action}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* JSON View */}
+                          {isExpanded && (
+                            <div className="pt-4 border-t">
+                              <div className="flex items-center gap-2 mb-3">
+                                <FileJson className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium">Rule Definition</span>
+                              </div>
+                              <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[400px] text-xs font-mono">
+                                {JSON.stringify(rule, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Raw JSON Tab */}
+        <TabsContent value="raw">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileJson className="h-5 w-5" />
+                    Complete Policy Definition
+                  </CardTitle>
+                  <CardDescription>
+                    Raw JSON representation of this policy
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setJsonExpanded(!jsonExpanded)}
+                  className="flex items-center gap-2"
+                >
+                  {jsonExpanded ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Collapse
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Expand
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            {jsonExpanded && (
+              <CardContent>
+                <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[600px] text-xs">
+                  {JSON.stringify(policy, null, 2)}
+                </pre>
+              </CardContent>
+            )}
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
