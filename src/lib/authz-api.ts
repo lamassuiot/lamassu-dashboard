@@ -9,6 +9,10 @@ import type {
   AuthorizeResponse,
   FilterRequest,
   FilterResponse,
+  MatchAndAuthorizeRequest,
+  MatchAndAuthorizeResponse,
+  MatchAndGetFilterRequest,
+  MatchAndGetFilterResponse,
 } from '@/types/authz';
 
 const getApiBaseUrl = (): string => {
@@ -268,4 +272,22 @@ export async function getFilter(request: FilterRequest): Promise<FilterResponse>
     body: JSON.stringify(request),
   });
   return handleApiError(response, 'Failed to get filter');
+}
+
+export async function matchAndAuthorize(request: MatchAndAuthorizeRequest): Promise<MatchAndAuthorizeResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/authorize`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to match and authorize');
+}
+
+export async function matchAndGetFilter(request: MatchAndGetFilterRequest): Promise<MatchAndGetFilterResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/filter`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to match and get filter');
 }

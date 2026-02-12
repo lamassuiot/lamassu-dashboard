@@ -120,6 +120,35 @@ export interface FilterResponse {
   entityType: string;
 }
 
+export interface MatchAndAuthorizeRequest {
+  authMaterial: any; // API key, JWT, or certificate data
+  authType: 'api_key' | 'oidc' | 'x509';
+  action: string;
+  entityType: string;
+  entityId?: string;
+}
+
+export interface MatchAndAuthorizeResponse {
+  allowed: boolean;
+  entityType: string;
+  entityId: string;
+  action: string;
+  matchedPrincipals: string[];
+}
+
+export interface MatchAndGetFilterRequest {
+  authMaterial: any; // API key, JWT, or certificate data
+  authType: 'api_key' | 'oidc' | 'x509';
+  entityType: string;
+}
+
+export interface MatchAndGetFilterResponse {
+  entityType: string;
+  whereClause: string;
+  args: any[];
+  matchedPrincipals: string[];
+}
+
 export interface ErrorResponse {
   error: string;
   details?: Record<string, string>;
