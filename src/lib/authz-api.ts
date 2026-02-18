@@ -13,6 +13,10 @@ import type {
   MatchAndAuthorizeResponse,
   MatchAndGetFilterRequest,
   MatchAndGetFilterResponse,
+  GetCapabilitiesRequest,
+  CapabilitiesResponse,
+  MatchAndGetCapabilitiesRequest,
+  MatchAndGetCapabilitiesResponse,
 } from '@/types/authz';
 
 const getApiBaseUrl = (): string => {
@@ -290,4 +294,22 @@ export async function matchAndGetFilter(request: MatchAndGetFilterRequest): Prom
     body: JSON.stringify(request),
   });
   return handleApiError(response, 'Failed to match and get filter');
+}
+
+export async function getCapabilities(request: GetCapabilitiesRequest): Promise<CapabilitiesResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/capabilities`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to get capabilities');
+}
+
+export async function matchAndGetCapabilities(request: MatchAndGetCapabilitiesRequest): Promise<MatchAndGetCapabilitiesResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/capabilities`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to match and get capabilities');
 }

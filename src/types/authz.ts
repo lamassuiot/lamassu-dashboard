@@ -66,6 +66,7 @@ export interface PolicyGrant {
 
 export interface SchemaDefinition {
   entityType: string;
+  schemaName: string;
   tableName: string;
   primaryKey: string;
   relations: Record<string, RelationConfig>;
@@ -114,10 +115,8 @@ export interface FilterRequest {
 }
 
 export interface FilterResponse {
-  whereClause: string;
-  args: any[];
-  principalId: string;
   entityType: string;
+  filterQuery: string;
 }
 
 export interface MatchAndAuthorizeRequest {
@@ -144,9 +143,39 @@ export interface MatchAndGetFilterRequest {
 
 export interface MatchAndGetFilterResponse {
   entityType: string;
-  whereClause: string;
-  args: any[];
+  filterQuery: string;
   matchedPrincipals: string[];
+}
+
+export interface GetCapabilitiesRequest {
+  principal_id: string;
+}
+
+export interface EntityCapabilityDTO {
+  entity_id: string;
+  actions: string[];
+}
+
+export interface EntityTypeCapabilitiesDTO {
+  entity_type: string;
+  global_actions?: string[];
+  entities?: EntityCapabilityDTO[];
+  truncated?: boolean;
+  total_count?: number;
+}
+
+export interface CapabilitiesResponse {
+  entity_types: Record<string, EntityTypeCapabilitiesDTO>;
+}
+
+export interface MatchAndGetCapabilitiesRequest {
+  authType: 'api_key' | 'oidc' | 'x509';
+  authMaterial: any;
+}
+
+export interface MatchAndGetCapabilitiesResponse {
+  entity_types: Record<string, EntityTypeCapabilitiesDTO>;
+  matched_principals: string[];
 }
 
 export interface ErrorResponse {

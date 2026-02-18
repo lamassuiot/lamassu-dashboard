@@ -11,6 +11,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertCircle, CheckCircle, XCircle, Play, Filter } from 'lucide-react';
@@ -18,8 +20,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { authorize, getFilter, matchAndAuthorize, matchAndGetFilter, listPrincipals, getSchemas } from '@/lib/authz-api';
-import type { Principal, SchemaDefinition, AuthorizeResponse, FilterResponse, MatchAndAuthorizeResponse, MatchAndGetFilterResponse } from '@/types/authz';
+import { authorize, getFilter, matchAndAuthorize, matchAndGetFilter, getCapabilities, matchAndGetCapabilities, listPrincipals, getSchemas } from '@/lib/authz-api';
+import type { Principal, SchemaDefinition, AuthorizeResponse, FilterResponse, MatchAndAuthorizeResponse, MatchAndGetFilterResponse, CapabilitiesResponse, MatchAndGetCapabilitiesResponse } from '@/types/authz';
 
 export default function AuthorizationTestPage() {
   const [principals, setPrincipals] = useState<Principal[]>([]);
@@ -52,6 +54,15 @@ export default function AuthorizationTestPage() {
   });
   const [matchAuthorizeResult, setMatchAuthorizeResult] = useState<MatchAndAuthorizeResponse | null>(null);
   const [matchFilterResult, setMatchFilterResult] = useState<MatchAndGetFilterResponse | null>(null);
+  const [capabilitiesFormData, setCapabilitiesFormData] = useState({
+    principalId: '',
+  });
+  const [matchCapabilitiesFormData, setMatchCapabilitiesFormData] = useState({
+    authType: 'x509' as 'api_key' | 'oidc' | 'x509',
+    authMaterial: '',
+  });
+  const [capabilitiesResult, setCapabilitiesResult] = useState<CapabilitiesResponse | null>(null);
+  const [matchCapabilitiesResult, setMatchCapabilitiesResult] = useState<MatchAndGetCapabilitiesResponse | null>(null);
 
   useEffect(() => {
     loadData();
@@ -114,9 +125,11 @@ export default function AuthorizationTestPage() {
     try {
       setLoading(true);
       setError(null);
+      const schema = schemas.find((s) => s.entityType === filterFormData.entityType);
+      const fullEntityType = schema ? `${schema.schemaName}.${schema.entityType}` : filterFormData.entityType;
       const response = await getFilter({
         principalId: filterFormData.principalId,
-        entityType: filterFormData.entityType,
+        entityType: fullEntityType,
       });
       setFilterResult(response);
     } catch (err: any) {
@@ -182,10 +195,12 @@ export default function AuthorizationTestPage() {
     try {
       setLoading(true);
       setError(null);
+      const schema = schemas.find((s) => s.entityType === matchFilterFormData.entityType);
+      const fullEntityType = schema ? `${schema.schemaName}.${schema.entityType}` : matchFilterFormData.entityType;
       const response = await matchAndGetFilter({
         authMaterial: matchFilterFormData.authMaterial,
         authType: matchFilterFormData.authType,
-        entityType: matchFilterFormData.entityType,
+        entityType: fullEntityType,
       });
       setMatchFilterResult(response);
     } catch (err: any) {
@@ -206,6 +221,66 @@ export default function AuthorizationTestPage() {
     setError(null);
   };
 
+  const handleGetCapabilities = async () => {
+    if (!capabilitiesFormData.principalId) {
+      setError('Principal ID is required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getCapabilities({
+        principal_id: capabilitiesFormData.principalId,
+      });
+      setCapabilitiesResult(response);
+    } catch (err: any) {
+      setError(err.message || 'Get capabilities test failed');
+      setCapabilitiesResult(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetCapabilities = () => {
+    setCapabilitiesFormData({
+      principalId: '',
+    });
+    setCapabilitiesResult(null);
+    setError(null);
+  };
+
+  const handleMatchAndGetCapabilities = async () => {
+    if (!matchCapabilitiesFormData.authMaterial || !matchCapabilitiesFormData.authType) {
+      setError('Auth Material and Auth Type are required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await matchAndGetCapabilities({
+        authMaterial: matchCapabilitiesFormData.authMaterial,
+        authType: matchCapabilitiesFormData.authType,
+      });
+      setMatchCapabilitiesResult(response);
+    } catch (err: any) {
+      setError(err.message || 'Match and get capabilities test failed');
+      setMatchCapabilitiesResult(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetMatchCapabilities = () => {
+    setMatchCapabilitiesFormData({
+      authType: 'x509',
+      authMaterial: '',
+    });
+    setMatchCapabilitiesResult(null);
+    setError(null);
+  };
+
   const getAvailableActions = (): string[] => {
     if (!formData.entityType) return [];
     const schema = schemas.find((s) => s.entityType === formData.entityType);
@@ -220,6 +295,18 @@ export default function AuthorizationTestPage() {
     return [...(schema.atomicActions || []), ...(schema.globalActions || [])];
   };
 
+  const getGroupedSchemas = (): Record<string, SchemaDefinition[]> => {
+    const grouped: Record<string, SchemaDefinition[]> = {};
+    schemas.forEach((schema) => {
+      const namespace = schema.namespace || 'other';
+      if (!grouped[namespace]) {
+        grouped[namespace] = [];
+      }
+      grouped[namespace].push(schema);
+    });
+    return grouped;
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -229,6 +316,19 @@ export default function AuthorizationTestPage() {
         </p>
       </div>
 
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          <strong>Policy Rule Format:</strong> When creating rules in policies, specify the{' '}
+          <code className="bg-muted px-1 py-0.5 rounded text-xs">namespace</code> field and use{' '}
+          <code className="bg-muted px-1 py-0.5 rounded text-xs">&lt;schemaName&gt;.&lt;entityType&gt;</code> for the{' '}
+          <code className="bg-muted px-1 py-0.5 rounded text-xs">entityType</code> field. Example:{' '}
+          <code className="bg-muted px-1 py-0.5 rounded text-xs">namespace: &quot;pki&quot;</code>,{' '}
+          <code className="bg-muted px-1 py-0.5 rounded text-xs">entityType: &quot;dmsmanager.dms&quot;</code> or{' '}
+          <code className="bg-muted px-1 py-0.5 rounded text-xs">entityType: &quot;devmanager.device&quot;</code>
+        </AlertDescription>
+      </Alert>
+
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -237,11 +337,13 @@ export default function AuthorizationTestPage() {
       )}
 
       <Tabs defaultValue="authorize" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="authorize">Authorize</TabsTrigger>
           <TabsTrigger value="filter">Get Filter</TabsTrigger>
           <TabsTrigger value="match-authorize">Match & Authorize</TabsTrigger>
           <TabsTrigger value="match-filter">Match & Filter</TabsTrigger>
+          <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
+          <TabsTrigger value="match-capabilities">Match & Capabilities</TabsTrigger>
         </TabsList>
 
         <TabsContent value="authorize" className="space-y-6">
@@ -291,10 +393,15 @@ export default function AuthorizationTestPage() {
                       <SelectValue placeholder="Select entity type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {schemas.map((schema) => (
-                        <SelectItem key={schema.entityType} value={schema.entityType}>
-                          {schema.entityType}
-                        </SelectItem>
+                      {Object.entries(getGroupedSchemas()).map(([namespace, namespaceSchemas]) => (
+                        <SelectGroup key={namespace}>
+                          <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
+                          {namespaceSchemas.map((schema) => (
+                            <SelectItem key={schema.entityType} value={schema.entityType} style={{paddingLeft: "55px"}}>
+                              {schema.entityType}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>
@@ -472,10 +579,15 @@ export default function AuthorizationTestPage() {
                       <SelectValue placeholder="Select entity type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {schemas.map((schema) => (
-                        <SelectItem key={schema.entityType} value={schema.entityType}>
-                          {schema.entityType}
-                        </SelectItem>
+                      {Object.entries(getGroupedSchemas()).map(([namespace, namespaceSchemas]) => (
+                        <SelectGroup key={namespace}>
+                          <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
+                          {namespaceSchemas.map((schema) => (
+                            <SelectItem key={schema.entityType} value={schema.entityType} className="pl-10">
+                              {schema.entityType}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>
@@ -516,10 +628,6 @@ export default function AuthorizationTestPage() {
                   <div className="space-y-4">
                     <div className="space-y-3 text-sm">
                       <div>
-                        <p className="font-medium text-muted-foreground">Principal ID</p>
-                        <p className="font-mono">{filterResult.principalId}</p>
-                      </div>
-                      <div>
                         <p className="font-medium text-muted-foreground">Entity Type</p>
                         <Badge variant="outline">{filterResult.entityType}</Badge>
                       </div>
@@ -529,20 +637,11 @@ export default function AuthorizationTestPage() {
 
                     <div className="space-y-3">
                       <div>
-                        <p className="font-medium text-muted-foreground mb-2">WHERE Clause</p>
+                        <p className="font-medium text-muted-foreground mb-2">Filter Query</p>
                         <pre className="bg-muted p-3 rounded-lg overflow-auto text-xs font-mono">
-                          {filterResult.whereClause || '(no filter - full access)'}
+                          {filterResult.filterQuery || '(no filter - full access)'}
                         </pre>
                       </div>
-
-                      {filterResult.args && filterResult.args.length > 0 && (
-                        <div>
-                          <p className="font-medium text-muted-foreground mb-2">Arguments</p>
-                          <pre className="bg-muted p-3 rounded-lg overflow-auto text-xs font-mono">
-                            {JSON.stringify(filterResult.args, null, 2)}
-                          </pre>
-                        </div>
-                      )}
                     </div>
 
                     <Separator />
@@ -629,10 +728,15 @@ export default function AuthorizationTestPage() {
                       <SelectValue placeholder="Select entity type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {schemas.map((schema) => (
-                        <SelectItem key={schema.entityType} value={schema.entityType}>
-                          {schema.entityType}
-                        </SelectItem>
+                      {Object.entries(getGroupedSchemas()).map(([namespace, namespaceSchemas]) => (
+                        <SelectGroup key={namespace}>
+                          <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
+                          {namespaceSchemas.map((schema) => (
+                            <SelectItem key={schema.entityType} value={schema.entityType} className="pl-10">
+                              {schema.entityType}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>
@@ -840,10 +944,15 @@ export default function AuthorizationTestPage() {
                       <SelectValue placeholder="Select entity type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {schemas.map((schema) => (
-                        <SelectItem key={schema.entityType} value={schema.entityType}>
-                          {schema.entityType}
-                        </SelectItem>
+                      {Object.entries(getGroupedSchemas()).map(([namespace, namespaceSchemas]) => (
+                        <SelectGroup key={namespace}>
+                          <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
+                          {namespaceSchemas.map((schema) => (
+                            <SelectItem key={schema.entityType} value={schema.entityType} className="pl-10">
+                              {schema.entityType}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>
@@ -907,20 +1016,11 @@ export default function AuthorizationTestPage() {
 
                     <div className="space-y-3">
                       <div>
-                        <p className="font-medium text-muted-foreground mb-2">WHERE Clause</p>
+                        <p className="font-medium text-muted-foreground mb-2">Filter Query</p>
                         <pre className="bg-muted p-3 rounded-lg overflow-auto text-xs font-mono">
-                          {matchFilterResult.whereClause || '(no filter - full access)'}
+                          {matchFilterResult.filterQuery || '(no filter - full access)'}
                         </pre>
                       </div>
-
-                      {matchFilterResult.args && matchFilterResult.args.length > 0 && (
-                        <div>
-                          <p className="font-medium text-muted-foreground mb-2">Arguments</p>
-                          <pre className="bg-muted p-3 rounded-lg overflow-auto text-xs font-mono">
-                            {JSON.stringify(matchFilterResult.args, null, 2)}
-                          </pre>
-                        </div>
-                      )}
                     </div>
 
                     <Separator />
@@ -931,6 +1031,319 @@ export default function AuthorizationTestPage() {
                       </summary>
                       <pre className="bg-muted p-4 overflow-auto text-xs">
                         {JSON.stringify(matchFilterResult, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="capabilities" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Capabilities Input Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Capabilities Parameters</CardTitle>
+                <CardDescription>
+                  Get all capabilities for a principal
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="capabilities-principal">Principal</Label>
+                  <Select
+                    value={capabilitiesFormData.principalId}
+                    onValueChange={(value) =>
+                      setCapabilitiesFormData({ ...capabilitiesFormData, principalId: value })
+                    }
+                  >
+                    <SelectTrigger id="capabilities-principal">
+                      <SelectValue placeholder="Select principal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {principals.map((principal) => (
+                        <SelectItem key={principal.id} value={principal.id}>
+                          {principal.name}
+                          <Badge variant="secondary" className="ml-2">
+                            {principal.type}
+                          </Badge>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
+                <div className="flex gap-2">
+                  <Button onClick={handleGetCapabilities} disabled={loading} className="flex-1">
+                    {loading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="mr-2 h-4 w-4" />
+                    )}
+                    Get Capabilities
+                  </Button>
+                  <Button variant="outline" onClick={handleResetCapabilities}>
+                    Reset
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Capabilities Result Display */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Capabilities Result</CardTitle>
+                <CardDescription>
+                  Principal permissions across entity types
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!capabilitiesResult ? (
+                  <div className="flex items-center justify-center py-12 text-muted-foreground">
+                    Run a test to see results
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {Object.entries(capabilitiesResult.entity_types).map(([entityType, capabilities]) => (
+                      <div key={entityType} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="text-base">
+                            {entityType}
+                          </Badge>
+                          {capabilities.truncated && (
+                            <Badge variant="secondary">
+                              Truncated ({capabilities.total_count} total)
+                            </Badge>
+                          )}
+                        </div>
+
+                        {capabilities.global_actions && capabilities.global_actions.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground mb-2">Global Actions</p>
+                            <div className="flex flex-wrap gap-1">
+                              {capabilities.global_actions.map((action) => (
+                                <Badge key={action} variant="default" className="text-xs">
+                                  {action}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {capabilities.entities && capabilities.entities.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground mb-2">
+                              Entity-Specific Permissions ({capabilities.entities.length})
+                            </p>
+                            <div className="max-h-48 overflow-y-auto space-y-2">
+                              {capabilities.entities.map((entity) => (
+                                <div
+                                  key={entity.entity_id}
+                                  className="bg-muted p-2 rounded text-xs space-y-1"
+                                >
+                                  <p className="font-mono font-medium">{entity.entity_id}</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {entity.actions.map((action) => (
+                                      <Badge key={action} variant="secondary" className="text-xs">
+                                        {action}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    <Separator />
+
+                    <details className="border rounded-lg">
+                      <summary className="cursor-pointer p-3 hover:bg-muted text-sm font-medium">
+                        View Full Response
+                      </summary>
+                      <pre className="bg-muted p-4 overflow-auto text-xs">
+                        {JSON.stringify(capabilitiesResult, null, 2)}
+                      </pre>
+                    </details>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="match-capabilities" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Match & Capabilities Input Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Match & Capabilities Parameters</CardTitle>
+                <CardDescription>
+                  Provide authentication credentials to match principals and get capabilities
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="match-cap-auth-type">Authentication Type</Label>
+                  <Select
+                    value={matchCapabilitiesFormData.authType}
+                    onValueChange={(value: 'api_key' | 'oidc' | 'x509') =>
+                      setMatchCapabilitiesFormData({ ...matchCapabilitiesFormData, authType: value, authMaterial: '' })
+                    }
+                  >
+                    <SelectTrigger id="match-cap-auth-type">
+                      <SelectValue placeholder="Select auth type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="x509">X.509 Certificate</SelectItem>
+                      <SelectItem value="oidc">OIDC / JWT Token</SelectItem>
+                      <SelectItem value="api_key">API Key</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="match-cap-auth-material">
+                    {matchCapabilitiesFormData.authType === 'x509' && 'X.509 Certificate (PEM)'}
+                    {matchCapabilitiesFormData.authType === 'oidc' && 'JWT Token'}
+                    {matchCapabilitiesFormData.authType === 'api_key' && 'API Key'}
+                  </Label>
+                  <Textarea
+                    id="match-cap-auth-material"
+                    placeholder={
+                      matchCapabilitiesFormData.authType === 'x509'
+                        ? '-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----'
+                        : matchCapabilitiesFormData.authType === 'oidc'
+                        ? 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'
+                        : 'your-api-key-here'
+                    }
+                    value={matchCapabilitiesFormData.authMaterial}
+                    onChange={(e) =>
+                      setMatchCapabilitiesFormData({ ...matchCapabilitiesFormData, authMaterial: e.target.value })
+                    }
+                    className="font-mono text-xs min-h-[120px]"
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="flex gap-2">
+                  <Button onClick={handleMatchAndGetCapabilities} disabled={loading} className="flex-1">
+                    {loading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="mr-2 h-4 w-4" />
+                    )}
+                    Get Capabilities
+                  </Button>
+                  <Button variant="outline" onClick={handleResetMatchCapabilities}>
+                    Reset
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Match & Capabilities Result Display */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Match & Capabilities Result</CardTitle>
+                <CardDescription>
+                  Matched principals and their capabilities
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!matchCapabilitiesResult ? (
+                  <div className="flex items-center justify-center py-12 text-muted-foreground">
+                    Run a test to see results
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="font-medium text-muted-foreground">Matched Principals</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {matchCapabilitiesResult.matched_principals.length > 0 ? (
+                            matchCapabilitiesResult.matched_principals.map((principalId) => (
+                              <Badge key={principalId} variant="secondary">
+                                {principalId}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-muted-foreground">No principals matched</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {Object.entries(matchCapabilitiesResult.entity_types).map(([entityType, capabilities]) => (
+                      <div key={entityType} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="text-base">
+                            {entityType}
+                          </Badge>
+                          {capabilities.truncated && (
+                            <Badge variant="secondary">
+                              Truncated ({capabilities.total_count} total)
+                            </Badge>
+                          )}
+                        </div>
+
+                        {capabilities.global_actions && capabilities.global_actions.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground mb-2">Global Actions</p>
+                            <div className="flex flex-wrap gap-1">
+                              {capabilities.global_actions.map((action) => (
+                                <Badge key={action} variant="default" className="text-xs">
+                                  {action}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {capabilities.entities && capabilities.entities.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground mb-2">
+                              Entity-Specific Permissions ({capabilities.entities.length})
+                            </p>
+                            <div className="max-h-48 overflow-y-auto space-y-2">
+                              {capabilities.entities.map((entity) => (
+                                <div
+                                  key={entity.entity_id}
+                                  className="bg-muted p-2 rounded text-xs space-y-1"
+                                >
+                                  <p className="font-mono font-medium">{entity.entity_id}</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {entity.actions.map((action) => (
+                                      <Badge key={action} variant="secondary" className="text-xs">
+                                        {action}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    <Separator />
+
+                    <details className="border rounded-lg">
+                      <summary className="cursor-pointer p-3 hover:bg-muted text-sm font-medium">
+                        View Full Response
+                      </summary>
+                      <pre className="bg-muted p-4 overflow-auto text-xs">
+                        {JSON.stringify(matchCapabilitiesResult, null, 2)}
                       </pre>
                     </details>
                   </div>
