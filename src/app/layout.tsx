@@ -97,8 +97,8 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'jobs': "Jobs",
   'workflows': "Workflows",
   'authz': "Authorization",
-  'policies': "Policies",
   'principals': "Principals",
+  'policies': "Policies",
   'test': "Authorization Test",
 };
 
@@ -151,8 +151,8 @@ const navigationConfig: NavGroup[] = [
   {
     label: 'AUTHZ & SECURITY',
     items: [
-      { href: '/authz/policies', label: 'Policies', icon: Lock },
       { href: '/authz/principals', label: 'Principals', icon: UserCheck },
+      { href: '/authz/policies', label: 'Policies', icon: Lock },
       { href: '/authz/test', label: 'Authorization Test', icon: TestTube2 },
     ],
   },

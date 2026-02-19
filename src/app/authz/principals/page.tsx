@@ -29,6 +29,7 @@ import { Plus, Trash2, Loader2, AlertCircle, Eye, CheckCircle, XCircle } from 'l
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { listPrincipals, deletePrincipal, updatePrincipal } from '@/lib/authz-api';
 import type { Principal, PrincipalType } from '@/types/authz';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 
 export default function PrincipalsPage() {
   const router = useRouter();
@@ -181,7 +182,7 @@ export default function PrincipalsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {new Date(principal.createdAt).toLocaleDateString()}
+                      <DateDisplay date={principal.createdAt} />
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

@@ -1,6 +1,7 @@
 // Authorization & Security Type Definitions
 
 export interface Rule {
+  namespace?: string;
   entityType: string;
   actions: string[];
   relations: RelationRule[];

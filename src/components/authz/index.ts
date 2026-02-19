@@ -2,6 +2,7 @@ export { PolicyBuilder } from './PolicyBuilder';
 export { PolicyBuilderJSON } from './PolicyBuilderJSON';
 export { PolicyBuilderForm } from './PolicyBuilderForm';
 export { PolicyBuilderFlow } from './PolicyBuilderFlow';
+export { EntityTypeSelector } from './EntityTypeSelector';
 export { EntityNode } from './flow-nodes/EntityNode';
 export { RelationNode } from './flow-nodes/RelationNode';
 export { RuleNode } from './flow-nodes/RuleNode';

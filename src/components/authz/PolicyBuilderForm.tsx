@@ -28,8 +28,24 @@ import {
 } from '@/components/ui/accordion';
 import { Plus, Trash2, AlertCircle, ChevronRight, Loader2, X } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { EntityTypeSelector } from '@/components/authz/EntityTypeSelector';
 import type { Rule, RelationRule, SchemaDefinition } from '@/types/authz';
 import { getSchemas, findAmbiguousEntityTypes } from '@/lib/authz-api';
+
+const getQualifiedEntityType = (schema: SchemaDefinition) => `${schema.schemaName}.${schema.entityType}`;
+
+const getBaseEntityType = (entityType: string) => {
+  const parts = entityType.split('.');
+  return parts[parts.length - 1] || entityType;
+};
+
+const matchesSchemaEntityType = (value: string, schema: SchemaDefinition) => {
+  return value === schema.entityType || value === getQualifiedEntityType(schema);
+};
+
+const findSchemaByEntityType = (schemas: SchemaDefinition[], value: string) => {
+  return schemas.find((schema) => matchesSchemaEntityType(value, schema));
+};
 
 interface PolicyBuilderFormProps {
   rules: Rule[];
@@ -63,6 +79,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
     onChange([
       ...rules,
       {
+        namespace: '',
         entityType: '',
         actions: [],
         relations: [],
@@ -112,6 +129,11 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                   <span className="text-sm font-medium">
                     {rule.entityType || 'Untitled'}
                   </span>
+                  {rule.namespace && (
+                    <Badge variant="secondary" className="text-xs">
+                      {rule.namespace}
+                    </Badge>
+                  )}
                   <Badge variant="outline" className="ml-auto">
                     {rule.actions.length} action{rule.actions.length !== 1 ? 's' : ''}
                   </Badge>
@@ -150,7 +172,9 @@ interface RuleEditorProps {
 function RuleEditor({ rule, onChange, onDelete, schemas, ambiguousTypes }: RuleEditorProps) {
   const [grantInput, setGrantInput] = useState('');
 
-  const selectedSchema = schemas.find((s) => s.entityType === rule.entityType);
+  const selectedSchema = findSchemaByEntityType(schemas, rule.entityType);
+  const selectedEntityTypeValue = selectedSchema ? getQualifiedEntityType(selectedSchema) : rule.entityType;
+  const selectedEntityTypeBase = selectedSchema?.entityType || getBaseEntityType(rule.entityType);
   const availableActions = selectedSchema
     ? [
         ...(selectedSchema.atomicActions || []),
@@ -215,34 +239,28 @@ function RuleEditor({ rule, onChange, onDelete, schemas, ambiguousTypes }: RuleE
         {/* Entity Type */}
         <div className="space-y-2">
           <Label className="text-sm font-semibold text-foreground">Entity Type *</Label>
-          <Select
-            value={rule.entityType}
-            onValueChange={(value) => onChange({ ...rule, entityType: value, actions: [] })}
-          >
-            <SelectTrigger className="bg-background">
-              <SelectValue placeholder="Select entity type..." />
-            </SelectTrigger>
-            <SelectContent>
-              {schemas.map((schema) => (
-                <SelectItem key={schema.entityType} value={schema.entityType}>
-                  <div className="flex items-center gap-2">
-                    <span>{schema.entityType}</span>
-                    {schema.namespace && (
-                      <Badge variant="outline" className="text-xs">
-                        {schema.namespace}
-                      </Badge>
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {rule.entityType && ambiguousTypes.has(rule.entityType) && (
+          <EntityTypeSelector
+            id="policy-rule-entity-type"
+            schemas={schemas}
+            value={selectedEntityTypeValue}
+            valueMode="qualified"
+            onValueChange={(value) => {
+              const schema = findSchemaByEntityType(schemas, value);
+              onChange({
+                ...rule,
+                namespace: schema?.namespace || rule.namespace,
+                entityType: value,
+                actions: [],
+              });
+            }}
+            placeholder="Select entity type..."
+          />
+          {selectedEntityTypeBase && ambiguousTypes.has(selectedEntityTypeBase) && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Warning: Entity type &quot;{rule.entityType}&quot; exists in multiple namespaces: {ambiguousTypes.get(rule.entityType)?.join(', ')}
-                {'. '}Consider using qualified names like &quot;{ambiguousTypes.get(rule.entityType)?.[0]}.{rule.entityType}&quot; for clarity.
+                Warning: Entity type &quot;{selectedEntityTypeBase}&quot; exists in multiple namespaces: {ambiguousTypes.get(selectedEntityTypeBase)?.join(', ')}
+                {'. '}Use qualified names like &quot;{ambiguousTypes.get(selectedEntityTypeBase)?.[0]}.{selectedEntityTypeBase}&quot; for clarity.
               </AlertDescription>
             </Alert>
           )}
@@ -373,24 +391,31 @@ interface RelationEditorProps {
 }
 
 function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEntityType }: RelationEditorProps) {
+  const parentSchema = findSchemaByEntityType(schemas, parentEntityType);
+  const normalizedParentEntityType = parentSchema?.entityType || getBaseEntityType(parentEntityType);
+
   // Find all entities that have relations pointing TO the parent entity
   // Relations are defined from child to parent (e.g., building -> organization)
   const entitiesPointingToParent = schemas.filter((schema) =>
     Object.values(schema.relations || {}).some(
-      (rel) => rel.targetEntity === parentEntityType
+      (rel) => rel.targetEntity === normalizedParentEntityType
     )
   );
   
   // Get all relations from entities that point to the parent
   const availableTargetEntities = entitiesPointingToParent.map((schema) => ({
     entityType: schema.entityType,
+    qualifiedEntityType: getQualifiedEntityType(schema),
     relations: Object.values(schema.relations || {}).filter(
-      (rel) => rel.targetEntity === parentEntityType
+      (rel) => rel.targetEntity === normalizedParentEntityType
     ),
   }));
+
+  const selectedTargetSchema = findSchemaByEntityType(schemas, relation.to);
+  const selectedTargetEntityValue = selectedTargetSchema ? getQualifiedEntityType(selectedTargetSchema) : relation.to;
   
   // Get target entity's schema for available actions
-  const targetSchema = schemas.find((s) => s.entityType === relation.to);
+  const targetSchema = selectedTargetSchema;
   const availableActions = targetSchema
     ? [
         ...(targetSchema.atomicActions || []),
@@ -399,7 +424,7 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
     : [];
 
   // Get available relation names from the target entity pointing to parent
-  const targetEntityData = availableTargetEntities.find((e) => e.entityType === relation.to);
+  const targetEntityData = availableTargetEntities.find((e) => e.entityType === targetSchema?.entityType);
   const relationsForTarget = targetEntityData ? targetEntityData.relations : [];
 
   const toggleAction = (action: string) => {
@@ -449,7 +474,7 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
               <p className="text-sm text-muted-foreground italic">No entities point to {parentEntityType}</p>
             ) : (
               <Select
-                value={relation.to}
+                value={selectedTargetEntityValue}
                 onValueChange={(value) => onChange({ ...relation, to: value, via: '', actions: [] })}
               >
                 <SelectTrigger>
@@ -457,7 +482,7 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
                 </SelectTrigger>
                 <SelectContent>
                   {availableTargetEntities.map((entity) => (
-                    <SelectItem key={entity.entityType} value={entity.entityType}>
+                    <SelectItem key={entity.qualifiedEntityType} value={entity.qualifiedEntityType}>
                       {entity.entityType}
                     </SelectItem>
                   ))}

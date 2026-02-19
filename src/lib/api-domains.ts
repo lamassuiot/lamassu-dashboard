@@ -49,19 +49,65 @@ export const get_WFX_API_BASE_URL = () => `${getApiBaseUrl()}/wfx/nbi/v1`;
 // These endpoints now use the potentially overridden base URL
 export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/est`;
 
-export const handleApiError = async (response: Response, defaultMessage: string) => {
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `${defaultMessage}. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            if (errorJson && (errorJson.err || errorJson.message)) {
-                errorMessage = `${defaultMessage}: ${errorJson.err || errorJson.message}`;
+export const handleApiError = async <T = unknown>(
+    response: Response,
+    defaultMessage: string
+) => {
+    const contentType = response.headers.get("content-type") || "";
+    const contentLength = response.headers.get("content-length");
+    const hasJson = contentType.toLowerCase().includes("application/json");
+
+    const isNoContent =
+        response.status === 204 ||
+        response.status === 205 ||
+        contentLength === "0";
+
+    // Helper to safely read body (for errors and/or success)
+    const readBody = async (): Promise<{ json?: any; text?: string }> => {
+        if (isNoContent) return {};
+
+        // Try JSON only if it looks like JSON
+        if (hasJson) {
+            try {
+                const json = await response.clone().json();
+                return { json };
+            } catch {
+                // Fall through to text
             }
-        } catch (e) {
-            console.error("Failed to parse error response as JSON:", e);
         }
+
+        // Fallback to text (covers non-JSON, malformed JSON, etc.)
+        try {
+            const text = await response.clone().text();
+            return text ? { text } : {};
+        } catch {
+            return {};
+        }
+    };
+
+    if (!response.ok) {
+        const body = await readBody();
+
+        const serverMsg =
+            body.json?.err ??
+            body.json?.message ??
+            body.json?.error ??
+            (typeof body.text === "string" && body.text.trim() ? body.text.trim() : undefined);
+
+        const errorMessage = serverMsg
+            ? `${defaultMessage}: ${serverMsg}`
+            : `${defaultMessage}. HTTP error ${response.status}`;
+
         throw new Error(errorMessage);
     }
-    return response.json();
+
+    // Success cases
+    if (isNoContent) return null;
+
+    if (hasJson) {
+        // If this throws, it's a real mismatch: server claimed JSON but didn't send valid JSON
+        return (await response.json()) ;
+    }
+
+    return null;
 };

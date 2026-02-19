@@ -11,8 +11,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  SelectGroup,
-  SelectLabel,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertCircle, CheckCircle, XCircle, Play, Filter } from 'lucide-react';
@@ -20,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { EntityTypeSelector } from '@/components/authz/EntityTypeSelector';
 import { authorize, getFilter, matchAndAuthorize, matchAndGetFilter, getCapabilities, matchAndGetCapabilities, listPrincipals, getSchemas } from '@/lib/authz-api';
 import type { Principal, SchemaDefinition, AuthorizeResponse, FilterResponse, MatchAndAuthorizeResponse, MatchAndGetFilterResponse, CapabilitiesResponse, MatchAndGetCapabilitiesResponse } from '@/types/authz';
 
@@ -295,18 +294,6 @@ export default function AuthorizationTestPage() {
     return [...(schema.atomicActions || []), ...(schema.globalActions || [])];
   };
 
-  const getGroupedSchemas = (): Record<string, SchemaDefinition[]> => {
-    const grouped: Record<string, SchemaDefinition[]> = {};
-    schemas.forEach((schema) => {
-      const namespace = schema.namespace || 'other';
-      if (!grouped[namespace]) {
-        grouped[namespace] = [];
-      }
-      grouped[namespace].push(schema);
-    });
-    return grouped;
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -383,28 +370,12 @@ export default function AuthorizationTestPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="entityType">Entity Type</Label>
-                  <Select
+                  <EntityTypeSelector
+                    id="entityType"
+                    schemas={schemas}
                     value={formData.entityType}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, entityType: value, action: '' })
-                    }
-                  >
-                    <SelectTrigger id="entityType">
-                      <SelectValue placeholder="Select entity type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(getGroupedSchemas()).map(([namespace, namespaceSchemas]) => (
-                        <SelectGroup key={namespace}>
-                          <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
-                          {namespaceSchemas.map((schema) => (
-                            <SelectItem key={schema.entityType} value={schema.entityType} style={{paddingLeft: "55px"}}>
-                              {schema.entityType}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={(value) => setFormData({ ...formData, entityType: value, action: '' })}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -569,28 +540,12 @@ export default function AuthorizationTestPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="filter-entityType">Entity Type</Label>
-                  <Select
+                  <EntityTypeSelector
+                    id="filter-entityType"
+                    schemas={schemas}
                     value={filterFormData.entityType}
-                    onValueChange={(value) =>
-                      setFilterFormData({ ...filterFormData, entityType: value })
-                    }
-                  >
-                    <SelectTrigger id="filter-entityType">
-                      <SelectValue placeholder="Select entity type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(getGroupedSchemas()).map(([namespace, namespaceSchemas]) => (
-                        <SelectGroup key={namespace}>
-                          <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
-                          {namespaceSchemas.map((schema) => (
-                            <SelectItem key={schema.entityType} value={schema.entityType} className="pl-10">
-                              {schema.entityType}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={(value) => setFilterFormData({ ...filterFormData, entityType: value })}
+                  />
                 </div>
 
                 <Separator />
@@ -718,28 +673,12 @@ export default function AuthorizationTestPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="match-entityType">Entity Type</Label>
-                  <Select
+                  <EntityTypeSelector
+                    id="match-entityType"
+                    schemas={schemas}
                     value={matchAuthorizeFormData.entityType}
-                    onValueChange={(value) =>
-                      setMatchAuthorizeFormData({ ...matchAuthorizeFormData, entityType: value, action: '' })
-                    }
-                  >
-                    <SelectTrigger id="match-entityType">
-                      <SelectValue placeholder="Select entity type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(getGroupedSchemas()).map(([namespace, namespaceSchemas]) => (
-                        <SelectGroup key={namespace}>
-                          <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
-                          {namespaceSchemas.map((schema) => (
-                            <SelectItem key={schema.entityType} value={schema.entityType} className="pl-10">
-                              {schema.entityType}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={(value) => setMatchAuthorizeFormData({ ...matchAuthorizeFormData, entityType: value, action: '' })}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -934,28 +873,12 @@ export default function AuthorizationTestPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="match-filter-entityType">Entity Type</Label>
-                  <Select
+                  <EntityTypeSelector
+                    id="match-filter-entityType"
+                    schemas={schemas}
                     value={matchFilterFormData.entityType}
-                    onValueChange={(value) =>
-                      setMatchFilterFormData({ ...matchFilterFormData, entityType: value })
-                    }
-                  >
-                    <SelectTrigger id="match-filter-entityType">
-                      <SelectValue placeholder="Select entity type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(getGroupedSchemas()).map(([namespace, namespaceSchemas]) => (
-                        <SelectGroup key={namespace}>
-                          <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
-                          {namespaceSchemas.map((schema) => (
-                            <SelectItem key={schema.entityType} value={schema.entityType} className="pl-10">
-                              {schema.entityType}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={(value) => setMatchFilterFormData({ ...matchFilterFormData, entityType: value })}
+                  />
                 </div>
 
                 <Separator />

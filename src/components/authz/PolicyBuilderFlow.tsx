@@ -41,6 +41,7 @@ import { Plus, AlertCircle, Loader2, Workflow } from 'lucide-react';
 import type { Rule, RelationRule, SchemaDefinition } from '@/types/authz';
 import { SchemaEntityNode } from './flow-nodes/SchemaEntityNode';
 import { NestedRuleEdge } from './flow-nodes/NestedRuleEdge';
+import { EntityTypeSelector } from './EntityTypeSelector';
 import { getSchemas, findAmbiguousEntityTypes } from '@/lib/authz-api';
 import Dagre from '@dagrejs/dagre';
 
@@ -86,6 +87,21 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   });
 
   return { nodes: layoutedNodes, edges };
+};
+
+const getQualifiedEntityType = (schema: SchemaDefinition) => `${schema.schemaName}.${schema.entityType}`;
+
+const getBaseEntityType = (entityType: string) => {
+  const parts = entityType.split('.');
+  return parts[parts.length - 1] || entityType;
+};
+
+const matchesSchemaEntityType = (value: string, schema: SchemaDefinition) => {
+  return value === schema.entityType || value === getQualifiedEntityType(schema);
+};
+
+const findSchemaByEntityType = (schemas: SchemaDefinition[], value: string) => {
+  return schemas.find((schema) => matchesSchemaEntityType(value, schema));
 };
 
 export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowProps) {
@@ -151,9 +167,10 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       const configs: Array<{ id: string; startingEntity: string }> = [];
       
       if (selectedRule && selectedRule.entityType) {
+        const selectedSchema = findSchemaByEntityType(schemas, selectedRule.entityType);
         configs.push({
           id: `rule-${selectedRuleIndex}`,
-          startingEntity: selectedRule.entityType,
+          startingEntity: selectedSchema?.entityType || selectedRule.entityType,
         });
       }
       
@@ -202,7 +219,8 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
         // Add entities that are targets of relations in the selected rule
         if (selectedRule && selectedRule.relations) {
           selectedRule.relations.forEach((rel) => {
-            entitiesInTree.add(rel.to);
+            const targetSchema = findSchemaByEntityType(schemas, rel.to);
+            entitiesInTree.add(targetSchema?.entityType || getBaseEntityType(rel.to));
           });
         }
         
@@ -272,9 +290,11 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
             // For each incoming relation, check if it's enabled in the JSON rule
             incomingRelations.forEach((incomingRel) => {
               // Check if the source entity (the one that points to us) has this relation in JSON
-              if (selectedRule && selectedRule.entityType === incomingRel.sourceEntity && selectedRule.relations) {
+              const selectedRuleSourceEntity = selectedRule ? (findSchemaByEntityType(schemas, selectedRule.entityType)?.entityType || getBaseEntityType(selectedRule.entityType)) : '';
+
+              if (selectedRule && selectedRuleSourceEntity === incomingRel.sourceEntity && selectedRule.relations) {
                 const ruleRelation = selectedRule.relations.find(
-                  (r) => r.to.toLowerCase() === entityType.toLowerCase() && 
+                  (r) => (findSchemaByEntityType(schemas, r.to)?.entityType || getBaseEntityType(r.to)).toLowerCase() === entityType.toLowerCase() && 
                          r.via.toLowerCase() === incomingRel.name.toLowerCase()
                 );
                 
@@ -356,7 +376,8 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       // Add entities that are targets of relations in the selected rule
       if (selectedRule && selectedRule.relations) {
         selectedRule.relations.forEach((rel) => {
-          entitiesInTree.add(rel.to);
+          const targetSchema = findSchemaByEntityType(schemas, rel.to);
+          entitiesInTree.add(targetSchema?.entityType || getBaseEntityType(rel.to));
         });
       }
       
@@ -415,9 +436,11 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       }
       
       incomingRelations.forEach((incomingRel) => {
-        if (selectedRule && selectedRule.entityType === incomingRel.sourceEntity && selectedRule.relations) {
+        const selectedRuleSourceEntity = selectedRule ? (findSchemaByEntityType(schemas, selectedRule.entityType)?.entityType || getBaseEntityType(selectedRule.entityType)) : '';
+
+        if (selectedRule && selectedRuleSourceEntity === incomingRel.sourceEntity && selectedRule.relations) {
           const ruleRelation = selectedRule.relations.find(
-            (r) => r.to.toLowerCase() === schema.entityType.toLowerCase() && 
+            (r) => (findSchemaByEntityType(schemas, r.to)?.entityType || getBaseEntityType(r.to)).toLowerCase() === schema.entityType.toLowerCase() && 
                    r.via.toLowerCase() === incomingRel.name.toLowerCase()
           );
           
@@ -643,6 +666,13 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       
       if (policyNode) {
         const policyData = policyNode.data as any;
+        const existingRule = updatedRules[selectedRuleIndex] || {
+          namespace: '',
+          entityType: '',
+          actions: [],
+          relations: [],
+        };
+        const sourceSchema = schemas.find((schema) => schema.entityType === ruleConfig.startingEntity);
         
         // Extract nested rules by looking at TARGET entities' nestedRules
         // Since the target entity displays the switch, we need to scan all nodes for enabled nested rules
@@ -659,8 +689,9 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                 // Check if this nested rule points back to our starting entity
                 if (nr.enabled && nr.sourceEntity === ruleConfig.startingEntity) {
                   console.log(`[PolicyBuilderFlow] Found enabled nested rule: ${nr.sourceEntity} -> ${targetEntity} via ${nr.relationName}`);
+                  const targetSchema = schemas.find((schema) => schema.entityType === targetEntity);
                   nestedRules.push({
-                    to: targetEntity,
+                    to: targetSchema ? getQualifiedEntityType(targetSchema) : targetEntity,
                     via: nr.relationName,
                     actions: nr.actions || [],
                     relations: [], // TODO: support deeper nesting
@@ -672,7 +703,9 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
         });
 
         updatedRules[selectedRuleIndex] = {
-          entityType: ruleConfig.startingEntity,
+          ...existingRule,
+          namespace: sourceSchema?.namespace || existingRule.namespace,
+          entityType: sourceSchema ? getQualifiedEntityType(sourceSchema) : ruleConfig.startingEntity,
           actions: policyData.actions || [],
           directGrants: policyData.directGrants || [],
           relations: nestedRules,
@@ -901,25 +934,13 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Starting Entity</Label>
-              <Select value={selectedEntityType} onValueChange={setSelectedEntityType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select starting entity..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {schemas.map((schema) => (
-                    <SelectItem key={schema.entityType} value={schema.entityType}>
-                      <div className="flex items-center gap-2">
-                        <span>{schema.entityType}</span>
-                        {schema.namespace && (
-                          <Badge variant="outline" className="text-xs">
-                            {schema.namespace}
-                          </Badge>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EntityTypeSelector
+                id="policy-flow-starting-entity"
+                schemas={schemas}
+                value={selectedEntityType}
+                onValueChange={setSelectedEntityType}
+                placeholder="Select starting entity..."
+              />
               {selectedEntityType && ambiguousTypes.has(selectedEntityType) && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />

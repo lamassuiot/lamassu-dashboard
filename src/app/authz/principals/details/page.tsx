@@ -433,7 +433,7 @@ function PrincipalDetailsContent() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push(`/authz/principals/edit?principalId=${principal.id}`)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit Principal
             </DropdownMenuItem>

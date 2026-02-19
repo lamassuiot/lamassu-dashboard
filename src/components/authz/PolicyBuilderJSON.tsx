@@ -74,6 +74,7 @@ export function PolicyBuilderJSON({ rules, onChange, error }: PolicyBuilderJSONP
         <pre className="bg-muted p-2 rounded">
 {`[
   {
+    "namespace": "pki",
     "entityType": "document",
     "actions": ["read", "write"],
     "relations": [
