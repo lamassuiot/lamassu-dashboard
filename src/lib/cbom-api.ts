@@ -31,6 +31,43 @@ export interface ScanRequest {
   credentials?: ScanCredentials;
 }
 
+export type CBOMScanMessageType = 'LABEL' | 'GITURL' | 'BRANCH' | 'REVISION_HASH' | 'DETECTION';
+
+export interface CBOMScanMessage {
+  type: CBOMScanMessageType;
+  message: string;
+}
+
+export interface CBOMScanDetection {
+  type?: string;
+  ['bom-ref']?: string;
+  name?: string;
+  evidence?: {
+    occurrences?: Array<{
+      location?: string;
+      line?: number;
+      offset?: number;
+      additionalContext?: string;
+    }>;
+  };
+  cryptoProperties?: {
+    assetType?: string;
+    algorithmProperties?: {
+      primitive?: string;
+    };
+    oid?: string;
+  };
+}
+
+export interface StartCBOMWebSocketScanParams {
+  scanUrl: string;
+  accessToken?: string;
+  onOpen?: () => void;
+  onMessage?: (message: CBOMScanMessage, detection?: CBOMScanDetection) => void;
+  onError?: (error: Error) => void;
+  onClose?: () => void;
+}
+
 // API Functions
 
 /**
@@ -186,6 +223,102 @@ export async function scanRepository(scanRequest: ScanRequest, accessToken: stri
   }
   
   return response.json();
+}
+
+const resolveCBOMWebSocketUrl = (accessToken?: string): string => {
+  const wsFromConfig =
+    typeof window !== 'undefined' &&
+    (window as any).lamassuConfig?.LAMASSU_CBOM_WS;
+
+  const baseApiUrl = get_CBOM_API_BASE_URL();
+  const fallbackBase = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081';
+  const sourceBase = wsFromConfig || baseApiUrl || fallbackBase;
+
+  const parsed = new URL(sourceBase.replace(/^ws/i, 'http').replace(/^wss/i, 'https'));
+  const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+
+  let normalizedPath = parsed.pathname.replace(/\/$/, '');
+  normalizedPath = normalizedPath.replace(/\/api(?=\/|$)/, '');
+  if (!normalizedPath.endsWith('/v1')) {
+    normalizedPath = `${normalizedPath}/v1`.replace(/\/\//g, '/');
+  }
+
+  const scanSessionId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  const url = new URL(`${wsProtocol}//${parsed.host}${normalizedPath}/scan/${scanSessionId}`);
+
+  if (accessToken) {
+    url.searchParams.set('access_token', accessToken);
+  }
+
+  return url.toString();
+};
+
+const parseScanPayload = (rawData: string): CBOMScanMessage | null => {
+  try {
+    const parsed = JSON.parse(rawData);
+    if (parsed && typeof parsed === 'object' && typeof parsed.type === 'string' && typeof parsed.message === 'string') {
+      return parsed as CBOMScanMessage;
+    }
+
+    if (parsed && typeof parsed === 'object' && typeof parsed.data === 'string') {
+      const nested = JSON.parse(parsed.data);
+      if (nested && typeof nested.type === 'string' && typeof nested.message === 'string') {
+        return nested as CBOMScanMessage;
+      }
+    }
+  } catch (_error) {
+    return null;
+  }
+
+  return null;
+};
+
+export function startCBOMWebSocketScan({
+  scanUrl,
+  accessToken,
+  onOpen,
+  onMessage,
+  onError,
+  onClose,
+}: StartCBOMWebSocketScanParams): WebSocket {
+  const socket = new WebSocket(resolveCBOMWebSocketUrl(accessToken));
+
+  socket.onopen = () => {
+    socket.send(JSON.stringify({ scanUrl }));
+    onOpen?.();
+  };
+
+  socket.onmessage = (event) => {
+    const payload = parseScanPayload(event.data);
+    if (!payload) {
+      return;
+    }
+
+    let parsedDetection: CBOMScanDetection | undefined;
+    if (payload.type === 'DETECTION') {
+      try {
+        parsedDetection = JSON.parse(payload.message) as CBOMScanDetection;
+      } catch (_error) {
+        parsedDetection = undefined;
+      }
+    }
+
+    onMessage?.(payload, parsedDetection);
+  };
+
+  socket.onerror = () => {
+    onError?.(new Error('CBOM scan websocket connection failed'));
+  };
+
+  socket.onclose = () => {
+    onClose?.();
+  };
+
+  return socket;
 }
 
 /**
