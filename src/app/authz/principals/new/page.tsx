@@ -216,14 +216,11 @@ export default function NewPrincipalPage() {
       const principalData: any = {
         id: principalId,
         name: name,
+        description: description.trim(),
         type: type,
         authConfig: authConfig,
         active: active,
       };
-
-      if (description.trim()) {
-        principalData.description = description;
-      }
 
       await createPrincipal(principalData);
       router.push('/authz/principals');

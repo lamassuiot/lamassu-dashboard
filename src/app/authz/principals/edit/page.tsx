@@ -265,13 +265,10 @@ function EditPrincipalContent() {
 
       const updatePayload: any = {
         name,
+        description: description.trim(),
         active,
         authConfig,
       };
-
-      if (description.trim()) {
-        updatePayload.description = description;
-      }
 
       await updatePrincipal(principalId, updatePayload);
       router.push(`/authz/principals/details?principalId=${principalId}`);

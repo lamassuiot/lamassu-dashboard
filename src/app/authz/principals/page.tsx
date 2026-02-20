@@ -147,6 +147,7 @@ export default function PrincipalsPage() {
           <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
@@ -156,7 +157,7 @@ export default function PrincipalsPage() {
             <TableBody>
               {principals.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     No principals found. Create your first principal to get started.
                   </TableCell>
                 </TableRow>
@@ -173,6 +174,13 @@ export default function PrincipalsPage() {
                         </button>
                         <p className="text-sm text-muted-foreground font-mono">{principal.id}</p>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {principal.description ? (
+                        <p className="text-sm text-muted-foreground line-clamp-2 max-w-md">{principal.description}</p>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={getPrincipalTypeColor(principal.type)}>

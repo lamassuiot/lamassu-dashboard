@@ -67,6 +67,7 @@ export type AuthConfig = ApiKeyAuthConfig | OIDCAuthConfig | X509AuthConfig;
 export interface Principal {
   id: string;
   name: string;
+  description?: string;
   type: PrincipalType;
   authConfig: AuthConfig;
   active: boolean;
