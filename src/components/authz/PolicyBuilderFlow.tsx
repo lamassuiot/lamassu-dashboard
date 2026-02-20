@@ -12,7 +12,6 @@ import {
   Controls,
   Background,
   BackgroundVariant,
-  MiniMap,
   NodeTypes,
   EdgeTypes,
   MarkerType,
@@ -37,7 +36,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Plus, AlertCircle, Loader2, Workflow } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, AlertCircle, Loader2, Workflow, Maximize2, Minimize2 } from 'lucide-react';
 import type { Rule, RelationRule, SchemaDefinition } from '@/types/authz';
 import { SchemaEntityNode } from './flow-nodes/SchemaEntityNode';
 import { NestedRuleEdge } from './flow-nodes/NestedRuleEdge';
@@ -111,6 +111,26 @@ const getRuleQualifiedEntityType = (rule: Rule) =>
 const getRelationTargetQualifiedEntityType = (relation: RelationRule) =>
   toQualifiedEntityType(normalizeEntityAddress(relation.to));
 
+const edgeIsInRulePath = (
+  sourceEntity: string,
+  targetEntity: string,
+  relationLabel: string,
+  ruleTreeEdgeKeys: Set<string>
+) => {
+  const normalizedLabel = relationLabel.toLowerCase();
+  if (ruleTreeEdgeKeys.has(`${sourceEntity}->${targetEntity}:${normalizedLabel}`)) {
+    return true;
+  }
+
+  for (const edgeKey of ruleTreeEdgeKeys) {
+    if (edgeKey.startsWith(`${sourceEntity}->${targetEntity}:`)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -126,12 +146,65 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
   const [availableActions, setAvailableActions] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [selectedRuleIndex, setSelectedRuleIndex] = useState<number | null>(null);
+  const [isolateToRule, setIsolateToRule] = useState(false);
+  const [isFlowFullscreen, setIsFlowFullscreen] = useState(false);
   const [ambiguousTypes, setAmbiguousTypes] = useState<Map<string, string[]>>(new Map());
   const isSyncingFromFlow = useRef(false);
+
+  useEffect(() => {
+    if (!isFlowFullscreen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsFlowFullscreen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFlowFullscreen]);
   
   // Create stable key for rules to avoid infinite loops
   const rulesKey = useMemo(() => JSON.stringify(rules), [rules]);
   const hasNodes = useRef(false);
+
+  const selectedRule = selectedRuleIndex !== null ? rules[selectedRuleIndex] : null;
+
+  const { ruleTreeEntities, ruleTreeEdgeKeys } = useMemo(() => {
+    const entities = new Set<string>();
+    const edgeKeys = new Set<string>();
+
+    if (!selectedRule) {
+      return { ruleTreeEntities: entities, ruleTreeEdgeKeys: edgeKeys };
+    }
+
+    const rootEntity =
+      findSchemaByEntityType(schemas, getRuleQualifiedEntityType(selectedRule))?.entityType ||
+      selectedRule.entityType;
+
+    const resolveRelationTarget = (relation: RelationRule) => {
+      const qualifiedTarget = getRelationTargetQualifiedEntityType(relation);
+      const fallbackAddress = normalizeEntityAddress(relation.to);
+      return findSchemaByEntityType(schemas, qualifiedTarget)?.entityType || fallbackAddress.entityType;
+    };
+
+    const walkRelations = (relations: RelationRule[], sourceEntity: string) => {
+      relations.forEach((relation) => {
+        const targetEntity = resolveRelationTarget(relation);
+        entities.add(targetEntity);
+        edgeKeys.add(`${sourceEntity}->${targetEntity}:${relation.via.toLowerCase()}`);
+
+        if (relation.relations && relation.relations.length > 0) {
+          walkRelations(relation.relations, targetEntity);
+        }
+      });
+    };
+
+    entities.add(rootEntity);
+    walkRelations(selectedRule.relations || [], rootEntity);
+
+    return { ruleTreeEntities: entities, ruleTreeEdgeKeys: edgeKeys };
+  }, [rulesKey, selectedRuleIndex, schemas]);
 
   // Load schemas on mount
   useEffect(() => {
@@ -213,6 +286,13 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
 
     // If we already have nodes, update them based on selected rule from rules prop (single source of truth)
     if (nodes.length > 0) {
+      const currentSchemaNodeCount = nodes.filter((node) => node.type === 'schemaEntity').length;
+      if (!isolateToRule && currentSchemaNodeCount < schemas.length) {
+        setNodes([]);
+        setEdges([]);
+        return;
+      }
+
       hasNodes.current = true;
       const selectedRule = selectedRuleIndex !== null ? rules[selectedRuleIndex] : null;
       
@@ -267,7 +347,8 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
 
       // Update existing nodes data based on the selected rule (JSON is source of truth)
       setNodes((nds) =>
-        nds.map((node) => {
+        nds
+          .map((node) => {
           if (node.type === 'schemaEntity') {
             const entityType = node.id.replace('schema-', '');
             const schema = schemas.find((s) => s.entityType === entityType);
@@ -275,6 +356,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
             
             const isStartingEntity = ruleConfigs.some((rc) => rc.startingEntity === entityType);
             const isPolicyNode = isStartingEntity;
+            const isInRuleTree = ruleTreeEntities.has(entityType);
             
             // For the starting entity, get data from the selected rule (JSON source of truth)
             const nodeActions = isPolicyNode && selectedRule ? selectedRule.actions : [];
@@ -358,6 +440,8 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                 actions: nodeActions,
                 directGrants: nodeDirectGrants,
                 nestedRules,
+                isReadOnly: true,
+                isInRuleTree,
                 onUpdate: isPolicyNode
                   ? (data: any) => handlePolicyUpdate(schema.entityType, data)
                   : undefined,
@@ -368,8 +452,47 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
               },
             };
           }
-          return node;
-        })
+            return node;
+          })
+          .filter((node) => {
+            if (node.type !== 'schemaEntity') return true;
+            const entityType = node.id.replace('schema-', '');
+            return !isolateToRule || ruleTreeEntities.has(entityType);
+          })
+      );
+
+      setEdges((currentEdges) =>
+        currentEdges
+          .filter((edge) => {
+            const sourceEntity = edge.source.replace('schema-', '');
+            const targetEntity = edge.target.replace('schema-', '');
+            return !isolateToRule || (ruleTreeEntities.has(sourceEntity) && ruleTreeEntities.has(targetEntity));
+          })
+          .map((edge) => {
+            const sourceEntity = edge.source.replace('schema-', '');
+            const targetEntity = edge.target.replace('schema-', '');
+            const relationLabel = typeof edge.label === 'string' ? edge.label : '';
+            const isRuleEdge = edgeIsInRulePath(sourceEntity, targetEntity, relationLabel, ruleTreeEdgeKeys);
+
+            return {
+              ...edge,
+              animated: isRuleEdge,
+              style: {
+                stroke: isRuleEdge ? 'hsl(142 76% 36%)' : 'hsl(214, 89%, 4%)',
+                strokeWidth: isRuleEdge ? 4 : 2.5,
+                opacity: isRuleEdge ? 1 : 0.55,
+              },
+              labelStyle: {
+                fontSize: 10,
+                fill: isRuleEdge ? 'hsl(142 76% 36%)' : 'hsl(215 20% 45%)',
+                fontWeight: 600,
+              },
+              markerStart: {
+                type: MarkerType.ArrowClosed,
+                color: isRuleEdge ? 'hsl(142 76% 36%)' : 'hsl(215 20% 65%)',
+              },
+            };
+          })
       );
       return; // Exit after updating existing nodes
     }
@@ -430,6 +553,11 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
     schemas.forEach((schema, index) => {
       const isStartingEntity = ruleConfigs.some((rc) => rc.startingEntity === schema.entityType);
       const isPolicyNode = isStartingEntity;
+      const isInRuleTree = ruleTreeEntities.has(schema.entityType);
+
+      if (isolateToRule && !isInRuleTree) {
+        return;
+      }
       
       // For the starting entity, get data from the selected rule (JSON source of truth)
       const nodeActions = isPolicyNode && selectedRule ? selectedRule.actions : [];
@@ -505,6 +633,8 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
           actions: nodeActions,
           directGrants: nodeDirectGrants,
           nestedRules,
+          isReadOnly: true,
+          isInRuleTree,
           onUpdate: isPolicyNode
             ? (data: any) => handlePolicyUpdate(schema.entityType, data)
             : undefined,
@@ -513,7 +643,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                 handleNestedRuleUpdate(sourceEntity, targetEntity, relationName, data)
             : undefined,
         },
-        draggable: true,
+        draggable: false,
       });
 
       // No need to create separate nested rule edges - we'll add controls to schema edges
@@ -527,6 +657,21 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
           const edgeId = `schema-rel-${schema.entityType}-${relation.targetEntity}-${relation.name}`;
           
           // All edges are simple smoothstep edges - nested rule config is in the source node
+          const edgeKey = `${schema.entityType}->${relation.targetEntity}:${relation.name.toLowerCase()}`;
+          const isRuleEdge = edgeIsInRulePath(
+            schema.entityType,
+            relation.targetEntity,
+            relation.name,
+            ruleTreeEdgeKeys
+          );
+
+          if (
+            isolateToRule &&
+            (!ruleTreeEntities.has(schema.entityType) || !ruleTreeEntities.has(relation.targetEntity))
+          ) {
+            return;
+          }
+
           newEdges.push({
             id: edgeId,
             source: `schema-${schema.entityType}`,
@@ -535,15 +680,15 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
             targetHandle: 'left',
             label: relation.name,
             type: 'smoothstep',
-            animated: false,
+            animated: isRuleEdge,
             style: {
-              stroke: 'hsl(217 91% 60%)',
-              strokeWidth: 2,
-              strokeDasharray: '3,3',
+              stroke: isRuleEdge ? 'hsl(142 76% 36%)' : 'hsl(215 20% 65%)',
+              strokeWidth: isRuleEdge ? 4 : 2.5,
+              opacity: isRuleEdge ? 1 : 0.55,
             },
             labelStyle: {
               fontSize: 10,
-              fill: 'hsl(217 91% 60%)',
+              fill: isRuleEdge ? 'hsl(142 76% 36%)' : 'hsl(215 20% 45%)',
               fontWeight: 600,
             },
             labelBgStyle: {
@@ -552,7 +697,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
             },
             markerStart: {
               type: MarkerType.ArrowClosed,
-              color: 'hsl(217 91% 60%)',
+              color: isRuleEdge ? 'hsl(142 76% 36%)' : 'hsl(215 20% 65%)',
             },
           });
         }
@@ -568,7 +713,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
     hasNodes.current = true;
-  }, [schemas, loadingSchemas, ruleConfigs, rulesKey, isInitialized, selectedRuleIndex]);
+  }, [schemas, loadingSchemas, ruleConfigs, rulesKey, isInitialized, selectedRuleIndex, isolateToRule, ruleTreeEntities, ruleTreeEdgeKeys]);
 
   const handlePolicyUpdate = (entityType: string, data: any) => {
     setNodes((nds) =>
@@ -844,11 +989,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
 
       <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border-2">
         <div className="flex gap-3 items-center flex-1">
-          <Button onClick={() => setDialogOpen(true)} variant="default" size="default">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Rule
-          </Button>
-          
           {rules.length > 0 && (
             <div className="flex items-center gap-2 flex-1 max-w-md">
               <Label className="text-sm font-medium whitespace-nowrap">Visualize Rule:</Label>
@@ -873,8 +1013,30 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
               </Select>
             </div>
           )}
+
+          <div className="flex items-center gap-2 pl-2">
+            <Label htmlFor="isolate-to-rule" className="text-sm font-medium whitespace-nowrap">
+              Isolate to rule
+            </Label>
+            <Switch
+              id="isolate-to-rule"
+              checked={isolateToRule}
+              onCheckedChange={setIsolateToRule}
+            />
+          </div>
         </div>
         <div className="flex gap-2">
+          {ruleConfigs.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFlowFullscreen((previous) => !previous)}
+              className="flex items-center gap-2"
+            >
+              {isFlowFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              {isFlowFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+            </Button>
+          )}
           <Badge variant="secondary" className="px-3 py-1">
             {schemas.length} schema entit{schemas.length !== 1 ? 'ies' : 'y'}
           </Badge>
@@ -885,30 +1047,41 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       </div>
 
       {ruleConfigs.length > 0 && (
-        <div style={{ height: '600px' }} className="border-2 rounded-lg bg-background shadow-sm">
+        <div
+          style={{ height: isFlowFullscreen ? '100vh' : '600px' }}
+          className={isFlowFullscreen
+            ? 'fixed inset-0 z-50 border-0 rounded-none bg-background shadow-xl'
+            : 'border-2 rounded-lg bg-background shadow-sm'}
+        >
+        {isFlowFullscreen && (
+          <div className="absolute right-4 top-4 z-10">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFlowFullscreen(false)}
+              className="flex items-center gap-2 bg-background"
+            >
+              <Minimize2 className="h-4 w-4" />
+              Exit Full Screen
+            </Button>
+          </div>
+        )}
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
           minZoom={0.1}
           maxZoom={2}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
         >
           <Background variant={BackgroundVariant.Dots} />
           <Controls />
-          <MiniMap
-            nodeColor={(node) => {
-              if (node.type === 'schemaEntity') {
-                const isStarting = node.data?.isStartingEntity;
-                return isStarting ? 'hsl(142 76% 36%)' : 'hsl(217 91% 60%)';
-              }
-              return 'hsl(142 76% 36%)';
-            }}
-          />
         </ReactFlow>
       </div>
       )}
@@ -919,7 +1092,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
           {rules.length === 0 ? (
             <>
               <p className="text-muted-foreground font-medium">No rules configured yet</p>
-              <p className="text-sm text-muted-foreground mt-2">Click &quot;Add Rule&quot; to create your first authorization rule</p>
+              <p className="text-sm text-muted-foreground mt-2">Create a rule in Form or JSON mode to visualize it here</p>
             </>
           ) : (
             <>
@@ -933,12 +1106,11 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       {ruleConfigs.length > 0 && (
       <div className="text-xs space-y-1.5 p-4 bg-muted/20 rounded-lg border">
         <p className="font-semibold text-foreground mb-2">Legend:</p>
-        <p className="text-muted-foreground">• <strong className="text-green-600">Green schema nodes</strong> - Starting entities with policy configuration</p>
-        <p className="text-muted-foreground">• <strong className="text-amber-600">Amber edge toolbars</strong> - Nested rule switches for related entities</p>
-        <p className="text-muted-foreground">• <strong className="text-blue-600">Blue nodes</strong> - Schema entities (read-only structure)</p>
-        <p className="text-muted-foreground">• <strong className="text-blue-600">Blue dashed arrows</strong> - Schema relations (database structure)</p>
-        <p className="text-muted-foreground">• <strong>Toggle switches</strong> - Enable/disable nested rules</p>
-        <p className="text-muted-foreground">• <strong>Expand toolbars</strong> - Configure actions for nested access</p>
+        <p className="text-muted-foreground">• <strong className="text-green-600">Green nodes</strong> - Rule starting entity</p>
+        <p className="text-muted-foreground">• <strong className="text-amber-600">Amber nodes</strong> - Entities included in the selected rule tree</p>
+        <p className="text-muted-foreground">• <strong className="text-slate-600">Gray nodes</strong> - Other schema entities</p>
+        <p className="text-muted-foreground">• <strong className="text-green-600">Green edges</strong> - Relations used by the selected rule</p>
+        <p className="text-muted-foreground">• <strong className="text-slate-600">Gray dashed edges</strong> - Other schema relations</p>
       </div>
       )}
 

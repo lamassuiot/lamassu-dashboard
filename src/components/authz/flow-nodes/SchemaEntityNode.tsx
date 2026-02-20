@@ -7,8 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Database, Key, Plus, X } from 'lucide-react';
 import type { SchemaDefinition } from '@/types/authz';
 
@@ -25,6 +23,8 @@ interface SchemaEntityNodeProps {
     schema: SchemaDefinition;
     isStartingEntity?: boolean;
     isPolicyNode?: boolean;
+    isReadOnly?: boolean;
+    isInRuleTree?: boolean;
     actions?: string[];
     directGrants?: string[];
     nestedRules?: NestedRuleConfig[];
@@ -34,10 +34,15 @@ interface SchemaEntityNodeProps {
 }
 
 export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
-  const { schema, isStartingEntity, isPolicyNode, onUpdate, onNestedRuleUpdate, nestedRules = [] } = data;
+  const { schema, isStartingEntity, isPolicyNode, isReadOnly, isInRuleTree = false, onUpdate, onNestedRuleUpdate, nestedRules = [] } = data;
   const [selectedActions, setSelectedActions] = React.useState<string[]>(data.actions || []);
   const [ids, setIds] = React.useState<string[]>(data.directGrants || []);
   const [newId, setNewId] = React.useState('');
+
+  React.useEffect(() => {
+    setSelectedActions(data.actions || []);
+    setIds(data.directGrants || []);
+  }, [data.actions, data.directGrants]);
   
   const relations = Object.values(schema.relations);
   const hasAtomicActions = schema.atomicActions && schema.atomicActions.length > 0;
@@ -48,6 +53,7 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
   ];
 
   const toggleAction = (action: string) => {
+    if (isReadOnly) return;
     const newActions = selectedActions.includes(action)
       ? selectedActions.filter((a) => a !== action)
       : [...selectedActions, action];
@@ -56,6 +62,7 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
   };
 
   const addId = () => {
+    if (isReadOnly) return;
     if (!newId.trim()) return;
     const newIds = [...ids, newId.trim()];
     setIds(newIds);
@@ -64,15 +71,32 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
   };
 
   const removeId = (id: string) => {
+    if (isReadOnly) return;
     const newIds = ids.filter((i) => i !== id);
     setIds(newIds);
     onUpdate?.({ actions: selectedActions, directGrants: newIds });
   };
 
-  const borderColor = isStartingEntity ? 'border-green-500' : 'border-blue-500';
-  const bgColor = isStartingEntity ? 'bg-green-50/50 dark:bg-green-950/50' : 'bg-blue-50/50 dark:bg-blue-950/50';
-  const headerBg = isStartingEntity ? 'bg-green-100 dark:bg-green-900' : 'bg-blue-100 dark:bg-blue-900';
-  const iconColor = isStartingEntity ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400';
+  const borderColor = isStartingEntity
+    ? 'border-green-500'
+    : isInRuleTree
+      ? 'border-amber-500'
+      : 'border-slate-400 dark:border-slate-700';
+  const bgColor = isStartingEntity
+    ? 'bg-green-50/50 dark:bg-green-950/50'
+    : isInRuleTree
+      ? 'bg-amber-50/50 dark:bg-amber-950/30'
+      : 'bg-slate-50/60 dark:bg-slate-900/40';
+  const headerBg = isStartingEntity
+    ? 'bg-green-100 dark:bg-green-900'
+    : isInRuleTree
+      ? 'bg-amber-100 dark:bg-amber-900'
+      : 'bg-slate-100 dark:bg-slate-800';
+  const iconColor = isStartingEntity
+    ? 'text-green-600 dark:text-green-400'
+    : isInRuleTree
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-slate-600 dark:text-slate-400';
 
   return (
     <Card className={`min-w-[280px] max-w-[340px] shadow-lg border-2 ${borderColor} ${bgColor}`}>
@@ -89,7 +113,7 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
               </Badge>
             )}
             <Badge variant="secondary" className="text-xs">
-              Schema
+              {isInRuleTree ? 'In Rule' : 'Schema'}
             </Badge>
           </div>
         </div>
@@ -120,6 +144,7 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
                     type="button"
                     variant={selectedActions.includes(action) ? 'default' : 'outline'}
                     size="sm"
+                    disabled={isReadOnly}
                     onClick={() => toggleAction(action)}
                     className={`h-7 text-xs justify-start ${
                       selectedActions.includes(action)
@@ -144,12 +169,13 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
               <div className="flex gap-1">
                 <Input
                   value={newId}
+                  disabled={isReadOnly}
                   onChange={(e) => setNewId(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && addId()}
                   placeholder="Principal ID..."
                   className="h-7 text-xs"
                 />
-                <Button onClick={addId} size="sm" className="h-7 px-2">
+                <Button onClick={addId} size="sm" className="h-7 px-2" disabled={isReadOnly}>
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
@@ -169,86 +195,6 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
                 </div>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Nested Rules - For entities that have relations to policy nodes */}
-        {nestedRules.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase border-t pt-3">
-              Nested Rules
-            </div>
-            {nestedRules.map((rule) => {
-              const targetSchema = schema;
-              const ruleActions = [
-                ...(targetSchema.atomicActions || []),
-                ...(targetSchema.globalActions || []),
-              ];
-              
-              return (
-                <div
-                  key={`${rule.sourceEntity}-${rule.targetEntity}-${rule.relationName}`}
-                  className="border-2 border-amber-500 rounded-md p-2 space-y-2 bg-amber-50/50 dark:bg-amber-950/30"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold">
-                      ← {rule.sourceEntity}
-                      <span className="text-muted-foreground ml-1">via {rule.relationName}</span>
-                    </div>
-                    <Switch
-                      checked={rule.enabled}
-                      onCheckedChange={(checked) =>
-                        onNestedRuleUpdate?.(rule.sourceEntity, rule.targetEntity, rule.relationName, {
-                          enabled: checked,
-                          actions: rule.actions,
-                        })
-                      }
-                      className="data-[state=checked]:bg-green-600"
-                    />
-                  </div>
-                  
-                  {rule.enabled && (
-                    <div className="space-y-2">
-                      <Label className="text-xs">Actions</Label>
-                      <div className="border rounded-md p-2 max-h-[150px] overflow-y-auto space-y-1">
-                        {ruleActions.map((action) => (
-                          <div key={action} className="flex items-center gap-2">
-                            <Checkbox
-                              id={`${rule.sourceEntity}-${rule.targetEntity}-${rule.relationName}-${action}`}
-                              checked={rule.actions.includes(action)}
-                              onCheckedChange={(checked) => {
-                                const newActions = checked
-                                  ? [...rule.actions, action]
-                                  : rule.actions.filter((a) => a !== action);
-                                onNestedRuleUpdate?.(rule.sourceEntity, rule.targetEntity, rule.relationName, {
-                                  enabled: rule.enabled,
-                                  actions: newActions,
-                                });
-                              }}
-                            />
-                            <label
-                              htmlFor={`${rule.sourceEntity}-${rule.targetEntity}-${rule.relationName}-${action}`}
-                              className="text-xs cursor-pointer flex-1"
-                            >
-                              {action}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                      {rule.actions.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {rule.actions.map((action) => (
-                            <Badge key={action} variant="default" className="text-xs bg-green-600">
-                              {action}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
           </div>
         )}
 

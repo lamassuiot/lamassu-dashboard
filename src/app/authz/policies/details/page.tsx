@@ -52,6 +52,46 @@ const getRuleDisplayEntity = (rule: any) =>
 const getRelationDisplayEntity = (relation: any) =>
   toQualifiedEntityType(normalizeEntityAddress(relation?.to));
 
+const renderRelationGrant = (relation: any, key: string, depth = 0) => (
+  <Card key={key} className={depth > 0 ? 'ml-4 border-l-2' : ''}>
+    <CardContent className="py-3 px-4">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Link className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-muted-foreground">When related via</span>
+          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
+            {relation.via}
+          </code>
+          <span className="text-muted-foreground">to</span>
+          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
+            {getRelationDisplayEntity(relation)}
+          </code>
+        </div>
+
+        <div className="text-xs text-muted-foreground">Grant actions:</div>
+        <div className="flex flex-wrap gap-1">
+          {(relation.actions || []).map((action: string, actionIndex: number) => (
+            <Badge key={`${key}-action-${actionIndex}`} variant="secondary" className="text-xs font-mono">
+              {action}
+            </Badge>
+          ))}
+        </div>
+
+        {relation.relations && relation.relations.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <div className="text-xs text-muted-foreground">Nested relations:</div>
+            <div className="space-y-2">
+              {relation.relations.map((nestedRelation: any, nestedIndex: number) =>
+                renderRelationGrant(nestedRelation, `${key}-nested-${nestedIndex}`, depth + 1)
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </CardContent>
+  </Card>
+);
+
 const formatRuleSummary = (rule: any) => {
   const actionCount = rule?.actions?.length || 0;
   const directGrantCount = rule?.directGrants?.length || 0;
@@ -421,31 +461,7 @@ function PolicyDetailsContent() {
                               </div>
                               <div className="space-y-2 pl-6">
                                 {rule.relations.map((relation, relIndex) => (
-                                  <Card key={relIndex}>
-                                    <CardContent className="py-3 px-4">
-                                      <div className="space-y-2">
-                                        <div className="flex flex-wrap items-center gap-2 text-sm">
-                                          <Link className="h-3.5 w-3.5 text-muted-foreground" />
-                                          <span className="text-muted-foreground">When related via</span>
-                                          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
-                                            {relation.via}
-                                          </code>
-                                          <span className="text-muted-foreground">to</span>
-                                          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
-                                            {getRelationDisplayEntity(relation)}
-                                          </code>
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">Grant actions:</div>
-                                        <div className="flex flex-wrap gap-1">
-                                          {relation.actions.map((action, actionIndex) => (
-                                            <Badge key={actionIndex} variant="secondary" className="text-xs font-mono">
-                                              {action}
-                                            </Badge>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
+                                  renderRelationGrant(relation, `${index}-${relIndex}`)
                                 ))}
                               </div>
                             </div>
