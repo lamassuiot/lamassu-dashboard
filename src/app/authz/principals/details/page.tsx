@@ -35,7 +35,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,9 +81,9 @@ function PrincipalDetailsContent() {
   const [error, setError] = useState<string | null>(null);
   const [grantDialogOpen, setGrantDialogOpen] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
-  const [selectedPolicyId, setSelectedPolicyId] = useState('');
-  const [policyAutocompleteOpen, setPolicyAutocompleteOpen] = useState(false);
   const [policySearchQuery, setPolicySearchQuery] = useState('');
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string>('');
+  const [assigningPolicyId, setAssigningPolicyId] = useState<string | null>(null);
   const [selectedPolicyToRevoke, setSelectedPolicyToRevoke] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
@@ -139,20 +138,19 @@ function PrincipalDetailsContent() {
     }
   };
 
-  const handleGrantPolicy = async () => {
-    if (!principalId || !selectedPolicyId) return;
+  const handleAssignPolicy = async (policyId: string) => {
+    if (!principalId || !policyId) return;
     try {
-      setSubmitting(true);
-      await grantPolicy(principalId, selectedPolicyId);
+      setAssigningPolicyId(policyId);
+      await grantPolicy(principalId, policyId);
       setGrantDialogOpen(false);
-      setSelectedPolicyId('');
       setPolicySearchQuery('');
-      setPolicyAutocompleteOpen(false);
+      setSelectedPolicyId('');
       loadPrincipalDetails();
     } catch (err: any) {
       setError(err.message || 'Failed to grant policy');
     } finally {
-      setSubmitting(false);
+      setAssigningPolicyId(null);
     }
   };
 
@@ -190,7 +188,7 @@ function PrincipalDetailsContent() {
     );
   };
 
-  const selectedPolicy = allPolicies.find((policy) => policy.id === selectedPolicyId) || null;
+  const selectedPolicy = getAvailablePolicies().find((policy) => policy.id === selectedPolicyId) || null;
 
   const togglePolicyJson = (policyId: string) => {
     setExpandedPolicies((prev) => {
@@ -795,92 +793,87 @@ function PrincipalDetailsContent() {
       </Tabs>
 
       {/* Grant Policy Dialog */}
-      <Dialog open={grantDialogOpen} onOpenChange={setGrantDialogOpen}>
+      <Dialog
+        open={grantDialogOpen}
+        onOpenChange={(isOpen) => {
+          setGrantDialogOpen(isOpen);
+          if (!isOpen) {
+            setPolicySearchQuery('');
+            setSelectedPolicyId('');
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign Policy</DialogTitle>
             <DialogDescription>
-              Grant a policy to this principal
+              Select a policy and confirm assignment.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="policy-autocomplete">Select Policy</Label>
-              <Popover open={policyAutocompleteOpen} onOpenChange={setPolicyAutocompleteOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="policy-autocomplete"
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={policyAutocompleteOpen}
-                    className="w-full justify-between"
-                    disabled={getAvailablePolicies().length === 0}
-                  >
-                    {selectedPolicy ? selectedPolicy.name : 'Search policy by name, ID, or description...'}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2" align="start">
-                  {getAvailablePolicies().length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      All policies are already assigned
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Input
-                        placeholder="Type to filter policies..."
-                        value={policySearchQuery}
-                        onChange={(e) => setPolicySearchQuery(e.target.value)}
-                        autoFocus
-                      />
-                      <div className="max-h-64 overflow-auto space-y-1">
-                        {getFilteredPolicies().length === 0 ? (
-                          <p className="px-2 py-3 text-sm text-muted-foreground text-center">No matching policies</p>
-                        ) : (
-                          getFilteredPolicies().map((policy) => (
-                            <button
-                              key={policy.id}
-                              type="button"
-                              className="w-full rounded-md border px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground"
-                              onClick={() => {
-                                setSelectedPolicyId(policy.id);
-                                setPolicyAutocompleteOpen(false);
-                              }}
-                            >
-                              <p className="text-sm font-medium">{policy.name}</p>
-                              <p className="mt-0.5 text-xs font-mono text-muted-foreground">{policy.id}</p>
-                              {policy.description && (
-                                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{policy.description}</p>
-                              )}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="policy-search">Search policies</Label>
+              <Input
+                id="policy-search"
+                placeholder="Filter by policy name, ID, or description..."
+                value={policySearchQuery}
+                onChange={(e) => setPolicySearchQuery(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Select one policy from the list, then click Assign Policy.</p>
             </div>
+
+            {getAvailablePolicies().length === 0 ? (
+              <div className="rounded-md border p-4 text-sm text-muted-foreground text-center">
+                All policies are already assigned
+              </div>
+            ) : getFilteredPolicies().length === 0 ? (
+              <div className="rounded-md border p-4 text-sm text-muted-foreground text-center">
+                No matching policies
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-auto pr-1">
+                {getFilteredPolicies().map((policy) => (
+                  <button
+                    key={policy.id}
+                    type="button"
+                    className={`w-full rounded-md border px-3 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground ${selectedPolicy?.id === policy.id ? 'border-primary bg-accent/40' : ''}`}
+                    onClick={() => setSelectedPolicyId(policy.id)}
+                    disabled={!!assigningPolicyId || submitting}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{policy.name}</p>
+                        <p className="mt-0.5 text-xs font-mono text-muted-foreground truncate">{policy.id}</p>
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                          {policy.description || 'No description provided'}
+                        </p>
+                      </div>
+                      {assigningPolicyId === policy.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
                 setGrantDialogOpen(false);
-                setSelectedPolicyId('');
                 setPolicySearchQuery('');
-                setPolicyAutocompleteOpen(false);
+                setSelectedPolicyId('');
               }}
-              disabled={submitting}
+              disabled={!!assigningPolicyId || submitting}
             >
               Cancel
             </Button>
             <Button
-              onClick={handleGrantPolicy}
-              disabled={submitting || !selectedPolicyId}
+              onClick={() => selectedPolicy && handleAssignPolicy(selectedPolicy.id)}
+              disabled={!selectedPolicy || !!assigningPolicyId || submitting}
             >
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {assigningPolicyId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Assign Policy
             </Button>
           </DialogFooter>
