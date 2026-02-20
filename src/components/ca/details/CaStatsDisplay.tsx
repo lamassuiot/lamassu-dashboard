@@ -43,7 +43,6 @@ const StatTile = ({ value, label, total, colorClass, barColorClass }: StatTilePr
     </div>
   );
 };
-
 interface CaStatsDisplayProps {
   stats: CaStats | null;
   isLoading: boolean;

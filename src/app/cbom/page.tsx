@@ -331,6 +331,7 @@ export default function CBOMPage() {
                 <TableBody>
                   {recentCboms.map((item, index) => {
                     const assetCount = getCryptographicAssetCount(item);
+                    const scanDate = item.createdAt ?? item.timestamp;
                     return (
                       <TableRow key={`${item.projectIdentifier}-${index}`}>
                         <TableCell>
@@ -346,10 +347,10 @@ export default function CBOMPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {item.timestamp ? (
+                          {scanDate ? (
                             <DateDisplay
-                              date={item.timestamp}
-                              formatString="dd/MM/yyyy"
+                              date={scanDate}
+                              formatString="dd/MM/yyyy HH:mm"
                               showRelative={false}
                               className="text-sm text-muted-foreground"
                             />

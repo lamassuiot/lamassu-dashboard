@@ -4,7 +4,8 @@ import { get_CBOM_API_BASE_URL, handleApiError } from './api-domains';
 // CBOM Types
 export interface CBOMItem {
   projectIdentifier: string;
-  timestamp?: string;
+  timestamp?: string | number;
+  createdAt?: string | number;
   data?: any;
 }
 

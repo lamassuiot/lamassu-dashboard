@@ -21,7 +21,9 @@ window.lamassuConfig = {
     // LAMASSU_API: "https://lab.lamassu.io/api",
     // LAMASSU_API: "https://localhost:8443/api",
     LAMASSU_API: "http://localhost:8080/api",
-    LAMASSU_CBOM_API: "http://localhost:8081",
+    LAMASSU_AUTZ_API: "http://localhost:8888/api",
+    LAMASSU_CBOM_API: "http://localhost:8081/api/v1",
+    LAMASSU_CBOM_WS: "ws://localhost:8081/api/v1",
     // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.
     // If not provided, these endpoints will be based on the LAMASSU_API value.
     // Useful if validation/enrollment services are hosted on a separate public domain.
