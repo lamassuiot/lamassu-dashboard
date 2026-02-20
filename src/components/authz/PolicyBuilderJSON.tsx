@@ -75,11 +75,15 @@ export function PolicyBuilderJSON({ rules, onChange, error }: PolicyBuilderJSONP
 {`[
   {
     "namespace": "pki",
-    "entityType": "document",
+    "schemaName": "devmanager",
+    "entityType": "device",
     "actions": ["read", "write"],
     "relations": [
       {
-        "to": "folder",
+        "to": {
+          "schemaName": "dmsmanager",
+          "entityType": "dms"
+        },
         "via": "parent",
         "actions": ["read"],
         "relations": []

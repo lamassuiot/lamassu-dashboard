@@ -1,7 +1,13 @@
 // Authorization & Security Type Definitions
 
+export interface EntityAddress {
+  schemaName: string;
+  entityType: string;
+}
+
 export interface Rule {
   namespace?: string;
+  schemaName: string;
   entityType: string;
   actions: string[];
   relations: RelationRule[];
@@ -9,7 +15,7 @@ export interface Rule {
 }
 
 export interface RelationRule {
-  to: string;
+  to: EntityAddress | string;
   via: string;
   actions: string[];
   relations?: RelationRule[];
@@ -97,6 +103,8 @@ export interface PolicyStats {
 
 export interface AuthorizeRequest {
   principalId: string;
+  namespace: string;
+  schemaName: string;
   action: string;
   entityType: string;
   entityId: string;
@@ -105,6 +113,8 @@ export interface AuthorizeRequest {
 export interface AuthorizeResponse {
   allowed: boolean;
   principalId: string;
+  namespace: string;
+  schemaName: string;
   action: string;
   entityType: string;
   entityId: string;
@@ -112,10 +122,14 @@ export interface AuthorizeResponse {
 
 export interface FilterRequest {
   principalId: string;
+  namespace: string;
+  schemaName: string;
   entityType: string;
 }
 
 export interface FilterResponse {
+  namespace: string;
+  schemaName: string;
   entityType: string;
   filterQuery: string;
 }
@@ -123,6 +137,8 @@ export interface FilterResponse {
 export interface MatchAndAuthorizeRequest {
   authMaterial: any; // API key, JWT, or certificate data
   authType: 'api_key' | 'oidc' | 'x509';
+  namespace: string;
+  schemaName: string;
   action: string;
   entityType: string;
   entityId?: string;
@@ -130,6 +146,8 @@ export interface MatchAndAuthorizeRequest {
 
 export interface MatchAndAuthorizeResponse {
   allowed: boolean;
+  namespace: string;
+  schemaName: string;
   entityType: string;
   entityId: string;
   action: string;
@@ -139,10 +157,14 @@ export interface MatchAndAuthorizeResponse {
 export interface MatchAndGetFilterRequest {
   authMaterial: any; // API key, JWT, or certificate data
   authType: 'api_key' | 'oidc' | 'x509';
+  namespace: string;
+  schemaName: string;
   entityType: string;
 }
 
 export interface MatchAndGetFilterResponse {
+  namespace: string;
+  schemaName: string;
   entityType: string;
   filterQuery: string;
   matchedPrincipals: string[];

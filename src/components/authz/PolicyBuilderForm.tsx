@@ -28,24 +28,9 @@ import {
 } from '@/components/ui/accordion';
 import { Plus, Trash2, AlertCircle, ChevronRight, Loader2, X } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { EntityTypeSelector } from '@/components/authz/EntityTypeSelector';
-import type { Rule, RelationRule, SchemaDefinition } from '@/types/authz';
-import { getSchemas, findAmbiguousEntityTypes } from '@/lib/authz-api';
-
-const getQualifiedEntityType = (schema: SchemaDefinition) => `${schema.schemaName}.${schema.entityType}`;
-
-const getBaseEntityType = (entityType: string) => {
-  const parts = entityType.split('.');
-  return parts[parts.length - 1] || entityType;
-};
-
-const matchesSchemaEntityType = (value: string, schema: SchemaDefinition) => {
-  return value === schema.entityType || value === getQualifiedEntityType(schema);
-};
-
-const findSchemaByEntityType = (schemas: SchemaDefinition[], value: string) => {
-  return schemas.find((schema) => matchesSchemaEntityType(value, schema));
-};
+import type { EntityAddress, Rule, RelationRule, SchemaDefinition } from '@/types/authz';
+import { getSchemas } from '@/lib/authz-api';
+import { findSchemaByAddress, normalizeEntityAddress, toQualifiedEntityType } from '@/lib/policy-format';
 
 interface PolicyBuilderFormProps {
   rules: Rule[];
@@ -57,14 +42,12 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
   const [schemas, setSchemas] = useState<SchemaDefinition[]>([]);
   const [loadingSchemas, setLoadingSchemas] = useState(true);
   const [openAccordionValue, setOpenAccordionValue] = useState<string | undefined>(undefined);
-  const [ambiguousTypes, setAmbiguousTypes] = useState<Map<string, string[]>>(new Map());
 
   useEffect(() => {
     const fetchSchemas = async () => {
       try {
         const data = await getSchemas();
         setSchemas(data);
-        setAmbiguousTypes(findAmbiguousEntityTypes(data));
       } catch (err) {
         console.error('Failed to fetch schemas:', err);
       } finally {
@@ -80,6 +63,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
       ...rules,
       {
         namespace: '',
+        schemaName: '',
         entityType: '',
         actions: [],
         relations: [],
@@ -127,7 +111,10 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                 <div className="flex items-center gap-3 flex-1">
                   <Badge variant="default" className="font-semibold">Rule {index + 1}</Badge>
                   <span className="text-sm font-medium">
-                    {rule.entityType || 'Untitled'}
+                    {toQualifiedEntityType({
+                      schemaName: rule.schemaName,
+                      entityType: rule.entityType,
+                    }) || 'Untitled'}
                   </span>
                   {rule.namespace && (
                     <Badge variant="secondary" className="text-xs">
@@ -145,7 +132,6 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                   onChange={(updated) => updateRule(index, updated)}
                   onDelete={() => deleteRule(index)}
                   schemas={schemas}
-                  ambiguousTypes={ambiguousTypes}
                 />
               </AccordionContent>
             </AccordionItem>
@@ -166,15 +152,18 @@ interface RuleEditorProps {
   onChange: (rule: Rule) => void;
   onDelete: () => void;
   schemas: SchemaDefinition[];
-  ambiguousTypes: Map<string, string[]>;
 }
 
-function RuleEditor({ rule, onChange, onDelete, schemas, ambiguousTypes }: RuleEditorProps) {
+function RuleEditor({ rule, onChange, onDelete, schemas }: RuleEditorProps) {
   const [grantInput, setGrantInput] = useState('');
 
-  const selectedSchema = findSchemaByEntityType(schemas, rule.entityType);
-  const selectedEntityTypeValue = selectedSchema ? getQualifiedEntityType(selectedSchema) : rule.entityType;
-  const selectedEntityTypeBase = selectedSchema?.entityType || getBaseEntityType(rule.entityType);
+  const selectedEntityAddress: EntityAddress = normalizeEntityAddress({
+    schemaName: rule.schemaName,
+    entityType: rule.entityType,
+  });
+  const selectedSchema = findSchemaByAddress(schemas, selectedEntityAddress);
+  const schemaNames = Array.from(new Set(schemas.map((schema) => schema.schemaName))).sort();
+  const schemaEntities = schemas.filter((schema) => schema.schemaName === selectedEntityAddress.schemaName);
   const availableActions = selectedSchema
     ? [
         ...(selectedSchema.atomicActions || []),
@@ -215,7 +204,7 @@ function RuleEditor({ rule, onChange, onDelete, schemas, ambiguousTypes }: RuleE
       ...rule,
       relations: [
         ...rule.relations,
-        { to: '', via: '', actions: [], relations: [] },
+        { to: { schemaName: '', entityType: '' }, via: '', actions: [], relations: [] },
       ],
     });
   };
@@ -238,38 +227,84 @@ function RuleEditor({ rule, onChange, onDelete, schemas, ambiguousTypes }: RuleE
       <CardContent className="pt-6 space-y-6">
         {/* Entity Type */}
         <div className="space-y-2">
-          <Label className="text-sm font-semibold text-foreground">Entity Type *</Label>
-          <EntityTypeSelector
-            id="policy-rule-entity-type"
-            schemas={schemas}
-            value={selectedEntityTypeValue}
-            valueMode="qualified"
-            onValueChange={(value) => {
-              const schema = findSchemaByEntityType(schemas, value);
-              onChange({
-                ...rule,
-                namespace: schema?.namespace || rule.namespace,
-                entityType: value,
-                actions: [],
-              });
-            }}
-            placeholder="Select entity type..."
-          />
-          {selectedEntityTypeBase && ambiguousTypes.has(selectedEntityTypeBase) && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Warning: Entity type &quot;{selectedEntityTypeBase}&quot; exists in multiple namespaces: {ambiguousTypes.get(selectedEntityTypeBase)?.join(', ')}
-                {'. '}Use qualified names like &quot;{ambiguousTypes.get(selectedEntityTypeBase)?.[0]}.{selectedEntityTypeBase}&quot; for clarity.
-              </AlertDescription>
-            </Alert>
-          )}
+          <Label className="text-sm font-semibold text-foreground">Entity Address *</Label>
+          <p className="text-xs text-muted-foreground">Use * to match all schema names or entity types.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">schemaName *</Label>
+              <Select
+                value={selectedEntityAddress.schemaName}
+                onValueChange={(value) => {
+                  onChange({
+                    ...rule,
+                    schemaName: value,
+                    entityType: '',
+                    namespace: '',
+                    actions: [],
+                  });
+                }}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select schema..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="*">*</SelectItem>
+                  {schemaNames.map((schemaName) => (
+                    <SelectItem key={schemaName} value={schemaName}>
+                      {schemaName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedEntityAddress.schemaName && (
+                <p className="text-xs text-destructive">schemaName is required.</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">entityType *</Label>
+              {!selectedEntityAddress.schemaName ? (
+                <p className="text-sm text-muted-foreground italic pt-2">Select schemaName first</p>
+              ) : (
+                <Select
+                  value={selectedEntityAddress.entityType}
+                  onValueChange={(value) => {
+                    const schema = findSchemaByAddress(schemas, {
+                      schemaName: selectedEntityAddress.schemaName,
+                      entityType: value,
+                    });
+                    onChange({
+                      ...rule,
+                      schemaName: selectedEntityAddress.schemaName,
+                      entityType: value,
+                      namespace: schema?.namespace || rule.namespace,
+                      actions: [],
+                    });
+                  }}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select entity type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="*">*</SelectItem>
+                    {schemaEntities.map((schema) => (
+                      <SelectItem key={`${schema.schemaName}.${schema.entityType}`} value={schema.entityType}>
+                        {schema.entityType}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {!selectedEntityAddress.entityType && (
+                <p className="text-xs text-destructive">entityType is required.</p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Actions */}
         <div className="space-y-3">
           <Label className="text-sm font-semibold text-foreground">Actions *</Label>
-          {!rule.entityType ? (
+          {!rule.schemaName || !rule.entityType ? (
             <p className="text-sm text-muted-foreground italic">Select an entity type first</p>
           ) : availableActions.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">No actions available for this entity type</p>
@@ -352,6 +387,7 @@ function RuleEditor({ rule, onChange, onDelete, schemas, ambiguousTypes }: RuleE
               Add Relation
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">Wildcards are not allowed in to.schemaName, to.entityType, or via.</p>
           {rule.relations.length > 0 && (
             <div className="space-y-2 mt-2">
               {rule.relations.map((relation, index) => (
@@ -362,7 +398,7 @@ function RuleEditor({ rule, onChange, onDelete, schemas, ambiguousTypes }: RuleE
                   onDelete={() => deleteRelation(index)}
                   depth={0}
                   schemas={schemas}
-                  parentEntityType={rule.entityType}
+                  parentEntity={{ schemaName: rule.schemaName, entityType: rule.entityType }}
                 />
               ))}
             </div>
@@ -387,12 +423,11 @@ interface RelationEditorProps {
   onDelete: () => void;
   depth: number;
   schemas: SchemaDefinition[];
-  parentEntityType: string;
+  parentEntity: EntityAddress;
 }
 
-function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEntityType }: RelationEditorProps) {
-  const parentSchema = findSchemaByEntityType(schemas, parentEntityType);
-  const normalizedParentEntityType = parentSchema?.entityType || getBaseEntityType(parentEntityType);
+function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEntity }: RelationEditorProps) {
+  const normalizedParentEntityType = parentEntity.entityType;
 
   // Find all entities that have relations pointing TO the parent entity
   // Relations are defined from child to parent (e.g., building -> organization)
@@ -404,15 +439,23 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
   
   // Get all relations from entities that point to the parent
   const availableTargetEntities = entitiesPointingToParent.map((schema) => ({
+    schemaName: schema.schemaName,
     entityType: schema.entityType,
-    qualifiedEntityType: getQualifiedEntityType(schema),
     relations: Object.values(schema.relations || {}).filter(
       (rel) => rel.targetEntity === normalizedParentEntityType
     ),
   }));
 
-  const selectedTargetSchema = findSchemaByEntityType(schemas, relation.to);
-  const selectedTargetEntityValue = selectedTargetSchema ? getQualifiedEntityType(selectedTargetSchema) : relation.to;
+  const selectedTargetAddress = normalizeEntityAddress(relation.to);
+  const selectedTargetSchema = findSchemaByAddress(schemas, selectedTargetAddress);
+  const selectedTargetQualified = toQualifiedEntityType(selectedTargetAddress);
+  const hasSchemaWildcard = selectedTargetAddress.schemaName.includes('*');
+  const hasEntityWildcard = selectedTargetAddress.entityType.includes('*');
+  const hasViaWildcard = relation.via.includes('*');
+  const availableSchemaNames = Array.from(new Set(availableTargetEntities.map((entity) => entity.schemaName))).sort();
+  const availableEntitiesForSchema = availableTargetEntities.filter(
+    (entity) => entity.schemaName === selectedTargetAddress.schemaName
+  );
   
   // Get target entity's schema for available actions
   const targetSchema = selectedTargetSchema;
@@ -424,7 +467,9 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
     : [];
 
   // Get available relation names from the target entity pointing to parent
-  const targetEntityData = availableTargetEntities.find((e) => e.entityType === targetSchema?.entityType);
+  const targetEntityData = availableTargetEntities.find(
+    (e) => e.schemaName === selectedTargetAddress.schemaName && e.entityType === targetSchema?.entityType
+  );
   const relationsForTarget = targetEntityData ? targetEntityData.relations : [];
 
   const toggleAction = (action: string) => {
@@ -469,33 +514,83 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Target Entity *</Label>
+            <Label>to.schemaName *</Label>
             {availableTargetEntities.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">No entities point to {parentEntityType}</p>
+              <p className="text-sm text-muted-foreground italic">No entities point to {toQualifiedEntityType(parentEntity)}</p>
             ) : (
               <Select
-                value={selectedTargetEntityValue}
-                onValueChange={(value) => onChange({ ...relation, to: value, via: '', actions: [] })}
+                value={selectedTargetAddress.schemaName}
+                onValueChange={(value) =>
+                  onChange({
+                    ...relation,
+                    to: { schemaName: value, entityType: '' },
+                    via: '',
+                    actions: [],
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select schema..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSchemaNames.map((schemaName) => (
+                    <SelectItem key={schemaName} value={schemaName}>
+                      {schemaName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {!selectedTargetAddress.schemaName && (
+              <p className="text-xs text-destructive">to.schemaName is required.</p>
+            )}
+            {hasSchemaWildcard && (
+              <p className="text-xs text-destructive">to.schemaName cannot contain *.</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label>to.entityType *</Label>
+            {!selectedTargetAddress.schemaName ? (
+              <p className="text-sm text-muted-foreground italic">Select target schema first</p>
+            ) : (
+              <Select
+                value={selectedTargetAddress.entityType}
+                onValueChange={(value) =>
+                  onChange({
+                    ...relation,
+                    to: { schemaName: selectedTargetAddress.schemaName, entityType: value },
+                    via: '',
+                    actions: [],
+                  })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select target entity..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableTargetEntities.map((entity) => (
-                    <SelectItem key={entity.qualifiedEntityType} value={entity.qualifiedEntityType}>
+                  {availableEntitiesForSchema.map((entity) => (
+                    <SelectItem key={`${entity.schemaName}.${entity.entityType}`} value={entity.entityType}>
                       {entity.entityType}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
+            {!selectedTargetAddress.entityType && (
+              <p className="text-xs text-destructive">to.entityType is required.</p>
+            )}
+            {hasEntityWildcard && (
+              <p className="text-xs text-destructive">to.entityType cannot contain *.</p>
+            )}
           </div>
-          <div className="space-y-2">
+        </div>
+
+        <div className="space-y-2">
             <Label>Via Relation *</Label>
-            {!relation.to ? (
+            {!selectedTargetAddress.schemaName || !selectedTargetAddress.entityType ? (
               <p className="text-sm text-muted-foreground italic">Select target entity first</p>
             ) : relationsForTarget.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">No relations to {relation.to}</p>
+              <p className="text-sm text-muted-foreground italic">No relations to {selectedTargetQualified}</p>
             ) : (
               <Select
                 value={relation.via}
@@ -513,15 +608,17 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
                 </SelectContent>
               </Select>
             )}
+            {hasViaWildcard && (
+              <p className="text-xs text-destructive">via cannot contain *.</p>
+            )}
           </div>
-        </div>
 
         <div className="space-y-2">
           <Label>Actions *</Label>
-          {!relation.to ? (
+          {!selectedTargetAddress.schemaName || !selectedTargetAddress.entityType ? (
             <p className="text-sm text-muted-foreground italic">Select target entity first</p>
           ) : availableActions.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No actions available for {relation.to}</p>
+            <p className="text-sm text-muted-foreground italic">No actions available for {selectedTargetQualified}</p>
           ) : (
             <>
               <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto">
@@ -580,7 +677,7 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
                     onDelete={() => deleteNestedRelation(index)}
                     depth={depth + 1}
                     schemas={schemas}
-                    parentEntityType={relation.to}
+                    parentEntity={selectedTargetAddress}
                   />
                 ))}
               </div>

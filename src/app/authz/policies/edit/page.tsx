@@ -11,6 +11,7 @@ import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { getPolicy, updatePolicy } from '@/lib/authz-api';
 import type { Rule } from '@/types/authz';
 import { PolicyBuilder } from '@/components/authz/PolicyBuilder';
+import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 
 function EditPolicyContent() {
   const router = useRouter();
@@ -43,7 +44,7 @@ function EditPolicyContent() {
         id: policy.id,
         name: policy.name,
         description: policy.description,
-        rules: policy.rules,
+        rules: normalizePolicyRules(policy.rules),
       });
       setError(null);
     } catch (err: any) {
@@ -59,13 +60,19 @@ function EditPolicyContent() {
       return;
     }
 
+    const wildcardErrors = validatePolicyRelationWildcardRestrictions(formData.rules);
+    if (wildcardErrors.length > 0) {
+      setError(wildcardErrors[0].message);
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
       await updatePolicy(formData.id, {
         name: formData.name,
         description: formData.description,
-        rules: formData.rules,
+        rules: normalizePolicyRules(formData.rules),
       });
       router.push(`/authz/policies/details?policyId=${formData.id}`);
     } catch (err: any) {
@@ -166,7 +173,7 @@ function EditPolicyContent() {
 
       <PolicyBuilder
         rules={formData.rules}
-        onChange={(rules) => setFormData({ ...formData, rules })}
+        onChange={(rules) => setFormData({ ...formData, rules: normalizePolicyRules(rules) })}
         error={error}
       />
 

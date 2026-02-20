@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -102,6 +99,19 @@ export default function PrincipalsPage() {
     }
   };
 
+  const getPrincipalTypeLabel = (type: PrincipalType) => {
+    switch (type) {
+      case 'api_key':
+        return 'API Key';
+      case 'oidc':
+        return 'OIDC';
+      case 'x509':
+        return 'X.509';
+      default:
+        return type;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -166,20 +176,18 @@ export default function PrincipalsPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={getPrincipalTypeColor(principal.type)}>
-                        {principal.type}
+                        {getPrincipalTypeLabel(principal.type)}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <Badge variant={principal.active ? 'default' : 'secondary'}>
                         {principal.active ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" />
                         ) : (
-                          <XCircle className="h-4 w-4 text-gray-400" />
+                          <XCircle className="h-3.5 w-3.5 mr-1" />
                         )}
-                        <span className={principal.active ? 'text-green-600' : 'text-gray-400'}>
-                          {principal.active ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
+                        {principal.active ? 'Active' : 'Inactive'}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <DateDisplay date={principal.createdAt} />

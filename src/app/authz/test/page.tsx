@@ -18,7 +18,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { EntityTypeSelector } from '@/components/authz/EntityTypeSelector';
 import { authorize, getFilter, matchAndAuthorize, matchAndGetFilter, getCapabilities, matchAndGetCapabilities, listPrincipals, getSchemas } from '@/lib/authz-api';
 import type { Principal, SchemaDefinition, AuthorizeResponse, FilterResponse, MatchAndAuthorizeResponse, MatchAndGetFilterResponse, CapabilitiesResponse, MatchAndGetCapabilitiesResponse } from '@/types/authz';
 
@@ -31,17 +30,23 @@ export default function AuthorizationTestPage() {
   const [filterResult, setFilterResult] = useState<FilterResponse | null>(null);
   const [formData, setFormData] = useState({
     principalId: '',
+    namespace: '',
+    schemaName: '',
     action: '',
     entityType: '',
     entityId: '',
   });
   const [filterFormData, setFilterFormData] = useState({
     principalId: '',
+    namespace: '',
+    schemaName: '',
     entityType: '',
   });
   const [matchAuthorizeFormData, setMatchAuthorizeFormData] = useState({
     authType: 'x509' as 'api_key' | 'oidc' | 'x509',
     authMaterial: '',
+    namespace: '',
+    schemaName: '',
     action: '',
     entityType: '',
     entityId: '',
@@ -49,6 +54,8 @@ export default function AuthorizationTestPage() {
   const [matchFilterFormData, setMatchFilterFormData] = useState({
     authType: 'x509' as 'api_key' | 'oidc' | 'x509',
     authMaterial: '',
+    namespace: '',
+    schemaName: '',
     entityType: '',
   });
   const [matchAuthorizeResult, setMatchAuthorizeResult] = useState<MatchAndAuthorizeResponse | null>(null);
@@ -62,6 +69,53 @@ export default function AuthorizationTestPage() {
   });
   const [capabilitiesResult, setCapabilitiesResult] = useState<CapabilitiesResponse | null>(null);
   const [matchCapabilitiesResult, setMatchCapabilitiesResult] = useState<MatchAndGetCapabilitiesResponse | null>(null);
+
+  const validateEntityTarget = (namespace: string, schemaName: string, entityType: string): string | null => {
+    const normalizedEntityType = entityType.trim();
+    if (!namespace.trim()) return 'namespace is required';
+    if (!schemaName.trim()) return 'schemaName is required';
+    if (!normalizedEntityType) return 'entityType is required';
+    if (normalizedEntityType.includes('.')) {
+      return 'entityType must be unqualified and must not contain a dot. Use schemaName separately.';
+    }
+    return null;
+  };
+
+  const setEntityTargetValidationErrorIfNeeded = (
+    namespace: string,
+    schemaName: string,
+    entityType: string
+  ): boolean => {
+    const validationError = validateEntityTarget(namespace, schemaName, entityType);
+    if (!validationError) {
+      return false;
+    }
+
+    const trimmedEntityType = entityType.trim();
+    if (trimmedEntityType.includes('.')) {
+      setError(`Invalid entityType \"${trimmedEntityType}\": ${validationError}`);
+    } else {
+      setError(validationError);
+    }
+    return true;
+  };
+
+  const getSchemaOptionsForNamespace = (namespace: string) =>
+    Array.from(
+      new Set(
+        schemas
+          .filter((schema) => (schema.namespace || '').trim() === namespace)
+          .map((schema) => schema.schemaName)
+      )
+    ).sort();
+
+  const getEntityTypeOptions = (namespace: string, schemaName: string) =>
+    schemas
+      .filter(
+        (schema) => (schema.namespace || '').trim() === namespace && schema.schemaName === schemaName
+      )
+      .map((schema) => schema.entityType)
+      .sort();
 
   useEffect(() => {
     loadData();
@@ -81,8 +135,12 @@ export default function AuthorizationTestPage() {
   };
 
   const handleTest = async () => {
-    if (!formData.principalId || !formData.action || !formData.entityType || !formData.entityId) {
+    if (!formData.principalId || !formData.action || !formData.entityId) {
       setError('All fields are required');
+      return;
+    }
+
+    if (setEntityTargetValidationErrorIfNeeded(formData.namespace, formData.schemaName, formData.entityType)) {
       return;
     }
 
@@ -91,6 +149,8 @@ export default function AuthorizationTestPage() {
       setError(null);
       const response = await authorize({
         principalId: formData.principalId,
+        namespace: formData.namespace,
+        schemaName: formData.schemaName,
         action: formData.action,
         entityType: formData.entityType,
         entityId: formData.entityId,
@@ -107,6 +167,8 @@ export default function AuthorizationTestPage() {
   const handleReset = () => {
     setFormData({
       principalId: '',
+      namespace: '',
+      schemaName: '',
       action: '',
       entityType: '',
       entityId: '',
@@ -116,19 +178,23 @@ export default function AuthorizationTestPage() {
   };
 
   const handleTestFilter = async () => {
-    if (!filterFormData.principalId || !filterFormData.entityType) {
+    if (!filterFormData.principalId) {
       setError('All fields are required');
+      return;
+    }
+
+    if (setEntityTargetValidationErrorIfNeeded(filterFormData.namespace, filterFormData.schemaName, filterFormData.entityType)) {
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      const schema = schemas.find((s) => s.entityType === filterFormData.entityType);
-      const fullEntityType = schema ? `${schema.schemaName}.${schema.entityType}` : filterFormData.entityType;
       const response = await getFilter({
         principalId: filterFormData.principalId,
-        entityType: fullEntityType,
+        namespace: filterFormData.namespace,
+        schemaName: filterFormData.schemaName,
+        entityType: filterFormData.entityType,
       });
       setFilterResult(response);
     } catch (err: any) {
@@ -142,6 +208,8 @@ export default function AuthorizationTestPage() {
   const handleResetFilter = () => {
     setFilterFormData({
       principalId: '',
+      namespace: '',
+      schemaName: '',
       entityType: '',
     });
     setFilterResult(null);
@@ -149,8 +217,12 @@ export default function AuthorizationTestPage() {
   };
 
   const handleMatchAndAuthorize = async () => {
-    if (!matchAuthorizeFormData.authMaterial || !matchAuthorizeFormData.authType || !matchAuthorizeFormData.action || !matchAuthorizeFormData.entityType) {
+    if (!matchAuthorizeFormData.authMaterial || !matchAuthorizeFormData.authType || !matchAuthorizeFormData.action) {
       setError('Auth Material, Auth Type, Action, and Entity Type are required');
+      return;
+    }
+
+    if (setEntityTargetValidationErrorIfNeeded(matchAuthorizeFormData.namespace, matchAuthorizeFormData.schemaName, matchAuthorizeFormData.entityType)) {
       return;
     }
 
@@ -160,6 +232,8 @@ export default function AuthorizationTestPage() {
       const response = await matchAndAuthorize({
         authMaterial: matchAuthorizeFormData.authMaterial,
         authType: matchAuthorizeFormData.authType,
+        namespace: matchAuthorizeFormData.namespace,
+        schemaName: matchAuthorizeFormData.schemaName,
         action: matchAuthorizeFormData.action,
         entityType: matchAuthorizeFormData.entityType,
         entityId: matchAuthorizeFormData.entityId || undefined,
@@ -177,6 +251,8 @@ export default function AuthorizationTestPage() {
     setMatchAuthorizeFormData({
       authType: 'x509',
       authMaterial: '',
+      namespace: '',
+      schemaName: '',
       action: '',
       entityType: '',
       entityId: '',
@@ -186,20 +262,24 @@ export default function AuthorizationTestPage() {
   };
 
   const handleMatchAndGetFilter = async () => {
-    if (!matchFilterFormData.authMaterial || !matchFilterFormData.authType || !matchFilterFormData.entityType) {
+    if (!matchFilterFormData.authMaterial || !matchFilterFormData.authType) {
       setError('Auth Material, Auth Type, and Entity Type are required');
+      return;
+    }
+
+    if (setEntityTargetValidationErrorIfNeeded(matchFilterFormData.namespace, matchFilterFormData.schemaName, matchFilterFormData.entityType)) {
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      const schema = schemas.find((s) => s.entityType === matchFilterFormData.entityType);
-      const fullEntityType = schema ? `${schema.schemaName}.${schema.entityType}` : matchFilterFormData.entityType;
       const response = await matchAndGetFilter({
         authMaterial: matchFilterFormData.authMaterial,
         authType: matchFilterFormData.authType,
-        entityType: fullEntityType,
+        namespace: matchFilterFormData.namespace,
+        schemaName: matchFilterFormData.schemaName,
+        entityType: matchFilterFormData.entityType,
       });
       setMatchFilterResult(response);
     } catch (err: any) {
@@ -214,6 +294,8 @@ export default function AuthorizationTestPage() {
     setMatchFilterFormData({
       authType: 'x509',
       authMaterial: '',
+      namespace: '',
+      schemaName: '',
       entityType: '',
     });
     setMatchFilterResult(null);
@@ -281,15 +363,25 @@ export default function AuthorizationTestPage() {
   };
 
   const getAvailableActions = (): string[] => {
-    if (!formData.entityType) return [];
-    const schema = schemas.find((s) => s.entityType === formData.entityType);
+    if (!formData.namespace || !formData.schemaName || !formData.entityType) return [];
+    const schema = schemas.find(
+      (s) =>
+        (s.namespace || '').trim() === formData.namespace &&
+        s.schemaName === formData.schemaName &&
+        s.entityType === formData.entityType
+    );
     if (!schema) return [];
     return [...(schema.atomicActions || []), ...(schema.globalActions || [])];
   };
 
   const getAvailableActionsForMatch = (): string[] => {
-    if (!matchAuthorizeFormData.entityType) return [];
-    const schema = schemas.find((s) => s.entityType === matchAuthorizeFormData.entityType);
+    if (!matchAuthorizeFormData.namespace || !matchAuthorizeFormData.schemaName || !matchAuthorizeFormData.entityType) return [];
+    const schema = schemas.find(
+      (s) =>
+        (s.namespace || '').trim() === matchAuthorizeFormData.namespace &&
+        s.schemaName === matchAuthorizeFormData.schemaName &&
+        s.entityType === matchAuthorizeFormData.entityType
+    );
     if (!schema) return [];
     return [...(schema.atomicActions || []), ...(schema.globalActions || [])];
   };
@@ -306,13 +398,8 @@ export default function AuthorizationTestPage() {
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Policy Rule Format:</strong> When creating rules in policies, specify the{' '}
-          <code className="bg-muted px-1 py-0.5 rounded text-xs">namespace</code> field and use{' '}
-          <code className="bg-muted px-1 py-0.5 rounded text-xs">&lt;schemaName&gt;.&lt;entityType&gt;</code> for the{' '}
-          <code className="bg-muted px-1 py-0.5 rounded text-xs">entityType</code> field. Example:{' '}
-          <code className="bg-muted px-1 py-0.5 rounded text-xs">namespace: &quot;pki&quot;</code>,{' '}
-          <code className="bg-muted px-1 py-0.5 rounded text-xs">entityType: &quot;dmsmanager.dms&quot;</code> or{' '}
-          <code className="bg-muted px-1 py-0.5 rounded text-xs">entityType: &quot;devmanager.device&quot;</code>
+          Use separate fields for authz entity targeting: namespace, schemaName, and unqualified entityType.{' '}
+          entityType must not contain a dot.
         </AlertDescription>
       </Alert>
 
@@ -369,13 +456,66 @@ export default function AuthorizationTestPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="namespace">Namespace</Label>
+                  <Select
+                    value={formData.namespace}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, namespace: value, schemaName: '', entityType: '', action: '' })
+                    }
+                  >
+                    <SelectTrigger id="namespace">
+                      <SelectValue placeholder="Select namespace" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(new Set(schemas.map((schema) => (schema.namespace || '').trim()).filter(Boolean))).sort().map((namespace) => (
+                        <SelectItem key={namespace} value={namespace}>
+                          {namespace}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="schemaName">Schema Name</Label>
+                  <Select
+                    value={formData.schemaName}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, schemaName: value, entityType: '', action: '' })
+                    }
+                    disabled={!formData.namespace}
+                  >
+                    <SelectTrigger id="schemaName">
+                      <SelectValue placeholder="Select schema name" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getSchemaOptionsForNamespace(formData.namespace).map((schemaName) => (
+                        <SelectItem key={schemaName} value={schemaName}>
+                          {schemaName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="entityType">Entity Type</Label>
-                  <EntityTypeSelector
-                    id="entityType"
-                    schemas={schemas}
+                  <Select
                     value={formData.entityType}
                     onValueChange={(value) => setFormData({ ...formData, entityType: value, action: '' })}
-                  />
+                    disabled={!formData.namespace || !formData.schemaName}
+                  >
+                    <SelectTrigger id="entityType">
+                      <SelectValue placeholder="Select entity type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getEntityTypeOptions(formData.namespace, formData.schemaName).map((entityType) => (
+                        <SelectItem key={entityType} value={entityType}>
+                          {entityType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -477,6 +617,14 @@ export default function AuthorizationTestPage() {
                         <Badge>{result.action}</Badge>
                       </div>
                       <div>
+                        <p className="font-medium text-muted-foreground">Namespace</p>
+                        <Badge variant="secondary">{result.namespace}</Badge>
+                      </div>
+                      <div>
+                        <p className="font-medium text-muted-foreground">Schema Name</p>
+                        <Badge variant="secondary">{result.schemaName}</Badge>
+                      </div>
+                      <div>
                         <p className="font-medium text-muted-foreground">Entity Type</p>
                         <Badge variant="outline">{result.entityType}</Badge>
                       </div>
@@ -539,13 +687,66 @@ export default function AuthorizationTestPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="filter-namespace">Namespace</Label>
+                  <Select
+                    value={filterFormData.namespace}
+                    onValueChange={(value) =>
+                      setFilterFormData({ ...filterFormData, namespace: value, schemaName: '', entityType: '' })
+                    }
+                  >
+                    <SelectTrigger id="filter-namespace">
+                      <SelectValue placeholder="Select namespace" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(new Set(schemas.map((schema) => (schema.namespace || '').trim()).filter(Boolean))).sort().map((namespace) => (
+                        <SelectItem key={namespace} value={namespace}>
+                          {namespace}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="filter-schemaName">Schema Name</Label>
+                  <Select
+                    value={filterFormData.schemaName}
+                    onValueChange={(value) =>
+                      setFilterFormData({ ...filterFormData, schemaName: value, entityType: '' })
+                    }
+                    disabled={!filterFormData.namespace}
+                  >
+                    <SelectTrigger id="filter-schemaName">
+                      <SelectValue placeholder="Select schema name" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getSchemaOptionsForNamespace(filterFormData.namespace).map((schemaName) => (
+                        <SelectItem key={schemaName} value={schemaName}>
+                          {schemaName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="filter-entityType">Entity Type</Label>
-                  <EntityTypeSelector
-                    id="filter-entityType"
-                    schemas={schemas}
+                  <Select
                     value={filterFormData.entityType}
                     onValueChange={(value) => setFilterFormData({ ...filterFormData, entityType: value })}
-                  />
+                    disabled={!filterFormData.namespace || !filterFormData.schemaName}
+                  >
+                    <SelectTrigger id="filter-entityType">
+                      <SelectValue placeholder="Select entity type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getEntityTypeOptions(filterFormData.namespace, filterFormData.schemaName).map((entityType) => (
+                        <SelectItem key={entityType} value={entityType}>
+                          {entityType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Separator />
@@ -582,6 +783,14 @@ export default function AuthorizationTestPage() {
                 ) : (
                   <div className="space-y-4">
                     <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="font-medium text-muted-foreground">Namespace</p>
+                        <Badge variant="secondary">{filterResult.namespace}</Badge>
+                      </div>
+                      <div>
+                        <p className="font-medium text-muted-foreground">Schema Name</p>
+                        <Badge variant="secondary">{filterResult.schemaName}</Badge>
+                      </div>
                       <div>
                         <p className="font-medium text-muted-foreground">Entity Type</p>
                         <Badge variant="outline">{filterResult.entityType}</Badge>
@@ -672,13 +881,72 @@ export default function AuthorizationTestPage() {
                 <Separator />
 
                 <div className="space-y-2">
+                  <Label htmlFor="match-namespace">Namespace</Label>
+                  <Select
+                    value={matchAuthorizeFormData.namespace}
+                    onValueChange={(value) =>
+                      setMatchAuthorizeFormData({
+                        ...matchAuthorizeFormData,
+                        namespace: value,
+                        schemaName: '',
+                        entityType: '',
+                        action: '',
+                      })
+                    }
+                  >
+                    <SelectTrigger id="match-namespace">
+                      <SelectValue placeholder="Select namespace" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(new Set(schemas.map((schema) => (schema.namespace || '').trim()).filter(Boolean))).sort().map((namespace) => (
+                        <SelectItem key={namespace} value={namespace}>
+                          {namespace}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="match-schemaName">Schema Name</Label>
+                  <Select
+                    value={matchAuthorizeFormData.schemaName}
+                    onValueChange={(value) =>
+                      setMatchAuthorizeFormData({ ...matchAuthorizeFormData, schemaName: value, entityType: '', action: '' })
+                    }
+                    disabled={!matchAuthorizeFormData.namespace}
+                  >
+                    <SelectTrigger id="match-schemaName">
+                      <SelectValue placeholder="Select schema name" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getSchemaOptionsForNamespace(matchAuthorizeFormData.namespace).map((schemaName) => (
+                        <SelectItem key={schemaName} value={schemaName}>
+                          {schemaName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="match-entityType">Entity Type</Label>
-                  <EntityTypeSelector
-                    id="match-entityType"
-                    schemas={schemas}
+                  <Select
                     value={matchAuthorizeFormData.entityType}
                     onValueChange={(value) => setMatchAuthorizeFormData({ ...matchAuthorizeFormData, entityType: value, action: '' })}
-                  />
+                    disabled={!matchAuthorizeFormData.namespace || !matchAuthorizeFormData.schemaName}
+                  >
+                    <SelectTrigger id="match-entityType">
+                      <SelectValue placeholder="Select entity type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getEntityTypeOptions(matchAuthorizeFormData.namespace, matchAuthorizeFormData.schemaName).map((entityType) => (
+                        <SelectItem key={entityType} value={entityType}>
+                          {entityType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -790,6 +1058,14 @@ export default function AuthorizationTestPage() {
                         <Badge>{matchAuthorizeResult.action}</Badge>
                       </div>
                       <div>
+                        <p className="font-medium text-muted-foreground">Namespace</p>
+                        <Badge variant="secondary">{matchAuthorizeResult.namespace}</Badge>
+                      </div>
+                      <div>
+                        <p className="font-medium text-muted-foreground">Schema Name</p>
+                        <Badge variant="secondary">{matchAuthorizeResult.schemaName}</Badge>
+                      </div>
+                      <div>
                         <p className="font-medium text-muted-foreground">Entity Type</p>
                         <Badge variant="outline">{matchAuthorizeResult.entityType}</Badge>
                       </div>
@@ -872,13 +1148,66 @@ export default function AuthorizationTestPage() {
                 <Separator />
 
                 <div className="space-y-2">
+                  <Label htmlFor="match-filter-namespace">Namespace</Label>
+                  <Select
+                    value={matchFilterFormData.namespace}
+                    onValueChange={(value) =>
+                      setMatchFilterFormData({ ...matchFilterFormData, namespace: value, schemaName: '', entityType: '' })
+                    }
+                  >
+                    <SelectTrigger id="match-filter-namespace">
+                      <SelectValue placeholder="Select namespace" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(new Set(schemas.map((schema) => (schema.namespace || '').trim()).filter(Boolean))).sort().map((namespace) => (
+                        <SelectItem key={namespace} value={namespace}>
+                          {namespace}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="match-filter-schemaName">Schema Name</Label>
+                  <Select
+                    value={matchFilterFormData.schemaName}
+                    onValueChange={(value) =>
+                      setMatchFilterFormData({ ...matchFilterFormData, schemaName: value, entityType: '' })
+                    }
+                    disabled={!matchFilterFormData.namespace}
+                  >
+                    <SelectTrigger id="match-filter-schemaName">
+                      <SelectValue placeholder="Select schema name" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getSchemaOptionsForNamespace(matchFilterFormData.namespace).map((schemaName) => (
+                        <SelectItem key={schemaName} value={schemaName}>
+                          {schemaName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="match-filter-entityType">Entity Type</Label>
-                  <EntityTypeSelector
-                    id="match-filter-entityType"
-                    schemas={schemas}
+                  <Select
                     value={matchFilterFormData.entityType}
                     onValueChange={(value) => setMatchFilterFormData({ ...matchFilterFormData, entityType: value })}
-                  />
+                    disabled={!matchFilterFormData.namespace || !matchFilterFormData.schemaName}
+                  >
+                    <SelectTrigger id="match-filter-entityType">
+                      <SelectValue placeholder="Select entity type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getEntityTypeOptions(matchFilterFormData.namespace, matchFilterFormData.schemaName).map((entityType) => (
+                        <SelectItem key={entityType} value={entityType}>
+                          {entityType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Separator />
@@ -928,6 +1257,14 @@ export default function AuthorizationTestPage() {
                             <span className="text-muted-foreground">No principals matched</span>
                           )}
                         </div>
+                      </div>
+                      <div>
+                        <p className="font-medium text-muted-foreground">Namespace</p>
+                        <Badge variant="secondary">{matchFilterResult.namespace}</Badge>
+                      </div>
+                      <div>
+                        <p className="font-medium text-muted-foreground">Schema Name</p>
+                        <Badge variant="secondary">{matchFilterResult.schemaName}</Badge>
                       </div>
                       <div>
                         <p className="font-medium text-muted-foreground">Entity Type</p>

@@ -39,6 +39,36 @@ import { Separator } from '@/components/ui/separator';
 import { getPolicy, getPolicyStats } from '@/lib/authz-api';
 import type { Policy, PolicyStats } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { normalizeEntityAddress, toQualifiedEntityType } from '@/lib/policy-format';
+
+const getRuleDisplayEntity = (rule: any) =>
+  toQualifiedEntityType(
+    normalizeEntityAddress({
+      schemaName: rule?.schemaName,
+      entityType: rule?.entityType,
+    })
+  );
+
+const getRelationDisplayEntity = (relation: any) =>
+  toQualifiedEntityType(normalizeEntityAddress(relation?.to));
+
+const formatRuleSummary = (rule: any) => {
+  const actionCount = rule?.actions?.length || 0;
+  const directGrantCount = rule?.directGrants?.length || 0;
+  const relationCount = rule?.relations?.length || 0;
+
+  const parts: string[] = [`${actionCount} ${actionCount === 1 ? 'action' : 'actions'}`];
+
+  if (directGrantCount > 0) {
+    parts.push(`${directGrantCount} direct ${directGrantCount === 1 ? 'grant' : 'grants'}`);
+  }
+
+  if (relationCount > 0) {
+    parts.push(`${relationCount} relation-based ${relationCount === 1 ? 'grant' : 'grants'}`);
+  }
+
+  return parts.join(' • ');
+};
 
 function PolicyDetailsContent() {
   const router = useRouter();
@@ -281,6 +311,10 @@ function PolicyDetailsContent() {
               <div className="space-y-4">
                 {policy.rules.map((rule, index) => {
                   const isExpanded = expandedRules.has(index);
+                  const actionCount = rule.actions?.length || 0;
+                  const directGrantCount = rule.directGrants?.length || 0;
+                  const relationCount = rule.relations?.length || 0;
+
                   return (
                     <Card key={index} className="overflow-hidden">
                       <CardHeader className="bg-muted/50 pb-3">
@@ -292,20 +326,14 @@ function PolicyDetailsContent() {
                             <div>
                               <div className="flex items-center gap-2">
                                 <CardTitle className="text-base">
-                                  {rule.entityType}
+                                  {getRuleDisplayEntity(rule)}
                                 </CardTitle>
                                 <Badge variant="secondary" className="text-xs">
-                                  Entity Type
+                                  Rule {index + 1}
                                 </Badge>
                               </div>
                               <CardDescription className="text-xs mt-0.5">
-                                {rule.actions.length} {rule.actions.length === 1 ? 'action' : 'actions'}
-                                {rule.directGrants && rule.directGrants.length > 0 && (
-                                  <>, {rule.directGrants.length} direct {rule.directGrants.length === 1 ? 'grant' : 'grants'}</>
-                                )}
-                                {rule.relations && rule.relations.length > 0 && (
-                                  <>, {rule.relations.length} {rule.relations.length === 1 ? 'relation' : 'relations'}</>
-                                )}
+                                {formatRuleSummary(rule)}
                               </CardDescription>
                             </div>
                           </div>
@@ -313,11 +341,18 @@ function PolicyDetailsContent() {
                             variant="ghost"
                             size="sm"
                             onClick={() => toggleRuleJson(index)}
+                            className="gap-2"
                           >
                             {isExpanded ? (
-                              <ChevronUp className="h-4 w-4" />
+                              <>
+                                <ChevronUp className="h-4 w-4" />
+                                Hide JSON
+                              </>
                             ) : (
-                              <ChevronDown className="h-4 w-4" />
+                              <>
+                                <ChevronDown className="h-4 w-4" />
+                                Show JSON
+                              </>
                             )}
                           </Button>
                         </div>
@@ -325,17 +360,28 @@ function PolicyDetailsContent() {
                       
                       <CardContent className="pt-4">
                         <div className="space-y-4">
+                          <div className="rounded-lg border bg-muted/30 p-3">
+                            <div className="text-sm font-medium">At a glance</div>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {getRuleDisplayEntity(rule)} grants {actionCount} {actionCount === 1 ? 'action' : 'actions'}
+                              {directGrantCount > 0 && ` through ${directGrantCount} direct ${directGrantCount === 1 ? 'grant' : 'grants'}`}
+                              {directGrantCount > 0 && relationCount > 0 && ' and'}
+                              {relationCount > 0 && ` through ${relationCount} relation-based ${relationCount === 1 ? 'grant' : 'grants'}`}
+                              .
+                            </p>
+                          </div>
+
                           {/* Actions Section */}
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-sm font-medium">
-                              <Zap className="h-4 w-4 text-amber-500" />
+                              <Zap className="h-4 w-4" />
                               <span>Actions</span>
                               <Badge variant="outline" className="text-xs">
-                                {rule.actions.length}
+                                {actionCount}
                               </Badge>
                             </div>
                             <div className="flex flex-wrap gap-1.5 pl-6">
-                              {rule.actions.map((action, actionIndex) => (
+                              {rule.actions?.map((action, actionIndex) => (
                                 <Badge key={actionIndex} variant="secondary" className="text-xs font-mono">
                                   {action}
                                 </Badge>
@@ -347,7 +393,7 @@ function PolicyDetailsContent() {
                           {rule.directGrants && rule.directGrants.length > 0 && (
                             <div className="space-y-2">
                               <div className="flex items-center gap-2 text-sm font-medium">
-                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                <CheckCircle2 className="h-4 w-4" />
                                 <span>Direct Grants</span>
                                 <Badge variant="outline" className="text-xs">
                                   {rule.directGrants.length}
@@ -355,7 +401,7 @@ function PolicyDetailsContent() {
                               </div>
                               <div className="flex flex-wrap gap-1.5 pl-6">
                                 {rule.directGrants.map((grant, grantIndex) => (
-                                  <Badge key={grantIndex} variant="default" className="text-xs font-mono bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-500/20">
+                                  <Badge key={grantIndex} variant="secondary" className="text-xs font-mono">
                                     {grant}
                                   </Badge>
                                 ))}
@@ -367,27 +413,29 @@ function PolicyDetailsContent() {
                           {rule.relations && rule.relations.length > 0 && (
                             <div className="space-y-3">
                               <div className="flex items-center gap-2 text-sm font-medium">
-                                <GitBranch className="h-4 w-4 text-blue-500" />
-                                <span>Relations</span>
+                                <GitBranch className="h-4 w-4" />
+                                <span>Relation-based Grants</span>
                                 <Badge variant="outline" className="text-xs">
                                   {rule.relations.length}
                                 </Badge>
                               </div>
                               <div className="space-y-2 pl-6">
                                 {rule.relations.map((relation, relIndex) => (
-                                  <Card key={relIndex} className="border-l-2 border-l-blue-500">
+                                  <Card key={relIndex}>
                                     <CardContent className="py-3 px-4">
                                       <div className="space-y-2">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-wrap items-center gap-2 text-sm">
                                           <Link className="h-3.5 w-3.5 text-muted-foreground" />
-                                          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
-                                            {relation.to}
-                                          </code>
-                                          <span className="text-xs text-muted-foreground">via</span>
+                                          <span className="text-muted-foreground">When related via</span>
                                           <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
                                             {relation.via}
                                           </code>
+                                          <span className="text-muted-foreground">to</span>
+                                          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
+                                            {getRelationDisplayEntity(relation)}
+                                          </code>
                                         </div>
+                                        <div className="text-xs text-muted-foreground">Grant actions:</div>
                                         <div className="flex flex-wrap gap-1">
                                           {relation.actions.map((action, actionIndex) => (
                                             <Badge key={actionIndex} variant="secondary" className="text-xs font-mono">

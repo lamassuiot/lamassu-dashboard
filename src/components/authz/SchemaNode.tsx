@@ -15,6 +15,7 @@ interface SchemaNodeProps {
 
 export const SchemaNode = memo(({ data }: SchemaNodeProps) => {
   const schema = data.schema;
+  const namespaceLabel = schema.namespace?.trim() || 'N/A';
   const hasAtomicActions = schema.atomicActions && schema.atomicActions.length > 0;
   const hasGlobalActions = schema.globalActions && schema.globalActions.length > 0;
   const relationCount = Object.keys(schema.relations).length;
@@ -33,6 +34,9 @@ export const SchemaNode = memo(({ data }: SchemaNodeProps) => {
         </div>
         <div className="text-xs text-muted-foreground mt-1">
           PK: <code className="bg-muted px-1 rounded">{schema.primaryKey}</code>
+        </div>
+        <div className="text-xs text-muted-foreground mt-1">
+          Namespace: <span className="font-medium text-foreground">{namespaceLabel}</span>
         </div>
       </CardHeader>
 

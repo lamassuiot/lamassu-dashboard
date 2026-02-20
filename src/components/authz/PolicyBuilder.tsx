@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Code, FormInput, Workflow } from 'lucide-react';
@@ -8,6 +8,7 @@ import { PolicyBuilderJSON } from './PolicyBuilderJSON';
 import { PolicyBuilderForm } from './PolicyBuilderForm';
 import { PolicyBuilderFlow } from './PolicyBuilderFlow';
 import type { Rule } from '@/types/authz';
+import { normalizePolicyRules } from '@/lib/policy-format';
 
 interface PolicyBuilderProps {
   rules: Rule[];
@@ -17,6 +18,11 @@ interface PolicyBuilderProps {
 
 export function PolicyBuilder({ rules, onChange, error }: PolicyBuilderProps) {
   const [activeTab, setActiveTab] = useState<'json' | 'form' | 'flow'>('form');
+  const normalizedRules = useMemo(() => normalizePolicyRules(rules), [rules]);
+
+  const handleRulesChange = (updatedRules: Rule[]) => {
+    onChange(normalizePolicyRules(updatedRules));
+  };
 
   return (
     <Card>
@@ -44,15 +50,15 @@ export function PolicyBuilder({ rules, onChange, error }: PolicyBuilderProps) {
           </TabsList>
 
           <TabsContent value="form" className="mt-4">
-            <PolicyBuilderForm rules={rules} onChange={onChange} error={error} />
+            <PolicyBuilderForm rules={normalizedRules} onChange={handleRulesChange} error={error} />
           </TabsContent>
 
           <TabsContent value="json" className="mt-4">
-            <PolicyBuilderJSON rules={rules} onChange={onChange} error={error} />
+            <PolicyBuilderJSON rules={normalizedRules} onChange={handleRulesChange} error={error} />
           </TabsContent>
 
           <TabsContent value="flow" className="mt-4">
-            <PolicyBuilderFlow rules={rules} onChange={onChange} error={error} />
+            <PolicyBuilderFlow rules={normalizedRules} onChange={handleRulesChange} error={error} />
           </TabsContent>
         </Tabs>
       </CardContent>

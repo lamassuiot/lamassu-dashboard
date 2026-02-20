@@ -309,7 +309,10 @@ export async function matchAndGetCapabilities(request: MatchAndGetCapabilitiesRe
   const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/capabilities`, {
     method: 'POST',
     headers: getAuthzHeaders(),
-    body: JSON.stringify(request),
+    body: JSON.stringify({
+      auth_type: request.authType,
+      auth_material: request.authMaterial,
+    }),
   });
   return handleApiError(response, 'Failed to match and get capabilities');
 }
