@@ -70,6 +70,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies, getPolicy } from '@/lib/authz-api';
+import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
 import type { Principal, Policy } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 
@@ -305,7 +306,7 @@ function PrincipalDetailsContent() {
     }
 
     if (type === 'x509') {
-      const x509Config = authConfig as any;
+      const x509Config = normalizeX509AuthConfig(authConfig);
       return (
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border">
@@ -318,35 +319,44 @@ function PrincipalDetailsContent() {
             </div>
           </div>
 
-          {x509Config.caFingerprint && (
+          {x509Config.ca_trust?.identity_type && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">CA FINGERPRINT</p>
+              <p className="text-xs font-medium text-muted-foreground">CA IDENTITY TYPE</p>
+              <Badge variant="outline" className="mt-1">
+                {String(x509Config.ca_trust.identity_type).replace(/_/g, ' ')}
+              </Badge>
+            </div>
+          )}
+
+          {x509Config.ca_trust?.value && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">CA TRUST VALUE</p>
               <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto break-all">
-                {x509Config.caFingerprint}
+                {x509Config.ca_trust.value}
               </code>
             </div>
           )}
 
-          {x509Config.matchMode && (
+          {x509Config.match_mode && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground">MATCH MODE</p>
-              <Badge variant="outline" className="mt-1">{String(x509Config.matchMode).replace(/_/g, ' ')}</Badge>
+              <Badge variant="outline" className="mt-1">{String(x509Config.match_mode).replace(/_/g, ' ')}</Badge>
             </div>
           )}
 
-          {x509Config.serialNumber && (
+          {x509Config.serial_number && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground">SERIAL NUMBER</p>
               <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto">
-                {x509Config.serialNumber}
+                {x509Config.serial_number}
               </code>
             </div>
           )}
 
-          {x509Config.subjectCn && (
+          {x509Config.subject_cn && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground">SUBJECT CN</p>
-              <p className="text-sm font-medium">{x509Config.subjectCn}</p>
+              <p className="text-sm font-medium">{x509Config.subject_cn}</p>
             </div>
           )}
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useCallback, useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,11 +18,24 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Loader2, AlertCircle, Info, Plus, Trash2 } from 'lucide-react';
 import { getPrincipal, updatePrincipal } from '@/lib/authz-api';
-import type { Principal, PrincipalType, ClaimCondition, X509AuthConfig } from '@/types/authz';
+import { useAuth } from '@/contexts/AuthContext';
+import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
+import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
+import {
+  normalizeX509AuthConfig,
+} from '@/lib/x509-auth-config';
+import type {
+  Principal,
+  PrincipalType,
+  ClaimCondition,
+  X509AuthConfig,
+  X509CaTrustIdentityType,
+} from '@/types/authz';
 
 function EditPrincipalContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const principalId = searchParams.get('principalId');
 
   const [loading, setLoading] = useState(true);
@@ -38,10 +51,82 @@ function EditPrincipalContent() {
 
   const [claims, setClaims] = useState<ClaimCondition[]>([]);
 
-  const [caFingerprint, setCaFingerprint] = useState('');
-  const [matchMode, setMatchMode] = useState<X509AuthConfig['matchMode']>('any_from_ca');
+  const [caTrustIdentityType, setCaTrustIdentityType] = useState<X509CaTrustIdentityType>('fingerprint');
+  const [caTrustValue, setCaTrustValue] = useState('');
+  const [selectedCa, setSelectedCa] = useState<CA | null>(null);
+  const [allCAs, setAllCAs] = useState<CA[]>([]);
+  const [isLoadingCAs, setIsLoadingCAs] = useState(false);
+  const [errorCAs, setErrorCAs] = useState<string | null>(null);
+  const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
+  const [matchMode, setMatchMode] = useState<X509AuthConfig['match_mode']>('any_from_ca');
   const [serialNumber, setSerialNumber] = useState('');
   const [subjectCn, setSubjectCn] = useState('');
+
+  const loadCAs = useCallback(async () => {
+    if (!isAuthenticated() || !user?.access_token) {
+      setErrorCAs('User not authenticated. Please log in.');
+      return;
+    }
+
+    try {
+      setIsLoadingCAs(true);
+      setErrorCAs(null);
+      const fetchedCAs = await fetchAndProcessCAs(user.access_token);
+      setAllCAs(fetchedCAs);
+    } catch (err: any) {
+      setErrorCAs(err.message || 'Failed to load Certification Authorities');
+    } finally {
+      setIsLoadingCAs(false);
+    }
+  }, [isAuthenticated, user?.access_token]);
+
+  const handleOpenCaSelector = async () => {
+    if (allCAs.length === 0) {
+      await loadCAs();
+    }
+    setIsCaSelectorOpen(true);
+  };
+
+  const handleCaSelected = (ca: CA) => {
+    setSelectedCa(ca);
+    setIsCaSelectorOpen(false);
+  };
+
+  useEffect(() => {
+    const recalculateCaTrustValue = async () => {
+      if (!selectedCa) {
+        return;
+      }
+
+      if (caTrustIdentityType === 'authority_key_id') {
+        setCaTrustValue((selectedCa.authorityKeyId || '').trim());
+        return;
+      }
+
+      if (!selectedCa.pemData) {
+        setCaTrustValue('');
+        return;
+      }
+
+      const details = await parseCertificatePemDetails(selectedCa.pemData);
+      const rawFingerprint = (details.fingerprintSha256 || '').replace(/:/g, '').toLowerCase();
+      setCaTrustValue(rawFingerprint ? `SHA256:${rawFingerprint}` : '');
+    };
+
+    recalculateCaTrustValue();
+  }, [caTrustIdentityType, selectedCa]);
+
+  const deriveCaTrustValue = async (): Promise<string> => {
+    if (!selectedCa) {
+      return caTrustValue.trim();
+    }
+
+    if (caTrustIdentityType === 'authority_key_id') {
+      return (selectedCa.authorityKeyId || '').trim();
+    }
+
+    return caTrustValue.trim();
+  };
 
   useEffect(() => {
     if (principalId) {
@@ -69,11 +154,12 @@ function EditPrincipalContent() {
       }
 
       if (fetchedPrincipal.type === 'x509') {
-        const x509Config = fetchedPrincipal.authConfig as any;
-        setCaFingerprint(x509Config?.caFingerprint || '');
-        setMatchMode(x509Config?.matchMode || 'any_from_ca');
-        setSerialNumber(x509Config?.serialNumber || '');
-        setSubjectCn(x509Config?.subjectCn || '');
+        const x509Config = normalizeX509AuthConfig(fetchedPrincipal.authConfig);
+        setCaTrustIdentityType(x509Config.ca_trust.identity_type);
+        setCaTrustValue(x509Config.ca_trust.value);
+        setMatchMode(x509Config.match_mode);
+        setSerialNumber(x509Config.serial_number || '');
+        setSubjectCn(x509Config.subject_cn || '');
       }
 
       setError(null);
@@ -126,16 +212,16 @@ function EditPrincipalContent() {
     }
 
     if (type === 'x509') {
-      if (!caFingerprint.trim()) {
-        setError('CA fingerprint is required for X.509 principals');
+      if (!selectedCa && !caTrustValue.trim()) {
+        setError('Please select a Certification Authority for X.509 principals');
         return;
       }
       if (matchMode === 'serial_and_ca' && !serialNumber.trim()) {
         setError('Serial number is required when using serial_and_ca match mode');
         return;
       }
-      if (matchMode === 'cn' && !subjectCn.trim()) {
-        setError('Subject CN is required when using cn match mode');
+      if (matchMode === 'cn_and_ca' && !subjectCn.trim()) {
+        setError('Subject CN is required when using cn_and_ca match mode');
         return;
       }
     }
@@ -147,17 +233,33 @@ function EditPrincipalContent() {
       if (type === 'oidc') {
         authConfig = { claims };
       } else if (type === 'x509') {
+        const selectedCaPem = selectedCa?.rawApiData?.certificate?.certificate;
+        const resolvedCaTrustValue = await deriveCaTrustValue();
+        if (!resolvedCaTrustValue) {
+          setError(
+            caTrustIdentityType === 'fingerprint'
+              ? 'Unable to derive CA fingerprint from the selected Certification Authority'
+              : 'Unable to derive CA Authority Key Identifier (AKI) from the selected Certification Authority'
+          );
+          setSubmitting(false);
+          return;
+        }
+
         authConfig = {
-          caFingerprint,
-          matchMode,
+          ca_trust: {
+            identity_type: caTrustIdentityType,
+            value: resolvedCaTrustValue,
+            ...(selectedCaPem ? { pem: selectedCaPem } : {}),
+          },
+          match_mode: matchMode,
         };
 
         if (matchMode === 'serial_and_ca') {
-          authConfig.serialNumber = serialNumber;
+          authConfig.serial_number = serialNumber;
         }
 
-        if (matchMode === 'cn') {
-          authConfig.subjectCn = subjectCn;
+        if (matchMode === 'cn_and_ca') {
+          authConfig.subject_cn = subjectCn;
         }
       }
 
@@ -276,18 +378,47 @@ function EditPrincipalContent() {
   const renderX509Form = () => (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="caFingerprint">
-          CA Fingerprint <span className="text-destructive">*</span>
+        <Label htmlFor="caTrustIdentityType">
+          CA Identity Type <span className="text-destructive">*</span>
         </Label>
-        <Input
-          id="caFingerprint"
-          placeholder="SHA256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
-          value={caFingerprint}
-          onChange={(e) => setCaFingerprint(e.target.value)}
-          required
-        />
+        <Select
+          value={caTrustIdentityType}
+          onValueChange={(value: X509CaTrustIdentityType) => setCaTrustIdentityType(value)}
+        >
+          <SelectTrigger id="caTrustIdentityType">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fingerprint">Fingerprint (SHA-256)</SelectItem>
+            <SelectItem value="authority_key_id">Authority Key Identifier (AKI)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="ca-selector-button">
+          Certification Authority <span className="text-destructive">*</span>
+        </Label>
+        <Button
+          id="ca-selector-button"
+          type="button"
+          variant="outline"
+          className="w-full justify-start text-left font-normal"
+          onClick={handleOpenCaSelector}
+        >
+          {selectedCa ? selectedCa.name : 'Select Certification Authority'}
+        </Button>
+        {(caTrustValue || selectedCa) && (
+          <p className="text-xs text-muted-foreground break-all">
+            {caTrustIdentityType === 'fingerprint'
+              ? `SHA-256: ${caTrustValue || 'Not available for selected CA'}`
+              : `AKI: ${selectedCa?.authorityKeyId || caTrustValue}`}
+          </p>
+        )}
         <p className="text-sm text-muted-foreground">
-          The SHA256 fingerprint of the trusted CA certificate
+          {caTrustIdentityType === 'fingerprint'
+            ? 'The SHA-256 fingerprint of the DER-encoded CA certificate'
+            : 'The Authority Key Identifier (AKI) of the trusted CA'}
         </p>
       </div>
 
@@ -295,7 +426,7 @@ function EditPrincipalContent() {
         <Label htmlFor="matchMode">Match Mode</Label>
         <Select
           value={matchMode}
-          onValueChange={(value: X509AuthConfig['matchMode']) => setMatchMode(value)}
+          onValueChange={(value: X509AuthConfig['match_mode']) => setMatchMode(value)}
         >
           <SelectTrigger>
             <SelectValue />
@@ -303,7 +434,7 @@ function EditPrincipalContent() {
           <SelectContent>
             <SelectItem value="any_from_ca">Any from CA</SelectItem>
             <SelectItem value="serial_and_ca">Serial Number + CA</SelectItem>
-            <SelectItem value="cn">Common Name (CN)</SelectItem>
+            <SelectItem value="cn_and_ca">Common Name (CN) + CA</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -323,7 +454,7 @@ function EditPrincipalContent() {
         </div>
       )}
 
-      {matchMode === 'cn' && (
+      {matchMode === 'cn_and_ca' && (
         <div className="space-y-2">
           <Label htmlFor="subjectCn">
             Subject Common Name (CN) <span className="text-destructive">*</span>
@@ -480,6 +611,20 @@ function EditPrincipalContent() {
           </div>
         </div>
       </form>
+
+      <CaSelectorModal
+        isOpen={isCaSelectorOpen}
+        onOpenChange={setIsCaSelectorOpen}
+        title="Select Certification Authority"
+        description="Choose the Certification Authority used to match X.509 client certificates."
+        availableCAs={allCAs}
+        isLoadingCAs={isLoadingCAs}
+        errorCAs={errorCAs}
+        loadCAsAction={loadCAs}
+        onCaSelected={handleCaSelected}
+        currentSelectedCaId={selectedCa?.id}
+        isAuthLoading={isAuthLoading}
+      />
     </div>
   );
 }

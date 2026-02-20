@@ -43,11 +43,21 @@ export interface OIDCAuthConfig {
   claims: ClaimCondition[];
 }
 
+export type X509CaTrustIdentityType = 'fingerprint' | 'authority_key_id';
+
+export type X509MatchMode = 'serial_and_ca' | 'cn_and_ca' | 'any_from_ca';
+
+export interface X509CaTrustConfig {
+  identity_type: X509CaTrustIdentityType;
+  value: string;
+  pem?: string;
+}
+
 export interface X509AuthConfig {
-  caFingerprint: string;
-  matchMode: 'serial_and_ca' | 'cn' | 'any_from_ca';
-  serialNumber?: string;
-  subjectCn?: string;
+  ca_trust: X509CaTrustConfig;
+  match_mode: X509MatchMode;
+  serial_number?: string;
+  subject_cn?: string;
 }
 
 export type PrincipalType = 'api_key' | 'oidc' | 'x509';
