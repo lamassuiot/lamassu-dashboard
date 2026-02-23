@@ -185,17 +185,9 @@ export interface GetCapabilitiesRequest {
   principal_id: string;
 }
 
-export interface EntityCapabilityDTO {
-  entity_id: string;
-  actions: string[];
-}
-
 export interface EntityTypeCapabilitiesDTO {
   entity_type: string;
-  global_actions?: string[];
-  entities?: EntityCapabilityDTO[];
-  truncated?: boolean;
-  total_count?: number;
+  global_actions: string[];
 }
 
 export interface CapabilitiesResponse {
@@ -209,6 +201,41 @@ export interface MatchAndGetCapabilitiesRequest {
 
 export interface MatchAndGetCapabilitiesResponse {
   entity_types: Record<string, EntityTypeCapabilitiesDTO>;
+  matched_principals: string[];
+}
+
+// Check which of a given set of actions a principal can perform on an entity type
+export interface CheckEntityTypeActionsRequest {
+  principal_id: string;
+  namespace: string;
+  schema_name: string;
+  entity_type: string;
+  actions: string[];
+}
+
+export interface ActionCheckResult {
+  action: string;
+  allowed: boolean;
+}
+
+export interface CheckEntityTypeActionsResponse {
+  namespace: string;
+  schema_name: string;
+  entity_type: string;
+  results: ActionCheckResult[];
+}
+
+// Match-variant: resolve principal from auth material first
+export interface MatchAndCheckEntityTypeActionsRequest {
+  authType: 'api_key' | 'oidc' | 'x509';
+  authMaterial: any;
+  namespace: string;
+  schema_name: string;
+  entity_type: string;
+  actions: string[];
+}
+
+export interface MatchAndCheckEntityTypeActionsResponse extends CheckEntityTypeActionsResponse {
   matched_principals: string[];
 }
 

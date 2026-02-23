@@ -20,8 +20,8 @@ import type {
 } from '@/types/authz';
 
 const getApiBaseUrl = (): string => {
-  if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_AUTZ_API) {
-    return (window as any).lamassuConfig.LAMASSU_AUTZ_API;
+  if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_AUTHZ_API) {
+    return (window as any).lamassuConfig.LAMASSU_AUTHZ_API;
   }
 
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {

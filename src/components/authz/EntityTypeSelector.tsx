@@ -37,24 +37,49 @@ export function EntityTypeSelector({
     return acc;
   }, {});
 
+  const selectedSchema = schemas.find((s) =>
+    valueMode === 'qualified'
+      ? `${s.schemaName}.${s.entityType}` === value
+      : s.entityType === value
+  );
+
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled}>
       <SelectTrigger id={id}>
-        <SelectValue placeholder={placeholder} />
+        {selectedSchema ? (
+          <div className="flex flex-col gap-0 text-left min-w-0">
+            <span className="font-medium text-sm leading-tight truncate">{selectedSchema.entityType}</span>
+            <span className="text-[11px] text-muted-foreground leading-tight truncate">{selectedSchema.schemaName}</span>
+          </div>
+        ) : (
+          <SelectValue placeholder={placeholder} />
+        )}
       </SelectTrigger>
       <SelectContent>
         {Object.entries(groupedSchemas).map(([namespace, namespaceSchemas]) => (
           <SelectGroup key={namespace}>
-            <SelectLabel className="font-bold">{namespace.toUpperCase()}</SelectLabel>
-            {namespaceSchemas.map((schema) => (
-              <SelectItem
-                key={`${schema.schemaName}.${schema.entityType}`}
-                value={valueMode === 'qualified' ? `${schema.schemaName}.${schema.entityType}` : schema.entityType}
-                className="pl-10"
-              >
-                {schema.entityType}
-              </SelectItem>
-            ))}
+            <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 px-2 py-1">
+              {namespace}
+            </SelectLabel>
+            {namespaceSchemas.map((schema) => {
+              const itemValue =
+                valueMode === 'qualified'
+                  ? `${schema.schemaName}.${schema.entityType}`
+                  : schema.entityType;
+              return (
+                <SelectItem
+                  key={`${schema.schemaName}.${schema.entityType}`}
+                  value={itemValue}
+                  textValue={itemValue}
+                  className="pl-4 py-2"
+                >
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="font-medium text-sm leading-tight">{schema.entityType}</span>
+                    <span className="text-[11px] text-muted-foreground leading-tight">{schema.schemaName}</span>
+                  </div>
+                </SelectItem>
+              );
+            })}
           </SelectGroup>
         ))}
       </SelectContent>
