@@ -678,3 +678,8 @@
     --sidebar-ring: oklch(0.552 0.016 285.938);
   }
 }
+
+/* Monaco Editor — target line highlight */
+.monaco-target-line-highlight {
+  background: rgba(234, 179, 8, 0.2) !important;
+}

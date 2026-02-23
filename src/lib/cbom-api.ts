@@ -19,6 +19,30 @@ export interface ComplianceCheckResult {
   details?: any;
 }
 
+export interface ComplianceFinding {
+  bomRef: string;
+  levelId: number;
+  message: string;
+}
+
+export interface ComplianceLevel {
+  id: number;
+  label: string;
+  description?: string;
+  colorHex: string;
+  icon: string;
+}
+
+export interface QuantumSafeComplianceResult {
+  complianceServiceName: string;
+  policyName: string;
+  findings: ComplianceFinding[];
+  complianceLevels: ComplianceLevel[];
+  defaultComplianceLevel: number;
+  globalComplianceStatus: boolean;
+  error: boolean;
+}
+
 export interface ScanCredentials {
   username?: string;
   password?: string;
@@ -32,7 +56,17 @@ export interface ScanRequest {
   credentials?: ScanCredentials;
 }
 
-export type CBOMScanMessageType = 'LABEL' | 'GITURL' | 'BRANCH' | 'REVISION_HASH' | 'DETECTION';
+export type CBOMScanMessageType =
+  | 'LABEL'
+  | 'GITURL'
+  | 'BRANCH'
+  | 'REVISION_HASH'
+  | 'SCANNED_DURATION'
+  | 'SCANNED_FILE_COUNT'
+  | 'SCANNED_NUMBER_OF_LINES'
+  | 'CBOM'
+  | 'DETECTION'
+  | 'ERROR';
 
 export interface CBOMScanMessage {
   type: CBOMScanMessageType;
@@ -62,6 +96,9 @@ export interface CBOMScanDetection {
 
 export interface StartCBOMWebSocketScanParams {
   scanUrl: string;
+  branch?: string;
+  subfolder?: string;
+  credentials?: ScanCredentials;
   accessToken?: string;
   onOpen?: () => void;
   onMessage?: (message: CBOMScanMessage, detection?: CBOMScanDetection) => void;
@@ -204,6 +241,31 @@ export async function checkCBOMCompliance(
 }
 
 /**
+ * Run a detailed compliance check against a policy, returning structured findings and levels
+ * @param bomData - CBOM BOM object to check
+ * @param policyIdentifier - Policy to check against
+ * @param accessToken - Authentication token
+ */
+export async function runComplianceCheck(
+  bomData: object,
+  policyIdentifier: string,
+  accessToken: string,
+): Promise<QuantumSafeComplianceResult> {
+  const params = new URLSearchParams({ policyIdentifier });
+  const url = `${get_CBOM_API_BASE_URL()}/compliance/check?${params.toString()}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(bomData),
+  });
+  return handleApiError(response, 'Failed to run compliance check');
+}
+
+/**
  * Scan a repository to generate a CBOM
  * @param scanRequest - Scan request configuration
  * @param accessToken - Authentication token
@@ -280,6 +342,9 @@ const parseScanPayload = (rawData: string): CBOMScanMessage | null => {
 
 export function startCBOMWebSocketScan({
   scanUrl,
+  branch,
+  subfolder,
+  credentials,
   accessToken,
   onOpen,
   onMessage,
@@ -289,7 +354,13 @@ export function startCBOMWebSocketScan({
   const socket = new WebSocket(resolveCBOMWebSocketUrl(accessToken));
 
   socket.onopen = () => {
-    socket.send(JSON.stringify({ scanUrl }));
+    const payload: Record<string, unknown> = { scanUrl };
+    if (branch) payload.branch = branch;
+    if (subfolder) payload.subfolder = subfolder;
+    if (credentials && Object.keys(credentials).some((k) => !!(credentials as Record<string, string>)[k])) {
+      payload.credentials = credentials;
+    }
+    socket.send(JSON.stringify(payload));
     onOpen?.();
   };
 
