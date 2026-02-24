@@ -564,7 +564,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
         if (!isOpen) return null;
 
         return (
-            <Card className={cn("flex h-full min-h-[650px] flex-col overflow-hidden bg-white", className)}>
+            <Card className={cn("flex h-full min-h-[650px] flex-col overflow-hidden", className)}>
                 {panelContent}
             </Card>
         );
