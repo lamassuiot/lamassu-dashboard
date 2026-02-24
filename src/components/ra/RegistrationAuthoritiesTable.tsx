@@ -35,6 +35,7 @@ interface RegistrationAuthoritiesTableProps {
   onShowMetadata: (ra: ApiRaItem) => void;
   onOpenEnrollModal: (ra: ApiRaItem) => void;
   onOpenReEnrollModal: (ra: ApiRaItem) => void;
+  onOpenCaCertsPanel: (ra: ApiRaItem) => void;
   onDelete: (ra: ApiRaItem) => void;
   sortConfig: SortConfig | null;
   requestSort: (column: SortableColumn) => void;
@@ -82,6 +83,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
   onShowMetadata,
   onOpenEnrollModal,
   onOpenReEnrollModal,
+  onOpenCaCertsPanel,
   onDelete,
   sortConfig,
   requestSort,
@@ -244,7 +246,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                           <DropdownMenuItem onClick={() => onOpenReEnrollModal(ra)}>
                             <span>Re-Enroll...</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => router.push(`/registration-authorities/cacerts?raId=${ra.id}`)}>
+                          <DropdownMenuItem onClick={() => onOpenCaCertsPanel(ra)}>
                             <span>Get CA Certs</span>
                           </DropdownMenuItem>
                         </DropdownMenuSubContent>

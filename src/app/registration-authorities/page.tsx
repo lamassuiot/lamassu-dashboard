@@ -44,6 +44,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
+import { EstCaCertsPanel } from '@/components/shared/EstCaCertsPanel';
 import { fetchRegistrationAuthorities, updateRaMetadata, type ApiRaItem, deleteRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
 import { Label } from '@/components/ui/label';
@@ -87,6 +88,8 @@ interface SortConfig {
 const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
+type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | null;
+
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -115,11 +118,8 @@ export default function RegistrationAuthoritiesPage() {
   // Sorting State
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ column: 'name', direction: 'asc' });
 
-  const [isEnrollPanelOpen, setIsEnrollPanelOpen] = useState(false);
-  const [selectedRaForEnroll, setSelectedRaForEnroll] = useState<ApiRaItem | null>(null);
-  
-  const [isReEnrollModalOpen, setIsReEnrollModalOpen] = useState(false);
-  const [selectedRaForReEnroll, setSelectedRaForReEnroll] = useState<ApiRaItem | null>(null);
+  const [estPanelMode, setEstPanelMode] = useState<EstPanelMode>(null);
+  const [selectedRaForEstAction, setSelectedRaForEstAction] = useState<ApiRaItem | null>(null);
 
   const [isMetadataModalOpen, setIsMetadataModalOpen] = useState(false);
   const [selectedRaForMetadata, setSelectedRaForMetadata] = useState<ApiRaItem | null>(null);
@@ -291,21 +291,25 @@ export default function RegistrationAuthoritiesPage() {
   };
   
   const handleOpenEnrollModal = (ra: ApiRaItem) => {
-    setSelectedRaForEnroll(ra);
-    setIsEnrollPanelOpen(true);
+    setSelectedRaForEstAction(ra);
+    setEstPanelMode('enroll');
   };
 
-  const handleEnrollPanelOpenChange = (isOpen: boolean) => {
-    setIsEnrollPanelOpen(isOpen);
-
+  const handleEstPanelOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setSelectedRaForEnroll(null);
+      setEstPanelMode(null);
+      setSelectedRaForEstAction(null);
     }
   };
-  
+
   const handleOpenReEnrollModal = (ra: ApiRaItem) => {
-    setSelectedRaForReEnroll(ra);
-    setIsReEnrollModalOpen(true);
+    setSelectedRaForEstAction(ra);
+    setEstPanelMode('reenroll');
+  };
+
+  const handleOpenCaCertsPanel = (ra: ApiRaItem) => {
+    setSelectedRaForEstAction(ra);
+    setEstPanelMode('cacerts');
   };
 
   const handleShowMetadata = (ra: ApiRaItem) => {
@@ -435,16 +439,33 @@ export default function RegistrationAuthoritiesPage() {
       </div>
 
         <SplitPanelLayout
-        isPanelOpen={isEnrollPanelOpen}
+          isPanelOpen={estPanelMode !== null}
           panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_720px]"
         panel={
-          <EstEnrollModal
-          isOpen={isEnrollPanelOpen}
-          onOpenChange={handleEnrollPanelOpenChange}
-          ra={selectedRaForEnroll}
-          className="p-4"
-          presentation="inline"
-          />
+            estPanelMode === 'enroll' ? (
+              <EstEnrollModal
+                isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
+                onOpenChange={handleEstPanelOpenChange}
+                ra={selectedRaForEstAction}
+                className="p-4"
+                presentation="inline"
+              />
+            ) : estPanelMode === 'reenroll' ? (
+              <EstReEnrollModal
+                isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
+                onOpenChange={handleEstPanelOpenChange}
+                ra={selectedRaForEstAction}
+                className="p-4"
+                presentation="inline"
+              />
+            ) : estPanelMode === 'cacerts' ? (
+              <EstCaCertsPanel
+                isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
+                onOpenChange={handleEstPanelOpenChange}
+                ra={selectedRaForEstAction}
+                className="p-4"
+              />
+            ) : null
         }
         >
         {error && (
@@ -474,6 +495,7 @@ export default function RegistrationAuthoritiesPage() {
             onShowMetadata={handleShowMetadata}
             onOpenEnrollModal={handleOpenEnrollModal}
             onOpenReEnrollModal={handleOpenReEnrollModal}
+            onOpenCaCertsPanel={handleOpenCaCertsPanel}
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
@@ -540,7 +562,7 @@ export default function RegistrationAuthoritiesPage() {
                                 <DropdownMenuItem onClick={() => handleOpenReEnrollModal(ra)}>
                                   <span>Re-Enroll...</span>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => router.push(`/registration-authorities/cacerts?raId=${ra.id}`)}>
+                                <DropdownMenuItem onClick={() => handleOpenCaCertsPanel(ra)}>
                                   <span>Get CA Certs</span>
                                 </DropdownMenuItem>
                               </DropdownMenuSubContent>
@@ -692,11 +714,6 @@ export default function RegistrationAuthoritiesPage() {
         isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
     />
-      <EstReEnrollModal
-        isOpen={isReEnrollModalOpen}
-        onOpenChange={setIsReEnrollModalOpen}
-        ra={selectedRaForReEnroll}
-      />
       <MetadataViewerModal
         isOpen={isMetadataModalOpen}
         onOpenChange={setIsMetadataModalOpen}
