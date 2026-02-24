@@ -234,6 +234,9 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
 
   const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
+  const showGlobalBreadcrumbs =
+    !pathname.startsWith('/certificate-authorities/details') &&
+    !pathname.startsWith('/certificates/details');
   let userRoles: string[] = [];
   if (isAuthenticated() && user?.access_token) {
     try {
@@ -457,7 +460,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               </Sidebar>
 
               <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
-                {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
+                {showGlobalBreadcrumbs && breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
                 {children}
                 <CustomFooter />
               </SidebarInset>

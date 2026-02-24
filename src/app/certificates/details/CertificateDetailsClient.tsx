@@ -446,12 +446,18 @@ export default function CertificateDetailsClient() { // Renamed component
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
+            <BreadcrumbLink href="/">Home</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
             <BreadcrumbLink href="/certificates">Certificates</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage className="max-w-[320px] truncate">
-              {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
+            <BreadcrumbPage>
+              <Badge variant="default" className="max-w-[320px] truncate text-xs">
+                {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
+              </Badge>
             </BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>

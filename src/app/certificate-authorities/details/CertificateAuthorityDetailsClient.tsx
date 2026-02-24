@@ -436,6 +436,15 @@ export default function CertificateAuthorityDetailsClient() {
           <BreadcrumbItem>
             <BreadcrumbLink
               className="cursor-pointer"
+              onClick={() => routerHook.push('/')}
+            >
+              Home
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink
+              className="cursor-pointer"
               onClick={() => routerHook.push('/certificate-authorities')}
             >
               Certificate Authorities
@@ -456,7 +465,11 @@ export default function CertificateAuthorityDetailsClient() {
           ))}
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{caDetails.name}</BreadcrumbPage>
+            <BreadcrumbPage>
+              <Badge variant="default" className="text-xs">
+                {caDetails.name}
+              </Badge>
+            </BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>

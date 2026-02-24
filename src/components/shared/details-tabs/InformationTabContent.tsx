@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
 import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
@@ -25,6 +24,8 @@ import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
+import { cn } from '@/lib/utils';
 
 
 interface CaStats {
@@ -122,6 +123,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isChainPanelCollapsed, setIsChainPanelCollapsed] = useState(false);
 
   useEffect(() => {
     const loadProfiles = async () => {
@@ -195,14 +197,101 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Revoked on:</span>
-                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString="PPpp" showRelative={false} />
+                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString="PPpp" showRelative={true} />
               </div>
             </AlertDescription>
           </Alert>
         )}
 
-        {/* ── Grid of sections ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <SplitPanelLayout
+          isPanelOpen={true}
+          panelWidthClassName={
+            isChainPanelCollapsed
+              ? 'xl:grid-cols-[minmax(0,1fr)_56px]'
+              : 'xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]'
+          }
+          panelClassName={isChainPanelCollapsed ? 'xl:self-stretch' : undefined}
+          panel={
+            <div className="relative h-full min-h-[420px]">
+              <div
+                className={cn(
+                  'h-full rounded-xl border bg-card p-5 transition-all duration-300 ease-in-out',
+                  isChainPanelCollapsed
+                    ? 'pointer-events-none absolute inset-0 opacity-0'
+                    : 'relative opacity-100'
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <SectionHeader icon={Network} title="Issuance Hierarchy &amp; Chain of Trust" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => setIsChainPanelCollapsed(true)}
+                  >
+                    Collapse
+                  </Button>
+                </div>
+                {caSpecific.pathToRoot.length > 0 ? (
+                  <div className="flex flex-col items-center w-full">
+                    {caSpecific.pathToRoot.map((caNode, index) => (
+                      <CaHierarchyPathNode
+                        key={caNode.id}
+                        ca={caNode}
+                        isCurrentCa={caNode.id === caDetails.id}
+                        hasNext={index < caSpecific.pathToRoot.length - 1}
+                        isFirst={index === 0}
+                        allCryptoEngines={caSpecific.allCryptoEngines}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Hierarchy path not available.</p>
+                )}
+
+                {caDetails.children && caDetails.children.length > 0 && (
+                  <>
+                    <Separator className="my-4" />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm font-semibold">Directly Issues To</p>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {caDetails.children.map(child => (
+                          <button
+                            key={child.id}
+                            onClick={() => routerHook.push(`/certificate-authorities/details?caId=${child.id}`)}
+                            className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-sm hover:bg-muted/60 transition-colors text-left"
+                          >
+                            <span>{child.name}</span>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsChainPanelCollapsed(false)}
+                className={cn(
+                  'absolute inset-0 h-full w-full rounded-xl bg-primary/80 text-primary-foreground px-1 py-3 text-xs font-semibold [writing-mode:vertical-rl] rotate-180 transition-all duration-300 ease-in-out hover:bg-primary/90',
+                  isChainPanelCollapsed
+                    ? 'pointer-events-auto opacity-100'
+                    : 'pointer-events-none opacity-0'
+                )}
+              >
+                Show Chain of Trust
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-6">
+          {/* ── Grid of sections ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
           {/* General */}
           <div className="rounded-xl border bg-card p-5 space-y-1">
@@ -231,7 +320,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           </div>
 
           {/* Extensions */}
-          <div className="rounded-xl border bg-card p-5 space-y-1">
+          <div className="rounded-xl border bg-card p-5 space-y-1 self-start">
             <SectionHeader icon={Lock} title="Certificate Extensions" />
             <DetailItem
               label="Basic Constraints"
@@ -240,7 +329,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   <span className="text-xs text-muted-foreground">CA:</span>
                   <Badge
                     variant={caDetails.isCa ? 'default' : 'secondary'}
-                    className={cn('text-xs', caDetails.isCa && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200')}
+                    className="text-xs"
                   >
                     {caDetails.isCa ? 'TRUE' : 'FALSE'}
                   </Badge>
@@ -306,64 +395,22 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               </div>
             )}
           </div>
-        </div>
-
-        {/* ── Distribution Points ── */}
-        {hasDistribution && (
-          <div className="rounded-xl border bg-card p-5 space-y-4">
-            <SectionHeader icon={LinkIcon} title="Distribution Points" />
-            <div className="space-y-4">
-              <UrlChips urls={caDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
-              <UrlChips urls={caDetails.ocspUrls} label="OCSP Responders" />
-              <UrlChips urls={caDetails.caIssuersUrls} label="CA Issuers (AIA)" />
-            </div>
           </div>
-        )}
 
-        {/* ── Issuance Hierarchy ── */}
-        <div className="rounded-xl border bg-card p-5">
-          <SectionHeader icon={Network} title="Issuance Hierarchy &amp; Chain of Trust" />
-          {caSpecific.pathToRoot.length > 0 ? (
-            <div className="flex flex-col items-center w-full">
-              {caSpecific.pathToRoot.map((caNode, index) => (
-                <CaHierarchyPathNode
-                  key={caNode.id}
-                  ca={caNode}
-                  isCurrentCa={caNode.id === caDetails.id}
-                  hasNext={index < caSpecific.pathToRoot.length - 1}
-                  isFirst={index === 0}
-                  allCryptoEngines={caSpecific.allCryptoEngines}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Hierarchy path not available.</p>
-          )}
-
-          {caDetails.children && caDetails.children.length > 0 && (
-            <>
-              <Separator className="my-4" />
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm font-semibold">Directly Issues To</p>
-                </div>
-                <div className="flex flex-col gap-1">
-                  {caDetails.children.map(child => (
-                    <button
-                      key={child.id}
-                      onClick={() => routerHook.push(`/certificate-authorities/details?caId=${child.id}`)}
-                      className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-sm hover:bg-muted/60 transition-colors text-left"
-                    >
-                      <span>{child.name}</span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  ))}
-                </div>
+          {/* ── Distribution Points ── */}
+          {hasDistribution && (
+            <div className="rounded-xl border bg-card p-5 space-y-4">
+              <SectionHeader icon={LinkIcon} title="Distribution Points" />
+              <div className="space-y-4">
+                <UrlChips urls={caDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
+                <UrlChips urls={caDetails.ocspUrls} label="OCSP Responders" />
+                <UrlChips urls={caDetails.caIssuersUrls} label="CA Issuers (AIA)" />
               </div>
-            </>
+            </div>
           )}
-        </div>
+          </div>
+        </SplitPanelLayout>
+
       </div>
     );
   }
@@ -446,7 +493,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           </div>
 
           {/* Extensions */}
-          <div className="rounded-xl border bg-card p-5 space-y-1 lg:col-span-2">
+          <div className="rounded-xl border bg-card p-5 space-y-1 lg:col-span-2 self-start">
             <SectionHeader icon={Lock} title="Certificate Extensions" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <DetailItem
