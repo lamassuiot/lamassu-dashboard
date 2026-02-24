@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, Cpu, ShieldAlert, ShieldCheck, Shield, Settings, Tag, CheckSquare, RefreshCw, ShieldQuestion as ShieldQuestionIcon, FolderKey } from 'lucide-react'; // Added DatabaseIcon, FolderKey
@@ -17,13 +16,35 @@ import PKCS11Logo from "@/components/shared/CryptoEngineIcons/PKCS11.png";
 import VaultLogo from "@/components/shared/CryptoEngineIcons/HASHICORP-VAULT.png";
 import { fetchCryptoEngines } from '@/lib/kms-data';
 
+const SupportedKeyTypes: React.FC<{ keyTypes: ApiKeyTypeDetail[] }> = ({ keyTypes }) => {
+  if (!keyTypes || keyTypes.length === 0) {
+    return <p className="text-sm text-muted-foreground">Not specified</p>;
+  }
 
-// Helper to format supported key types for display
-const formatSupportedKeyTypes = (keyTypes: ApiKeyTypeDetail[]): string => {
-  if (!keyTypes || keyTypes.length === 0) return 'Not specified';
-  return keyTypes
-    .map(kt => `${kt.type}: ${kt.sizes.join(', ')}`)
-    .join('; ');
+  return (
+    <div className="space-y-2">
+      {keyTypes.map((keyType) => (
+        <div key={keyType.type} className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="text-xs font-medium">
+            {keyType.type}
+          </Badge>
+          {keyType.sizes?.length ? (
+            keyType.sizes.map((size) => (
+              <Badge
+                key={`${keyType.type}-${String(size)}`}
+                variant="outline"
+                className="text-xs"
+              >
+                {String(size)}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">No sizes defined</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 };
 
 // Helper for security level display
@@ -36,13 +57,10 @@ const getSecurityLevelInfo = (level: number): { text: string; Icon: React.Elemen
 
 const EngineIcon: React.FC<{ type: string, name: string }> = ({ type, name }) => {
   const typeUpper = type?.toUpperCase();
-  const nameUpper = name?.toUpperCase();
   let IconComponent: React.ElementType | null = null;
   let iconColorClass = "text-muted-foreground";
   let iconBGClass = "bg-transparent";
   let imageSrc: any = null; // For next/image
-
-  console.log(typeUpper);
   
   if (typeUpper === "GOLANG") {
     IconComponent = FolderKey;
@@ -106,11 +124,14 @@ export default function CryptoEnginesPage() {
     }
   }, [fetchEngines, authLoading]);
 
+  const defaultEnginesCount = engines.filter((engine) => engine.default).length;
+  const highSecurityCount = engines.filter((engine) => engine.security_level >= 3).length;
+
   if (authLoading || isLoadingEngines) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">
+      <div className="flex flex-col items-center justify-center p-12">
+        <Loader2 className="mb-4 h-10 w-10 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">
           {authLoading ? "Authenticating..." : "Loading Crypto Engines..."}
         </p>
       </div>
@@ -118,19 +139,47 @@ export default function CryptoEnginesPage() {
   }
 
   return (
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
-          <Cpu className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Crypto Engines</h1>
+    <div className="w-full space-y-6 pb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Cpu className="h-4 w-4" />
+            Hardware Security & Key Engines
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Crypto Engines</h1>
+          <p className="text-sm text-muted-foreground">
+            Available cryptographic engines for key management and signing operations.
+          </p>
         </div>
         <Button onClick={fetchEngines} variant="outline" disabled={isLoadingEngines}>
           <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingEngines && "animate-spin")} /> Refresh List
         </Button>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Available cryptographic engines for key management and operations.
-      </p>
+
+      {!errorEngines && engines.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <div className="inline-flex items-center gap-2 rounded-lg border px-3 py-2">
+            <Badge variant="secondary" className="h-6 min-w-6 rounded-full px-2 text-xs font-semibold">
+              {engines.length}
+            </Badge>
+            <span className="text-sm">Total Engines</span>
+          </div>
+
+          <div className="inline-flex items-center gap-2 rounded-lg border px-3 py-2">
+            <Badge variant="secondary" className="h-6 min-w-6 rounded-full px-2 text-xs font-semibold">
+              {defaultEnginesCount}
+            </Badge>
+            <span className="text-sm">Default Engines</span>
+          </div>
+
+          <div className="inline-flex items-center gap-2 rounded-lg border px-3 py-2">
+            <Badge variant="secondary" className="h-6 min-w-6 rounded-full px-2 text-xs font-semibold">
+              {highSecurityCount}
+            </Badge>
+            <span className="text-sm">High Security</span>
+          </div>
+        </div>
+      )}
 
       {errorEngines && (
         <Alert variant="destructive">
@@ -144,61 +193,66 @@ export default function CryptoEnginesPage() {
       )}
 
       {!errorEngines && engines.length === 0 && !isLoadingEngines && (
-        <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-          <h3 className="text-lg font-semibold text-muted-foreground">No Crypto Engines Found</h3>
-          <p className="text-sm text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-border bg-muted/20 p-10 text-center">
+          <h3 className="text-lg font-semibold">No Crypto Engines Found</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
             No cryptographic engines are currently configured or available.
           </p>
         </div>
       )}
 
       {!errorEngines && engines.length > 0 && (
-        <div className="space-y-4">
+        <div className="overflow-hidden rounded-lg border bg-card">
           {engines.map((engine) => {
             const securityInfo = getSecurityLevelInfo(engine.security_level);
+
             return (
-              <Card key={engine.id} className="shadow-md hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center">
-                       <EngineIcon type={engine.type} name={engine.name} />
-                       <div>
-                          <CardTitle className="text-xl">{engine.name}</CardTitle>
-                          <CardDescription>{engine.provider} - ID: <span className="font-mono text-xs">{engine.id}</span></CardDescription>
-                       </div>
+              <article key={engine.id} className="border-b border-border last:border-b-0">
+                <div className="space-y-4 p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <EngineIcon type={engine.type} name={engine.name} />
+                      <div>
+                        <h2 className="text-base font-semibold leading-none">{engine.name}</h2>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {engine.provider} • ID: <span className="font-mono text-xs">{engine.id}</span>
+                        </p>
+                      </div>
                     </div>
-                    {engine.default && (
-                      <Badge variant="default" className="text-xs bg-accent text-accent-foreground">
-                        <CheckSquare className="mr-1.5 h-3.5 w-3.5" /> Default Engine
+                    <div className="flex flex-wrap items-center gap-2">
+                      {engine.default ? (
+                        <Badge variant="default" className="text-xs bg-accent text-accent-foreground">
+                          <CheckSquare className="mr-1.5 h-3.5 w-3.5" /> Default Engine
+                        </Badge>
+                      ) : null}
+                      <Badge variant="outline" className={cn("text-xs", securityInfo.badgeClass)}>
+                        <securityInfo.Icon className={cn("mr-1.5 h-3.5 w-3.5", securityInfo.badgeClass.split(' ')[1])} />
+                        {securityInfo.text}
                       </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <securityInfo.Icon className={cn("h-4 w-4", securityInfo.badgeClass.split(' ')[1])} />
-                    <Badge variant="outline" className={cn("text-xs", securityInfo.badgeClass)}>{securityInfo.text}</Badge>
-                    <Badge variant="secondary" className="text-xs">Type: {engine.type}</Badge>
+                      <Badge variant="secondary" className="text-xs">{engine.type}</Badge>
+                    </div>
                   </div>
 
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Supported Key Types:</h4>
-                    <p className="text-sm text-foreground bg-muted/30 p-2 rounded-md">
-                      {formatSupportedKeyTypes(engine.supported_key_types)}
-                    </p>
-                  </div>
-                  {engine.metadata && Object.keys(engine.metadata).length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-muted-foreground mb-1 flex items-center">
-                        <Tag className="mr-1.5 h-4 w-4" /> Additional Metadata:
-                      </h4>
-                      <pre className="text-xs bg-muted/30 p-2 rounded-md overflow-x-auto">
-                        {JSON.stringify(engine.metadata, null, 2)}
-                      </pre>
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <div className="rounded-md border bg-background p-3">
+                      <h3 className="mb-1 text-xs font-medium text-muted-foreground">Supported Key Types</h3>
+                      <SupportedKeyTypes keyTypes={engine.supported_key_types} />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+
+                    <div className="rounded-md border bg-background p-3">
+                      <h3 className="mb-1 flex items-center text-xs font-medium text-muted-foreground">
+                        <Tag className="mr-1.5 h-3.5 w-3.5" /> Additional Metadata
+                      </h3>
+                      {engine.metadata && Object.keys(engine.metadata).length > 0 ? (
+                        <pre className="overflow-x-auto text-xs">{JSON.stringify(engine.metadata, null, 2)}</pre>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No metadata available.</p>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              </article>
             );
           })}
         </div>

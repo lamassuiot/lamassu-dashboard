@@ -2,15 +2,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetDescription,
+} from '@/components/ui/sheet';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,6 +28,10 @@ import { Alert, AlertDescription as AlertDescUI } from '@/components/ui/alert';
 import { createSchema } from 'genson-js';
 import { Stepper } from '@/components/shared/Stepper';
 
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
+    ssr: false,
+});
+
 
 interface SubscribeToAlertModalProps {
   isOpen: boolean;
@@ -34,6 +40,8 @@ interface SubscribeToAlertModalProps {
   samplePayload: object | null;
   onSuccess: () => void;
   subscriptionToEdit?: ApiSubscription | null;
+    presentation?: 'sheet' | 'inline';
+    className?: string;
 }
 
 const channelOptions = [
@@ -57,6 +65,8 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
   samplePayload,
   onSuccess,
   subscriptionToEdit,
+    presentation = 'sheet',
+    className,
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -376,20 +386,43 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                 {filterType === 'JSON-SCHEMA' && (
                     <div>
                         <Label htmlFor="filter-condition-jsonschema">JSON Schema</Label>
-                        <Textarea id="filter-condition-jsonschema" value={jsonSchema} onChange={e => setJsonSchema(e.target.value)} rows={5} className="font-mono"/>
+                        <div id="filter-condition-jsonschema" className="mt-2 overflow-hidden rounded-md border">
+                            <MonacoEditor
+                                height="220px"
+                                language="json"
+                                value={jsonSchema}
+                                onChange={(value) => setJsonSchema(value ?? '')}
+                                options={{
+                                    minimap: { enabled: false },
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    fontSize: 12,
+                                    lineNumbersMinChars: 3,
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
                 {(filterType !== 'NONE') && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                         <div className="space-y-1.5">
                             <Label htmlFor="input-event">Input Event</Label>
-                             <Textarea 
-                                id="input-event"
-                                value={inputEvent}
-                                onChange={(e) => setInputEvent(e.target.value)}
-                                className="font-mono text-xs h-64"
-                                placeholder="Enter a valid JSON object..."
-                            />
+                            <div id="input-event" className="overflow-hidden rounded-md border">
+                                <MonacoEditor
+                                    height="256px"
+                                    language="json"
+                                    value={inputEvent}
+                                    onChange={(value) => setInputEvent(value ?? '')}
+                                    options={{
+                                        minimap: { enabled: false },
+                                        scrollBeyondLastLine: false,
+                                        automaticLayout: true,
+                                        fontSize: 12,
+                                        lineNumbersMinChars: 3,
+                                        wordWrap: 'on',
+                                    }}
+                                />
+                            </div>
                         </div>
                         <div className="space-y-1.5">
                             <Label>Evaluation Result</Label>
@@ -458,11 +491,29 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                         <div className="space-y-1">
                             <Label className="text-muted-foreground">Condition:</Label>
                             {(filterType === 'JSON-SCHEMA' || filterType === 'JAVASCRIPT') ? (
-                                <Textarea 
-                                    value={currentCondition} 
-                                    readOnly 
-                                    className="font-mono text-xs h-28 bg-background"
-                                />
+                                filterType === 'JSON-SCHEMA' ? (
+                                    <div className="overflow-hidden rounded-md border bg-background">
+                                        <MonacoEditor
+                                            height="112px"
+                                            language="json"
+                                            value={currentCondition}
+                                            options={{
+                                                readOnly: true,
+                                                minimap: { enabled: false },
+                                                scrollBeyondLastLine: false,
+                                                automaticLayout: true,
+                                                fontSize: 12,
+                                                lineNumbers: 'off',
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <Textarea 
+                                        value={currentCondition} 
+                                        readOnly 
+                                        className="font-mono text-xs h-28 bg-background"
+                                    />
+                                )
                             ) : (
                                 <p className="font-mono text-xs p-2 bg-background rounded-md border">{currentCondition}</p>
                             )}
@@ -476,37 +527,64 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
     }
   }
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl lg:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Edit Subscription' : 'Subscribe to event'}</DialogTitle>
-          <DialogDescription>
-            {isEditMode ? 'Modify' : 'Get notified when'} a "<span className="font-semibold">{eventType}</span>" event occurs.
-          </DialogDescription>
-        </DialogHeader>
+    const panelContent = (
+        <>
+            <div className="border-b p-6 pb-4">
+                <h2 className="text-lg font-semibold">{isEditMode ? 'Edit Subscription' : 'Subscribe to event'}</h2>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <span>{isEditMode ? 'Modify' : 'Get notified when'} event occurs:</span>
+                    <Badge variant="secondary" className="max-w-full truncate">{eventType ?? 'Unknown event'}</Badge>
+                </div>
+            </div>
 
-        <div className="py-4">
-            <Stepper currentStep={step} steps={["Channels", "Filters", "Confirmation"]} />
-            <div className="min-h-[200px]">
-                {renderStepContent()}
+            <div className="flex-1 overflow-y-auto p-6 pt-4">
+                <Stepper currentStep={step} steps={["Channels", "Filters", "Confirmation"]} />
+                <div className="min-h-[200px]">
+                    {renderStepContent()}
+                </div>
             </div>
-        </div>
 
-        <DialogFooter className="flex justify-between w-full">
-            <div>
-                {step > 1 && <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4"/>Back</Button>}
+            <div className="flex w-full items-center justify-between border-t p-6 pt-4">
+                <div>
+                    {step > 1 && <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4"/>Back</Button>}
+                </div>
+                <div className="flex space-x-2">
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
+                    {step < 3 && <Button onClick={handleNext}>Next</Button>}
+                    {step === 3 && <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        {isEditMode ? 'Save Changes' : 'Confirm Subscription'}
+                    </Button>}
+                </div>
             </div>
-            <div className="flex space-x-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
-                {step < 3 && <Button onClick={handleNext}>Next</Button>}
-                {step === 3 && <Button onClick={handleSubmit} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                    {isEditMode ? 'Save Changes' : 'Confirm Subscription'}
-                </Button>}
-            </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+        </>
+    );
+
+    if (presentation === 'inline') {
+        if (!isOpen) return null;
+
+        return (
+            <Card className={cn("flex h-full min-h-[650px] flex-col overflow-hidden bg-white", className)}>
+                {panelContent}
+            </Card>
+        );
+    }
+
+    return (
+        <Sheet open={isOpen} onOpenChange={onOpenChange}>
+            <SheetContent side="right" className={cn("w-full sm:max-w-3xl lg:max-w-5xl p-0", className)}>
+                <SheetHeader className="sr-only">
+                    <SheetTitle>{isEditMode ? 'Edit Subscription' : 'Subscribe to event'}</SheetTitle>
+                    <SheetDescription>
+                        {isEditMode ? 'Modify' : 'Get notified when'} a "{eventType}" event occurs.
+                    </SheetDescription>
+                </SheetHeader>
+                <div className="h-full p-4">
+                    <Card className="flex h-full flex-col overflow-hidden bg-white">
+                        {panelContent}
+                    </Card>
+                </div>
+            </SheetContent>
+        </Sheet>
+    );
 };

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -7,6 +6,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, PlusCircle, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +18,7 @@ import {
 } from '@/lib/ca-data';
 import { SigningProfileForm, signingProfileSchema, type SigningProfileFormValues, templateDefaults, defaultFormValues } from '@/components/shared/SigningProfileForm';
 import { Form } from '@/components/ui/form';
+import { Stepper } from '@/components/shared/Stepper';
 
 
 const templateMetadata = [
@@ -35,11 +37,12 @@ export default function CreateSigningProfilePage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [view, setView] = useState<'template' | 'form'>('template');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('blank');
   const [initialFormValues, setInitialFormValues] = useState<SigningProfileFormValues | null>(defaultFormValues);
   
   const form = useForm<SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
-    values: initialFormValues || defaultFormValues, // Use values to re-initialize on template selection
+    values: initialFormValues || defaultFormValues,
   });
 
   async function handleSubmit(data: SigningProfileFormValues) {
@@ -107,67 +110,136 @@ export default function CreateSigningProfilePage() {
         const templateData = templateDefaults[templateId] || {};
         newInitialValues = { ...defaultFormValues, ...templateData };
     }
+    setSelectedTemplateId(templateId);
     setInitialFormValues(newInitialValues);
-    form.reset(newInitialValues); // Explicitly reset the form with new values
+    form.reset(newInitialValues);
     setView('form');
   };
 
+  const selectedTemplate = templateMetadata.find((template) => template.id === selectedTemplateId) ?? templateMetadata[0];
+
   return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/signing-profiles')} className="mb-0">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Issuance Profiles
-      </Button>
+    <div className="mb-8 w-full space-y-6">
+      <div className="flex flex-col gap-4 p-1 sm:flex-row sm:items-start sm:justify-between sm:p-0">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <PlusCircle className="h-4 w-4" />
+            Issuance Profile Wizard
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Create Issuance Profile</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Start from a trusted template, then customize certificate policy, validity, and cryptographic controls.
+          </p>
+          <div className="max-w-xl pt-2">
+            <Stepper currentStep={view === 'template' ? 1 : 2} steps={["Choose Template", "Configure Profile"]} />
+          </div>
+        </div>
+        <Button variant="outline" onClick={() => router.push('/signing-profiles')}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Issuance Profiles
+        </Button>
+      </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)}>
-          <Card className="shadow-lg">
-              <CardHeader>
-              <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                  <PlusCircle className="h-7 w-7 text-primary" />
-                  <CardTitle className="text-xl font-headline">Create Issuance Profile</CardTitle>
-                  </div>
-                  {view === 'form' && (
-                  <Button variant="ghost" onClick={() => setView('template')}>
-                      <ArrowLeft className="mr-2 h-4 w-4" /> Back to Templates
-                  </Button>
-                  )}
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          {view === 'template' ? (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Select a starting template</h2>
+                <p className="text-sm text-muted-foreground">
+                  Choose a baseline profile for common PKI use cases, or start blank.
+                </p>
               </div>
-              <CardDescription>
-                  {view === 'template' ? 'Select a template to start with or begin with a blank slate.' : 
-                  'Define the parameters for the new certificate issuance profile.'}
-              </CardDescription>
-              </CardHeader>
-              <CardContent>
-                  {view === 'template' ? (
-                      <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {templateMetadata.map(({ id, title, description, icon: Icon }) => (
-                                  <Card key={id} className="hover:shadow-md hover:border-primary/50 transition-shadow cursor-pointer flex flex-col" onClick={() => handleTemplateSelect(id)}>
-                                      <CardHeader className="flex-grow">
-                                          <div className="flex items-center space-x-3 mb-2">
-                                              <div className="p-2 bg-muted rounded-md"><Icon className="h-6 w-6 text-primary"/></div>
-                                              <h3 className="font-semibold">{title}</h3>
-                                          </div>
-                                          <p className="text-xs text-muted-foreground">{description}</p>
-                                      </CardHeader>
-                                  </Card>
-                              ))}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {templateMetadata.map(({ id, title, description, icon: Icon }) => {
+                  const isActive = selectedTemplateId === id;
+
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => handleTemplateSelect(id)}
+                      className="text-left"
+                    >
+                      <Card
+                        className={`h-full border transition-all hover:border-primary/50 hover:shadow-md ${
+                          isActive ? 'border-primary ring-1 ring-primary/30' : ''
+                        }`}
+                      >
+                        <CardHeader className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="rounded-md bg-muted p-2">
+                                <Icon className="h-5 w-5 text-primary" />
+                              </div>
+                              <CardTitle className="text-base">{title}</CardTitle>
+                            </div>
+                            {isActive ? <Badge variant="default">Selected</Badge> : null}
                           </div>
-                      </div>
-                  ) : (
-                      <SigningProfileForm form={form} />
-                  )}
-              </CardContent>
-              {view === 'form' && (
-                      <CardFooter>
-                      <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto ml-auto">
-                          {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                          Create Profile
-                      </Button>
-                  </CardFooter>
-              )}
-          </Card>
+                          <CardDescription className="text-xs">{description}</CardDescription>
+                        </CardHeader>
+                      </Card>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Profile Configuration</CardTitle>
+                      <CardDescription>
+                        Define rules for certificate issuance, subject handling, and key policy.
+                      </CardDescription>
+                    </div>
+                    <Button type="button" variant="ghost" onClick={() => setView('template')}>
+                      <ArrowLeft className="mr-2 h-4 w-4" /> Change Template
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <SigningProfileForm form={form} />
+                </CardContent>
+                <CardFooter className="flex flex-col gap-3 border-t pt-6 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={() => router.push('/signing-profiles')}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting} className="min-w-36">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Create Profile
+                  </Button>
+                </CardFooter>
+              </Card>
+
+              <Card className="h-fit xl:sticky xl:top-6">
+                <CardHeader>
+                  <CardTitle className="text-base">Selected Template</CardTitle>
+                  <CardDescription>
+                    You can edit any pre-filled values before creating the profile.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-md bg-muted p-2">
+                      <selectedTemplate.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium leading-none">{selectedTemplate.title}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">{selectedTemplate.description}</p>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2 text-xs text-muted-foreground">
+                    <p>• Review validity and CA signing behavior first.</p>
+                    <p>• Enforce crypto constraints when policy requires strict key types.</p>
+                    <p>• Configure KU/EKU overrides only when CSR values should be ignored.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </form>
       </Form>
     </div>

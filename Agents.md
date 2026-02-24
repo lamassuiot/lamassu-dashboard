@@ -196,6 +196,11 @@ docker run -p 9002:80 lamassu-ui       # Run containerized application
 
 Make sure that there is a new line at the end of any file you edit. This is a common convention in TypeScript and many other programming languages.
 
+**Documentation & API Reference Policy:**
+- **Required**: Use Context7 as the primary source for up-to-date documentation and examples when implementing or modifying **ShadCN UI** and **React** patterns.
+- **Preferred Workflow**: Resolve the library ID first, then retrieve focused docs for the specific component/hook/topic being changed.
+- **Do not rely on memory alone** for component props, API signatures, or newly introduced React/ShadCN patterns when Context7 can provide authoritative guidance.
+
 **Next.js App Router Patterns:**
 1. **Page Components** (`src/app/` directory): Use React Server Components where possible, Client Components for interactivity
 2. **Component Organization** (`src/components/` directory): Group by feature, shared components in `shared/`
@@ -209,6 +214,8 @@ Make sure that there is a new line at the end of any file you edit. This is a co
 
 **UI/UX Standards:**
 - Follow ShadCN UI component patterns with Tailwind CSS
+- Minimize `Card` wrapping and avoid unnecessary nested cards; use simpler layout containers when a card does not add semantic or visual value
+- Reuse existing shared UI components before creating new ones, especially for inputs, selects, tables, charts, dialogs, and form primitives
 - Implement responsive design for mobile and desktop usage
 - Use consistent loading states and error handling
 - Provide clear feedback for all certificate operations
