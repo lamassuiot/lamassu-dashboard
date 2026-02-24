@@ -395,14 +395,6 @@ export default function AuthorizationTestPage() {
         </p>
       </div>
 
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Use separate fields for authz entity targeting: namespace, schemaName, and unqualified entityType.{' '}
-          entityType must not contain a dot.
-        </AlertDescription>
-      </Alert>
-
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
