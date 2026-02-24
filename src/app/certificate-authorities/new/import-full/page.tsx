@@ -84,7 +84,10 @@ export default function CreateCaImportFullPage() {
   // Set up pkijs engine
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      pkijs.setEngine("webcrypto", pkijs.getCrypto());
+      const webcrypto = pkijs.getCrypto();
+      if (webcrypto) {
+        pkijs.setEngine("webcrypto", webcrypto);
+      }
     }
   }, []);
 

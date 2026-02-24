@@ -206,7 +206,10 @@ export default function CertificateViewerPage() {
 
   // --- Effects ---
   useEffect(() => {
-    setEngine("webcrypto", getCrypto());
+        const webcrypto = getCrypto();
+        if (webcrypto) {
+            setEngine("webcrypto", webcrypto);
+        }
   }, []);
 
   // Effect to load and initialize WASM environment reliably

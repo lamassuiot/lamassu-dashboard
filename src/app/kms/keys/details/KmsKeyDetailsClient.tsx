@@ -832,7 +832,11 @@ export default function KmsKeyDetailsClient() {
       }
 
       const pkijsCrypto = pkijs.getCrypto();
-      const publicKey = await pkijsCrypto?.importKey(
+      if (!pkijsCrypto) {
+        throw new Error("WebCrypto is not available in this environment.");
+      }
+
+      const publicKey = await pkijsCrypto.importKey(
         "spki",
         publicKeyDer,
         keyOpts!,
