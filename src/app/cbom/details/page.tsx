@@ -7,7 +7,7 @@ import { fetchCBOM, deleteCBOM, CBOMItem, runComplianceCheck, type QuantumSafeCo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode, Network } from 'lucide-react';
+import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode } from 'lucide-react';
 import {
   GraphCanvas,
   Sphere,
@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useRouter } from 'next/navigation';
 import { CBOMAssetDetailDialog, type CBOMAssetDetail } from '@/components/cbom/CBOMAssetDetailDialog';
+import { CBOMBubbleChart } from '@/components/cbom/CBOMBubbleChart';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { StatGauge } from '@/components/shared/StatGauge';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
@@ -784,39 +785,49 @@ function CBOMDetailsContent() {
       </div>
 
       {/* Compact stats banner */}
-      <div className="flex flex-wrap items-center gap-6 rounded-lg border bg-card px-5 py-4">
-        <div className="flex items-center justify-center border-r pr-6">
-          <StatGauge
-            percentage={oidCoverage}
-            label="OID Coverage"
-            color="hsl(var(--chart-5))"
-            valueText={`${Math.round(oidCoverage)}%`}
-            secondaryText={`${assetsWithOid}/${assets.length || 0}`}
-            className="flex flex-col items-center gap-1 text-center"
-          />
+      <div className="flex flex-wrap gap-0 rounded-lg border bg-card overflow-hidden">
+        {/* Left: numeric stats */}
+        <div className="flex flex-wrap items-center gap-6 px-5 py-4 flex-1 min-w-0">
+          <div className="flex items-center justify-center border-r pr-6">
+            <StatGauge
+              percentage={oidCoverage}
+              label="OID Coverage"
+              color="hsl(var(--chart-5))"
+              valueText={`${Math.round(oidCoverage)}%`}
+              secondaryText={`${assetsWithOid}/${assets.length || 0}`}
+              className="flex flex-col items-center gap-1 text-center"
+            />
+          </div>
+          <div className="flex flex-wrap gap-8">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Total assets</p>
+              <p className="text-3xl font-semibold">{totalAssets}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Unique types</p>
+              <p className="text-3xl font-semibold">{uniqueAssetTypesCount}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Findings</p>
+              <p className="text-3xl font-semibold">{totalFindings}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Package</p>
+              <p className="text-sm font-medium break-all">{detailsData?.projectIdentifier || cbom.projectIdentifier}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Format</p>
+              <p className="text-sm font-medium">CycloneDX</p>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-8">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total assets</p>
-            <p className="text-3xl font-semibold">{totalAssets}</p>
+        {/* Right: bubble chart */}
+        {assets.length > 0 && (
+          <div className="border-l px-4 py-3 flex flex-col justify-center min-w-[260px] w-[340px] shrink-0">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Asset Distribution</p>
+            <CBOMBubbleChart assets={assets} height={160} />
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Unique types</p>
-            <p className="text-3xl font-semibold">{uniqueAssetTypesCount}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Findings</p>
-            <p className="text-3xl font-semibold">{totalFindings}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Package</p>
-            <p className="text-sm font-medium break-all">{detailsData?.projectIdentifier || cbom.projectIdentifier}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Format</p>
-            <p className="text-sm font-medium">CycloneDX</p>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Compliance section */}
