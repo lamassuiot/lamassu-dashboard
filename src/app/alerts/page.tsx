@@ -398,6 +398,10 @@ export default function AlertsPage() {
 
       <SplitPanelLayout
         isPanelOpen={!!rightPanelMode}
+        onPanelOpenChange={(isOpen) => {
+          if (!isOpen) handleCloseRightPanel();
+        }}
+        mobilePanelAsDialog
         panel={
           rightPanelMode === 'subscribe' && isSubscribeModalOpen ? (
             <SubscribeToAlertModal

@@ -33,6 +33,7 @@ import * as asn1js from "asn1js";
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Badge } from '../ui/badge';
 import { Stepper } from './Stepper';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Re-defining RA type here to avoid complex imports, but ideally this would be shared
 interface ApiRaItem {
@@ -102,6 +103,8 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 }) => {
     const { toast } = useToast();
     const { user } = useAuth();
+    const isMobile = useIsMobile();
+    const resolvedPresentation = presentation === 'inline' && isMobile ? 'dialog' : presentation;
     
     // Dependencies state
     const [availableCAs, setAvailableCAs] = useState<CA[]>([]);
@@ -645,7 +648,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
         </>
     );
 
-    if (presentation === 'inline') {
+    if (resolvedPresentation === 'inline') {
         if (!isOpen) return null;
 
         return (

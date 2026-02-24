@@ -473,6 +473,8 @@ export default function DevicesPage() {
 
       <SplitPanelLayout
         isPanelOpen={isEnrollModalOpen}
+        onPanelOpenChange={handleEnrollPanelOpenChange}
+        mobilePanelAsDialog
         panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_620px]"
         panel={
           <EstEnrollModal

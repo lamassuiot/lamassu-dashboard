@@ -7,6 +7,7 @@ interface LamassuConfig {
   LAMASSU_AUTH_ENABLED?: boolean;
   LAMASSU_AUTH_AUTHORITY?: string;
   LAMASSU_AUTH_CLIENT_ID?: string;
+  LAMASSU_AUTH_MONITOR_SESSION?: boolean;
   LAMASSU_API?: string;
   LAMASSU_PUBLIC_API?: string;
   LAMASSU_CONNECTORS?: string[];

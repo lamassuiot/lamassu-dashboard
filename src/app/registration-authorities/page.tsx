@@ -440,6 +440,8 @@ export default function RegistrationAuthoritiesPage() {
 
         <SplitPanelLayout
           isPanelOpen={estPanelMode !== null}
+          onPanelOpenChange={handleEstPanelOpenChange}
+          mobilePanelAsDialog
           panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_720px]"
         panel={
             estPanelMode === 'enroll' ? (
