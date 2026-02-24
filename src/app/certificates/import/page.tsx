@@ -15,6 +15,7 @@ import { importCertificate, type ImportCertificateBody } from '@/lib/issued-cert
 import { parseCertificatePemDetails } from '@/lib/ca-data';
 import dynamic from 'next/dynamic';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 // Dynamically import Monaco Editor to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
@@ -35,6 +36,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_EXTENSIONS = ['.pem', '.crt', '.cer'];
 
 export default function ImportCertificatePage() {
+  const monacoTheme = useMonacoTheme();
   const router = useRouter();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -345,7 +347,7 @@ export default function ImportCertificatePage() {
                     formatOnPaste: true,
                     formatOnType: true,
                   }}
-                  theme="vs-dark"
+                  theme={monacoTheme}
                 />
               </div>
               {metadataError && (

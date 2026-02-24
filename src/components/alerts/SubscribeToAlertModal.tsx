@@ -26,6 +26,7 @@ import { Validator } from 'jsonschema';
 import { Alert, AlertDescription as AlertDescUI } from '@/components/ui/alert';
 import { createSchema } from 'genson-js';
 import { Stepper } from '@/components/shared/Stepper';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
     ssr: false,
@@ -67,6 +68,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
     presentation = 'sheet',
     className,
 }) => {
+  const monacoTheme = useMonacoTheme();
   const { user } = useAuth();
   const { toast } = useToast();
   const isEditMode = !!subscriptionToEdit;
@@ -385,6 +387,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                                 language="javascript"
                                 value={jsFunction}
                                 onChange={(value) => setJsFunction(value ?? '')}
+                                theme={monacoTheme}
                                 options={{
                                     minimap: { enabled: false },
                                     scrollBeyondLastLine: false,
@@ -406,6 +409,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                                 language="json"
                                 value={jsonSchema}
                                 onChange={(value) => setJsonSchema(value ?? '')}
+                                theme={monacoTheme}
                                 options={{
                                     minimap: { enabled: false },
                                     scrollBeyondLastLine: false,
@@ -427,6 +431,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                                     language="json"
                                     value={inputEvent}
                                     onChange={(value) => setInputEvent(value ?? '')}
+                                    theme={monacoTheme}
                                     options={{
                                         minimap: { enabled: false },
                                         scrollBeyondLastLine: false,
@@ -511,6 +516,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                                             height="112px"
                                             language="json"
                                             value={currentCondition}
+                                            theme={monacoTheme}
                                             options={{
                                                 readOnly: true,
                                                 minimap: { enabled: false },
@@ -527,6 +533,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                                             height="112px"
                                             language="javascript"
                                             value={currentCondition}
+                                            theme={monacoTheme}
                                             options={{
                                                 readOnly: true,
                                                 minimap: { enabled: false },

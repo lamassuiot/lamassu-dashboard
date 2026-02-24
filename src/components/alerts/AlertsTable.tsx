@@ -15,6 +15,7 @@ import type { AlertEvent, AlertSortConfig, SortableAlertColumn } from '@/app/ale
 import { Layers, ChevronDown, ChevronsUpDown, ArrowDownAZ, ArrowUpAZ, ArrowDown10, ArrowUp01 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CompactDateDisplay } from '@/components/shared/DateDisplay';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -62,6 +63,7 @@ const SortableHeader: React.FC<{
 
 
 export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscriptionClick, onSubscribe, onViewAuditUser, sortConfig, onSort }) => {
+  const monacoTheme = useMonacoTheme();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const handleSubscribeClick = (e: React.MouseEvent, event: AlertEvent) => {
@@ -164,6 +166,7 @@ export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscription
                           height="256px"
                           language="json"
                           value={JSON.stringify(event.payload, null, 2)}
+                          theme={monacoTheme}
                           options={{
                             readOnly: true,
                             minimap: { enabled: false },

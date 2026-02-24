@@ -22,6 +22,7 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { TagInput } from '@/components/shared/TagInput';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 // Monaco Editor dynamic import to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
@@ -52,6 +53,7 @@ const creationModes = [
 ];
 
 export default function CreateKmsKeyPage() {
+  const monacoTheme = useMonacoTheme();
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -531,7 +533,7 @@ export default function CreateKmsKeyPage() {
                           formatOnPaste: true,
                           formatOnType: true,
                         }}
-                        theme="vs-dark"
+                        theme={monacoTheme}
                       />
                     </div>
                     {metadataError && (

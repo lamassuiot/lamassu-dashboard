@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import type { AwsPolicy } from './AwsIotIntegrationTab';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 const Editor = dynamic(
     () => import('@monaco-editor/react'), 
@@ -43,6 +44,7 @@ export const AwsPolicyEditorModal: React.FC<AwsPolicyEditorModalProps> = ({
   onSave,
   existingPolicy,
 }) => {
+  const monacoTheme = useMonacoTheme();
   const isEditing = !!existingPolicy;
 
   const form = useForm<AwsPolicy>({
@@ -122,7 +124,7 @@ export const AwsPolicyEditorModal: React.FC<AwsPolicyEditorModalProps> = ({
                             defaultLanguage="json"
                             value={field.value}
                             onChange={(value) => field.onChange(value || '')}
-                            theme="vs-dark"
+                            theme={monacoTheme}
                             options={{ minimap: { enabled: false }, automaticLayout: true, wordWrap: 'on' }}
                         />
                      </div>

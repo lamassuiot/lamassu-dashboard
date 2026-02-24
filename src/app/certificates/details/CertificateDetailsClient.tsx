@@ -4,9 +4,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2 } from "lucide-react";
-import { Badge } from '@/components/ui/badge';
+import { FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, Settings, KeyRound, Copy, Check } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { CertificateData } from '@/types/certificate';
@@ -24,7 +24,10 @@ import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTab
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchDeviceById } from '@/lib/devices-api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -64,10 +67,12 @@ export default function CertificateDetailsClient() { // Renamed component
   const routerHook = useRouter();
   const { toast } = useToast();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { mode: identifierMode } = useIdentifierDisplay();
   const certificateId = searchParams.get('certificateId'); // Get certificateId from query params
 
   const [certificateDetails, setCertificateDetails] = useState<CertificateData | null>(null);
   const [allCAs, setAllCAs] = useState<CA[]>([]);
+  const [copiedSn, setCopiedSn] = useState(false);
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   
   const [isLoadingCert, setIsLoadingCert] = useState(true);
@@ -408,75 +413,185 @@ export default function CertificateDetailsClient() { // Renamed component
 
   const isOnHold = certificateDetails.apiStatus?.toUpperCase() === 'REVOKED' && certificateDetails.revocationReason === 'CertificateHold';
 
+  const accentClass = statusText.includes('ACTIVE')
+    ? 'bg-primary'
+    : statusText.includes('REVOKED')
+    ? 'bg-destructive'
+    : statusText.includes('EXPIRED')
+    ? 'bg-amber-500'
+    : 'bg-muted';
+
+  const statusDotClass = statusText.includes('ACTIVE')
+    ? 'bg-emerald-500'
+    : statusText.includes('REVOKED')
+    ? 'bg-destructive'
+    : 'bg-amber-500';
+
+  const statusPillClass = statusText.includes('ACTIVE')
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+    : statusText.includes('REVOKED')
+    ? 'bg-destructive/10 text-destructive border-destructive/20'
+    : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800';
+
+  const iconBoxClass = statusText.includes('ACTIVE')
+    ? 'bg-primary/10 border-primary/20 text-primary'
+    : statusText.includes('REVOKED')
+    ? 'bg-destructive/10 border-destructive/20 text-destructive'
+    : 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400';
+
   return (
-    <div className="w-full space-y-6">
-      <Button variant="outline" onClick={() => routerHook.back()}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back
-      </Button>
-      
-      <div className="w-full">
-        <div className="p-6 border-b">
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-2">
-            <div>
-              <div className="flex items-center space-x-3">
-                <FileText className="h-8 w-8 text-primary" />
-                <h1 className="text-2xl font-headline font-semibold truncate" title={certificateDetails.subject}>
-                  {getCertSubjectCommonName(certificateDetails.subject) || `Certificate: ${certificateDetails.serialNumber}`}
+    <div className="w-full space-y-5">
+
+      {/* Breadcrumb */}
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/certificates">Certificates</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="max-w-[320px] truncate">
+              {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      {/* Hero card */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className={cn('h-1 w-full', accentClass)} />
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 p-5">
+          {/* Identity */}
+          <div className="flex items-start gap-4 min-w-0">
+            <div className={cn(
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border',
+              iconBoxClass
+            )}>
+              <FileText className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <h1 className="text-xl font-semibold truncate" title={certificateDetails.subject}>
+                  {getCertSubjectCommonName(certificateDetails.subject) || 'Certificate'}
                 </h1>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">SN</span>
+                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[320px]">
+                    {(() => {
+                      const clean = certificateDetails.serialNumber.replace(/[\s:-]/g, '');
+                      if (identifierMode === 'with-separators') {
+                        return clean.match(/.{1,2}/g)?.join(':') ?? clean;
+                      }
+                      return clean;
+                    })()}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(certificateDetails.serialNumber.replace(/[:\-]/g, ''));
+                      setCopiedSn(true);
+                      setTimeout(() => setCopiedSn(false), 2000);
+                    }}
+                  >
+                    {copiedSn ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                  </Button>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-1.5">
-                Serial Number: <IdentifierDisplay value={certificateDetails.serialNumber} className="text-xs" />
-              </p>
-            </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto mt-2 sm:mt-0">
-              <Badge variant={statusVariant} className={cn("text-sm", statusVariant !== 'outline' ? statusColorClass : '')}>
-                {statusText}
-              </Badge>
-              {statusText === 'REVOKED' && certificateDetails.revocationReason && (
-                <Badge variant="outline" className="text-sm text-muted-foreground">
-                  {certificateDetails.revocationReason}
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
 
-        <div className="px-6 py-4 border-b bg-muted/30">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-wrap gap-2 ml-auto">
-              {isOnHold ? (
-                <Button variant="outline" size="sm" onClick={handleReactivate}>
-                  <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate Certificate
-                </Button>
-              ) : (
-                <Button 
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleOpenRevokeModal} 
-                  disabled={statusText === 'REVOKED' || isRevoking}
-                >
-                  {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                  {isRevoking ? 'Revoking...' : 'Revoke Certificate'}
-                </Button>
-              )}
-              {canDelete && (
-                <Button variant="destructive" size="sm" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
-                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                  {isDeleting ? 'Deleting...' : 'Delete Certificate'}
-                </Button>
-              )}
+              {/* Badge cluster */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Status pill */}
+                <div className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                  statusPillClass
+                )}>
+                  <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass)} />
+                  {statusText}
+                </div>
+
+                {statusText === 'REVOKED' && certificateDetails.revocationReason && (
+                  <Badge variant="outline" className="text-xs text-destructive border-destructive/30">
+                    {certificateDetails.revocationReason}
+                  </Badge>
+                )}
+
+                {certificateDetails.publicKeyAlgorithm && (
+                  <Badge variant="outline" className="text-xs gap-1">
+                    <KeyRound className="h-3 w-3" />
+                    {certificateDetails.publicKeyAlgorithm}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {isOnHold ? (
+              <Button variant="outline" size="sm" onClick={handleReactivate}>
+                <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleOpenRevokeModal}
+                disabled={statusText === 'REVOKED' || isRevoking}
+              >
+                {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                {isRevoking ? 'Revoking…' : 'Revoke'}
+              </Button>
+            )}
+
+            {canDelete && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    disabled={isDeleting}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Certificate
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
+      </div>
 
-        <Tabs defaultValue="information" className="w-full p-6">
-          <TabsList className="mb-6">
-            <TabsTrigger value="information"><Info className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Details</TabsTrigger>
-            <TabsTrigger value="pem"><Code2 className="mr-2 h-4 w-4 sm:hidden md:inline-block" />PEM Data</TabsTrigger>
-            <TabsTrigger value="metadata"><Layers className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Metadata</TabsTrigger>
-          </TabsList>
+      {/* Underline tabs */}
+      <Tabs defaultValue="information" className="w-full">
+        <TabsList className="w-full justify-start rounded-none bg-transparent border-b p-0 h-auto mb-5">
+          <TabsTrigger
+            value="information"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 pb-3 pt-1 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none font-medium"
+          >
+            <Info className="mr-2 h-4 w-4" />Details
+          </TabsTrigger>
+          <TabsTrigger
+            value="pem"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 pb-3 pt-1 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none font-medium"
+          >
+            <Code2 className="mr-2 h-4 w-4" />PEM Data
+          </TabsTrigger>
+          <TabsTrigger
+            value="metadata"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 pb-3 pt-1 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none font-medium"
+          >
+            <Layers className="mr-2 h-4 w-4" />Metadata
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="information">
+        <TabsContent value="information">
             <InformationTabContent
               item={certificateDetails}
               itemType="certificate"
@@ -489,9 +604,9 @@ export default function CertificateDetailsClient() { // Renamed component
               routerHook={routerHook}
               onAkiClick={handleAkiClick}
             />
-          </TabsContent>
+        </TabsContent>
 
-          <TabsContent value="pem">
+        <TabsContent value="pem">
             <PemTabContent
                 singlePemData={certificateDetails.pemData}
                 fullChainPemData={fullChainPemString}
@@ -506,9 +621,9 @@ export default function CertificateDetailsClient() { // Renamed component
                   statusText: statusText,
                 }}
             />
-          </TabsContent>
+        </TabsContent>
 
-          <TabsContent value="metadata">
+        <TabsContent value="metadata">
             <MetadataTabContent
               rawJsonData={certificateDetails.rawApiData?.metadata}
               itemName={getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
@@ -519,9 +634,9 @@ export default function CertificateDetailsClient() { // Renamed component
               onSave={handleUpdateCertMetadata}
               onUpdateSuccess={loadCertificate}
             />
-          </TabsContent>
-        </Tabs>
-      </div>
+        </TabsContent>
+      </Tabs>
+
       {certificateToRevoke && (
         <RevocationModal
           isOpen={isRevocationModalOpen}

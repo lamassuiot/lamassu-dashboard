@@ -5,10 +5,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronRight, Settings, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
@@ -99,6 +100,7 @@ export default function CertificateAuthorityDetailsClient() {
   const [caStats, setCaStats] = useState<CaStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [errorStats, setErrorStats] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
 
   const cryptoEngine = useMemo(() => {
     if (caDetails?.kmsKeyId && allCryptoEngines.length > 0) {
@@ -403,136 +405,231 @@ export default function CertificateAuthorityDetailsClient() {
   }
 
 
+  // Status visual helpers
+  const statusDotClass = caIsActive
+    ? 'bg-emerald-500'
+    : caDetails.status === 'revoked'
+    ? 'bg-destructive'
+    : 'bg-amber-500';
+  const statusPillClass = caIsActive
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+    : caDetails.status === 'revoked'
+    ? 'bg-destructive/10 text-destructive border-destructive/20'
+    : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800';
+  const accentBarClass = caIsActive
+    ? 'bg-primary'
+    : caDetails.status === 'revoked'
+    ? 'bg-destructive'
+    : 'bg-amber-500';
+  const iconBoxClass = caIsActive
+    ? 'bg-primary/10 border-primary/20 text-primary'
+    : caDetails.status === 'revoked'
+    ? 'bg-destructive/10 border-destructive/20 text-destructive'
+    : 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400';
+
   return (
-    <div className="w-full">
-       <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => routerHook.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
-      </div>
+    <div className="w-full space-y-5">
 
-      <div className="w-full mt-0">
-        <div className="p-6 pt-0 border-b">
-          <div className="flex flex-col xl:flex-row items-center justify-between gap-4">
-            <div className="flex-shrink-0 self-start xl:self-center">
-              <div className="flex items-center space-x-3">
-                <FileText className="h-8 w-8 text-primary" />
+      {/* ── Breadcrumb navigation ── */}
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink
+              className="cursor-pointer"
+              onClick={() => routerHook.push('/certificate-authorities')}
+            >
+              Certificate Authorities
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          {caPathToRoot.slice(0, -1).map((ca) => (
+            <React.Fragment key={ca.id}>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink
+                  className="cursor-pointer"
+                  onClick={() => routerHook.push(`/certificate-authorities/details?caId=${ca.id}`)}
+                >
+                  {ca.name}
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+            </React.Fragment>
+          ))}
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{caDetails.name}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      {/* ── Hero header card ── */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {/* Top accent bar */}
+        <div className={cn('h-1 w-full', accentBarClass)} />
+
+        <div className="p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+
+            {/* Left: identity */}
+            <div className="flex items-start gap-4">
+              {/* Icon box */}
+              <div className={cn(
+                'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border',
+                iconBoxClass
+              )}>
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0 space-y-2">
                 <div>
-                    {caPathToRoot.length > 1 && (
-                      <div className="flex items-center text-sm text-muted-foreground mb-1">
-                        {caPathToRoot.slice(0, -1).map((ca, index) => (
-                          <React.Fragment key={ca.id}>
-                            <Button
-                              variant="link"
-                              className="p-0 h-auto"
-                              onClick={() => routerHook.push(`/certificate-authorities/details?caId=${ca.id}`)}
-                            >
-                              {ca.name}
-                            </Button>
-                            <ChevronRight className="h-4 w-4 mx-1" />
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    )}
-                    <h1 className="text-2xl font-headline font-semibold">{caDetails.name}</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Certification Authority ID: {caDetails.id}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      <Badge variant={statusVariant} className={cn("text-sm", statusVariant !== 'outline' ? statusColorClass : '')}>{caDetails.status.toUpperCase()}</Badge>
-                      {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
-                        <Badge variant="destructive" className="font-normal bg-red-100 dark:bg-red-900/50">
-                            Reason: {caDetails.rawApiData.certificate.revocation_reason}
-                        </Badge>
-                      )}
-                      {caDetails.caType && (
-                        <Badge variant="secondary" className="text-xs">{caDetails.caType.replace(/_/g, ' ').toUpperCase()}</Badge>
-                      )}
-                      {cryptoEngine && (
-                        <div className="border-l-2 border-border pl-2 flex items-center gap-2">
-                            <CryptoEngineViewer engine={cryptoEngine} />
-                            {caDetails.rawApiData?.certificate?.key_metadata && (
-                              <Badge variant="secondary" className="text-xs">
-                                {caDetails.rawApiData.certificate.key_metadata.type}
-                                {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}-bit`}
-                                {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
-                              </Badge>
-                            )}
-                        </div>
-                      )}
+                  <h1 className="text-2xl font-semibold tracking-tight">{caDetails.name}</h1>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">ID</span>
+                    <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
+                      {caDetails.id}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(caDetails.id);
+                        setCopiedId(true);
+                        setTimeout(() => setCopiedId(false), 2000);
+                      }}
+                    >
+                      {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                    </Button>
+                  </div>
+                </div>
 
+                {/* Badge cluster */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Status pill */}
+                  <div className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                    statusPillClass
+                  )}>
+                    <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass)} />
+                    {caDetails.status.toUpperCase()}
+                  </div>
+
+                  {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
+                    <Badge variant="outline" className="text-xs text-destructive border-destructive/30">
+                      {caDetails.rawApiData.certificate.revocation_reason}
+                    </Badge>
+                  )}
+
+                  {caDetails.caType && (
+                    <Badge variant="secondary" className="text-xs">
+                      {caDetails.caType.replace(/_/g, ' ').toUpperCase()}
+                    </Badge>
+                  )}
+
+                  {cryptoEngine && (
+                    <div className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-0.5">
+                      <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                      <span className="text-xs text-muted-foreground">{cryptoEngine.name || cryptoEngine.type}</span>
                     </div>
+                  )}
+
+                  {caDetails.rawApiData?.certificate?.key_metadata && (
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <KeyRound className="h-3 w-3" />
+                      {caDetails.rawApiData.certificate.key_metadata.type}
+                      {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
+                      {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
-            
-            <div className="flex-grow w-full xl:w-auto">
+
+            {/* Center: issued cert stats */}
+            <div className="xl:flex-1 px-6 xl:border-x">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Issued Certificates</p>
               <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
             </div>
 
-          </div>
-        </div>
-
-        <div className="px-6 py-4 border-b bg-muted/30">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={handleOpenCrlModal}>
-                <Download className="mr-2 h-4 w-4" /> Download/View CRL
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => routerHook.push(`/verification-authorities?caId=${caDetails.id}`)}
-              >
-                <ShieldCheck className="mr-2 h-4 w-4" /> Go to VA Role
-              </Button>
-            </div>
-            
-            <div className="flex flex-wrap gap-2 ml-auto">
+            {/* Right: action buttons */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               {isCaOnHold ? (
-                <Button variant="outline" size="sm" onClick={handleReactivateCA}>
-                  <ShieldAlert className="mr-2 h-4 w-4" />Re-activate CA
+                <Button size="sm" onClick={handleReactivateCA}>
+                  <ShieldAlert className="mr-2 h-4 w-4" /> Re-activate
                 </Button>
               ) : caDetails.status !== 'revoked' ? (
                 <Button variant="destructive" size="sm" onClick={handleCARevocation} disabled={isRevoking}>
-                  {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                  {isRevoking ? 'Revoking...' : 'Revoke CA'}
+                  {isRevoking
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <ShieldAlert className="mr-2 h-4 w-4" />}
+                  {isRevoking ? 'Revoking…' : 'Revoke'}
                 </Button>
-              ) : null}
-              {caDetails.status === 'revoked' && (
+              ) : (
                 <Button variant="destructive" size="sm" onClick={handleDeleteCA} disabled={isDeleting}>
-                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                  {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+                  {isDeleting
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <Trash2 className="mr-2 h-4 w-4" />}
+                  {isDeleting ? 'Deleting…' : 'Delete'}
                 </Button>
               )}
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4 mr-2" />
-                    More
+                  <Button variant="outline" size="sm" className="px-2.5">
+                    <Settings className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleOpenCrlModal}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download / View CRL
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => routerHook.push(`/verification-authorities?caId=${caDetails.id}`)}>
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    Go to VA Role
+                  </DropdownMenuItem>
                   {caDetails.status !== 'revoked' && (
                     <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
-                      <FileText className="mr-2 h-4 w-4" />
+                      <RefreshCw className="mr-2 h-4 w-4" />
                       Reissue CA
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem
+                    onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
+                    disabled={!caIsActive}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Issue Certificate
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
         </div>
+      </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full p-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-4 mb-6">
-            <TabsTrigger value="information"><Info className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Information</TabsTrigger>
-            <TabsTrigger value="certificate"><KeyRound className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Certificate PEM</TabsTrigger>
-            <TabsTrigger value="metadata"><Lock className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Metadata</TabsTrigger>
-            <TabsTrigger value="issued"><ListChecks className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Issued Certificates</TabsTrigger>
+      {/* ── Tabs ── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            {([
+              { value: 'information', icon: Info, label: 'Information' },
+              { value: 'certificate', icon: KeyRound, label: 'Certificate PEM' },
+              { value: 'metadata', icon: Lock, label: 'Metadata' },
+              { value: 'issued', icon: ListChecks, label: 'Issued Certificates' },
+            ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
+        </div>
 
+        <div className="mt-6">
           <TabsContent value="information">
             <InformationTabContent
               item={caDetails}
@@ -559,7 +656,7 @@ export default function CertificateAuthorityDetailsClient() {
               itemName={caDetails.name}
               itemPathToRootCount={caPathToRoot.length}
               toast={toast}
-              certificateChain={caPathToRoot.slice(0, -1)} // Exclude the current CA, showing only parents
+              certificateChain={caPathToRoot.slice(0, -1)}
               currentCertificate={{
                 subject: caDetails.name,
                 statusBadgeVariant: statusVariant,
@@ -570,7 +667,7 @@ export default function CertificateAuthorityDetailsClient() {
           </TabsContent>
 
           <TabsContent value="metadata">
-             <MetadataTabContent
+            <MetadataTabContent
               rawJsonData={caDetails.rawApiData?.metadata}
               itemName={caDetails.name}
               tabTitle="Certification Authority Metadata"
@@ -581,16 +678,17 @@ export default function CertificateAuthorityDetailsClient() {
               onUpdateSuccess={loadInitialData}
             />
           </TabsContent>
-          
+
           <TabsContent value="issued">
-            <IssuedCertificatesTab 
-              caId={caDetails.id} 
+            <IssuedCertificatesTab
+              caId={caDetails.id}
               caIsActive={caIsActive}
               allCAs={allCertificateAuthoritiesData}
             />
           </TabsContent>
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
+
       {caToRevoke && (
         <RevocationModal
           isOpen={isRevocationModalOpen}

@@ -32,6 +32,7 @@ import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { TagInput } from '@/components/shared/TagInput';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 // Monaco Editor dynamic import
 const Editor = dynamic(() => import('@monaco-editor/react'), { 
@@ -131,6 +132,7 @@ const signatureAlgorithms = [
 ];
 
 export default function KmsKeyDetailsClient() {
+  const monacoTheme = useMonacoTheme();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -1779,7 +1781,7 @@ export default function KmsKeyDetailsClient() {
                       height="500px"
                       defaultLanguage="json"
                       value={JSON.stringify(keyDetails.metadata, null, 2)}
-                      theme="vs-dark"
+                      theme={monacoTheme}
                       options={{
                         readOnly: true,
                         minimap: { enabled: false },

@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Check, Edit, Save, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> });
 
@@ -43,6 +44,7 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
   onSave,
   onUpdateSuccess,
 }) => {
+  const monacoTheme = useMonacoTheme();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -152,7 +154,7 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
                     defaultLanguage="json"
                     value={content}
                     onChange={(value) => setContent(value || '')}
-                    theme="vs-dark"
+                    theme={monacoTheme}
                     options={{ minimap: { enabled: false }, automaticLayout: true }}
                   />
               </div>

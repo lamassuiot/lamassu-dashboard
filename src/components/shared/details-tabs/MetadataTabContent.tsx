@@ -9,6 +9,7 @@ import { Copy, Check, Edit, Save, X, Loader2 } from "lucide-react";
 import type { ToastProps } from '@/components/ui/toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { PatchOperation } from '@/lib/ca-data';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <div className="h-96 w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> });
 
@@ -33,6 +34,7 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
   onSave,
   onUpdateSuccess,
 }) => {
+  const monacoTheme = useMonacoTheme();
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState('');
@@ -125,7 +127,7 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
               defaultLanguage="json"
               value={content}
               onChange={(value) => setContent(value || '')}
-              theme="vs-dark"
+              theme={monacoTheme}
               options={{ minimap: { enabled: false }, automaticLayout: true }}
             />
           </div>
@@ -145,7 +147,7 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
               height="30rem"
               defaultLanguage="json"
               value={content}
-              theme="vs-dark"
+              theme={monacoTheme}
               options={{ 
                 minimap: { enabled: false }, 
                 automaticLayout: true,
