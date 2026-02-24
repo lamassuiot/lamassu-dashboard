@@ -149,6 +149,15 @@ export default function IssueCertificateFormClient() {
   const [keyUsages, setKeyUsages] = useState<string[]>(['DigitalSignature', 'KeyEncipherment']);
   const [extendedKeyUsages, setExtendedKeyUsages] = useState<string[]>(['ClientAuth', 'ServerAuth']);
   const [validity, setValidity] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '1y' });
+  const [honorSubject, setHonorSubject] = useState<boolean>(true);
+  
+  // Custom subject fields for inline profile when honorSubject is false
+  const [customSubjectCN, setCustomSubjectCN] = useState('');
+  const [customSubjectO, setCustomSubjectO] = useState('');
+  const [customSubjectOU, setCustomSubjectOU] = useState('');
+  const [customSubjectC, setCustomSubjectC] = useState('');
+  const [customSubjectST, setCustomSubjectST] = useState('');
+  const [customSubjectL, setCustomSubjectL] = useState('');
 
   // Step 2 & 3 State
   const [generatedPrivateKeyPem, setGeneratedPrivateKeyPem] = useState<string>('');
@@ -400,15 +409,29 @@ export default function IssueCertificateFormClient() {
         return { profile_id: selectedProfileId };
     }
     // Inline profile mode
-    return {
+    const profilePayload: any = {
         profile: {
             extended_key_usages: extendedKeyUsages,
             key_usage: keyUsages,
             honor_extensions: true,
-            honor_subject: true,
+            honor_subject: honorSubject,
             validity: formatValidityForApi(),
         }
     };
+    
+    // Add custom subject if honorSubject is false
+    if (!honorSubject) {
+        profilePayload.profile.subject = {
+            common_name: customSubjectCN || '',
+            organization: customSubjectO || '',
+            organization_unit: customSubjectOU || '',
+            country: customSubjectC || '',
+            state: customSubjectST || '',
+            locality: customSubjectL || '',
+        };
+    }
+    
+    return profilePayload;
   };
 
   // New combined handler for Generate mode
@@ -542,19 +565,20 @@ export default function IssueCertificateFormClient() {
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authority</Button>
       </div>
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle>Issue New Certificate</CardTitle>
-          <div className="text-sm text-muted-foreground pt-1">
-            Follow the steps below to issue a new certificate from Certification Authority:{' '}
-            {isLoadingCa ? (
-              <Skeleton className="h-4 w-[200px] inline-block align-middle" />
-            ) : (
-              <span className="font-mono">{issuerCa?.name || caId.substring(0, 12) + '...'}</span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
+
+      <div>
+        <h1 className="text-2xl font-headline font-semibold">Issue New Certificate</h1>
+        <div className="text-sm text-muted-foreground mt-1">
+          Follow the steps below to issue a new certificate from Certification Authority:{' '}
+          {isLoadingCa ? (
+            <Skeleton className="h-4 w-[200px] inline-block align-middle" />
+          ) : (
+            <span className="font-mono">{issuerCa?.name || caId.substring(0, 12) + '...'}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-6">
             {isLoadingCa ? (
                 <div className="flex items-center justify-center p-8 flex-col text-center min-h-[400px]">
                     <Loader2 className="h-16 w-16 text-primary animate-spin" />
@@ -739,6 +763,24 @@ export default function IssueCertificateFormClient() {
                                 onKeyUsageChange={handleKeyUsageChange}
                                 extendedKeyUsages={extendedKeyUsages}
                                 onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
+                                honorSubject={honorSubject}
+                                onHonorSubjectChange={setHonorSubject}
+                                customSubjectCN={customSubjectCN}
+                                customSubjectO={customSubjectO}
+                                customSubjectOU={customSubjectOU}
+                                customSubjectC={customSubjectC}
+                                customSubjectST={customSubjectST}
+                                customSubjectL={customSubjectL}
+                                onCustomSubjectChange={(field, value) => {
+                                  switch(field) {
+                                    case 'CN': setCustomSubjectCN(value); break;
+                                    case 'O': setCustomSubjectO(value); break;
+                                    case 'OU': setCustomSubjectOU(value); break;
+                                    case 'C': setCustomSubjectC(value); break;
+                                    case 'ST': setCustomSubjectST(value); break;
+                                    case 'L': setCustomSubjectL(value); break;
+                                  }
+                                }}
                             />
                                 </CardContent>
                             </Card>
@@ -773,50 +815,60 @@ export default function IssueCertificateFormClient() {
                         <h3 className="text-2xl font-semibold">Certificate Issued Successfully!</h3>
                         <p className="text-muted-foreground">The certificate has been provisioned. Remember to save your private key if you generated one in the browser.</p>
                         
-                        <div className="space-y-2 text-left">
-                            <div className="flex justify-between items-center mb-2">
-                                <h3 className="font-medium">Issued Certificate PEM</h3>
-                                <div className="flex space-x-2">
-                                    <Button type="button" variant="outline" size="sm" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
-                                    {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500"/> : <Copy className="mr-1 h-4 w-4"/>}
-                                    {issuedCertCopied ? 'Copied' : 'Copy'}
-                                    </Button>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
-                                    <DownloadIcon className="mr-1 h-4 w-4"/>Download
-                                    </Button>
-                                </div>
-                            </div>
-                            <Tabs value={certDisplayTab} onValueChange={(v) => setCertDisplayTab(v as 'leaf' | 'chain')} className="w-full">
-                                <TabsList className="grid w-full grid-cols-2">
-                                    <TabsTrigger value="leaf">Leaf Certificate</TabsTrigger>
-                                    <TabsTrigger value="chain">Full Chain</TabsTrigger>
-                                </TabsList>
-                                <TabsContent value="leaf" className="mt-2">
-                                    <Textarea readOnly value={issuedCertificate?.pem || ''} rows={10} className="font-mono bg-muted/50"/>
-                                </TabsContent>
-                                <TabsContent value="chain" className="mt-2">
-                                    <Textarea readOnly value={fullChainPem} rows={14} className="font-mono bg-muted/50"/>
-                                </TabsContent>
-                            </Tabs>
-                        </div>
-
-                        {generatedPrivateKeyPem && (
-                            <div className="space-y-2 text-left pt-4">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="font-medium">Generated Private Key</h3>
+                        <Card>
+                            <div className="bg-primary border-b border-primary/20 py-3 px-6">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-base font-semibold text-primary-foreground">Issued Certificate PEM</h3>
                                     <div className="flex space-x-2">
-                                        <Button type="button" variant="outline" size="sm" onClick={()=>handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
-                                            {privateKeyCopied?<Check className="mr-1 h-4 w-4 text-green-500"/>:<Copy className="mr-1 h-4 w-4"/>}
-                                            {privateKeyCopied?'Copied':'Copy'}
+                                        <Button type="button" variant="secondary" size="sm" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
+                                        {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500"/> : <Copy className="mr-1 h-4 w-4"/>}
+                                        {issuedCertCopied ? 'Copied' : 'Copy'}
                                         </Button>
-                                        <Button type="button" variant="outline" size="sm" onClick={()=>handleDownload(generatedPrivateKeyPem, "private_key.pem", "application/x-pem-file")}>
-                                            <DownloadIcon className="mr-1 h-4 w-4"/>Download
+                                        <Button type="button" variant="secondary" size="sm" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
+                                        <DownloadIcon className="mr-1 h-4 w-4"/>Download
                                         </Button>
                                     </div>
                                 </div>
-                                <p className="text-xs text-destructive">This is your only chance to save the private key. Store it securely.</p>
-                                <Textarea readOnly value={generatedPrivateKeyPem} rows={8} className="font-mono bg-muted/50"/>
                             </div>
+                            <CardContent className="pt-4">
+                                <Tabs value={certDisplayTab} onValueChange={(v) => setCertDisplayTab(v as 'leaf' | 'chain')} className="w-full">
+                                    <TabsList className="grid w-full grid-cols-2">
+                                        <TabsTrigger value="leaf">Leaf Certificate</TabsTrigger>
+                                        <TabsTrigger value="chain">Full Chain</TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="leaf" className="mt-2">
+                                        <Textarea readOnly value={issuedCertificate?.pem || ''} rows={10} className="font-mono bg-muted/50"/>
+                                    </TabsContent>
+                                    <TabsContent value="chain" className="mt-2">
+                                        <Textarea readOnly value={fullChainPem} rows={14} className="font-mono bg-muted/50"/>
+                                    </TabsContent>
+                                </Tabs>
+                            </CardContent>
+                        </Card>
+
+                        {generatedPrivateKeyPem && (
+                            <Card>
+                                <div className="bg-primary border-b border-primary/20 py-3 px-6">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-base font-semibold text-primary-foreground">Generated Private Key</h3>
+                                        <div className="flex space-x-2">
+                                            <Button type="button" variant="secondary" size="sm" onClick={()=>handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
+                                                {privateKeyCopied?<Check className="mr-1 h-4 w-4 text-green-500"/>:<Copy className="mr-1 h-4 w-4"/>}
+                                                {privateKeyCopied?'Copied':'Copy'}
+                                            </Button>
+                                            <Button type="button" variant="secondary" size="sm" onClick={()=>handleDownload(generatedPrivateKeyPem, "private_key.pem", "application/x-pem-file")}>
+                                                <DownloadIcon className="mr-1 h-4 w-4"/>Download
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <CardContent className="space-y-2 pt-4">
+                                    <Alert variant="warning">
+                                        <AlertDescription>This is your only chance to save the private key. Store it securely.</AlertDescription>
+                                    </Alert>
+                                    <Textarea readOnly value={generatedPrivateKeyPem} rows={8} className="font-mono bg-muted/50"/>
+                                </CardContent>
+                            </Card>
                         )}
                         </div>
                     )}
@@ -825,8 +877,8 @@ export default function IssueCertificateFormClient() {
                     {generationError && <Alert variant="destructive" className="mt-4"><AlertTriangle className="h-4 w-4" /><AlertDescription>{generationError}</AlertDescription></Alert>}
                 </>
             )}
-        </CardContent>
-        <CardFooter className="flex justify-between">
+
+        <div className="flex justify-between pt-6 border-t">
           {step < 2 || (step === 2 && !!generationError) ? (
             <Button type="button" variant="ghost" onClick={handleBack} disabled={isLoadingCa || step === 1}>
               Back
@@ -860,8 +912,8 @@ export default function IssueCertificateFormClient() {
                     </>
                 )}
             </div>
-        </CardFooter>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

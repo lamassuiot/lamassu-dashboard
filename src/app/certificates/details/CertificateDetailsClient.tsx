@@ -441,27 +441,32 @@ export default function CertificateDetailsClient() { // Renamed component
           </div>
         </div>
 
-        <div className="p-6 space-x-2 border-b">
-          {isOnHold ? (
-            <Button variant="outline" onClick={handleReactivate}>
-              <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate Certificate
-            </Button>
-          ) : (
-            <Button 
-              variant="destructive" 
-              onClick={handleOpenRevokeModal} 
-              disabled={statusText === 'REVOKED' || isRevoking}
-            >
-              {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-              {isRevoking ? 'Revoking...' : 'Revoke Certificate'}
-            </Button>
-          )}
-          {canDelete && (
-             <Button variant="destructive" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
-                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                {isDeleting ? 'Deleting...' : 'Delete Certificate'}
-             </Button>
-          )}
+        <div className="px-6 py-4 border-b bg-muted/30">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-2 ml-auto">
+              {isOnHold ? (
+                <Button variant="outline" size="sm" onClick={handleReactivate}>
+                  <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate Certificate
+                </Button>
+              ) : (
+                <Button 
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleOpenRevokeModal} 
+                  disabled={statusText === 'REVOKED' || isRevoking}
+                >
+                  {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                  {isRevoking ? 'Revoking...' : 'Revoke Certificate'}
+                </Button>
+              )}
+              {canDelete && (
+                <Button variant="destructive" size="sm" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
+                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+                  {isDeleting ? 'Deleting...' : 'Delete Certificate'}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
         <Tabs defaultValue="information" className="w-full p-6">

@@ -2,11 +2,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { Settings2, BookText, PlusCircle, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,17 @@ interface SigningProfileSelectorProps {
   onKeyUsageChange?: (usage: string, checked: boolean) => void;
   extendedKeyUsages?: string[];
   onExtendedKeyUsageChange?: (usage: string, checked: boolean) => void;
+  honorSubject?: boolean;
+  onHonorSubjectChange?: (checked: boolean) => void;
+  
+  // Custom subject fields (when honorSubject is false)
+  customSubjectCN?: string;
+  customSubjectO?: string;
+  customSubjectOU?: string;
+  customSubjectC?: string;
+  customSubjectST?: string;
+  customSubjectL?: string;
+  onCustomSubjectChange?: (field: string, value: string) => void;
 
   createModeEnabled?: boolean;
   onProfileCreated?: (newProfile: ApiSigningProfile) => void;
@@ -67,6 +79,15 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
   onKeyUsageChange,
   extendedKeyUsages,
   onExtendedKeyUsageChange,
+  honorSubject,
+  onHonorSubjectChange,
+  customSubjectCN,
+  customSubjectO,
+  customSubjectOU,
+  customSubjectC,
+  customSubjectST,
+  customSubjectL,
+  onCustomSubjectChange,
   createModeEnabled = true,
   onProfileCreated,
 }) => {
@@ -206,18 +227,18 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
     <div className="space-y-4">
       <Label>Profile Mode</Label>
       <div className={cn("grid grid-cols-1 gap-4", gridColsClass)}>
-        <Card className={cardClass('reuse')} onClick={() => onProfileModeChange('reuse')}>
-          <CardHeader ><div className="flex items-center space-x-3"><div className={iconWrapperClass('reuse')}><BookText className="h-5 w-5" /></div><div><CardTitle className="text-base">Reuse Existing Profile</CardTitle><CardDescription className="text-sm">Use predefined issuance templates</CardDescription></div></div></CardHeader>
-        </Card>
+        <div className={cardClass('reuse')} onClick={() => onProfileModeChange('reuse')}>
+          <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('reuse')}><BookText className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Reuse Existing Profile</h3><p className="text-sm text-muted-foreground">Use predefined issuance templates</p></div></div>
+        </div>
         {inlineModeEnabled && (
-            <Card className={cardClass('inline')} onClick={() => onProfileModeChange('inline')}>
-              <CardHeader ><div className="flex items-center space-x-3"><div className={iconWrapperClass('inline')}><Settings2 className="h-5 w-5" /></div><div><CardTitle className="text-base">Inline Profile</CardTitle><CardDescription className="text-sm">Define a one-time issuance policy</CardDescription></div></div></CardHeader>
-            </Card>
+            <div className={cardClass('inline')} onClick={() => onProfileModeChange('inline')}>
+              <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('inline')}><Settings2 className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Inline Profile</h3><p className="text-sm text-muted-foreground">Define a one-time issuance policy</p></div></div>
+            </div>
         )}
         {createModeEnabled && (
-            <Card className={cardClass('create')} onClick={() => onProfileModeChange('create')}>
-              <CardHeader ><div className="flex items-center space-x-3"><div className={iconWrapperClass('create')}><PlusCircle className="h-5 w-5" /></div><div><CardTitle className="text-base">Create New Profile</CardTitle><CardDescription className="text-sm">Create a new reusable profile</CardDescription></div></div></CardHeader>
-            </Card>
+            <div className={cardClass('create')} onClick={() => onProfileModeChange('create')}>
+              <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('create')}><PlusCircle className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Create New Profile</h3><p className="text-sm text-muted-foreground">Create a new reusable profile</p></div></div>
+            </div>
         )}
       </div>
 
@@ -248,7 +269,92 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
                     value={validity}
                     onValueChange={onValidityChange}
                 />
-                {validityWarning && <Alert variant="warning"><AlertTriangle className="h-4 w-4"/><CardDescription>{validityWarning}</CardDescription></Alert>}
+                {validityWarning && <Alert variant="warning"><AlertTriangle className="h-4 w-4"/><p className="text-sm text-muted-foreground">{validityWarning}</p></Alert>}
+                
+                {onHonorSubjectChange !== undefined && honorSubject !== undefined && (
+                  <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <Label htmlFor="honor-subject" className="font-medium">Use Subject from CSR</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          When enabled, the certificate will use the subject from the CSR.
+                        </p>
+                      </div>
+                      <Switch
+                        id="honor-subject"
+                        checked={honorSubject}
+                        onCheckedChange={onHonorSubjectChange}
+                      />
+                    </div>
+                    
+                    {!honorSubject && onCustomSubjectChange && (
+                      <div className="space-y-3 pt-3 border-t">
+                        <div>
+                          <h4 className="text-sm font-semibold mb-1">Custom Subject Fields</h4>
+                          <p className="text-xs text-muted-foreground">Override the subject from the CSR with custom values</p>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <Label htmlFor="custom-cn">Common Name (CN) *</Label>
+                            <Input
+                              id="custom-cn"
+                              value={customSubjectCN || ''}
+                              onChange={(e) => onCustomSubjectChange('CN', e.target.value)}
+                              placeholder="e.g., example.com"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="custom-ou">Organizational Unit (OU)</Label>
+                              <Input
+                                id="custom-ou"
+                                value={customSubjectOU || ''}
+                                onChange={(e) => onCustomSubjectChange('OU', e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="custom-o">Organization (O)</Label>
+                              <Input
+                                id="custom-o"
+                                value={customSubjectO || ''}
+                                onChange={(e) => onCustomSubjectChange('O', e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="custom-l">Locality (L)</Label>
+                              <Input
+                                id="custom-l"
+                                value={customSubjectL || ''}
+                                onChange={(e) => onCustomSubjectChange('L', e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="custom-st">State/Province (ST)</Label>
+                              <Input
+                                id="custom-st"
+                                value={customSubjectST || ''}
+                                onChange={(e) => onCustomSubjectChange('ST', e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="custom-c">Country (C)</Label>
+                              <Input
+                                id="custom-c"
+                                value={customSubjectC || ''}
+                                onChange={(e) => onCustomSubjectChange('C', e.target.value)}
+                                placeholder="e.g., US"
+                                maxLength={2}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <Label>Key Usages</Label>

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, UploadCloud, Loader2, Settings, AlertTriangle, FileText } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import * as pkijs from "pkijs";
 import * as asn1js from "asn1js";
@@ -19,7 +19,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
-import { SectionHeader } from '@/components/shared/FormComponents';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { Separator } from '@/components/ui/separator';
@@ -68,6 +67,20 @@ export default function CreateCaImportFullPage() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
   
+  // Inline profile state
+  const [keyUsages, setKeyUsages] = useState<string[]>(['DigitalSignature', 'KeyEncipherment']);
+  const [extendedKeyUsages, setExtendedKeyUsages] = useState<string[]>(['ClientAuth', 'ServerAuth']);
+  const [validity, setValidity] = useState<{ type: 'Duration' | 'Date' | 'Indefinite'; durationValue?: string; dateValue?: Date }>({ type: 'Duration', durationValue: '1y' });
+  const [honorSubject, setHonorSubject] = useState<boolean>(true);
+  
+  // Custom subject fields for inline profile when honorSubject is false
+  const [customSubjectCN, setCustomSubjectCN] = useState('');
+  const [customSubjectO, setCustomSubjectO] = useState('');
+  const [customSubjectOU, setCustomSubjectOU] = useState('');
+  const [customSubjectC, setCustomSubjectC] = useState('');
+  const [customSubjectST, setCustomSubjectST] = useState('');
+  const [customSubjectL, setCustomSubjectL] = useState('');
+  
   // Set up pkijs engine
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -102,6 +115,14 @@ export default function CreateCaImportFullPage() {
       loadProfiles();
     }
   }, [user?.access_token, authLoading]);
+
+  const handleKeyUsageChange = (usage: string, checked: boolean) => {
+    setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
+  };
+  
+  const handleExtendedKeyUsageChange = (usage: string, checked: boolean) => {
+    setExtendedKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
+  };
 
   
   const parseCertificatePem = async (pem: string) => {
@@ -203,23 +224,27 @@ export default function CreateCaImportFullPage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center space-x-3">
-            <UploadCloud className="h-8 w-8 text-primary" />
+      <div className="space-y-6">
+        <div className="flex items-center space-x-3">
+          <UploadCloud className="h-8 w-8 text-primary" />
+          <div>
             <h1 className="text-2xl font-headline font-semibold">
               Import External Certification Authority (with Private Key)
             </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Import an existing Certification Authority certificate and its private key to be managed by LamassuIoT.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Import an existing Certification Authority certificate and its private key to be managed by LamassuIoT.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-8">
+        </div>
+      <form onSubmit={handleSubmit} className="space-y-8">
             <Card>
-              <SectionHeader icon={Settings} title="Import Settings" />
-              <CardContent className="space-y-4">
+              <div className="bg-primary border-b border-primary/20 py-3 px-6">
+                <div className="flex items-center text-primary-foreground">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <h3 className="text-base font-semibold">Import Settings</h3>
+                </div>
+              </div>
+              <CardContent className="space-y-4 pt-6">
                   <div>
                     <Label htmlFor="caId">New Certification Authority ID (generated)</Label>
                     <Input id="caId" value={caId} readOnly className="mt-1 bg-muted/50" />
@@ -246,6 +271,28 @@ export default function CreateCaImportFullPage() {
                       inlineModeEnabled={true}
                       createModeEnabled={true}
                       onProfileCreated={handleProfileCreated}
+                      validity={validity}
+                      onValidityChange={setValidity}
+                      keyUsages={keyUsages}
+                      onKeyUsageChange={handleKeyUsageChange}
+                      extendedKeyUsages={extendedKeyUsages}
+                      onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
+                      honorSubject={honorSubject}
+                      onHonorSubjectChange={setHonorSubject}
+                      customSubjectCN={customSubjectCN}
+                      customSubjectO={customSubjectO}
+                      customSubjectOU={customSubjectOU}
+                      customSubjectC={customSubjectC}
+                      customSubjectST={customSubjectST}
+                      customSubjectL={customSubjectL}
+                      onCustomSubjectChange={(field, value) => {
+                        if (field === 'CN') setCustomSubjectCN(value);
+                        else if (field === 'O') setCustomSubjectO(value);
+                        else if (field === 'OU') setCustomSubjectOU(value);
+                        else if (field === 'C') setCustomSubjectC(value);
+                        else if (field === 'ST') setCustomSubjectST(value);
+                        else if (field === 'L') setCustomSubjectL(value);
+                      }}
                     />
                   </div>
                </CardContent>
@@ -254,8 +301,13 @@ export default function CreateCaImportFullPage() {
             <Separator/>
             
             <Card>
-              <SectionHeader icon={FileText} title="Certification Authority Details" />
-              <CardContent className="space-y-4">
+              <div className="bg-primary border-b border-primary/20 py-3 px-6">
+                <div className="flex items-center">
+                  <FileText className="mr-2 h-4 w-4 text-primary-foreground" />
+                  <h3 className="text-base font-semibold text-primary-foreground">Certification Authority Details</h3>
+                </div>
+              </div>
+              <CardContent className="space-y-4 pt-6">
                  <div>
                    <Label htmlFor="importedCaCertPem">Certification Authority Certificate (PEM)</Label>
                     <Textarea 
@@ -270,11 +322,9 @@ export default function CreateCaImportFullPage() {
                    <p className="text-xs text-muted-foreground mt-1">The public certificate of the Certification Authority you are importing.</p>
                 </div>
                  {decodedImportedCertInfo && (
-                    <Card className="bg-muted/30">
-                        <CardHeader>
-                        <CardTitle className="text-md">Decoded Certificate Information</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
+                    <div className="bg-muted/30 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold mb-3">Decoded Certificate Information</h4>
+                        <div className="space-y-2 text-sm">
                         {decodedImportedCertInfo.error ? (
                             <Alert variant="destructive">{decodedImportedCertInfo.error}</Alert>
                         ) : (
@@ -286,8 +336,8 @@ export default function CreateCaImportFullPage() {
                             {!decodedImportedCertInfo.isCa && <Alert variant="warning" className="mt-2"><AlertTriangle className="h-4 w-4"/><AlertTitle>Not a CA Certificate</AlertTitle><AlertDescription>This certificate does not have the `isCA` basic constraint set to `TRUE`. It cannot be used to issue other certificates.</AlertDescription></Alert>}
                             </>
                         )}
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
                 )}
                 <div>
                    <Label htmlFor="importedCaKeyPem">Certification Authority Private Key (PEM)</Label>
@@ -316,8 +366,7 @@ export default function CreateCaImportFullPage() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
     </div>
   );
 }

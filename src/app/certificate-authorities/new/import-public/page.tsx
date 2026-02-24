@@ -131,20 +131,20 @@ export default function CreateCaImportPublicPage() {
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center space-x-3">
-            <FileText className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-headline font-semibold">
-              Import Certification Authority Certificate Only (no Private Key)
-            </h1>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1.5">
+      <div className="flex items-center space-x-3">
+        <FileText className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-2xl font-headline font-semibold">
+            Import Certification Authority Certificate Only (no Private Key)
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Import an existing Certification Authority certificate for trust anchor or reference purposes. LamassuIoT will not be able to sign certificates with this Certification Authority.
           </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-8">
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
             <Card>
               <SectionHeader icon={FileText} title="Certification Authority Details" />
               <CardContent className="space-y-4">
@@ -185,15 +185,14 @@ export default function CreateCaImportPublicPage() {
               </CardContent>
             </Card>
             
-            <div className="flex justify-end pt-4">
-              <Button type="submit" size="lg" disabled={isSubmitting || !importedCaCertPem.trim()}>
-                {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
-                Import Public Certificate
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          <div className="flex justify-end pt-4">
+            <Button type="submit" size="lg" disabled={isSubmitting || !importedCaCertPem.trim()}>
+              {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
+              Import Public Certificate
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
