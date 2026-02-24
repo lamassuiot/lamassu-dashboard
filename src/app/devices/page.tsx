@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
+import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -346,6 +347,14 @@ export default function DevicesPage() {
     }
   };
 
+  const handleEnrollPanelOpenChange = (isOpen: boolean) => {
+    setIsEnrollModalOpen(isOpen);
+    if (!isOpen) {
+      setRaForEnrollModal(null);
+      setDeviceForEnrollModal(null);
+    }
+  };
+
 
   const handleRefresh = () => {
     fetchData(bookmarkStack[currentPageIndex]);
@@ -462,32 +471,45 @@ export default function DevicesPage() {
         </div>
       </div>
 
-      {isLoadingApi && !sortedDevices.length && (
-         <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg text-muted-foreground">Loading devices...</p>
-        </div>
-      )}
-
-      {apiError && (
-        <Alert variant="destructive" className="mt-4">
-          <AlertCircleIcon className="h-4 w-4" />
-          <AlertTitle>Error Fetching Devices</AlertTitle>
-          <AlertDescription>{apiError}</AlertDescription>
-        </Alert>
-      )}
-
-      {!apiError && sortedDevices.length > 0 && (
-        <>
-          <div className="flex justify-end mb-2">
-            <ColumnSelector
-              columns={columns}
-              onColumnToggle={handleColumnToggle}
-              align="end"
-            />
+      <SplitPanelLayout
+        isPanelOpen={isEnrollModalOpen}
+        panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_620px]"
+        panel={
+          <EstEnrollModal
+            isOpen={isEnrollModalOpen}
+            onOpenChange={handleEnrollPanelOpenChange}
+            ra={raForEnrollModal}
+            initialDeviceId={deviceForEnrollModal?.id}
+            presentation="inline"
+          />
+        }
+      >
+        {isLoadingApi && !sortedDevices.length && (
+          <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+              <p className="text-lg text-muted-foreground">Loading devices...</p>
           </div>
-          <div className={cn("overflow-x-auto transition-opacity duration-300", isLoadingApi && sortedDevices.length > 0 && "opacity-50 pointer-events-none")}>
-            <Table>
+        )}
+
+        {apiError && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertCircleIcon className="h-4 w-4" />
+            <AlertTitle>Error Fetching Devices</AlertTitle>
+            <AlertDescription>{apiError}</AlertDescription>
+          </Alert>
+        )}
+
+        {!apiError && sortedDevices.length > 0 && (
+          <>
+            <div className="flex justify-end mb-2">
+              <ColumnSelector
+                columns={columns}
+                onColumnToggle={handleColumnToggle}
+                align="end"
+              />
+            </div>
+            <div className={cn("overflow-x-auto transition-opacity duration-300", isLoadingApi && sortedDevices.length > 0 && "opacity-50 pointer-events-none")}>
+              <Table>
               <TableHeader>
                 <TableRow>
                   {columnVisibility.id && <SortableTableHeader column="id" title="ID" className="w-[250px]" />}
@@ -580,78 +602,73 @@ export default function DevicesPage() {
                   )
                 })}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
+          </>
+        )}
+
+        {!apiError && (sortedDevices.length > 0 || isLoadingApi || hasActiveFilters) && (
+          <div className="flex justify-between items-center mt-4">
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="pageSizeSelectBottom" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
+                <Select
+                  value={pageSize}
+                  onValueChange={(value) => setPageSize(value)}
+                  disabled={isLoadingApi || authLoading}
+                >
+                  <SelectTrigger id="pageSizeSelectBottom" className="w-[80px]">
+                    <SelectValue placeholder="Page size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                  <Button
+                      onClick={handlePreviousPage}
+                      disabled={isLoadingApi || currentPageIndex === 0}
+                      variant="outline"
+                  >
+                      <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+                  </Button>
+                  <Button
+                      onClick={handleNextPage}
+                      disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
+                      variant="outline"
+                  >
+                      Next <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+              </div>
           </div>
-        </>
-      )}
+        )}
 
-      {!apiError && (sortedDevices.length > 0 || isLoadingApi || hasActiveFilters) && (
-        <div className="flex justify-between items-center mt-4">
-            <div className="flex items-center space-x-2">
-              <Label htmlFor="pageSizeSelectBottom" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-              <Select
-                value={pageSize}
-                onValueChange={(value) => setPageSize(value)}
-                disabled={isLoadingApi || authLoading}
-              >
-                <SelectTrigger id="pageSizeSelectBottom" className="w-[80px]">
-                  <SelectValue placeholder="Page size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-                <Button
-                    onClick={handlePreviousPage}
-                    disabled={isLoadingApi || currentPageIndex === 0}
-                    variant="outline"
-                >
-                    <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-                </Button>
-                <Button
-                    onClick={handleNextPage}
-                    disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
-                    variant="outline"
-                >
-                    Next <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-            </div>
-        </div>
-      )}
-
-      {!apiError && !isLoadingApi && sortedDevices.length === 0 && (
-        <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-          <h3 className="text-lg font-semibold text-muted-foreground">
-            {hasActiveFilters ? "No Devices Found" : "No Devices Registered"}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {hasActiveFilters
-              ? "Try adjusting your filters or clear them to see all devices."
-              : "There are no devices registered in the system yet."
-            }
-          </p>
-          <Button onClick={handleCreateNewDevice} className="mt-4">
-            <PlusCircle className="mr-2 h-4 w-4" /> Register New Device
-          </Button>
-        </div>
-      )}
+        {!apiError && !isLoadingApi && sortedDevices.length === 0 && (
+          <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
+            <h3 className="text-lg font-semibold text-muted-foreground">
+              {hasActiveFilters ? "No Devices Found" : "No Devices Registered"}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {hasActiveFilters
+                ? "Try adjusting your filters or clear them to see all devices."
+                : "There are no devices registered in the system yet."
+              }
+            </p>
+            <Button onClick={handleCreateNewDevice} className="mt-4">
+              <PlusCircle className="mr-2 h-4 w-4" /> Register New Device
+            </Button>
+          </div>
+        )}
+      </SplitPanelLayout>
 
       <RegisterDeviceModal
         isOpen={isRegisterModalOpen}
         onOpenChange={setIsRegisterModalOpen}
         onDeviceRegistered={handleDeviceRegistered}
-      />
-      <EstEnrollModal
-        isOpen={isEnrollModalOpen}
-        onOpenChange={setIsEnrollModalOpen}
-        ra={raForEnrollModal}
-        initialDeviceId={deviceForEnrollModal?.id}
       />
     </div>
   );

@@ -21,7 +21,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Mail, Users, Webhook, Check, ArrowLeft, Info, AlertTriangle } from 'lucide-react';
 import { subscribeToAlert, type SubscriptionPayload, type ApiSubscription, updateSubscription } from '@/lib/alerts-api';
 import { cn } from '@/lib/utils';
-import { Textarea } from '../ui/textarea';
 import { JSONPath } from 'jsonpath-plus';
 import { Validator } from 'jsonschema';
 import { Alert, AlertDescription as AlertDescUI } from '@/components/ui/alert';
@@ -380,7 +379,22 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                 {filterType === 'JAVASCRIPT' && (
                     <div>
                         <Label htmlFor="filter-condition-js">Javascript Function</Label>
-                        <Textarea id="filter-condition-js" value={jsFunction} onChange={e => setJsFunction(e.target.value)} rows={5} className="font-mono"/>
+                        <div id="filter-condition-js" className="mt-2 overflow-hidden rounded-md border">
+                            <MonacoEditor
+                                height="220px"
+                                language="javascript"
+                                value={jsFunction}
+                                onChange={(value) => setJsFunction(value ?? '')}
+                                options={{
+                                    minimap: { enabled: false },
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    fontSize: 12,
+                                    lineNumbersMinChars: 3,
+                                    wordWrap: 'on',
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
                 {filterType === 'JSON-SCHEMA' && (
@@ -508,11 +522,22 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                                         />
                                     </div>
                                 ) : (
-                                    <Textarea 
-                                        value={currentCondition} 
-                                        readOnly 
-                                        className="font-mono text-xs h-28 bg-background"
-                                    />
+                                    <div className="overflow-hidden rounded-md border bg-background">
+                                        <MonacoEditor
+                                            height="112px"
+                                            language="javascript"
+                                            value={currentCondition}
+                                            options={{
+                                                readOnly: true,
+                                                minimap: { enabled: false },
+                                                scrollBeyondLastLine: false,
+                                                automaticLayout: true,
+                                                fontSize: 12,
+                                                lineNumbers: 'off',
+                                                wordWrap: 'on',
+                                            }}
+                                        />
+                                    </div>
                                 )
                             ) : (
                                 <p className="font-mono text-xs p-2 bg-background rounded-md border">{currentCondition}</p>

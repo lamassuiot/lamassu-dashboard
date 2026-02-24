@@ -712,12 +712,12 @@ export default function DeviceDetailsClient() {
         </TabsList>
 
         <TabsContent value="timeline">
-          <Card>
-            <CardHeader>
-                <CardTitle>Device Event Timeline</CardTitle>
-                <CardDescription>Chronological record of significant events for this device and its identity.</CardDescription>
-            </CardHeader>
-            <CardContent className="px-0 sm:px-2 md:px-4 lg:px-6">
+          <div className="space-y-4">
+            <div>
+                <h3 className="text-lg font-semibold">Device Event Timeline</h3>
+                <p className="text-sm text-muted-foreground">Chronological record of significant events for this device and its identity.</p>
+            </div>
+            <div className="px-0 sm:px-2 md:px-4 lg:px-6">
               {timelineEvents.length > 0 ? (
                 <>
                 <div className="relative pl-4"> 
@@ -747,17 +747,17 @@ export default function DeviceDetailsClient() {
               ) : (
                 <p className="text-muted-foreground text-center py-8">No events recorded for this device.</p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
         
         <TabsContent value="certificatesHistory">
-          <Card>
-            <CardHeader>
-              <CardTitle>Certificates History</CardTitle>
-              <CardDescription>History of X.509 certificates associated with this device identity.</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold">Certificates History</h3>
+              <p className="text-sm text-muted-foreground">History of X.509 certificates associated with this device identity.</p>
+            </div>
+            <div>
               {isLoadingHistory ? (
                   <div className="flex items-center justify-center p-6">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -889,14 +889,16 @@ export default function DeviceDetailsClient() {
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">This device does not have an identity with a certificate history.</p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="metadata">
-          <Card>
-            <CardHeader><CardTitle>Device Metadata</CardTitle></CardHeader>
-            <CardContent>
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold">Device Metadata</h3>
+            </div>
+            <div>
               {device.metadata && Object.keys(device.metadata).length > 0 ? (
                 <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
                   {JSON.stringify(device.metadata, null, 2)}
@@ -904,8 +906,8 @@ export default function DeviceDetailsClient() {
               ) : (
                 <p className="text-muted-foreground">No custom metadata available for this device.</p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
         
       </Tabs>

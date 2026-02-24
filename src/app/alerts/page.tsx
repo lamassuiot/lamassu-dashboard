@@ -18,6 +18,7 @@ import { AuditUserInfoPanel } from '@/components/alerts/AuditUserInfoPanel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
+import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 
 
 // This is the structure the UI component expects.
@@ -38,7 +39,7 @@ export interface AlertSortConfig {
     direction: SortDirection;
 }
 
-type RightPanelMode = 'subscribe' | 'audit-user' | null;
+type RightPanelMode = 'subscribe' | 'audit-user' | 'subscription-details' | null;
 
 type EventCategoryFilter = 'AUDIT' | 'API';
 
@@ -81,8 +82,6 @@ export default function AlertsPage() {
   const [auditEventForUserInfo, setAuditEventForUserInfo] = useState<AlertEvent | null>(null);
 
 
-  // New state for details modal
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedSubscriptionForDetails, setSelectedSubscriptionForDetails] = useState<ApiSubscription | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -100,10 +99,9 @@ export default function AlertsPage() {
         
         toast({ title: 'Success', description: 'You have been unsubscribed from the alert.' });
         
-        // Close modal if open
-        if (isDetailsModalOpen) {
-            setIsDetailsModalOpen(false);
-            setSelectedSubscriptionForDetails(null);
+        if (rightPanelMode === 'subscription-details') {
+          setRightPanelMode(null);
+          setSelectedSubscriptionForDetails(null);
         }
         
         loadAlertsData(); // Re-sync with the server
@@ -127,7 +125,7 @@ export default function AlertsPage() {
     setSubscriptionToEdit(subscription);
     setEventTypeToSubscribe(subscription.event_type);
     setSamplePayloadToSubscribe(associatedEvent?.payload || {});
-    setIsDetailsModalOpen(false); // Close details modal
+    setSelectedSubscriptionForDetails(null);
     setIsSubscribeModalOpen(true); // Open subscribe modal in edit mode
     setRightPanelMode('subscribe');
   };
@@ -165,6 +163,7 @@ export default function AlertsPage() {
     setRightPanelMode(null);
     setIsSubscribeModalOpen(false);
     setAuditEventForUserInfo(null);
+    setSelectedSubscriptionForDetails(null);
     setEventTypeToSubscribe(null);
     setSamplePayloadToSubscribe(null);
     setSubscriptionToEdit(null);
@@ -174,10 +173,22 @@ export default function AlertsPage() {
     const sub = allSubscriptions.find(s => s.id === subscriptionId);
     if (sub) {
       setSelectedSubscriptionForDetails(sub);
-      setIsDetailsModalOpen(true);
+      setIsSubscribeModalOpen(false);
+      setAuditEventForUserInfo(null);
+      setRightPanelMode('subscription-details');
     } else {
       toast({ title: 'Error', description: 'Could not find subscription details.', variant: 'destructive'});
     }
+  };
+
+  const handleDetailsPanelOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setRightPanelMode(null);
+      setSelectedSubscriptionForDetails(null);
+      return;
+    }
+
+    setRightPanelMode('subscription-details');
   };
 
 
@@ -385,8 +396,34 @@ export default function AlertsPage() {
           </div>
                 </div>
 
-      <div className={cn("grid gap-6 transition-all duration-300 ease-in-out", rightPanelMode ? "xl:grid-cols-[minmax(0,1fr)_560px]" : "grid-cols-1")}>
-        <div className="min-w-0">
+      <SplitPanelLayout
+        isPanelOpen={!!rightPanelMode}
+        panel={
+          rightPanelMode === 'subscribe' && isSubscribeModalOpen ? (
+            <SubscribeToAlertModal
+              isOpen={isSubscribeModalOpen}
+              onOpenChange={handleSubscribePanelOpenChange}
+              eventType={eventTypeToSubscribe}
+              samplePayload={samplePayloadToSubscribe}
+              onSuccess={handleSubscriptionSuccess}
+              subscriptionToEdit={subscriptionToEdit}
+              presentation="inline"
+            />
+          ) : rightPanelMode === 'audit-user' ? (
+            <AuditUserInfoPanel event={auditEventForUserInfo} onClose={handleCloseRightPanel} />
+          ) : rightPanelMode === 'subscription-details' ? (
+            <SubscriptionDetailsModal
+              isOpen={rightPanelMode === 'subscription-details' && !!selectedSubscriptionForDetails}
+              onOpenChange={handleDetailsPanelOpenChange}
+              subscription={selectedSubscriptionForDetails}
+              onDelete={performUnsubscribe}
+              onEdit={handleOpenEditModal}
+              isDeleting={isDeleting}
+              presentation="inline"
+            />
+          ) : null
+        }
+      >
           {isLoading ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -447,36 +484,8 @@ export default function AlertsPage() {
               </p>
             </div>
           )}
-        </div>
-
-        {rightPanelMode === 'subscribe' && isSubscribeModalOpen && (
-          <div className="min-w-0 animate-in fade-in-0 slide-in-from-right-2 duration-300 xl:sticky xl:top-6 xl:self-start">
-            <SubscribeToAlertModal
-              isOpen={isSubscribeModalOpen}
-              onOpenChange={handleSubscribePanelOpenChange}
-              eventType={eventTypeToSubscribe}
-              samplePayload={samplePayloadToSubscribe}
-              onSuccess={handleSubscriptionSuccess}
-              subscriptionToEdit={subscriptionToEdit}
-              presentation="inline"
-            />
-          </div>
-        )}
-        {rightPanelMode === 'audit-user' && (
-          <div className="min-w-0 animate-in fade-in-0 slide-in-from-right-2 duration-300 xl:sticky xl:top-6 xl:self-start">
-            <AuditUserInfoPanel event={auditEventForUserInfo} onClose={handleCloseRightPanel} />
-          </div>
-        )}
-      </div>
+      </SplitPanelLayout>
     </div>
-    <SubscriptionDetailsModal
-        isOpen={isDetailsModalOpen}
-        onOpenChange={setIsDetailsModalOpen}
-        subscription={selectedSubscriptionForDetails}
-        onDelete={performUnsubscribe}
-        onEdit={handleOpenEditModal}
-        isDeleting={isDeleting}
-    />
     </>
   );
 }

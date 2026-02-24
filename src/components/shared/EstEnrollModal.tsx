@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info } from "lucide-react";
@@ -57,6 +58,8 @@ interface EstEnrollModalProps {
   onOpenChange: (isOpen: boolean) => void;
   ra: ApiRaItem | null;
   initialDeviceId?: string;
+    presentation?: 'dialog' | 'inline';
+    className?: string;
 }
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
@@ -89,7 +92,14 @@ function encodeToBase64(pemContent: string): string {
 }
 
 
-export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenChange, ra, initialDeviceId }) => {
+export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
+    isOpen,
+    onOpenChange,
+    ra,
+    initialDeviceId,
+    presentation = 'dialog',
+    className,
+}) => {
     const { toast } = useToast();
     const { user } = useAuth();
     
@@ -359,17 +369,16 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
     ].join('\n');
 
 
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col">
-                <DialogHeader>
-                    <DialogTitle>EST Enroll</DialogTitle>
-                    <DialogDescription>
-                        Generate enrollment commands for RA: {ra?.name} ({ra?.id})
-                    </DialogDescription>
-                </DialogHeader>
+    const panelContent = (
+        <>
+            <div className="border-b p-6 pb-4">
+                <h2 className="text-lg font-semibold">EST Enroll</h2>
+                <p className="text-sm text-muted-foreground">
+                    Generate enrollment commands for RA: {ra?.name} ({ra?.id})
+                </p>
+            </div>
 
-                <div className="flex-grow my-2 -mr-6 overflow-y-auto pr-6">
+            <div className="flex-grow my-2 -mr-6 overflow-y-auto px-6 pr-6">
                     <div className="pt-2">
                         <Stepper currentStep={step} steps={["Device", "CSR", "Bootstrap Options", "Bootstrap", "Commands"]} />
                     </div>
@@ -605,7 +614,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
                     </div>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="border-t px-6 py-4">
                     <div className="w-full flex justify-between">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <div className="flex space-x-2">
@@ -630,6 +639,29 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({ isOpen, onOpenCh
                         </div>
                     </div>
                 </DialogFooter>
+        </>
+    );
+
+    if (presentation === 'inline') {
+        if (!isOpen) return null;
+
+        return (
+            <Card className={cn("flex h-full min-h-[650px] flex-col overflow-hidden", className)}>
+                {panelContent}
+            </Card>
+        );
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className={cn("sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col", className)}>
+                <DialogHeader className="sr-only">
+                    <DialogTitle>EST Enroll</DialogTitle>
+                    <DialogDescription>
+                        Generate enrollment commands for RA: {ra?.name} ({ra?.id})
+                    </DialogDescription>
+                </DialogHeader>
+                {panelContent}
             </DialogContent>
         </Dialog>
     );

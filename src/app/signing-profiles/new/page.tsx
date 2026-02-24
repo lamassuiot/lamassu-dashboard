@@ -19,6 +19,7 @@ import {
 import { SigningProfileForm, signingProfileSchema, type SigningProfileFormValues, templateDefaults, defaultFormValues } from '@/components/shared/SigningProfileForm';
 import { Form } from '@/components/ui/form';
 import { Stepper } from '@/components/shared/Stepper';
+import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 
 
 const templateMetadata = [
@@ -53,7 +54,7 @@ export default function CreateSigningProfilePage() {
 
     setIsSubmitting(true);
 
-    let validityPayload: { type: string; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
+    let validityPayload: { type: 'Duration' | 'Date'; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
     if (data.validity.type === 'Duration' && data.validity.durationValue) {
         validityPayload = { type: 'Duration', duration: data.validity.durationValue };
     } else if (data.validity.type === 'Date' && data.validity.dateValue) {
@@ -184,7 +185,37 @@ export default function CreateSigningProfilePage() {
               </div>
             </section>
           ) : (
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <SplitPanelLayout
+              isPanelOpen
+              panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_300px]"
+              panel={
+                <Card className="h-fit xl:sticky xl:top-6">
+                  <CardHeader>
+                    <CardTitle className="text-base">Selected Template</CardTitle>
+                    <CardDescription>
+                      You can edit any pre-filled values before creating the profile.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-md bg-muted p-2">
+                        <selectedTemplate.icon className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium leading-none">{selectedTemplate.title}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">{selectedTemplate.description}</p>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      <p>• Review validity and CA signing behavior first.</p>
+                      <p>• Enforce crypto constraints when policy requires strict key types.</p>
+                      <p>• Configure KU/EKU overrides only when CSR values should be ignored.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              }
+            >
               <Card>
                 <CardHeader>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -212,33 +243,7 @@ export default function CreateSigningProfilePage() {
                   </Button>
                 </CardFooter>
               </Card>
-
-              <Card className="h-fit xl:sticky xl:top-6">
-                <CardHeader>
-                  <CardTitle className="text-base">Selected Template</CardTitle>
-                  <CardDescription>
-                    You can edit any pre-filled values before creating the profile.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-md bg-muted p-2">
-                      <selectedTemplate.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium leading-none">{selectedTemplate.title}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">{selectedTemplate.description}</p>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    <p>• Review validity and CA signing behavior first.</p>
-                    <p>• Enforce crypto constraints when policy requires strict key types.</p>
-                    <p>• Configure KU/EKU overrides only when CSR values should be ignored.</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            </SplitPanelLayout>
           )}
         </form>
       </Form>
