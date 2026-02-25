@@ -19,7 +19,6 @@ import { DetailItem } from '../shared/DetailItem';
 import { CodeBlock } from '../shared/CodeBlock';
 import { Badge } from '../ui/badge';
 import { format, parseISO } from 'date-fns';
-import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 interface SubscriptionDetailsModalProps {
@@ -44,25 +43,27 @@ export const SubscriptionDetailsModal: React.FC<SubscriptionDetailsModalProps> =
   className,
 }) => {
   if (!subscription) return null;
+  const webhookUrl = subscription.channel.config.webhook_url || subscription.channel.config.url;
+  const webhookMethod = subscription.channel.config.webhook_method || subscription.channel.config.method;
 
   const handleDelete = () => {
-      onDelete(subscription.id);
+    onDelete(subscription.id);
   }
-  
+
   const handleEdit = () => {
-      onEdit(subscription);
+    onEdit(subscription);
   }
-  
+
   const getConditionContent = (conditionType: string, conditionValue: string): string => {
     if (conditionType === 'JSON-SCHEMA') {
-        try {
-            // It's a schema, so it should be valid JSON. Let's prettify it.
-            return JSON.stringify(JSON.parse(conditionValue), null, 2);
-        } catch (e) {
-            console.error("Failed to parse condition value as JSON:", e);
-            // If it's not valid JSON for some reason, show the raw string.
-            return conditionValue;
-        }
+      try {
+        // It's a schema, so it should be valid JSON. Let's prettify it.
+        return JSON.stringify(JSON.parse(conditionValue), null, 2);
+      } catch (e) {
+        console.error("Failed to parse condition value as JSON:", e);
+        // If it's not valid JSON for some reason, show the raw string.
+        return conditionValue;
+      }
     }
     // For other types like JAVASCRIPT or JSON-PATH, just show the raw string.
     return conditionValue;
@@ -86,8 +87,8 @@ export const SubscriptionDetailsModal: React.FC<SubscriptionDetailsModalProps> =
           <DetailItem label="Type" value={subscription.channel.type} />
           <DetailItem label="Name" value={subscription.channel.name} />
           {subscription.channel.config.email && <DetailItem label="Email" value={subscription.channel.config.email} />}
-          {subscription.channel.config.url && <DetailItem label="URL" value={subscription.channel.config.url} isMono />}
-          {subscription.channel.config.method && <DetailItem label="Method" value={subscription.channel.config.method} />}
+          {webhookUrl && <DetailItem label="URL" value={webhookUrl} isMono />}
+          {webhookMethod && <DetailItem label="Method" value={webhookMethod} />}
 
           {subscription.conditions && subscription.conditions.length > 0 ? (
             <>
@@ -127,9 +128,9 @@ export const SubscriptionDetailsModal: React.FC<SubscriptionDetailsModalProps> =
     if (!isOpen) return null;
 
     return (
-      <Card className={cn('flex h-full min-h-[650px] flex-col overflow-hidden', className)}>
+      <div className="flex h-full min-h-[540px] flex-col rounded-lg border bg-background">
         {panelContent}
-      </Card>
+      </div>
     );
   }
 

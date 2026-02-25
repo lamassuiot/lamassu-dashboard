@@ -216,12 +216,17 @@ export default function AlertsPage() {
         }
         
         let displayValue: string = sub.channel.type;
-        if(sub.channel.type === 'EMAIL' && sub.channel.config.email) {
-            displayValue = `${sub.channel.type}: ${sub.channel.config.email}`;
-        } else if (sub.channel.type === 'WEBHOOK' && sub.channel.config.name) {
-            displayValue = `Webhook: ${sub.channel.config.name}`;
-        } else if (sub.channel.config.url) {
-             displayValue = `${sub.channel.type}: ${new URL(sub.channel.config.url).hostname}`;
+        const webhookUrl = sub.channel.config.webhook_url || sub.channel.config.url;
+        if (sub.channel.type === 'EMAIL' && sub.channel.config.email) {
+          displayValue = `${sub.channel.type}: ${sub.channel.config.email}`;
+        } else if ((sub.channel.type === 'WEBHOOK' || sub.channel.type === 'TEAMS_WEBHOOK') && sub.channel.name) {
+          displayValue = `${sub.channel.type}: ${sub.channel.name}`;
+        } else if (webhookUrl) {
+          try {
+            displayValue = `${sub.channel.type}: ${new URL(webhookUrl).hostname}`;
+          } catch {
+            displayValue = `${sub.channel.type}: ${webhookUrl}`;
+          }
         }
         
         const subscriptionDisplay = {

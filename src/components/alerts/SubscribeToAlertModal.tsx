@@ -99,12 +99,14 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
       if (isEditMode && subscriptionToEdit) {
           // Populate from existing subscription
           const sub = subscriptionToEdit;
+          const existingWebhookUrl = sub.channel.config.webhook_url || sub.channel.config.url || '';
+          const existingWebhookMethod = sub.channel.config.webhook_method || sub.channel.config.method;
           setChannelType(sub.channel.type);
           setEmail(sub.channel.config.email || '');
-          setWebhookUrl(sub.channel.config.url || '');
-          setWebhookName(sub.channel.config.name || '');
-          setTeamsName(sub.channel.config.name || ''); // Assuming name is shared
-          setWebhookMethod(sub.channel.config.method || 'POST');
+          setWebhookUrl(existingWebhookUrl);
+          setWebhookName(sub.channel.name || '');
+          setTeamsName(sub.channel.name || '');
+          setWebhookMethod(existingWebhookMethod === 'PUT' ? 'PUT' : 'POST');
 
           if(sub.conditions && sub.conditions.length > 0) {
               const firstCond = sub.conditions[0];
@@ -246,12 +248,11 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
             config = { email };
         } else if (channelType === 'WEBHOOK') {
             config = {
-                url: webhookUrl,
-                method: webhookMethod,
-                name: webhookName,
+                webhook_url: webhookUrl,
+                webhook_method: webhookMethod,
             };
         } else { // TEAMS_WEBHOOK
-            config = { url: webhookUrl, name: teamsName };
+            config = { webhook_url: webhookUrl };
         }
 
         let channelName = `${channelType.toLowerCase()}-subscription-for-${eventType}`;
