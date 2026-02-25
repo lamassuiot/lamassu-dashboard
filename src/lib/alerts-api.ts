@@ -35,9 +35,11 @@ export interface ApiSubscription {
         name: string;
         config: {
             email?: string;
+            webhook_url?: string;
+            webhook_method?: 'POST' | 'PUT';
+            // Backward-compatible fields for existing persisted subscriptions.
             url?: string;
             method?: 'POST' | 'PUT';
-            name?: string;
         };
     };
 }
@@ -53,9 +55,8 @@ export interface SubscriptionPayload {
         name: string;
         config: {
             email?: string;
-            url?: string;
-            method?: 'POST' | 'PUT';
-            name?: string;
+            webhook_url?: string;
+            webhook_method?: 'POST' | 'PUT';
         };
     };
 }
