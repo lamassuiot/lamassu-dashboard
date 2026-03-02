@@ -56,6 +56,25 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
+import chiperInfo from '../../../../chiper_info.json';
+
+type CipherStrength = 'recommended' | 'secure' | 'weak' | 'insecure' | 'unknown';
+
+function getCipherStrength(cs: string): CipherStrength {
+  if ((chiperInfo.recommended as string[]).includes(cs)) return 'recommended';
+  if ((chiperInfo.secure as string[]).includes(cs)) return 'secure';
+  if ((chiperInfo.weak as string[]).includes(cs)) return 'weak';
+  if ((chiperInfo.insecure as string[]).includes(cs)) return 'insecure';
+  return 'unknown';
+}
+
+const cipherStrengthBadge: Record<CipherStrength, { label: string; className: string }> = {
+  recommended: { label: 'Recommended', className: 'bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30' },
+  secure:      { label: 'Secure',      className: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30' },
+  weak:        { label: 'Weak',        className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border border-yellow-500/30' },
+  insecure:    { label: 'Insecure',    className: 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30' },
+  unknown:     { label: 'Unknown',     className: 'bg-muted text-muted-foreground border border-border' },
+};
 
 type CBOMAsset = CBOMAssetDetail;
 
@@ -1038,27 +1057,59 @@ function CBOMDetailsContent() {
                       const found = networkGraphData.nodes.find((n) => n.id === internalNode.id) ?? null;
                       setSelectedNetworkNode((prev) => (prev?.id === found?.id ? null : found));
                     }}
-                    renderNode={({ node, ...rest }: NodeRendererProps) => (
-                      <group>
-                        <Sphere {...rest} node={node} />
-                        {!node.data?.isAgent && (
-                          <ReagraphBadge
-                            {...rest}
-                            node={node}
-                            label={node.data?.tlsVersion ? `TLS ${node.data.tlsVersion}` : 'TLS'}
-                            backgroundColor="#7c3aed"
-                            textColor="#ffffff"
-                            strokeColor="#5b21b6"
-                            position="top-right"
-                          />
-                        )}
-                      </group>
-                    )}
+                    renderNode={({ node, ...rest }: NodeRendererProps) => {
+                      const negotiated = node.data?.negotiatedCipherSuite as string | undefined;
+                      const suites = node.data?.cipherSuites as string[] | undefined;
+                      const strengthKey: CipherStrength = negotiated
+                        ? getCipherStrength(negotiated)
+                        : suites?.length
+                          ? (['recommended', 'secure', 'weak', 'insecure', 'unknown'] as CipherStrength[]).find(
+                              (s) => suites.some((cs) => getCipherStrength(cs) === s),
+                            ) ?? 'unknown'
+                          : 'unknown';
+                      const strengthColors: Record<CipherStrength, { bg: string; stroke: string }> = {
+                        recommended: { bg: '#16a34a', stroke: '#15803d' },
+                        secure:      { bg: '#2563eb', stroke: '#1d4ed8' },
+                        weak:        { bg: '#d97706', stroke: '#b45309' },
+                        insecure:    { bg: '#dc2626', stroke: '#b91c1c' },
+                        unknown:     { bg: '#6b7280', stroke: '#4b5563' },
+                      };
+                      const sc = strengthColors[strengthKey];
+                      return (
+                        <group>
+                          <Sphere {...rest} node={node} />
+                          {!node.data?.isAgent && (
+                            <>
+                              <ReagraphBadge
+                                {...rest}
+                                node={node}
+                                label={node.data?.tlsVersion ? `TLS ${node.data.tlsVersion}` : 'TLS'}
+                                backgroundColor="#7c3aed"
+                                textColor="#ffffff"
+                                strokeColor="#5b21b6"
+                                position="top-right"
+                              />
+                              {suites?.length ? (
+                                <ReagraphBadge
+                                  {...rest}
+                                  node={node}
+                                  label={cipherStrengthBadge[strengthKey].label}
+                                  backgroundColor={sc.bg}
+                                  textColor="#ffffff"
+                                  strokeColor={sc.stroke}
+                                  position="bottom-right"
+                                />
+                              ) : null}
+                            </>
+                          )}
+                        </group>
+                      );
+                    }}
                   />
                 </div>
 
                 {selectedNetworkNode && !selectedNetworkNode.data?.isAgent && (
-                  <div className="w-72 shrink-0 rounded-md border bg-card text-card-foreground text-xs overflow-y-auto max-h-[420px]">
+                  <div className="w-1/3 shrink-0 rounded-md border bg-card text-card-foreground text-xs overflow-y-auto max-h-[420px]">
                     <div className="flex items-center justify-between px-3 py-2 border-b">
                       <span className="font-semibold text-sm truncate" title={selectedNetworkNode.label}>
                         {selectedNetworkNode.label}
@@ -1094,10 +1145,29 @@ function CBOMDetailsContent() {
 
                       {selectedNetworkNode.data?.negotiatedCipherSuite && (
                         <div>
-                          <p className="text-muted-foreground font-medium mb-1">Negotiated Cipher Suite</p>
-                          <span className="rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold px-2 py-0.5 font-mono break-all">
-                            {selectedNetworkNode.data.negotiatedCipherSuite as string}
-                          </span>
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <p className="text-muted-foreground font-medium">Negotiated Cipher Suite</p>
+                            <span className="rounded-full bg-purple-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide leading-none">
+                              Active
+                            </span>
+                          </div>
+                          {(() => {
+                            const cs = selectedNetworkNode.data.negotiatedCipherSuite as string;
+                            const strength = getCipherStrength(cs);
+                            const badge = cipherStrengthBadge[strength];
+                            return (
+                              <div className="rounded-md border-l-4 border-purple-500 bg-purple-500/15 dark:bg-purple-500/20 px-3 py-2">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${badge.className}`}>
+                                    {badge.label}
+                                  </span>
+                                </div>
+                                <span className="font-mono text-purple-700 dark:text-purple-300 font-semibold break-all">
+                                  {cs}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
 
@@ -1114,22 +1184,52 @@ function CBOMDetailsContent() {
 
                       {(selectedNetworkNode.data?.cipherSuites as string[] | undefined)?.length ? (
                         <div>
-                          <p className="text-muted-foreground font-medium mb-1">
+                          <p className="text-muted-foreground font-medium mb-1.5">
                             Cipher Suites ({(selectedNetworkNode.data.cipherSuites as string[]).length})
                           </p>
-                          <div className="space-y-0.5 max-h-52 overflow-y-auto pr-1">
-                            {(selectedNetworkNode.data.cipherSuites as string[]).map((cs: string) => (
-                              <div
-                                key={cs}
-                                className={`rounded px-2 py-0.5 font-mono break-all ${
-                                  cs === (selectedNetworkNode.data?.negotiatedCipherSuite as string)
-                                    ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold'
-                                    : 'bg-muted'
-                                }`}
-                              >
-                                {cs}
+                          {(() => {
+                            const suites = selectedNetworkNode.data.cipherSuites as string[];
+                            const counts = suites.reduce<Record<CipherStrength, number>>(
+                              (acc, cs) => { acc[getCipherStrength(cs)]++; return acc; },
+                              { recommended: 0, secure: 0, weak: 0, insecure: 0, unknown: 0 },
+                            );
+                            const order: CipherStrength[] = ['recommended', 'secure', 'weak', 'insecure', 'unknown'];
+                            return (
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {order.filter((s) => counts[s] > 0).map((s) => (
+                                  <span key={s} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${cipherStrengthBadge[s].className}`}>
+                                    {counts[s]} {cipherStrengthBadge[s].label}
+                                  </span>
+                                ))}
                               </div>
-                            ))}
+                            );
+                          })()}
+                          <div className="space-y-0.5 max-h-52 overflow-y-auto pr-1">
+                            {(selectedNetworkNode.data.cipherSuites as string[]).map((cs: string) => {
+                              const isNegotiated = cs === (selectedNetworkNode.data?.negotiatedCipherSuite as string);
+                              const strength = getCipherStrength(cs);
+                              const badge = cipherStrengthBadge[strength];
+                              return (
+                                <div
+                                  key={cs}
+                                  className={`flex items-start gap-1.5 rounded px-2 py-1 ${
+                                    isNegotiated
+                                      ? 'border-l-2 border-purple-500 bg-purple-500/20 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300'
+                                      : 'bg-muted'
+                                  }`}
+                                >
+                                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none mt-px ${badge.className}`}>
+                                    {badge.label}
+                                  </span>
+                                  {isNegotiated && (
+                                    <span className="shrink-0 rounded-full bg-purple-600 text-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide leading-none mt-px">
+                                      Negotiated
+                                    </span>
+                                  )}
+                                  <span className={`font-mono break-all${isNegotiated ? ' font-semibold' : ''}`}>{cs}</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       ) : null}
