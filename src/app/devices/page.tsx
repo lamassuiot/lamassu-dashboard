@@ -19,7 +19,7 @@ import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
 import { DmsSelector } from '@/components/shared/DmsSelector';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { fetchDevices } from '@/lib/devices-api';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
@@ -113,7 +113,6 @@ export default function DevicesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
 
   const [devices, setDevices] = useState<DeviceData[]>([]);
   const [isLoadingApi, setIsLoadingApi] = useState(true);
@@ -329,7 +328,7 @@ export default function DevicesPage() {
 
   const handleOpenEnrollModal = async (device: DeviceData) => {
     if (!user?.access_token) {
-        toast({ title: 'Authentication Error', description: 'You must be logged in.', variant: 'destructive' });
+        sileo.error({ title: 'Authentication Error', description: 'You must be logged in.' });
         return;
     }
 
@@ -342,7 +341,7 @@ export default function DevicesPage() {
         const raData = await fetchRaById(device.deviceGroup, user.access_token);
         setRaForEnrollModal(raData);
     } catch (err: any) {
-        toast({ title: 'Error Fetching RA Details', description: err.message, variant: 'destructive' });
+        sileo.error({ title: 'Error Fetching RA Details', description: err.message });
         setIsEnrollModalOpen(false); // Close on error
     }
   };

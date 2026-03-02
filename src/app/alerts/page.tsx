@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchLatestAlerts, fetchSystemSubscriptions, unsubscribeFromAlert, type ApiSubscription } from '@/lib/alerts-api';
 import { AlertsTable } from '@/components/alerts/AlertsTable';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { SubscribeToAlertModal } from '@/components/alerts/SubscribeToAlertModal';
 import { SubscriptionDetailsModal } from '@/components/alerts/SubscriptionDetailsModal';
 import { AuditUserInfoPanel } from '@/components/alerts/AuditUserInfoPanel';
@@ -59,7 +59,6 @@ export default function AlertsPage() {
   const [allSubscriptions, setAllSubscriptions] = useState<ApiSubscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
 
   // Sorting and Filtering state
   const [sortConfig, setSortConfig] = useState<AlertSortConfig>({ column: 'lastSeen', direction: 'desc' });
@@ -88,7 +87,7 @@ export default function AlertsPage() {
 
   const performUnsubscribe = async (subscriptionId: string) => {
     if (!user?.access_token) {
-        toast({ title: 'Authentication Error', description: 'You must be logged in to unsubscribe.', variant: 'destructive' });
+        sileo.error({ title: 'Authentication Error', description: 'You must be logged in to unsubscribe.' });
         return;
     }
     
@@ -97,7 +96,7 @@ export default function AlertsPage() {
     try {
         await unsubscribeFromAlert(subscriptionId, user.access_token);
         
-        toast({ title: 'Success', description: 'You have been unsubscribed from the alert.' });
+        sileo.success({ title: 'Success', description: 'You have been unsubscribed from the alert.' });
         
         if (rightPanelMode === 'subscription-details') {
           setRightPanelMode(null);
@@ -106,7 +105,7 @@ export default function AlertsPage() {
         
         loadAlertsData(); // Re-sync with the server
     } catch (e: any) {
-        toast({ title: 'Unsubscribe Failed', description: e.message, variant: 'destructive' });
+        sileo.error({ title: 'Unsubscribe Failed', description: e.message });
     } finally {
         setIsDeleting(false);
     }
@@ -136,7 +135,7 @@ export default function AlertsPage() {
     setEventTypeToSubscribe(null);
     setSamplePayloadToSubscribe(null);
     setSubscriptionToEdit(null);
-    toast({ title: "Success!", description: "Subscription details saved." });
+    sileo.success({ title: "Success!", description: "Subscription details saved." });
     loadAlertsData(); // Refresh data to show new subscription
   }
 
@@ -177,7 +176,7 @@ export default function AlertsPage() {
       setAuditEventForUserInfo(null);
       setRightPanelMode('subscription-details');
     } else {
-      toast({ title: 'Error', description: 'Could not find subscription details.', variant: 'destructive'});
+      sileo.error({ title: 'Error', description: 'Could not find subscription details.'});
     }
   };
 

@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { ArrowLeft, Edit } from "lucide-react"; 
-import { useToast } from "@/hooks/use-toast";
+import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle as AlertTitleUI } from "@/components/ui/alert";
 import { Loader2, AlertTriangle } from 'lucide-react';
@@ -28,7 +28,6 @@ export default function EditSigningProfilePage() {
   const profileId = searchParams.get('id');
   const isEditMode = !!profileId;
 
-  const { toast } = useToast();
   const { user } = useAuth();
   
   const [profileData, setProfileData] = useState<ApiSigningProfile | null>(null);
@@ -114,7 +113,7 @@ export default function EditSigningProfilePage() {
 
   async function handleSubmit(data: SigningProfileFormValues) {
     if (!user?.access_token || !profileId) {
-        toast({ title: "Error", description: "Authentication token or Profile ID is missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Authentication token or Profile ID is missing." });
         return;
     }
 
@@ -160,10 +159,10 @@ export default function EditSigningProfilePage() {
 
     try {
         await updateSigningProfile(profileId, payload, user.access_token);
-        toast({ title: "Profile Updated", description: `Issuance Profile "${data.profileName}" has been successfully updated.` });
+        sileo.success({ title: "Profile Updated", description: `Issuance Profile "${data.profileName}" has been successfully updated.` });
         router.push('/signing-profiles');
     } catch (error: any) {
-        toast({ title: `Update Failed`, description: error.message, variant: "destructive" });
+        sileo.error({ title: `Update Failed`, description: error.message });
     } finally {
         setIsSubmitting(false);
     }

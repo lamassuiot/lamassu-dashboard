@@ -16,7 +16,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Loader2 } from 'lucide-react';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
@@ -115,7 +115,6 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   onUpdateSuccess,
 }) => {
   const { user } = useAuth();
-  const { toast } = useToast();
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
@@ -133,7 +132,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           const profilesResponse = await fetchSigningProfiles(user.access_token);
           setAvailableProfiles(profilesResponse.list);
         } catch {
-          toast({ title: "Error", description: "Could not load issuance profiles.", variant: "destructive" });
+          sileo.error({ title: "Error", description: "Could not load issuance profiles." });
         } finally {
           setIsLoadingProfiles(false);
         }
@@ -143,7 +142,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
       loadProfiles();
       setSelectedProfileId((item as CA).defaultProfileId || null);
     }
-  }, [item, itemType, isEditingProfile, user?.access_token, toast]);
+  }, [item, itemType, isEditingProfile, user?.access_token]);
 
   const handleSaveProfile = async () => {
     if (itemType !== 'ca' || !user?.access_token) return;
@@ -151,11 +150,11 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
     setIsSubmitting(true);
     try {
       await updateCaDefaultProfileId(caDetails.id, selectedProfileId, user.access_token);
-      toast({ title: "Success", description: "Default issuance profile updated." });
+      sileo.success({ title: "Success", description: "Default issuance profile updated." });
       onUpdateSuccess?.();
       setIsEditingProfile(false);
     } catch (e: any) {
-      toast({ title: "Update Failed", description: e.message, variant: "destructive" });
+      sileo.error({ title: "Update Failed", description: e.message });
     } finally {
       setIsSubmitting(false);
     }

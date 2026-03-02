@@ -6,14 +6,15 @@ import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Search, RefreshCw, FilePlus2, ChevronLeft, ChevronRight, AlertCircle as AlertCircleIcon, FileX2 } from 'lucide-react';
 import { CertificateList } from '@/components/CertificateList';
 import type { CA } from '@/lib/ca-data';
-import { usePaginatedCertificateFetcher, type ApiStatusFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
+import { usePaginatedCertificateFetcher, type ApiCertificateStatusValue } from '@/hooks/usePaginatedCertificateFetcher';
+import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 
 interface IssuedCertificatesTabProps {
     caId: string;
@@ -23,7 +24,6 @@ interface IssuedCertificatesTabProps {
 
 export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ caId, caIsActive, allCAs }) => {
     const routerHook = useRouter();
-    const { toast } = useToast();
     const { user, isLoading: authLoading } = useAuth();
 
     const {
@@ -33,7 +33,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
         pageSize, setPageSize,
         searchTerm, setSearchTerm,
         searchField, setSearchField,
-        statusFilter, setStatusFilter,
+        statusFilters, setStatusFilters,
         sortConfig, requestSort,
         currentPageIndex,
         nextTokenFromApi,
@@ -46,16 +46,22 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
         if (caId) {
             routerHook.push(`/certificate-authorities/issue-certificate?caId=${caId}`);
         } else {
-            toast({ title: "Error", description: "Cannot issue certificate, CA ID is missing.", variant: "destructive" });
+            sileo.error({ title: "Error", description: "Cannot issue certificate, CA ID is missing." });
         }
     };
 
     const statusOptions = [
-        { label: 'All Statuses', value: 'ALL' },
         { label: 'Active', value: 'ACTIVE' },
         { label: 'Expired', value: 'EXPIRED' },
         { label: 'Revoked', value: 'REVOKED' },
     ];
+    const statusOptionValueSet = new Set(statusOptions.map((opt) => opt.value as ApiCertificateStatusValue));
+    const handleStatusFilterChange = (selected: string[]) => {
+        const validSelected = selected.filter(
+            (value): value is ApiCertificateStatusValue => statusOptionValueSet.has(value as ApiCertificateStatusValue)
+        );
+        setStatusFilters(validSelected);
+    };
 
     return (
         <div className="space-y-4">
@@ -86,14 +92,17 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                 </Select>
 
                 {/* Status filter */}
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ApiStatusFilterValue)} disabled={isLoading || authLoading}>
-                    <SelectTrigger className="w-[140px] h-9 shrink-0">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {statusOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                    </SelectContent>
-                </Select>
+                <div className={cn("w-[180px] shrink-0", (isLoading || authLoading) && "pointer-events-none opacity-50")}>
+                    <MultiSelectDropdown
+                        id="issued-certs-status-filter"
+                        options={statusOptions}
+                        allOptionValues={statusOptions.map(opt => opt.value)}
+                        selectedValues={statusFilters}
+                        onChange={handleStatusFilterChange}
+                        buttonText="All Statuses"
+                        className="h-9 min-h-9"
+                    />
+                </div>
 
                 {/* Refresh */}
                 <Button

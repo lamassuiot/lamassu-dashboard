@@ -47,7 +47,7 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
     const formattedDate = format(parsedDate, effectiveFormatString);
     
     if (!showRelative) {
-      return <span className={className}>{formattedDate}</span>;
+      return <span className={cn("date-cell", className)}>{formattedDate}</span>;
     }
 
     const relativeTime = formatDistanceToNow(parsedDate, { addSuffix: true });
@@ -55,7 +55,7 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
     
     return (
       <div className={cn("flex flex-col items-start", className)}>
-        <span className={cn("font-medium", highlightExpired && isExpired && "text-red-500")}>{formattedDate}</span>
+        <span className={cn("date-cell font-medium", highlightExpired && isExpired && "text-red-500")}>{formattedDate}</span>
         <span 
           className={cn(
             "text-xs text-muted-foreground",

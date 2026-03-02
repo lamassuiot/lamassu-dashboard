@@ -13,7 +13,7 @@ import type { CA } from '@/lib/ca-data';
 import { DetailItem } from './DetailItem';
 import { Badge } from '../ui/badge';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib/va-api';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
@@ -72,7 +72,6 @@ interface OcspCheckModalProps {
 
 
 export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose, certificate, issuerCertificate }) => {
-    const { toast } = useToast();
     const [selectedDisplayUrl, setSelectedDisplayUrl] = useState<string>('');
     const [ocspUrl, setOcspUrl] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
@@ -125,17 +124,17 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
 
     const handleCopyPem = async (derBuffer: ArrayBuffer | null | undefined, type: 'OCSP REQUEST' | 'OCSP RESPONSE', setCopiedState: (v: boolean) => void) => {
         if (!derBuffer) {
-            toast({ title: "Error", description: "No data to copy.", variant: "destructive" });
+            sileo.error({ title: "Error", description: "No data to copy." });
             return;
         }
         try {
             const pemString = formatAsPem(arrayBufferToBase64(derBuffer), type);
             await navigator.clipboard.writeText(pemString);
             setCopiedState(true);
-            toast({ title: 'Copied!', description: `${type} PEM copied.` });
+            sileo.success({ title: 'Copied!', description: `${type} PEM copied.` });
             setTimeout(() => setCopiedState(false), 2000);
         } catch (err) {
-            toast({ title: 'Copy Failed', variant: 'destructive' });
+            sileo.error({ title: 'Copy Failed' });
         }
     };
     

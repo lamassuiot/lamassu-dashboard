@@ -8,13 +8,14 @@ import type { CertificateData } from '@/types/certificate';
 import type { CertSortConfig, SortDirection, SortableCertColumn } from '@/app/certificates/page';
 import type { MetadataFilter } from '@/components/shared/MetadataFilterManager';
 
-const API_STATUS_VALUES_FOR_FILTER = {
+const _API_STATUS_VALUES_FOR_FILTER = {
   ALL: 'ALL',
   ACTIVE: 'ACTIVE',
   EXPIRED: 'EXPIRED',
   REVOKED: 'REVOKED',
 } as const;
-export type ApiStatusFilterValue = typeof API_STATUS_VALUES_FOR_FILTER[keyof typeof API_STATUS_VALUES_FOR_FILTER];
+export type ApiStatusFilterValue = typeof _API_STATUS_VALUES_FOR_FILTER[keyof typeof _API_STATUS_VALUES_FOR_FILTER];
+export type ApiCertificateStatusValue = Exclude<ApiStatusFilterValue, 'ALL'>;
 
 interface UsePaginatedCertificateFetcherParams {
   caId?: string | null;
@@ -42,6 +43,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>('commonName');
   const [statusFilter, setStatusFilter] = useState<ApiStatusFilterValue>('ALL');
+  const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([]);
   const [caIdFilter, setCaIdFilter] = useState<string | null>(caId);
   const [sortConfig, setSortConfig] = useState<CertSortConfig | null>({ column: 'validFrom', direction: 'desc' });
   const [metadataFilters, setMetadataFilters] = useState<MetadataFilter[]>([]);
@@ -121,8 +123,17 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
             if (bookmarkToFetch) apiParams.append('bookmark', bookmarkToFetch);
 
             const filtersToApply: string[] = [];
-            if (statusFilter !== 'ALL') {
-                filtersToApply.push(`status[equal]${statusFilter}`);
+            const effectiveStatusFilters: ApiCertificateStatusValue[] =
+              statusFilters.length > 0
+                ? statusFilters
+                : statusFilter !== 'ALL'
+                  ? [statusFilter as ApiCertificateStatusValue]
+                  : [];
+
+            if (effectiveStatusFilters.length === 1) {
+                filtersToApply.push(`status[equal]${effectiveStatusFilters[0]}`);
+            } else if (effectiveStatusFilters.length > 1) {
+                filtersToApply.push(`status[in]${effectiveStatusFilters.join(',')}`);
             }
             if (debouncedSearchTerm.trim() !== '') {
                 if (searchField === 'commonName') {
@@ -138,11 +149,35 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
             });
             filtersToApply.forEach(f => apiParams.append('filter', f));
             
-            const result = await fetchIssuedCertificates({
+            const fetchWithQuery = (queryString: string) => fetchIssuedCertificates({
                 accessToken: user.access_token,
-                forCaId: caIdFilter ?? undefined, // Use the new caIdFilter state
-                apiQueryString: apiParams.toString(),
+                forCaId: caIdFilter ?? undefined,
+                apiQueryString: queryString,
             });
+
+            let result: { certificates: CertificateData[]; nextToken: string | null };
+            try {
+                result = await fetchWithQuery(apiParams.toString());
+            } catch (initialError) {
+                if (effectiveStatusFilters.length > 1) {
+                    const fallbackParams = new URLSearchParams(apiParams);
+                    fallbackParams.delete('filter');
+                    filtersToApply
+                      .filter((filter) => !filter.startsWith('status['))
+                      .forEach((filter) => fallbackParams.append('filter', filter));
+
+                    const fallbackResult = await fetchWithQuery(fallbackParams.toString());
+                    result = {
+                        ...fallbackResult,
+                        certificates: fallbackResult.certificates.filter((cert) => {
+                            const certStatus = cert.apiStatus?.toUpperCase();
+                            return !!certStatus && effectiveStatusFilters.includes(certStatus as ApiCertificateStatusValue);
+                        }),
+                    };
+                } else {
+                    throw initialError;
+                }
+            }
             setCertificates(result.certificates);
             setNextTokenFromApi(result.nextToken);
 
@@ -160,6 +195,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   // This hook now only re-runs when auth is ready, or when pagination state changes.
   // Filter changes are handled by the effect below, which updates the pagination state,
   // which in turn triggers this effect to run exactly once with the correct state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isClientMounted, authLoading, isAuthenticated, user?.access_token,
     currentPageIndex, bookmarkStack,
@@ -173,7 +209,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
         setCurrentPageIndex(0);
         setBookmarkStack([null]);
     }
-  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, sortConfig, caIdFilter, debouncedMetadataFilters]);
+  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, statusFilters, sortConfig, caIdFilter, debouncedMetadataFilters]);
 
 
   const handleNextPage = () => {
@@ -222,6 +258,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     debouncedSearchTerm,
     searchField, setSearchField,
     statusFilter, setStatusFilter,
+    statusFilters, setStatusFilters,
     caIdFilter, setCaIdFilter,
     metadataFilters, setMetadataFilters,
     debouncedMetadataFilters,

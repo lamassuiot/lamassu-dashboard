@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, UploadCloud, Loader2, Settings, AlertTriangle, FileText } from "lucide-react";
 import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import * as pkijs from "pkijs";
 import * as asn1js from "asn1js";
 import { format as formatDate } from 'date-fns';
@@ -48,7 +48,6 @@ const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
 export default function CreateCaImportFullPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -166,23 +165,23 @@ export default function CreateCaImportFullPage() {
     setIsSubmitting(true);
 
     if (!importedCaCertPem.trim() || !importedPrivateKeyPem.trim() || !cryptoEngineId) {
-      toast({ title: "Validation Error", description: "Certificate PEM, Private Key PEM, and a Crypto Engine are required.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Certificate PEM, Private Key PEM, and a Crypto Engine are required." });
       setIsSubmitting(false);
       return;
     }
     if (decodedImportedCertInfo?.error) {
-      toast({ title: "Certificate Error", description: "Cannot import due to invalid certificate data.", variant: "destructive" });
+      sileo.error({ title: "Certificate Error", description: "Cannot import due to invalid certificate data." });
       setIsSubmitting(false);
       return;
     }
     if (!user?.access_token) {
-      toast({ title: "Authentication Error", description: "User not authenticated.", variant: "destructive" });
+      sileo.error({ title: "Authentication Error", description: "User not authenticated." });
       setIsSubmitting(false);
       return;
     }
     
     if (importedPrivateKeyPem.includes('ENCRYPTED PRIVATE KEY')) {
-      toast({ title: "Unsupported Key", description: "Encrypted private keys are not supported. Please provide an unencrypted private key in PKCS#8 format.", variant: "destructive" });
+      sileo.error({ title: "Unsupported Key", description: "Encrypted private keys are not supported. Please provide an unencrypted private key in PKCS#8 format." });
       setIsSubmitting(false);
       return;
     }
@@ -202,14 +201,14 @@ export default function CreateCaImportFullPage() {
     
     try {
         await importCa(payload, user.access_token);
-        toast({
+        sileo.success({
             title: "Certification Authority Import Successful",
-            description: `Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`,
+            description: `Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`
         });
         router.push('/certificate-authorities');
 
     } catch (error: any) {
-        toast({ title: "Import Failed", description: error.message, variant: "destructive" });
+        sileo.error({ title: "Import Failed", description: error.message });
     } finally {
         setIsSubmitting(false);
     }

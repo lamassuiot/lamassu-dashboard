@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Check, Download, Link, FileCode, GitBranch, Info } from "lucide-react";
-import type { ToastProps } from '@/components/ui/toast';
+import { sileo } from '@/lib/toast';
 import type { CA } from '@/lib/ca-data';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 import { cn } from '@/lib/utils';
@@ -16,7 +16,6 @@ interface PemTabContentProps {
   fullChainPemData?: string | undefined;
   itemName: string;
   itemPathToRootCount?: number;
-  toast: ({ title, description, variant }: Omit<ToastProps, 'id'> & { title?: React.ReactNode; description?: React.ReactNode }) => void;
   certificateChain?: CA[];
   currentCertificate?: {
     subject: string;
@@ -84,7 +83,6 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
   fullChainPemData,
   itemName,
   itemPathToRootCount,
-  toast,
   certificateChain,
   currentCertificate,
 }) => {
@@ -97,10 +95,10 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
     try {
       await navigator.clipboard.writeText(text.replace(/\\n/g, '\n'));
       setCopied(true);
-      toast({ title: 'Copied!', description: `${label} copied to clipboard.` });
+      sileo.success({ title: 'Copied!', description: `${label} copied to clipboard.` });
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({ title: 'Copy Failed', description: `Could not copy ${label}.`, variant: 'destructive' });
+      sileo.error({ title: 'Copy Failed', description: `Could not copy ${label}.` });
     }
   };
 
@@ -114,7 +112,7 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast({ title: 'Downloaded', description: `${label} downloaded.` });
+    sileo.success({ title: 'Downloaded', description: `${label} downloaded.` });
   };
 
   const hasChain = !!fullChainPemData && !!fullChainPemData.trim();
@@ -130,10 +128,10 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
         pem={singlePemData}
         onCopy={() => singlePemData
           ? copyText(singlePemData, `Certificate PEM for ${itemName}`, setCertificateCopied)
-          : toast({ title: 'Copy Failed', description: 'No PEM data found.', variant: 'destructive' })}
+          : sileo.error({ title: 'Copy Failed', description: 'No PEM data found.' })}
         onDownload={() => singlePemData
           ? downloadPem(singlePemData, `${sanitizeFilename(itemName)}.pem`, `Certificate PEM for ${itemName}`)
-          : toast({ title: 'Download Failed', description: 'No PEM data found.', variant: 'destructive' })}
+          : sileo.error({ title: 'Download Failed', description: 'No PEM data found.' })}
         copied={certificateCopied}
       />
 

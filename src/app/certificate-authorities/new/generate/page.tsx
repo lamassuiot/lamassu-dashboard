@@ -15,7 +15,7 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { formatISO, add, format } from 'date-fns';
@@ -78,7 +78,6 @@ const calculateExpirationDate = (durationStr: string): Date => {
 export default function CreateCaGeneratePage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -297,10 +296,9 @@ export default function CreateCaGeneratePage() {
 
   const handleParentCaSelectFromModal = (ca: CA) => {
     if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
-      toast({
+      sileo.error({
         title: "Invalid Parent Certification Authority",
-        description: `Certification Authority "${ca.name}" cannot be used as a parent as it's external-public or not active.`,
-        variant: "destructive"
+        description: `Certification Authority "${ca.name}" cannot be used as a parent as it's external-public or not active.`
       });
       return;
     }
@@ -326,32 +324,32 @@ export default function CreateCaGeneratePage() {
     setIsSubmitting(true);
 
     if (caType === 'intermediate' && !selectedParentCa) {
-      toast({ title: "Validation Error", description: "Please select a Parent Certification Authority for intermediate CAs.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Please select a Parent Certification Authority for intermediate CAs." });
       setIsSubmitting(false);
       return;
     }
     if (!caName.trim()) {
-      toast({ title: "Validation Error", description: "Certification Authority Name (Common Name) cannot be empty.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Certification Authority Name (Common Name) cannot be empty." });
       setIsSubmitting(false);
       return;
     }
     if (!cryptoEngineId) {
-      toast({ title: "Validation Error", description: "Please select a Crypto Engine.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Please select a Crypto Engine." });
       setIsSubmitting(false);
       return;
     }
     if (!keySpec) {
-      toast({ title: "Validation Error", description: "Please select a Key Specification.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Please select a Key Specification." });
       setIsSubmitting(false);
       return;
     }
     if (profileMode === 'reuse' && !selectedProfileId) {
-      toast({ title: "Validation Error", description: "An issuance profile must be selected.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "An issuance profile must be selected." });
       setIsSubmitting(false);
       return;
     }
     if (profileMode === 'create') {
-      toast({ title: "Validation Error", description: "A new profile must be created and selected first.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "A new profile must be created and selected first." });
       setIsSubmitting(false);
       return;
     }
@@ -360,7 +358,7 @@ export default function CreateCaGeneratePage() {
     if (caProfileMode === 'inline') {
       const isValid = await caProfileForm.trigger();
       if (!isValid) {
-        toast({ title: "Validation Error", description: "Please fix the errors in the CA Certificate Profile form.", variant: "destructive" });
+        sileo.error({ title: "Validation Error", description: "Please fix the errors in the CA Certificate Profile form." });
         setIsSubmitting(false);
         return;
       }
@@ -437,12 +435,12 @@ export default function CreateCaGeneratePage() {
     try {
       await createCa(payload, user!.access_token!);
 
-      toast({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.`, variant: "default" });
+      sileo.success({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.` });
       router.push('/certificate-authorities');
 
     } catch (error: any) {
       console.error("CA Creation API Error:", error);
-      toast({ title: "Certification Authority Creation Failed", description: error.message, variant: "destructive" });
+      sileo.error({ title: "Certification Authority Creation Failed", description: error.message });
     } finally {
       setIsSubmitting(false);
     }

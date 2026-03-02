@@ -7,18 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Check, FileText, Key, Info, Copy } from "lucide-react";
 import { CodeBlock } from "@/components/shared/CodeBlock";
-import type { ToastProps } from '@/components/ui/toast';
+import { sileo } from '@/lib/toast';
 
 interface KmsPublicKeyPemTabContentProps {
   publicKeyPem: string | undefined;
   itemName: string;
-  toast: ({ title, description, variant }: Omit<ToastProps, 'id'> & { title?: React.ReactNode; description?: React.ReactNode }) => void;
 }
 
 export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps> = ({
   publicKeyPem,
   itemName,
-  toast,
 }) => {
   const [sha256Copied, setSha256Copied] = useState(false);
 
@@ -72,17 +70,17 @@ export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps>
 
   const handleCopySha256 = async () => {
     if (!keyFingerprint?.sha256) {
-      toast({ title: "Copy Failed", description: "No SHA256 fingerprint available to copy.", variant: "destructive" });
+      sileo.error({ title: "Copy Failed", description: "No SHA256 fingerprint available to copy." });
       return;
     }
     try {
       await navigator.clipboard.writeText(keyFingerprint.sha256);
       setSha256Copied(true);
-      toast({ title: "Copied!", description: "SHA256 fingerprint copied to clipboard." });
+      sileo.success({ title: "Copied!", description: "SHA256 fingerprint copied to clipboard." });
       setTimeout(() => setSha256Copied(false), 2000);
     } catch (err) {
       console.error('Failed to copy SHA256 fingerprint: ', err);
-      toast({ title: "Copy Failed", description: "Could not copy SHA256 fingerprint.", variant: "destructive" });
+      sileo.error({ title: "Copy Failed", description: "Could not copy SHA256 fingerprint." });
     }
   };
 

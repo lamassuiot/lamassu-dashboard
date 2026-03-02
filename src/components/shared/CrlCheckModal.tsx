@@ -14,7 +14,7 @@ import type { CA } from '@/lib/ca-data';
 import { format } from 'date-fns';
 import { DetailItem } from './DetailItem';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 // Integer to label mapping for DER-encoded CRL reason codes
@@ -66,7 +66,6 @@ const downloadFile = (data: ArrayBuffer, filename: string, mimeType: string) => 
 };
 
 export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, ca }) => {
-    const { toast } = useToast();
     const [crlUrl, setCrlUrl] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
     const [crlDetails, setCrlDetails] = useState<CrlDetails | null>(null);

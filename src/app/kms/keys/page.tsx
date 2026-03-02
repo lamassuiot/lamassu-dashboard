@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, Cpu, Loader2, RefreshCw, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
@@ -39,7 +39,6 @@ interface KmsKey {
 
 export default function KmsKeysPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [keys, setKeys] = useState<KmsKey[]>([]);
@@ -222,15 +221,14 @@ export default function KmsKeysPage() {
       // Remove from local state after successful deletion
       setKeys(prevKeys => prevKeys.filter(k => k.id !== keyToDelete.id));
 
-      toast({
+      sileo.success({
         title: "Key Deleted",
-        description: `Key "${keyToDelete.name}" has been successfully deleted.`,
+        description: `Key "${keyToDelete.name}" has been successfully deleted.`
       });
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Deletion Failed",
-        description: error.message || "An error occurred while deleting the key.",
-        variant: "destructive",
+        description: error.message || "An error occurred while deleting the key."
       });
     } finally {
       setIsDeleting(false);

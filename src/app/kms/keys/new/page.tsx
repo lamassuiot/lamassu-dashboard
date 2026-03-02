@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2, Tag } from "lucide-react";
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
@@ -55,7 +55,6 @@ const creationModes = [
 export default function CreateKmsKeyPage() {
   const monacoTheme = useMonacoTheme();
   const router = useRouter();
-  const { toast } = useToast();
   const { user } = useAuth();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
@@ -194,7 +193,7 @@ export default function CreateKmsKeyPage() {
     event.preventDefault();
 
     if (!user?.access_token) {
-        toast({ title: "Authentication Error", description: "You must be logged in to create a key.", variant: "destructive" });
+        sileo.error({ title: "Authentication Error", description: "You must be logged in to create a key." });
         return;
     }
 
@@ -202,12 +201,12 @@ export default function CreateKmsKeyPage() {
 
     if (selectedMode === 'newKeyPair') {
         if (!cryptoEngineId) {
-            toast({ title: "Validation Error", description: "Please select a Crypto Engine.", variant: "destructive" });
+            sileo.error({ title: "Validation Error", description: "Please select a Crypto Engine." });
             setIsSubmitting(false);
             return;
         }
         if (!keyName.trim()) {
-            toast({ title: "Validation Error", description: "Key Name / Alias is required.", variant: "destructive" });
+            sileo.error({ title: "Validation Error", description: "Key Name / Alias is required." });
             setIsSubmitting(false);
             return;
         }
@@ -218,7 +217,7 @@ export default function CreateKmsKeyPage() {
             try {
                 parsedMetadata = JSON.parse(metadata);
             } catch (error) {
-                toast({ title: "Validation Error", description: "Metadata must be valid JSON.", variant: "destructive" });
+                sileo.error({ title: "Validation Error", description: "Metadata must be valid JSON." });
                 setIsSubmitting(false);
                 return;
             }
@@ -256,31 +255,31 @@ export default function CreateKmsKeyPage() {
             
             await createKmsKey(payload, user.access_token);
 
-            toast({
+            sileo.success({
                 title: "Key Pair Created",
-                description: `Key pair with name "${keyName.trim()}" has been successfully created.`,
+                description: `Key pair with name "${keyName.trim()}" has been successfully created.`
             });
             router.push('/kms/keys');
 
         } catch (error: any) {
-            toast({ title: "Creation Failed", description: error.message, variant: "destructive" });
+            sileo.error({ title: "Creation Failed", description: error.message });
         } finally {
             setIsSubmitting(false);
         }
 
     } else if (selectedMode === 'importKeyPair') {
       if (!cryptoEngineId) {
-        toast({ title: "Validation Error", description: "Please select a Crypto Engine.", variant: "destructive" });
+        sileo.error({ title: "Validation Error", description: "Please select a Crypto Engine." });
         setIsSubmitting(false);
         return;
       }
       if (!importKeyName.trim()) {
-        toast({ title: "Validation Error", description: "Key Name / Alias is required.", variant: "destructive" });
+        sileo.error({ title: "Validation Error", description: "Key Name / Alias is required." });
         setIsSubmitting(false);
         return;
       }
       if (!privateKeyPem.trim()) {
-        toast({ title: "Validation Error", description: "Private Key (PEM) is required for import.", variant: "destructive"});
+        sileo.error({ title: "Validation Error", description: "Private Key (PEM) is required for import."});
         setIsSubmitting(false);
         return;
       }
@@ -291,7 +290,7 @@ export default function CreateKmsKeyPage() {
           try {
               parsedMetadata = JSON.parse(metadata);
           } catch (error) {
-              toast({ title: "Validation Error", description: "Metadata must be valid JSON.", variant: "destructive" });
+              sileo.error({ title: "Validation Error", description: "Metadata must be valid JSON." });
               setIsSubmitting(false);
               return;
           }
@@ -311,28 +310,28 @@ export default function CreateKmsKeyPage() {
         
         await importKmsKey(payload, user.access_token);
 
-        toast({
+        sileo.success({
           title: "Key Pair Imported",
-          description: `Key pair with name "${importKeyName.trim()}" has been successfully imported.`,
+          description: `Key pair with name "${importKeyName.trim()}" has been successfully imported.`
         });
         router.push('/kms/keys');
 
       } catch (error: any) {
-        toast({ title: "Import Failed", description: error.message, variant: "destructive" });
+        sileo.error({ title: "Import Failed", description: error.message });
       } finally {
         setIsSubmitting(false);
       }
 
     } else if (selectedMode === 'importPublicKey') {
       if (!publicKeyPem.trim()) {
-        toast({ title: "Validation Error", description: "Public Key (PEM) is required for import.", variant: "destructive"});
+        sileo.error({ title: "Validation Error", description: "Public Key (PEM) is required for import."});
         setIsSubmitting(false);
         return;
       }
       console.log(`Mock Creating KMS Key (Mode: ${selectedMode})`);
-      toast({
+      sileo.success({
         title: "KMS Key Import Mocked",
-        description: `Public key import submitted. Check console.`,
+        description: `Public key import submitted. Check console.`
       });
       router.push('/kms/keys');
       setIsSubmitting(false);

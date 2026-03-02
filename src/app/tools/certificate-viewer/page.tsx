@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { getCrypto, setEngine } from 'pkijs';
 import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, type CA } from '@/lib/ca-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -171,7 +171,6 @@ type StatusFilter = ZlintResult['status'] | 'all';
 const statusFilterOrder: StatusFilter[] = ['all', 'fatal', 'error', 'warn', 'info', 'pass'];
 
 export default function CertificateViewerPage() {
-  const { toast } = useToast();
   const { user } = useAuth();
 
   // --- Common State ---
@@ -317,7 +316,7 @@ export default function CertificateViewerPage() {
 
   const handleOpenOcspModal = async () => {
     if (!parsedDetails || !user?.access_token) {
-        toast({ title: "Cannot perform OCSP Check", description: "Certificate details are missing or you are not logged in.", variant: "destructive" });
+        sileo.error({ title: "Cannot perform OCSP Check", description: "Certificate details are missing or you are not logged in." });
         return;
     }
 
@@ -356,12 +355,12 @@ export default function CertificateViewerPage() {
                 };
             } catch (e: any) {
                 console.error("Failed to fetch or parse issuer from AIA:", e);
-                toast({ title: "AIA Fetch Failed", description: `Could not retrieve the issuer certificate from ${issuerUrl}.`, variant: "warning" });
+                sileo.warning({ title: "AIA Fetch Failed", description: `Could not retrieve the issuer certificate from ${issuerUrl}.` });
             }
         }
         
         if (!foundIssuer) {
-            toast({ title: "Issuer Not Found", description: "Could not find or fetch the issuer CA. OCSP check is not possible.", variant: "destructive" });
+            sileo.error({ title: "Issuer Not Found", description: "Could not find or fetch the issuer CA. OCSP check is not possible." });
             setIssuerForOcsp(null);
         } else {
             setIssuerForOcsp(foundIssuer);
@@ -369,7 +368,7 @@ export default function CertificateViewerPage() {
         }
 
     } catch (e: any) {
-        toast({ title: "Error Finding Issuer", description: e.message, variant: "destructive" });
+        sileo.error({ title: "Error Finding Issuer", description: e.message });
     } finally {
         setIsFetchingIssuer(false);
     }
@@ -378,7 +377,7 @@ export default function CertificateViewerPage() {
 
   const handleLint = () => {
     if (!isWasmReady) {
-      toast({ title: "WASM Not Ready", description: "The linter is still loading. Please wait a moment.", variant: 'destructive' });
+      sileo.error({ title: "WASM Not Ready", description: "The linter is still loading. Please wait a moment." });
       return;
     }
     

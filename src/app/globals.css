@@ -466,3 +466,33 @@
 .dark .text-primary {
   color: hsl(217 100% 70%);
 }
+
+/* ── Sileo toasts ───────────────────────────────────────────────────────────
+   Light mode → dark toast (fill #18181b) → light text
+   Dark  mode → light toast (fill #fafafa) → dark text
+───────────────────────────────────────────────────────────────────────────── */
+[data-sileo-title] {
+  color: #ffffff !important;
+}
+[data-sileo-description] {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+[data-sileo-badge] {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+[data-sileo-button] {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark [data-sileo-title] {
+  color: #18181b !important;
+}
+.dark [data-sileo-description] {
+  color: rgba(24, 24, 27, 0.7) !important;
+}
+.dark [data-sileo-badge] {
+  background-color: rgba(24, 24, 27, 0.1) !important;
+}
+.dark [data-sileo-button] {
+  background-color: rgba(24, 24, 27, 0.1) !important;
+}

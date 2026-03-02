@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs, updateCaMetadata, fetchCaStats, revokeCa, deleteCa, parseCertificatePemDetails, updateCaStatus, reissueCa } from '@/lib/ca-data';
@@ -61,7 +61,6 @@ const buildCaPathToRoot = (targetCaId: string | undefined, allCAs: CA[]): CA[] =
 export default function CertificateAuthorityDetailsClient() {
   const searchParams = useSearchParams();
   const routerHook = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const caIdFromUrl = searchParams.get('caId');
 
@@ -203,7 +202,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmCARevocation = async (reason: string) => {
     if (!caToRevoke || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot revoke CA. Details or authentication missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Cannot revoke CA. Details or authentication missing." });
         return;
     }
 
@@ -214,17 +213,15 @@ export default function CertificateAuthorityDetailsClient() {
         await revokeCa(caToRevoke.id, reason, user.access_token);
         // Success
         setCaDetails(prev => prev ? { ...prev, status: 'revoked' } : null);
-        toast({
+        sileo.success({
             title: "Certification Authority Revoked",
-            description: `Certification Authority "${caToRevoke.name}" has been successfully revoked.`,
-            variant: "default"
+            description: `Certification Authority "${caToRevoke.name}" has been successfully revoked.`
         });
 
     } catch (error: any) {
-        toast({
+        sileo.error({
             title: "Revocation Failed",
-            description: error.message,
-            variant: "destructive"
+            description: error.message
         });
     } finally {
         setIsRevoking(false);
@@ -234,7 +231,7 @@ export default function CertificateAuthorityDetailsClient() {
   
   const handleReactivateCA = async () => {
     if (!caDetails || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot reactivate CA. Details or authentication missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Cannot reactivate CA. Details or authentication missing." });
         return;
     }
 
@@ -242,16 +239,14 @@ export default function CertificateAuthorityDetailsClient() {
         await updateCaStatus(caDetails.id, 'ACTIVE', undefined, user.access_token);
         
         setCaDetails(prev => prev ? { ...prev, status: 'active' } : null);
-        toast({
+        sileo.success({
             title: "Certification Authority Re-activated",
-            description: `Certification Authority "${caDetails.name}" has been successfully re-activated.`,
-            variant: "default"
+            description: `Certification Authority "${caDetails.name}" has been successfully re-activated.`
         });
     } catch (error: any) {
-        toast({
+        sileo.error({
             title: "Re-activation Failed",
-            description: error.message,
-            variant: "destructive"
+            description: error.message
         });
     }
   };
@@ -265,7 +260,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmDeleteCA = async () => {
     if (!caToDelete || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot delete CA. Details or authentication missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Cannot delete CA. Details or authentication missing." });
         return;
     }
 
@@ -274,18 +269,16 @@ export default function CertificateAuthorityDetailsClient() {
 
     try {
         await deleteCa(caToDelete.id, user.access_token);
-        toast({
+        sileo.success({
             title: "Certification Authority Deleted",
-            description: `Certification Authority "${caToDelete.name}" has been permanently deleted.`,
-            variant: "default"
+            description: `Certification Authority "${caToDelete.name}" has been permanently deleted.`
         });
         routerHook.push('/certificate-authorities'); // Redirect to the list page
 
     } catch (error: any) {
-        toast({
+        sileo.error({
             title: "Deletion Failed",
-            description: error.message,
-            variant: "destructive"
+            description: error.message
         });
     } finally {
         setIsDeleting(false);
@@ -302,7 +295,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmReissueCA = async (payload: { profile_id?: string; profile?: any }) => {
     if (!caToReissue || !user?.access_token) {
-      toast({ title: "Error", description: "Cannot reissue CA. Details or authentication missing.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "Cannot reissue CA. Details or authentication missing." });
       return;
     }
 
@@ -311,18 +304,16 @@ export default function CertificateAuthorityDetailsClient() {
 
     try {
       await reissueCa(caToReissue.id, payload, user.access_token);
-      toast({
+      sileo.success({
         title: "Certification Authority Reissued",
-        description: `Certification Authority "${caToReissue.name}" has been successfully reissued.`,
-        variant: "default"
+        description: `Certification Authority "${caToReissue.name}" has been successfully reissued.`
       });
       // Reload CA data to reflect the new certificate
       loadInitialData();
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Reissue Failed",
-        description: error.message,
-        variant: "destructive"
+        description: error.message
       });
     } finally {
       setIsReissuing(false);
@@ -668,7 +659,6 @@ export default function CertificateAuthorityDetailsClient() {
               fullChainPemData={fullChainPemString}
               itemName={caDetails.name}
               itemPathToRootCount={caPathToRoot.length}
-              toast={toast}
               certificateChain={caPathToRoot.slice(0, -1)}
               currentCertificate={{
                 subject: caDetails.name,
@@ -684,7 +674,6 @@ export default function CertificateAuthorityDetailsClient() {
               rawJsonData={caDetails.rawApiData?.metadata}
               itemName={caDetails.name}
               tabTitle="Certification Authority Metadata"
-              toast={toast}
               isEditable={true}
               itemId={caDetails.id}
               onSave={handleUpdateCaMetadata}

@@ -3,7 +3,7 @@
 'use client';
 
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
+import { ThemedToaster } from '@/components/shared/ThemedToaster';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
 import Script from 'next/script';
@@ -646,7 +646,7 @@ export default function RootLayout({
               <React.Suspense fallback={<LoadingState />}>
                 <InnerLayout>{children}</InnerLayout>
               </React.Suspense>
-              <Toaster />
+              <ThemedToaster position="top-right" offset={{ top: 40, right: 16 }} />
             </IdentifierDisplayProvider>
           </AuthProvider>
         </ConfigProvider>

@@ -18,7 +18,7 @@ import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { DurationInput } from '@/components/shared/DurationInput';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { format, parseISO } from 'date-fns';
@@ -54,7 +54,6 @@ export function VerificationAuthoritiesClient() { // Renamed component
   const searchParams = useSearchParams();
   const caIdFromUrl = searchParams.get('caId');
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
   const [selectedCaForConfig, setSelectedCaForConfig] = useState<CA | null>(null);
   const [config, setConfig] = useState<VAConfig | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -204,7 +203,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
         setSelectedCaForConfig(caFromUrl);
       }
     }
-  }, [caIdFromUrl, availableCAs, selectedCaForConfig, toast]);
+  }, [caIdFromUrl, availableCAs, selectedCaForConfig]);
 
   const handleCaSelectedForConfiguration = (ca: CA) => {
     setSelectedCaForConfig(ca);
@@ -233,7 +232,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
 
   const handleSaveConfig = async () => {
     if (!config || !selectedCaForConfig || !selectedCaForConfig.subjectKeyId || !user?.access_token) {
-      toast({ title: "Save Error", description: "Missing required data: CA, Subject Key ID, or authentication token.", variant: "destructive" });
+      sileo.error({ title: "Save Error", description: "Missing required data: CA, Subject Key ID, or authentication token." });
       return;
     }
 
@@ -248,16 +247,15 @@ export function VerificationAuthoritiesClient() { // Renamed component
 
       await updateVaConfig(selectedCaForConfig.subjectKeyId, payload, user.access_token);
 
-      toast({
+      sileo.success({
         title: "Success!",
-        description: `VA configuration for "${selectedCaForConfig.name}" has been saved.`,
+        description: `VA configuration for "${selectedCaForConfig.name}" has been saved.`
       });
 
     } catch (e: any) {
-      toast({
+      sileo.error({
         title: "Save Failed",
-        description: e.message,
-        variant: "destructive",
+        description: e.message
       });
     } finally {
       setIsSubmitting(false);
@@ -266,16 +264,16 @@ export function VerificationAuthoritiesClient() { // Renamed component
 
   const handleDownloadCrl = async () => {
     if (!selectedCaForConfig?.subjectKeyId || !user?.access_token) {
-      toast({ title: "Download Error", description: "Cannot download CRL. Missing CA info or authentication.", variant: "destructive" });
+      sileo.error({ title: "Download Error", description: "Cannot download CRL. Missing CA info or authentication." });
       return;
     }
     setIsDownloadingCrl(true);
     try {
       const crlData = await downloadCrl(selectedCaForConfig.subjectKeyId, user.access_token);
       downloadFile(crlData, `${selectedCaForConfig.subjectKeyId}.crl`, 'application/pkix-crl');
-      toast({ title: "Success", description: "CRL download has started." });
+      sileo.success({ title: "Success", description: "CRL download has started." });
     } catch (e: any) {
-      toast({ title: "Download Failed", description: e.message, variant: "destructive" });
+      sileo.error({ title: "Download Failed", description: e.message });
     } finally {
       setIsDownloadingCrl(false);
     }

@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
@@ -25,8 +25,6 @@ import type { CertSortConfig, SortableCertColumn } from '@/app/certificates/page
 import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { updateCertificateStatus } from '@/lib/issued-certificate-data';
-import { useAuth } from '@/contexts/AuthContext';
-import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 interface CertificateListProps {
   certificates: CertificateData[];
@@ -38,7 +36,19 @@ interface CertificateListProps {
   isLoading?: boolean;
   accessToken?: string | null;
   showIssuerColumn?: boolean;
+  columnVisibility?: Partial<Record<'commonName' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'revocationTime', boolean>>;
+  onColumnToggle?: (columnId: string) => void;
 }
+
+const DEFAULT_COLUMN_VISIBILITY = {
+  commonName: true,
+  serialNumber: true,
+  issuer: true,
+  validFrom: true,
+  expires: true,
+  status: true,
+  revocationTime: true,
+} as const;
 
 const getCommonName = (subjectOrIssuer: string): string => {
   const cnMatch = subjectOrIssuer.match(/CN=([^,]+)/);
@@ -55,46 +65,18 @@ export function CertificateList({
   isLoading,
   accessToken,
   showIssuerColumn = true,
+  columnVisibility: providedColumnVisibility,
 }: CertificateListProps) {
-  const { toast } = useToast();
   const router = useRouter();
-  const { user } = useAuth();
+  const columnVisibility = { ...DEFAULT_COLUMN_VISIBILITY, ...providedColumnVisibility };
 
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
   const [certificateToRevoke, setCertificateToRevoke] = useState<CertificateData | null>(null);
-  const [isRevoking, setIsRevoking] = useState(false);
+  const [isRevoking, _setIsRevoking] = useState(false);
 
   const [isOcspModalOpen, setIsOcspModalOpen] = useState(false);
   const [certForOcsp, setCertForOcsp] = useState<CertificateData | null>(null);
   const [issuerForOcsp, setIssuerForOcsp] = useState<CA | null>(null);
-
-  // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
-    commonName: true,
-    serialNumber: true,
-    issuer: true,
-    validFrom: true,
-    expires: true,
-    status: true,
-    revocationTime: true,
-  });
-
-  const columns: ColumnConfig[] = [
-    { id: 'commonName', label: 'Common Name', visible: columnVisibility.commonName, disabled: true },
-    { id: 'serialNumber', label: 'Serial Number', visible: columnVisibility.serialNumber },
-    { id: 'issuer', label: 'CA Issuer', visible: columnVisibility.issuer && showIssuerColumn },
-    { id: 'validFrom', label: 'Valid From', visible: columnVisibility.validFrom },
-    { id: 'expires', label: 'Expires', visible: columnVisibility.expires },
-    { id: 'status', label: 'Status', visible: columnVisibility.status },
-    { id: 'revocationTime', label: 'Revocation Time', visible: columnVisibility.revocationTime },
-  ];
-
-  const handleColumnToggle = (columnId: string) => {
-    setColumnVisibility((prev) => ({
-      ...prev,
-      [columnId]: !prev[columnId],
-    }));
-  };
 
 
   const SortableHeader: React.FC<{ column: SortableCertColumn; title: string; className?: string; center?: boolean; dateColumn?: boolean }> = ({ column, title, className, center = false, dateColumn = false }) => {
@@ -127,11 +109,11 @@ export function CertificateList({
 
   const handleConfirmCertificateRevocation = async (reason: string) => {
     if (!certificateToRevoke) {
-      toast({ title: "Error", description: "No certificate selected for revocation.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "No certificate selected for revocation." });
       return;
     }
     if (!accessToken) {
-      toast({ title: "Error", description: "Authentication token not found.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "Authentication token not found." });
       return;
     }
 
@@ -146,16 +128,15 @@ export function CertificateList({
       });
 
       onCertificateUpdated({ ...certificateToRevoke, apiStatus: 'REVOKED', revocationReason: reason });
-      toast({
+      sileo.success({
         title: "Certificate Revoked",
-        description: `Certificate "${getCommonName(certificateToRevoke.subject)}" has been successfully revoked.`,
+        description: `Certificate "${getCommonName(certificateToRevoke.subject)}" has been successfully revoked.`
       });
 
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Revocation Failed",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     } finally {
       setCertificateToRevoke(null);
@@ -164,7 +145,7 @@ export function CertificateList({
 
   const handleReactivateCertificate = async (certificate: CertificateData) => {
     if (!certificate || !accessToken) {
-      toast({ title: "Error", description: "Cannot reactivate certificate. Missing details or authentication.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "Cannot reactivate certificate. Missing details or authentication." });
       return;
     }
 
@@ -176,23 +157,22 @@ export function CertificateList({
       });
 
       onCertificateUpdated({ ...certificate, apiStatus: 'ACTIVE', revocationReason: undefined });
-      toast({
+      sileo.success({
         title: "Certificate Re-activated",
-        description: `Certificate "${getCommonName(certificate.subject)}" has been re-activated.`,
+        description: `Certificate "${getCommonName(certificate.subject)}" has been re-activated.`
       });
 
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Re-activation Failed",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     }
   };
 
   const handleOpenOcspModal = (certificate: CertificateData, issuer: CA | null) => {
     if (!issuer) {
-      toast({ title: "Error", description: "Issuer CA details are not available for this certificate. Cannot perform OCSP check.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "Issuer CA details are not available for this certificate. Cannot perform OCSP check." });
       return;
     }
     setCertForOcsp(certificate);
@@ -202,10 +182,9 @@ export function CertificateList({
 
   const handleDownloadPem = (certificate: CertificateData) => {
     if (!certificate.pemData) {
-      toast({
+      sileo.error({
         title: 'Download Failed',
-        description: 'No PEM data available for this certificate.',
-        variant: 'destructive',
+        description: 'No PEM data available for this certificate.'
       });
       return;
     }
@@ -220,9 +199,9 @@ export function CertificateList({
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    toast({
+    sileo.success({
       title: 'PEM Downloaded',
-      description: `The certificate for "${getCommonName(certificate.subject)}" has been downloaded.`,
+      description: `The certificate for "${getCommonName(certificate.subject)}" has been downloaded.`
     });
   };
 
@@ -232,13 +211,6 @@ export function CertificateList({
 
   return (
     <div className={cn("w-full space-y-4", isLoading && "opacity-50 pointer-events-none")}>
-      <div className="flex justify-end mb-2">
-        <ColumnSelector
-          columns={columns}
-          onColumnToggle={handleColumnToggle}
-          align="end"
-        />
-      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

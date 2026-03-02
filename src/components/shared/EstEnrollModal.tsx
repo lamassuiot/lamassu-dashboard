@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import type { CA } from '@/lib/ca-data';
 import { findCaById, signCertificate, fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { CaVisualizerCard } from '../CaVisualizerCard';
 import { DurationInput } from './DurationInput';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -101,7 +101,6 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     presentation = 'dialog',
     className,
 }) => {
-    const { toast } = useToast();
     const { user } = useAuth();
     const isMobile = useIsMobile();
     const resolvedPresentation = presentation === 'inline' && isMobile ? 'dialog' : presentation;
@@ -253,7 +252,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const handleNext = async () => {
         if (step === 1) { // --> Show CSR commands
             if (!deviceId.trim()) {
-                toast({ title: "Device ID required", variant: "destructive" });
+                sileo.error({ title: "Device ID required" });
                 return;
             }
             setBootstrapCn(deviceId.trim()); // Sync bootstrap CN with device ID when moving from step 1
@@ -262,11 +261,11 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
             setStep(3);
         } else if (step === 3) { // --> Issue Bootstrap Cert
              if (!bootstrapSigner || !user?.access_token) {
-                toast({ title: "Bootstrap Signer Required", description: "You must select a CA to sign the bootstrap certificate.", variant: "destructive" });
+                sileo.error({ title: "Bootstrap Signer Required", description: "You must select a CA to sign the bootstrap certificate." });
                 return;
             }
             if (!bootstrapCn.trim()) {
-                toast({ title: "Bootstrap CN Required", description: "The Common Name for the bootstrap certificate cannot be empty.", variant: "destructive" });
+                sileo.error({ title: "Bootstrap CN Required", description: "The Common Name for the bootstrap certificate cannot be empty." });
                 return;
             }
             setIsGenerating(true);
@@ -307,7 +306,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 setStep(4);
 
             } catch (e: any) {
-                toast({ title: "Bootstrap Certificate Issuance Failed", description: e.message, variant: "destructive" });
+                sileo.error({ title: "Bootstrap Certificate Issuance Failed", description: e.message });
             } finally {
                 setIsGenerating(false);
             }

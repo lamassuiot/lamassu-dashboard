@@ -20,7 +20,7 @@ import { TimelineEventItem, type TimelineEventDisplayData } from '@/components/d
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { RevocationModal } from '@/components/shared/RevocationModal';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -58,7 +58,6 @@ export default function DeviceDetailsClient() {
   const routerHook = useRouter();
   const deviceId = searchParams.get('deviceId'); 
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
 
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
@@ -361,7 +360,7 @@ export default function DeviceDetailsClient() {
 
             } catch (err) {
                 console.error("Failed to fetch certificates for timeline", err);
-                toast({ title: "Timeline Error", description: "Could not load some certificate details for the timeline.", variant: "destructive" });
+                sileo.error({ title: "Timeline Error", description: "Could not load some certificate details for the timeline." });
             }
         }
         
@@ -404,7 +403,7 @@ export default function DeviceDetailsClient() {
     };
 
     processAndFetchForTimeline();
-}, [device, allRawEvents, timelineDisplayCount, user?.access_token, toast, timelineFetchedCerts]);
+}, [device, allRawEvents, timelineDisplayCount, user?.access_token, timelineFetchedCerts]);
   
   
   const handleOpenRevokeModal = (certInfo: CertificateHistoryEntry) => {
@@ -414,7 +413,7 @@ export default function DeviceDetailsClient() {
 
   const handleConfirmRevocation = async (reason: string) => {
     if (!certToRevoke || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot revoke. Missing data or authentication.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Cannot revoke. Missing data or authentication." });
         return;
     }
     
@@ -438,13 +437,13 @@ export default function DeviceDetailsClient() {
       );
       setTimelineFetchedCerts(prevMap => new Map(prevMap).set(certToRevoke.serialNumber, updatedEntry));
       
-      toast({
+      sileo.success({
         title: "Certificate Revoked",
-        description: `Certificate with SN: ${certToRevoke.serialNumber} has been revoked.`,
+        description: `Certificate with SN: ${certToRevoke.serialNumber} has been revoked.`
       });
 
     } catch (error: any) {
-        toast({ title: "Revocation Failed", description: error.message, variant: "destructive" });
+        sileo.error({ title: "Revocation Failed", description: error.message });
     } finally {
         setIsRevoking(false);
         setCertToRevoke(null);
@@ -453,7 +452,7 @@ export default function DeviceDetailsClient() {
 
   const handleReactivateCertificate = async (certToReactivate: CertificateHistoryEntry) => {
     if (!user?.access_token) {
-      toast({ title: "Error", description: "Authentication token not found.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "Authentication token not found." });
       return;
     }
 
@@ -474,26 +473,24 @@ export default function DeviceDetailsClient() {
       setTimelineFetchedCerts(prevMap => new Map(prevMap).set(certToReactivate.serialNumber, updatedEntry));
 
 
-      toast({
+      sileo.success({
         title: "Certificate Re-activated",
-        description: `Certificate with SN: ${certToReactivate.serialNumber} has been re-activated.`,
+        description: `Certificate with SN: ${certToReactivate.serialNumber} has been re-activated.`
       });
 
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Re-activation Failed",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     }
   };
 
   const handleAssignIdentityConfirm = async (certificateSerialNumber: string) => {
     if (!deviceId || !user?.access_token) {
-        toast({
+        sileo.error({
             title: "Error",
-            description: "Cannot assign identity. Device ID or authentication is missing.",
-            variant: "destructive"
+            description: "Cannot assign identity. Device ID or authentication is missing."
         });
         return;
     }
@@ -501,18 +498,17 @@ export default function DeviceDetailsClient() {
     try {
         await bindIdentityToDevice(deviceId, certificateSerialNumber, user.access_token);
 
-        toast({
+        sileo.success({
             title: "Success!",
-            description: "Identity has been successfully assigned to the device.",
+            description: "Identity has been successfully assigned to the device."
         });
         setIsAssignIdentityModalOpen(false);
         fetchDeviceDetails(); // Refresh device data
 
     } catch (e: any) {
-        toast({
+        sileo.error({
             title: "Assignment Failed",
-            description: e.message,
-            variant: "destructive"
+            description: e.message
         });
     } finally {
         setIsAssigning(false);
@@ -521,27 +517,25 @@ export default function DeviceDetailsClient() {
 
   const handleDecommissionConfirm = async () => {
     if (!deviceId || !user?.access_token) {
-        toast({
+        sileo.error({
             title: "Error",
-            description: "Cannot decommission device. Device ID or authentication is missing.",
-            variant: "destructive"
+            description: "Cannot decommission device. Device ID or authentication is missing."
         });
         return;
     }
     setIsDecommissioning(true);
     try {
         await decommissionDevice(deviceId, user.access_token);
-        toast({
+        sileo.success({
             title: "Success!",
-            description: "Device has been successfully decommissioned.",
+            description: "Device has been successfully decommissioned."
         });
         setIsDecommissionModalOpen(false);
         fetchDeviceDetails(); // Re-fetch details to show updated status
     } catch (e: any) {
-        toast({
+        sileo.error({
             title: "Decommission Failed",
-            description: e.message,
-            variant: "destructive"
+            description: e.message
         });
     } finally {
         setIsDecommissioning(false);
@@ -550,27 +544,25 @@ export default function DeviceDetailsClient() {
 
   const handleDeleteConfirm = async () => {
     if (!deviceId || !user?.access_token) {
-        toast({
+        sileo.error({
             title: "Error",
-            description: "Cannot delete device. Device ID or authentication is missing.",
-            variant: "destructive"
+            description: "Cannot delete device. Device ID or authentication is missing."
         });
         return;
     }
     setIsDeleting(true);
     try {
         await deleteDevice(deviceId, user.access_token);
-        toast({
+        sileo.success({
             title: "Success!",
-            description: "Device has been permanently deleted.",
+            description: "Device has been permanently deleted."
         });
         setIsDeleteModalOpen(false);
         routerHook.push('/devices'); // Redirect to the list page
     } catch (e: any) {
-        toast({
+        sileo.error({
             title: "Deletion Failed",
-            description: e.message,
-            variant: "destructive"
+            description: e.message
         });
     } finally {
         setIsDeleting(false);
@@ -579,7 +571,7 @@ export default function DeviceDetailsClient() {
   
   const handleForceUpdateConfirm = async (configKey: string, actions: string[]) => {
     if (!device?.dms_owner || !deviceId || !user?.access_token || !activeIntegration) {
-        toast({ title: "Error", description: "Missing data required for force update.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Missing data required for force update." });
         return;
     }
     setIsForcingUpdate(true);
@@ -591,11 +583,11 @@ export default function DeviceDetailsClient() {
         };
         await updateDeviceMetadata(deviceId, [patch], user.access_token);
         
-        toast({ title: "Success", description: "A forced certificate update has been triggered for the device." });
+        sileo.success({ title: "Success", description: "A forced certificate update has been triggered for the device." });
         setIsForceUpdateModalOpen(false);
         setTimeout(() => fetchDeviceDetails(), 2000); // Refresh after a short delay
     } catch(err: any) {
-        toast({ title: "Force Update Failed", description: err.message, variant: "destructive" });
+        sileo.error({ title: "Force Update Failed", description: err.message });
     } finally {
         setIsForcingUpdate(false);
     }

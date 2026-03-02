@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Copy, Check, Edit, Save, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
@@ -45,7 +45,6 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
   onUpdateSuccess,
 }) => {
   const monacoTheme = useMonacoTheme();
-  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState('');
@@ -82,10 +81,10 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
     try {
       await navigator.clipboard.writeText(jsonStringForDisplay);
       setCopied(true);
-      toast({ title: "Copied!", description: "Metadata JSON copied to clipboard." });
+      sileo.success({ title: "Copied!", description: "Metadata JSON copied to clipboard." });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast({ title: "Copy Failed", variant: "destructive" });
+      sileo.error({ title: "Copy Failed" });
     }
   };
 
@@ -113,12 +112,12 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
     setIsSaving(true);
     try {
       await onSave(itemId, parsedContent);
-      toast({ title: "Success!", description: "Metadata updated successfully." });
+      sileo.success({ title: "Success!", description: "Metadata updated successfully." });
       setDisplayData(parsedContent); // Update internal state immediately
       setIsEditing(false);
       onUpdateSuccess?.(); // Notify parent to refetch list data in the background
     } catch (e: any) {
-      toast({ title: "Save Failed", description: e.message, variant: "destructive" });
+      sileo.error({ title: "Save Failed", description: e.message });
     } finally {
       setIsSaving(false);
     }

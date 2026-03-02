@@ -4,10 +4,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from "@/components/ui/button";
-import { FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, Settings, KeyRound, Copy, Check } from "lucide-react";
+import { FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, Settings, KeyRound, Copy, Check, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { CertificateData } from '@/types/certificate';
 import type { CA } from '@/lib/ca-data';
@@ -65,7 +65,6 @@ const buildCertificateChainPem = (
 export default function CertificateDetailsClient() { // Renamed component
   const searchParams = useSearchParams(); // Changed from useParams
   const routerHook = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { mode: identifierMode } = useIdentifierDisplay();
   const certificateId = searchParams.get('certificateId'); // Get certificateId from query params
@@ -256,10 +255,9 @@ export default function CertificateDetailsClient() { // Renamed component
 
   const handleConfirmRevocation = async (reason: string) => {
     if (!certificateToRevoke || !user?.access_token) {
-      toast({
+      sileo.error({
         title: "Error",
-        description: "Cannot revoke certificate. Missing details or authentication.",
-        variant: "destructive",
+        description: "Cannot revoke certificate. Missing details or authentication."
       });
       return;
     }
@@ -276,17 +274,15 @@ export default function CertificateDetailsClient() { // Renamed component
       });
 
       setCertificateDetails(prev => prev ? {...prev, apiStatus: 'REVOKED', revocationReason: reason} : null);
-      toast({
+      sileo.success({
         title: "Certificate Revoked",
-        description: `Certificate with SN: ${certificateToRevoke.serialNumber} has been revoked.`,
-        variant: "default",
+        description: `Certificate with SN: ${certificateToRevoke.serialNumber} has been revoked.`
       });
 
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Revocation Failed",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     } finally {
       setCertificateToRevoke(null);
@@ -296,7 +292,7 @@ export default function CertificateDetailsClient() { // Renamed component
 
   const handleReactivate = async () => {
     if (!certificateDetails || !user?.access_token) {
-      toast({ title: "Error", description: "Cannot reactivate certificate. Missing details or authentication.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "Cannot reactivate certificate. Missing details or authentication." });
       return;
     }
 
@@ -308,17 +304,15 @@ export default function CertificateDetailsClient() { // Renamed component
       });
 
       setCertificateDetails(prev => prev ? {...prev, apiStatus: 'ACTIVE', revocationReason: undefined} : null);
-      toast({
+      sileo.success({
         title: "Certificate Re-activated",
-        description: `Certificate with SN: ${certificateDetails.serialNumber} has been re-activated.`,
-        variant: "default",
+        description: `Certificate with SN: ${certificateDetails.serialNumber} has been re-activated.`
       });
 
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Re-activation Failed",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     }
   };
@@ -337,17 +331,17 @@ export default function CertificateDetailsClient() { // Renamed component
 
   const handleConfirmDelete = async () => {
     if (!certificateDetails || !user?.access_token) {
-        toast({ title: "Error", description: "Certificate details or authentication missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Certificate details or authentication missing." });
         return;
     }
     setIsDeleting(true);
     try {
         await deleteCertificate(certificateDetails.serialNumber, user.access_token);
-        toast({ title: "Certificate Deleted", description: "The certificate has been permanently removed.", variant: "default" });
+        sileo.success({ title: "Certificate Deleted", description: "The certificate has been permanently removed." });
         setIsDeleteModalOpen(false);
         routerHook.push('/certificates');
     } catch (error: any) {
-        toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+        sileo.error({ title: "Deletion Failed", description: error.message });
         setIsDeleting(false);
     }
   };
@@ -618,7 +612,6 @@ export default function CertificateDetailsClient() { // Renamed component
                 fullChainPemData={fullChainPemString}
                 itemName={certificateDetails.subject || certificateDetails.serialNumber}
                 itemPathToRootCount={certificateChainForVisualizer.length + 1} // Cert + CAs
-                toast={toast}
                 certificateChain={certificateChainForVisualizer}
                 currentCertificate={{
                   subject: certificateDetails.subject,
@@ -634,7 +627,6 @@ export default function CertificateDetailsClient() { // Renamed component
               rawJsonData={certificateDetails.rawApiData?.metadata}
               itemName={getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
               tabTitle="Certificate Metadata"
-              toast={toast}
               isEditable={true}
               itemId={certificateDetails.serialNumber}
               onSave={handleUpdateCertMetadata}

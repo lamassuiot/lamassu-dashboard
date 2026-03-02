@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Mail, Users, Webhook, Check, ArrowLeft, Info, AlertTriangle } from 'lucide-react';
 import { subscribeToAlert, type SubscriptionPayload, type ApiSubscription, updateSubscription } from '@/lib/alerts-api';
@@ -70,7 +70,6 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
 }) => {
   const monacoTheme = useMonacoTheme();
   const { user } = useAuth();
-  const { toast } = useToast();
   const isEditMode = !!subscriptionToEdit;
 
   const [step, setStep] = useState(1);
@@ -218,15 +217,15 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
   const handleNext = () => {
     if(step === 1) {
         if(channelType === 'EMAIL' && !email.trim()) {
-            toast({ title: 'Validation Error', description: 'Email address is required.', variant: 'destructive' });
+            sileo.error({ title: 'Validation Error', description: 'Email address is required.' });
             return;
         }
         if(channelType === 'WEBHOOK' && (!webhookUrl.trim() || !webhookName.trim())) {
-            toast({ title: 'Validation Error', description: 'Name and Webhook URL are required.', variant: 'destructive' });
+            sileo.error({ title: 'Validation Error', description: 'Name and Webhook URL are required.' });
             return;
         }
         if(channelType === 'TEAMS_WEBHOOK' && (!webhookUrl.trim() || !teamsName.trim())) {
-            toast({ title: 'Validation Error', description: 'Name and Webhook URL are required for Teams.', variant: 'destructive' });
+            sileo.error({ title: 'Validation Error', description: 'Name and Webhook URL are required for Teams.' });
             return;
         }
     }
@@ -237,7 +236,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
 
   const handleSubmit = async () => {
     if (!eventType || !user?.access_token) {
-        toast({ title: "Error", description: "Event type or authentication is missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Event type or authentication is missing." });
         return;
     }
     
@@ -284,7 +283,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
         
         onSuccess();
     } catch(e: any) {
-        toast({ title: isEditMode ? "Update Failed" : "Subscription Failed", description: e.message, variant: "destructive" });
+        sileo.error({ title: isEditMode ? "Update Failed" : "Subscription Failed", description: e.message });
     } finally {
         setIsSubmitting(false);
     }

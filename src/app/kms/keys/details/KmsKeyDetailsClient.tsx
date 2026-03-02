@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle, Database, Link as LinkIcon, FileKey } from "lucide-react";
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -135,7 +135,6 @@ export default function KmsKeyDetailsClient() {
   const monacoTheme = useMonacoTheme();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const keyId = searchParams.get('keyId');
 
@@ -223,7 +222,7 @@ export default function KmsKeyDetailsClient() {
   const handleAddAlias = () => {
     if (!newAlias.trim()) return;
     if (keyAliases.includes(newAlias.trim())) {
-      toast({ title: "Duplicate Alias", description: "This alias already exists.", variant: "destructive" });
+      sileo.error({ title: "Duplicate Alias", description: "This alias already exists." });
       return;
     }
     setKeyAliases(prev => [...prev, newAlias.trim()]);
@@ -274,16 +273,15 @@ export default function KmsKeyDetailsClient() {
       // Update original aliases to match current state
       setOriginalAliases([...keyAliases]);
       
-      toast({
+      sileo.success({
         title: "Aliases Updated",
-        description: "Key aliases have been successfully updated.",
+        description: "Key aliases have been successfully updated."
       });
       setIsEditingAliases(false);
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Update Failed",
-        description: error.message || "Failed to update aliases.",
-        variant: "destructive"
+        description: error.message || "Failed to update aliases."
       });
     } finally {
       setIsSavingAliases(false);
@@ -319,16 +317,15 @@ export default function KmsKeyDetailsClient() {
       // Update keyDetails to reflect the change
       setKeyDetails(prev => prev ? { ...prev, tags: keyTags } : null);
       
-      toast({
+      sileo.success({
         title: "Tags Updated",
-        description: "Key tags have been successfully updated.",
+        description: "Key tags have been successfully updated."
       });
       setIsEditingTags(false);
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Update Failed",
-        description: error.message || "Failed to update tags.",
-        variant: "destructive"
+        description: error.message || "Failed to update tags."
       });
     } finally {
       setIsSavingTags(false);
@@ -356,17 +353,15 @@ export default function KmsKeyDetailsClient() {
         setBoundCertificate(certificates[0]);
         setIsCertModalOpen(true);
       } else {
-        toast({
+        sileo.error({
           title: "Certificate Not Found",
-          description: `No certificate found with serial number: ${serialNumber}`,
-          variant: "destructive"
+          description: `No certificate found with serial number: ${serialNumber}`
         });
       }
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Failed to Load Certificate",
-        description: error.message || "Could not fetch certificate details.",
-        variant: "destructive"
+        description: error.message || "Could not fetch certificate details."
       });
     } finally {
       setIsLoadingBoundCert(false);
@@ -477,11 +472,11 @@ export default function KmsKeyDetailsClient() {
 
   const handleSign = async () => {
     if (!payloadToSign) {
-      toast({ title: "Sign Error", description: "Payload to sign cannot be empty.", variant: "destructive" });
+      sileo.error({ title: "Sign Error", description: "Payload to sign cannot be empty." });
       return;
     }
     if (!keyId || !user?.access_token) {
-      toast({ title: "Sign Error", description: "Key ID or user authentication is missing.", variant: "destructive" });
+      sileo.error({ title: "Sign Error", description: "Key ID or user authentication is missing." });
       return;
     }
 
@@ -500,7 +495,7 @@ export default function KmsKeyDetailsClient() {
           encodedPayload = arrayBufferToBase64(buffer);
         } catch (e) {
           console.error("Hex encoding error:", e);
-          toast({ title: "Encoding Error", description: "Invalid hexadecimal string.", variant: "destructive" });
+          sileo.error({ title: "Encoding Error", description: "Invalid hexadecimal string." });
           setIsSigning(false);
           return;
         }
@@ -519,11 +514,11 @@ export default function KmsKeyDetailsClient() {
       }
 
       setGeneratedSignature(result.signature);
-      toast({ title: "Sign Success", description: "Data has been successfully signed." });
+      sileo.success({ title: "Sign Success", description: "Data has been successfully signed." });
 
     } catch (error: any) {
       console.error("Signing Error:", error);
-      toast({ title: "Sign Error", description: error.message, variant: "destructive" });
+      sileo.error({ title: "Sign Error", description: error.message });
       setGeneratedSignature('');
     } finally {
       setIsSigning(false);
@@ -532,11 +527,11 @@ export default function KmsKeyDetailsClient() {
 
   const handleVerify = async () => {
     if (!unsignedPayload || !signatureToVerify) {
-      toast({ title: "Verify Error", description: "Unsigned payload and signature cannot be empty.", variant: "destructive" });
+      sileo.error({ title: "Verify Error", description: "Unsigned payload and signature cannot be empty." });
       return;
     }
     if (!keyId || !user?.access_token) {
-      toast({ title: "Verify Error", description: "Key ID or user authentication is missing.", variant: "destructive" });
+      sileo.error({ title: "Verify Error", description: "Key ID or user authentication is missing." });
       return;
     }
 
@@ -553,7 +548,7 @@ export default function KmsKeyDetailsClient() {
           encodedUnsignedPayload = arrayBufferToBase64(buffer);
         } catch (e) {
           console.error("Hex encoding error for verification:", e);
-          toast({ title: "Encoding Error", description: "Invalid hexadecimal string for payload.", variant: "destructive" });
+          sileo.error({ title: "Encoding Error", description: "Invalid hexadecimal string for payload." });
           setIsVerifying(false);
           return;
         }
@@ -701,15 +696,15 @@ export default function KmsKeyDetailsClient() {
 
   const handleGenerateCsr = async () => {
     if (!csrCommonName.trim()) {
-      toast({ title: "CSR Generation Error", description: "Common Name (CN) is required.", variant: "destructive" });
+      sileo.error({ title: "CSR Generation Error", description: "Common Name (CN) is required." });
       return;
     }
     if (!keyDetails?.publicKeyPem || !keyDetails.id || !user?.access_token) {
-      toast({ title: "CSR Generation Error", description: "Key details or authentication are missing.", variant: "destructive" });
+      sileo.error({ title: "CSR Generation Error", description: "Key details or authentication are missing." });
       return;
     }
     if (!csrSignAlgorithm) {
-      toast({ title: "CSR Generation Error", description: "A signature algorithm must be selected.", variant: "destructive" });
+      sileo.error({ title: "CSR Generation Error", description: "A signature algorithm must be selected." });
       return;
     }
 
@@ -977,11 +972,11 @@ export default function KmsKeyDetailsClient() {
       }
 
       setGeneratedCsr(finalCsrPem);
-      toast({ title: "CSR Generated Successfully", description: "The CSR has been signed by the KMS key." });
+      sileo.success({ title: "CSR Generated Successfully", description: "The CSR has been signed by the KMS key." });
 
     } catch (error: any) {
       console.error("CSR Generation Error:", error);
-      toast({ title: "CSR Generation Failed", description: error.message, variant: "destructive" });
+      sileo.error({ title: "CSR Generation Failed", description: error.message });
       setGeneratedCsr('');
     } finally {
       setIsGeneratingCsr(false);
@@ -1415,7 +1410,6 @@ export default function KmsKeyDetailsClient() {
             <KmsPublicKeyPemTabContent
               publicKeyPem={keyDetails.publicKeyPem}
               itemName={keyDetails.alias}
-              toast={toast}
             />
           </TabsContent>
 

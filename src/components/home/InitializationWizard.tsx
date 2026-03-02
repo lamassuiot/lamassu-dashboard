@@ -24,7 +24,7 @@ import {
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { createOrUpdateRa, deleteRa } from '@/lib/dms-api';
@@ -76,7 +76,6 @@ function formatAsPem(base64String: string, type: 'PRIVATE KEY' | 'PUBLIC KEY' | 
 export const InitializationWizard: React.FC = () => {
     const router = useRouter();
     const { user } = useAuth();
-    const { toast } = useToast();
 
     const [currentStep, setCurrentStep] = useState(1);
     const totalSteps = 5;
@@ -491,7 +490,7 @@ export const InitializationWizard: React.FC = () => {
 
     const handleCreateDefaultProfile = async () => {
         if (!user?.access_token) {
-            toast({ title: "Authentication Error", variant: "destructive" });
+            sileo.error({ title: "Authentication Error" });
             return;
         }
 
@@ -519,10 +518,10 @@ export const InitializationWizard: React.FC = () => {
             };
             
             await createSigningProfile(payload, user.access_token);
-            toast({ title: "Success!", description: "Default Issuance Profile created." });
+            sileo.success({ title: "Success!", description: "Default Issuance Profile created." });
             checkFinalStepStatus(); // Re-check to update the button state
         } catch (e: any) {
-             toast({ title: "Creation Failed", description: e.message, variant: "destructive" });
+             sileo.error({ title: "Creation Failed", description: e.message });
         } finally {
             setIsCreatingProfile(false);
         }

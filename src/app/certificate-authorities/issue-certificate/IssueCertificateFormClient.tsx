@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, Download as DownloadIcon, X as XIcon, Settings2, BookText, KeyRound } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -110,7 +110,6 @@ const parseDurationString = (durationStr: string): Duration => {
 export default function IssueCertificateFormClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { toast } = useToast();
   const { user } = useAuth();
   const caId = searchParams.get('caId');
   const prefilledCn = searchParams.get('prefill_cn');
@@ -239,17 +238,15 @@ export default function IssueCertificateFormClient() {
             if (foundCa) {
                 setIssuerCa(foundCa);
             } else {
-                toast({
+                sileo.error({
                     title: "Error",
-                    description: `Could not find issuer Certification Authority with ID: ${caId}`,
-                    variant: "destructive",
+                    description: `Could not find issuer Certification Authority with ID: ${caId}`
                 });
             }
         } catch (error: any) {
-             toast({
+             sileo.error({
                 title: "Error loading CA details",
-                description: error.message,
-                variant: "destructive",
+                description: error.message
             });
         } finally {
             setIsLoadingCa(false);
@@ -263,17 +260,16 @@ export default function IssueCertificateFormClient() {
             const profiles = await fetchSigningProfiles(user.access_token!);
             setSigningProfiles(profiles.list);
         } catch (error: any) {
-            toast({
+            sileo.error({
                 title: "Error loading profiles",
-                description: error.message,
-                variant: "destructive",
+                description: error.message
             });
         } finally {
             setIsLoadingProfiles(false);
         }
     };
     loadProfiles();
-  }, [caId, user?.access_token, toast]);
+  }, [caId, user?.access_token]);
 
   useEffect(() => {
     if (!isLoadingCa && issuerCa) {
@@ -374,10 +370,10 @@ export default function IssueCertificateFormClient() {
     try {
       await navigator.clipboard.writeText(text.replace(/\\n/g, '\n'));
       setCopied(true);
-      toast({ title: "Copied!", description: `${type} PEM copied to clipboard.` });
+      sileo.success({ title: "Copied!", description: `${type} PEM copied to clipboard.` });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast({ title: "Copy Failed", description: `Could not copy ${type} PEM.`, variant: "destructive" });
+      sileo.error({ title: "Copy Failed", description: `Could not copy ${type} PEM.` });
     }
   };
 
@@ -443,7 +439,7 @@ export default function IssueCertificateFormClient() {
   const handleGenerateAndIssue = async () => {
     if (isGenerating) return;
     if (!commonName.trim()) {
-      toast({ title: "Validation Error", description: "Common Name is required.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Common Name is required." });
       return;
     }
     
@@ -517,11 +513,11 @@ export default function IssueCertificateFormClient() {
       const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
       setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
       setStep(3);
-      toast({ title: "Success!", description: "Certificate issued successfully." });
+      sileo.success({ title: "Success!", description: "Certificate issued successfully." });
 
     } catch (e: any) {
       setGenerationError(e.message);
-      toast({ title: "Issuance Failed", description: e.message, variant: "destructive" });
+      sileo.error({ title: "Issuance Failed", description: e.message });
     } finally {
       setIsGenerating(false);
     }
@@ -530,11 +526,11 @@ export default function IssueCertificateFormClient() {
   // Updated handler for Upload CSR mode
   const handleIssueCertificateFromUpload = async () => {
     if (!csrPem.trim() || !caId) {
-        toast({ title: "Error", description: "CSR or CA ID is missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "CSR or CA ID is missing." });
         return;
     }
      if (decodedCsrInfo?.error) {
-        toast({ title: "CSR Error", description: `Cannot proceed, CSR is invalid: ${decodedCsrInfo.error}`, variant: "destructive" });
+        sileo.error({ title: "CSR Error", description: `Cannot proceed, CSR is invalid: ${decodedCsrInfo.error}` });
         return;
     }
 
@@ -552,10 +548,10 @@ export default function IssueCertificateFormClient() {
         const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
         setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
         setStep(3);
-        toast({ title: "Success!", description: "Certificate issued successfully." });
+        sileo.success({ title: "Success!", description: "Certificate issued successfully." });
     } catch (e: any) {
         setGenerationError(e.message);
-        toast({ title: "Issuance Failed", description: e.message, variant: "destructive" });
+        sileo.error({ title: "Issuance Failed", description: e.message });
     } finally {
         setIsGenerating(false);
     }

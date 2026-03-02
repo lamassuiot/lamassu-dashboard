@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, PlusCircle, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import {
@@ -33,7 +33,6 @@ const templateMetadata = [
 
 export default function CreateSigningProfilePage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { user } = useAuth();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +47,7 @@ export default function CreateSigningProfilePage() {
 
   async function handleSubmit(data: SigningProfileFormValues) {
     if (!user?.access_token) {
-        toast({ title: "Error", description: "Authentication token is missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Authentication token is missing." });
         return;
     }
 
@@ -94,10 +93,10 @@ export default function CreateSigningProfilePage() {
 
     try {
         await createSigningProfile(payload, user.access_token);
-        toast({ title: "Profile Created", description: `Issuance Profile "${data.profileName}" has been successfully created.` });
+        sileo.success({ title: "Profile Created", description: `Issuance Profile "${data.profileName}" has been successfully created.` });
         router.push('/signing-profiles');
     } catch (error: any) {
-        toast({ title: `Creation Failed`, description: error.message, variant: "destructive" });
+        sileo.error({ title: `Creation Failed`, description: error.message });
     } finally {
         setIsSubmitting(false);
     }

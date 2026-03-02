@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Copy, Check, Edit, Save, X, Loader2 } from "lucide-react";
-import type { ToastProps } from '@/components/ui/toast';
+import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { PatchOperation } from '@/lib/ca-data';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
@@ -17,7 +17,6 @@ interface MetadataTabContentProps {
   rawJsonData: any;
   itemName: string;
   tabTitle: string;
-  toast: ({ title, description, variant }: Omit<ToastProps, 'id'> & { title?: React.ReactNode; description?: React.ReactNode }) => void;
   isEditable?: boolean;
   itemId?: string;
   onSave?: (itemId: string, patchOperations: PatchOperation[]) => Promise<void>;
@@ -28,7 +27,6 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
   rawJsonData,
   itemName,
   tabTitle,
-  toast,
   isEditable = false,
   itemId,
   onSave,
@@ -49,17 +47,17 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
   const handleCopy = async () => {
     const jsonString = JSON.stringify(rawJsonData, null, 2);
     if (!jsonString || jsonString === 'null' || jsonString === '{}') {
-      toast({ title: "Copy Failed", description: `No metadata found to copy for ${itemName}.`, variant: "destructive" });
+      sileo.error({ title: "Copy Failed", description: `No metadata found to copy for ${itemName}.` });
       return;
     }
     try {
       await navigator.clipboard.writeText(jsonString);
       setCopied(true);
-      toast({ title: "Copied!", description: `Metadata for ${itemName} copied to clipboard.` });
+      sileo.success({ title: "Copied!", description: `Metadata for ${itemName} copied to clipboard.` });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error(`Failed to copy metadata for ${itemName}: `, err);
-      toast({ title: "Copy Failed", description: `Could not copy metadata for ${itemName}.`, variant: "destructive" });
+      sileo.error({ title: "Copy Failed", description: `Could not copy metadata for ${itemName}.` });
     }
   };
   
@@ -90,11 +88,11 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
     try {
       const patch: PatchOperation[] = [{ op: 'replace', path: '', value: parsedContent }];
       await onSave(itemId, patch);
-      toast({ title: "Success!", description: "Metadata updated successfully." });
+      sileo.success({ title: "Success!", description: "Metadata updated successfully." });
       setIsEditing(false);
       onUpdateSuccess?.();
     } catch (e: any) {
-      toast({ title: "Save Failed", description: e.message, variant: "destructive" });
+      sileo.error({ title: "Save Failed", description: e.message });
     } finally {
       setIsSaving(false);
     }

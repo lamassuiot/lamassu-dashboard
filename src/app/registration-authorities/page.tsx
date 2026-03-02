@@ -51,7 +51,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -93,7 +93,6 @@ type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | null;
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
   
   const [ras, setRas] = useState<ApiRaItem[]>([]);
   const [allCAs, setAllCAs] = useState<CA[]>([]);
@@ -326,24 +325,22 @@ export default function RegistrationAuthoritiesPage() {
 
   const handleDeleteRa = async () => {
     if (!raToDelete || !user?.access_token) {
-      toast({ title: "Error", description: "RA details or authentication missing.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "RA details or authentication missing." });
       return;
     }
     setIsDeleting(true);
     try {
       await deleteRa(raToDelete.id, user.access_token);
-      toast({
+      sileo.success({
         title: "Registration Authority Deleted",
-        description: `RA "${raToDelete.name}" has been deleted.`,
-        variant: "default",
+        description: `RA "${raToDelete.name}" has been deleted.`
       });
       setRaToDelete(null); // Close dialog
       handleRefresh(); // Refresh list
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Deletion Failed",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     } finally {
       setIsDeleting(false);

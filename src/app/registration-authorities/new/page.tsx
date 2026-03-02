@@ -23,7 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { createOrUpdateRa, fetchRaById, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
@@ -50,7 +50,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
   
   const raIdFromQuery = searchParams.get('raId');
   const isEditMode = !!raIdFromQuery;
@@ -151,9 +150,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         const data = await fetchRaById(raIdFromQuery, user.access_token);
         setRaData(data);
     } catch (err: any) {
-       toast({ title: "Operation Failed", description: err.message, variant: "destructive" });
+       sileo.error({ title: "Operation Failed", description: err.message });
     }
-  }, [raIdFromQuery, user?.access_token, isAuthenticated, toast]);
+  }, [raIdFromQuery, user?.access_token, isAuthenticated]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -261,17 +260,17 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     setIsSubmitting(true);
 
     if (!raName.trim() || (!isEditMode && !raId.trim())) {
-        toast({ title: "Validation Error", description: "RA Name and RA ID are required.", variant: "destructive" });
+        sileo.error({ title: "Validation Error", description: "RA Name and RA ID are required." });
         setIsSubmitting(false);
         return;
     }
     if (!enrollmentCa) {
-        toast({ title: "Validation Error", description: "An Enrollment CA must be selected.", variant: "destructive" });
+        sileo.error({ title: "Validation Error", description: "An Enrollment CA must be selected." });
         setIsSubmitting(false);
         return;
     }
     if (!user?.access_token) {
-        toast({ title: "Authentication Error", description: "User not authenticated.", variant: "destructive" });
+        sileo.error({ title: "Authentication Error", description: "User not authenticated." });
         setIsSubmitting(false);
         return;
     }
@@ -360,13 +359,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     try {
         await createOrUpdateRa(payload, user.access_token, isEditMode, raIdFromQuery);
         
-        toast({ title: "Success!", description: `Registration Authority "${raName}" ${isEditMode ? 'updated' : 'created'} successfully.` });
+        sileo.success({ title: "Success!", description: `Registration Authority "${raName}" ${isEditMode ? 'updated' : 'created'} successfully.` });
         if(!isEditMode) {
           router.push('/registration-authorities');
         }
 
     } catch (error: any) {
-        toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
+        sileo.error({ title: "Operation Failed", description: error.message });
     } finally {
         setIsSubmitting(false);
     }
