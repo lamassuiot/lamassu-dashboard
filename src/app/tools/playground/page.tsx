@@ -12,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  Play, Copy, Trash2, Download, File, Terminal,
+  Play, Copy, Download, File,
   ChevronDown, ChevronRight, ExternalLink, Loader2, CheckCircle2,
-  FlaskConical, X, Minimize2, Maximize2,
+  FlaskConical, X,
   Key, FileText, ShieldCheck, Hash, Lock, Package, Shuffle, Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -500,7 +500,6 @@ export default function PlaygroundPage() {
   const [copied, setCopied] = useState(false);
   const [capturedOutput, setCapturedOutput] = useState<string | null>(null);
   const [outputCopied, setOutputCopied] = useState(false);
-  const [terminalMinimized, setTerminalMinimized] = useState(false);
 
   const command = buildCommand(operation, cfg);
   const currentOp = OPERATIONS.find(o => o.value === operation)!;
@@ -536,11 +535,6 @@ export default function PlaygroundPage() {
       setTimeout(() => setCopied(false), 2000);
     });
   }, [command]);
-
-  const handleClearTerminal = useCallback(() => {
-    termRef.current?.clearTerminal();
-    setCapturedOutput(null);
-  }, []);
 
   const handleCopyOutput = useCallback(() => {
     if (!capturedOutput) return;
@@ -763,76 +757,10 @@ export default function PlaygroundPage() {
 
           </div>
 
-          {/* ── Right: Terminal + Output ── */}
+          {/* ── Right: Output ── */}
+          {/* OpenSSLTerminal manages the WASM Web Worker and renders null */}
+          <OpenSSLTerminal ref={termRef} onReady={handleTerminalReady} onCommandDone={handleCommandDone} />
           <div className="flex flex-col flex-1 min-h-0 min-w-0 gap-3">
-            <Card
-              className="flex flex-col overflow-hidden bg-[#0d1117] border-[#30363d]"
-              style={{
-                flex: terminalMinimized ? '0 0 auto' : capturedOutput ? '0 0 55%' : '1 1 auto',
-                minHeight: 0,
-              }}
-            >
-              <CardHeader className="p-2.5 flex-shrink-0 flex flex-row items-center justify-between bg-[#161b22] border-b border-[#30363d] rounded-t-lg">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 mr-0.5">
-                    <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-                  </div>
-                  <Terminal className="h-3.5 w-3.5 text-[#8b949e]" />
-                  <CardTitle className="text-xs font-mono text-[#8b949e] font-normal">
-                    openssl@wasm
-                  </CardTitle>
-                  {terminalReady && (
-                    <span className="inline-flex items-center gap-1 text-[10px] text-[#3fb950]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#3fb950] inline-block" />
-                      ready
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 hover:bg-white/10 text-[#8b949e] hover:text-white"
-                        onClick={() => setTerminalMinimized(v => !v)}
-                      >
-                        {terminalMinimized
-                          ? <Maximize2 className="h-3.5 w-3.5" />
-                          : <Minimize2 className="h-3.5 w-3.5" />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{terminalMinimized ? 'Expand terminal' : 'Minimize terminal'}</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 hover:bg-white/10 text-[#8b949e] hover:text-white"
-                        onClick={handleClearTerminal}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Clear terminal</TooltipContent>
-                  </Tooltip>
-                </div>
-              </CardHeader>
-              {/* keep terminal mounted so WASM session survives minimize */}
-              <CardContent
-                className="flex-1 min-h-0 p-0 overflow-hidden rounded-b-lg"
-                style={{ display: terminalMinimized ? 'none' : undefined }}
-              >
-                <OpenSSLTerminal
-                  ref={termRef}
-                  onReady={handleTerminalReady}
-                  onCommandDone={handleCommandDone}
-                />
-              </CardContent>
-            </Card>
 
             {/* ── Output Panel ── */}
             {capturedOutput !== null && (
