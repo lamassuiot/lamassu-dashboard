@@ -29,7 +29,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, FlaskConical } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -89,6 +89,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'alerts': "Alerts",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
+  'playground': "Playground",
 };
 
 interface NavItem {
@@ -100,6 +101,7 @@ interface NavItem {
 
 interface NavGroup {
   label?: string;
+  href?: string;
   items: NavItem[];
   devOnly?: boolean;
 }
@@ -137,8 +139,10 @@ const navigationConfig: NavGroup[] = [
   },
   {
     label: 'TOOLS',
+    href: '/tools',
     items: [
       { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
+      { href: '/tools/playground', label: 'Playground', icon: FlaskConical },
     ],
   },
 ];
@@ -426,7 +430,9 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                         <React.Fragment key={group.label || `group-${groupIndex}`}>
                           {group.label && (
                             <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
-                              {group.label}
+                              {group.href ? (
+                                <Link href={group.href} className="hover:text-foreground transition-colors">{group.label}</Link>
+                              ) : group.label}
                             </SidebarGroupLabel>
                           )}
                           {filteredItems.map(item => (

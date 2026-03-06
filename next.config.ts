@@ -4,6 +4,19 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   /* config options here */
   output: 'export', // Add this line to enable static HTML export
+  // COOP/COEP headers for SharedArrayBuffer support (required for WASM WebWorkers)
+  // Note: for static export these are handled by nginx.conf in production
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+    ];
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
