@@ -31,9 +31,9 @@ export const SYM_KEY_ALGORITHMS: Record<string, string> = {
   'AES-128-CBC': 'AES-128 CBC',
   'AES-128-CTR': 'AES-128 CTR',
   'AES-128-GCM': 'AES-128 GCM',
-  'Ascon128': 'Ascon-128',
-  'Ascon128a': 'Ascon-128a',
-  'Ascon80pq': 'Ascon-80pq',
+  'Ascon-128': 'Ascon-128',
+  'Ascon-128a': 'Ascon-128a',
+  'Ascon-80pq': 'Ascon-80pq',
 };
 
 

@@ -22,8 +22,8 @@ const getSymmetricStrengthDetails = (algorithm?: string) => {
   const algo = algorithm?.toUpperCase();
 
   // AES-128 and related (128-bit security)
-  if (algo?.includes('AES_128') || algo?.includes('ASCON128A') || algo?.includes('ASCON128') || algo === 'ASCON80PQ') {
-    const isAscon80pq = algo === 'ASCON80PQ';
+  if (algo?.includes('AES_128') || algo?.includes('ASCON_128A') || algo?.includes('ASCON_128') || algo === 'ASCON_80PQ') {
+    const isAscon80pq = algo === 'ASCO_80PQ';
     return {
       ...STRENGTH_LEVELS.ADEQUATE, // All 128-bit classical security = level 3 (yellow)
       securityLevel: isAscon80pq ? 80 : 128, // Ascon80pq has 80-bit PQ security, others 128-bit

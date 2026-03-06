@@ -40,9 +40,9 @@ const KEY_VARIANTS: Record<string, Array<{ value: string, label: string }>> = {
     { value: 'AES-256-GCM', label: '256 bits' },
   ],
   'Ascon': [
-    { value: 'Ascon128', label: 'Ascon-128' },
-    { value: 'Ascon128a', label: 'Ascon-128a' },
-    { value: 'Ascon80pq', label: 'Ascon-80pq' },
+    { value: 'Ascon-128', label: 'Ascon-128' },
+    { value: 'Ascon-128a', label: 'Ascon-128a' },
+    { value: 'Ascon-80pq', label: 'Ascon-80pq' },
   ],
 };
 
@@ -71,9 +71,9 @@ const generateRandomKey = (algorithm: string): string => {
     keyLengthBytes = 24; // 192 bits
   } else if (algorithm.startsWith('AES-128-')) {
     keyLengthBytes = 16; // 128 bits
-  } else if (algorithm.startsWith('Ascon128')) {
+  } else if (algorithm.startsWith('Ascon-128')) {
     keyLengthBytes = 16; // 128 bits
-  } else if (algorithm === 'Ascon80pq') {
+  } else if (algorithm === 'Ascon-80pq') {
     keyLengthBytes = 20; // 160 bits
   } else {
     throw new Error(`Unsupported algorithm: ${algorithm}`);
