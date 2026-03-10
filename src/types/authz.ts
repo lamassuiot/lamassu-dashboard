@@ -243,3 +243,78 @@ export interface ErrorResponse {
   error: string;
   details?: Record<string, string>;
 }
+
+// ===========================
+// Capabilities Endpoints
+// (wire-format snake_case to match the REST API directly)
+// ===========================
+
+/** POST /authz/capabilities/global — known principal */
+export interface GlobalCapabilitiesRequest {
+  principal_id: string;
+}
+
+/** Response for global capabilities (known principal) */
+export interface GlobalCapabilitiesResponse {
+  /** Map of "schema.entity_type" → allowed global actions */
+  global_actions: Record<string, string[]>;
+}
+
+/** POST /authz/match/capabilities/global — resolve from auth material */
+export interface MatchGlobalCapabilitiesRequest {
+  auth_type: 'api_key' | 'oidc' | 'x509';
+  auth_material: string;
+}
+
+/** Response for global capabilities (auth-material match) */
+export interface MatchGlobalCapabilitiesResponse {
+  global_actions: Record<string, string[]>;
+  matched_principals: string[];
+}
+
+/** A single entity to evaluate in a batch capabilities request. */
+export interface EntityCapabilityQuery {
+  namespace: string;
+  schema_name: string;
+  entity_type: string;
+  entity_id: string;
+}
+
+/** POST /authz/capabilities/entity — known principal */
+export interface EntityCapabilitiesRequest {
+  principal_id: string;
+  queries: EntityCapabilityQuery[];
+}
+
+/** Per-entity result returned inside the batch response. */
+export interface EntityCapabilityResult {
+  namespace: string;
+  schema_name: string;
+  entity_type: string;
+  entity_id: string;
+  /** Empty array means no access — never absent on success. */
+  actions: string[];
+  /** Set when this specific query item could not be evaluated (unknown schema etc). */
+  error?: string;
+}
+
+/**
+ * Response for entity capabilities (batch).
+ * Always 200 — `actions` is empty for entries where the principal has no access.
+ */
+export interface EntityCapabilitiesResponse {
+  results: EntityCapabilityResult[];
+}
+
+/** POST /authz/match/capabilities/entity — resolve from auth material */
+export interface MatchEntityCapabilitiesRequest {
+  auth_type: 'api_key' | 'oidc' | 'x509';
+  auth_material: string;
+  queries: EntityCapabilityQuery[];
+}
+
+/** Response for entity capabilities (auth-material match, batch) */
+export interface MatchEntityCapabilitiesResponse {
+  results: EntityCapabilityResult[];
+  matched_principals: string[];
+}

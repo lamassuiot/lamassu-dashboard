@@ -342,6 +342,7 @@ When contributing to Lamassu Dashboard, maintain clear and user-focused communic
 3. **Test critical PKI workflows** - certificate creation, validation, and revocation
 4. **Verify responsive design** - test on mobile and desktop viewports
 5. **Check `npm run build`** - ensures static export generation succeeds
+6. **Review for refactoring opportunities** - flag or address duplication and dead code found during the change
 
 **Docker Validation:**
 - **Multi-stage build process** - optimizes for production deployment
