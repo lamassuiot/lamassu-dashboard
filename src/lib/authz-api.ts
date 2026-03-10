@@ -13,10 +13,14 @@ import type {
   MatchAndAuthorizeResponse,
   MatchAndGetFilterRequest,
   MatchAndGetFilterResponse,
-  GetCapabilitiesRequest,
-  CapabilitiesResponse,
-  MatchAndGetCapabilitiesRequest,
-  MatchAndGetCapabilitiesResponse,
+  GlobalCapabilitiesRequest,
+  GlobalCapabilitiesResponse,
+  MatchGlobalCapabilitiesRequest,
+  MatchGlobalCapabilitiesResponse,
+  EntityCapabilitiesRequest,
+  EntityCapabilitiesResponse,
+  MatchEntityCapabilitiesRequest,
+  MatchEntityCapabilitiesResponse,
 } from '@/types/authz';
 
 const getApiBaseUrl = (): string => {
@@ -296,8 +300,8 @@ export async function matchAndGetFilter(request: MatchAndGetFilterRequest): Prom
   return handleApiError(response, 'Failed to match and get filter');
 }
 
-export async function getCapabilities(request: GetCapabilitiesRequest): Promise<CapabilitiesResponse> {
-  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/capabilities`, {
+export async function getCapabilities(request: GlobalCapabilitiesRequest): Promise<GlobalCapabilitiesResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/capabilities/global`, {
     method: 'POST',
     headers: getAuthzHeaders(),
     body: JSON.stringify(request),
@@ -305,14 +309,69 @@ export async function getCapabilities(request: GetCapabilitiesRequest): Promise<
   return handleApiError(response, 'Failed to get capabilities');
 }
 
-export async function matchAndGetCapabilities(request: MatchAndGetCapabilitiesRequest): Promise<MatchAndGetCapabilitiesResponse> {
-  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/capabilities`, {
+export async function matchAndGetCapabilities(request: MatchGlobalCapabilitiesRequest): Promise<MatchGlobalCapabilitiesResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/capabilities/global`, {
     method: 'POST',
     headers: getAuthzHeaders(),
-    body: JSON.stringify({
-      auth_type: request.authType,
-      auth_material: request.authMaterial,
-    }),
+    body: JSON.stringify(request),
   });
   return handleApiError(response, 'Failed to match and get capabilities');
+}
+
+// ===========================
+// Capabilities API Endpoints
+// ===========================
+
+/** Return the global actions a known principal is permitted across all entity types. */
+export async function getGlobalCapabilities(
+  request: GlobalCapabilitiesRequest,
+): Promise<GlobalCapabilitiesResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/capabilities/global`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to get global capabilities');
+}
+
+/** Resolve the principal from auth material and return permitted global actions. */
+export async function matchAndGetGlobalCapabilities(
+  request: MatchGlobalCapabilitiesRequest,
+): Promise<MatchGlobalCapabilitiesResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/capabilities/global`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to match and get global capabilities');
+}
+
+/**
+ * Return the actions a known principal is permitted on a specific entity.
+ * Always returns 200 — `actions` is empty when the principal has no access.
+ */
+export async function getEntityCapabilities(
+  request: EntityCapabilitiesRequest,
+): Promise<EntityCapabilitiesResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/capabilities/entity`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to get entity capabilities');
+}
+
+/**
+ * Resolve the principal from auth material and return permitted actions on a specific entity.
+ * Always returns 200 — `actions` is empty when no matched principal has access.
+ */
+export async function matchAndGetEntityCapabilities(
+  request: MatchEntityCapabilitiesRequest,
+): Promise<MatchEntityCapabilitiesResponse> {
+  const response = await fetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/capabilities/entity`, {
+    method: 'POST',
+    headers: getAuthzHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to match and get entity capabilities');
 }
