@@ -43,7 +43,7 @@ export function SplitPanelLayout({
         {isPanelOpen && panel && !showPanelAsDialog ? (
           <div
             className={cn(
-              'min-w-0 animate-in fade-in-0 slide-in-from-right-2 duration-300 xl:sticky xl:top-6 xl:self-start',
+              'min-w-0 overflow-hidden animate-in fade-in-0 slide-in-from-right-2 duration-300 xl:sticky xl:top-6 xl:self-start',
               panelClassName
             )}
           >

@@ -16,7 +16,7 @@ import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { sileo } from '@/lib/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -75,11 +75,6 @@ const RFC_TITLE_MAP: Record<string, string> = {
   "RFC5480": "Elliptic Curve Cryptography Subject Public Key Information",
   "RFC5912": "New ASN.1 Modules for the Public Key Infrastructure Using X.509 (PKIX)",
   "RFC6960": "X.509 Internet Public Key Infrastructure Online Certificate Status Protocol - OCSP",
-};
-
-const toTitleCase = (str: string) => {
-  if (!str) return '';
-  return str.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
 };
 
 const renderUrlList = (urls: string[] | undefined, listTitle: string) => {
@@ -570,12 +565,12 @@ export default function CertificateViewerPage() {
                                     <div className="space-y-2">
                                         {parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0 && (
                                             <div className="flex flex-wrap gap-1">
-                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{formatCertificateUsageLabel(usage)}</Badge>)}
                                             </div>
                                         )}
                                         {parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0 && (
                                             <div className="flex flex-wrap gap-1">
-                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{formatCertificateUsageLabel(usage)}</Badge>)}
                                             </div>
                                         )}
                                     </div>

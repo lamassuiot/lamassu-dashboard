@@ -98,8 +98,6 @@ export default function CertificatesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const [caSelectorMode, setCaSelectorMode] = useState<'issue' | 'filter'>('filter');
-  const [focusedField, setFocusedField] = useState<'search' | 'metadata' | null>(null);
-
   // Column visibility (lifted from CertificateList so ColumnSelector can live in the filter bar)
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
     commonName: true,
@@ -272,20 +270,9 @@ export default function CertificatesPage() {
         </div>
       </div>
 
-      {/* ── Filter bar: all controls on one adaptive row ── */}
-      <div
-        className="grid items-end gap-3 grid-cols-1 md:grid-cols-[var(--col1)_var(--col2)_var(--col3)_var(--col4)_var(--col5)_auto]"
-        style={{
-          '--col1': focusedField === 'search'   ? '4fr' : focusedField ? '1fr' : '1fr',
-          '--col2': focusedField                ? '1fr' : '1fr',
-          '--col3': focusedField                ? '1fr' : '1fr',
-          '--col4': focusedField                ? '1fr' : '1fr',
-          '--col5': focusedField === 'metadata' ? '4fr' : focusedField ? '1fr' : '1fr',
-          transition: 'grid-template-columns 300ms ease',
-        } as React.CSSProperties}
-      >
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_180px_minmax(180px,1fr)_minmax(220px,1fr)_minmax(260px,1.6fr)_auto] xl:items-end">
         {/* Search */}
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="certSearchTermInput">Search</Label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -295,8 +282,6 @@ export default function CertificatesPage() {
               placeholder="Search certificates..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onFocus={() => setFocusedField('search')}
-              onBlur={() => setFocusedField(null)}
               className="pl-9 h-9"
               disabled={isLoadingApi || authLoading}
             />
@@ -304,7 +289,7 @@ export default function CertificatesPage() {
         </div>
 
         {/* Search In */}
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="certSearchFieldSelect">Search In</Label>
           <Select
             value={searchField}
@@ -322,13 +307,13 @@ export default function CertificatesPage() {
         </div>
 
         {/* CA Issuer */}
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="ca-filter-button">CA Issuer</Label>
-          <div className="flex items-center gap-1">
+          <div className="relative">
             <Button
               id="ca-filter-button"
               variant="outline"
-              className="flex-1 h-9 justify-start text-left font-normal truncate min-w-0"
+              className="h-9 w-full justify-start truncate pr-10 text-left font-normal"
               onClick={() => handleOpenCaSelector('filter')}
               disabled={isLoadingApi || authLoading || isLoadingCAs}
             >
@@ -337,9 +322,9 @@ export default function CertificatesPage() {
             {caIdFilter && (
               <Button
                 variant="ghost"
-                size="icon"
+                size="sm"
                 onClick={() => setCaIdFilter(null)}
-                className="h-9 w-9 shrink-0"
+                className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
                 title="Clear CA filter"
               >
                 <X className="h-4 w-4" />
@@ -349,7 +334,7 @@ export default function CertificatesPage() {
         </div>
 
         {/* Status */}
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="certStatusFilterSelect">Status</Label>
           <div className={cn((isLoadingApi || authLoading) && "pointer-events-none opacity-50")}>
             <MultiSelectDropdown
@@ -365,7 +350,7 @@ export default function CertificatesPage() {
         </div>
 
         {/* Metadata (JSONPath) */}
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="certMetadataSearchInput">Metadata (JSONPath)</Label>
           <MetadataFilterManager
             id="certMetadataSearchInput"
@@ -373,12 +358,11 @@ export default function CertificatesPage() {
             onChange={setMetadataFilters}
             disabled={isLoadingApi || authLoading}
             placeholder="e.g., $.key > value"
-            onFocusChange={(focused) => setFocusedField(focused ? 'metadata' : null)}
           />
         </div>
 
         {/* Columns selector */}
-        <div className="flex items-end shrink-0 ml-60">
+        <div className="flex items-end xl:justify-self-end">
           <ColumnSelector
             columns={[
               { id: 'commonName',     label: 'Common Name',      visible: columnVisibility.commonName,     disabled: true },

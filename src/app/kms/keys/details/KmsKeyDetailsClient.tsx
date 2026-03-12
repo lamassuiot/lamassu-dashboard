@@ -2,24 +2,24 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle, Database, Link as LinkIcon, FileKey } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle, Database, Link as LinkIcon, Copy, Check, Settings, Lock, Edit, Delete } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from '@/contexts/AuthContext';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
@@ -29,10 +29,13 @@ import { CertificationRequest, AlgorithmIdentifier } from 'pkijs';
 import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, type PatchOperation } from '@/lib/kms-data';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
-import { SectionHeader } from '@/components/shared/FormComponents';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
 import { TagInput } from '@/components/shared/TagInput';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import { cn } from '@/lib/utils';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 
 // Monaco Editor dynamic import
 const Editor = dynamic(() => import('@monaco-editor/react'), { 
@@ -125,6 +128,39 @@ interface KmsKeyDetailed {
   metadata?: Record<string, any>;
 }
 
+interface BoundResource {
+  resource_id: string;
+  resource_type: string;
+}
+
+const parseBoundResources = (value: unknown): BoundResource[] => {
+  if (!value) return [];
+
+  try {
+    if (typeof value === 'string') {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    }
+
+    if (Array.isArray(value)) {
+      return value as BoundResource[];
+    }
+
+    if (typeof value === 'object') {
+      return [value as BoundResource];
+    }
+  } catch (error) {
+    console.error('Failed to parse binded-resources:', error);
+  }
+
+  return [];
+};
+
+const getCertSubjectCommonName = (subject: string): string => {
+  const match = subject.match(/CN=([^,]+)/i);
+  return match ? match[1].trim() : subject;
+};
+
 const signatureAlgorithms = [
   'RSASSA_PSS_SHA_256', 'RSASSA_PSS_SHA_384', 'RSASSA_PSS_SHA_512',
   'RSASSA_PKCS1_V1_5_SHA_256', 'RSASSA_PKCS1_V1_5_SHA_384', 'RSASSA_PKCS1_V1_5_SHA_512',
@@ -180,9 +216,9 @@ export default function KmsKeyDetailsClient() {
   const [csrCurrentSanValue, setCsrCurrentSanValue] = useState('');
 
   // Related entities state
-  const [boundCertificate, setBoundCertificate] = useState<CertificateData | null>(null);
-  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
-  const [isLoadingBoundCert, setIsLoadingBoundCert] = useState(false);
+  const [boundCertificates, setBoundCertificates] = useState<CertificateData[]>([]);
+  const [isLoadingBoundCertificates, setIsLoadingBoundCertificates] = useState(false);
+  const [boundCertificatesError, setBoundCertificatesError] = useState<string | null>(null);
 
   // CLI Operations state
   const [showCliOperations, setShowCliOperations] = useState(false);
@@ -199,6 +235,24 @@ export default function KmsKeyDetailsClient() {
   const [originalTags, setOriginalTags] = useState<string[]>([]); // Track original state
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [isSavingTags, setIsSavingTags] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+
+  const cryptoEngine = useMemo(() => {
+    if (!keyDetails?.cryptoEngineId) return undefined;
+    return allCryptoEngines.find(engine => engine.id === keyDetails.cryptoEngineId);
+  }, [allCryptoEngines, keyDetails?.cryptoEngineId]);
+
+  const boundCertificateResources = useMemo(() => {
+    const resources = parseBoundResources(keyDetails?.metadata?.['lamassu.io/kms/binded-resources']);
+    return resources.filter(resource => resource.resource_type === 'certificate');
+  }, [keyDetails?.metadata]);
+
+  const handleTabChange = useCallback((nextTab: string) => {
+    setActiveTab(nextTab);
+    if (nextTab !== 'sign-verify') {
+      setShowCliOperations(false);
+    }
+  }, []);
 
   // --- CSR SAN Handlers ---
   const handleAddCsrSan = () => {
@@ -338,36 +392,6 @@ export default function KmsKeyDetailsClient() {
     setIsEditingTags(false);
   };
 
-  // Handler to fetch and view bound certificate
-  const handleViewBoundCertificate = async (serialNumber: string) => {
-    if (!user?.access_token) return;
-    
-    setIsLoadingBoundCert(true);
-    try {
-      const { certificates } = await fetchIssuedCertificates({
-        accessToken: user.access_token,
-        apiQueryString: `serial_number=${serialNumber}`,
-      });
-      
-      if (certificates.length > 0) {
-        setBoundCertificate(certificates[0]);
-        setIsCertModalOpen(true);
-      } else {
-        sileo.error({
-          title: "Certificate Not Found",
-          description: `No certificate found with serial number: ${serialNumber}`
-        });
-      }
-    } catch (error: any) {
-      sileo.error({
-        title: "Failed to Load Certificate",
-        description: error.message || "Could not fetch certificate details."
-      });
-    } finally {
-      setIsLoadingBoundCert(false);
-    }
-  };
-
   // --- CLI Operations Handlers ---
   const handleShowCliOperations = () => {
     setShowCliOperations(true);
@@ -467,8 +491,44 @@ export default function KmsKeyDetailsClient() {
 
   useEffect(() => {
     const currentTab = searchParams.get('tab');
-    setActiveTab(currentTab || 'overview');
-  }, [searchParams]);
+    handleTabChange(currentTab || 'overview');
+  }, [searchParams, handleTabChange]);
+
+  useEffect(() => {
+    const loadBoundCertificates = async () => {
+      if (!user?.access_token || boundCertificateResources.length === 0) {
+        setBoundCertificates([]);
+        setBoundCertificatesError(null);
+        setIsLoadingBoundCertificates(false);
+        return;
+      }
+
+      setIsLoadingBoundCertificates(true);
+      setBoundCertificatesError(null);
+
+      try {
+        const uniqueSerials = [...new Set(boundCertificateResources.map(resource => resource.resource_id))];
+        const certificateResults = await Promise.all(
+          uniqueSerials.map(async (serialNumber) => {
+            const { certificates } = await fetchIssuedCertificates({
+              accessToken: user.access_token,
+              apiQueryString: `serial_number=${encodeURIComponent(serialNumber)}&page_size=1`,
+            });
+            return certificates[0] || null;
+          })
+        );
+
+        setBoundCertificates(certificateResults.filter((certificate): certificate is CertificateData => certificate !== null));
+      } catch (error: any) {
+        setBoundCertificates([]);
+        setBoundCertificatesError(error.message || 'Failed to load bound certificates.');
+      } finally {
+        setIsLoadingBoundCertificates(false);
+      }
+    };
+
+    loadBoundCertificates();
+  }, [boundCertificateResources, user?.access_token]);
 
   const handleSign = async () => {
     if (!payloadToSign) {
@@ -1042,141 +1102,286 @@ export default function KmsKeyDetailsClient() {
     );
   }
 
-  return (
-    <div className="w-full space-y-6">
-      <Button variant="outline" onClick={() => router.back()}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back
-      </Button>
+  const accentBarClass = 'bg-primary';
 
-      <div className="w-full">
-        <div className="p-6 border-b">
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-2">
-            <div>
-              <div className="flex items-center space-x-3">
-                <KeyRound className="h-8 w-8 text-primary" />
-                <h1 className="text-2xl font-headline font-semibold truncate" title={keyDetails.alias}>
-                  {keyDetails.alias}
-                </h1>
+  const accessPillClass = keyDetails.hasPrivateKey
+    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+    : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300';
+
+  const accessDotClass = keyDetails.hasPrivateKey ? 'bg-emerald-500' : 'bg-amber-500';
+  const algorithmBadgeClass = keyDetails.algorithm === 'ECDSA'
+    ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300'
+    : keyDetails.algorithm === 'RSA'
+      ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+      : 'border-border bg-muted text-muted-foreground';
+  const summaryCards = [
+    {
+      label: 'Key Size',
+      value: keyDetails.keySize ? keyDetails.keySize.toString() : 'N/A',
+      hint: 'Bit length',
+    },
+    {
+      label: 'Aliases',
+      value: keyAliases.length.toString(),
+      hint: keyAliases.length === 1 ? 'Alternative name' : 'Alternative names',
+    },
+    {
+      label: 'Tags',
+      value: keyTags.length.toString(),
+      hint: keyTags.length === 1 ? 'Classification label' : 'Classification labels',
+    },
+    {
+      label: 'Linked certs',
+      value: boundCertificateResources.length.toString(),
+      hint: boundCertificateResources.length === 1 ? 'Bound certificate' : 'Bound certificates',
+    },
+  ];
+  return (
+    <div className="w-full space-y-5">
+      <DetailBreadcrumbRow
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'KMS', href: '/kms' },
+          { label: 'Keys', href: '/kms/keys' },
+          {
+            label: (
+              <Badge variant="default" className="text-xs">
+                {keyDetails.alias}
+              </Badge>
+            ),
+          },
+        ]}
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="px-2.5">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem disabled>
+                <Delete className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
+
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className={cn('h-1 w-full', accentBarClass)} />
+
+        <div className="p-6">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden">
+                  {cryptoEngine ? (
+                    <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
+                  ) : (
+                    <KeyRound className={cn(
+                      'h-7 w-7',
+                      keyDetails.hasPrivateKey ? 'text-primary' : 'text-amber-500'
+                    )} />
+                  )}
+                </div>
+
+                <div className="min-w-0 space-y-2">
+                  <div>
+                    <h1 className="text-2xl font-semibold tracking-tight truncate" title={keyDetails.alias}>
+                      {keyDetails.alias}
+                    </h1>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-muted-foreground">ID</span>
+                      <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs xl:hidden">
+                        {keyDetails.id}
+                      </code>
+                      <code className="hidden rounded border bg-muted px-2 py-0.5 font-mono text-xs xl:inline-block">
+                        {keyDetails.id}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(keyDetails.id);
+                          setCopiedId(true);
+                          setTimeout(() => setCopiedId(false), 2000);
+                        }}
+                      >
+                        {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                      accessPillClass
+                    )}>
+                      <span className={cn('h-1.5 w-1.5 rounded-full', accessDotClass)} />
+                      {keyDetails.hasPrivateKey ? 'PRIVATE KEY AVAILABLE' : 'PUBLIC KEY ONLY'}
+                    </div>
+
+                    <Badge variant="outline" className={cn('text-xs', algorithmBadgeClass)}>
+                      {keyDetails.algorithm}
+                    </Badge>
+
+                    <Badge variant="secondary" className="text-xs">
+                      {keyDetails.keyTypeDisplay}
+                    </Badge>
+
+                    {cryptoEngine && (
+                      <div className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-0.5">
+                        <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                        <span className="text-xs text-muted-foreground">{cryptoEngine.name || cryptoEngine.type}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-1.5">
-                Key ID: <span className="font-mono text-xs">{keyDetails.id}</span>
-              </p>
+
+              <div className="grid gap-4 sm:grid-cols-4 xl:min-w-[440px]">
+                {summaryCards.map((item, index) => (
+                  <div
+                    key={item.label}
+                    className={cn(
+                      'px-1 sm:px-4',
+                      index > 0 && 'sm:border-l'
+                    )}
+                  >
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
+                    <p className="text-xs text-muted-foreground">{item.hint}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full p-6">
-          <TabsList className="mb-6">
-            <TabsTrigger value="overview"><Info className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Overview</TabsTrigger>
-            <TabsTrigger value="public-key"><FileText className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Public Key</TabsTrigger>
-            <TabsTrigger value="sign-verify" disabled={!keyDetails.hasPrivateKey}><PenTool className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Sign / Verify</TabsTrigger>
-            <TabsTrigger value="generate-csr" disabled={!keyDetails.hasPrivateKey}><FileSignature className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Generate CSR</TabsTrigger>
-            <TabsTrigger value="metadata"><Database className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Metadata</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            {([
+              { value: 'overview', icon: Info, label: 'Overview' },
+              { value: 'public-key', icon: FileText, label: 'Public Key' },
+              { value: 'sign-verify', icon: PenTool, label: 'Sign / Verify', disabled: !keyDetails.hasPrivateKey },
+              { value: 'generate-csr', icon: FileSignature, label: 'Generate CSR', disabled: !keyDetails.hasPrivateKey },
+              { value: 'metadata', icon: Lock, label: 'Metadata' },
+            ] as { value: string; icon: React.ElementType; label: string; disabled?: boolean }[]).map(({ value, icon: Icon, label, disabled }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                disabled={disabled}
+                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
+        </div>
 
-          <TabsContent value="overview">
-            <div className="grid gap-6">
-              {/* Key Identity Section */}
-              <Card className="overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
-                  <CardTitle className="flex items-center text-lg">
-                    <KeyRound className="mr-3 h-5 w-5 text-primary" />
-                    Key Identity
-                  </CardTitle>
-                  <CardDescription>Core identification and naming information</CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="grid gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground">Key Name</Label>
-                      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border">
-                        <span className="font-mono text-sm font-medium">{keyDetails.alias}</span>
-                        <Badge variant="outline" className="ml-auto">Primary Name</Badge>
+        <div className="mt-6 pb-6">
+          <TabsContent value="overview" className="mt-0">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+              <div className="space-y-6">
+                <Card className="overflow-hidden rounded-xl shadow-sm">
+                  <CardHeader className="border-b py-4">
+                    <CardTitle className="flex items-center text-lg">
+                      <KeyRound className="mr-3 h-5 w-5 text-primary" />
+                      Key Identity
+                    </CardTitle>
+                    <CardDescription>Core naming and classification data for this key.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="divide-y">
+                      <div className="py-3 first:pt-0">
+                        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Primary Name</Label>
+                        <p className="mt-2 font-mono text-sm font-medium">{keyDetails.alias}</p>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground">Key Identifier</Label>
-                      <div className="p-3 bg-muted/30 rounded-lg border">
-                        <div className="font-mono text-xs">{keyDetails.id}</div>
+
+                      <div className="py-3">
+                        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Identifier</Label>
+                        <p className="mt-2 break-all font-mono text-xs">{keyDetails.id}</p>
                       </div>
-                    </div>
-                    
-                    {/* Tags Section */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium text-muted-foreground">Tags</Label>
-                        {!isEditingTags && (
-                          <Button variant="ghost" size="sm" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
-                            <PenTool className="mr-1.5 h-3 w-3" />
-                            Edit
-                          </Button>
-                        )}
-                      </div>
-                      {isEditingTags ? (
-                        <div className="space-y-3">
-                          <TagInput
-                            value={keyTags}
-                            onChange={setKeyTags}
-                            placeholder="Add tags..."
-                          />
-                          <div className="flex gap-2 justify-end">
-                            <Button variant="outline" size="sm" onClick={handleCancelEditTags} disabled={isSavingTags}>
-                              Cancel
+
+                      <div className="py-3 last:pb-0">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tags</Label>
+                          {!isEditingTags && (
+                            <Button variant="ghost" size="sm" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
+                              <Edit className="mr-1.5 h-3 w-3" />
+                              Edit
                             </Button>
-                            <Button size="sm" onClick={handleSaveTags} disabled={isSavingTags}>
-                              {isSavingTags ? (
-                                <>
-                                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>Save</>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3 bg-muted/30 rounded-lg border min-h-[44px]">
-                          {keyTags && keyTags.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                              {keyTags.map((tag, idx) => (
-                                <Badge key={idx} variant="secondary" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">No tags configured</span>
                           )}
                         </div>
-                      )}
+                        {isEditingTags ? (
+                          <div className="mt-3 space-y-3 rounded-lg border bg-background px-3 py-3">
+                            <TagInput
+                              value={keyTags}
+                              onChange={setKeyTags}
+                              placeholder="Add tags..."
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={handleCancelEditTags} disabled={isSavingTags}>
+                                Cancel
+                              </Button>
+                              <Button size="sm" onClick={handleSaveTags} disabled={isSavingTags}>
+                                {isSavingTags ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>Save</>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-2">
+                            {keyTags.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {keyTags.map((tag, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No tags configured</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              {/* Aliases Section */}
-              <Card className="overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
-                  <div className="flex items-center justify-between">
+                <Card className="overflow-hidden rounded-xl shadow-sm">
+                  <CardHeader className="border-b py-4">
+                    <div className="flex items-start justify-between gap-4">
                     <div>
-                      <CardTitle className="flex items-center text-lg">
-                        <Tag className="mr-3 h-5 w-5 text-primary" />
+                        <CardTitle className="flex items-center text-lg">
+                          <Tag className="mr-3 h-5 w-5 text-primary" />
                         Key Aliases
-                      </CardTitle>
-                      <CardDescription>Alternative names for this key</CardDescription>
+                        </CardTitle>
+                        <CardDescription>Alternative names available for integrations and discovery.</CardDescription>
                     </div>
                     {!isEditingAliases && (
                       <Button variant="outline" size="sm" onClick={() => setIsEditingAliases(true)}>
-                        <PenTool className="mr-2 h-3 w-3" />
+                        <Edit className="mr-2 h-3 w-3" />
                         Edit Aliases
                       </Button>
                     )}
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {isEditingAliases ? (
-                    <div className="space-y-4">
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    {isEditingAliases ? (
+                      <div className="space-y-4">
                       <div className="flex gap-2">
                         <Input
                           placeholder="Enter new alias..."
@@ -1197,7 +1402,7 @@ export default function KmsKeyDetailsClient() {
                       <div className="space-y-2">
                         {keyAliases.length > 0 ? (
                           keyAliases.map((alias, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg border">
+                            <div key={idx} className="flex items-center justify-between rounded-lg border bg-muted/30 p-2">
                               <span className="text-sm font-medium">{alias}</span>
                               <Button
                                 variant="ghost"
@@ -1210,12 +1415,12 @@ export default function KmsKeyDetailsClient() {
                             </div>
                           ))
                         ) : (
-                          <div className="text-center py-4 text-muted-foreground text-sm">
+                          <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
                             No aliases configured
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-2 justify-end pt-2">
+                      <div className="flex justify-end gap-2 pt-2">
                         <Button variant="outline" onClick={handleCancelEditAliases} disabled={isSavingAliases}>
                           Cancel
                         </Button>
@@ -1230,194 +1435,170 @@ export default function KmsKeyDetailsClient() {
                           )}
                         </Button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {keyAliases && keyAliases.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {keyAliases.map((alias, idx) => (
-                            <Badge key={idx} variant="secondary" className="text-sm px-3 py-1">
-                              {alias}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-4 text-muted-foreground text-sm">
-                          No aliases configured for this key
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                      </div>
+                    ) : keyAliases.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {keyAliases.map((alias, idx) => (
+                          <Badge key={idx} variant="secondary" className="px-3 py-1 text-sm">
+                            {alias}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+                        No aliases configured for this key
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
 
-              {/* Technical Specifications */}
-              <Card className="overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-500/5 to-cyan-500/10 border-b py-3">
-                  <CardTitle className="flex items-center text-lg">
-                    <ShieldCheck className="mr-3 h-5 w-5 text-blue-600" />
-                    Technical Specifications
-                  </CardTitle>
-                  <CardDescription>Cryptographic algorithm and security parameters</CardDescription>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground mb-2 block">Algorithm</Label>
-                        <div className="flex items-center gap-3 p-3 bg-background rounded-lg border">
-                          <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                          <span className="font-medium">{keyDetails.algorithm}</span>
-                          <Badge variant="secondary" className="ml-auto">
-                            {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : 
-                             keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : 'Other'}
+              <div className="space-y-6">
+                <Card className="overflow-hidden rounded-xl shadow-sm">
+                  <CardHeader className="border-b py-4">
+                    <CardTitle className="flex items-center text-lg">
+                      <ShieldCheck className="mr-3 h-5 w-5 text-primary" />
+                      Technical Profile
+                    </CardTitle>
+                    <CardDescription>Algorithm, strength, access mode, and engine placement.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="divide-y">
+                      <div className="py-3 first:pt-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Algorithm</p>
+                            <p className="mt-1 text-sm font-medium">{keyDetails.algorithm}</p>
+                          </div>
+                          <Badge variant="outline" className={cn('text-xs', algorithmBadgeClass)}>
+                            {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : 'Other'}
                           </Badge>
                         </div>
                       </div>
-                      
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground mb-2 block">Key Size & Strength</Label>
-                        <div className="p-3 bg-background rounded-lg border">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium">{keyDetails.keyTypeDisplay}</span>
-                            <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
+
+                      <div className="py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Key Size & Strength</p>
+                            <p className="mt-1 text-sm font-medium">{keyDetails.keyTypeDisplay}</p>
                           </div>
+                          <KeyStrengthIndicator algorithm={keyDetails.algorithm} size={keyDetails.keySize} />
                         </div>
                       </div>
-                    </div>
 
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground mb-2 block">Key Access</Label>
-                        <div className="p-3 bg-background rounded-lg border">
-                          <div className="flex items-center gap-3">
-                            {keyDetails.hasPrivateKey ? (
-                              <>
-                                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                                <span className="text-green-700 dark:text-green-400 font-medium">Private Key Available</span>
-                                <Badge variant="default" className="ml-auto bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                  Full Access
-                                </Badge>
-                              </>
+                      <div className="py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Key Access</p>
+                            <p className="mt-1 text-sm font-medium">
+                              {keyDetails.hasPrivateKey ? 'Private key available' : 'Public key only'}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={keyDetails.hasPrivateKey ? 'default' : 'outline'}
+                            className={keyDetails.hasPrivateKey ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' : ''}
+                          >
+                            {keyDetails.hasPrivateKey ? 'Present' : 'Read Only'}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {(cryptoEngine || keyDetails.cryptoEngineId) && (
+                        <div className="py-3 last:pb-0">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Crypto Engine</p>
+                          <div className="mt-3">
+                            {cryptoEngine ? (
+                              <CryptoEngineViewer engine={cryptoEngine} />
                             ) : (
-                              <>
-                                <div className="h-2 w-2 rounded-full bg-orange-500"></div>
-                                <span className="text-orange-700 dark:text-orange-400 font-medium">Public Key Only</span>
-                                <Badge variant="outline" className="ml-auto">
-                                  Read Only
-                                </Badge>
-                              </>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary">{keyDetails.cryptoEngineId}</Badge>
+                                <span className="text-sm text-muted-foreground">Engine ID</span>
+                              </div>
                             )}
                           </div>
                         </div>
-                      </div>
-
-                      {(() => {
-                        const engine = allCryptoEngines.find(e => e.id === keyDetails.cryptoEngineId);
-                        if (engine || keyDetails.cryptoEngineId) {
-                          return (
-                            <div>
-                              <Label className="text-sm font-medium text-muted-foreground mb-2 block">Crypto Engine</Label>
-                              <div className="p-2 bg-background rounded-lg border">
-                                {engine ? (
-                                  <CryptoEngineViewer engine={engine} />
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="secondary">{keyDetails.cryptoEngineId}</Badge>
-                                    <span className="text-sm text-muted-foreground">Engine ID</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              {/* Related Entities */}
-              {(() => {
-                const bindedResources = keyDetails.metadata?.['lamassu.io/kms/binded-resources'];
-                if (!bindedResources) return null;
-
-                // Parse the binded resources
-                let resources: Array<{ resource_id: string; resource_type: string }> = [];
-                try {
-                  if (typeof bindedResources === 'string') {
-                    resources = [JSON.parse(bindedResources)];
-                  } else if (Array.isArray(bindedResources)) {
-                    resources = bindedResources;
-                  } else if (typeof bindedResources === 'object') {
-                    resources = [bindedResources];
-                  }
-                } catch (e) {
-                  console.error('Failed to parse binded-resources:', e);
-                  return null;
-                }
-
-                // Filter for certificate resources
-                const certificateResources = resources.filter(r => r.resource_type === 'certificate');
-                if (certificateResources.length === 0) return null;
-
-                return (
-                  <Card className="overflow-hidden">
-                    <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
+                {boundCertificateResources.length > 0 && (
+                  <Card className="overflow-hidden rounded-xl shadow-sm">
+                    <CardHeader className="border-b py-4">
                       <CardTitle className="flex items-center text-lg">
                         <LinkIcon className="mr-3 h-5 w-5 text-primary" />
                         Related Entities
                       </CardTitle>
-                      <CardDescription>Resources bound to this key</CardDescription>
+                      <CardDescription>Resources currently bound to this key.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="space-y-3">
-                        {certificateResources.map((resource, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 bg-background rounded-lg border hover:border-primary/50 transition-colors">
-                            <div className="flex items-center gap-3">
-                              <FileKey className="h-5 w-5 text-primary" />
-                              <div>
-                                <div className="font-medium text-sm">Certificate</div>
-                                <div className="text-xs text-muted-foreground font-mono">
-                                  SN: {resource.resource_id}
-                                </div>
-                              </div>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleViewBoundCertificate(resource.resource_id)}
-                              disabled={isLoadingBoundCert}
-                            >
-                              {isLoadingBoundCert ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                'View Details'
-                              )}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
+                    <CardContent className="p-0">
+                      {isLoadingBoundCertificates ? (
+                        <div className="flex items-center justify-center px-6 py-8 text-sm text-muted-foreground">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Loading related certificates...
+                        </div>
+                      ) : boundCertificatesError ? (
+                        <div className="p-6">
+                          <Alert variant="destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Error Loading Related Certificates</AlertTitle>
+                            <AlertDescription>{boundCertificatesError}</AlertDescription>
+                          </Alert>
+                        </div>
+                      ) : boundCertificates.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Common Name</TableHead>
+                              <TableHead>Serial Number</TableHead>
+                              <TableHead>Expiration</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {boundCertificates.map((certificate) => (
+                              <TableRow key={certificate.serialNumber}>
+                                <TableCell className="font-medium">
+                                  <button
+                                    type="button"
+                                    className="text-left text-primary hover:underline"
+                                    onClick={() => router.push(`/certificates/details?certificateId=${certificate.serialNumber}`)}
+                                  >
+                                    {getCertSubjectCommonName(certificate.subject) || certificate.serialNumber}
+                                  </button>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs break-all">
+                                  {certificate.serialNumber}
+                                </TableCell>
+                                <TableCell>
+                                  <DateDisplay date={certificate.validTo} highlightExpired className="items-center" />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <div className="flex items-center justify-center px-6 py-8 text-sm text-muted-foreground">
+                          No related certificates found.
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
-                );
-              })()}
+                )}
+              </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="public-key">
+          <TabsContent value="public-key" className="mt-0">
             <KmsPublicKeyPemTabContent
               publicKeyPem={keyDetails.publicKeyPem}
               itemName={keyDetails.alias}
             />
           </TabsContent>
 
-          <TabsContent value="sign-verify">
+          <TabsContent value="sign-verify" className="mt-0">
             {!showCliOperations ? (
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Sign & Verify Operations</h3>
                   <Button 
                     variant="outline" 
                     onClick={handleShowCliOperations}
@@ -1429,9 +1610,15 @@ export default function KmsKeyDetailsClient() {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                  <Card>
-                    <SectionHeader icon={PenTool} title="Sign Data" />
-                    <CardContent className="space-y-4">
+                  <Card className="overflow-hidden rounded-xl shadow-sm">
+                    <CardHeader className="border-b py-4">
+                      <CardTitle className="flex items-center text-lg">
+                        <PenTool className="mr-3 h-5 w-5 text-primary" />
+                        Sign Data
+                      </CardTitle>
+                      <CardDescription>Create a signature using the selected key, algorithm, and payload format.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 p-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="signAlgorithm">Algorithm</Label>
@@ -1489,9 +1676,15 @@ export default function KmsKeyDetailsClient() {
                       )}
                     </CardContent>
                   </Card>
-                  <Card>
-                    <SectionHeader icon={ShieldCheck} title="Verify Signature" />
-                    <CardContent className="space-y-4">
+                  <Card className="overflow-hidden rounded-xl shadow-sm">
+                    <CardHeader className="border-b py-4">
+                      <CardTitle className="flex items-center text-lg">
+                        <ShieldCheck className="mr-3 h-5 w-5 text-primary" />
+                        Verify Signature
+                      </CardTitle>
+                      <CardDescription>Validate a signature against the original payload with the selected algorithm.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 p-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="verifyAlgorithm">Algorithm</Label>
@@ -1580,12 +1773,18 @@ export default function KmsKeyDetailsClient() {
             )}
           </TabsContent>
 
-          <TabsContent value="generate-csr">
+          <TabsContent value="generate-csr" className="mt-0">
             <div className="space-y-6">
               {/* Section 1: Signature Algorithm */}
-              <Card>
-                <SectionHeader icon={FileSignature} title="Signature Algorithm" />
-                <CardContent>
+              <Card className="overflow-hidden rounded-xl shadow-sm">
+                <CardHeader className="border-b py-4">
+                  <CardTitle className="flex items-center text-lg">
+                    <FileSignature className="mr-3 h-5 w-5 text-primary" />
+                    Signature Algorithm
+                  </CardTitle>
+                  <CardDescription>Choose the signing algorithm that will be used to produce the certificate request.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="csrSignAlgorithm">Signature Algorithm</Label>
@@ -1603,9 +1802,15 @@ export default function KmsKeyDetailsClient() {
               </Card>
 
               {/* Section 2: Certificate Subject */}
-              <Card>
-                <SectionHeader icon={BookText} title="Certificate Subject" />
-                <CardContent>
+              <Card className="overflow-hidden rounded-xl shadow-sm">
+                <CardHeader className="border-b py-4">
+                  <CardTitle className="flex items-center text-lg">
+                    <BookText className="mr-3 h-5 w-5 text-primary" />
+                    Certificate Subject
+                  </CardTitle>
+                  <CardDescription>Define the subject identity and optional SAN entries for the CSR.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
                   <div className="space-y-4">
                     {/* Row 1: CN */}
                     <div className="space-y-1">
@@ -1736,8 +1941,15 @@ export default function KmsKeyDetailsClient() {
               </Card>
 
               {/* Generate CSR Button and Result */}
-              <Card>
-                <CardContent className="pt-6">
+              <Card className="overflow-hidden rounded-xl shadow-sm">
+                <CardHeader className="border-b py-4">
+                  <CardTitle className="flex items-center text-lg">
+                    <FileSignature className="mr-3 h-5 w-5 text-primary" />
+                    Generate CSR
+                  </CardTitle>
+                  <CardDescription>Create and review a PEM-encoded certificate signing request for this key.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
                   <div className="space-y-4">
                     <Button onClick={handleGenerateCsr} className="w-full sm:w-auto" disabled={isGeneratingCsr}>
                       {isGeneratingCsr && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1759,14 +1971,14 @@ export default function KmsKeyDetailsClient() {
           </TabsContent>
 
           {/* Metadata Tab */}
-          <TabsContent value="metadata">
-            <Card className="overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b py-3">
+          <TabsContent value="metadata" className="mt-0">
+            <Card className="overflow-hidden rounded-xl shadow-sm">
+              <CardHeader className="border-b py-4">
                 <CardTitle className="flex items-center text-lg">
                   <Database className="mr-3 h-5 w-5 text-primary" />
                   Key Metadata
                 </CardTitle>
-                <CardDescription>Additional metadata associated with this key</CardDescription>
+                <CardDescription>Additional metadata associated with this key.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 {keyDetails.metadata && Object.keys(keyDetails.metadata).length > 0 ? (
@@ -1797,15 +2009,8 @@ export default function KmsKeyDetailsClient() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* Certificate Details Modal */}
-      <CertificateDetailsModal 
-        certificate={boundCertificate} 
-        isOpen={isCertModalOpen} 
-        onClose={() => setIsCertModalOpen(false)} 
-      />
+        </div>
+      </Tabs>
     </div>
   );
 }

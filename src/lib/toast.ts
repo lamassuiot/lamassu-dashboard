@@ -1,6 +1,7 @@
 import { sileo as _sileo } from 'sileo';
 
 type SileoOptions = Parameters<typeof _sileo.success>[0];
+type SileoPosition = NonNullable<SileoOptions['position']>;
 
 const DARK_TOAST = {
   fill: '#18181b',
@@ -10,11 +11,23 @@ const LIGHT_TOAST = {
   fill: '#fafafa',
 } satisfies Partial<SileoOptions>;
 
-function getThemeDefaults(): Partial<SileoOptions> {
-  if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
-    return LIGHT_TOAST;
+function getToastPosition(): SileoPosition | undefined {
+  if (typeof window === 'undefined') {
+    return undefined;
   }
-  return DARK_TOAST;
+
+  const position = (window as any).lamassuConfig?.TOAST_POSITION;
+  return typeof position === 'string' ? position as SileoPosition : undefined;
+}
+
+function getThemeDefaults(): Partial<SileoOptions> {
+  const position = getToastPosition();
+
+  if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
+    return { ...LIGHT_TOAST, ...(position ? { position } : {}) };
+  }
+
+  return { ...DARK_TOAST, ...(position ? { position } : {}) };
 }
 
 function withTheme(options: SileoOptions): SileoOptions {

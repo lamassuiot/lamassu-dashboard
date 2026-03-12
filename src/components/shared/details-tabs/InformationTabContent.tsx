@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { DetailItem } from '@/components/shared/DetailItem';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
 import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { DateDisplay } from '@/components/shared/DateDisplay';
@@ -25,7 +24,8 @@ import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
-import { cn } from '@/lib/utils';
+import { cn, formatCertificateUsageLabel } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 
 interface CaStats {
@@ -60,24 +60,11 @@ interface InformationTabContentProps {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-const toTitleCase = (str: string) =>
-  str.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
-
 const getRevocationReasonLabel = (reason: string | undefined): string => {
   if (!reason) return 'Unknown';
   const found = revocationReasons.find(r => r.value === reason);
   return found ? found.label : reason;
 };
-
-/** A small section header used to separate logical groups. */
-const SectionHeader = ({ icon: Icon, title }: { icon: React.ElementType; title: string }) => (
-  <div className="flex items-center gap-2 mb-4">
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
-      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-    </div>
-    <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
-  </div>
-);
 
 /** Renders an array of URLs as small link chips. */
 const UrlChips = ({ urls, label }: { urls: string[] | undefined; label: string }) => {
@@ -102,6 +89,64 @@ const UrlChips = ({ urls, label }: { urls: string[] | undefined; label: string }
     </div>
   );
 };
+
+const CardSection = ({
+  icon: Icon,
+  title,
+  description,
+  action,
+  children,
+  contentClassName,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  contentClassName?: string;
+}) => (
+  <Card className="overflow-hidden rounded-xl shadow-sm">
+    <CardHeader className="border-b py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center text-lg">
+            <Icon className="mr-3 h-5 w-5 text-primary" />
+            {title}
+          </CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </div>
+        {action}
+      </div>
+    </CardHeader>
+    <CardContent className={cn('p-6', contentClassName)}>{children}</CardContent>
+  </Card>
+);
+
+const DividedInfoRows = ({ children }: { children: React.ReactNode }) => (
+  <div className="divide-y">{children}</div>
+);
+
+const InfoRow = ({
+  label,
+  value,
+  action,
+  className,
+}: {
+  label: string;
+  value: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+}) => (
+  <div className={cn('py-3', className)}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <div className="mt-2 text-sm font-medium min-w-0 break-words">{value}</div>
+      </div>
+      {action}
+    </div>
+  </div>
+);
 
 // ── main export ──────────────────────────────────────────────────────────────
 
@@ -204,75 +249,81 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
 
         <SplitPanelLayout
           isPanelOpen={true}
-          panelWidthClassName={
-            isChainPanelCollapsed
-              ? 'xl:grid-cols-[minmax(0,1fr)_56px]'
-              : 'xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]'
-          }
-          panelClassName={isChainPanelCollapsed ? 'xl:self-stretch' : undefined}
+          panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_auto]"
           panel={
-            <div className="relative h-full min-h-[420px]">
-              <div
-                className={cn(
-                  'h-full rounded-xl border bg-card p-5 transition-all duration-300 ease-in-out',
-                  isChainPanelCollapsed
-                    ? 'pointer-events-none absolute inset-0 opacity-0'
-                    : 'relative opacity-100'
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <SectionHeader icon={Network} title="Issuance Hierarchy &amp; Chain of Trust" />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2"
-                    onClick={() => setIsChainPanelCollapsed(true)}
+            <div
+              className="relative overflow-hidden transition-[width] ease-in-out duration-500"
+              style={{ width: isChainPanelCollapsed ? '56px' : 'clamp(420px, 30vw, 520px)' }}
+            >
+              <div className="w-[clamp(420px,30vw,520px)]">
+                <div
+                  className={cn(
+                    'transition-[opacity,transform] duration-500 ease-in-out',
+                    isChainPanelCollapsed
+                      ? 'pointer-events-none opacity-0 translate-x-4'
+                      : 'opacity-100 translate-x-0'
+                  )}
+                >
+                  <CardSection
+                    icon={Network}
+                    title="Issuance Hierarchy & Chain of Trust"
+                    description="View the current chain of trust and direct child authorities."
+                    action={(
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2"
+                        onClick={() => setIsChainPanelCollapsed(true)}
+                      >
+                        Collapse
+                      </Button>
+                    )}
                   >
-                    Collapse
-                  </Button>
-                </div>
-                {caSpecific.pathToRoot.length > 0 ? (
-                  <div className="flex flex-col items-center w-full">
-                    {caSpecific.pathToRoot.map((caNode, index) => (
-                      <CaHierarchyPathNode
-                        key={caNode.id}
-                        ca={caNode}
-                        isCurrentCa={caNode.id === caDetails.id}
-                        hasNext={index < caSpecific.pathToRoot.length - 1}
-                        isFirst={index === 0}
-                        allCryptoEngines={caSpecific.allCryptoEngines}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Hierarchy path not available.</p>
-                )}
-
-                {caDetails.children && caDetails.children.length > 0 && (
-                  <>
-                    <Separator className="my-4" />
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-sm font-semibold">Directly Issues To</p>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        {caDetails.children.map(child => (
-                          <button
-                            key={child.id}
-                            onClick={() => routerHook.push(`/certificate-authorities/details?caId=${child.id}`)}
-                            className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-sm hover:bg-muted/60 transition-colors text-left"
-                          >
-                            <span>{child.name}</span>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          </button>
+                    {caSpecific.pathToRoot.length > 0 ? (
+                      <div className="flex w-full flex-col items-center">
+                        {caSpecific.pathToRoot.map((caNode, index) => (
+                          <CaHierarchyPathNode
+                            key={caNode.id}
+                            ca={caNode}
+                            isCurrentCa={caNode.id === caDetails.id}
+                            hasNext={index < caSpecific.pathToRoot.length - 1}
+                            isFirst={index === 0}
+                            allCryptoEngines={caSpecific.allCryptoEngines}
+                          />
                         ))}
                       </div>
-                    </div>
-                  </>
-                )}
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Hierarchy path not available.</p>
+                    )}
+
+                    {caDetails.children && caDetails.children.length > 0 && (
+                      <>
+                        <Separator className="my-4" />
+                        <div className="space-y-2">
+                          <div className="mb-3 flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <p className="text-sm font-semibold">Directly Issues To</p>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            {caDetails.children.map(child => (
+                              <button
+                                key={child.id}
+                                onClick={() => routerHook.push(`/certificate-authorities/details?caId=${child.id}`)}
+                                className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60"
+                              >
+                                <span>{child.name}</span>
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </CardSection>
+                </div>
               </div>
 
+              {/* Collapsed tab — positioned within the outer wrapper so it fills exactly 56px */}
               <button
                 type="button"
                 onClick={() => setIsChainPanelCollapsed(false)}
@@ -288,88 +339,103 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             </div>
           }
         >
-          <div className="space-y-6">
+          <div className="space-y-6 pb-6">
           {/* ── Grid of sections ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
           {/* General */}
-          <div className="rounded-xl border bg-card p-5 space-y-1">
-            <SectionHeader icon={Info} title="General Information" />
-            <DetailItem label="Full Name" value={caDetails.name} />
-            <DetailItem label="CA ID" value={<IdentifierDisplay value={caDetails.id} />} />
-            <DetailItem label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
-            <DetailItem label="Expires On" value={<DateDisplay date={caDetails.expires} formatString="PPpp" highlightExpired />} />
-            <DetailItem label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} showSeparator={false} />
-          </div>
+          <CardSection
+            icon={Info}
+            title="General Information"
+            description="Identity, issuer, lifecycle, and serial details for this authority."
+          >
+            <DividedInfoRows>
+              <InfoRow label="Full Name" value={caDetails.name} className="first:pt-0" />
+              <InfoRow label="CA ID" value={<IdentifierDisplay value={caDetails.id} />} />
+              <InfoRow label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
+              <InfoRow label="Expires On" value={<DateDisplay date={caDetails.expires} formatString="PPpp" highlightExpired />} />
+              <InfoRow label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} className="last:pb-0" />
+            </DividedInfoRows>
+          </CardSection>
 
           {/* Key & Signature */}
-          <div className="rounded-xl border bg-card p-5 space-y-1">
-            <SectionHeader icon={KeyRound} title="Key &amp; Signature" />
-            <DetailItem label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} />
-            <DetailItem label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
-            <DetailItem
-              label="SKI"
-              value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} className="text-xs" /> : 'N/A'}
-            />
-            <DetailItem
-              label="AKI"
-              value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} className="text-xs" /> : 'N/A'}
-              showSeparator={false}
-            />
-          </div>
+          <CardSection
+            icon={KeyRound}
+            title="Key & Signature"
+            description="Algorithm and identifier material associated with this CA certificate."
+          >
+            <DividedInfoRows>
+              <InfoRow label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} className="first:pt-0" />
+              <InfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
+              <InfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} className="text-xs" /> : 'N/A'} />
+              <InfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} className="text-xs" /> : 'N/A'} className="last:pb-0" />
+            </DividedInfoRows>
+          </CardSection>
 
           {/* Extensions */}
-          <div className="rounded-xl border bg-card p-5 space-y-1 self-start">
-            <SectionHeader icon={Lock} title="Certificate Extensions" />
-            <DetailItem
-              label="Basic Constraints"
-              value={
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">CA:</span>
-                  <Badge
-                    variant={caDetails.isCa ? 'default' : 'secondary'}
-                    className="text-xs"
-                  >
-                    {caDetails.isCa ? 'TRUE' : 'FALSE'}
-                  </Badge>
-                </div>
-              }
-            />
-            <DetailItem
-              label="Key Usages"
-              value={
-                (caDetails.keyUsage && caDetails.keyUsage.length > 0) || (caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0) ? (
-                  <div className="flex flex-wrap gap-1">
-                    {caDetails.keyUsage?.map(u => <Badge key={u} variant="outline" className="text-xs">{toTitleCase(u)}</Badge>)}
-                    {caDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{toTitleCase(u)}</Badge>)}
+          <CardSection
+            icon={Lock}
+            title="Certificate Extensions"
+            description="Basic constraints and intended usages defined on the certificate."
+          >
+            <DividedInfoRows>
+              <InfoRow
+                label="Basic Constraints"
+                className="first:pt-0"
+                value={
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">CA:</span>
+                    <Badge
+                      variant={caDetails.isCa ? 'default' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {caDetails.isCa ? 'TRUE' : 'FALSE'}
+                    </Badge>
                   </div>
-                ) : 'Not Specified'
-              }
-              showSeparator={false}
-            />
-          </div>
+                }
+              />
+              <InfoRow
+                label="Key Usages"
+                className="last:pb-0"
+                value={
+                  (caDetails.keyUsage && caDetails.keyUsage.length > 0) || (caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0) ? (
+                    <div className="flex flex-wrap gap-1">
+                      {caDetails.keyUsage?.map(u => <Badge key={u} variant="outline" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                      {caDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                    </div>
+                  ) : 'Not Specified'
+                }
+              />
+            </DividedInfoRows>
+          </CardSection>
 
           {/* Default Issuance Profile */}
-          <div className="rounded-xl border bg-card p-5">
-            <div className="flex items-start justify-between gap-2 mb-4">
-              <SectionHeader icon={Info} title="Default Issuance Profile" />
-              {!isEditingProfile ? (
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setIsEditingProfile(true)}>
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              ) : (
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleCancelEdit} disabled={isSubmitting}>
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
-
+          <CardSection
+            icon={Info}
+            title="Default Issuance Profile"
+            description="Profile used by default when this CA issues new certificates."
+            action={!isEditingProfile ? (
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setIsEditingProfile(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleCancelEdit} disabled={isSubmitting}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          >
             {!isEditingProfile ? (
               <div className="space-y-3">
                 {caDetails.defaultProfileId && selectedProfileForDisplay ? (
                   <IssuanceProfileCard profile={selectedProfileForDisplay} />
                 ) : (
-                  <p className="text-sm text-muted-foreground">No default profile set.</p>
+                  <Alert variant="default" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <AlertTitle className="text-amber-700 dark:text-amber-400 text-sm">No default profile set</AlertTitle>
+                    <AlertDescription className="text-amber-600/80 dark:text-amber-500 text-xs">
+                      Certificates issued by this CA will use default settings. Set a profile to enforce key usage, validity, and extensions.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
             ) : (
@@ -393,19 +459,23 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 </div>
               </div>
             )}
-          </div>
+          </CardSection>
           </div>
 
           {/* ── Distribution Points ── */}
           {hasDistribution && (
-            <div className="rounded-xl border bg-card p-5 space-y-4">
-              <SectionHeader icon={LinkIcon} title="Distribution Points" />
+            <CardSection
+              icon={LinkIcon}
+              title="Distribution Points"
+              description="Published CRL, OCSP, and issuer endpoints for relying parties."
+              contentClassName="space-y-4"
+            >
               <div className="space-y-4">
                 <UrlChips urls={caDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
                 <UrlChips urls={caDetails.ocspUrls} label="OCSP Responders" />
                 <UrlChips urls={caDetails.caIssuersUrls} label="CA Issuers (AIA)" />
               </div>
-            </div>
+            </CardSection>
           )}
           </div>
         </SplitPanelLayout>
@@ -446,98 +516,120 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
-          {/* General */}
-          <div className="rounded-xl border bg-card p-5 space-y-1">
-            <SectionHeader icon={Info} title="General Information" />
-            <DetailItem label="Subject" value={certDetails.subject} />
-            <DetailItem label="Issuer" value={certDetails.issuer} />
-            <DetailItem label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
-            <DetailItem label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString="PPpp" />} />
-            <DetailItem label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString="PPpp" highlightExpired />} showSeparator={false} />
-          </div>
+          <CardSection
+            icon={Info}
+            title="General Information"
+            description="Identity, issuer, validity period, and serial details for this certificate."
+          >
+            <DividedInfoRows>
+              <InfoRow label="Subject" value={certDetails.subject} className="first:pt-0" />
+              <InfoRow label="Issuer" value={certDetails.issuer} />
+              <InfoRow label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
+              <InfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString="PPpp" />} />
+              <InfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString="PPpp" highlightExpired />} className="last:pb-0" />
+            </DividedInfoRows>
+          </CardSection>
 
-          {/* Key & Signature */}
-          <div className="rounded-xl border bg-card p-5 space-y-1">
-            <SectionHeader icon={KeyRound} title="Key &amp; Signature" />
-            <DetailItem label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} />
-            <DetailItem label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
-            <DetailItem
-              label="SHA-256 Fingerprint"
-              value={certDetails.fingerprintSha256
-                ? <IdentifierDisplay value={certDetails.fingerprintSha256} className="text-xs" />
-                : 'N/A'}
-            />
-            {certDetails.rawApiData?.subject_key_id && (
-              <DetailItem label="SKI" value={<IdentifierDisplay value={certDetails.rawApiData.subject_key_id} className="text-xs" />} />
-            )}
-            <DetailItem
-              label="AKI"
-              value={
-                certDetails.rawApiData?.authority_key_id && onAkiClick ? (
-                  <button
-                    onClick={() => onAkiClick(certDetails.rawApiData.authority_key_id)}
-                    className="text-xs font-mono text-primary hover:underline text-left break-all"
-                    title="Find Issuer CA by AKI"
-                  >
+          <CardSection
+            icon={KeyRound}
+            title="Key & Signature"
+            description="Algorithm details, fingerprint material, and issuer key identifiers."
+          >
+            <DividedInfoRows>
+              <InfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
+              <InfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
+              <InfoRow
+                label="SHA-256 Fingerprint"
+                value={
+                  certDetails.fingerprintSha256
+                    ? <IdentifierDisplay value={certDetails.fingerprintSha256} className="text-xs" />
+                    : 'N/A'
+                }
+              />
+              {certDetails.rawApiData?.subject_key_id && (
+                <InfoRow
+                  label="SKI"
+                  value={<IdentifierDisplay value={certDetails.rawApiData.subject_key_id} className="text-xs" />}
+                />
+              )}
+              <InfoRow
+                label="AKI"
+                value={
+                  certDetails.rawApiData?.authority_key_id && onAkiClick ? (
+                    <button
+                      onClick={() => onAkiClick(certDetails.rawApiData.authority_key_id)}
+                      className="text-left text-primary hover:underline"
+                      title="Find Issuer CA by AKI"
+                    >
+                      <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} className="text-xs" />
+                    </button>
+                  ) : certDetails.rawApiData?.authority_key_id ? (
                     <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} className="text-xs" />
-                  </button>
-                ) : certDetails.rawApiData?.authority_key_id ? (
-                  <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} className="text-xs" />
-                ) : 'N/A'
-              }
-              showSeparator={false}
-            />
-          </div>
+                  ) : 'N/A'
+                }
+                className="last:pb-0"
+              />
+            </DividedInfoRows>
+          </CardSection>
 
-          {/* Extensions */}
-          <div className="rounded-xl border bg-card p-5 space-y-1 lg:col-span-2 self-start">
-            <SectionHeader icon={Lock} title="Certificate Extensions" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <DetailItem
-                label="Subject Alternative Names"
-                value={
-                  certDetails.sans && certDetails.sans.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {certDetails.sans.map((san, i) => <Badge key={i} variant="secondary" className="text-xs">{san}</Badge>)}
-                    </div>
-                  ) : 'Not Specified'
-                }
-                showSeparator={false}
-              />
-              <DetailItem
-                label="Key Usages"
-                value={
-                  (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
-                    <div className="flex flex-wrap gap-1">
-                      {certDetails.keyUsage?.map(u => <Badge key={u} variant="outline" className="text-xs">{toTitleCase(u)}</Badge>)}
-                      {certDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{toTitleCase(u)}</Badge>)}
-                    </div>
-                  ) : 'Not Specified'
-                }
-                showSeparator={false}
-              />
-            </div>
+          <div className="lg:col-span-2">
+            <CardSection
+              icon={Lock}
+              title="Certificate Extensions"
+              description="Alternative names and intended usages defined in the certificate."
+            >
+              <DividedInfoRows>
+                <InfoRow
+                  label="Subject Alternative Names"
+                  className="first:pt-0"
+                  value={
+                    certDetails.sans && certDetails.sans.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {certDetails.sans.map((san, i) => <Badge key={i} variant="secondary" className="text-xs">{san}</Badge>)}
+                      </div>
+                    ) : 'Not Specified'
+                  }
+                />
+                <InfoRow
+                  label="Key Usages"
+                  className="last:pb-0"
+                  value={
+                    (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
+                      <div className="flex flex-wrap gap-1">
+                        {certDetails.keyUsage?.map(u => <Badge key={u} variant="outline" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                        {certDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                      </div>
+                    ) : 'Not Specified'
+                  }
+                />
+              </DividedInfoRows>
+            </CardSection>
           </div>
         </div>
 
-        {/* Distribution Points */}
         {hasDistribution && (
-          <div className="rounded-xl border bg-card p-5 space-y-4">
-            <SectionHeader icon={LinkIcon} title="Distribution Points" />
+          <CardSection
+            icon={LinkIcon}
+            title="Distribution Points"
+            description="Published CRL, OCSP, and issuer endpoints for this certificate."
+            contentClassName="space-y-4 p-6"
+          >
             <div className="space-y-4">
               <UrlChips urls={certDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
               <UrlChips urls={certDetails.ocspUrls} label="OCSP Responders" />
               <UrlChips urls={certDetails.caIssuersUrls} label="CA Issuers (AIA)" />
             </div>
-          </div>
+          </CardSection>
         )}
 
-        {/* Issuance Chain */}
         {certificateSpecific.certificateChainForVisualizer && (
-          <div className="rounded-xl border bg-card p-5">
-            <SectionHeader icon={Network} title="Issuance Chain" />
+          <CardSection
+            icon={Network}
+            title="Issuance Chain"
+            description="Trust path from this certificate to its issuing authorities."
+          >
             <IssuanceChainVisualizer
               certificateChain={certificateSpecific.certificateChainForVisualizer}
               currentCertificate={{
@@ -547,7 +639,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 statusText: certificateSpecific.apiStatusText,
               }}
             />
-          </div>
+          </CardSection>
         )}
       </div>
     );
@@ -555,4 +647,3 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
 
   return <p>Invalid itemType or missing data.</p>;
 };
-

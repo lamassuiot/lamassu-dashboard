@@ -12,6 +12,7 @@ interface LamassuConfig {
   LAMASSU_PUBLIC_API?: string;
   LAMASSU_CONNECTORS?: string[];
   LAMASSU_FOOTER_ENABLED?: boolean;
+  TOAST_POSITION?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   [key: string]: any;
 }
 

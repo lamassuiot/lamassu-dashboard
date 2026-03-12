@@ -29,7 +29,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
+import { FileText, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -236,7 +236,11 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
   const showGlobalBreadcrumbs =
     !pathname.startsWith('/certificate-authorities/details') &&
-    !pathname.startsWith('/certificates/details');
+    !pathname.startsWith('/certificates/details') &&
+    !pathname.startsWith('/kms/keys/details') &&
+    !pathname.startsWith('/signing-profiles/edit') &&
+    !(pathname.startsWith('/registration-authorities/new') && !!searchParams.get('raId')) &&
+    !pathname.startsWith('/verification-authorities');
   let userRoles: string[] = [];
   if (isAuthenticated() && user?.access_token) {
     try {
@@ -646,7 +650,7 @@ export default function RootLayout({
               <React.Suspense fallback={<LoadingState />}>
                 <InnerLayout>{children}</InnerLayout>
               </React.Suspense>
-              <ThemedToaster position="top-right" offset={{ top: 40, right: 16 }} />
+              <ThemedToaster offset={{ top: 40 }} />
             </IdentifierDisplayProvider>
           </AuthProvider>
         </ConfigProvider>

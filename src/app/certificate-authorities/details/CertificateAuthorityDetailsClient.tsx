@@ -9,7 +9,6 @@ import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListC
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
@@ -30,6 +29,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaStatsDisplay } from '@/components/ca/details/CaStatsDisplay';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificatesTab';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 
 
 interface CaStats {
@@ -74,7 +74,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const [caDetails, setCaDetails] = useState<CA | null>(null);
   const [caPathToRoot, setCaPathToRoot] = useState<CA[]>([]);
-  const [placeholderSerial, setPlaceholderSerial] = useState<string>('');
+  const placeholderSerial = '';
   const [fullChainPemString, setFullChainPemString] = useState<string>('');
 
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
@@ -214,6 +214,7 @@ export default function CertificateAuthorityDetailsClient() {
         // Success
         setCaDetails(prev => prev ? { ...prev, status: 'revoked' } : null);
         sileo.success({
+          position: "top-center",
             title: "Certification Authority Revoked",
             description: `Certification Authority "${caToRevoke.name}" has been successfully revoked.`
         });
@@ -412,58 +413,90 @@ export default function CertificateAuthorityDetailsClient() {
     : caDetails.status === 'revoked'
     ? 'bg-destructive'
     : 'bg-amber-500';
-  const iconBoxClass = caIsActive
-    ? 'bg-primary/10 border-primary/20 text-primary'
-    : caDetails.status === 'revoked'
-    ? 'bg-destructive/10 border-destructive/20 text-destructive'
-    : 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400';
 
   return (
     <div className="w-full space-y-5">
 
-      {/* ── Breadcrumb navigation ── */}
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              className="cursor-pointer"
-              onClick={() => routerHook.push('/')}
-            >
-              Home
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              className="cursor-pointer"
-              onClick={() => routerHook.push('/certificate-authorities')}
-            >
-              Certificate Authorities
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          {caPathToRoot.slice(0, -1).map((ca) => (
-            <React.Fragment key={ca.id}>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  className="cursor-pointer"
-                  onClick={() => routerHook.push(`/certificate-authorities/details?caId=${ca.id}`)}
-                >
-                  {ca.name}
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-            </React.Fragment>
-          ))}
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>
+      {/* ── Breadcrumb + actions row ── */}
+      <DetailBreadcrumbRow
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Certificate Authorities', href: '/certificate-authorities' },
+          ...caPathToRoot.slice(0, -1).map((ca) => ({
+            label: ca.name,
+            href: `/certificate-authorities/details?caId=${ca.id}`,
+          })),
+          {
+            label: (
               <Badge variant="default" className="text-xs">
                 {caDetails.name}
               </Badge>
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+            ),
+          },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            {isCaOnHold ? (
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleReactivateCA}>
+                <ShieldAlert className="h-4 w-4" /> Re-activate
+              </Button>
+            ) : caDetails.status !== 'revoked' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                onClick={handleCARevocation}
+                disabled={isRevoking}
+              >
+                {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+                {isRevoking ? 'Revoking…' : 'Revoke'}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                onClick={handleDeleteCA}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {isDeleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="px-2.5">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={handleOpenCrlModal}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download / View CRL
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => routerHook.push(`/verification-authorities?caId=${caDetails.id}`)}>
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Go to VA Role
+                </DropdownMenuItem>
+                {caDetails.status !== 'revoked' && (
+                  <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Reissue CA
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
+                  disabled={!caIsActive}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Issue Certificate
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        }
+      />
 
       {/* ── Hero header card ── */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -475,12 +508,12 @@ export default function CertificateAuthorityDetailsClient() {
 
             {/* Left: identity */}
             <div className="flex items-start gap-4">
-              {/* Icon box */}
-              <div className={cn(
-                'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border',
-                iconBoxClass
-              )}>
-                <ShieldCheck className="h-5 w-5" />
+              {/* Icon */}
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden">
+                {cryptoEngine
+                  ? <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
+                  : <ShieldCheck className={cn('h-7 w-7', caIsActive ? 'text-primary' : caDetails.status === 'revoked' ? 'text-destructive' : 'text-amber-500')} />
+                }
               </div>
 
               <div className="min-w-0 space-y-2">
@@ -549,64 +582,11 @@ export default function CertificateAuthorityDetailsClient() {
             </div>
 
             {/* Center: issued cert stats */}
-            <div className="xl:flex-1 px-6 xl:border-x">
+            <div className="xl:flex-1 px-6 xl:border-l">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Issued Certificates</p>
               <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
             </div>
 
-            {/* Right: action buttons */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {isCaOnHold ? (
-                <Button size="sm" onClick={handleReactivateCA}>
-                  <ShieldAlert className="mr-2 h-4 w-4" /> Re-activate
-                </Button>
-              ) : caDetails.status !== 'revoked' ? (
-                <Button variant="destructive" size="sm" onClick={handleCARevocation} disabled={isRevoking}>
-                  {isRevoking
-                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    : <ShieldAlert className="mr-2 h-4 w-4" />}
-                  {isRevoking ? 'Revoking…' : 'Revoke'}
-                </Button>
-              ) : (
-                <Button variant="destructive" size="sm" onClick={handleDeleteCA} disabled={isDeleting}>
-                  {isDeleting
-                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    : <Trash2 className="mr-2 h-4 w-4" />}
-                  {isDeleting ? 'Deleting…' : 'Delete'}
-                </Button>
-              )}
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="px-2.5">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleOpenCrlModal}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download / View CRL
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => routerHook.push(`/verification-authorities?caId=${caDetails.id}`)}>
-                    <ShieldCheck className="mr-2 h-4 w-4" />
-                    Go to VA Role
-                  </DropdownMenuItem>
-                  {caDetails.status !== 'revoked' && (
-                    <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Reissue CA
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem
-                    onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
-                    disabled={!caIsActive}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Issue Certificate
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
           </div>
         </div>
       </div>

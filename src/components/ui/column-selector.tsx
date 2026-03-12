@@ -33,7 +33,7 @@ export function ColumnSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-2">
+        <Button variant="outline" size="sm" className="h-9 gap-2">
           <Columns3 className="h-4 w-4" />
           Columns
         </Button>

@@ -24,10 +24,9 @@ import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTab
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchDeviceById } from '@/lib/devices-api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -91,7 +90,7 @@ export default function CertificateDetailsClient() { // Renamed component
 
   // State to determine if delete action is allowed
   const [canDelete, setCanDelete] = useState(false);
-  const [isCheckingUsage, setIsCheckingUsage] = useState(true);
+  const [, setIsCheckingUsage] = useState(true);
 
 
   const fullChainPemString = useMemo(() => {
@@ -436,26 +435,19 @@ export default function CertificateDetailsClient() { // Renamed component
   return (
     <div className="w-full space-y-5">
 
-      {/* Breadcrumb */}
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/">Home</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/certificates">Certificates</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>
+      <DetailBreadcrumbRow
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Certificates', href: '/certificates' },
+          {
+            label: (
               <Badge variant="default" className="max-w-[320px] truncate text-xs">
                 {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
               </Badge>
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+            ),
+          },
+        ]}
+      />
 
       {/* Hero card */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -581,7 +573,7 @@ export default function CertificateDetailsClient() { // Renamed component
             value="pem"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 pb-3 pt-1 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none font-medium"
           >
-            <Code2 className="mr-2 h-4 w-4" />PEM Data
+            <Code2 className="mr-2 h-4 w-4" />Certificate PEM
           </TabsTrigger>
           <TabsTrigger
             value="metadata"
@@ -591,7 +583,7 @@ export default function CertificateDetailsClient() { // Renamed component
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="information">
+        <TabsContent value="information" className="mt-6 pb-6">
             <InformationTabContent
               item={certificateDetails}
               itemType="certificate"
@@ -606,7 +598,7 @@ export default function CertificateDetailsClient() { // Renamed component
             />
         </TabsContent>
 
-        <TabsContent value="pem">
+        <TabsContent value="pem" className="mt-6 pb-6">
             <PemTabContent
                 singlePemData={certificateDetails.pemData}
                 fullChainPemData={fullChainPemString}
@@ -622,7 +614,7 @@ export default function CertificateDetailsClient() { // Renamed component
             />
         </TabsContent>
 
-        <TabsContent value="metadata">
+        <TabsContent value="metadata" className="mt-6 pb-6">
             <MetadataTabContent
               rawJsonData={certificateDetails.rawApiData?.metadata}
               itemName={getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}

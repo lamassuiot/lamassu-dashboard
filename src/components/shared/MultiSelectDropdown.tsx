@@ -14,7 +14,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 
 interface Option {
   value: string;
@@ -59,17 +58,23 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
     .filter((option) => selectedValues.includes(option.value))
     .map((option) => option.label);
 
+  const selectedSummary =
+    selectedLabels.length <= 2
+      ? selectedLabels.join(', ')
+      : `${selectedLabels.slice(0, 2).join(', ')} +${selectedLabels.length - 2}`;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           id={id}
           variant="outline"
-          className={cn("w-full justify-between font-normal h-auto min-h-10", className)}
+          className={cn("h-10 w-full justify-between gap-2 font-normal", className)}
+          title={selectedLabels.length > 0 ? selectedLabels.join(', ') : buttonText}
         >
-          <div className="flex flex-wrap gap-1 items-center">
+          <div className="min-w-0 flex-1 truncate text-left">
             {selectedLabels.length > 0 ? (
-              selectedLabels.map((label) => <Badge key={label} variant="secondary">{label}</Badge>)
+              <span className="block truncate">{selectedSummary}</span>
             ) : (
               <span className="text-muted-foreground">{buttonText}</span>
             )}
@@ -78,7 +83,7 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end">
-        <DropdownMenuLabel>Select Sources</DropdownMenuLabel>
+        <DropdownMenuLabel>Select options</DropdownMenuLabel>
         <div className="flex justify-between px-2 py-1">
             <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={handleSelectAll}>Select All</Button>
             <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={handleClear}>Clear</Button>

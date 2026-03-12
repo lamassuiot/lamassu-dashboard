@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Toaster } from 'sileo';
+import { getConfigValue } from '@/contexts/ConfigContext';
 
 function useIsDark() {
   const [isDark, setIsDark] = useState(
@@ -27,10 +28,11 @@ interface ThemedToasterProps {
 
 export function ThemedToaster({ position = 'top-right', offset }: ThemedToasterProps) {
   const isDark = useIsDark();
+  const configuredPosition = getConfigValue('TOAST_POSITION', position) as React.ComponentProps<typeof Toaster>['position'];
 
   return (
     <Toaster
-      position={position}
+      position={configuredPosition}
       offset={offset}
       options={{ fill: isDark ? '#fafafa' : '#18181b' }}
     />

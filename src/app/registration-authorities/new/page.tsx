@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,8 +19,7 @@ import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal'; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -27,13 +27,37 @@ import { sileo } from '@/lib/toast';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { createOrUpdateRa, fetchRaById, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
-import { SectionHeader } from '@/components/shared/FormComponents';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 
 
 const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];
 const serverKeygenRsaBits = [ { value: '2048', label: '2048 bit' }, { value: '3072', label: '3072 bit' }, { value: '4096', label: '4096 bit' }];
 const serverKeygenEcdsaCurves = [ { value: 'P-256', label: 'P-256' }, { value: 'P-384', label: 'P-384' }, { value: 'P-521', label: 'P-521' }];
 
+function SettingsCard({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="overflow-hidden rounded-xl shadow-sm">
+      <CardHeader className="border-b py-4">
+        <CardTitle className="flex items-center text-lg">
+          <Icon className="mr-3 h-5 w-5 text-primary" />
+          {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 p-6">{children}</CardContent>
+    </Card>
+  );
+}
 
 function hslToHex(h: number, s: number, l: number) {
   l /= 100;
@@ -409,32 +433,144 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
 
   const PageIcon = isEditMode ? Edit : PlusCircle;
+  const heroBadges = [
+    registrationMode,
+    protocol,
+    authMode,
+  ];
+  const summaryCards = [
+    {
+      label: 'Enrollment CA',
+      value: enrollmentCa?.name || 'Unassigned',
+      hint: enrollmentCa ? 'Certificate issuer' : 'Selection required',
+      emphasized: true,
+    },
+    {
+      label: 'Validation CAs',
+      value: validationCAs.length.toString(),
+      hint: validationCAs.length === 1 ? 'Authority configured' : 'Authorities configured',
+    },
+    {
+      label: 'Managed CAs',
+      value: managedCAs.length.toString(),
+      hint: managedCAs.length === 1 ? 'Distributed authority' : 'Distributed authorities',
+    },
+    {
+      label: 'Renewal Delta',
+      value: allowedRenewalDelta,
+      hint: 'Max renewal grace period',
+    },
+  ];
+  const SelectedDeviceIcon = getLucideIconByName(selectedDeviceIconName);
 
   return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.back()} className="mb-4"><ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs</Button>
-      <div> 
-        <div className="flex flex-col space-y-1.5 p-6 pb-2"> 
-          <h1 className="text-xl font-headline flex items-center font-semibold leading-none tracking-tight"> 
-            <PageIcon className="mr-2 h-6 w-6 text-primary" /> {isEditMode ? 'Edit' : 'Create New'} Registration Authority
+    <div className="mb-8 w-full space-y-6">
+      {isEditMode ? (
+        <DetailBreadcrumbRow
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Registration Authorities', href: '/registration-authorities' },
+            {
+              label: (
+                <Badge variant="default" className="text-xs">
+                  {raName || raId || 'Edit'}
+                </Badge>
+              ),
+            },
+          ]}
+          actions={
+            <Button variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs
+            </Button>
+          }
+        />
+      ) : (
+        <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs</Button>
+      )}
+
+      {isEditMode ? (
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div className="h-1 w-full bg-primary" />
+          <div className="p-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex items-start gap-4">
+                <div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: selectedDeviceIconBgColor }}
+                >
+                  {SelectedDeviceIcon ? (
+                    <SelectedDeviceIcon className="h-6 w-6" style={{ color: selectedDeviceIconColor }} />
+                  ) : (
+                    <Settings className="h-6 w-6 text-primary" />
+                  )}
+                </div>
+
+                <div className="min-w-0 space-y-2">
+                  <div>
+                    <h1 className="text-2xl font-semibold tracking-tight">{raName || 'Edit Registration Authority'}</h1>
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                      Modify settings for the Registration Authority.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">{raId || raIdFromQuery}</code>
+                    {heroBadges.map((badge) => (
+                      <Badge key={badge} variant="outline" className="text-xs">
+                        {badge}
+                      </Badge>
+                    ))}
+                    {enableKeyGeneration ? <Badge variant="secondary" className="text-xs">Server Keygen</Badge> : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-4 xl:min-w-[640px]">
+                {summaryCards.map((item) => (
+                  <div key={item.label} className={item.emphasized ? '' : 'text-center'}>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                    {item.emphasized ? (
+                      <div className="mt-1">
+                        <span className="inline-flex max-w-full rounded-md border bg-muted px-2.5 py-1 text-sm font-medium">
+                          <span className="truncate">{item.value}</span>
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">{item.hint}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <h1 className="flex items-center text-2xl font-semibold tracking-tight">
+            <PageIcon className="mr-2 h-6 w-6 text-primary" /> Create New Registration Authority
           </h1>
-          <p className="text-sm text-muted-foreground"> 
-            {isEditMode ? 'Modify settings for the Registration Authority.' : 'Configure all settings for the new Registration Authority below.'}
+          <p className="text-sm text-muted-foreground">
+            Configure all settings for the new Registration Authority below.
           </p>
         </div>
-        <div className="p-6 pt-0"> 
-          <form onSubmit={handleSubmit}>
-              <Card className="border-border shadow-sm rounded-md">
-                <SectionHeader icon={Settings} title="General RA Settings" />
-                <CardContent className="space-y-4">
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+              <SettingsCard
+                icon={Settings}
+                title="General RA Settings"
+                description="Define the primary identity used to reference and manage this Registration Authority."
+              >
                   <div><Label htmlFor="raName">RA Name</Label><Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required className="mt-1" />{!raName.trim() && <p className="text-xs text-destructive mt-1">RA Name is required.</p>}</div>
                   <div><Label htmlFor="raId">RA ID</Label><Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} className="mt-1" />{!raId.trim() && !isEditMode && <p className="text-xs text-destructive mt-1">RA ID is required.</p>}</div>
-                </CardContent>
-              </Card>
-              <Separator className="my-6"/>
-              <Card className="border-border shadow-sm rounded-md">
-                <SectionHeader icon={Cpu} title="Enrollment Device Registration" />
-                <CardContent className="space-y-4">
+              </SettingsCard>
+
+              <SettingsCard
+                icon={Cpu}
+                title="Enrollment Device Registration"
+                description="Configure how devices are classified and presented when they register through this authority."
+              >
                   <div>
                   <Label htmlFor="registrationMode">Registration Mode</Label>
                   <Select value={registrationMode} onValueChange={setRegistrationMode}>
@@ -463,12 +599,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">Default icon and colors for devices registered through this RA.</p>
-                </CardContent>
-              </Card>
-              <Separator className="my-6"/>
-              <Card className="border-border shadow-sm rounded-md">
-                <SectionHeader icon={Key} title="Enrollment Settings" />
-                <CardContent className="space-y-4">
+              </SettingsCard>
+
+              <SettingsCard
+                icon={Key}
+                title="Enrollment Settings"
+                description="Control issuance policy, enrollment authentication, and CSR handling for new certificates."
+              >
                   <div>
                     <Label htmlFor="protocol">Protocol</Label>
                     <Select value={protocol} onValueChange={setProtocol}>
@@ -647,12 +784,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                       )}
                   </div>
               )}
-                </CardContent>
-              </Card>
-              <Separator className="my-6"/>
-              <Card className="border-border shadow-sm rounded-md">
-                <SectionHeader icon={PackageCheck} title="Re-Enrollment Settings" />
-                <CardContent className="space-y-4">
+              </SettingsCard>
+
+              <SettingsCard
+                icon={PackageCheck}
+                title="Re-Enrollment Settings"
+                description="Set certificate replacement, renewal windows, and additional trust requirements for re-enrollment."
+              >
                   <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
                     <div className="space-y-0.5">
                       <Label htmlFor="revokeOnReEnroll" className="flex items-center">
@@ -700,12 +838,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                            <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
                         </Button>
                   </div>
-                </CardContent>
-              </Card>
-              <Separator className="my-6"/>
-              <Card className="border-border shadow-sm rounded-md">
-                <SectionHeader icon={Server} title="Server Key Generation" />
-                <CardContent className="space-y-4">
+              </SettingsCard>
+
+              <SettingsCard
+                icon={Server}
+                title="Server Key Generation"
+                description="Define whether the platform generates device keys and what algorithms are permitted."
+              >
                   <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
                     <div className="space-y-0.5">
                       <Label htmlFor="enableKeyGeneration" className="flex items-center">
@@ -718,12 +857,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     </div>
                     <Switch id="enableKeyGeneration" checked={enableKeyGeneration} onCheckedChange={setEnableKeyGeneration} />
                   </div>{enableKeyGeneration && (<div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2"><div><Label htmlFor="serverKeygenType">Key Type</Label><Select value={serverKeygenType} onValueChange={setServerKeygenType}><SelectTrigger id="serverKeygenType" className="mt-1"><SelectValue/></SelectTrigger><SelectContent>{serverKeygenTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor="serverKeygenSpec">{serverKeygenType === 'RSA' ? 'Key Bits' : 'Curve'}</Label><Select value={serverKeygenSpec} onValueChange={setServerKeygenSpec}><SelectTrigger id="serverKeygenSpec" className="mt-1"><SelectValue/></SelectTrigger><SelectContent>{currentServerKeygenSpecOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div></div>)}
-                </CardContent>
-              </Card>
-              <Separator className="my-6"/>
-              <Card className="border-border shadow-sm rounded-md">
-                <SectionHeader icon={AlertTriangle} title="CA Distribution" />
-                <CardContent className="space-y-4">
+              </SettingsCard>
+
+              <SettingsCard
+                icon={AlertTriangle}
+                title="CA Distribution"
+                description="Choose which authorities and chains are distributed to clients through this Registration Authority."
+              >
                   <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
                     <div className="space-y-0.5">
                       <Label htmlFor="includeDownstreamCA" className="flex items-center">
@@ -768,8 +908,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                        <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+              </SettingsCard>
               <div className="flex justify-end space-x-2 pt-8">
                   <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
                   <Button type="submit" disabled={isSubmitting}>
@@ -777,9 +916,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                       {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
                   </Button>
               </div>
-          </form>
-        </div>
-      </div>
+      </form>
       <CaSelectorModal 
         isOpen={isValidationCaModalOpen} 
         onOpenChange={setIsValidationCaModalOpen} 
@@ -832,5 +969,3 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     </div>
   );
 }
-
-

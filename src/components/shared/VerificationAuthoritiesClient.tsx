@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ShieldCheck, Settings, Loader2, AlertTriangle as AlertTriangleIcon, FileText, Download, RefreshCw } from "lucide-react";
@@ -21,12 +22,11 @@ import { DurationInput } from '@/components/shared/DurationInput';
 import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
-import { format, parseISO } from 'date-fns';
-import { DetailItem } from './DetailItem';
 import { cn } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
-import { SectionHeader } from '@/components/shared/FormComponents';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 
 
 const getDefaultVAConfig = (caId: string): VAConfig => ({
@@ -279,29 +279,125 @@ export function VerificationAuthoritiesClient() { // Renamed component
     }
   };
 
+  const summaryCards = selectedCaForConfig ? [
+    {
+      label: 'Refresh Interval',
+      value: config?.refreshInterval || '24h',
+      hint: 'CRL polling cadence',
+    },
+    {
+      label: 'Validity',
+      value: config?.validity || '7d',
+      hint: 'CRL cache duration',
+    },
+    {
+      label: 'Signer',
+      value: selectedCertificateSignerDisplay ? 'Assigned' : 'Unset',
+      hint: selectedCertificateSignerDisplay ? 'Certificate selected' : 'Needs certificate selection',
+    },
+    {
+      label: 'Regenerate',
+      value: config?.regenerateOnRevoke ? 'Immediate' : 'Manual',
+      hint: 'Behavior on revocation',
+    },
+  ] : [];
+
   return (
     <div className="space-y-6 w-full pb-8">
-      <div className="flex items-center space-x-3">
-        <ShieldCheck className="h-8 w-8 text-primary" />
-        <h1 className="text-2xl font-headline font-semibold">Validation Authority (VA) Configuration</h1>
-      </div>
-      <p className="text-sm text-muted-foreground">Configure VA settings per Certificate Authority.</p>
+      <DetailBreadcrumbRow
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Verification Authorities', href: '/verification-authorities' },
+          selectedCaForConfig ? {
+            label: (
+              <Badge variant="default" className="text-xs">
+                {selectedCaForConfig.name}
+              </Badge>
+            ),
+          } : { label: 'Configuration' },
+        ]}
+      />
+
+      {selectedCaForConfig ? (
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div className="h-1 w-full bg-primary" />
+          <div className="p-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-background">
+                  <ShieldCheck className="h-6 w-6 text-primary" />
+                </div>
+
+                <div className="min-w-0 space-y-2">
+                  <div>
+                    <h1 className="text-2xl font-semibold tracking-tight">{selectedCaForConfig.name}</h1>
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                      Modify settings for the Validation Authority.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">
+                      {selectedCaForConfig.id}
+                    </code>
+                    <Badge variant="outline" className="text-xs">VA Configuration</Badge>
+                    {latestCrl ? <Badge variant="secondary" className="text-xs">CRL Available</Badge> : <Badge variant="outline" className="text-xs">No CRL Yet</Badge>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-4 xl:min-w-[640px]">
+                {summaryCards.map((item) => (
+                  <div key={item.label} className="text-center">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
+                    <p className="text-xs text-muted-foreground">{item.hint}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <h1 className="flex items-center text-2xl font-semibold tracking-tight">
+            <ShieldCheck className="mr-2 h-6 w-6 text-primary" />
+            Validation Authority (VA) Configuration
+          </h1>
+          <p className="text-sm text-muted-foreground">Configure VA settings per Certificate Authority.</p>
+        </div>
+      )}
 
       <div>
-        <div className="mb-6 space-y-1">
-            <Label htmlFor="ca-select-button" className="block text-base font-medium">
-              Select Certificate Authority to Configure
-            </Label>
-            <Button
-              id="ca-select-button"
-              variant="outline"
-              onClick={() => setIsCaSelectModalOpen(true)}
-              className="w-full md:w-2/3 lg:w-1/2 justify-start text-left font-normal"
-              disabled={isLoadingCAs || authLoading}
-            >
-              {isLoadingCAs || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedCaForConfig ? `${selectedCaForConfig.name} (${selectedCaForConfig.id})` : "Click to Select a CA...")}
-            </Button>
-          </div>
+        <Card className="overflow-hidden rounded-xl shadow-sm">
+          <CardHeader className="border-b py-4">
+            <CardTitle className="flex items-center text-lg">
+              <Settings className="mr-3 h-5 w-5 text-primary" />
+              Certificate Authority
+            </CardTitle>
+            <CardDescription>Select which Certificate Authority should provide VA settings.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 p-6">
+            <div className="space-y-1">
+              <Label htmlFor="ca-select-button" className="block text-base font-medium">
+                Select Certificate Authority to Configure
+              </Label>
+              <Button
+                id="ca-select-button"
+                variant="outline"
+                onClick={() => setIsCaSelectModalOpen(true)}
+                className="w-full justify-start text-left font-normal md:w-2/3 lg:w-1/2"
+                disabled={isLoadingCAs || authLoading}
+              >
+                {isLoadingCAs || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedCaForConfig ? `${selectedCaForConfig.name} (${selectedCaForConfig.id})` : "Click to Select a CA...")}
+              </Button>
+            </div>
+
+            {selectedCaForConfig && (
+              <CaVisualizerCard ca={selectedCaForConfig} className="max-w-md border-border shadow-none" allCryptoEngines={allCryptoEngines} />
+            )}
+          </CardContent>
+        </Card>
 
           <CaSelectorModal
             isOpen={isCaSelectModalOpen}
@@ -318,14 +414,8 @@ export function VerificationAuthoritiesClient() { // Renamed component
             allCryptoEngines={allCryptoEngines}
           />
 
-          {selectedCaForConfig && (
-            <div className="my-4">
-              <CaVisualizerCard ca={selectedCaForConfig} className="shadow-md border-primary max-w-md" allCryptoEngines={allCryptoEngines} />
-            </div>
-          )}
-
           {isLoadingConfig && selectedCaForConfig && (
-            <div className="flex items-center justify-center p-8 border rounded-lg bg-muted/30 mt-4">
+            <div className="mt-4 flex items-center justify-center rounded-xl border bg-muted/30 p-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="ml-3 text-muted-foreground">Loading VA Configuration...</p>
             </div>
@@ -340,15 +430,16 @@ export function VerificationAuthoritiesClient() { // Renamed component
           )}
 
           {config && selectedCaForConfig && !isLoadingConfig && !errorConfig && (
-            <Card className="border-primary/50 shadow-md mt-4">
-              <CardHeader>
+            <div className="mt-4 space-y-6">
+            <Card className="overflow-hidden rounded-xl shadow-sm">
+              <CardHeader className="border-b py-4">
                 <div className="flex justify-between items-start">
                     <div className="flex-1">
-                        <CardTitle className="text-xl flex items-center">
-                            <Settings className="mr-2 h-6 w-6 text-primary" />
-                            VA Settings for: <span className="font-semibold ml-1">{selectedCaForConfig.name}</span>
+                        <CardTitle className="text-lg flex items-center">
+                            <Settings className="mr-3 h-5 w-5 text-primary" />
+                            VA Settings
                         </CardTitle>
-                        <CardDescription>Define validation parameters for this CA.</CardDescription>
+                        <CardDescription>Define validation parameters for this Certificate Authority.</CardDescription>
                     </div>
                     <Button variant="outline" size="sm" onClick={fetchCurrentVaConfig} disabled={isLoadingConfig}>
                         <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingConfig && "animate-spin")} />
@@ -401,29 +492,6 @@ export function VerificationAuthoritiesClient() { // Renamed component
                   <p className="text-xs text-muted-foreground mt-1">Certificate whose public key corresponds to the SubjectKeyIdentifier in generated CRLs.</p>
                 </div>
 
-                <Card>
-                  <SectionHeader icon={FileText} title="Latest Generated CRL" />
-                  <CardContent className="flex justify-between items-start">
-                    <div className="flex-1">
-                    {latestCrl && (
-                      <Button variant="outline" size="sm" onClick={handleDownloadCrl} disabled={isDownloadingCrl} className="mb-4">
-                        {isDownloadingCrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                        Download CRL
-                      </Button>
-                    )}
-                  {latestCrl ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 border rounded-md p-3 bg-muted/20">
-                      <DetailItem label="Version" value={String(latestCrl.version)} className="py-1" />
-                      <DetailItem label="Valid From" value={format(parseISO(latestCrl.valid_from), 'PPpp')} className="py-1" />
-                      <DetailItem label="Valid Until" value={format(parseISO(latestCrl.valid_until), 'PPpp')} className="py-1" />
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic">No CRL has been generated for this VA role yet.</p>
-                  )}
-                    </div>
-                  </CardContent>
-                </Card>
-
                 <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
                   <div className="space-y-0.5">
                     <Label htmlFor="va-regenerateOnRevoke" className="flex items-center">
@@ -459,10 +527,61 @@ export function VerificationAuthoritiesClient() { // Renamed component
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="overflow-hidden rounded-xl shadow-sm">
+              <CardHeader className="border-b py-4">
+                <CardTitle className="flex items-center text-lg">
+                  <FileText className="mr-3 h-5 w-5 text-primary" />
+                  Latest Generated CRL
+                </CardTitle>
+                <CardDescription>Review the newest CRL currently generated by this Validation Authority.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {latestCrl && (
+                  <Button variant="outline" size="sm" onClick={handleDownloadCrl} disabled={isDownloadingCrl} className="mb-4">
+                    {isDownloadingCrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    Download CRL
+                  </Button>
+                )}
+                {latestCrl ? (
+                  <div className="divide-y">
+                    <div className="py-3 first:pt-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Version</p>
+                          <p className="mt-1 text-sm font-medium">{latestCrl.version}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid From</p>
+                          <DateDisplay date={latestCrl.valid_from} formatString="PPP" showRelative={false} className="mt-1 text-sm font-medium" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="py-3 last:pb-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid Until</p>
+                          <DateDisplay date={latestCrl.valid_until} formatString="PPP" showRelative={false} className="mt-1 text-sm font-medium" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm italic text-muted-foreground">No CRL has been generated for this VA role yet.</p>
+                )}
+              </CardContent>
+            </Card>
+            </div>
           )}
 
           {!selectedCaForConfig && !isLoadingCAs && !authLoading && (
-            <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
+            <div className="mt-6 rounded-xl border-2 border-dashed border-border bg-muted/20 p-8 text-center">
               <h3 className="text-lg font-semibold text-muted-foreground">Select a CA</h3>
               <p className="text-sm text-muted-foreground">Choose a Certificate Authority from the selector above to view or edit its VA settings.</p>
             </div>

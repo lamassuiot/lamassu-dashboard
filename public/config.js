@@ -42,6 +42,9 @@ window.lamassuConfig = {
     // --- UI Customization ---
     // Set to true to enable loading of a custom footer from /public/footer.html
     LAMASSU_FOOTER_ENABLED: false,
+
+    // Default position for sileo notifications.
+    TOAST_POSITION: "top-center",
   
     // A comma-separated list of available connector instances for platform integrations.
     // This allows the UI to present a list of possible integrations to the user.
