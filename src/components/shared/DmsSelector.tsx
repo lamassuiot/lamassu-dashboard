@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchAllRegistrationAuthorities, type ApiRaItem } from '@/lib/dms-api';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 export interface DmsOption {
   id: string;
@@ -178,7 +177,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0" align="start">
-        <ScrollArea className="max-h-[300px]">
+        <div className="max-h-[300px] overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -237,7 +236,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </PopoverContent>
     </Popover>
   );
