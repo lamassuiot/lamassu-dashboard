@@ -9,64 +9,37 @@ export interface EcdsaDerConversionResult {
 }
 
 /**
- * Converts a raw ECDSA signature (r||s concatenation) to DER/ASN.1 SEQUENCE.
+ * Returns true only if `data` is a structurally valid DER SEQUENCE containing
+ * exactly two INTEGER values that together consume the entire buffer.
  *
- * If the input already looks like a valid DER SEQUENCE it is returned
- * unchanged with `format: 'der'`. Otherwise the raw r||s bytes are decoded
- * and re-encoded into DER, returning `format: 'raw'`.
- *
- * @param rawSig           - Raw signature bytes (may already be DER).
- * @param expectedRawLength - Optional expected byte length of a raw signature
- *                            for this algorithm (e.g. 64 for ECDSA_SHA_256).
+ * This is a strict check — it intentionally rejects inputs where the first
+ * byte is 0x30 but the structure is not a well-formed ECDSA signature, which
+ * avoids misclassifying raw r||s signatures whose first byte happens to be
+ * 0x30.
  */
-export function rawEcdsaSigToDer(
-  rawSig: Uint8Array,
-  expectedRawLength?: number,
-): EcdsaDerConversionResult {
-  const DER_SEQUENCE_TAG = 0x30;
+function isValidEcdsaDer(data: Uint8Array): boolean {
+  // Work on a clean copy to avoid byteOffset aliasing issues
+  const buf = new Uint8Array(data).buffer;
+  const asn1 = asn1js.fromBER(buf);
+  // offset must equal data.length — the whole buffer must be consumed
+  if (asn1.offset === -1 || asn1.offset !== data.length) return false;
+  if (!(asn1.result instanceof asn1js.Sequence)) return false;
+  const values = (asn1.result as asn1js.Sequence).valueBlock.value;
+  return (
+    Array.isArray(values) &&
+    values.length === 2 &&
+    values[0] instanceof asn1js.Integer &&
+    values[1] instanceof asn1js.Integer
+  );
+}
 
-  // Detect whether the input is already DER-encoded
-  if (rawSig.length >= 2 && rawSig[0] === DER_SEQUENCE_TAG) {
-    const lengthByte = rawSig[1];
-    let sequenceLength = 0;
-    let headerLength = 2;
-
-    if ((lengthByte & 0x80) === 0) {
-      sequenceLength = lengthByte;
-    } else {
-      const lengthBytesCount = lengthByte & 0x7f;
-      if (rawSig.length < headerLength + lengthBytesCount) {
-        throw new Error("Invalid DER-encoded ECDSA signature length.");
-      }
-      sequenceLength = 0;
-      for (let i = 0; i < lengthBytesCount; i++) {
-        sequenceLength = (sequenceLength << 8) | rawSig[headerLength + i];
-      }
-      headerLength += lengthBytesCount;
-    }
-
-    if (headerLength + sequenceLength <= rawSig.length) {
-      const derView = rawSig.slice(0, headerLength + sequenceLength);
-      return { der: derView.buffer, format: "der" };
-    }
-  }
-
-  // Treat the input as raw r||s bytes
-  const expectedLength =
-    expectedRawLength ??
-    (KNOWN_ECDSA_RAW_SIG_LENGTHS.has(rawSig.length) ? rawSig.length : undefined);
-
-  if (!expectedLength || rawSig.length !== expectedLength) {
-    throw new Error(
-      `Unexpected ECDSA signature length: ${rawSig.length} bytes`,
-    );
-  }
-
+/** Encodes a raw r||s byte array into a DER SEQUENCE of two INTEGERs. */
+function encodeRawToDer(rawSig: Uint8Array): EcdsaDerConversionResult {
   const half = rawSig.length / 2;
   let r = rawSig.slice(0, half);
   let s = rawSig.slice(half);
 
-  // Strip leading zeros
+  // Strip leading zeros but keep at least one byte
   while (r.length > 1 && r[0] === 0) r = r.slice(1);
   while (s.length > 1 && s[0] === 0) s = s.slice(1);
 
@@ -82,11 +55,56 @@ export function rawEcdsaSigToDer(
     s = prefixed;
   }
 
-  const rAsn1 = new asn1js.Integer({ valueHex: r.buffer });
-  const sAsn1 = new asn1js.Integer({ valueHex: s.buffer });
+  const rAsn1 = new asn1js.Integer({ valueHex: new Uint8Array(r).buffer });
+  const sAsn1 = new asn1js.Integer({ valueHex: new Uint8Array(s).buffer });
   const sequence = new asn1js.Sequence({ value: [rAsn1, sAsn1] });
 
   return { der: sequence.toBER(false), format: "raw" };
+}
+
+/**
+ * Converts a raw ECDSA signature (r||s concatenation) to DER/ASN.1 SEQUENCE.
+ *
+ * Detection strategy (in order):
+ * 1. If `expectedRawLength` is provided and `rawSig.length` matches it
+ *    exactly, the input is unambiguously raw — no DER sniffing is performed.
+ *    This eliminates the ≈1/256 false-positive where the first byte of `r`
+ *    happens to be 0x30 and the following length bytes look plausible.
+ * 2. Otherwise, validate as DER structurally via asn1js (must be a SEQUENCE
+ *    of exactly two INTEGERs that consumes the entire buffer).  Only if that
+ *    passes is the input treated as DER.
+ * 3. Fall back to treating as raw r||s.
+ *
+ * @param rawSig            - Signature bytes (raw r||s or DER).
+ * @param expectedRawLength - Expected byte length of a raw signature for this
+ *                            algorithm (e.g. 64 for ECDSA_SHA_256).  When
+ *                            provided, an exact length match bypasses all
+ *                            heuristic DER detection.
+ */
+export function rawEcdsaSigToDer(
+  rawSig: Uint8Array,
+  expectedRawLength?: number,
+): EcdsaDerConversionResult {
+  // Fast path: length unambiguously identifies raw r||s
+  if (expectedRawLength !== undefined && rawSig.length === expectedRawLength) {
+    return encodeRawToDer(rawSig);
+  }
+
+  // Structural DER validation — not a header-byte heuristic
+  if (isValidEcdsaDer(rawSig)) {
+    return { der: new Uint8Array(rawSig).buffer, format: "der" };
+  }
+
+  // Must be raw — validate length before encoding
+  const expectedLength =
+    expectedRawLength ??
+    (KNOWN_ECDSA_RAW_SIG_LENGTHS.has(rawSig.length) ? rawSig.length : undefined);
+
+  if (!expectedLength || rawSig.length !== expectedLength) {
+    throw new Error(`Unexpected ECDSA signature length: ${rawSig.length} bytes`);
+  }
+
+  return encodeRawToDer(rawSig);
 }
 
 /**

@@ -10,7 +10,7 @@ import {
 } from "./constants";
 import { ipToBuffer, arrayBufferToBase64, formatAsPem } from "./buffer-utils";
 import { getKeyImportParams } from "./key-utils";
-import { rawEcdsaSigToDer, derEcdsaSigToRaw } from "./ecdsa-signature";
+import { rawEcdsaSigToDer } from "./ecdsa-signature";
 
 /** Distinguished name fields for the CSR subject. */
 export interface CsrSubject {
@@ -259,52 +259,17 @@ export async function buildSignedCsr(
     console.log("CSR signed with ML-DSA (", signAlgorithm, ") — client-side verification skipped (WebCrypto not supported).");
   } else if (!signAlgorithm.startsWith("RSA")) {
     const expectedEcdsaLength = ECDSA_RAW_SIGNATURE_LENGTHS[signAlgorithm];
-    const conversionResult = rawEcdsaSigToDer(rawSignature, expectedEcdsaLength);
-    const finalDerSignature = conversionResult.der;
-    pkcs10.signatureValue = new asn1js.BitString({
-      valueHex: finalDerSignature,
-    });
-
-    // Regression verification across both encodings (logged for diagnostics)
-    const verificationResults: Record<string, boolean> = {};
-    verificationResults[conversionResult.format] = await pkcs10.verify();
-
-    if (conversionResult.format === "der" && expectedEcdsaLength) {
-      const rawRoundTrip = derEcdsaSigToRaw(
-        new Uint8Array(finalDerSignature),
-        expectedEcdsaLength,
-      );
-      if (rawRoundTrip) {
-        const reconversion = rawEcdsaSigToDer(rawRoundTrip, expectedEcdsaLength);
-        pkcs10.signatureValue = new asn1js.BitString({
-          valueHex: reconversion.der,
-        });
-        verificationResults["raw"] = await pkcs10.verify();
-        // Restore
-        pkcs10.signatureValue = new asn1js.BitString({
-          valueHex: finalDerSignature,
-        });
-      }
-    } else if (conversionResult.format === "raw") {
-      const derDetection = rawEcdsaSigToDer(
-        new Uint8Array(finalDerSignature),
-        expectedEcdsaLength,
-      );
-      pkcs10.signatureValue = new asn1js.BitString({ valueHex: derDetection.der });
-      verificationResults["der"] = await pkcs10.verify();
-      // Restore
-      pkcs10.signatureValue = new asn1js.BitString({
-        valueHex: finalDerSignature,
-      });
-    }
-
-    console.log("CSR Verification Regression Checks:", verificationResults);
-  } else {
-    // For RSA the raw signature bytes are already the correct encoding
-    pkcs10.signatureValue = new asn1js.BitString({ valueHex: rawSignature.buffer });
+    const { der } = rawEcdsaSigToDer(rawSignature, expectedEcdsaLength);
+    pkcs10.signatureValue = new asn1js.BitString({ valueHex: der });
 
     const ok = await pkcs10.verify();
-    console.log("CSR Verification Result (RSA):", ok);
+    if (!ok) throw new Error(`CSR ECDSA signature verification failed (${signAlgorithm}).`);
+  } else {
+    // RSA: the raw signature bytes are already the correct encoding
+    pkcs10.signatureValue = new asn1js.BitString({ valueHex: new Uint8Array(rawSignature).buffer });
+
+    const ok = await pkcs10.verify();
+    if (!ok) throw new Error(`CSR RSA signature verification failed (${signAlgorithm}).`);
   }
 
   // --- Serialise to PEM ---
