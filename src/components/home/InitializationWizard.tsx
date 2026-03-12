@@ -29,13 +29,7 @@ import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { createOrUpdateRa, deleteRa } from '@/lib/dms-api';
 import { registerDevice, decommissionDevice, deleteDevice } from '@/lib/devices-api';
-import {
-  CertificationRequest,
-  AttributeTypeAndValue,
-  getCrypto,
-  setEngine,
-} from "pkijs";
-import * as asn1js from "asn1js";
+import { generateKeyAndCSR } from '@/lib/openssl-service';
 import { updateCertificateStatus, deleteCertificate, fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { templateDefaults, type SigningProfileFormValues } from '../shared/SigningProfileForm';
 import { checkOcspStatus } from '@/lib/va-api';
@@ -53,23 +47,6 @@ interface LogEntry {
 interface ValidationError {
     message: string;
     url: string;
-}
-
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return window.btoa(binary);
-}
-
-function formatAsPem(base64String: string, type: 'PRIVATE KEY' | 'PUBLIC KEY' | 'CERTIFICATE REQUEST' | 'CERTIFICATE'): string {
-  const header = `-----BEGIN ${type}-----`;
-  const footer = `-----END ${type}-----`;
-  const body = base64String.match(/.{1,64}/g)?.join('\n') || '';
-  return `${header}\n${body}\n${footer}`;
 }
 
 
@@ -150,10 +127,6 @@ export const InitializationWizard: React.FC = () => {
             return;
         }
         
-        if (typeof window !== 'undefined' && window.crypto) {
-            setEngine("webcrypto", getCrypto());
-        }
-
         setIsTestRunning(true);
         setTestLogs([]);
         setTestError(null);
@@ -250,15 +223,11 @@ export const InitializationWizard: React.FC = () => {
         if (createdCa && testProfileId) {
             addLog(`3. Issuing test certificate: "${testCertName}"...`, 'info');
             try {
-                // In-memory key and CSR generation
-                const algorithm = { name: "ECDSA", namedCurve: "P-256" };
-                const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
-                const pkcs10 = new CertificationRequest({ version: 0 });
-                pkcs10.subject.typesAndValues.push(new AttributeTypeAndValue({ type: "2.5.4.3", value: new asn1js.Utf8String({ value: testCertName }) }));
-                await pkcs10.subjectPublicKeyInfo.importKey(keyPair.publicKey);
-                pkcs10.attributes = [];
-                await pkcs10.sign(keyPair.privateKey, "SHA-256");
-                const signedCsrPem = formatAsPem(arrayBufferToBase64(pkcs10.toSchema().toBER(false)), 'CERTIFICATE REQUEST');
+                // Key and CSR generation via OpenSSL WASM
+                const { csrPem: signedCsrPem } = await generateKeyAndCSR(
+                    { algorithm: 'EC', spec: 'P-256' },
+                    { commonName: testCertName },
+                );
 
                 const result = await signCertificate(testCaId, { csr: window.btoa(signedCsrPem), profile_id: testProfileId }, user.access_token);
                 issuedCertSerialNumber = result.serial_number;

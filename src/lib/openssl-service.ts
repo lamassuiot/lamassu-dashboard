@@ -221,3 +221,121 @@ class OpenSSLService {
 
 /** Shared singleton — import this anywhere in the app. */
 export const openSSLService = new OpenSSLService();
+
+// ──────────────────────────────────────────────────────────────────────────────
+// High-level PKI helpers
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface KeyGenOptions {
+  /** 'RSA' or 'EC' */
+  algorithm: 'RSA' | 'EC';
+  /** RSA: key size in bits (e.g. 2048, 3072, 4096). EC: curve name (e.g. 'P-256', 'P-384', 'P-521'). */
+  spec: string;
+}
+
+export interface SubjectOptions {
+  commonName: string;
+  organization?: string;
+  organizationalUnit?: string;
+  locality?: string;
+  stateProvince?: string;
+  country?: string;
+}
+
+export interface SanEntry {
+  type: 'DNS' | 'IP' | 'Email' | 'URI';
+  value: string;
+}
+
+export interface GenerateKeyAndCSRResult {
+  privateKeyPem: string;
+  csrPem: string;
+}
+
+/**
+ * Generate a private key and a PKCS#10 CSR using the OpenSSL WASM worker.
+ *
+ * Example:
+ *   const { privateKeyPem, csrPem } = await generateKeyAndCSR(
+ *     { algorithm: 'RSA', spec: '2048' },
+ *     { commonName: 'my-device' },
+ *   );
+ */
+export async function generateKeyAndCSR(
+  keyOptions: KeyGenOptions,
+  subject: SubjectOptions,
+  sans: SanEntry[] = [],
+): Promise<GenerateKeyAndCSRResult> {
+  // ── Step 1: generate private key ──────────────────────────────────────────
+  const keyGenCmd =
+    keyOptions.algorithm === 'RSA'
+      ? `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:${keyOptions.spec} -out private.key`
+      : `openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:${keyOptions.spec} -out private.key`;
+
+  const keyResult = await openSSLService.execute(keyGenCmd);
+  const keyFile = keyResult.files.find(f => f.name === 'private.key');
+  if (!keyFile) {
+    throw new Error(
+      `Key generation failed.\nstderr: ${keyResult.stderr || '(empty)'}\nstdout: ${keyResult.stdout || '(empty)'}`,
+    );
+  }
+  const privateKeyPem = new TextDecoder().decode(keyFile.data);
+
+  // ── Step 2: build subject DN ──────────────────────────────────────────────
+  const dn = [
+    subject.commonName ? `/CN=${subject.commonName}` : '',
+    subject.organization ? `/O=${subject.organization}` : '',
+    subject.organizationalUnit ? `/OU=${subject.organizationalUnit}` : '',
+    subject.locality ? `/L=${subject.locality}` : '',
+    subject.stateProvince ? `/ST=${subject.stateProvince}` : '',
+    subject.country ? `/C=${subject.country}` : '',
+  ]
+    .filter(Boolean)
+    .join('');
+
+  // ── Step 3: build SAN extension string ────────────────────────────────────
+  const sanParts = sans.map(s => {
+    switch (s.type) {
+      case 'DNS':   return `DNS:${s.value}`;
+      case 'IP':    return `IP:${s.value}`;
+      case 'Email': return `email:${s.value}`;
+      case 'URI':   return `URI:${s.value}`;
+      default:      return '';
+    }
+  }).filter(Boolean);
+
+  const hasSans = sanParts.length > 0;
+
+  // ── Step 4: generate CSR ──────────────────────────────────────────────────
+  // When SANs are present we need a temporary openssl.cnf injected as a file.
+  let csrCmd: string;
+  const csrInputFiles: OpenSSLFile[] = [keyFile];
+
+  if (hasSans) {
+    const sanString = sanParts.join(',');
+    const cnfContent =
+      `[req]\ndistinguished_name=dn\nreq_extensions=v3_req\nprompt=no\n` +
+      `[dn]\nCN=${subject.commonName || ''}${subject.organization ? '\nO=' + subject.organization : ''}` +
+      `${subject.organizationalUnit ? '\nOU=' + subject.organizationalUnit : ''}` +
+      `${subject.locality ? '\nL=' + subject.locality : ''}` +
+      `${subject.stateProvince ? '\nST=' + subject.stateProvince : ''}` +
+      `${subject.country ? '\nC=' + subject.country : ''}\n` +
+      `[v3_req]\nsubjectAltName=${sanString}\n`;
+
+    csrInputFiles.push({ name: 'req.cnf', data: new TextEncoder().encode(cnfContent) });
+    csrCmd = `openssl req -new -key private.key -config req.cnf -out csr.pem`;
+  } else {
+    csrCmd = `openssl req -new -key private.key -subj "${dn || '/CN=unknown'}" -out csr.pem`;
+  }
+
+  const csrResult = await openSSLService.execute(csrCmd, csrInputFiles);
+  const csrFile = csrResult.files.find(f => f.name === 'csr.pem');
+  if (!csrFile) {
+    throw new Error(
+      `CSR generation failed.\nstderr: ${csrResult.stderr || '(empty)'}\nstdout: ${csrResult.stdout || '(empty)'}`,
+    );
+  }
+  const csrPem = new TextDecoder().decode(csrFile.data);
+
+  return { privateKeyPem, csrPem };
+}

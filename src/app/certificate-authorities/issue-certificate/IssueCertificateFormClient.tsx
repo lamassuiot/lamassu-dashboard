@@ -17,12 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import {
-  CertificationRequest, AttributeTypeAndValue, Attribute, Extensions,
-  Extension as PkijsExtension, GeneralName, GeneralNames as PkijsGeneralNames,
-  getCrypto, setEngine
-} from "pkijs";
-import * as asn1js from "asn1js";
+import { generateKeyAndCSR } from '@/lib/openssl-service';
 import { useAuth } from '@/contexts/AuthContext';
 import { parseCsr, type DecodedCsrInfo } from '@/lib/csr-utils';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
@@ -40,46 +35,6 @@ import { SectionHeader } from '@/components/shared/FormComponents';
 // The backend and API consumers interpret "9999-12-31T23:59:58.999Z" as a special value meaning the certificate does not expire.
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:58.999Z";
 
-
-// --- Helper Functions ---
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return window.btoa(binary);
-}
-
-function formatAsPem(base64String: string, type: 'PRIVATE KEY' | 'PUBLIC KEY' | 'CERTIFICATE REQUEST' | 'CERTIFICATE'): string {
-  const header = `-----BEGIN ${type}-----`;
-  const footer = `-----END ${type}-----`;
-  const body = base64String.match(/.{1,64}/g)?.join('\n') || '';
-  return `${header}\n${body}\n${footer}`;
-}
-
-function ipToBuffer(ip: string): ArrayBuffer | null {
-  // Simplified IPv4 and IPv6 to buffer conversion
-  const parts = ip.split('.');
-  if (parts.length === 4 && parts.every(part => !isNaN(parseInt(part, 10)) && parseInt(part, 10) >= 0 && parseInt(part, 10) <= 255)) {
-    return new Uint8Array(parts.map(p => parseInt(p, 10))).buffer;
-  }
-  if (ip.includes(':')) {
-    // Basic IPv6 support
-    const hexGroups = ip.split(':').map(group => group.padStart(4, '0'));
-    if (hexGroups.length === 8) {
-      const buffer = new Uint8Array(16);
-      let offset = 0;
-      for (const group of hexGroups) {
-        const value = parseInt(group, 16);
-        buffer[offset++] = (value >> 8) & 0xFF;
-        buffer[offset++] = value & 0xFF;
-      }
-      return buffer.buffer;
-    }
-  }
-  return null;
-}
 
 // --- SAN Interface ---
 interface SanEntry {
@@ -217,9 +172,6 @@ export default function IssueCertificateFormClient() {
 
 
   // --- Effects ---
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.crypto) setEngine("webcrypto", getCrypto());
-  }, []);
   
   useEffect(() => {
     if (!caId || !user?.access_token) {
@@ -447,60 +399,23 @@ export default function IssueCertificateFormClient() {
     setGenerationError(null);
 
     try {
-      // --- Part 1: Generate Key & CSR ---
-      const algorithm = selectedAlgorithm === 'RSA' 
-        ? { name: "RSASSA-PKCS1-v1_5", modulusLength: parseInt(selectedRsaKeySize, 10), publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }
-        : { name: "ECDSA", namedCurve: selectedEcdsaCurve };
-      const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
-      
-      const privateKeyPem = formatAsPem(arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey)), 'PRIVATE KEY');
+      // --- Part 1: Generate Key & CSR via OpenSSL WASM ---
+      const keySpec = selectedAlgorithm === 'RSA' ? selectedRsaKeySize : selectedEcdsaCurve;
+      const keyAlgorithm: 'RSA' | 'EC' = selectedAlgorithm === 'RSA' ? 'RSA' : 'EC';
+      const { privateKeyPem, csrPem: signedCsrPem } = await generateKeyAndCSR(
+        { algorithm: keyAlgorithm, spec: keySpec },
+        {
+          commonName: commonName.trim(),
+          organization: organization.trim() || undefined,
+          organizationalUnit: organizationalUnit.trim() || undefined,
+          locality: locality.trim() || undefined,
+          stateProvince: stateProvince.trim() || undefined,
+          country: country.trim() || undefined,
+        },
+        sans.map(s => ({ type: s.type, value: s.value.trim() })),
+      );
+
       setGeneratedPrivateKeyPem(privateKeyPem); // Save for the "Done" screen
-      
-      const pkcs10 = new CertificationRequest({ version: 0 });
-      pkcs10.subject.typesAndValues.push(new AttributeTypeAndValue({ type: "2.5.4.3", value: new asn1js.Utf8String({ value: commonName.trim() }) }));
-      if (organization.trim()) pkcs10.subject.typesAndValues.push(new AttributeTypeAndValue({ type: "2.5.4.10", value: new asn1js.Utf8String({ value: organization.trim() })}));
-      if (organizationalUnit.trim()) pkcs10.subject.typesAndValues.push(new AttributeTypeAndValue({ type: "2.5.4.11", value: new asn1js.Utf8String({ value: organizationalUnit.trim() })}));
-      if (locality.trim()) pkcs10.subject.typesAndValues.push(new AttributeTypeAndValue({ type: "2.5.4.7", value: new asn1js.Utf8String({ value: locality.trim() })}));
-      if (stateProvince.trim()) pkcs10.subject.typesAndValues.push(new AttributeTypeAndValue({ type: "2.5.4.8", value: new asn1js.Utf8String({ value: stateProvince.trim() })}));
-      if (country.trim()) pkcs10.subject.typesAndValues.push(new AttributeTypeAndValue({ type: "2.5.4.6", value: new asn1js.PrintableString({ value: country.trim() })}));
-
-      await pkcs10.subjectPublicKeyInfo.importKey(keyPair.publicKey);
-      
-      pkcs10.attributes = [];
-      const generalNamesArray: GeneralName[] = sans.map(san => {
-          switch (san.type) {
-              case 'Email':
-                  return new GeneralName({ type: 1, value: san.value.trim() });
-              case 'DNS':
-                  return new GeneralName({ type: 2, value: san.value.trim() });
-              case 'URI':
-                  return new GeneralName({ type: 6, value: san.value.trim() });
-              case 'IP':
-                  const ipBuffer = ipToBuffer(san.value.trim());
-                  return ipBuffer ? new GeneralName({ type: 7, value: new asn1js.OctetString({ valueHex: ipBuffer }) }) : null;
-              default:
-                  return null;
-          }
-      }).filter((n): n is GeneralName => n !== null);
-      
-      if (generalNamesArray.length > 0) {
-        const extensions = new Extensions({
-            extensions: [
-                new PkijsExtension({
-                    extnID: "2.5.29.17", // id-ce-subjectAltName
-                    critical: false,
-                    extnValue: new PkijsGeneralNames({ names: generalNamesArray }).toSchema().toBER(false)
-                })
-            ]
-        });
-        pkcs10.attributes = [new Attribute({
-            type: "1.2.840.113549.1.9.14", // id-pkcs9-at-extensionRequest
-            values: [extensions.toSchema()]
-        })];
-      }
-
-      await pkcs10.sign(keyPair.privateKey, "SHA-256");
-      const signedCsrPem = formatAsPem(arrayBufferToBase64(pkcs10.toSchema().toBER(false)), 'CERTIFICATE REQUEST');
 
       // --- Part 2: Issue Certificate ---
       const payload = {
