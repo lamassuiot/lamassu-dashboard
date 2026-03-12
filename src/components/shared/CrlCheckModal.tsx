@@ -8,28 +8,14 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, AlertTriangle, FileText, Download } from "lucide-react";
-import * as asn1js from "asn1js";
-import { CertificateRevocationList, getCrypto, setEngine } from "pkijs";
+import { parseCrl, type ParsedCrl } from "@/lib-crypto";
 import type { CA } from '@/lib/ca-data';
-import { format } from 'date-fns';
 import { DetailItem } from './DetailItem';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
-// Integer to label mapping for DER-encoded CRL reason codes
-const crlReasonCodeMap: { [key: number]: string } = {
-  0: "Unspecified",
-  1: "KeyCompromise", 
-  2: "CACompromise",
-  3: "AffiliationChanged",
-  4: "Superseded",
-  5: "CessationOfOperation",
-  6: "CertificateHold",
-  8: "RemoveFromCRL",
-  9: "PrivilegeWithdrawn",
-  10: "AACompromise"
-};
+
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
 
 interface CrlCheckModalProps {
@@ -38,19 +24,7 @@ interface CrlCheckModalProps {
   ca: CA | null;
 }
 
-interface RevokedCertificate {
-  serialNumber: string;
-  revocationDate: string;
-  reason?: string;
-}
 
-interface CrlDetails {
-    issuer: string;
-    thisUpdate: string;
-    nextUpdate?: string;
-    revokedCertificates: RevokedCertificate[];
-    error?: string;
-}
 
 // Helper function to download a file
 const downloadFile = (data: ArrayBuffer, filename: string, mimeType: string) => {
@@ -69,7 +43,7 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
     const { toast } = useToast();
     const [crlUrl, setCrlUrl] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
-    const [crlDetails, setCrlDetails] = useState<CrlDetails | null>(null);
+    const [crlDetails, setCrlDetails] = useState<ParsedCrl | null>(null);
     const [rawCrlDer, setRawCrlDer] = useState<ArrayBuffer | null>(null);
     const [showHttpWarning, setShowHttpWarning] = useState(false);
 
@@ -102,14 +76,8 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
         setRawCrlDer(null);
 
         try {
-            if (typeof window !== 'undefined') {
-                setEngine("webcrypto", getCrypto());
-            }
-
-            const response = await fetch(crlUrl,{
-                headers: {
-                    'Accept': 'application/pkix-crl, */*',
-                },
+            const response = await fetch(crlUrl, {
+                headers: { 'Accept': 'application/pkix-crl, */*' },
             });
             if (!response.ok) {
                 throw new Error(`Failed to fetch CRL. Server responded with HTTP ${response.status}`);
@@ -117,39 +85,13 @@ export const CrlCheckModal: React.FC<CrlCheckModalProps> = ({ isOpen, onClose, c
 
             const crlData = await response.arrayBuffer();
             setRawCrlDer(crlData);
-            
-            const asn1 = asn1js.fromBER(crlData);
-            if (asn1.offset === -1) {
-                throw new Error("Failed to parse ASN.1 structure from CRL data.");
-            }
 
-            const crl = new CertificateRevocationList({ schema: asn1.result });
-
-            const getReason = (cert: any) => {
-              const crlEntryExtension = cert.crlEntryExtensions?.extensions.find((ext: any) => ext.extnID === "2.5.29.21"); // id-ce-cRLReason
-              if(crlEntryExtension) {
-                const reasonCode = (crlEntryExtension.parsedValue.valueBlock.valueDec);
-                return crlReasonCodeMap[reasonCode] || `Unknown (${reasonCode})`;
-              }
-              return 'N/A';
-            }
-
-            setCrlDetails({
-                issuer: crl.issuer.typesAndValues.map((tv: any) => `${tv.type}=${tv.value.valueBlock.value}`).join(', '),
-                thisUpdate: format(crl.thisUpdate.value, 'PPpp'),
-                nextUpdate: crl.nextUpdate ? format(crl.nextUpdate.value, 'PPpp') : 'Not specified',
-                revokedCertificates: crl.revokedCertificates?.map((cert: any) => ({
-                    serialNumber: cert.userCertificate.valueBlock.valueHex.byteLength > 20 
-                        ? cert.userCertificate.valueBlock.valueHex.slice(0,20).toString('hex') + '...'
-                        : Buffer.from(cert.userCertificate.valueBlock.valueHex).toString('hex'),
-                    revocationDate: format(cert.revocationDate.value, 'PPpp'),
-                    reason: getReason(cert),
-                })) || [],
-            });
+            const parsed = await parseCrl(crlData);
+            setCrlDetails(parsed);
 
         } catch (e: any) {
             console.error("CRL Check Failed:", e);
-            let errorDetails = e.message || 'An unknown error occurred.';
+            const errorDetails = e.message || 'An unknown error occurred.';
             setCrlDetails({ error: errorDetails, revokedCertificates: [], issuer: '', thisUpdate: '' });
         } finally {
             setIsLoading(false);

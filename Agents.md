@@ -85,6 +85,18 @@ Lamassu Dashboard is a modern web-based user interface for managing X.509 certif
 │   │   ├── integrations-api.ts        # Platform integrations API
 │   │   ├── va-api.ts                  # Validation Authority API
 │   │   └── utils.ts                   # General utilities
+│   ├── lib-crypto/                    # ALL low-level cryptographic operations (canonical location)
+│   │   ├── index.ts                   # Public exports for all crypto utilities
+│   │   ├── buffer-utils.ts            # Binary/buffer/PEM encoding helpers
+│   │   ├── cert-parser.ts             # X.509 certificate parsing (PKI.js/ASN1.js)
+│   │   ├── constants.ts               # Crypto algorithm constants and OIDs
+│   │   ├── crl-parser.ts              # CRL parsing (PKI.js/ASN1.js)
+│   │   ├── csr-builder.ts             # PKCS#10 CSR construction (PKI.js)
+│   │   ├── csr-parser.ts              # CSR parsing and validation (PKI.js/ASN1.js)
+│   │   ├── ecdsa-signature.ts         # ECDSA signature utilities
+│   │   ├── engine.ts                  # Crypto engine abstraction
+│   │   ├── key-utils.ts               # RSA/ECDSA key generation and handling
+│   │   └── ocsp.ts                    # OCSP request/response parsing
 │   └── types/                         # TypeScript type definitions
 │       ├── certificate.ts             # Certificate-related types
 │       └── crypto-engine.ts           # Crypto engine types
@@ -112,6 +124,7 @@ Lamassu Dashboard is a modern web-based user interface for managing X.509 certif
 - **Authentication:** `src/contexts/AuthContext.tsx` handles OIDC integration
 - **API Layer:** `src/lib/api-domains.ts` configures backend service endpoints
 - **Certificate Operations:** `src/lib/ca-data.ts` and `src/lib/csr-utils.ts`
+- **Low-level Crypto:** `src/lib-crypto/` — **⚠️ ALWAYS check and use this before writing any crypto code. Adding crypto logic anywhere else is forbidden.**
 - **UI Components:** `src/components/ui/` contains ShadCN base components
 
 **Testing Infrastructure:**
@@ -202,10 +215,11 @@ Make sure that there is a new line at the end of any file you edit. This is a co
 3. **API Integration** (`src/lib/` directory): Centralized API clients with consistent error handling
 
 **Certificate Management Development:**
-- **CSR Generation**: Use PKI.js for browser-based key generation and CSR creation
-- **Certificate Parsing**: Leverage ASN1.js and PKI.js for certificate inspection
-- **PEM Handling**: Consistent base64 encoding/decoding for certificate data
-- **Validation**: Implement proper certificate chain validation and expiry checking
+> ⚠️ All of the operations below are already implemented in `src/lib-crypto/`. You must use those implementations — do not call `pkijs` or `asn1js` directly from outside that folder.
+- **CSR Generation**: `csr-builder.ts` in `lib-crypto` — do not reimplement
+- **Certificate Parsing**: `cert-parser.ts` in `lib-crypto` — do not reimplement
+- **PEM/DER Handling**: `buffer-utils.ts` in `lib-crypto` — do not reimplement
+- **Validation**: Use functions from `cert-parser.ts` for chain validation and expiry checking
 
 **UI/UX Standards:**
 - Follow ShadCN UI component patterns with Tailwind CSS
@@ -243,21 +257,62 @@ Make sure that there is a new line at the end of any file you edit. This is a co
 - **Never**: Block the UI thread with synchronous certificate operations
 - **Never**: Load entire certificate databases without pagination
 
-### PKI.js and ASN1.js Integration
-Lamassu Dashboard heavily relies on **PKI.js** and **ASN1.js** for client-side cryptographic operations:
+---
 
-- **Certificate Parsing**: Parse X.509 certificates to extract subject, issuer, validity, and extensions
-- **CSR Generation**: Create PKCS#10 Certificate Signing Requests in the browser
-- **Key Generation**: Generate RSA and ECDSA key pairs for certificate requests
-- **Chain Validation**: Validate certificate chains and trust relationships
-- **PEM Encoding**: Convert between binary and PEM formats for certificate data
-- **Extension Handling**: Process certificate extensions like SANs, key usage, and basic constraints
+## ⚠️ CRITICAL — Cryptographic Operations: `src/lib-crypto/` Is the ONE Canonical Location
 
-**Key Integration Points:**
-- `src/lib/csr-utils.ts`: CSR parsing and validation using PKI.js
-- `src/app/certificate-authorities/issue-certificate/`: Browser-based key generation and CSR creation
-- `src/components/CertificateDetailsModal.tsx`: Certificate parsing and display
-- `src/lib/ca-utils.ts`: Certificate chain building and validation
+> ### 🚨 STOP BEFORE WRITING ANY CRYPTO CODE
+>
+> **This rule is non-negotiable and applies to every contributor and every automated agent without exception.**
+>
+> Before writing — or even drafting — any code that touches cryptographic operations, certificate handling, key management, encoding, or anything that imports `pkijs` or `asn1js`, you **MUST** fully read `src/lib-crypto/index.ts` and the relevant implementation files to check whether the functionality already exists.
+>
+> - **If it exists → use it. Do not rewrite it. Do not write a "similar" version.**
+> - **If it does not exist → add it to `src/lib-crypto/`. Nowhere else.**
+>
+> Placing crypto logic in `src/lib/`, components, pages, or hooks is **strictly forbidden**, regardless of how small or "one-off" the operation seems.
+
+### What Belongs in `src/lib-crypto/`
+
+Any code that directly uses `pkijs`, `asn1js`, the Web Crypto API (`crypto.subtle`), or that manipulates raw certificate/key/signature bytes **must live here**. Examples:
+
+- Certificate parsing and field extraction — subject, issuer, validity, extensions, SANs, key usage
+- CSR parsing, building, and validation
+- CRL and OCSP parsing and construction
+- RSA and ECDSA key generation and export
+- ECDSA signature encoding/decoding
+- PEM ↔ DER ↔ binary buffer conversions
+- Crypto algorithm constants and OIDs
+- Any helper that calls `new pkijs.Certificate()`, `new asn1js.Sequence()`, `crypto.subtle.*`, or equivalent
+
+### What Is Already Implemented — Read These Before Writing Anything
+
+| File | Responsibility |
+|------|----------------|
+| `index.ts` | Re-exports everything — **start here**: `import { ... } from "@/lib-crypto"` |
+| `cert-parser.ts` | X.509 certificate parsing: subject, issuer, validity, extensions, SANs, key usage |
+| `csr-builder.ts` | PKCS#10 CSR construction with browser-side key generation |
+| `csr-parser.ts` | CSR parsing and validation |
+| `crl-parser.ts` | CRL parsing |
+| `ocsp.ts` | OCSP request/response construction and parsing |
+| `key-utils.ts` | RSA/ECDSA key generation and export |
+| `ecdsa-signature.ts` | ECDSA signature encode/decode utilities |
+| `buffer-utils.ts` | PEM encoding, DER conversion, base64 helpers |
+| `constants.ts` | Algorithm OIDs, crypto constants |
+| `engine.ts` | Crypto engine abstraction |
+
+### Mandatory Checklist — Non-Negotiable Before Writing Any Crypto Code
+
+> Skipping any step is a violation of these contribution rules.
+
+1. **Read `src/lib-crypto/index.ts`** — get a full picture of every exported symbol
+2. **Read the relevant implementation file(s)** listed above — confirm whether the operation is already covered, even partially
+3. **Only if genuinely absent** — add the new function to the correct `src/lib-crypto/` file; update `index.ts` exports accordingly
+4. **Never** import `pkijs` or `asn1js` outside of `src/lib-crypto/`
+5. **Never** duplicate or wrap an existing `lib-crypto` function — call it directly
+6. **Never** write inline certificate/key/buffer manipulation in a component, page, hook, or `src/lib/` file
+
+---
 
 ### OIDC Authentication Integration
 Lamassu Dashboard uses **oidc-client-ts** for OpenID Connect authentication:

@@ -11,7 +11,7 @@ import { Binary, AlertTriangle, Loader2, CheckCircle, XCircle, Info, KeyRound, L
 import { Separator } from "@/components/ui/separator";
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
-import { getCrypto, setEngine } from 'pkijs';
+import { initPkijsEngine } from '@/lib-crypto';
 import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, type CA } from '@/lib/ca-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
@@ -206,7 +206,7 @@ export default function CertificateViewerPage() {
 
   // --- Effects ---
   useEffect(() => {
-    setEngine("webcrypto", getCrypto());
+    initPkijsEngine();
   }, []);
 
   // Effect to load and initialize WASM environment reliably

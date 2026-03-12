@@ -10,14 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, FileText, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Certificate as PkijsCertificate, BasicConstraints as PkijsBasicConstraints } from "pkijs";
-import * as asn1js from "asn1js";
+import { parseCertificatePemDetails } from "@/lib-crypto";
 import { format as formatDate } from 'date-fns';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { importCa, type ImportCaPayload, ab2hex } from '@/lib/ca-data';
+import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
@@ -31,12 +30,7 @@ interface DecodedImportedCertInfo {
   error?: string;
 }
 
-const OID_MAP: Record<string, string> = {
-  "2.5.4.3": "CN", "2.5.4.6": "C", "2.5.4.7": "L", "2.5.4.8": "ST", "2.5.4.10": "O", "2.5.4.11": "OU",
-};
-function formatPkijsSubject(subject: any): string {
-  return subject.typesAndValues.map((tv: any) => `${OID_MAP[tv.type] || tv.type}=${(tv.value as any).valueBlock.value}`).join(', ');
-}
+
 
 export default function CreateCaImportPublicPage() {
   const router = useRouter();
@@ -50,22 +44,14 @@ export default function CreateCaImportPublicPage() {
 
   const parseCertificatePem = async (pem: string) => {
     try {
-      const pemContent = pem.replace(/-----(BEGIN|END) CERTIFICATE-----/g, "").replace(/\s+/g, "");
-      const derBuffer = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0)).buffer;
-      const asn1 = asn1js.fromBER(derBuffer);
-      if (asn1.offset === -1) throw new Error("Invalid ASN.1 structure.");
-      const certificate = new PkijsCertificate({ schema: asn1.result });
-      
-      const basicConstraintsExtension = certificate.extensions?.find(ext => ext.extnID === "2.5.29.19");
-      const isCa = basicConstraintsExtension ? (basicConstraintsExtension.parsedValue as PkijsBasicConstraints).cA : false;
-
+      const parsed = await parseCertificatePemDetails(pem);
       setDecodedImportedCertInfo({
-        subject: formatPkijsSubject(certificate.subject),
-        issuer: formatPkijsSubject(certificate.issuer),
-        serialNumber: ab2hex(certificate.serialNumber.valueBlock.valueHex),
-        validFrom: formatDate(certificate.notBefore.value, "PPpp"),
-        validTo: formatDate(certificate.notAfter.value, "PPpp"),
-        isCa: isCa,
+        subject: parsed.subject,
+        issuer: parsed.issuer,
+        serialNumber: parsed.serialNumber,
+        validFrom: parsed.validFrom ? formatDate(new Date(parsed.validFrom), "PPpp") : 'N/A',
+        validTo: parsed.validTo ? formatDate(new Date(parsed.validTo), "PPpp") : 'N/A',
+        isCa: parsed.isCa ?? false,
       });
     } catch (e: any) {
       setDecodedImportedCertInfo({ error: `Failed to parse certificate: ${e.message}` });

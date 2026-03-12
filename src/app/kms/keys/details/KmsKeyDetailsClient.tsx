@@ -23,10 +23,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
-import * as asn1js from 'asn1js';
-import * as pkijs from 'pkijs';
-import { CertificationRequest, AlgorithmIdentifier } from 'pkijs';
 import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, type PatchOperation } from '@/lib/kms-data';
+import {
+  SIGNATURE_ALGORITHMS,
+  MLDSA_ALGORITHMS,
+  arrayBufferToBase64,
+  buildSignedCsr,
+  type CsrSan,
+} from '@/lib-crypto';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { SectionHeader } from '@/components/shared/FormComponents';
@@ -39,83 +43,12 @@ const Editor = dynamic(() => import('@monaco-editor/react'), {
   loading: () => <div className="h-96 w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> 
 });
 
-// --- Helper Functions ---
-function ipToBuffer(ip: string): ArrayBuffer | null {
-  // Simplified IPv4 and IPv6 to buffer conversion
-  const parts = ip.split('.');
-  if (parts.length === 4 && parts.every(part => !isNaN(parseInt(part, 10)) && parseInt(part, 10) >= 0 && parseInt(part, 10) <= 255)) {
-    return new Uint8Array(parts.map(p => parseInt(p, 10))).buffer;
-  }
-  if (ip.includes(':')) {
-    // Basic IPv6 support
-    const hexGroups = ip.split(':').map(group => group.padStart(4, '0'));
-    if (hexGroups.length === 8) {
-      const buffer = new Uint8Array(16);
-      let offset = 0;
-      for (const group of hexGroups) {
-        const value = parseInt(group, 16);
-        buffer[offset++] = (value >> 8) & 0xFF;
-        buffer[offset++] = value & 0xFF;
-      }
-      return buffer.buffer;
-    }
-  }
-  return null;
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return window.btoa(binary);
-}
-
-function formatAsPem(base64String: string, type: 'PUBLIC KEY' | 'CERTIFICATE REQUEST'): string {
-  const header = `-----BEGIN ${type}-----`;
-  const footer = `-----END ${type}-----`;
-  const body = base64String.match(/.{1,64}/g)?.join('\n') || '';
-  return `${header}\n${body}\n${footer}`;
-}
-
-const SIGNATURE_OID_MAP: Record<string, string> = {
-  "RSASSA_PSS_SHA_256": "1.2.840.113549.1.1.10",
-  "RSASSA_PSS_SHA_384": "1.2.840.113549.1.1.10",
-  "RSASSA_PSS_SHA_512": "1.2.840.113549.1.1.10",
-  "RSASSA_PKCS1_V1_5_SHA_256": "1.2.840.113549.1.1.11",
-  "RSASSA_PKCS1_V1_5_SHA_384": "1.2.840.113549.1.1.12",
-  "RSASSA_PKCS1_V1_5_SHA_512": "1.2.840.113549.1.1.13",
-  "ECDSA_SHA_256": "1.2.840.10045.4.3.2",
-  "ECDSA_SHA_384": "1.2.840.10045.4.3.3",
-  "ECDSA_SHA_512": "1.2.840.10045.4.3.4",
-};
-
-const ECDSA_RAW_SIGNATURE_LENGTHS: Record<string, number> = {
-  ECDSA_SHA_256: 64,
-  ECDSA_SHA_384: 96,
-  ECDSA_SHA_512: 132,
-};
-
-const KNOWN_ECDSA_RAW_SIG_LENGTHS = new Set(Object.values(ECDSA_RAW_SIGNATURE_LENGTHS));
-
-interface EcdsaDerConversionResult {
-  der: ArrayBuffer;
-  format: 'der' | 'raw';
-}
-
-const PSS_ALGO_PARAMS: Record<string, { shaOid: string; saltLength: number }> = {
-  RSASSA_PSS_SHA_256: { shaOid: "2.16.840.1.101.3.4.2.1", saltLength: 32 },
-  RSASSA_PSS_SHA_384: { shaOid: "2.16.840.1.101.3.4.2.2", saltLength: 48 },
-  RSASSA_PSS_SHA_512: { shaOid: "2.16.840.1.101.3.4.2.3", saltLength: 64 },
-};
-
 
 interface KmsKeyDetailed {
   id: string;
   alias: string;
   keyTypeDisplay: string;
-  algorithm: 'RSA' | 'ECDSA' | 'Unknown';
+  algorithm: 'RSA' | 'ECDSA' | 'MLDSA' | 'Unknown';
   keySize?: string | number;
   hasPrivateKey: boolean;
   publicKeyPem?: string;
@@ -124,11 +57,7 @@ interface KmsKeyDetailed {
   metadata?: Record<string, any>;
 }
 
-const signatureAlgorithms = [
-  'RSASSA_PSS_SHA_256', 'RSASSA_PSS_SHA_384', 'RSASSA_PSS_SHA_512',
-  'RSASSA_PKCS1_V1_5_SHA_256', 'RSASSA_PKCS1_V1_5_SHA_384', 'RSASSA_PKCS1_V1_5_SHA_512',
-  'ECDSA_SHA_256', 'ECDSA_SHA_384', 'ECDSA_SHA_512',
-];
+const signatureAlgorithms = [...SIGNATURE_ALGORITHMS];
 
 export default function KmsKeyDetailsClient() {
   const searchParams = useSearchParams();
@@ -147,7 +76,7 @@ export default function KmsKeyDetailsClient() {
 
   // State for Sign Tab
   const [isSigning, setIsSigning] = useState(false);
-  const [signAlgorithm, setSignAlgorithm] = useState(signatureAlgorithms[3]);
+  const [signAlgorithm, setSignAlgorithm] = useState<string>(signatureAlgorithms[3]);
   const [signMessageType, setSignMessageType] = useState('RAW');
   const [signPayloadEncoding, setSignPayloadEncoding] = useState('PLAIN_TEXT');
   const [payloadToSign, setPayloadToSign] = useState('');
@@ -155,7 +84,7 @@ export default function KmsKeyDetailsClient() {
 
   // State for Verify Tab
   const [isVerifying, setIsVerifying] = useState(false);
-  const [verifyAlgorithm, setVerifyAlgorithm] = useState(signatureAlgorithms[3]);
+  const [verifyAlgorithm, setVerifyAlgorithm] = useState<string>(signatureAlgorithms[3]);
   const [verifyMessageType, setVerifyMessageType] = useState('RAW');
   const [verifyPayloadEncoding, setVerifyPayloadEncoding] = useState('PLAIN_TEXT');
   const [unsignedPayload, setUnsignedPayload] = useState('');
@@ -174,8 +103,8 @@ export default function KmsKeyDetailsClient() {
   const [isGeneratingCsr, setIsGeneratingCsr] = useState(false);
   
   // SANs state for CSR
-  const [csrSans, setCsrSans] = useState<{type: 'DNS' | 'IP' | 'Email' | 'URI'; value: string}[]>([]);
-  const [csrCurrentSanType, setCsrCurrentSanType] = useState<'DNS' | 'IP' | 'Email' | 'URI'>('DNS');
+  const [csrSans, setCsrSans] = useState<CsrSan[]>([]);
+  const [csrCurrentSanType, setCsrCurrentSanType] = useState<CsrSan['type']>('DNS');
   const [csrCurrentSanValue, setCsrCurrentSanValue] = useState('');
 
   // Related entities state
@@ -416,13 +345,36 @@ export default function KmsKeyDetailsClient() {
           pem = "Error: Could not decode or format public key.";
         }
 
-        const algorithm = apiKey.algorithm.toUpperCase() as KmsKeyDetailed['algorithm'];
+        // Normalise the algorithm string from the API.
+        // The API may return "MLDSA", "MLDSA_65", "ML-DSA-65", etc.
+        // We normalise dashes → underscores first, then classify.
+        const algoUpper = apiKey.algorithm.toUpperCase().replace(/-/g, '_');
+        let normalizedAlgorithm: KmsKeyDetailed['algorithm'];
+        if (algoUpper === 'RSA') normalizedAlgorithm = 'RSA';
+        else if (algoUpper === 'ECDSA') normalizedAlgorithm = 'ECDSA';
+        else if (algoUpper.startsWith('MLDSA') || algoUpper.startsWith('ML_DSA')) normalizedAlgorithm = 'MLDSA';
+        else normalizedAlgorithm = 'Unknown';
+
+        // For MLDSA, ensure keySize is the parameter-set number (44 / 65 / 87).
+        // If the API embeds the variant in the algorithm string (e.g. "MLDSA_65")
+        // but returns 0 or an unrecognised number in the size field, extract it.
+        let resolvedKeySize: number | string = apiKey.size;
+        if (normalizedAlgorithm === 'MLDSA') {
+          const sizeStr = String(apiKey.size);
+          if (!['44', '65', '87'].includes(sizeStr)) {
+            const variantMatch = algoUpper.match(/(?:MLDSA|ML_DSA)[_]?(\d+)/);
+            if (variantMatch && ['44', '65', '87'].includes(variantMatch[1])) {
+              resolvedKeySize = parseInt(variantMatch[1], 10);
+            }
+          }
+        }
+
         const detailedKey: KmsKeyDetailed = {
           id: apiKey.pkcs11_uri,
           alias: apiKey.name || apiKey.key_id,
           keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
-          algorithm: ['RSA', 'ECDSA'].includes(algorithm) ? algorithm : 'Unknown',
-          keySize: apiKey.size,
+          algorithm: normalizedAlgorithm,
+          keySize: resolvedKeySize,
           hasPrivateKey: apiKey.has_private_key,
           publicKeyPem: pem,
           cryptoEngineId: apiKey.engine_id,
@@ -452,6 +404,16 @@ export default function KmsKeyDetailsClient() {
           setSignAlgorithm(defaultEcdsaAlgo);
           setVerifyAlgorithm(defaultEcdsaAlgo);
           setCsrSignAlgorithm(defaultEcdsaAlgo);
+        } else if (detailedKey.algorithm === 'MLDSA') {
+          // Default to the parameter set matching the key size (44 / 65 / 87).
+          // Fall back to MLDSA_65 when the size is unrecognised.
+          const sizeStr = String(detailedKey.keySize ?? '');
+          const defaultMldsaAlgo =
+            ['44', '65', '87'].includes(sizeStr) ? `MLDSA_${sizeStr}` : 'MLDSA_65';
+
+          setSignAlgorithm(defaultMldsaAlgo);
+          setVerifyAlgorithm(defaultMldsaAlgo);
+          setCsrSignAlgorithm(defaultMldsaAlgo);
         }
 
       } else {
@@ -505,7 +467,7 @@ export default function KmsKeyDetailsClient() {
       }
 
       const payload = {
-        algorithm: signAlgorithm,
+        algorithm: MLDSA_ALGORITHMS.has(signAlgorithm) ? `${signAlgorithm}_PURE` : signAlgorithm,
         message: encodedPayload,
         message_type: signMessageType.toLowerCase(),
       };
@@ -586,117 +548,6 @@ export default function KmsKeyDetailsClient() {
     }
   };
 
-  function rawEcdsaSigToDer(rawSig: Uint8Array, expectedRawLength?: number): EcdsaDerConversionResult {
-    const DER_SEQUENCE_TAG = 0x30;
-
-    if (rawSig.length >= 2 && rawSig[0] === DER_SEQUENCE_TAG) {
-      const lengthByte = rawSig[1];
-      let sequenceLength = 0;
-      let headerLength = 2;
-
-      if ((lengthByte & 0x80) === 0) {
-        sequenceLength = lengthByte;
-      } else {
-        const lengthBytesCount = lengthByte & 0x7f;
-        if (rawSig.length < headerLength + lengthBytesCount) {
-          throw new Error('Invalid DER-encoded ECDSA signature length.');
-        }
-        sequenceLength = 0;
-        for (let i = 0; i < lengthBytesCount; i += 1) {
-          sequenceLength = (sequenceLength << 8) | rawSig[headerLength + i];
-        }
-        headerLength += lengthBytesCount;
-      }
-
-      if (headerLength + sequenceLength <= rawSig.length) {
-        const derView = rawSig.slice(0, headerLength + sequenceLength);
-        return { der: derView.buffer, format: 'der' };
-      }
-    }
-
-    const expectedLength = expectedRawLength ?? (KNOWN_ECDSA_RAW_SIG_LENGTHS.has(rawSig.length) ? rawSig.length : undefined);
-
-    if (!expectedLength || rawSig.length !== expectedLength) {
-      throw new Error(`Unexpected ECDSA signature length: ${rawSig.length} bytes`);
-    }
-
-    const half = rawSig.length / 2;
-    let r = rawSig.slice(0, half);
-    let s = rawSig.slice(half);
-
-    while (r.length > 1 && r[0] === 0) {
-      r = r.slice(1);
-    }
-    while (s.length > 1 && s[0] === 0) {
-      s = s.slice(1);
-    }
-
-    if (r[0] & 0x80) {
-      const prefixed = new Uint8Array(r.length + 1);
-      prefixed.set(r, 1);
-      r = prefixed;
-    }
-    if (s[0] & 0x80) {
-      const prefixed = new Uint8Array(s.length + 1);
-      prefixed.set(s, 1);
-      s = prefixed;
-    }
-
-    const rAsn1 = new asn1js.Integer({ valueHex: r.buffer });
-    const sAsn1 = new asn1js.Integer({ valueHex: s.buffer });
-
-    const sequence = new asn1js.Sequence({ value: [rAsn1, sAsn1] });
-    return { der: sequence.toBER(false), format: 'raw' };
-  }
-
-  function derEcdsaSigToRaw(derSig: Uint8Array, expectedRawLength?: number): Uint8Array | null {
-    const asn1 = asn1js.fromBER(derSig);
-    if (asn1.offset === -1 || !(asn1.result instanceof asn1js.Sequence)) {
-      return null;
-    }
-
-    const sequence = asn1.result as asn1js.Sequence;
-    const values = sequence.valueBlock.value;
-
-    if (!Array.isArray(values) || values.length !== 2) {
-      return null;
-    }
-
-    const rBlock = values[0] as asn1js.Integer;
-    const sBlock = values[1] as asn1js.Integer;
-
-    const rBytes = new Uint8Array(rBlock.valueBlock.valueHexView);
-    const sBytes = new Uint8Array(sBlock.valueBlock.valueHexView);
-
-    const componentLength = expectedRawLength ? expectedRawLength / 2 : Math.max(rBytes.length, sBytes.length);
-
-    const normalize = (component: Uint8Array) => {
-      let view = component;
-      while (view.length > 1 && view[0] === 0) {
-        view = view.slice(1);
-      }
-      if (view.length > componentLength) {
-        view = view.slice(view.length - componentLength);
-      }
-      if (view.length < componentLength) {
-        const padded = new Uint8Array(componentLength);
-        padded.set(view, componentLength - view.length);
-        return padded;
-      }
-      return view;
-    };
-
-    const normalizedR = normalize(rBytes);
-    const normalizedS = normalize(sBytes);
-
-    const raw = new Uint8Array(normalizedR.length + normalizedS.length);
-    raw.set(normalizedR, 0);
-    raw.set(normalizedS, normalizedR.length);
-
-    return raw;
-  }
-
-
   const handleGenerateCsr = async () => {
     if (!csrCommonName.trim()) {
       toast({ title: "CSR Generation Error", description: "Common Name (CN) is required.", variant: "destructive" });
@@ -715,264 +566,30 @@ export default function KmsKeyDetailsClient() {
     setGeneratedCsr('');
 
     try {
-      const subjectFields = [
-        new pkijs.AttributeTypeAndValue({
-          type: "2.5.4.3", // Common Name (CN)
-          value: new asn1js.Utf8String({ value: csrCommonName.trim() }),
-        }),
-      ];
-
-      // Add optional subject fields
-      if (csrOrganization.trim()) {
-        subjectFields.push(new pkijs.AttributeTypeAndValue({
-          type: "2.5.4.10", // Organization (O)
-          value: new asn1js.Utf8String({ value: csrOrganization.trim() }),
-        }));
-      }
-      if (csrOrganizationalUnit.trim()) {
-        subjectFields.push(new pkijs.AttributeTypeAndValue({
-          type: "2.5.4.11", // Organizational Unit (OU)
-          value: new asn1js.Utf8String({ value: csrOrganizationalUnit.trim() }),
-        }));
-      }
-      if (csrLocality.trim()) {
-        subjectFields.push(new pkijs.AttributeTypeAndValue({
-          type: "2.5.4.7", // Locality (L)
-          value: new asn1js.Utf8String({ value: csrLocality.trim() }),
-        }));
-      }
-      if (csrStateProvince.trim()) {
-        subjectFields.push(new pkijs.AttributeTypeAndValue({
-          type: "2.5.4.8", // State/Province (ST)
-          value: new asn1js.Utf8String({ value: csrStateProvince.trim() }),
-        }));
-      }
-      if (csrCountry.trim()) {
-        subjectFields.push(new pkijs.AttributeTypeAndValue({
-          type: "2.5.4.6", // Country (C)
-          value: new asn1js.PrintableString({ value: csrCountry.trim() }),
-        }));
-      }
-
-      const subject = new pkijs.RelativeDistinguishedNames({
-        typesAndValues: subjectFields,
+      const pem = await buildSignedCsr({
+        subject: {
+          commonName: csrCommonName,
+          organization: csrOrganization,
+          organizationalUnit: csrOrganizationalUnit,
+          locality: csrLocality,
+          stateProvince: csrStateProvince,
+          country: csrCountry,
+        },
+        sans: csrSans,
+        signAlgorithm: csrSignAlgorithm,
+        publicKeyPem: keyDetails.publicKeyPem,
+        signFn: async (tbsBase64) => {
+          const result = await signWithKmsKey(
+            keyDetails.id,
+            { algorithm: MLDSA_ALGORITHMS.has(csrSignAlgorithm) ? `${csrSignAlgorithm}_PURE` : csrSignAlgorithm, message: tbsBase64, message_type: 'raw' },
+            user.access_token!,
+          );
+          return result.signature;
+        },
       });
 
-      const pkcs10 = new CertificationRequest({
-        version: 0,
-        subject,
-      });
-
-      pkcs10.attributes = []; // Initialize attributes array
-
-      const publicKeyPemClean = keyDetails.publicKeyPem.replace(/-----(BEGIN|END) PUBLIC KEY-----/g, "").replace(/\s+/g, "");
-      const publicKeyDer = Uint8Array.from(atob(publicKeyPemClean), c => c.charCodeAt(0)).buffer;
-
-      var keyOpts: EcKeyImportParams | RsaHashedImportParams | RsaPssParams;
-      switch (csrSignAlgorithm) {
-        case "ECDSA_SHA_256":
-          keyOpts = {
-            name: "ECDSA",
-            namedCurve: "P-256"
-          };
-          break;
-        case "ECDSA_SHA_384":
-          keyOpts = {
-            name: "ECDSA",
-            namedCurve: "P-384"
-          };
-          break;
-        case "ECDSA_SHA_512":
-          keyOpts = {
-            name: "ECDSA",
-            namedCurve: "P-521"
-          };
-          break;
-        case "RSASSA_PKCS1_V1_5_SHA_256":
-          keyOpts = {
-            name: "RSASSA-PKCS1-v1_5",
-            hash: { name: "SHA-256" }
-          };
-          break;
-        case "RSASSA_PKCS1_V1_5_SHA_384":
-          keyOpts = {
-            name: "RSASSA-PKCS1-v1_5",
-            hash: { name: "SHA-384" }
-          };
-          break;
-        case "RSASSA_PKCS1_V1_5_SHA_512":
-          keyOpts = {
-            name: "RSASSA-PKCS1-v1_5",
-            hash: { name: "SHA-512" }
-          };
-          break;
-        case "RSASSA_PSS_SHA_256":
-          keyOpts = {
-            name: "RSA-PSS",
-            hash: { name: "SHA-256" },
-            saltLength: PSS_ALGO_PARAMS["RSASSA_PSS_SHA_256"].saltLength
-          };
-          break;
-        case "RSASSA_PSS_SHA_384":
-          keyOpts = {
-            name: "RSA-PSS",
-            hash: { name: "SHA-384" },
-            saltLength: PSS_ALGO_PARAMS["RSASSA_PSS_SHA_384"].saltLength
-          };
-          break;
-        case "RSASSA_PSS_SHA_512":
-          keyOpts = {
-            name: "RSA-PSS",
-            hash: { name: "SHA-512" },
-            saltLength: PSS_ALGO_PARAMS["RSASSA_PSS_SHA_512"].saltLength
-          };
-          break;
-        default:
-          break;
-      }
-
-      const pkijsCrypto = pkijs.getCrypto();
-      const publicKey = await pkijsCrypto?.importKey(
-        "spki",
-        publicKeyDer,
-        keyOpts!,
-        true,
-        ["verify"]
-      )
-
-      await pkcs10.subjectPublicKeyInfo.importKey(publicKey!);
-
-      // Add Subject Alternative Names (SANs) if any
-      if (csrSans.length > 0) {
-        const generalNamesArray: pkijs.GeneralName[] = csrSans.map(san => {
-          switch (san.type) {
-            case 'Email':
-              return new pkijs.GeneralName({ type: 1, value: san.value.trim() });
-            case 'DNS':
-              return new pkijs.GeneralName({ type: 2, value: san.value.trim() });
-            case 'URI':
-              return new pkijs.GeneralName({ type: 6, value: san.value.trim() });
-            case 'IP':
-              const ipBuffer = ipToBuffer(san.value.trim());
-              return ipBuffer ? new pkijs.GeneralName({ type: 7, value: new asn1js.OctetString({ valueHex: ipBuffer }) }) : null;
-            default:
-              return null;
-          }
-        }).filter((n): n is pkijs.GeneralName => n !== null);
-
-        if (generalNamesArray.length > 0) {
-          const extensions = new pkijs.Extensions({
-            extensions: [
-              new pkijs.Extension({
-                extnID: "2.5.29.17", // id-ce-subjectAltName
-                critical: false,
-                extnValue: new pkijs.GeneralNames({ names: generalNamesArray }).toSchema().toBER(false)
-              })
-            ]
-          });
-          pkcs10.attributes = [new pkijs.Attribute({
-            type: "1.2.840.113549.1.9.14", // id-pkcs9-at-extensionRequest
-            values: [extensions.toSchema()]
-          })];
-        }
-      }
-
-      console.log(csrSignAlgorithm);
-      console.log(SIGNATURE_OID_MAP);
-
-      const signatureOid = SIGNATURE_OID_MAP[csrSignAlgorithm];
-      console.log(signatureOid);
-      if (!signatureOid) {
-        throw new Error(`Unsupported signature algorithm for CSR: ${csrSignAlgorithm}`);
-      }
-
-      if (csrSignAlgorithm.startsWith('RSASSA_PSS')) {
-        const { shaOid, saltLength } = PSS_ALGO_PARAMS[csrSignAlgorithm];
-        const hashAlgorithm = new AlgorithmIdentifier({
-          algorithmId: shaOid,
-          algorithmParams: new asn1js.Null(),
-        });
-        const maskGenAlgorithm = new AlgorithmIdentifier({
-          algorithmId: '1.2.840.113549.1.1.8',
-          algorithmParams: hashAlgorithm.toSchema(),
-        });
-        const pssParams = new pkijs.RSASSAPSSParams({
-          hashAlgorithm,
-          maskGenAlgorithm,
-          saltLength,
-        });
-        pkcs10.signatureAlgorithm = new AlgorithmIdentifier({
-          algorithmId: '1.2.840.113549.1.1.10',
-          algorithmParams: pssParams.toSchema(),
-        });
-      } else {
-        pkcs10.signatureAlgorithm = new AlgorithmIdentifier({
-          algorithmId: signatureOid,
-        });
-      }
-
-      const tbs = (pkcs10 as any).encodeTBS().toBER(false);
-      pkcs10.tbs = tbs;
-
-      const tbsB64 = arrayBufferToBase64(tbs);
-
-      const signPayload = {
-        algorithm: csrSignAlgorithm,
-        message: tbsB64,
-        message_type: "raw"
-      };
-
-      const signResult = await signWithKmsKey(keyDetails.id, signPayload, user.access_token);
-
-      const signatureBase64 = signResult.signature;
-      const rawSignature = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0));
-
-      let signatureFormatLabel = 'rsa';
-      let expectedEcdsaLength: number | undefined;
-
-      if (!csrSignAlgorithm.startsWith('RSA')) {
-        expectedEcdsaLength = ECDSA_RAW_SIGNATURE_LENGTHS[csrSignAlgorithm];
-        const conversionResult = rawEcdsaSigToDer(rawSignature, expectedEcdsaLength);
-        signatureFormatLabel = conversionResult.format;
-        const finalDerSignature = conversionResult.der;
-
-        pkcs10.signatureValue = new asn1js.BitString({ valueHex: finalDerSignature });
-
-        const verificationResults: Record<string, boolean> = {};
-        verificationResults[signatureFormatLabel] = await pkcs10.verify();
-
-        if (signatureFormatLabel === 'der' && expectedEcdsaLength) {
-          const rawRoundTrip = derEcdsaSigToRaw(new Uint8Array(finalDerSignature), expectedEcdsaLength);
-          if (rawRoundTrip) {
-            const reconversion = rawEcdsaSigToDer(rawRoundTrip, expectedEcdsaLength);
-            pkcs10.signatureValue = new asn1js.BitString({ valueHex: reconversion.der });
-            verificationResults['raw'] = await pkcs10.verify();
-            pkcs10.signatureValue = new asn1js.BitString({ valueHex: finalDerSignature });
-          }
-        } else if (signatureFormatLabel === 'raw') {
-          const derDetection = rawEcdsaSigToDer(new Uint8Array(finalDerSignature), expectedEcdsaLength);
-          pkcs10.signatureValue = new asn1js.BitString({ valueHex: derDetection.der });
-          verificationResults['der'] = await pkcs10.verify();
-          pkcs10.signatureValue = new asn1js.BitString({ valueHex: finalDerSignature });
-        }
-
-        console.log('CSR Verification Regression Checks:', verificationResults);
-      } else {
-        // For RSA, we can directly use the raw signature as DER
-        pkcs10.signatureValue = new asn1js.BitString({ valueHex: rawSignature });
-      }
-
-      const finalCsrDer = pkcs10.toSchema().toBER(false);
-      const finalCsrPem = formatAsPem(arrayBufferToBase64(finalCsrDer), 'CERTIFICATE REQUEST');
-
-      if (csrSignAlgorithm.startsWith('RSA')) {
-        const ok = await pkcs10.verify();
-        console.log('CSR Verification Result (RSA):', ok);
-      }
-
-      setGeneratedCsr(finalCsrPem);
+      setGeneratedCsr(pem);
       toast({ title: "CSR Generated Successfully", description: "The CSR has been signed by the KMS key." });
-
     } catch (error: any) {
       console.error("CSR Generation Error:", error);
       toast({ title: "CSR Generation Failed", description: error.message, variant: "destructive" });
@@ -999,6 +616,12 @@ export default function KmsKeyDetailsClient() {
         case 521: return algo !== 'ECDSA_SHA_512';
         default: return true;
       }
+    }
+    if (keyDetails.algorithm === 'MLDSA') {
+      if (!algo.startsWith('MLDSA')) return true;
+      // Restrict to the exact parameter set of this key (44 / 65 / 87).
+      const sizeStr = String(keyDetails.keySize ?? '');
+      return algo !== `MLDSA_${sizeStr}`;
     }
 
     return true; // Disable for unknown key types
@@ -1268,8 +891,9 @@ export default function KmsKeyDetailsClient() {
                           <div className="h-2 w-2 rounded-full bg-green-500"></div>
                           <span className="font-medium">{keyDetails.algorithm}</span>
                           <Badge variant="secondary" className="ml-auto">
-                            {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : 
-                             keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : 'Other'}
+                            {keyDetails.algorithm === 'RSA' ? 'Asymmetric' :
+                             keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' :
+                             keyDetails.algorithm === 'MLDSA' ? 'Post-Quantum' : 'Other'}
                           </Badge>
                         </div>
                       </div>

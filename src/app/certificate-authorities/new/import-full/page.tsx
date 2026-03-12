@@ -11,8 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, UploadCloud, Loader2, Settings, AlertTriangle, FileText } from "lucide-react";
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import * as pkijs from "pkijs";
-import * as asn1js from "asn1js";
+import { parseCertificatePemDetails, initPkijsEngine } from "@/lib-crypto";
 import { format as formatDate } from 'date-fns';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -22,7 +21,7 @@ import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { Separator } from '@/components/ui/separator';
-import { importCa, type ImportCaPayload, ab2hex, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
+import { importCa, type ImportCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface DecodedImportedCertInfo {
@@ -33,14 +32,6 @@ interface DecodedImportedCertInfo {
   validTo?: string;
   isCa?: boolean;
   error?: string;
-}
-
-// --- Helper Functions ---
-const OID_MAP: Record<string, string> = {
-  "2.5.4.3": "CN", "2.5.4.6": "C", "2.5.4.7": "L", "2.5.4.8": "ST", "2.5.4.10": "O", "2.5.4.11": "OU",
-};
-function formatPkijsSubject(subject: any): string {
-  return subject.typesAndValues.map((tv: any) => `${OID_MAP[tv.type] || tv.type}=${(tv.value as any).valueBlock.value}`).join(', ');
 }
 
 
@@ -83,9 +74,7 @@ export default function CreateCaImportFullPage() {
   
   // Set up pkijs engine
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      pkijs.setEngine("webcrypto", pkijs.getCrypto());
-    }
+    initPkijsEngine();
   }, []);
 
   useEffect(() => {
@@ -127,22 +116,14 @@ export default function CreateCaImportFullPage() {
   
   const parseCertificatePem = async (pem: string) => {
     try {
-      const pemContent = pem.replace(/-----(BEGIN|END) CERTIFICATE-----/g, "").replace(/\s+/g, "");
-      const derBuffer = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0)).buffer;
-      const asn1 = asn1js.fromBER(derBuffer);
-      if (asn1.offset === -1) throw new Error("Invalid ASN.1 structure.");
-      const certificate = new pkijs.Certificate({ schema: asn1.result });
-      
-      const basicConstraintsExtension = certificate.extensions?.find(ext => ext.extnID === "2.5.29.19");
-      const isCa = basicConstraintsExtension ? (basicConstraintsExtension.parsedValue as pkijs.BasicConstraints).cA : false;
-
+      const parsed = await parseCertificatePemDetails(pem);
       setDecodedImportedCertInfo({
-        subject: formatPkijsSubject(certificate.subject),
-        issuer: formatPkijsSubject(certificate.issuer),
-        serialNumber: ab2hex(certificate.serialNumber.valueBlock.valueHex),
-        validFrom: formatDate(certificate.notBefore.value, "PPpp"),
-        validTo: formatDate(certificate.notAfter.value, "PPpp"),
-        isCa: isCa,
+        subject: parsed.subject,
+        issuer: parsed.issuer,
+        serialNumber: parsed.serialNumber,
+        validFrom: parsed.validFrom ? formatDate(new Date(parsed.validFrom), "PPpp") : 'N/A',
+        validTo: parsed.validTo ? formatDate(new Date(parsed.validTo), "PPpp") : 'N/A',
+        isCa: parsed.isCa ?? false,
       });
     } catch (e: any) {
       setDecodedImportedCertInfo({ error: `Failed to parse certificate: ${e.message}` });
