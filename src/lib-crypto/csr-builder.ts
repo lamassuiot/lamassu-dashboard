@@ -43,6 +43,116 @@ export interface BuildSignedCsrParams {
   signFn: (tbsBase64: string) => Promise<string>;
 }
 
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+/** Builds the ordered list of AttributeTypeAndValue entries for a CSR subject. */
+function buildSubjectFields(subject: CsrSubject): pkijs.AttributeTypeAndValue[] {
+  const fields: pkijs.AttributeTypeAndValue[] = [
+    new pkijs.AttributeTypeAndValue({
+      type: "2.5.4.3", // CN
+      value: new asn1js.Utf8String({ value: subject.commonName.trim() }),
+    }),
+  ];
+  if (subject.organization?.trim()) {
+    fields.push(
+      new pkijs.AttributeTypeAndValue({
+        type: "2.5.4.10", // O
+        value: new asn1js.Utf8String({ value: subject.organization.trim() }),
+      }),
+    );
+  }
+  if (subject.organizationalUnit?.trim()) {
+    fields.push(
+      new pkijs.AttributeTypeAndValue({
+        type: "2.5.4.11", // OU
+        value: new asn1js.Utf8String({ value: subject.organizationalUnit.trim() }),
+      }),
+    );
+  }
+  if (subject.locality?.trim()) {
+    fields.push(
+      new pkijs.AttributeTypeAndValue({
+        type: "2.5.4.7", // L
+        value: new asn1js.Utf8String({ value: subject.locality.trim() }),
+      }),
+    );
+  }
+  if (subject.stateProvince?.trim()) {
+    fields.push(
+      new pkijs.AttributeTypeAndValue({
+        type: "2.5.4.8", // ST
+        value: new asn1js.Utf8String({ value: subject.stateProvince.trim() }),
+      }),
+    );
+  }
+  if (subject.country?.trim()) {
+    fields.push(
+      new pkijs.AttributeTypeAndValue({
+        type: "2.5.4.6", // C
+        value: new asn1js.PrintableString({ value: subject.country.trim() }),
+      }),
+    );
+  }
+  return fields;
+}
+
+/**
+ * Builds a PKCS#9 extensionRequest attribute containing a subjectAltName
+ * extension.  Returns `null` if `sans` is empty or all entries are invalid.
+ */
+function buildSanAttribute(sans: CsrSan[]): pkijs.Attribute | null {
+  if (sans.length === 0) return null;
+
+  const generalNames: pkijs.GeneralName[] = sans
+    .map((san): pkijs.GeneralName | null => {
+      switch (san.type) {
+        case "Email":
+          return new pkijs.GeneralName({ type: 1, value: san.value.trim() });
+        case "DNS":
+          return new pkijs.GeneralName({ type: 2, value: san.value.trim() });
+        case "URI":
+          return new pkijs.GeneralName({ type: 6, value: san.value.trim() });
+        case "IP": {
+          const ipBuffer = ipToBuffer(san.value.trim());
+          return ipBuffer
+            ? new pkijs.GeneralName({
+                type: 7,
+                value: new asn1js.OctetString({ valueHex: ipBuffer }),
+              })
+            : null;
+        }
+        default:
+          return null;
+      }
+    })
+    .filter((n): n is pkijs.GeneralName => n !== null);
+
+  if (generalNames.length === 0) return null;
+
+  const extensions = new pkijs.Extensions({
+    extensions: [
+      new pkijs.Extension({
+        extnID: "2.5.29.17", // id-ce-subjectAltName
+        critical: false,
+        extnValue: new pkijs.GeneralNames({ names: generalNames })
+          .toSchema()
+          .toBER(false),
+      }),
+    ],
+  });
+
+  return new pkijs.Attribute({
+    type: "1.2.840.113549.1.9.14", // id-pkcs9-at-extensionRequest
+    values: [extensions.toSchema()],
+  });
+}
+
+// ---------------------------------------------------------------------------
+// KMS-backed CSR builder
+// ---------------------------------------------------------------------------
+
 /**
  * Builds a signed PKCS#10 CSR using the provided public key and a
  * KMS-backed signing function.
@@ -54,63 +164,11 @@ export async function buildSignedCsr(
 ): Promise<string> {
   const { subject, sans, signAlgorithm, publicKeyPem, signFn } = params;
 
-  // --- Build the subject distinguished name ---
-  const subjectFields: pkijs.AttributeTypeAndValue[] = [
-    new pkijs.AttributeTypeAndValue({
-      type: "2.5.4.3", // CN
-      value: new asn1js.Utf8String({ value: subject.commonName.trim() }),
-    }),
-  ];
-
-  if (subject.organization?.trim()) {
-    subjectFields.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.10", // O
-        value: new asn1js.Utf8String({ value: subject.organization.trim() }),
-      }),
-    );
-  }
-  if (subject.organizationalUnit?.trim()) {
-    subjectFields.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.11", // OU
-        value: new asn1js.Utf8String({
-          value: subject.organizationalUnit.trim(),
-        }),
-      }),
-    );
-  }
-  if (subject.locality?.trim()) {
-    subjectFields.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.7", // L
-        value: new asn1js.Utf8String({ value: subject.locality.trim() }),
-      }),
-    );
-  }
-  if (subject.stateProvince?.trim()) {
-    subjectFields.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.8", // ST
-        value: new asn1js.Utf8String({ value: subject.stateProvince.trim() }),
-      }),
-    );
-  }
-  if (subject.country?.trim()) {
-    subjectFields.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.6", // C
-        value: new asn1js.PrintableString({ value: subject.country.trim() }),
-      }),
-    );
-  }
-
-  const rdnSubject = new pkijs.RelativeDistinguishedNames({
-    typesAndValues: subjectFields,
-  });
-
   // --- Initialise PKCS#10 request ---
-  const pkcs10 = new CertificationRequest({ version: 0, subject: rdnSubject });
+  const pkcs10 = new CertificationRequest({
+    version: 0,
+    subject: new pkijs.RelativeDistinguishedNames({ typesAndValues: buildSubjectFields(subject) }),
+  });
   pkcs10.attributes = [];
 
   // --- Import the public key ---
@@ -149,54 +207,8 @@ export async function buildSignedCsr(
   }
 
   // --- Add SANs (if any) ---
-  if (sans.length > 0) {
-    const generalNamesArray: pkijs.GeneralName[] = sans
-      .map((san): pkijs.GeneralName | null => {
-        switch (san.type) {
-          case "Email":
-            return new pkijs.GeneralName({ type: 1, value: san.value.trim() });
-          case "DNS":
-            return new pkijs.GeneralName({ type: 2, value: san.value.trim() });
-          case "URI":
-            return new pkijs.GeneralName({ type: 6, value: san.value.trim() });
-          case "IP": {
-            const ipBuffer = ipToBuffer(san.value.trim());
-            return ipBuffer
-              ? new pkijs.GeneralName({
-                  type: 7,
-                  value: new asn1js.OctetString({ valueHex: ipBuffer }),
-                })
-              : null;
-          }
-          default:
-            return null;
-        }
-      })
-      .filter((n): n is pkijs.GeneralName => n !== null);
-
-    if (generalNamesArray.length > 0) {
-      const extensions = new pkijs.Extensions({
-        extensions: [
-          new pkijs.Extension({
-            extnID: "2.5.29.17", // id-ce-subjectAltName
-            critical: false,
-            extnValue: new pkijs.GeneralNames({
-              names: generalNamesArray,
-            })
-              .toSchema()
-              .toBER(false),
-          }),
-        ],
-      });
-
-      pkcs10.attributes = [
-        new pkijs.Attribute({
-          type: "1.2.840.113549.1.9.14", // id-pkcs9-at-extensionRequest
-          values: [extensions.toSchema()],
-        }),
-      ];
-    }
-  }
+  const sanAttribute = buildSanAttribute(sans);
+  if (sanAttribute) pkcs10.attributes = [sanAttribute];
 
   // --- Set the signature algorithm ---
   const signatureOid = SIGNATURE_OID_MAP[signAlgorithm];
@@ -304,10 +316,8 @@ export async function buildSignedCsr(
 // Self-signed CSR (browser key generation workflows)
 // ---------------------------------------------------------------------------
 
-/**
- * Parameters for building a self-signed PKCS#10 CSR from a locally-generated
- * key pair.
- */
+/** Parameters for building a self-signed PKCS#10 CSR from a locally-generated key pair. */
+
 export interface BuildSelfSignedCsrParams {
   subject: CsrSubject;
   sans?: CsrSan[];
@@ -331,106 +341,18 @@ export async function buildSelfSignedCsr(
 ): Promise<string> {
   const { subject, sans = [], keyPair, hashAlgorithm = "SHA-256" } = params;
 
-  const pkcs10 = new CertificationRequest({ version: 0 });
+  const pkcs10 = new CertificationRequest({
+    version: 0,
+    subject: new pkijs.RelativeDistinguishedNames({ typesAndValues: buildSubjectFields(subject) }),
+  });
   pkcs10.attributes = [];
-
-  // --- Build subject ---
-  pkcs10.subject.typesAndValues.push(
-    new pkijs.AttributeTypeAndValue({
-      type: "2.5.4.3",
-      value: new asn1js.Utf8String({ value: subject.commonName.trim() }),
-    }),
-  );
-  if (subject.organization?.trim()) {
-    pkcs10.subject.typesAndValues.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.10",
-        value: new asn1js.Utf8String({ value: subject.organization.trim() }),
-      }),
-    );
-  }
-  if (subject.organizationalUnit?.trim()) {
-    pkcs10.subject.typesAndValues.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.11",
-        value: new asn1js.Utf8String({ value: subject.organizationalUnit.trim() }),
-      }),
-    );
-  }
-  if (subject.locality?.trim()) {
-    pkcs10.subject.typesAndValues.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.7",
-        value: new asn1js.Utf8String({ value: subject.locality.trim() }),
-      }),
-    );
-  }
-  if (subject.stateProvince?.trim()) {
-    pkcs10.subject.typesAndValues.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.8",
-        value: new asn1js.Utf8String({ value: subject.stateProvince.trim() }),
-      }),
-    );
-  }
-  if (subject.country?.trim()) {
-    pkcs10.subject.typesAndValues.push(
-      new pkijs.AttributeTypeAndValue({
-        type: "2.5.4.6",
-        value: new asn1js.PrintableString({ value: subject.country.trim() }),
-      }),
-    );
-  }
 
   // --- Import public key ---
   await pkcs10.subjectPublicKeyInfo.importKey(keyPair.publicKey);
 
   // --- Add SANs if provided ---
-  if (sans.length > 0) {
-    const generalNamesArray: pkijs.GeneralName[] = sans
-      .map((san): pkijs.GeneralName | null => {
-        switch (san.type) {
-          case "Email":
-            return new pkijs.GeneralName({ type: 1, value: san.value.trim() });
-          case "DNS":
-            return new pkijs.GeneralName({ type: 2, value: san.value.trim() });
-          case "URI":
-            return new pkijs.GeneralName({ type: 6, value: san.value.trim() });
-          case "IP": {
-            const ipBuffer = ipToBuffer(san.value.trim());
-            return ipBuffer
-              ? new pkijs.GeneralName({
-                  type: 7,
-                  value: new asn1js.OctetString({ valueHex: ipBuffer }),
-                })
-              : null;
-          }
-          default:
-            return null;
-        }
-      })
-      .filter((n): n is pkijs.GeneralName => n !== null);
-
-    if (generalNamesArray.length > 0) {
-      const extensions = new pkijs.Extensions({
-        extensions: [
-          new pkijs.Extension({
-            extnID: "2.5.29.17",
-            critical: false,
-            extnValue: new pkijs.GeneralNames({ names: generalNamesArray })
-              .toSchema()
-              .toBER(false),
-          }),
-        ],
-      });
-      pkcs10.attributes = [
-        new pkijs.Attribute({
-          type: "1.2.840.113549.1.9.14",
-          values: [extensions.toSchema()],
-        }),
-      ];
-    }
-  }
+  const sanAttribute = buildSanAttribute(sans);
+  if (sanAttribute) pkcs10.attributes = [sanAttribute];
 
   // --- Sign with the local private key ---
   await pkcs10.sign(keyPair.privateKey, hashAlgorithm);
