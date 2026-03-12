@@ -301,7 +301,7 @@ export async function buildSignedCsr(
     console.log("CSR Verification Regression Checks:", verificationResults);
   } else {
     // For RSA the raw signature bytes are already the correct encoding
-    pkcs10.signatureValue = new asn1js.BitString({ valueHex: rawSignature });
+    pkcs10.signatureValue = new asn1js.BitString({ valueHex: rawSignature.buffer });
 
     const ok = await pkcs10.verify();
     console.log("CSR Verification Result (RSA):", ok);

@@ -51,12 +51,22 @@ const KEY_USAGE_NAMES = [
 
 /**
  * Converts an ArrayBuffer to a hex string, optionally with a separator.
- * Leading zero bytes are stripped for buffers longer than 16 bytes
- * (matches the behaviour of the legacy `ab2hex` helper in ca-data.ts).
+ *
+ * By default, leading zero bytes are stripped for buffers longer than 16 bytes
+ * to preserve the legacy `ab2hex` behaviour used for INTEGER-like ASN.1 fields.
+ *
+ * For fixed-width values such as SHA-256 fingerprints, pass `false` for
+ * `trimLeadingZeroForIntegers` so the full byte width is preserved.
  */
-export function abToHex(ab: ArrayBuffer, separator = ""): string {
+export function abToHex(
+  ab: ArrayBuffer,
+  separator = "",
+  trimLeadingZeroForIntegers = true,
+): string {
   let arr = new Uint8Array(ab);
-  if (arr.length > 16 && arr[0] === 0x00) arr = arr.slice(1);
+  if (trimLeadingZeroForIntegers && arr.length > 16 && arr[0] === 0x00) {
+    arr = arr.slice(1);
+  }
   return Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join(separator);
 }
 
@@ -177,7 +187,7 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedCer
     if (window.crypto?.subtle) {
       try {
         const hashBuffer = await crypto.subtle.digest("SHA-256", bytes.buffer);
-        result.fingerprintSha256 = abToHex(hashBuffer, ":");
+        result.fingerprintSha256 = abToHex(hashBuffer, ":", false);
       } catch (e) {
         console.error("parseCertificatePemDetails: Could not calculate fingerprint", e);
       }
