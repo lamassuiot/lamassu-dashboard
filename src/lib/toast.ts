@@ -2,6 +2,7 @@ import { sileo as _sileo } from 'sileo';
 
 type SileoOptions = Parameters<typeof _sileo.success>[0];
 type SileoPosition = NonNullable<SileoOptions['position']>;
+type ToastTheme = 'dark' | 'light';
 
 const DARK_TOAST = {
   fill: '#18181b',
@@ -11,7 +12,7 @@ const LIGHT_TOAST = {
   fill: '#fafafa',
 } satisfies Partial<SileoOptions>;
 
-function getToastPosition(): SileoPosition | undefined {
+export function getToastPosition(): SileoPosition | undefined {
   if (typeof window === 'undefined') {
     return undefined;
   }
@@ -20,18 +21,23 @@ function getToastPosition(): SileoPosition | undefined {
   return typeof position === 'string' ? position as SileoPosition : undefined;
 }
 
-function getThemeDefaults(): Partial<SileoOptions> {
-  const position = getToastPosition();
-
+export function getToastTheme(): ToastTheme {
   if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
-    return { ...LIGHT_TOAST, ...(position ? { position } : {}) };
+    return 'dark';
   }
 
-  return { ...DARK_TOAST, ...(position ? { position } : {}) };
+  return 'light';
+}
+
+export function getToastDefaults(): Partial<SileoOptions> {
+  const position = getToastPosition();
+  const themeDefaults = getToastTheme() === 'dark' ? LIGHT_TOAST : DARK_TOAST;
+
+  return { ...themeDefaults, ...(position ? { position } : {}) };
 }
 
 function withTheme(options: SileoOptions): SileoOptions {
-  return { ...getThemeDefaults(), ...options };
+  return { ...getToastDefaults(), ...options };
 }
 
 export const sileo = {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Toaster } from 'sileo';
-import { getConfigValue } from '@/contexts/ConfigContext';
+import { getToastPosition, getToastTheme } from '@/lib/toast';
 
 function useIsDark() {
   const [isDark, setIsDark] = useState(
@@ -27,14 +27,15 @@ interface ThemedToasterProps {
 }
 
 export function ThemedToaster({ position = 'top-right', offset }: ThemedToasterProps) {
-  const isDark = useIsDark();
-  const configuredPosition = getConfigValue('TOAST_POSITION', position) as React.ComponentProps<typeof Toaster>['position'];
+  useIsDark();
+  const configuredPosition = getToastPosition() ?? position;
+  const theme = getToastTheme();
 
   return (
     <Toaster
       position={configuredPosition}
       offset={offset}
-      theme={isDark ? 'dark' : 'light'}
+      theme={theme}
     />
   );
 }

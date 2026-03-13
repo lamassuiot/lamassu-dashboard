@@ -72,7 +72,7 @@ export function CertificateList({
 
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
   const [certificateToRevoke, setCertificateToRevoke] = useState<CertificateData | null>(null);
-  const [isRevoking, _setIsRevoking] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   const [isOcspModalOpen, setIsOcspModalOpen] = useState(false);
   const [certForOcsp, setCertForOcsp] = useState<CertificateData | null>(null);
@@ -117,7 +117,7 @@ export function CertificateList({
       return;
     }
 
-    setIsRevocationModalOpen(false);
+    setIsRevoking(true);
 
     try {
       await updateCertificateStatus({
@@ -127,7 +127,14 @@ export function CertificateList({
         accessToken: accessToken,
       });
 
-      onCertificateUpdated({ ...certificateToRevoke, apiStatus: 'REVOKED', revocationReason: reason });
+      onCertificateUpdated({
+        ...certificateToRevoke,
+        apiStatus: 'REVOKED',
+        revocationReason: reason,
+        revocationTimestamp: new Date().toISOString(),
+      });
+      setIsRevocationModalOpen(false);
+      setCertificateToRevoke(null);
       sileo.success({
         title: "Certificate Revoked",
         description: `Certificate "${getCommonName(certificateToRevoke.subject)}" has been successfully revoked.`
@@ -139,7 +146,7 @@ export function CertificateList({
         description: error.message
       });
     } finally {
-      setCertificateToRevoke(null);
+      setIsRevoking(false);
     }
   };
 
