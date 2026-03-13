@@ -407,12 +407,13 @@ export default function DevicesPage() {
             <PlusCircle className="mr-2 h-4 w-4" /> Register New Device
           </Button>
         </div>
-      </div>
+      </div>    
       <p className="text-sm text-muted-foreground">
         Overview of all registered IoT devices, their status, and associated groups.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+      <div className="flex flex-wrap gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1 min-w-0">
         <div className="space-y-1">
           <Label htmlFor="searchTermInput">Search Term</Label>
           <div className="relative">
@@ -470,6 +471,12 @@ export default function DevicesPage() {
           </Select>
         </div>
       </div>
+      <ColumnSelector
+        columns={columns}
+        onColumnToggle={handleColumnToggle}
+        align="end"
+      />
+      </div>
 
       <SplitPanelLayout
         isPanelOpen={isEnrollModalOpen}
@@ -503,13 +510,6 @@ export default function DevicesPage() {
 
         {!apiError && sortedDevices.length > 0 && (
           <>
-            <div className="flex justify-end mb-2">
-              <ColumnSelector
-                columns={columns}
-                onColumnToggle={handleColumnToggle}
-                align="end"
-              />
-            </div>
             <div className={cn("overflow-x-auto transition-opacity duration-300", isLoadingApi && sortedDevices.length > 0 && "opacity-50 pointer-events-none")}>
               <Table>
               <TableHeader>

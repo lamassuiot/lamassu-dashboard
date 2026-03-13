@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardHeader, CardDescription } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import { Loader2, BookText, Settings2, Info, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Badge } from '@/components/ui/badge';
 import { differenceInSeconds, parseISO, isFuture, add } from 'date-fns';
 import { fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
@@ -46,6 +48,8 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
   isReissuing,
 }) => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  const isDesktop = isMobile === false;
   const [profileMode, setProfileMode] = useState<ProfileMode>('inline');
   
   // Profile selector state
@@ -239,23 +243,25 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
   );
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !isReissuing && !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Reissue CA Certificate</DialogTitle>
-          <DialogDescription>
+    <Drawer open={isOpen} onOpenChange={(open) => !isReissuing && !open && onClose()} direction={isDesktop ? 'right' : 'bottom'}>
+      <DrawerContent className={isDesktop
+        ? "inset-y-0 right-0 left-auto bottom-auto mt-0 h-full w-[580px] max-w-[90vw] rounded-none rounded-l-[10px] flex flex-col [&>div:first-child]:hidden"
+        : "max-h-[90vh] flex flex-col"
+      }>
+        <DrawerHeader className="border-b">
+          <DrawerTitle>Reissue CA Certificate</DrawerTitle>
+          <DrawerDescription>
             Reissue the certificate for CA &quot;{caName}&quot;
-          </DialogDescription>
-        </DialogHeader>
+          </DrawerDescription>
+        </DrawerHeader>
 
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            A new certificate will be issued for this CA with the same subject and issuer information.
-          </AlertDescription>
-        </Alert>
-
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              A new certificate will be issued for this CA with the same subject and issuer information.
+            </AlertDescription>
+          </Alert>
           <div>
             <Label>Profile Mode</Label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
@@ -397,16 +403,18 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isReissuing}>
-            Cancel
-          </Button>
+        <DrawerFooter className="border-t">
           <Button onClick={handleReissue} disabled={isReissuing || !canSubmit}>
             {isReissuing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isReissuing ? 'Reissuing...' : 'Reissue CA Certificate'}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DrawerClose asChild>
+            <Button variant="outline" onClick={onClose} disabled={isReissuing}>
+              Cancel
+            </Button>
+          </DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   );
 };

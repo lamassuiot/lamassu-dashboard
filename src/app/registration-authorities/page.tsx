@@ -65,7 +65,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RegistrationAuthoritiesTable } from '@/components/ra/RegistrationAuthoritiesTable';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
+import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 
@@ -91,6 +91,15 @@ interface SortConfig {
 const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
+const RA_COLUMN_DEFAULTS: Record<string, boolean> = {
+  icon: true,
+  name: true,
+  registrationMode: true,
+  enrollmentCA: true,
+  authMode: true,
+  createdAt: true,
+};
+
 type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | null;
 
 export default function RegistrationAuthoritiesPage() {
@@ -105,6 +114,7 @@ export default function RegistrationAuthoritiesPage() {
 
   // View mode state
   const [viewMode, setViewMode] = useState<'grid' | 'list'>();
+  const [raColumnVisibility, setRaColumnVisibility] = useState<Record<string, boolean>>(RA_COLUMN_DEFAULTS);
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -300,7 +310,6 @@ export default function RegistrationAuthoritiesPage() {
   const handleEstPanelOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       setEstPanelMode(null);
-      setSelectedRaForEstAction(null);
     }
   };
 
@@ -435,41 +444,23 @@ export default function RegistrationAuthoritiesPage() {
                 <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
                 <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
             </ToggleGroup>
+            {viewMode === 'list' && (
+              <ColumnSelector
+                columns={[
+                  { id: 'icon', label: 'Icon', visible: raColumnVisibility.icon },
+                  { id: 'name', label: 'Name', visible: raColumnVisibility.name, disabled: true },
+                  { id: 'registrationMode', label: 'Registration Mode', visible: raColumnVisibility.registrationMode },
+                  { id: 'enrollmentCA', label: 'Enrollment CA', visible: raColumnVisibility.enrollmentCA },
+                  { id: 'authMode', label: 'Auth Mode', visible: raColumnVisibility.authMode },
+                  { id: 'createdAt', label: 'Created At', visible: raColumnVisibility.createdAt },
+                ]}
+                onColumnToggle={(id) => setRaColumnVisibility((prev) => ({ ...prev, [id]: !prev[id] }))}
+                align="end"
+              />
+            )}
         </div>
       </div>
 
-        <SplitPanelLayout
-          isPanelOpen={estPanelMode !== null}
-          onPanelOpenChange={handleEstPanelOpenChange}
-          mobilePanelAsDialog
-          panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_720px]"
-        panel={
-            estPanelMode === 'enroll' ? (
-              <EstEnrollModal
-                isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
-                className="p-4"
-                presentation="inline"
-              />
-            ) : estPanelMode === 'reenroll' ? (
-              <EstReEnrollModal
-                isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
-                className="p-4"
-                presentation="inline"
-              />
-            ) : estPanelMode === 'cacerts' ? (
-              <EstCaCertsPanel
-                isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
-                className="p-4"
-              />
-            ) : null
-        }
-        >
         {error && (
           <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -501,6 +492,7 @@ export default function RegistrationAuthoritiesPage() {
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
+            columnVisibility={raColumnVisibility}
           />
         ) : (
           <div className={cn("grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3", isLoading && "opacity-50")}>
@@ -678,9 +670,22 @@ export default function RegistrationAuthoritiesPage() {
             </div>
           </div>
         )}
-        </SplitPanelLayout>
-
-    </div>
+        </div>
+    <EstEnrollModal
+      isOpen={estPanelMode === 'enroll'}
+      onOpenChange={handleEstPanelOpenChange}
+      ra={selectedRaForEstAction}
+    />
+    <EstReEnrollModal
+      isOpen={estPanelMode === 'reenroll'}
+      onOpenChange={handleEstPanelOpenChange}
+      ra={selectedRaForEstAction}
+    />
+    <EstCaCertsPanel
+      isOpen={estPanelMode === 'cacerts'}
+      onOpenChange={handleEstPanelOpenChange}
+      ra={selectedRaForEstAction}
+    />
     <CaSelectorModal
         isOpen={isCaSelectorOpen}
         onOpenChange={setIsCaSelectorOpen}

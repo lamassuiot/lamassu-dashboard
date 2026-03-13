@@ -2,9 +2,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info } from "lucide-react";
@@ -53,8 +52,6 @@ interface EstEnrollModalProps {
   onOpenChange: (isOpen: boolean) => void;
   ra: ApiRaItem | null;
   initialDeviceId?: string;
-    presentation?: 'dialog' | 'inline';
-    className?: string;
 }
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
@@ -76,12 +73,10 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     onOpenChange,
     ra,
     initialDeviceId,
-    presentation = 'dialog',
-    className,
 }) => {
     const { user } = useAuth();
     const isMobile = useIsMobile();
-    const resolvedPresentation = presentation === 'inline' && isMobile ? 'dialog' : presentation;
+    const isDesktop = isMobile === false;
     
     // Dependencies state
     const [availableCAs, setAvailableCAs] = useState<CA[]>([]);
@@ -351,7 +346,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 </p>
             </div>
 
-            <div className="flex-grow my-2 -mr-6 overflow-y-auto px-6 pr-6">
+            <div className="flex-grow my-2 -mr-6 overflow-y-auto px-6 pr-10">
                     <div className="pt-2">
                         <Stepper currentStep={step} steps={["Device", "CSR", "Bootstrap Options", "Bootstrap", "Commands"]} />
                     </div>
@@ -587,7 +582,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                     </div>
                 </div>
 
-                <DialogFooter className="border-t px-6 py-4">
+                <div className="flex-shrink-0 border-t px-6 py-4">
                     <div className="w-full flex justify-between">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <div className="flex space-x-2">
@@ -611,31 +606,19 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                             )}
                         </div>
                     </div>
-                </DialogFooter>
+                </div>
         </>
     );
 
-    if (resolvedPresentation === 'inline') {
-        if (!isOpen) return null;
-
-        return (
-            <Card className={cn("flex h-full min-h-[650px] flex-col overflow-hidden", className)}>
-                {panelContent}
-            </Card>
-        );
-    }
-
     return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className={cn("sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col", className)}>
-                <DialogHeader className="sr-only">
-                    <DialogTitle>EST Enroll</DialogTitle>
-                    <DialogDescription>
-                        Generate enrollment commands for RA: {ra?.name} ({ra?.id})
-                    </DialogDescription>
-                </DialogHeader>
+        <Drawer open={isOpen} onOpenChange={onOpenChange} direction={isDesktop ? 'right' : 'bottom'}>
+            <DrawerContent
+                className={cn(
+                    isDesktop && "inset-y-0 right-0 left-auto bottom-auto mt-0 h-full w-[680px] max-w-[90vw] rounded-none rounded-l-[10px] flex flex-col [&>div:first-child]:hidden"
+                )}
+            >
                 {panelContent}
-            </DialogContent>
-        </Dialog>
+            </DrawerContent>
+        </Drawer>
     );
 };

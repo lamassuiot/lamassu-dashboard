@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,6 +11,7 @@ import { fetchEstCaCerts } from '@/lib/est-api';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { AlertTriangle, FileText, Loader2 } from 'lucide-react';
 
 interface ApiRaItem {
@@ -22,16 +23,16 @@ interface EstCaCertsPanelProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   ra: ApiRaItem | null;
-  className?: string;
 }
 
 export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
   isOpen,
   onOpenChange,
   ra,
-  className,
 }) => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  const isDesktop = isMobile === false;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pkcs7Certs, setPkcs7Certs] = useState('');
@@ -74,10 +75,15 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
     return `curl ${get_EST_API_BASE_URL()}/${ra.id}/cacerts \\\n  -H "Accept: application/pkcs7-mime"`;
   }, [ra?.id]);
 
-  if (!isOpen || !ra) return null;
+  if (!ra) return null;
 
   return (
-    <Card className={cn('flex h-full min-h-[650px] flex-col overflow-hidden', className)}>
+    <Drawer open={isOpen} onOpenChange={onOpenChange} direction={isDesktop ? 'right' : 'bottom'}>
+      <DrawerContent
+        className={cn(
+          isDesktop && "inset-y-0 right-0 left-auto bottom-auto mt-0 h-full w-[680px] max-w-[90vw] rounded-none rounded-l-[10px] flex flex-col [&>div:first-child]:hidden"
+        )}
+      >
       <div className="border-b p-6 pb-4">
         <h2 className="flex items-center text-lg font-semibold">
           <FileText className="mr-2 h-5 w-5 text-primary" />
@@ -134,8 +140,9 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
       </div>
 
       <div className="border-t p-6 pt-4">
-        <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        <Button variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
       </div>
-    </Card>
+      </DrawerContent>
+    </Drawer>
   );
 };

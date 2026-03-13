@@ -461,10 +461,6 @@ export default function CertificateAuthorityDetailsClient() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
-                  <Shield className="mr-2 h-4 w-4" />
-                  Validation Authority
-                </DropdownMenuItem>
                 {caDetails.status !== 'revoked' && (
                   <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
                     <RefreshCw className="mr-2 h-4 w-4" />

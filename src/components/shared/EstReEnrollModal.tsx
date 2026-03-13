@@ -2,9 +2,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Info, RefreshCw as RefreshCwIcon, Search, AlertTriangle, Loader2, HelpCircle, ArrowRight } from "lucide-react";
@@ -17,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { ApiDevice, fetchDevices } from '@/lib/devices-api';
 import { Badge } from '@/components/ui/badge';
 import { getLucideIconByName } from './DeviceIconSelectorModal';
@@ -33,8 +33,6 @@ interface EstReEnrollModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   ra: ApiRaItem | null;
-    presentation?: 'dialog' | 'inline';
-    className?: string;
 }
 
 // Local component copied from app/devices/page.tsx
@@ -82,10 +80,10 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
     isOpen,
     onOpenChange,
     ra,
-    presentation = 'dialog',
-    className,
 }) => {
     const { user } = useAuth();
+    const isMobile = useIsMobile();
+    const isDesktop = isMobile === false;
     
     const [step, setStep] = useState(1);
     
@@ -326,28 +324,15 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
         </>
     );
 
-    if (presentation === 'inline') {
-        if (!isOpen) return null;
-
-        return (
-            <Card className={cn('flex h-full min-h-[650px] flex-col overflow-hidden', className)}>
-                {panelContent}
-            </Card>
-        );
-    }
-
     return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className={cn('sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col', className)}>
-                <DialogHeader className="sr-only">
-                    <DialogTitle>EST Re-Enroll</DialogTitle>
-                    <DialogDescription>
-                        Generate re-enrollment commands for RA: {ra?.name} ({ra?.id})
-                    </DialogDescription>
-                </DialogHeader>
+        <Drawer open={isOpen} onOpenChange={onOpenChange} direction={isDesktop ? 'right' : 'bottom'}>
+            <DrawerContent
+                className={cn(
+                    isDesktop && "inset-y-0 right-0 left-auto bottom-auto mt-0 h-full w-[680px] max-w-[90vw] rounded-none rounded-l-[10px] flex flex-col [&>div:first-child]:hidden"
+                )}
+            >
                 {panelContent}
-                <DialogFooter className="sr-only" />
-            </DialogContent>
-        </Dialog>
+            </DrawerContent>
+        </Drawer>
     );
 };
