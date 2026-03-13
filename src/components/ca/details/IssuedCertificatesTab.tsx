@@ -185,7 +185,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                         No certificates issued by this CA yet, or none match the current filter.
                     </p>
                     {caIsActive && (
-                        <Button size="sm" variant="outline" onClick={handleIssueNewCertificate}>
+                        <Button size="sm" variant="secondary" onClick={handleIssueNewCertificate}>
                             <FilePlus2 className="mr-2 h-4 w-4" /> Issue First Certificate
                         </Button>
                     )}

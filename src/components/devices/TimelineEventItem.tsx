@@ -9,7 +9,7 @@ import { CheckCircle, XCircle, AlertTriangle, History, Edit, Info, HelpCircle, F
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import { IdentifierDisplay } from '../shared/IdentifierDisplay';
-import { DISPLAY_DATE_FORMAT } from '@/lib/config';
+import { getDisplayDateFormat } from '@/lib/config';
 
 // This interface must match the one defined in DeviceDetailsClient.tsx
 interface CertificateHistoryEntry {
@@ -103,7 +103,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
         {/* Title + timestamp */}
         <p className="mt-1 text-sm font-medium text-foreground break-words">{event.title}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>{format(event.timestamp, DISPLAY_DATE_FORMAT)}</span>
+          <span>{format(event.timestamp, getDisplayDateFormat())}</span>
           {event.secondaryRelativeTime && (
             <>
               <span className="text-border">·</span>
@@ -173,13 +173,13 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
                 <div className="space-y-0.5 text-destructive/90">
                   <p><strong>Reason:</strong> {cert.revocationReason || 'Unspecified'}</p>
                   {cert.revocationTimestamp && (
-                    <p><strong>On:</strong> {format(parseISO(cert.revocationTimestamp), DISPLAY_DATE_FORMAT)}</p>
+                    <p><strong>On:</strong> {format(parseISO(cert.revocationTimestamp), getDisplayDateFormat())}</p>
                   )}
                 </div>
               ) : (
                 <div className="space-y-0.5">
-                  <p><strong>Valid From:</strong> {format(parseISO(cert.validFrom), DISPLAY_DATE_FORMAT)}</p>
-                  <p><strong>Valid To:</strong> {format(parseISO(cert.validTo), DISPLAY_DATE_FORMAT)}</p>
+                  <p><strong>Valid From:</strong> {format(parseISO(cert.validFrom), getDisplayDateFormat())}</p>
+                  <p><strong>Valid To:</strong> {format(parseISO(cert.validTo), getDisplayDateFormat())}</p>
                 </div>
               )}
             </div>

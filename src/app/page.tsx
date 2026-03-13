@@ -150,52 +150,50 @@ export default function HomePage() {
   return (
     <div className="w-full space-y-8">
       <div className="flex items-center justify-start">
-        <Button onClick={loadInitialData} variant="outline" disabled={isReloading}>
+        <Button onClick={loadInitialData} variant="secondary" disabled={isReloading}>
           <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
         </Button>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <div className="lg:col-span-1">
-          <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats || authLoading} />
+      <div className="flex flex-col gap-8 xl:flex-row xl:items-stretch">
+        <div className="min-w-0 flex-1">
+          {anyTimelineLoading && !anyTimelineError ? (
+            <Card className="h-full w-full bg-card shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1">
+                <div className="flex h-[320px] items-center justify-center p-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="ml-3 text-muted-foreground">Loading Certification Authority timeline data...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : anyTimelineError ? (
+            <Card className="h-full w-full bg-card shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1">
+                <Alert variant="destructive" className="min-h-[320px]">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Error Loading Timeline Data</AlertTitle>
+                  <AlertDescription>
+                    {anyTimelineError}
+                    <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80 focus:text-destructive">Try again?</Button>
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+          ) : (
+            <CaExpiryTimeline cas={allCAs} allCryptoEngines={allCryptoEngines} />
+          )}
         </div>
-        <div className="lg:col-span-1">
-          <div className="max-w-lg">
-            <DeviceStatusChartCard />
-          </div>
+        <div className="w-full xl:max-w-lg xl:flex-none">
+          <DeviceStatusChartCard />
         </div>
       </div>
       <div>
-        {anyTimelineLoading && !anyTimelineError ? (
-          <Card className="shadow-lg w-full bg-card">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center h-[200px] md:h-[250px] p-4">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-3 text-muted-foreground">Loading Certification Authority timeline data...</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : anyTimelineError ? (
-          <Card className="shadow-lg w-full bg-card">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Error Loading Timeline Data</AlertTitle>
-                <AlertDescription>
-                  {anyTimelineError}
-                  <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80 focus:text-destructive">Try again?</Button>
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-        ) : (
-          <CaExpiryTimeline cas={allCAs} allCryptoEngines={allCryptoEngines} />
-        )}
+        <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats || authLoading} />
       </div>
     </div>
   );

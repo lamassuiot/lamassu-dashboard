@@ -160,7 +160,7 @@ export function FilterExpressionBuilder({
           </Alert>
         )}
 
-        <Button type="button" variant="outline" onClick={addFilter} className="w-full">
+        <Button type="button" variant="secondary" onClick={addFilter} className="w-full">
           <Plus className="mr-2 h-4 w-4" />
           Add Filter
         </Button>

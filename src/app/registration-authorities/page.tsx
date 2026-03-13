@@ -67,7 +67,7 @@ import { RegistrationAuthoritiesTable } from '@/components/ra/RegistrationAuthor
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { DISPLAY_DATE_FORMAT } from '@/lib/config';
+import { getDisplayDateFormat } from '@/lib/config';
 
 
 const DetailRow: React.FC<{ icon: React.ElementType, label: string, value: React.ReactNode }> = ({ icon: Icon, label, value }) => (
@@ -646,7 +646,7 @@ export default function RegistrationAuthoritiesPage() {
                   <Clock className="h-3 w-3 shrink-0" />
                   <span>Created</span>
                   <span className="text-border">·</span>
-                  <DateDisplay date={ra.creation_ts} formatString={DISPLAY_DATE_FORMAT} showRelative={false} className="text-xs" />
+                  <DateDisplay date={ra.creation_ts} formatString={getDisplayDateFormat()} showRelative={false} className="text-xs" />
                 </div>
               </Card>
             )})}

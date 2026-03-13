@@ -81,11 +81,11 @@ const PemBlock: React.FC<PemBlockProps> = ({
     contentClassName="p-0"
     actions={
       <div className="flex shrink-0 items-center gap-1.5">
-        <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={onCopy} disabled={!pem}>
+        <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={onCopy} disabled={!pem}>
           {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? 'Copied' : 'Copy'}
         </Button>
-        <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={onDownload} disabled={!pem}>
+        <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={onDownload} disabled={!pem}>
           <Download className="h-3.5 w-3.5" />
           .pem
         </Button>
@@ -179,14 +179,14 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
           actions={
             <div className="flex items-center gap-1.5">
               <Button
-                variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1.5"
+                variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5"
                 onClick={() => copyText(fullChainPemData!, `Full chain PEM for ${itemName}`, setChainCopied)}
               >
                 {chainCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                 {chainCopied ? 'Copied' : 'Copy'}
               </Button>
               <Button
-                variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1.5"
+                variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5"
                 onClick={() => downloadPem(fullChainPemData!, `${sanitizeFilename(itemName)}_chain.pem`, `Chain PEM for ${itemName}`)}
               >
                 <Download className="h-3.5 w-3.5" />

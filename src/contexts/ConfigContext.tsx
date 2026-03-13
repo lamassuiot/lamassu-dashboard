@@ -13,6 +13,8 @@ interface LamassuConfig {
   LAMASSU_CONNECTORS?: string[];
   LAMASSU_FOOTER_ENABLED?: boolean;
   TOAST_POSITION?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  DISPLAY_DATE_FORMAT?: string;
+  DISPLAY_DATE_AND_TIME_FORMAT?: string;
   [key: string]: any;
 }
 

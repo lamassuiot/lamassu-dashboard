@@ -258,10 +258,10 @@ export default function CertificatesPage() {
             <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
         </div>
         <div className="flex items-center space-x-2 self-start sm:self-center">
-            <Button onClick={refreshCertificates} variant="outline" disabled={isLoadingApi && certificates.length > 0}>
+            <Button onClick={refreshCertificates} variant="secondary" disabled={isLoadingApi && certificates.length > 0}>
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && certificates.length > 0 && "animate-spin")} /> Refresh List
             </Button>
-            <Button onClick={() => router.push('/certificates/import')} variant="outline">
+            <Button onClick={() => router.push('/certificates/import')} variant="secondary">
                 <Upload className="mr-2 h-4 w-4" /> Import Certificate
             </Button>
             <Button onClick={() => handleOpenCaSelector('issue')} variant="default">

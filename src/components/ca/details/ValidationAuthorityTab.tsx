@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Settings, Loader2, AlertTriangle as AlertTriangleIcon, FileText, Download, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Shield, Loader2, AlertTriangle as AlertTriangleIcon, FileText, Download, RefreshCw, Eye, EyeOff } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,7 +23,7 @@ import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { cn } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { DISPLAY_DATE_FORMAT } from '@/lib/config';
+import { getDisplayDateFormat } from '@/lib/config';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
 import * as asn1js from "asn1js";
@@ -299,13 +299,13 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
       setCrlDetails({
         issuer: crl.issuer.typesAndValues.map((tv: any) => `${tv.type}=${tv.value.valueBlock.value}`).join(', '),
-        thisUpdate: format(crl.thisUpdate.value, DISPLAY_DATE_FORMAT),
-        nextUpdate: crl.nextUpdate ? format(crl.nextUpdate.value, DISPLAY_DATE_FORMAT) : 'Not specified',
+        thisUpdate: format(crl.thisUpdate.value, getDisplayDateFormat()),
+        nextUpdate: crl.nextUpdate ? format(crl.nextUpdate.value, getDisplayDateFormat()) : 'Not specified',
         revokedCertificates: crl.revokedCertificates?.map((cert: any) => ({
           serialNumber: cert.userCertificate.valueBlock.valueHex.byteLength > 20
             ? cert.userCertificate.valueBlock.valueHex.slice(0, 20).toString('hex') + '...'
             : Buffer.from(cert.userCertificate.valueBlock.valueHex).toString('hex'),
-          revocationDate: format(cert.revocationDate.value, DISPLAY_DATE_FORMAT),
+          revocationDate: format(cert.revocationDate.value, getDisplayDateFormat()),
           reason: getReason(cert),
         })) || [],
       });
@@ -334,7 +334,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
           <AlertTitle>Error Loading Configuration</AlertTitle>
           <AlertDescription>{errorConfig}</AlertDescription>
         </Alert>
-        <Button variant="outline" size="sm" onClick={fetchCurrentVaConfig}>
+        <Button variant="secondary" size="sm" onClick={fetchCurrentVaConfig}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Retry
         </Button>
@@ -360,12 +360,12 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <CardTitle className="text-lg flex items-center">
-                    <Settings className="mr-3 h-5 w-5 text-primary" />
+                    <Shield className="mr-3 h-5 w-5 text-primary" />
                     VA Settings
                   </CardTitle>
                   <CardDescription>Define validation parameters for this Certificate Authority.</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={fetchCurrentVaConfig} disabled={isLoadingConfig}>
+                <Button variant="secondary" size="sm" onClick={fetchCurrentVaConfig} disabled={isLoadingConfig}>
                   <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingConfig && "animate-spin")} />
                   Refresh Config
                 </Button>
@@ -491,11 +491,11 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                   </div>
                   <div className="py-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid From</p>
-                    <DateDisplay date={latestCrl.valid_from} formatString={DISPLAY_DATE_FORMAT} showRelative={true} className="mt-1 text-sm font-medium" />
+                    <DateDisplay date={latestCrl.valid_from} formatString={getDisplayDateFormat()} showRelative={true} className="mt-1 text-sm font-medium" />
                   </div>
                   <div className="py-3 last:pb-0">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid Until</p>
-                    <DateDisplay date={latestCrl.valid_until} formatString={DISPLAY_DATE_FORMAT} showRelative={true} className="mt-1 text-sm font-medium" />
+                    <DateDisplay date={latestCrl.valid_until} formatString={getDisplayDateFormat()} showRelative={true} className="mt-1 text-sm font-medium" />
                   </div>
                 </div>
               ) : (
@@ -564,7 +564,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                         </div>
 
                         {rawCrlDer && (
-                          <Button variant="outline" size="sm" onClick={() => downloadFile(rawCrlDer, 'crl.der', 'application/pkix-crl')}>
+                          <Button variant="secondary" size="sm" onClick={() => downloadFile(rawCrlDer, 'crl.der', 'application/pkix-crl')}>
                             <Download className="mr-2 h-4 w-4" /> Download CRL (DER)
                           </Button>
                         )}

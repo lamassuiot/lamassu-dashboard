@@ -427,14 +427,14 @@ export default function CertificateAuthorityDetailsClient() {
         actions={
           <div className="flex items-center gap-2">
             {isCaOnHold ? (
-              <Button variant="outline" size="sm" className="gap-2" onClick={handleReactivateCA}>
+              <Button variant="secondary" size="sm" className="gap-2" onClick={handleReactivateCA}>
                 <ShieldAlert className="h-4 w-4" /> Re-activate
               </Button>
             ) : caDetails.status !== 'revoked' ? (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
-                className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
                 onClick={handleCARevocation}
                 disabled={isRevoking}
               >

@@ -211,10 +211,10 @@ export default function DeviceGroupDetailsClient() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+            <Button variant="secondary" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
-            <Button variant="outline" onClick={() => router.push(`/device-groups/edit?groupId=${group.id}`)}>
+            <Button variant="secondary" onClick={() => router.push(`/device-groups/edit?groupId=${group.id}`)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </Button>

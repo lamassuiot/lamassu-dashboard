@@ -14,7 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { DISPLAY_DATE_FORMAT } from '@/lib/config';
+import { getDisplayDateFormat } from '@/lib/config';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from 'lucide-react';
 import { TimelineEventItem, type TimelineEventDisplayData } from '@/components/devices/TimelineEventItem';
@@ -671,7 +671,7 @@ export default function DeviceDetailsClient() {
                   <Clock className="h-3 w-3 shrink-0" />
                   <span>Created</span>
                   <span className="text-border">·</span>
-                  <DateDisplay date={device.creation_timestamp} formatString={DISPLAY_DATE_FORMAT} showRelative={true} className="text-xs" />
+                  <DateDisplay date={device.creation_timestamp} formatString={getDisplayDateFormat()} showRelative={true} className="text-xs" />
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -695,9 +695,9 @@ export default function DeviceDetailsClient() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+            <Button variant="secondary" size="sm" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
             {availableIntegrations.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setIsForceUpdateModalOpen(true)}>
+              <Button variant="secondary" size="sm" onClick={() => setIsForceUpdateModalOpen(true)}>
                 <Zap className="mr-2 h-4 w-4" /> Force Update
               </Button>
             )}
@@ -758,7 +758,7 @@ export default function DeviceDetailsClient() {
               </ul>
               {allRawEvents.length > timelineDisplayCount && (
                 <div className="flex justify-center mt-4">
-                  <Button onClick={handleLoadMoreTimeline} variant="outline" disabled={isTimelineLoading}>
+                  <Button onClick={handleLoadMoreTimeline} variant="secondary" disabled={isTimelineLoading}>
                     {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Load More Events
                   </Button>
@@ -848,8 +848,8 @@ export default function DeviceDetailsClient() {
                                 cert.ca
                                 )}
                           </TableCell>
-                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validFrom} formatString={DISPLAY_DATE_FORMAT} className="text-xs" /></TableCell>
-                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString={DISPLAY_DATE_FORMAT} className="text-xs" highlightExpired /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validFrom} formatString={getDisplayDateFormat()} className="text-xs" /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString={getDisplayDateFormat()} className="text-xs" highlightExpired /></TableCell>
                           <TableCell className="hidden md:table-cell">{cert.lifespan}</TableCell>
                           <TableCell>
                             <Button variant="ghost" size="icon" title="View Certificate Details" onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>

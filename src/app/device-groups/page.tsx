@@ -113,7 +113,7 @@ export default function DeviceGroupsPage() {
           <h1 className="text-2xl font-headline font-semibold">Device Groups</h1>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
+          <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
           <Button asChild disabled={isLoading}>

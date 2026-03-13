@@ -354,7 +354,7 @@ export default function AlertsPage() {
           <h1 className="text-2xl font-headline font-semibold">Alerts</h1>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={loadAlertsData} variant="outline" disabled={isLoading}>
+          <Button onClick={loadAlertsData} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
         </div>

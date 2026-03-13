@@ -100,7 +100,7 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
       contentClassName="space-y-4"
       action={canEdit || !isEmpty ? (
         <div className="flex items-center gap-2">
-          <Button onClick={handleCopy} variant="outline" size="sm">
+          <Button onClick={handleCopy} variant="secondary" size="sm">
             {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
             {copied ? 'Copied' : 'Copy JSON'}
           </Button>

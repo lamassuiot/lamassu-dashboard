@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
 import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { DISPLAY_DATE_FORMAT } from '@/lib/config';
+import { getDisplayDateFormat } from '@/lib/config';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useAuth } from '@/contexts/AuthContext';
@@ -185,7 +185,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Revoked on:</span>
-                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString={DISPLAY_DATE_FORMAT} showRelative={true} />
+                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString={getDisplayDateFormat()} showRelative={true} />
               </div>
             </AlertDescription>
           </Alert>
@@ -214,7 +214,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                     description="View the current chain of trust and direct child authorities."
                     action={(
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         className="h-7 px-2"
                         onClick={() => setIsChainPanelCollapsed(true)}
@@ -297,7 +297,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               <DetailInfoRow label="Full Name" value={caDetails.name} className="first:pt-0" />
               <DetailInfoRow label="CA ID" value={<IdentifierDisplay value={caDetails.id} />} />
               <DetailInfoRow label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
-              <DetailInfoRow label="Expires On" value={<DateDisplay date={caDetails.expires} formatString={DISPLAY_DATE_FORMAT} highlightExpired />} />
+              <DetailInfoRow label="Expires On" value={<DateDisplay date={caDetails.expires} formatString={getDisplayDateFormat()} highlightExpired />} />
               <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} className="last:pb-0" />
             </DetailInfoRows>
           </DetailSectionCard>
@@ -454,7 +454,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Revoked on:</span>
-                <DateDisplay date={certDetails.revocationTimestamp} formatString={DISPLAY_DATE_FORMAT} showRelative={false} />
+                <DateDisplay date={certDetails.revocationTimestamp} formatString={getDisplayDateFormat()} showRelative={false} />
               </div>
             </AlertDescription>
           </Alert>
@@ -471,8 +471,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               <DetailInfoRow label="Subject" value={certDetails.subject} className="first:pt-0" />
               <DetailInfoRow label="Issuer" value={certDetails.issuer} />
               <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
-              <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString={DISPLAY_DATE_FORMAT} />} />
-              <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString={DISPLAY_DATE_FORMAT} highlightExpired />} className="last:pb-0" />
+              <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString={getDisplayDateFormat()} />} />
+              <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString={getDisplayDateFormat()} highlightExpired />} className="last:pb-0" />
             </DetailInfoRows>
           </DetailSectionCard>
 

@@ -16,7 +16,7 @@ import {
 import { sileo } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { DISPLAY_DATE_FORMAT } from '@/lib/config';
+import { getDisplayDateFormat } from '@/lib/config';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
@@ -299,7 +299,7 @@ export function CertificateList({
                       {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
                         <DateDisplay
                           date={cert.revocationTimestamp}
-                          formatString={DISPLAY_DATE_FORMAT}
+                          formatString={getDisplayDateFormat()}
                           showRelative={true}
                           className='items-center'
                         />

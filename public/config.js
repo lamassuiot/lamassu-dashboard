@@ -45,6 +45,14 @@ window.lamassuConfig = {
 
     // Default position for sileo notifications.
     TOAST_POSITION: "top-center",
+
+    // Date format used throughout the UI (date-fns format string).
+    // Default: "dd/MM/yyyy HH:mm"
+    DISPLAY_DATE_FORMAT: "dd/MM/yyyy HH:mm",
+
+    // Date+time format used when the "Display Time" option is enabled.
+    // Default: "dd/MM/yyyy HH:mm:ss"
+    DISPLAY_DATE_AND_TIME_FORMAT: "dd/MM/yyyy HH:mm:ss",
   
     // A comma-separated list of available connector instances for platform integrations.
     // This allows the UI to present a list of possible integrations to the user.

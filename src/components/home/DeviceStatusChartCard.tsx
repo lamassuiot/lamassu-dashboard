@@ -134,12 +134,12 @@ export function DeviceStatusChartCard() {
   };
 
   return (
-    <Card className="shadow-lg w-full bg-[--homepage-card-background] text-primary-foreground">
+    <Card className="flex h-full w-full flex-col bg-[--homepage-card-background] text-primary-foreground shadow-lg">
       <CardHeader>
         <CardTitle className="text-2xl font-headline">Device Status Overview</CardTitle>
         <CardDescription className="text-primary-foreground/80">A summary of all managed devices by their current status.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1">
         {isLoading || authLoading ? (
           <div className="h-[320px] flex flex-col items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary-foreground/80" />
@@ -150,7 +150,7 @@ export function DeviceStatusChartCard() {
             <p className="text-destructive-foreground/80 bg-destructive/30 p-3 rounded-md">Error: {error}</p>
           </div>
         ) : chartData && chartData.length > 0 ? (
-          <div className="relative" style={{ width: '100%', height: 320 }}>
+          <div className="relative h-[320px] w-full">
             <ResponsiveContainer>
               <PieChart>
                 <Pie

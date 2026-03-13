@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { DISPLAY_DATE_FORMAT } from '@/lib/config';
+import { getDisplayDateFormat } from '@/lib/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
@@ -400,7 +400,7 @@ export default function DevicesPage() {
           <h1 className="text-2xl font-headline font-semibold">Managed Devices</h1>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={handleRefresh} variant="outline" disabled={isLoadingApi}>
+          <Button onClick={handleRefresh} variant="secondary" disabled={isLoadingApi}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && "animate-spin")} /> Refresh
           </Button>
           <Button onClick={handleCreateNewDevice} disabled={isLoadingApi}>
@@ -553,7 +553,7 @@ export default function DevicesPage() {
                         <TableCell>
                           <DateDisplay 
                             date={device.createdAt} 
-                            formatString={DISPLAY_DATE_FORMAT}
+                            formatString={getDisplayDateFormat()}
                             className="text-xs"
                             relativeClassName="text-xs"
                           />
@@ -564,7 +564,7 @@ export default function DevicesPage() {
                           {device.expirationDate ? (
                             <DateDisplay 
                               date={device.expirationDate} 
-                              formatString={DISPLAY_DATE_FORMAT}
+                              formatString={getDisplayDateFormat()}
                               className="text-xs"
                               relativeClassName="text-xs"
                             />

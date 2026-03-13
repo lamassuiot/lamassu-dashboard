@@ -447,6 +447,24 @@ export default function CertificateDetailsClient() { // Renamed component
             ),
           },
         ]}
+        actions={
+          isOnHold ? (
+            <Button variant="outline" size="sm" onClick={handleReactivate}>
+              <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate
+            </Button>
+          ) : statusText !== 'REVOKED' ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+              onClick={handleOpenRevokeModal}
+              disabled={isRevoking}
+            >
+              {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+              {isRevoking ? 'Revoking…' : 'Revoke'}
+            </Button>
+          ) : null
+        }
       />
 
       {/* Hero card */}
@@ -519,25 +537,8 @@ export default function CertificateDetailsClient() { // Renamed component
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            {isOnHold ? (
-              <Button variant="outline" size="sm" onClick={handleReactivate}>
-                <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate
-              </Button>
-            ) : (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleOpenRevokeModal}
-                disabled={statusText === 'REVOKED' || isRevoking}
-              >
-                {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                {isRevoking ? 'Revoking…' : 'Revoke'}
-              </Button>
-            )}
-
-            {canDelete && (
+          {canDelete && (
+            <div className="flex items-center gap-2 shrink-0">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -555,8 +556,8 @@ export default function CertificateDetailsClient() { // Renamed component
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

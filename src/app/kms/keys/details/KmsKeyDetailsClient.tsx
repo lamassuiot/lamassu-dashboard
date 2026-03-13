@@ -1322,7 +1322,7 @@ export default function KmsKeyDetailsClient() {
                         <div className="flex items-center justify-between">
                           <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tags</Label>
                           {!isEditingTags && (
-                            <Button variant="ghost" size="sm" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
+                            <Button variant="secondary" size="sm" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
                               <Edit className="mr-1.5 h-3 w-3" />
                               Edit
                             </Button>
@@ -1382,7 +1382,7 @@ export default function KmsKeyDetailsClient() {
                         <CardDescription>Alternative names available for integrations and discovery.</CardDescription>
                     </div>
                     {!isEditingAliases && (
-                      <Button variant="outline" size="sm" onClick={() => setIsEditingAliases(true)}>
+                      <Button variant="secondary" size="sm" onClick={() => setIsEditingAliases(true)}>
                         <Edit className="mr-2 h-3 w-3" />
                         Edit Aliases
                       </Button>

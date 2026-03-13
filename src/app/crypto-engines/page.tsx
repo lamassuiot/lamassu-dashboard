@@ -214,7 +214,7 @@ export default function CryptoEnginesPage() {
           )}
         </div>
 
-        <Button onClick={fetchEngines} variant="outline" disabled={isLoadingEngines} className="rounded-md">
+        <Button onClick={fetchEngines} variant="secondary" disabled={isLoadingEngines} className="rounded-md">
           <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingEngines && "animate-spin")} />
           Refresh List
         </Button>
