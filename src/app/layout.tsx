@@ -11,7 +11,8 @@ import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import { matchAndGetGlobalCapabilities } from '@/lib/authz-api';
 import {
   SidebarProvider,
   Sidebar,
@@ -107,6 +108,8 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   devOnly?: boolean;
+  /** If set, the item is only shown when the user has "ui" in global_actions for this capability key (e.g. "pki.ca.ca_certificate") */
+  uiAuthzCapabilities?: string;
 }
 
 interface NavGroup {
@@ -120,24 +123,24 @@ const navigationConfig: NavGroup[] = [
   {
     label: 'KMS',
     items: [
-      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false },
+      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false, uiAuthzCapabilities: 'pki.kms.kms_key' },
       { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
     ],
   },
   {
     label: 'PKI',
     items: [
-      { href: '/certificates', label: 'Certificates', icon: FileText },
-      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
-      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon },
-      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck },
+      { href: '/certificates', label: 'Certificates', icon: FileText, uiAuthzCapabilities: 'pki.ca.certificate' },
+      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark, uiAuthzCapabilities: 'pki.ca.ca_certificate' },
+      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, uiAuthzCapabilities: 'pki.ca.issuance_profile' },
+      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck, uiAuthzCapabilities: 'pki.dmsmanager.dms' },
     ],
   },
   {
     label: 'IoT',
     items: [
-      { href: '/devices', label: 'Devices', icon: Router },
-      { href: '/device-groups', label: 'Device Groups', icon: Layers },
+      { href: '/devices', label: 'Devices', icon: Router, uiAuthzCapabilities: 'pki.devicemanager.device' },
+      { href: '/device-groups', label: 'Device Groups', icon: Layers, uiAuthzCapabilities: 'pki.devicemanager.device_group' },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
     ],
   },
@@ -158,7 +161,7 @@ const navigationConfig: NavGroup[] = [
   },
   {
     label: 'NOTIFICATIONS',
-    items: [{ href: '/alerts', label: 'Alerts', icon: Info }],
+    items: [{ href: '/alerts', label: 'Alerts', icon: Info, uiAuthzCapabilities: 'pki.alerts.subscription' }],
   },
   {
     label: 'TOOLS',
@@ -276,10 +279,42 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [globalCapabilities, setGlobalCapabilities] = useState<Record<string, string[]> | null>(null);
+
+  useEffect(() => {
+    if (!user?.access_token) {
+      setGlobalCapabilities(null);
+      return;
+    }
+
+    matchAndGetGlobalCapabilities({ auth_type: 'oidc', auth_material: user.access_token })
+      .then(res => setGlobalCapabilities(res.global_actions))
+      .catch(() => setGlobalCapabilities(null));
+  }, [user?.access_token]);
+
+  const isNavItemVisible = useCallback((item: NavItem): boolean => {
+    if (!item.uiAuthzCapabilities) return true;
+    if (globalCapabilities === null) return true;
+    return (globalCapabilities[item.uiAuthzCapabilities] ?? []).includes('ui');
+  }, [globalCapabilities]);
+
+  // Redirect to home if the current route requires a capability the user lacks
+  useEffect(() => {
+    if (globalCapabilities === null) return;
+    const allItems = navigationConfig.flatMap(g => g.items);
+    const currentItem = allItems.find(item =>
+      item.href !== '/' && pathname.startsWith(item.href)
+    );
+    if (currentItem && !isNavItemVisible(currentItem)) {
+      router.replace('/');
+    }
+  }, [globalCapabilities, isNavItemVisible, pathname, router]);
 
   let userRoles: string[] = [];
   if (user?.access_token) {
@@ -459,7 +494,8 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                     }
 
                     const filteredItems = group.items.filter(item =>
-                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
+                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) &&
+                      isNavItemVisible(item)
                     );
 
                     if (filteredItems.length === 0) {
