@@ -128,7 +128,7 @@ export const SubscriptionDetailsModal: React.FC<SubscriptionDetailsModalProps> =
     if (!isOpen) return null;
 
     return (
-      <div className="flex h-full min-h-[540px] flex-col rounded-lg border bg-background">
+      <div className={cn('flex h-full min-h-[540px] flex-col rounded-lg border bg-background', className)}>
         {panelContent}
       </div>
     );

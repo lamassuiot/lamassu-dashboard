@@ -14,7 +14,7 @@ function useIsDark() {
     const observer = new MutationObserver(() => {
       setIsDark(el.classList.contains('dark'));
     });
-    observer.observe(el, { attributeFilter: ['class'] });
+    observer.observe(el, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
 
@@ -34,7 +34,7 @@ export function ThemedToaster({ position = 'top-right', offset }: ThemedToasterP
     <Toaster
       position={configuredPosition}
       offset={offset}
-      options={{ fill: isDark ? '#fafafa' : '#18181b' }}
+      theme={isDark ? 'dark' : 'light'}
     />
   );
 }
