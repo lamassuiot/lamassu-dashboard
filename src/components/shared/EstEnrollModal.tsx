@@ -23,13 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { useAuth } from '@/contexts/AuthContext';
 import { Switch } from '@/components/ui/switch';
-import {
-  CertificationRequest,
-  AttributeTypeAndValue,
-  getCrypto,
-  setEngine,
-} from "pkijs";
-import * as asn1js from "asn1js";
+import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem } from "@/lib-crypto";
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Badge } from '../ui/badge';
 import { Stepper } from './Stepper';
@@ -64,22 +58,6 @@ interface EstEnrollModalProps {
 }
 
 const DURATION_REGEX = /^(?=.*\d)(\d+y)?(\d+w)?(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/;
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return window.btoa(binary);
-}
-
-function formatAsPem(base64String: string, type: 'PRIVATE KEY' | 'PUBLIC KEY' | 'CERTIFICATE REQUEST' | 'CERTIFICATE'): string {
-  const header = `-----BEGIN ${type}-----`;
-  const footer = `-----END ${type}-----`;
-  const body = base64String.match(/.{1,64}/g)?.join('\n') || '';
-  return `${header}\n${body}\n${footer}`;
-}
 
 function encodeToBase64(pemContent: string): string {
   if (!pemContent.trim()) return '';
@@ -202,12 +180,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     }, [isOpen, ra, availableCAs, initialDeviceId]);
     
     useEffect(() => {
-        if (typeof window !== 'undefined' && window.crypto) {
-            const webcrypto = getCrypto();
-            if (webcrypto) {
-                setEngine("webcrypto", webcrypto);
-            }
-        }
+        initPkijsEngine();
     }, []);
 
     const handleKeygenTypeChange = (type: string) => {
@@ -280,12 +253,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 setBootstrapPrivateKey(privateKeyPem);
 
                 // Create CSR
-                const pkcs10 = new CertificationRequest({ version: 0 });
-                pkcs10.subject.typesAndValues.push(new AttributeTypeAndValue({ type: "2.5.4.3", value: new asn1js.Utf8String({ value: bootstrapCn.trim() }) }));
-                await pkcs10.subjectPublicKeyInfo.importKey(keyPair.publicKey);
-                pkcs10.attributes = [];
-                await pkcs10.sign(keyPair.privateKey, "SHA-256");
-                const signedCsrPem = formatAsPem(arrayBufferToBase64(pkcs10.toSchema().toBER(false)), 'CERTIFICATE REQUEST');
+                const signedCsrPem = await buildSelfSignedCsr({ subject: { commonName: bootstrapCn.trim() }, keyPair });
 
                 // Prepare payload for signing API
                 const payload = {

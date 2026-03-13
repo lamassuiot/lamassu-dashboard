@@ -19,8 +19,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 
-import * as asn1js from "asn1js";
-import { Certificate as PkijsCertificate, getCrypto, setEngine } from "pkijs";
+import { parseCertificatePemDetails } from "@/lib-crypto";
 import { format as formatDate } from 'date-fns';
 
 // Simplified parsed cert structure for this page
@@ -33,16 +32,7 @@ interface ParsedCaCert {
     publicKeyAlgorithm: string;
 }
 
-const OID_MAP: Record<string, string> = {
-  "2.5.4.3": "CN", "2.5.4.6": "C", "2.5.4.7": "L", "2.5.4.8": "ST", "2.5.4.10": "O", "2.5.4.11": "OU",
-  "1.2.840.113549.1.1.1": "RSA", "1.2.840.10045.2.1": "EC",
-};
-function formatPkijsSubject(subject: any): string {
-  return subject.typesAndValues.map((tv: any) => `${OID_MAP[tv.type] || tv.type}=${(tv.value as any).valueBlock.value}`).join(', ');
-}
-function ab2hex(ab: ArrayBuffer) {
-  return Array.from(new Uint8Array(ab)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
+
 
 export default function EstCaCertsPage() {
     const router = useRouter();
@@ -58,33 +48,19 @@ export default function EstCaCertsPage() {
     
     const parseCertificates = useCallback(async (pemData: string) => {
         if (!pemData) return [];
-        if (typeof window !== 'undefined') {
-                    const webcrypto = getCrypto();
-                    if (webcrypto) {
-                        setEngine("webcrypto", webcrypto);
-                    }
-        }
-
         const parsed: ParsedCaCert[] = [];
         const certsPemArray = pemData.split('-----END CERTIFICATE-----').filter(p => p.trim() !== '');
-        
         for (const certPem of certsPemArray) {
             try {
                 const fullPem = `${certPem}-----END CERTIFICATE-----`;
-                const pemContent = fullPem.replace(/-----(BEGIN|END) CERTIFICATE-----/g, "").replace(/\s+/g, "");
-                const derBuffer = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0)).buffer;
-                const asn1 = asn1js.fromBER(derBuffer);
-                if (asn1.offset === -1) continue;
-
-                const certificate = new PkijsCertificate({ schema: asn1.result });
-                
+                const details = await parseCertificatePemDetails(fullPem);
                 parsed.push({
-                    serialNumber: ab2hex(certificate.serialNumber.valueBlock.valueHex),
-                    subject: formatPkijsSubject(certificate.subject),
-                    issuer: formatPkijsSubject(certificate.issuer),
-                    validFrom: formatDate(certificate.notBefore.value, "PPpp"),
-                    validTo: formatDate(certificate.notAfter.value, "PPpp"),
-                    publicKeyAlgorithm: OID_MAP[certificate.subjectPublicKeyInfo.algorithm.algorithmId] || certificate.subjectPublicKeyInfo.algorithm.algorithmId,
+                    serialNumber: details.serialNumber,
+                    subject: details.subject,
+                    issuer: details.issuer,
+                    validFrom: details.validFrom ? formatDate(new Date(details.validFrom), 'PPpp') : 'N/A',
+                    validTo: details.validTo ? formatDate(new Date(details.validTo), 'PPpp') : 'N/A',
+                    publicKeyAlgorithm: details.publicKeyAlgorithm,
                 });
             } catch (e) {
                 console.error("Error parsing a certificate from PEM bundle:", e);
