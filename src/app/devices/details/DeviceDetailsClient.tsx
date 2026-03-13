@@ -28,6 +28,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
@@ -652,6 +653,48 @@ export default function DeviceDetailsClient() {
 
   return (
     <div className="w-full space-y-5">
+      <DetailBreadcrumbRow
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Devices', href: '/devices' },
+          { label: 'Details' },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+            {availableIntegrations.length > 0 && (
+              <Button variant="secondary" size="sm" onClick={() => setIsForceUpdateModalOpen(true)}>
+                <Zap className="mr-2 h-4 w-4" /> Force Update
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+              onClick={() => setIsDecommissionModalOpen(true)}
+              disabled={device.status === 'DECOMMISSIONED'}
+            >
+              <Trash2 className="mr-2 h-4 w-4" /> Decommission
+            </Button>
+            {device.status === 'DECOMMISSIONED' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setIsDeleteModalOpen(true)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
+            </Button>
+          </div>
+        }
+      />
+
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <div className="h-1 w-full" style={{ backgroundColor: iconColor || '#0f67ff' }} />
         <div className="flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between">
@@ -693,26 +736,6 @@ export default function DeviceDetailsClient() {
                 ))}
               </div>
             </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
-            {availableIntegrations.length > 0 && (
-              <Button variant="secondary" size="sm" onClick={() => setIsForceUpdateModalOpen(true)}>
-                <Zap className="mr-2 h-4 w-4" /> Force Update
-              </Button>
-            )}
-            <Button size="sm" onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => setIsDecommissionModalOpen(true)} disabled={device.status === 'DECOMMISSIONED'}>
-              <Trash2 className="mr-2 h-4 w-4" /> Decommission
-            </Button>
-            {device.status === 'DECOMMISSIONED' && (
-                <Button variant="destructive" size="sm" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
-                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                    {isDeleting ? 'Deleting...' : 'Permanently Delete'}
-                </Button>
-            )}
           </div>
         </div>
       </div>
@@ -757,16 +780,18 @@ export default function DeviceDetailsClient() {
                 ))}
               </ul>
               {allRawEvents.length > timelineDisplayCount && (
-                <div className="flex justify-center mt-4">
-                  <Button onClick={handleLoadMoreTimeline} variant="secondary" disabled={isTimelineLoading}>
+                <div className="flex justify-center mt-2">
+                  <Button onClick={handleLoadMoreTimeline} variant="outline" size="sm" disabled={isTimelineLoading}>
                     {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Load More Events
+                    Load more events
                   </Button>
                 </div>
               )}
             </>
           ) : (
-            <p className="py-8 text-center text-muted-foreground">No events recorded for this device.</p>
+            <div className="rounded-xl border bg-card shadow-sm px-5 py-12 text-center text-muted-foreground">
+              No events recorded for this device.
+            </div>
           )}
         </TabsContent>
         

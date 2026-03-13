@@ -239,7 +239,8 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
     !pathname.startsWith('/kms/keys/details') &&
     !pathname.startsWith('/signing-profiles/edit') &&
     !(pathname.startsWith('/registration-authorities/new') && !!searchParams.get('raId')) &&
-    !pathname.startsWith('/verification-authorities');
+    !pathname.startsWith('/verification-authorities') &&
+    !pathname.startsWith('/devices/details');
   let userRoles: string[] = [];
   if (isAuthenticated() && user?.access_token) {
     try {

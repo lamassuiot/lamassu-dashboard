@@ -5,7 +5,20 @@ import React from 'react';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { CheckCircle, XCircle, AlertTriangle, History, Edit, Info, HelpCircle, FileText, ShieldAlert, ShieldCheck, Landmark } from 'lucide-react';
+import {
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  RotateCcw,
+  Pencil,
+  Info,
+  FileText,
+  ShieldAlert,
+  ShieldCheck,
+  Landmark,
+  CalendarRange,
+  BadgeAlert,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
 import { IdentifierDisplay } from '../shared/IdentifierDisplay';
@@ -45,17 +58,73 @@ interface TimelineEventItemProps {
   onReactivate: (certInfo: CertificateHistoryEntry) => void;
 }
 
-const eventTypeVisuals: Record<string, { display: string; bgClass: string; ringClass: string; Icon: React.ElementType }> = {
-  'CREATED':        { display: 'Created',       bgClass: 'bg-emerald-500', ringClass: 'ring-emerald-100 dark:ring-emerald-900/40', Icon: CheckCircle },
-  'STATUS-UPDATED': { display: 'Status Update', bgClass: 'bg-blue-500',    ringClass: 'ring-blue-100 dark:ring-blue-900/40',    Icon: Edit },
-  'PROVISIONED':    { display: 'Provisioned',   bgClass: 'bg-emerald-500', ringClass: 'ring-emerald-100 dark:ring-emerald-900/40', Icon: CheckCircle },
-  'RENEWED':        { display: 'Renewed',       bgClass: 'bg-purple-500',  ringClass: 'ring-purple-100 dark:ring-purple-900/40',  Icon: History },
-  'DELETED':        { display: 'Deleted',       bgClass: 'bg-red-500',     ringClass: 'ring-red-100 dark:ring-red-900/40',     Icon: XCircle },
-  'ERROR':          { display: 'Error',         bgClass: 'bg-orange-500',  ringClass: 'ring-orange-100 dark:ring-orange-900/40',  Icon: AlertTriangle },
-  'DEFAULT':        { display: 'Event',         bgClass: 'bg-muted-foreground', ringClass: 'ring-muted', Icon: Info },
+const eventTypeVisuals: Record<
+  string,
+  {
+    display: string;
+    dotClass: string;
+    iconClass: string;
+    lineClass: string;
+    Icon: React.ElementType;
+  }
+> = {
+  CREATED: {
+    display: 'Created',
+    dotClass: 'bg-emerald-500 ring-emerald-100 dark:ring-emerald-950',
+    iconClass: 'text-emerald-600 dark:text-emerald-400',
+    lineClass: 'bg-emerald-200 dark:bg-emerald-900/50',
+    Icon: CheckCircle2,
+  },
+  'STATUS-UPDATED': {
+    display: 'Status Update',
+    dotClass: 'bg-blue-500 ring-blue-100 dark:ring-blue-950',
+    iconClass: 'text-blue-600 dark:text-blue-400',
+    lineClass: 'bg-blue-200 dark:bg-blue-900/50',
+    Icon: Pencil,
+  },
+  PROVISIONED: {
+    display: 'Provisioned',
+    dotClass: 'bg-emerald-500 ring-emerald-100 dark:ring-emerald-950',
+    iconClass: 'text-emerald-600 dark:text-emerald-400',
+    lineClass: 'bg-emerald-200 dark:bg-emerald-900/50',
+    Icon: CheckCircle2,
+  },
+  RENEWED: {
+    display: 'Renewed',
+    dotClass: 'bg-violet-500 ring-violet-100 dark:ring-violet-950',
+    iconClass: 'text-violet-600 dark:text-violet-400',
+    lineClass: 'bg-violet-200 dark:bg-violet-900/50',
+    Icon: RotateCcw,
+  },
+  DELETED: {
+    display: 'Deleted',
+    dotClass: 'bg-red-500 ring-red-100 dark:ring-red-950',
+    iconClass: 'text-red-600 dark:text-red-400',
+    lineClass: 'bg-red-200 dark:bg-red-900/50',
+    Icon: XCircle,
+  },
+  ERROR: {
+    display: 'Error',
+    dotClass: 'bg-orange-500 ring-orange-100 dark:ring-orange-950',
+    iconClass: 'text-orange-600 dark:text-orange-400',
+    lineClass: 'bg-orange-200 dark:bg-orange-900/50',
+    Icon: AlertTriangle,
+  },
+  DEFAULT: {
+    display: 'Event',
+    dotClass: 'bg-muted-foreground ring-muted',
+    iconClass: 'text-muted-foreground',
+    lineClass: 'bg-border',
+    Icon: Info,
+  },
 };
 
-export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isLastItem, onRevoke, onReactivate }) => {
+export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
+  event,
+  isLastItem,
+  onRevoke,
+  onReactivate,
+}) => {
   const router = useRouter();
   const visuals = eventTypeVisuals[event.eventType] ?? eventTypeVisuals['DEFAULT'];
 
@@ -64,103 +133,117 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
   const isOnHold = isRevoked && cert?.revocationReason === 'CertificateHold';
 
   return (
-    <li className="flex gap-4 py-3">
-      {/* Icon + connector */}
-      <div className="relative flex shrink-0 flex-col items-center">
-        <div className={cn(
-          'flex h-8 w-8 items-center justify-center rounded-full ring-4 z-10',
-          visuals.bgClass,
-          visuals.ringClass,
-        )}>
-          <visuals.Icon className="h-4 w-4 text-white" />
+    <li className="relative flex gap-4">
+      {/* Timeline spine */}
+      <div className="flex shrink-0 flex-col items-center">
+        {/* Dot */}
+        <div
+          className={cn(
+            'mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-4 z-10',
+            visuals.dotClass,
+          )}
+        >
+          <visuals.Icon className="h-3.5 w-3.5 text-white" />
         </div>
+        {/* Connector line */}
         {!isLastItem && (
-          <div className="mt-1 w-0.5 flex-1 bg-border" />
+          <div className={cn('mt-1 w-0.5 flex-1', visuals.lineClass)} />
         )}
       </div>
 
       {/* Content */}
-      <div className={cn('min-w-0 flex-grow', !isLastItem && 'pb-6')}>
-        {/* Header row */}
+      <div className={cn('min-w-0 flex-1 pt-0.5', !isLastItem && 'pb-7')}>
+        {/* Header row: type label + relative time */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className={cn(
-              'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold text-white',
-              visuals.bgClass,
-            )}>
-              {visuals.display.toUpperCase()}
+          <div className="flex items-center gap-1.5">
+            <span className={cn('text-[11px] font-bold uppercase tracking-widest', visuals.iconClass)}>
+              {visuals.display}
             </span>
-            {event.eventType === 'RENEWED' && (
-              <HelpCircle
-                className="h-3.5 w-3.5 text-muted-foreground cursor-help"
-                title="Device identity was updated with a new certificate version."
-              />
-            )}
           </div>
-          <span className="shrink-0 text-xs text-muted-foreground">{event.relativeTime}</span>
+          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+            {event.relativeTime}
+          </span>
         </div>
 
-        {/* Title + timestamp */}
-        <p className="mt-1 text-sm font-medium text-foreground break-words">{event.title}</p>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        {/* Title */}
+        <p className="mt-0.5 text-sm font-medium text-foreground leading-snug break-words">
+          {event.title}
+        </p>
+
+        {/* Timestamp + interval */}
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
           <span>{format(event.timestamp, getDisplayDateFormat())}</span>
           {event.secondaryRelativeTime && (
             <>
               <span className="text-border">·</span>
-              <span>{event.secondaryRelativeTime}</span>
+              <span>{event.secondaryRelativeTime} after previous</span>
             </>
           )}
         </div>
 
-        {/* Certificate block */}
+        {/* Certificate card */}
         {cert ? (
-          <div className="mt-3 rounded-lg border bg-muted/30 p-3 text-xs space-y-2">
-            {/* Top row: SN + status + action */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
+          <div className="mt-2.5 rounded-lg border bg-card shadow-sm overflow-hidden">
+            {/* Cert header */}
+            <div className="flex items-start justify-between gap-2 px-3 py-2.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                {/* Serial number */}
+                <div className="flex items-center gap-1.5 text-xs">
                   <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <Button
                     variant="link"
-                    className="h-auto p-0 text-xs text-foreground"
-                    onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
+                    className="h-auto p-0 text-xs font-normal text-foreground"
+                    onClick={() =>
+                      router.push(
+                        `/certificates/details?certificateId=${cert.serialNumber}`,
+                      )
+                    }
                   >
-                    SN: <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
+                    <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
                   </Button>
                 </div>
+                {/* Status */}
                 <ApiStatusBadge status={cert.apiStatus} />
               </div>
 
+              {/* Action button */}
               {isOnHold ? (
                 <Button
-                  variant="link"
-                  className="h-auto p-0 text-xs text-emerald-600"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 shrink-0 gap-1.5 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-950"
                   onClick={() => onReactivate(cert)}
                 >
-                  <ShieldCheck className="mr-1 h-3 w-3" />
+                  <ShieldCheck className="h-3.5 w-3.5" />
                   Re-activate
                 </Button>
               ) : !isRevoked ? (
                 <Button
-                  variant="link"
-                  className="h-auto p-0 text-xs text-destructive"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 shrink-0 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5"
                   onClick={() => onRevoke(cert)}
                 >
-                  <ShieldAlert className="mr-1 h-3 w-3" />
+                  <ShieldAlert className="h-3.5 w-3.5" />
                   Revoke
                 </Button>
               ) : null}
             </div>
 
-            {/* Bottom row: issuer + dates */}
-            <div className="border-t pt-2 text-muted-foreground space-y-1">
+            {/* Cert meta */}
+            <div className="border-t bg-muted/30 px-3 py-2 space-y-1 text-[11px] text-muted-foreground">
+              {/* Issuer */}
               <div className="flex items-center gap-1.5">
                 <Landmark className="h-3 w-3 shrink-0" />
                 {cert.issuerCaId ? (
                   <Button
                     variant="link"
-                    className="h-auto p-0 text-left text-xs font-normal text-muted-foreground whitespace-normal leading-tight"
-                    onClick={() => router.push(`/certificate-authorities/details?caId=${cert.issuerCaId}`)}
+                    className="h-auto p-0 text-left text-[11px] font-normal text-muted-foreground whitespace-normal leading-snug"
+                    onClick={() =>
+                      router.push(
+                        `/certificate-authorities/details?caId=${cert.issuerCaId}`,
+                      )
+                    }
                   >
                     Issued by: {cert.ca}
                   </Button>
@@ -169,17 +252,34 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({ event, isL
                 )}
               </div>
 
+              {/* Validity or revocation */}
               {isRevoked ? (
-                <div className="space-y-0.5 text-destructive/90">
-                  <p><strong>Reason:</strong> {cert.revocationReason || 'Unspecified'}</p>
+                <div className="flex flex-col gap-0.5 text-destructive/80">
+                  <div className="flex items-center gap-1.5">
+                    <BadgeAlert className="h-3 w-3 shrink-0" />
+                    <span>
+                      <span className="font-medium">Reason:</span>{' '}
+                      {cert.revocationReason || 'Unspecified'}
+                    </span>
+                  </div>
                   {cert.revocationTimestamp && (
-                    <p><strong>On:</strong> {format(parseISO(cert.revocationTimestamp), getDisplayDateFormat())}</p>
+                    <div className="flex items-center gap-1.5 pl-[18px]">
+                      <span>
+                        {format(parseISO(cert.revocationTimestamp), getDisplayDateFormat())}
+                      </span>
+                    </div>
                   )}
                 </div>
               ) : (
-                <div className="space-y-0.5">
-                  <p><strong>Valid From:</strong> {format(parseISO(cert.validFrom), getDisplayDateFormat())}</p>
-                  <p><strong>Valid To:</strong> {format(parseISO(cert.validTo), getDisplayDateFormat())}</p>
+                <div className="flex items-center gap-1.5">
+                  <CalendarRange className="h-3 w-3 shrink-0" />
+                  <span>
+                    {format(parseISO(cert.validFrom), getDisplayDateFormat())}
+                    {' → '}
+                    {format(parseISO(cert.validTo), getDisplayDateFormat())}
+                  </span>
+                  <span className="text-border">·</span>
+                  <span>{cert.lifespan}</span>
                 </div>
               )}
             </div>
