@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2, Tag } from "lucide-react";
 import { sileo } from '@/lib/toast';
@@ -23,6 +23,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { TagInput } from '@/components/shared/TagInput';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { cn } from '@/lib/utils';
 
 // Monaco Editor dynamic import to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
@@ -346,52 +347,64 @@ export default function CreateKmsKeyPage() {
         <Button variant="outline" onClick={() => router.push('/kms/keys')} className="mb-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
-        <div className="text-center">
+        <div className="mx-auto max-w-4xl space-y-2 text-center">
           <h1 className="text-3xl font-headline font-semibold">Choose Key Creation Method</h1>
-          <p className="text-muted-foreground mt-2">Select how you want to create or import your cryptographic key.</p>
+          <p className="text-muted-foreground">
+            Select how you want to create or import your cryptographic key.
+          </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {creationModes.map(mode => (
-            <Card 
-              key={mode.id} 
-              className={`transition-shadow flex flex-col group ${
-                mode.badge ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-lg cursor-pointer'
-              }`}
-              onClick={() => !mode.badge && setSelectedMode(mode.id)}
-            >
-              <CardHeader className="flex-grow">
-                <div className="flex items-start space-x-4">
-                  <div className="mt-1">{mode.icon}</div>
-                  <div className="flex-grow">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className={`text-xl transition-colors ${
-                        mode.badge ? 'text-muted-foreground' : 'group-hover:text-primary'
-                      }`}>
-                        {mode.title}
-                      </CardTitle>
-                      {mode.badge && (
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          {mode.badge}
-                        </Badge>
-                      )}
-                    </div>
-                    <CardDescription className="mt-1 text-sm">{mode.description}</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardFooter>
-                  <Button 
-                    variant="default" 
-                    className="w-full" 
-                    disabled={!!mode.badge}
+        <Card className="mx-auto max-w-4xl overflow-hidden rounded-xl shadow-sm">
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {creationModes.map((mode) => {
+                const isDisabled = !!mode.badge;
+                const icon = React.isValidElement(mode.icon)
+                  ? React.cloneElement(mode.icon as React.ReactElement<{ className?: string }>, {
+                      className: cn("h-5 w-5", isDisabled ? "text-muted-foreground" : "text-primary"),
+                    })
+                  : mode.icon;
+
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => setSelectedMode(mode.id)}
+                    className={cn(
+                      "flex w-full items-start gap-4 px-6 py-5 text-left transition-colors",
+                      isDisabled ? "cursor-not-allowed bg-muted/20 text-muted-foreground" : "cursor-pointer hover:bg-muted/30"
+                    )}
                   >
-                      {mode.badge ? mode.badge : 'Select & Continue'} 
-                      {!mode.badge && <ChevronRight className="ml-2 h-4 w-4" />}
-                  </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+                    <div
+                      className={cn(
+                        "mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border",
+                        isDisabled ? "border-border bg-muted text-muted-foreground" : "border-primary/20 bg-primary/5"
+                      )}
+                    >
+                      {icon}
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cn("text-base font-semibold", isDisabled ? "text-muted-foreground" : "text-foreground")}>
+                          {mode.title}
+                        </span>
+                        {mode.badge && <Badge variant="secondary">{mode.badge}</Badge>}
+                      </div>
+                      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                        {mode.description}
+                      </p>
+                    </div>
+                    <div className="mt-1 flex flex-shrink-0 items-center">
+                      {!isDisabled ? (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -402,7 +415,11 @@ export default function CreateKmsKeyPage() {
         <Button variant="outline" onClick={() => router.push('/kms/keys')}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
-        <Button variant="ghost" onClick={() => setSelectedMode(null)} className="text-primary hover:text-primary/80">
+        <Button
+          variant="ghost"
+          onClick={() => setSelectedMode(null)}
+          className="text-primary hover:text-primary/80"
+        >
             <ArrowLeft className="mr-2 h-4 w-4" /> Change Creation Method
         </Button>
       </div>

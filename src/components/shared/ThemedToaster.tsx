@@ -36,6 +36,9 @@ export function ThemedToaster({ position = 'top-right', offset }: ThemedToasterP
       position={configuredPosition}
       offset={offset}
       theme={theme}
+      options={{
+        duration: 3000,
+      }}
     />
   );
 }

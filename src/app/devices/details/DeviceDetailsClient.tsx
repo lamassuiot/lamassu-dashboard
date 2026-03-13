@@ -639,80 +639,112 @@ export default function DeviceDetailsClient() {
   }
   
   const deviceIconType = mapApiIconToIconType(device.icon);
-  const creationDate = parseISO(device.creation_timestamp);
   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
 
   return (
-    <div className="space-y-6 w-full">
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => routerHook.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
-      </div>
-
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-          <div className="flex items-center space-x-3">
-            <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
-            <div>
-              <h1 className="text-2xl font-bold">{device.id}</h1>
-              <div className="flex items-center space-x-2 mt-1">
+    <div className="w-full space-y-5">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="h-1 w-full" style={{ backgroundColor: iconColor || '#0f67ff' }} />
+        <div className="flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="shrink-0">
+              <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <h1 className="truncate text-xl font-semibold" title={device.id}>
+                  {device.id}
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Device details, identity lifecycle, and certificate history.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <DeviceStatusBadge status={device.status as any} />
-                <span className="text-xs text-muted-foreground">
-                  Created: <CompactDateDisplay 
-                    date={device.creation_timestamp} 
+                <Badge variant="outline" className="text-xs">
+                  Created{' '}
+                  <CompactDateDisplay
+                    date={device.creation_timestamp}
                     formatString="dd MMM yyyy, HH:mm"
                     className="inline"
                   />
-                </span>
+                </Badge>
+                {device.dms_owner ? (
+                  <Badge variant="outline" className="text-xs">
+                    Managed
+                  </Badge>
+                ) : null}
+                {device.identity ? (
+                  <Badge variant="outline" className="text-xs">
+                    Identity Assigned
+                  </Badge>
+                ) : null}
+                {device.tags?.map(tag => (
+                  <Badge key={tag} variant="secondary" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
             {availableIntegrations.length > 0 && (
-              <Button variant="outline" onClick={() => setIsForceUpdateModalOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => setIsForceUpdateModalOpen(true)}>
                 <Zap className="mr-2 h-4 w-4" /> Force Update
               </Button>
             )}
-            <Button onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
+            <Button size="sm" onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
               <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
             </Button>
-            <Button variant="destructive" onClick={() => setIsDecommissionModalOpen(true)} disabled={device.status === 'DECOMMISSIONED'}>
+            <Button variant="destructive" size="sm" onClick={() => setIsDecommissionModalOpen(true)} disabled={device.status === 'DECOMMISSIONED'}>
               <Trash2 className="mr-2 h-4 w-4" /> Decommission
             </Button>
             {device.status === 'DECOMMISSIONED' && (
-                <Button variant="destructive" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
+                <Button variant="destructive" size="sm" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
                     {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
                     {isDeleting ? 'Deleting...' : 'Permanently Delete'}
                 </Button>
             )}
           </div>
         </div>
-        {device.tags && device.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {device.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
-          </div>
-        )}
       </div>
 
       <Tabs defaultValue="certificatesHistory" className="w-full">
-        <TabsList>
-          <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
-          <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
-          <TabsTrigger value="metadata"><SlidersHorizontal className="mr-2 h-4 w-4" />Metadata</TabsTrigger>
+        <TabsList className="mb-5 h-auto w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger
+            value="certificatesHistory"
+            className="rounded-none border-b-2 border-transparent px-4 pb-3 pt-1 font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+          >
+            <History className="mr-2 h-4 w-4" />Certificates History
+          </TabsTrigger>
+          <TabsTrigger
+            value="timeline"
+            className="rounded-none border-b-2 border-transparent px-4 pb-3 pt-1 font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+          >
+            <Clock className="mr-2 h-4 w-4" />Timeline
+          </TabsTrigger>
+          <TabsTrigger
+            value="metadata"
+            className="rounded-none border-b-2 border-transparent px-4 pb-3 pt-1 font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+          >
+            <SlidersHorizontal className="mr-2 h-4 w-4" />Metadata
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="timeline">
-          <div className="space-y-4">
-            <div>
-                <h3 className="text-lg font-semibold">Device Event Timeline</h3>
-                <p className="text-sm text-muted-foreground">Chronological record of significant events for this device and its identity.</p>
-            </div>
-            <div className="px-0 sm:px-2 md:px-4 lg:px-6">
+        <TabsContent value="timeline" className="mt-6 pb-6">
+          <Card className="overflow-hidden rounded-xl shadow-sm">
+            <CardHeader className="border-b py-4">
+              <CardTitle className="flex items-center text-lg">
+                <Clock className="mr-3 h-5 w-5 text-primary" />
+                Device Event Timeline
+              </CardTitle>
+              <CardDescription>Chronological record of significant events for this device and its identity.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
               {timelineEvents.length > 0 ? (
                 <>
-                <div className="relative pl-4"> 
+                <div className="relative pl-4">
                   <div className="absolute left-[calc(0.75rem-1px)] top-2 bottom-2 w-0.5 bg-border -translate-x-1/2 z-0"></div>
                   
                   <ul className="space-y-0">
@@ -737,19 +769,22 @@ export default function DeviceDetailsClient() {
                 )}
                 </>
               ) : (
-                <p className="text-muted-foreground text-center py-8">No events recorded for this device.</p>
+                <p className="py-8 text-center text-muted-foreground">No events recorded for this device.</p>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         
-        <TabsContent value="certificatesHistory">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold">Certificates History</h3>
-              <p className="text-sm text-muted-foreground">History of X.509 certificates associated with this device identity.</p>
-            </div>
-            <div>
+        <TabsContent value="certificatesHistory" className="mt-6 pb-6">
+          <Card className="overflow-hidden rounded-xl shadow-sm">
+            <CardHeader className="border-b py-4">
+              <CardTitle className="flex items-center text-lg">
+                <History className="mr-3 h-5 w-5 text-primary" />
+                Certificates History
+              </CardTitle>
+              <CardDescription>History of X.509 certificates associated with this device identity.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
               {isLoadingHistory ? (
                   <div className="flex items-center justify-center p-6">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -881,16 +916,19 @@ export default function DeviceDetailsClient() {
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">This device does not have an identity with a certificate history.</p>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="metadata">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold">Device Metadata</h3>
-            </div>
-            <div>
+        <TabsContent value="metadata" className="mt-6 pb-6">
+          <Card className="overflow-hidden rounded-xl shadow-sm">
+            <CardHeader className="border-b py-4">
+              <CardTitle className="flex items-center text-lg">
+                <SlidersHorizontal className="mr-3 h-5 w-5 text-primary" />
+                Device Metadata
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
               {device.metadata && Object.keys(device.metadata).length > 0 ? (
                 <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
                   {JSON.stringify(device.metadata, null, 2)}
@@ -898,8 +936,8 @@ export default function DeviceDetailsClient() {
               ) : (
                 <p className="text-muted-foreground">No custom metadata available for this device.</p>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         
       </Tabs>

@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, Download as DownloadIcon, X as XIcon, Settings2, BookText, KeyRound } from "lucide-react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, CheckCircle2, Download as DownloadIcon, X as XIcon, Settings2, BookText, KeyRound, FileText } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sileo } from '@/lib/toast';
 import { DetailItem } from '@/components/shared/DetailItem';
@@ -29,7 +29,7 @@ import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/l
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/shared/Stepper';
-import { formatISO, add, parseISO, isAfter } from 'date-fns';
+import { formatISO, add, parseISO, isAfter, type Duration } from 'date-fns';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
@@ -105,6 +105,8 @@ const parseDurationString = (durationStr: string): Duration => {
   }
   return duration;
 };
+
+const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 
 
 export default function IssueCertificateFormClient() {
@@ -213,6 +215,17 @@ export default function IssueCertificateFormClient() {
     const caCertPem = window.atob(caCertBase64);
     return `${leafCert}\n${caCertPem}`;
   }, [issuedCertificate, issuerCa]);
+
+  const showCertificateIssuedToast = (serialNumber: string) => {
+    sileo.success({
+      title: "Success!",
+      description: "Certificate issued successfully.",
+      button: {
+        title: "View certificate",
+        onClick: () => router.push(`/certificates/details?certificateId=${serialNumber}`),
+      },
+    });
+  };
 
 
   // --- Effects ---
@@ -513,7 +526,7 @@ export default function IssueCertificateFormClient() {
       const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
       setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
       setStep(3);
-      sileo.success({ title: "Success!", description: "Certificate issued successfully." });
+      showCertificateIssuedToast(result.serial_number);
 
     } catch (e: any) {
       setGenerationError(e.message);
@@ -548,7 +561,7 @@ export default function IssueCertificateFormClient() {
         const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
         setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
         setStep(3);
-        sileo.success({ title: "Success!", description: "Certificate issued successfully." });
+        showCertificateIssuedToast(result.serial_number);
     } catch (e: any) {
         setGenerationError(e.message);
         sileo.error({ title: "Issuance Failed", description: e.message });
@@ -601,9 +614,9 @@ export default function IssueCertificateFormClient() {
                             </Select>
                             
                             {/* --- Subject & SANs section --- */}
-                            <Card>
+                            <Card className={DETAIL_CARD_CLASSNAME}>
                                 <SectionHeader icon={BookText} title={`Certificate Subject ${issuanceMode === 'upload' ? '(from CSR)' : ''}`} />
-                                <CardContent className="space-y-4">
+                                <CardContent className="space-y-4 p-6">
                             {issuanceMode === 'generate' ? (
                             <div className="space-y-4">
                                 {/* Row 1: CN */}
@@ -716,7 +729,7 @@ export default function IssueCertificateFormClient() {
                                 <div className="space-y-1"><Label htmlFor="csrFile">Upload CSR File</Label><Input id="csrFile" type="file" accept=".csr,.pem" onChange={handleCsrFileUpload}/></div>
                                 <div className="space-y-1"><Label htmlFor="csrPemTextarea">Or Paste CSR (PEM)</Label><Textarea id="csrPemTextarea" value={csrPem} onChange={e=>setCsrPem(e.target.value)} rows={8} className="font-mono"/></div>
                                 {decodedCsrInfo && (
-                                    <Card className="bg-muted/30"><CardHeader><CardTitle className="text-md">Decoded CSR Information</CardTitle></CardHeader><CardContent className="space-y-2 text-sm pt-4">{decodedCsrInfo.error ? <Alert variant="destructive">{decodedCsrInfo.error}</Alert> : <>
+                                    <Card className={DETAIL_CARD_CLASSNAME}><CardHeader className="border-b py-4"><CardTitle className="text-lg">Decoded CSR Information</CardTitle></CardHeader><CardContent className="space-y-2 p-6 pt-4 text-sm">{decodedCsrInfo.error ? <Alert variant="destructive">{decodedCsrInfo.error}</Alert> : <>
                                         <DetailItem label="Subject" value={decodedCsrInfo.subject} isMono />
                                         <DetailItem label="Public Key" value={decodedCsrInfo.publicKeyInfo} isMono />
                                         {decodedCsrInfo.sans && decodedCsrInfo.sans.length > 0 && <DetailItem label="SANs" value={<div className="flex flex-wrap gap-1">{decodedCsrInfo.sans.map((san, i)=><Badge key={i} variant="secondary">{san}</Badge>)}</div>}/>}
@@ -730,9 +743,9 @@ export default function IssueCertificateFormClient() {
 
                             {/* --- Key Generation section (generate mode only) --- */}
                             {issuanceMode === 'generate' && (
-                                <Card>
+                                <Card className={DETAIL_CARD_CLASSNAME}>
                                     <SectionHeader icon={KeyRound} title="Key Generation Details" />
-                                    <CardContent>
+                                    <CardContent className="p-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1"><Label htmlFor="keyAlgorithm">Algorithm</Label><Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{KEY_TYPE_OPTIONS.map(a=><SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent></Select></div>
                                     {selectedAlgorithm === 'RSA' ? (
@@ -746,9 +759,9 @@ export default function IssueCertificateFormClient() {
                             )}
                             
                             {/* --- Configuration section (both modes) --- */}
-                            <Card>
+                            <Card className={DETAIL_CARD_CLASSNAME}>
                                 <SectionHeader icon={Settings2} title="Certificate Configuration" />
-                                <CardContent>
+                                <CardContent className="p-6">
                              <SigningProfileSelector
                                 profileMode={profileMode}
                                 onProfileModeChange={setProfileMode}
@@ -811,16 +824,28 @@ export default function IssueCertificateFormClient() {
                     )}
 
                     {step === 3 && (
-                        <div className="space-y-6 mt-6 text-center">
-                        <Check className="h-16 w-16 text-green-500 mx-auto" />
-                        <h3 className="text-2xl font-semibold">Certificate Issued Successfully!</h3>
-                        <p className="text-muted-foreground">The certificate has been provisioned. Remember to save your private key if you generated one in the browser.</p>
-                        
-                        <Card>
-                            <div className="bg-primary border-b border-primary/20 py-3 px-6">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-base font-semibold text-primary-foreground">Issued Certificate PEM</h3>
-                                    <div className="flex space-x-2">
+                        <div className="mt-6 space-y-6">
+                            <div className="flex flex-col items-center gap-3 px-4 py-2 text-center">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                    <CheckCircle2 className="h-5 w-5" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <h3 className="text-xl font-semibold tracking-tight">Certificate Issued Successfully!</h3>
+                                    <p className="max-w-xl text-sm text-muted-foreground">
+                                        The certificate has been provisioned. Remember to save your private key if you generated one in the browser.
+                                    </p>
+                                </div>
+                            </div>
+
+                        <div className={cn('grid gap-6', generatedPrivateKeyPem && 'xl:grid-cols-2 xl:items-start')}>
+                        <Card className={DETAIL_CARD_CLASSNAME}>
+                            <CardHeader className="border-b py-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <CardTitle className="flex items-center text-lg">
+                                        <FileText className="mr-3 h-5 w-5 text-primary" />
+                                        Issued Certificate PEM
+                                    </CardTitle>
+                                    <div className="flex flex-wrap gap-2 sm:justify-end">
                                         <Button type="button" variant="secondary" size="sm" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
                                         {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500"/> : <Copy className="mr-1 h-4 w-4"/>}
                                         {issuedCertCopied ? 'Copied' : 'Copy'}
@@ -830,8 +855,8 @@ export default function IssueCertificateFormClient() {
                                         </Button>
                                     </div>
                                 </div>
-                            </div>
-                            <CardContent className="pt-4">
+                            </CardHeader>
+                            <CardContent className="p-6 pt-4">
                                 <Tabs value={certDisplayTab} onValueChange={(v) => setCertDisplayTab(v as 'leaf' | 'chain')} className="w-full">
                                     <TabsList className="grid w-full grid-cols-2">
                                         <TabsTrigger value="leaf">Leaf Certificate</TabsTrigger>
@@ -848,11 +873,14 @@ export default function IssueCertificateFormClient() {
                         </Card>
 
                         {generatedPrivateKeyPem && (
-                            <Card>
-                                <div className="bg-primary border-b border-primary/20 py-3 px-6">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="text-base font-semibold text-primary-foreground">Generated Private Key</h3>
-                                        <div className="flex space-x-2">
+                            <Card className={DETAIL_CARD_CLASSNAME}>
+                                <CardHeader className="border-b py-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <CardTitle className="flex items-center text-lg">
+                                            <KeyRound className="mr-3 h-5 w-5 text-primary" />
+                                            Generated Private Key
+                                        </CardTitle>
+                                        <div className="flex flex-wrap gap-2 sm:justify-end">
                                             <Button type="button" variant="secondary" size="sm" onClick={()=>handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
                                                 {privateKeyCopied?<Check className="mr-1 h-4 w-4 text-green-500"/>:<Copy className="mr-1 h-4 w-4"/>}
                                                 {privateKeyCopied?'Copied':'Copy'}
@@ -862,8 +890,8 @@ export default function IssueCertificateFormClient() {
                                             </Button>
                                         </div>
                                     </div>
-                                </div>
-                                <CardContent className="space-y-2 pt-4">
+                                </CardHeader>
+                                <CardContent className="space-y-2 p-6 pt-4">
                                     <Alert variant="warning">
                                         <AlertDescription>This is your only chance to save the private key. Store it securely.</AlertDescription>
                                     </Alert>
@@ -871,6 +899,7 @@ export default function IssueCertificateFormClient() {
                                 </CardContent>
                             </Card>
                         )}
+                        </div>
                         </div>
                     )}
 

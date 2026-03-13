@@ -15,9 +15,10 @@ interface CryptoEngineViewerProps {
   engine: ApiCryptoEngine;
   className?: string;
   iconOnly?: boolean;
+  plainIcon?: boolean;
 }
 
-export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, className, iconOnly = false }) => {
+export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, className, iconOnly = false, plainIcon = false }) => {
   let IconComponent: React.ElementType | null = null;
   let iconColorClass = "text-muted-foreground";
   let iconBGClass = "bg-transparent";
@@ -65,7 +66,12 @@ export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, 
 
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <div className="relative h-9 w-9 flex-shrink-0 rounded-lg border border-border/60 bg-muted/60 p-1.5">
+      <div
+        className={cn(
+          "relative flex-shrink-0",
+          plainIcon ? "h-7 w-7 p-0" : "h-9 w-9 rounded-lg border border-border/60 bg-muted/60 p-1.5"
+        )}
+      >
         {iconNode}
       </div>
       <div className="flex flex-col min-w-0 gap-0.5">

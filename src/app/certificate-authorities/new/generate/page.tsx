@@ -509,11 +509,12 @@ export default function CreateCaGeneratePage() {
             </Card>
 
             <Card>
-              <SectionHeader icon={Shield} title="CA Certificate Profile" />
+              <SectionHeader
+                icon={Shield}
+                title="CA Certificate Profile"
+                description="Optionally specify an issuance profile for the CA's own certificate. This is different from the default issuance profile used when issuing certificates."
+              />
               <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Optionally specify an issuance profile for the CA&apos;s own certificate. This is different from the default issuance profile used when issuing certificates.
-                </p>
                 <div className="space-y-4">
                   <Label>Profile Mode</Label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

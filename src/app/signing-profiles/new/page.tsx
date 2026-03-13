@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, PlusCircle, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
@@ -122,10 +122,6 @@ export default function CreateSigningProfilePage() {
     <div className="mb-8 w-full space-y-6">
       <div className="flex flex-col gap-4 p-1 sm:flex-row sm:items-start sm:justify-between sm:p-0">
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <PlusCircle className="h-4 w-4" />
-            Issuance Profile Wizard
-          </div>
           <h1 className="text-2xl font-semibold tracking-tight">Create Issuance Profile</h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Start from a trusted template, then customize certificate policy, validity, and cryptographic controls.
@@ -188,8 +184,8 @@ export default function CreateSigningProfilePage() {
               isPanelOpen
               panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_300px]"
               panel={
-                <Card className="h-fit xl:sticky xl:top-6">
-                  <CardHeader>
+                <Card className="h-fit overflow-hidden rounded-xl shadow-sm xl:sticky xl:top-6">
+                  <CardHeader className="border-b py-4">
                     <CardTitle className="text-base">Selected Template</CardTitle>
                     <CardDescription>
                       You can edit any pre-filled values before creating the profile.
@@ -215,24 +211,23 @@ export default function CreateSigningProfilePage() {
                 </Card>
               }
             >
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <CardTitle className="text-lg">Profile Configuration</CardTitle>
-                      <CardDescription>
-                        Define rules for certificate issuance, subject handling, and key policy.
-                      </CardDescription>
-                    </div>
-                    <Button type="button" variant="ghost" onClick={() => setView('template')}>
-                      <ArrowLeft className="mr-2 h-4 w-4" /> Change Template
-                    </Button>
+              <div className="space-y-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold">Profile Configuration</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Define rules for certificate issuance, subject handling, and key policy.
+                    </p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <SigningProfileForm form={form} />
-                </CardContent>
-                <CardFooter className="flex flex-col gap-3 border-t pt-6 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="ghost" onClick={() => setView('template')}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Change Template
+                  </Button>
+                </div>
+
+                <SigningProfileForm form={form} sectionAsCards />
+
+                <Card className="overflow-hidden rounded-xl shadow-sm">
+                  <CardContent className="flex flex-col gap-3 p-6 sm:flex-row sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => router.push('/signing-profiles')}>
                     Cancel
                   </Button>
@@ -240,8 +235,9 @@ export default function CreateSigningProfilePage() {
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Create Profile
                   </Button>
-                </CardFooter>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </SplitPanelLayout>
           )}
         </form>
