@@ -48,17 +48,19 @@ function decodePublicKeyInfo(publicKeyInfo: PkijsPublicKeyInfo): string {
 function decodeSans(extensions: PkijsExtension[]): string[] {
   const sans: string[] = [];
   const sanExt = extensions.find(e => e.extnID === "2.5.29.17");
-  if (sanExt?.parsedValue) {
-    (sanExt.parsedValue as PkijsGeneralNames).names.forEach(name => {
-      if (name.type === 1) sans.push(`Email: ${name.value}`);
-      else if (name.type === 2) sans.push(`DNS: ${name.value}`);
-      else if (name.type === 6) sans.push(`URI: ${name.value}`);
-      else if (name.type === 7) {
-        const ipBytes = Array.from(new Uint8Array(name.value.valueBlock.valueHex));
-        sans.push(`IP: ${ipBytes.join(".")}`);
-      }
-    });
-  }
+  const names = (sanExt?.parsedValue as PkijsGeneralNames | undefined)?.names;
+  if (!Array.isArray(names)) return sans;
+
+  names.forEach(name => {
+    if (name.type === 1) sans.push(`Email: ${name.value}`);
+    else if (name.type === 2) sans.push(`DNS: ${name.value}`);
+    else if (name.type === 6) sans.push(`URI: ${name.value}`);
+    else if (name.type === 7) {
+      const ipBytes = Array.from(new Uint8Array(name.value.valueBlock.valueHex));
+      sans.push(`IP: ${ipBytes.join(".")}`);
+    }
+  });
+
   return sans;
 }
 
@@ -107,8 +109,9 @@ export async function parseCsr(pem: string): Promise<DecodedCsrInfo> {
     const extAttr = pkcs10.attributes?.find(a => a.type === "1.2.840.113549.1.9.14");
     if (extAttr) {
       const extensions = new Extensions({ schema: extAttr.values[0] });
-      sans = decodeSans(extensions.extensions);
-      basicConstraints = decodeBasicConstraints(extensions.extensions);
+      const extensionList = extensions.extensions ?? [];
+      sans = decodeSans(extensionList);
+      basicConstraints = decodeBasicConstraints(extensionList);
     }
 
     return { subject, publicKeyInfo, sans, basicConstraints };
