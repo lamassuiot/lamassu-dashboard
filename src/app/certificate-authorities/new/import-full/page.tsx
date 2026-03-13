@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, UploadCloud, Loader2, Settings, AlertTriangle, FileText } from "lucide-react";
 import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
 import { parseCertificatePemDetails, initPkijsEngine } from "@/lib-crypto";
+import { sileo } from '@/lib/toast';
 import { format as formatDate } from 'date-fns';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -23,6 +23,7 @@ import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { Separator } from '@/components/ui/separator';
 import { importCa, type ImportCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { SectionHeader } from '@/components/shared/FormComponents';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -36,10 +37,10 @@ interface DecodedImportedCertInfo {
 
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
+const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 
 export default function CreateCaImportFullPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -144,23 +145,23 @@ export default function CreateCaImportFullPage() {
     setIsSubmitting(true);
 
     if (!importedCaCertPem.trim() || !importedPrivateKeyPem.trim() || !cryptoEngineId) {
-      toast({ title: "Validation Error", description: "Certificate PEM, Private Key PEM, and a Crypto Engine are required.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Certificate PEM, Private Key PEM, and a Crypto Engine are required." });
       setIsSubmitting(false);
       return;
     }
     if (decodedImportedCertInfo?.error) {
-      toast({ title: "Certificate Error", description: "Cannot import due to invalid certificate data.", variant: "destructive" });
+      sileo.error({ title: "Certificate Error", description: "Cannot import due to invalid certificate data." });
       setIsSubmitting(false);
       return;
     }
     if (!user?.access_token) {
-      toast({ title: "Authentication Error", description: "User not authenticated.", variant: "destructive" });
+      sileo.error({ title: "Authentication Error", description: "User not authenticated." });
       setIsSubmitting(false);
       return;
     }
     
     if (importedPrivateKeyPem.includes('ENCRYPTED PRIVATE KEY')) {
-      toast({ title: "Unsupported Key", description: "Encrypted private keys are not supported. Please provide an unencrypted private key in PKCS#8 format.", variant: "destructive" });
+      sileo.error({ title: "Unsupported Key", description: "Encrypted private keys are not supported. Please provide an unencrypted private key in PKCS#8 format." });
       setIsSubmitting(false);
       return;
     }
@@ -180,14 +181,14 @@ export default function CreateCaImportFullPage() {
     
     try {
         await importCa(payload, user.access_token);
-        toast({
+        sileo.success({
             title: "Certification Authority Import Successful",
-            description: `Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`,
+            description: `Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`
         });
         router.push('/certificate-authorities');
 
     } catch (error: any) {
-        toast({ title: "Import Failed", description: error.message, variant: "destructive" });
+        sileo.error({ title: "Import Failed", description: error.message });
     } finally {
         setIsSubmitting(false);
     }
@@ -218,14 +219,9 @@ export default function CreateCaImportFullPage() {
           </div>
         </div>
       <form onSubmit={handleSubmit} className="space-y-8">
-            <Card>
-              <div className="bg-primary border-b border-primary/20 py-3 px-6">
-                <div className="flex items-center text-primary-foreground">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <h3 className="text-base font-semibold">Import Settings</h3>
-                </div>
-              </div>
-              <CardContent className="space-y-4 pt-6">
+            <Card className={DETAIL_CARD_CLASSNAME}>
+              <SectionHeader icon={Settings} title="Import Settings" />
+              <CardContent className="space-y-4 p-6">
                   <div>
                     <Label htmlFor="caId">New Certification Authority ID (generated)</Label>
                     <Input id="caId" value={caId} readOnly className="mt-1 bg-muted/50" />
@@ -274,21 +270,16 @@ export default function CreateCaImportFullPage() {
                         else if (field === 'ST') setCustomSubjectST(value);
                         else if (field === 'L') setCustomSubjectL(value);
                       }}
-                    />
-                  </div>
+                   />
+                 </div>
                </CardContent>
             </Card>
             
             <Separator/>
             
-            <Card>
-              <div className="bg-primary border-b border-primary/20 py-3 px-6">
-                <div className="flex items-center">
-                  <FileText className="mr-2 h-4 w-4 text-primary-foreground" />
-                  <h3 className="text-base font-semibold text-primary-foreground">Certification Authority Details</h3>
-                </div>
-              </div>
-              <CardContent className="space-y-4 pt-6">
+            <Card className={DETAIL_CARD_CLASSNAME}>
+              <SectionHeader icon={FileText} title="Certification Authority Details" />
+              <CardContent className="space-y-4 p-6">
                  <div>
                    <Label htmlFor="importedCaCertPem">Certification Authority Certificate (PEM)</Label>
                     <Textarea 
@@ -303,8 +294,8 @@ export default function CreateCaImportFullPage() {
                    <p className="text-xs text-muted-foreground mt-1">The public certificate of the Certification Authority you are importing.</p>
                 </div>
                  {decodedImportedCertInfo && (
-                    <div className="bg-muted/30 rounded-lg p-4">
-                        <h4 className="text-sm font-semibold mb-3">Decoded Certificate Information</h4>
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                        <h4 className="mb-3 text-sm font-semibold">Decoded Certificate Information</h4>
                         <div className="space-y-2 text-sm">
                         {decodedImportedCertInfo.error ? (
                             <Alert variant="destructive">{decodedImportedCertInfo.error}</Alert>

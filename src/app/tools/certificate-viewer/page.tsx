@@ -14,9 +14,9 @@ import { Badge } from '@/components/ui/badge';
 import { initPkijsEngine } from '@/lib-crypto';
 import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, type CA } from '@/lib/ca-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -75,11 +75,6 @@ const RFC_TITLE_MAP: Record<string, string> = {
   "RFC5480": "Elliptic Curve Cryptography Subject Public Key Information",
   "RFC5912": "New ASN.1 Modules for the Public Key Infrastructure Using X.509 (PKIX)",
   "RFC6960": "X.509 Internet Public Key Infrastructure Online Certificate Status Protocol - OCSP",
-};
-
-const toTitleCase = (str: string) => {
-  if (!str) return '';
-  return str.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
 };
 
 const renderUrlList = (urls: string[] | undefined, listTitle: string) => {
@@ -171,7 +166,6 @@ type StatusFilter = ZlintResult['status'] | 'all';
 const statusFilterOrder: StatusFilter[] = ['all', 'fatal', 'error', 'warn', 'info', 'pass'];
 
 export default function CertificateViewerPage() {
-  const { toast } = useToast();
   const { user } = useAuth();
 
   // --- Common State ---
@@ -314,7 +308,7 @@ export default function CertificateViewerPage() {
 
   const handleOpenOcspModal = async () => {
     if (!parsedDetails || !user?.access_token) {
-        toast({ title: "Cannot perform OCSP Check", description: "Certificate details are missing or you are not logged in.", variant: "destructive" });
+        sileo.error({ title: "Cannot perform OCSP Check", description: "Certificate details are missing or you are not logged in." });
         return;
     }
 
@@ -353,12 +347,12 @@ export default function CertificateViewerPage() {
                 };
             } catch (e: any) {
                 console.error("Failed to fetch or parse issuer from AIA:", e);
-                toast({ title: "AIA Fetch Failed", description: `Could not retrieve the issuer certificate from ${issuerUrl}.`, variant: "warning" });
+                sileo.warning({ title: "AIA Fetch Failed", description: `Could not retrieve the issuer certificate from ${issuerUrl}.` });
             }
         }
         
         if (!foundIssuer) {
-            toast({ title: "Issuer Not Found", description: "Could not find or fetch the issuer CA. OCSP check is not possible.", variant: "destructive" });
+            sileo.error({ title: "Issuer Not Found", description: "Could not find or fetch the issuer CA. OCSP check is not possible." });
             setIssuerForOcsp(null);
         } else {
             setIssuerForOcsp(foundIssuer);
@@ -366,7 +360,7 @@ export default function CertificateViewerPage() {
         }
 
     } catch (e: any) {
-        toast({ title: "Error Finding Issuer", description: e.message, variant: "destructive" });
+        sileo.error({ title: "Error Finding Issuer", description: e.message });
     } finally {
         setIsFetchingIssuer(false);
     }
@@ -375,7 +369,7 @@ export default function CertificateViewerPage() {
 
   const handleLint = () => {
     if (!isWasmReady) {
-      toast({ title: "WASM Not Ready", description: "The linter is still loading. Please wait a moment.", variant: 'destructive' });
+      sileo.error({ title: "WASM Not Ready", description: "The linter is still loading. Please wait a moment." });
       return;
     }
     
@@ -568,12 +562,12 @@ export default function CertificateViewerPage() {
                                     <div className="space-y-2">
                                         {parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0 && (
                                             <div className="flex flex-wrap gap-1">
-                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{formatCertificateUsageLabel(usage)}</Badge>)}
                                             </div>
                                         )}
                                         {parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0 && (
                                             <div className="flex flex-wrap gap-1">
-                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{formatCertificateUsageLabel(usage)}</Badge>)}
                                             </div>
                                         )}
                                     </div>

@@ -10,11 +10,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, Loader2, AlertCircle, CheckCircle, ArrowLeft, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
 import { parseCertificatePemDetails } from '@/lib/ca-data';
 import dynamic from 'next/dynamic';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
 // Dynamically import Monaco Editor to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
@@ -35,9 +36,9 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_EXTENSIONS = ['.pem', '.crt', '.cer'];
 
 export default function ImportCertificatePage() {
+  const monacoTheme = useMonacoTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -111,10 +112,9 @@ export default function ImportCertificatePage() {
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      toast({
+      sileo.error({
         title: 'File Too Large',
-        description: `File size must be less than ${MAX_FILE_SIZE / 1024 / 1024}MB`,
-        variant: 'destructive',
+        description: `File size must be less than ${MAX_FILE_SIZE / 1024 / 1024}MB`
       });
       return;
     }
@@ -122,10 +122,9 @@ export default function ImportCertificatePage() {
     // Validate file extension
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
-      toast({
+      sileo.error({
         title: 'Invalid File Type',
-        description: `Only ${ALLOWED_EXTENSIONS.join(', ')} files are supported`,
-        variant: 'destructive',
+        description: `Only ${ALLOWED_EXTENSIONS.join(', ')} files are supported`
       });
       return;
     }
@@ -135,10 +134,9 @@ export default function ImportCertificatePage() {
       setCertificatePem(content);
       await parseCertificate(content);
     } catch (error) {
-      toast({
+      sileo.error({
         title: 'File Read Error',
-        description: 'Could not read the certificate file',
-        variant: 'destructive',
+        description: 'Could not read the certificate file'
       });
     }
   };
@@ -156,38 +154,34 @@ export default function ImportCertificatePage() {
     event.preventDefault();
     
     if (!certificatePem.trim()) {
-      toast({
+      sileo.error({
         title: 'Certificate Required',
-        description: 'Please provide a certificate to import',
-        variant: 'destructive',
+        description: 'Please provide a certificate to import'
       });
       return;
     }
 
     if (parsedInfo?.error) {
-      toast({
+      sileo.error({
         title: 'Invalid Certificate',
-        description: 'Cannot import certificate with parsing errors',
-        variant: 'destructive',
+        description: 'Cannot import certificate with parsing errors'
       });
       return;
     }
 
     if (!user?.access_token) {
-      toast({
+      sileo.error({
         title: 'Authentication Error',
-        description: 'Please log in to import certificates',
-        variant: 'destructive',
+        description: 'Please log in to import certificates'
       });
       return;
     }
 
     // Validate metadata JSON
     if (!validateMetadata(metadataJson)) {
-      toast({
+      sileo.error({
         title: 'Invalid Metadata',
-        description: 'Please fix the JSON syntax in the metadata field',
-        variant: 'destructive',
+        description: 'Please fix the JSON syntax in the metadata field'
       });
       return;
     }
@@ -208,10 +202,9 @@ export default function ImportCertificatePage() {
 
       await importCertificate(payload, user.access_token);
 
-      toast({
+      sileo.success({
         title: 'Certificate Imported',
-        description: `Certificate "${parsedInfo?.subject || 'Unknown'}" has been imported successfully`,
-        variant: 'default',
+        description: `Certificate "${parsedInfo?.subject || 'Unknown'}" has been imported successfully`
       });
 
       // Navigate back to certificates page
@@ -219,10 +212,9 @@ export default function ImportCertificatePage() {
 
     } catch (error) {
       console.error('Error importing certificate:', error);
-      toast({
+      sileo.error({
         title: 'Import Failed',
-        description: error instanceof Error ? error.message : 'Failed to import certificate',
-        variant: 'destructive',
+        description: error instanceof Error ? error.message : 'Failed to import certificate'
       });
     } finally {
       setIsLoading(false);
@@ -345,7 +337,7 @@ export default function ImportCertificatePage() {
                     formatOnPaste: true,
                     formatOnType: true,
                   }}
-                  theme="vs-dark"
+                  theme={monacoTheme}
                 />
               </div>
               {metadataError && (

@@ -13,25 +13,28 @@ import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } fr
 import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { CompactDateDisplay, DateDisplay } from '@/components/shared/DateDisplay';
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import { getDisplayDateFormat } from '@/lib/config';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from 'lucide-react';
 import { TimelineEventItem, type TimelineEventDisplayData } from '@/components/devices/TimelineEventItem';
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { RevocationModal } from '@/components/shared/RevocationModal';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 
 interface CertificateHistoryEntry {
   version: string;
@@ -58,7 +61,6 @@ export default function DeviceDetailsClient() {
   const routerHook = useRouter();
   const deviceId = searchParams.get('deviceId'); 
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
 
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
@@ -361,7 +363,7 @@ export default function DeviceDetailsClient() {
 
             } catch (err) {
                 console.error("Failed to fetch certificates for timeline", err);
-                toast({ title: "Timeline Error", description: "Could not load some certificate details for the timeline.", variant: "destructive" });
+                sileo.error({ title: "Timeline Error", description: "Could not load some certificate details for the timeline." });
             }
         }
         
@@ -404,7 +406,7 @@ export default function DeviceDetailsClient() {
     };
 
     processAndFetchForTimeline();
-}, [device, allRawEvents, timelineDisplayCount, user?.access_token, toast, timelineFetchedCerts]);
+}, [device, allRawEvents, timelineDisplayCount, user?.access_token, timelineFetchedCerts]);
   
   
   const handleOpenRevokeModal = (certInfo: CertificateHistoryEntry) => {
@@ -414,7 +416,7 @@ export default function DeviceDetailsClient() {
 
   const handleConfirmRevocation = async (reason: string) => {
     if (!certToRevoke || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot revoke. Missing data or authentication.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Cannot revoke. Missing data or authentication." });
         return;
     }
     
@@ -438,13 +440,13 @@ export default function DeviceDetailsClient() {
       );
       setTimelineFetchedCerts(prevMap => new Map(prevMap).set(certToRevoke.serialNumber, updatedEntry));
       
-      toast({
+      sileo.success({
         title: "Certificate Revoked",
-        description: `Certificate with SN: ${certToRevoke.serialNumber} has been revoked.`,
+        description: `Certificate with SN: ${certToRevoke.serialNumber} has been revoked.`
       });
 
     } catch (error: any) {
-        toast({ title: "Revocation Failed", description: error.message, variant: "destructive" });
+        sileo.error({ title: "Revocation Failed", description: error.message });
     } finally {
         setIsRevoking(false);
         setCertToRevoke(null);
@@ -453,7 +455,7 @@ export default function DeviceDetailsClient() {
 
   const handleReactivateCertificate = async (certToReactivate: CertificateHistoryEntry) => {
     if (!user?.access_token) {
-      toast({ title: "Error", description: "Authentication token not found.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "Authentication token not found." });
       return;
     }
 
@@ -474,26 +476,24 @@ export default function DeviceDetailsClient() {
       setTimelineFetchedCerts(prevMap => new Map(prevMap).set(certToReactivate.serialNumber, updatedEntry));
 
 
-      toast({
+      sileo.success({
         title: "Certificate Re-activated",
-        description: `Certificate with SN: ${certToReactivate.serialNumber} has been re-activated.`,
+        description: `Certificate with SN: ${certToReactivate.serialNumber} has been re-activated.`
       });
 
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Re-activation Failed",
-        description: error.message,
-        variant: "destructive",
+        description: error.message
       });
     }
   };
 
   const handleAssignIdentityConfirm = async (certificateSerialNumber: string) => {
     if (!deviceId || !user?.access_token) {
-        toast({
+        sileo.error({
             title: "Error",
-            description: "Cannot assign identity. Device ID or authentication is missing.",
-            variant: "destructive"
+            description: "Cannot assign identity. Device ID or authentication is missing."
         });
         return;
     }
@@ -501,18 +501,17 @@ export default function DeviceDetailsClient() {
     try {
         await bindIdentityToDevice(deviceId, certificateSerialNumber, user.access_token);
 
-        toast({
+        sileo.success({
             title: "Success!",
-            description: "Identity has been successfully assigned to the device.",
+            description: "Identity has been successfully assigned to the device."
         });
         setIsAssignIdentityModalOpen(false);
         fetchDeviceDetails(); // Refresh device data
 
     } catch (e: any) {
-        toast({
+        sileo.error({
             title: "Assignment Failed",
-            description: e.message,
-            variant: "destructive"
+            description: e.message
         });
     } finally {
         setIsAssigning(false);
@@ -521,27 +520,25 @@ export default function DeviceDetailsClient() {
 
   const handleDecommissionConfirm = async () => {
     if (!deviceId || !user?.access_token) {
-        toast({
+        sileo.error({
             title: "Error",
-            description: "Cannot decommission device. Device ID or authentication is missing.",
-            variant: "destructive"
+            description: "Cannot decommission device. Device ID or authentication is missing."
         });
         return;
     }
     setIsDecommissioning(true);
     try {
         await decommissionDevice(deviceId, user.access_token);
-        toast({
+        sileo.success({
             title: "Success!",
-            description: "Device has been successfully decommissioned.",
+            description: "Device has been successfully decommissioned."
         });
         setIsDecommissionModalOpen(false);
         fetchDeviceDetails(); // Re-fetch details to show updated status
     } catch (e: any) {
-        toast({
+        sileo.error({
             title: "Decommission Failed",
-            description: e.message,
-            variant: "destructive"
+            description: e.message
         });
     } finally {
         setIsDecommissioning(false);
@@ -550,27 +547,25 @@ export default function DeviceDetailsClient() {
 
   const handleDeleteConfirm = async () => {
     if (!deviceId || !user?.access_token) {
-        toast({
+        sileo.error({
             title: "Error",
-            description: "Cannot delete device. Device ID or authentication is missing.",
-            variant: "destructive"
+            description: "Cannot delete device. Device ID or authentication is missing."
         });
         return;
     }
     setIsDeleting(true);
     try {
         await deleteDevice(deviceId, user.access_token);
-        toast({
+        sileo.success({
             title: "Success!",
-            description: "Device has been permanently deleted.",
+            description: "Device has been permanently deleted."
         });
         setIsDeleteModalOpen(false);
         routerHook.push('/devices'); // Redirect to the list page
     } catch (e: any) {
-        toast({
+        sileo.error({
             title: "Deletion Failed",
-            description: e.message,
-            variant: "destructive"
+            description: e.message
         });
     } finally {
         setIsDeleting(false);
@@ -579,7 +574,7 @@ export default function DeviceDetailsClient() {
   
   const handleForceUpdateConfirm = async (configKey: string, actions: string[]) => {
     if (!device?.dms_owner || !deviceId || !user?.access_token || !activeIntegration) {
-        toast({ title: "Error", description: "Missing data required for force update.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Missing data required for force update." });
         return;
     }
     setIsForcingUpdate(true);
@@ -591,14 +586,21 @@ export default function DeviceDetailsClient() {
         };
         await updateDeviceMetadata(deviceId, [patch], user.access_token);
         
-        toast({ title: "Success", description: "A forced certificate update has been triggered for the device." });
+        sileo.success({ title: "Success", description: "A forced certificate update has been triggered for the device." });
         setIsForceUpdateModalOpen(false);
         setTimeout(() => fetchDeviceDetails(), 2000); // Refresh after a short delay
     } catch(err: any) {
-        toast({ title: "Force Update Failed", description: err.message, variant: "destructive" });
+        sileo.error({ title: "Force Update Failed", description: err.message });
     } finally {
         setIsForcingUpdate(false);
     }
+  };
+
+  const handleUpdateDeviceMetadata = async (id: string, patchOperations: PatchOperation[]) => {
+    if (!user?.access_token) {
+      throw new Error("User not authenticated.");
+    }
+    await updateDeviceMetadata(id, patchOperations, user.access_token);
   };
 
   const handleLoadMoreTimeline = () => {
@@ -647,117 +649,154 @@ export default function DeviceDetailsClient() {
   }
   
   const deviceIconType = mapApiIconToIconType(device.icon);
-  const creationDate = parseISO(device.creation_timestamp);
   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
 
   return (
-    <div className="space-y-6 w-full">
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => routerHook.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
-      </div>
-
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-          <div className="flex items-center space-x-3">
-            <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
-            <div>
-              <h1 className="text-2xl font-bold">{device.id}</h1>
-              <div className="flex items-center space-x-2 mt-1">
-                <DeviceStatusBadge status={device.status as any} />
-                <span className="text-xs text-muted-foreground">
-                  Created: <CompactDateDisplay 
-                    date={device.creation_timestamp} 
-                    formatString="dd MMM yyyy, HH:mm"
-                    className="inline"
-                  />
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+    <div className="w-full space-y-5">
+      <DetailBreadcrumbRow
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Devices', href: '/devices' },
+          { label: 'Details' },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
             {availableIntegrations.length > 0 && (
-              <Button variant="outline" onClick={() => setIsForceUpdateModalOpen(true)}>
+              <Button variant="secondary" size="sm" onClick={() => setIsForceUpdateModalOpen(true)}>
                 <Zap className="mr-2 h-4 w-4" /> Force Update
               </Button>
             )}
-            <Button onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
-            </Button>
-            <Button variant="destructive" onClick={() => setIsDecommissionModalOpen(true)} disabled={device.status === 'DECOMMISSIONED'}>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+              onClick={() => setIsDecommissionModalOpen(true)}
+              disabled={device.status === 'DECOMMISSIONED'}
+            >
               <Trash2 className="mr-2 h-4 w-4" /> Decommission
             </Button>
             {device.status === 'DECOMMISSIONED' && (
-                <Button variant="destructive" onClick={() => setIsDeleteModalOpen(true)} disabled={isDeleting}>
-                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                    {isDeleting ? 'Deleting...' : 'Permanently Delete'}
-                </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setIsDeleteModalOpen(true)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+              </Button>
             )}
+            <Button size="sm" onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="h-1 w-full" style={{ backgroundColor: iconColor || '#0f67ff' }} />
+        <div className="flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="shrink-0">
+              <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <h1 className="truncate text-xl font-semibold" title={device.id}>
+                  {device.id}
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Device details, identity lifecycle, and certificate history.
+                </p>
+                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  <span>Created</span>
+                  <span className="text-border">·</span>
+                  <DateDisplay date={device.creation_timestamp} formatString={getDisplayDateFormat()} showRelative={true} className="text-xs" />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <DeviceStatusBadge status={device.status as any} />
+                {device.dms_owner ? (
+                  <Badge variant="outline" className="text-xs">
+                    Managed
+                  </Badge>
+                ) : null}
+                {device.identity ? (
+                  <Badge variant="outline" className="text-xs">
+                    Identity Assigned
+                  </Badge>
+                ) : null}
+                {device.tags?.map(tag => (
+                  <Badge key={tag} variant="secondary" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-        {device.tags && device.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {device.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
-          </div>
-        )}
       </div>
 
       <Tabs defaultValue="certificatesHistory" className="w-full">
-        <TabsList>
-          <TabsTrigger value="certificatesHistory"><History className="mr-2 h-4 w-4" />Certificates History</TabsTrigger>
-          <TabsTrigger value="timeline"><Clock className="mr-2 h-4 w-4" />Timeline</TabsTrigger>
-          <TabsTrigger value="metadata"><SlidersHorizontal className="mr-2 h-4 w-4" />Metadata</TabsTrigger>
-        </TabsList>
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            <TabsTrigger
+              value="certificatesHistory"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <History className="mr-2 h-4 w-4" />Certificates History
+            </TabsTrigger>
+            <TabsTrigger
+              value="timeline"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <Clock className="mr-2 h-4 w-4" />Timeline
+            </TabsTrigger>
+            <TabsTrigger
+              value="metadata"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />Metadata
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="timeline">
-          <Card>
-            <CardHeader>
-                <CardTitle>Device Event Timeline</CardTitle>
-                <CardDescription>Chronological record of significant events for this device and its identity.</CardDescription>
-            </CardHeader>
-            <CardContent className="px-0 sm:px-2 md:px-4 lg:px-6">
-              {timelineEvents.length > 0 ? (
-                <>
-                <div className="relative pl-4"> 
-                  <div className="absolute left-[calc(0.75rem-1px)] top-2 bottom-2 w-0.5 bg-border -translate-x-1/2 z-0"></div>
-                  
-                  <ul className="space-y-0">
-                    {timelineEvents.map((event, index) => (
-                      <TimelineEventItem 
-                        key={event.id} 
-                        event={event} 
-                        isLastItem={index === timelineEvents.length -1} 
-                        onRevoke={handleOpenRevokeModal}
-                        onReactivate={handleReactivateCertificate}
-                      />
-                    ))}
-                  </ul>
+        <div className="mt-6 pb-6">
+        <TabsContent value="timeline" className="mt-0">
+          {timelineEvents.length > 0 ? (
+            <>
+              <ul className="space-y-0">
+                {timelineEvents.map((event, index) => (
+                  <TimelineEventItem
+                    key={event.id}
+                    event={event}
+                    isLastItem={index === timelineEvents.length - 1}
+                    onRevoke={handleOpenRevokeModal}
+                    onReactivate={handleReactivateCertificate}
+                  />
+                ))}
+              </ul>
+              {allRawEvents.length > timelineDisplayCount && (
+                <div className="flex justify-center mt-2">
+                  <Button onClick={handleLoadMoreTimeline} variant="outline" size="sm" disabled={isTimelineLoading}>
+                    {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Load more events
+                  </Button>
                 </div>
-                {allRawEvents.length > timelineDisplayCount && (
-                  <div className="flex justify-center mt-4">
-                      <Button onClick={handleLoadMoreTimeline} variant="outline" disabled={isTimelineLoading}>
-                          {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                          Load More Events
-                      </Button>
-                  </div>
-                )}
-                </>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">No events recorded for this device.</p>
               )}
-            </CardContent>
-          </Card>
+            </>
+          ) : (
+            <div className="rounded-xl border bg-card shadow-sm px-5 py-12 text-center text-muted-foreground">
+              No events recorded for this device.
+            </div>
+          )}
         </TabsContent>
         
-        <TabsContent value="certificatesHistory">
-          <Card>
-            <CardHeader>
-              <CardTitle>Certificates History</CardTitle>
-              <CardDescription>History of X.509 certificates associated with this device identity.</CardDescription>
-            </CardHeader>
-            <CardContent>
+        <TabsContent value="certificatesHistory" className="mt-0">
+          <div>
               {isLoadingHistory ? (
                   <div className="flex items-center justify-center p-6">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -834,8 +873,8 @@ export default function DeviceDetailsClient() {
                                 cert.ca
                                 )}
                           </TableCell>
-                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validFrom} formatString="dd/MM/yy HH:mm" className="text-xs" /></TableCell>
-                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString="dd/MM/yy HH:mm" className="text-xs" highlightExpired /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validFrom} formatString={getDisplayDateFormat()} className="text-xs" /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString={getDisplayDateFormat()} className="text-xs" highlightExpired /></TableCell>
                           <TableCell className="hidden md:table-cell">{cert.lifespan}</TableCell>
                           <TableCell>
                             <Button variant="ghost" size="icon" title="View Certificate Details" onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>
@@ -889,24 +928,21 @@ export default function DeviceDetailsClient() {
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">This device does not have an identity with a certificate history.</p>
               )}
-            </CardContent>
-          </Card>
+          </div>
         </TabsContent>
 
-        <TabsContent value="metadata">
-          <Card>
-            <CardHeader><CardTitle>Device Metadata</CardTitle></CardHeader>
-            <CardContent>
-              {device.metadata && Object.keys(device.metadata).length > 0 ? (
-                <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
-                  {JSON.stringify(device.metadata, null, 2)}
-                </pre>
-              ) : (
-                <p className="text-muted-foreground">No custom metadata available for this device.</p>
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="metadata" className="mt-0">
+          <MetadataTabContent
+            rawJsonData={device.metadata}
+            itemName={device.id}
+            tabTitle="Device Metadata"
+            isEditable={true}
+            itemId={device.id}
+            onSave={handleUpdateDeviceMetadata}
+            onUpdateSuccess={fetchDeviceDetails}
+          />
         </TabsContent>
+        </div>
         
       </Tabs>
        {certToRevoke && (

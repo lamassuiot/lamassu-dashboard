@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { AlertTriangle } from 'lucide-react';
 
 interface AwsRemediationPolicyModalProps {
@@ -30,7 +30,6 @@ export const AwsRemediationPolicyModal: React.FC<AwsRemediationPolicyModalProps>
   defaultAccountId = '',
 }) => {
   const [accountId, setAccountId] = useState(defaultAccountId);
-  const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen) {
@@ -40,10 +39,9 @@ export const AwsRemediationPolicyModal: React.FC<AwsRemediationPolicyModalProps>
 
   const handleConfirmClick = () => {
     if (!accountId.trim()) {
-      toast({
+      sileo.error({
         title: 'Account ID Required',
-        description: 'Please enter a valid AWS Account ID.',
-        variant: 'destructive',
+        description: 'Please enter a valid AWS Account ID.'
       });
       return;
     }

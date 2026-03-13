@@ -10,7 +10,7 @@ import { cn, getCookie, setCookie } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +42,6 @@ const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 export default function SigningProfilesPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
   
   const [profiles, setProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -189,18 +188,18 @@ export default function SigningProfilesPage() {
   
   const handleConfirmDelete = async () => {
     if (!profileToDelete || !user?.access_token) {
-      toast({ title: "Error", description: "No profile selected or user not authenticated.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "No profile selected or user not authenticated." });
       return;
     }
     
     setIsDeleting(true);
     try {
       await deleteSigningProfile(profileToDelete.id, user.access_token);
-      toast({ title: "Success", description: `Profile "${profileToDelete.name}" has been deleted.` });
+      sileo.success({ title: "Success", description: `Profile "${profileToDelete.name}" has been deleted.` });
       setProfileToDelete(null); // Close the dialog
       handleRefresh(); // Refresh the list
     } catch (err: any) {
-      toast({ title: "Deletion Failed", description: err.message, variant: "destructive" });
+      sileo.error({ title: "Deletion Failed", description: err.message });
     } finally {
       setIsDeleting(false);
     }
@@ -236,7 +235,7 @@ export default function SigningProfilesPage() {
           <h1 className="text-2xl font-headline font-semibold">Issuance Profiles</h1>
         </div>
         <div className="flex items-center space-x-2">
-            <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
+            <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
             <Button onClick={handleCreateNewProfile}>

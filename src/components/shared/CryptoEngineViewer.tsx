@@ -15,9 +15,10 @@ interface CryptoEngineViewerProps {
   engine: ApiCryptoEngine;
   className?: string;
   iconOnly?: boolean;
+  plainIcon?: boolean;
 }
 
-export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, className, iconOnly = false }) => {
+export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, className, iconOnly = false, plainIcon = false }) => {
   let IconComponent: React.ElementType | null = null;
   let iconColorClass = "text-muted-foreground";
   let iconBGClass = "bg-transparent";
@@ -64,14 +65,19 @@ export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, 
   }
 
   return (
-    <div className={cn("flex items-center space-x-2", className)}>
-      <div className="relative h-7 w-7 flex-shrink-0">
+    <div className={cn("flex items-center gap-3", className)}>
+      <div
+        className={cn(
+          "relative flex-shrink-0",
+          plainIcon ? "h-7 w-7 p-0" : "h-9 w-9 rounded-lg border border-border/60 bg-muted/60 p-1.5"
+        )}
+      >
         {iconNode}
       </div>
-      <div className="flex flex-col min-w-0">
-        <span className="text-sm font-medium truncate" title={engine.name}>{engine.name}</span>
-        <span className="text-xs text-muted-foreground truncate" title={`${engine.provider} - ID: ${engine.id}`}>
-          {engine.provider} - ID: <span className="font-mono">{engine.id}</span>
+      <div className="flex flex-col min-w-0 gap-0.5">
+        <span className="text-sm font-medium leading-none truncate" title={engine.name}>{engine.name}</span>
+        <span className="text-xs text-muted-foreground truncate font-mono" title={`ID: ${engine.id}`}>
+          {engine.id}
         </span>
       </div>
     </div>

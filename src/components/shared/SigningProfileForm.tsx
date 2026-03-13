@@ -5,6 +5,7 @@ import React from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,9 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
 import { SwitchFormField } from '@/components/shared/FormComponents';
-
-// Constants for better maintainability
-const NESTED_CONTAINER_STYLES = "space-y-4 p-4 border rounded-md ml-4 -mt-4 bg-background";
+import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 
 const rsaKeyStrengths = ["2048", "3072", "4096"] as const;
 const ecdsaCurves = ["P-256", "P-384", "P-521"] as const;
@@ -24,13 +23,11 @@ const keyUsageOptions = [
   "DigitalSignature", "ContentCommitment", "KeyEncipherment", "DataEncipherment",
   "KeyAgreement", "CertSign", "CRLSign", "EncipherOnly", "DecipherOnly"
 ] as const;
-type KeyUsageOption = typeof keyUsageOptions[number];
 
 const extendedKeyUsageOptions = [
   "ServerAuth", "ClientAuth", "CodeSigning", "EmailProtection",
   "TimeStamping", "OCSPSigning", "Any"
 ] as const;
-type ExtendedKeyUsageOption = typeof extendedKeyUsageOptions[number];
 
 export const signingProfileSchema = z.object({
   profileName: z.string().min(3, "Profile name must be at least 3 characters long."),
@@ -149,11 +146,6 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
 };
 
 
-const toTitleCase = (str: string) => {
-  if (!str) return '';
-  return str.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (s) => s.toUpperCase());
-};
-
 const mapEcdsaCurveToBitSize = (curve: string): number => {
   switch (curve) {
     case 'P-256': return 256;
@@ -166,9 +158,53 @@ const mapEcdsaCurveToBitSize = (curve: string): number => {
 interface SigningProfileFormProps {
   form: UseFormReturn<SigningProfileFormValues>;
   enforceSignAsCa?: boolean;
+  sectionAsCards?: boolean;
 }
 
-export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, enforceSignAsCa = false }) => {
+const FormSection = ({
+  icon: Icon,
+  title,
+  description,
+  cardMode,
+  children,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description?: string;
+  cardMode: boolean;
+  children: React.ReactNode;
+}) => {
+  if (cardMode) {
+    return (
+      <Card className="overflow-hidden rounded-xl shadow-sm">
+        <CardHeader className="border-b py-4">
+          <CardTitle className="flex items-center text-lg">
+            <Icon className="mr-3 h-5 w-5 text-primary" />
+            {title}
+          </CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </CardHeader>
+        <CardContent className="space-y-6 p-6">{children}</CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 border-b pb-2">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      {children}
+    </div>
+  );
+};
+
+export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
+  form,
+  enforceSignAsCa = false,
+  sectionAsCards = false,
+}) => {
   // Watch form values for conditional rendering
   const watchCryptoEnforcement = form.watch("cryptoEnforcement");
   const watchHonorSubject = form.watch("honorSubject");
@@ -178,11 +214,13 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
   return (
     <div className="space-y-6">
       {/* Basic Information Section */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 pb-2 border-b">
-          <Info className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Basic Information</h3>
-        </div>
+      <FormSection
+        icon={Info}
+        title="Basic Information"
+        description="Core naming and descriptive metadata for this issuance profile."
+        cardMode={sectionAsCards}
+      >
+        <div className="space-y-4">
           <FormField
             control={form.control}
             name="profileName"
@@ -210,14 +248,16 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
               </FormItem>
             )}
           />
-      </div>
+        </div>
+      </FormSection>
 
       {/* Policy Configuration Section */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-2 pb-2 border-b">
-          <Settings2 className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Policy Configuration</h3>
-        </div>
+      <FormSection
+        icon={Settings2}
+        title="Policy Configuration"
+        description="Control validity, CA scope, and subject handling for issued certificates."
+        cardMode={sectionAsCards}
+      >
         <FormField
             control={form.control}
             name="validity"
@@ -246,7 +286,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
             disabled={enforceSignAsCa}
           />
           
-          <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+          <div className={cn("space-y-3 rounded-md bg-muted/30 p-3", sectionAsCards && "border")}>
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <Label htmlFor="honor-subject" className="font-medium">Honor Subject From CSR</Label>
@@ -266,7 +306,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
             </div>
             
             {!watchHonorSubject && (
-              <div className="space-y-3 pt-3 border-t">
+              <div className="space-y-3 border-t pt-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="overrideCountry" render={({ field }) => (
                   <FormItem>
@@ -301,7 +341,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
                   </FormItem>
                 )} />
               </div>
-              <div className="flex items-start space-x-2 text-muted-foreground bg-muted/50 p-2 rounded-md">
+              <div className={cn("flex items-start space-x-2 rounded-md bg-muted/50 p-2 text-muted-foreground", sectionAsCards && "border")}>
                 <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <p className="text-xs">
                   The Common Name (CN) from the CSR's subject is always honored and used. 
@@ -311,15 +351,16 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
               </div>
             )}
           </div>
-      </div>
+      </FormSection>
 
       {/* Cryptographic Settings Section */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-2 pb-2 border-b">
-          <KeyRound className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Cryptographic Settings</h3>
-        </div>
-        <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+      <FormSection
+        icon={KeyRound}
+        title="Cryptographic Settings"
+        description="Enforce allowed key algorithms and strength requirements for certificates issued by this profile."
+        cardMode={sectionAsCards}
+      >
+        <div className={cn("space-y-3 rounded-md bg-muted/30 p-3", sectionAsCards && "border")}>
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <Label htmlFor="crypto-enforcement" className="font-medium">Enable Crypto Enforcement</Label>
@@ -338,11 +379,11 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
             />
           </div>
             {watchCryptoEnforcement && watchCryptoEnforcement.enabled && (
-              <div className="space-y-4 pt-3 border-t">
-              <FormField control={form.control} name="cryptoEnforcement.allowRsa" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between"><FormLabel>Allow RSA Keys</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+              <div className="space-y-4 border-t pt-3">
+              <FormField control={form.control} name="cryptoEnforcement.allowRsa" render={({ field }) => (<FormItem className={cn("flex flex-row items-center justify-between", sectionAsCards && "rounded-md border bg-background p-3")}><FormLabel>Allow RSA Keys</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
               {watchCryptoEnforcement.allowRsa && (
                 <FormField control={form.control} name="cryptoEnforcement.allowedRsaKeySizes" render={() => (
-                  <FormItem className="p-3 border rounded-md bg-background ml-4">
+                  <FormItem className="ml-4 rounded-md border bg-background p-3">
                     <FormLabel>Allowed RSA Key Size</FormLabel>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 pt-2">
                       {rsaKeyStrengths.map((item) => (
@@ -360,10 +401,10 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
                   </FormItem>
                 )} />
               )}
-              <FormField control={form.control} name="cryptoEnforcement.allowEcdsa" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between"><FormLabel>Allow ECDSA Keys</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+              <FormField control={form.control} name="cryptoEnforcement.allowEcdsa" render={({ field }) => (<FormItem className={cn("flex flex-row items-center justify-between", sectionAsCards && "rounded-md border bg-background p-3")}><FormLabel>Allow ECDSA Keys</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
               {watchCryptoEnforcement.allowEcdsa && (
                 <FormField control={form.control} name="cryptoEnforcement.allowedEcdsaCurves" render={() => (
-                  <FormItem className="p-3 border rounded-md bg-background ml-4">
+                  <FormItem className="ml-4 rounded-md border bg-background p-3">
                     <FormLabel>Allowed ECDSA Curves</FormLabel>
                     <div className="grid grid-cols-1 gap-x-4 gap-y-2 pt-2">
                       {ecdsaCurves.map((item) => (
@@ -384,15 +425,16 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
             </div>
           )}
         </div>
-      </div>
+      </FormSection>
 
       {/* Certificate Usage Policies Section */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-2 pb-2 border-b">
-          <ListChecks className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Certificate Usage Policies</h3>
-        </div>
-        <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+      <FormSection
+        icon={ListChecks}
+        title="Certificate Usage Policies"
+        description="Define whether KU, EKU, and supported CSR extensions are honored or overridden."
+        cardMode={sectionAsCards}
+      >
+        <div className={cn("space-y-3 rounded-md bg-muted/30 p-3", sectionAsCards && "border")}>
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <Label htmlFor="honor-key-usage" className="font-medium">Honor Key Usage From CSR</Label>
@@ -412,7 +454,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
           </div>
             
             {!watchHonorKeyUsage && (
-              <div className="space-y-3 pt-3 border-t">
+              <div className="space-y-3 border-t pt-3">
               <FormField 
                 control={form.control} 
                 name="keyUsages"
@@ -440,7 +482,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
                                 />
                               </FormControl>
                               <FormLabel className="text-sm font-normal cursor-pointer">
-                                {toTitleCase(item)}
+                                {formatCertificateUsageLabel(item)}
                               </FormLabel>
                             </FormItem>
                           )}
@@ -455,7 +497,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
           )}
         </div>
           
-        <div className="space-y-3 p-3 bg-muted/30 rounded-md">
+        <div className={cn("space-y-3 rounded-md bg-muted/30 p-3", sectionAsCards && "border")}>
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <Label htmlFor="honor-extended-key-usage" className="font-medium">Honor Extended Key Usage From CSR</Label>
@@ -475,7 +517,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
           </div>
           
           {!watchHonorExtendedKeyUsages && (
-            <div className="space-y-3 pt-3 border-t">
+            <div className="space-y-3 border-t pt-3">
               <FormField 
                 control={form.control} 
                 name="extendedKeyUsages"
@@ -503,7 +545,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
                                 />
                               </FormControl>
                               <FormLabel className="text-sm font-normal cursor-pointer">
-                                {toTitleCase(item)}
+                                {formatCertificateUsageLabel(item)}
                               </FormLabel>
                             </FormItem>
                           )}
@@ -526,7 +568,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({ form, en
             description="Preserve certificate extensions from the Certificate Signing Request (CSR). Currently, only Subject Alternative Name (SAN) extensions are supported. Note: Key Usage (KU) and Extended Key Usage (EKU) extensions have their own dedicated switches above."
           />
         </div>
-      </div>
+      </FormSection>
     </div>
   );
 };

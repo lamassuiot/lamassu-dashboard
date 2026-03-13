@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -9,12 +10,19 @@ import { Loader2 } from 'lucide-react';
 export default function SigninCallbackPage() {
   const router = useRouter();
   const { userManager } = useAuth();
+  const hasProcessedCallback = useRef(false);
 
   useEffect(() => {
+    if (hasProcessedCallback.current) {
+      return;
+    }
+
     if (!userManager) {
         console.log("SigninCallback: Waiting for UserManager...");
         return;
     }
+
+    hasProcessedCallback.current = true;
 
     const processCallback = async () => {
       try {

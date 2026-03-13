@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Layers, Plus, Search, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -17,7 +17,6 @@ import { buildDeviceGroupTree } from '@/lib/device-groups-utils';
 
 export default function DeviceGroupsPage() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const [groups, setGroups] = useState<DeviceGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,10 +49,9 @@ export default function DeviceGroupsPage() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch device groups';
       setError(errorMessage);
-      toast({
+      sileo.error({
         title: 'Error',
-        description: errorMessage,
-        variant: 'destructive',
+        description: errorMessage
       });
     } finally {
       setIsLoading(false);
@@ -79,16 +77,15 @@ export default function DeviceGroupsPage() {
       
       // Update UI after successful deletion
       setGroups(prev => prev.filter(g => g.id !== groupId));
-      toast({
+      sileo.success({
         title: 'Success',
-        description: 'Device group deleted successfully',
+        description: 'Device group deleted successfully'
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete device group';
-      toast({
+      sileo.error({
         title: 'Error',
-        description: errorMessage,
-        variant: 'destructive',
+        description: errorMessage
       });
       // Refresh the list to restore UI state
       fetchAllGroups();
@@ -116,7 +113,7 @@ export default function DeviceGroupsPage() {
           <h1 className="text-2xl font-headline font-semibold">Device Groups</h1>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
+          <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
           <Button asChild disabled={isLoading}>

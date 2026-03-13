@@ -3,7 +3,7 @@
 'use client';
 
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
+import { ThemedToaster } from '@/components/shared/ThemedToaster';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
 import Script from 'next/script';
@@ -29,7 +29,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -120,7 +120,6 @@ const navigationConfig: NavGroup[] = [
       { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
       { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon },
       { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck },
-      { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck },
     ],
   },
   {
@@ -234,6 +233,14 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
 
   const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
+  const showGlobalBreadcrumbs =
+    !pathname.startsWith('/certificate-authorities/details') &&
+    !pathname.startsWith('/certificates/details') &&
+    !pathname.startsWith('/kms/keys/details') &&
+    !pathname.startsWith('/signing-profiles/edit') &&
+    !(pathname.startsWith('/registration-authorities/new') && !!searchParams.get('raId')) &&
+    !pathname.startsWith('/verification-authorities') &&
+    !pathname.startsWith('/devices/details');
   let userRoles: string[] = [];
   if (isAuthenticated() && user?.access_token) {
     try {
@@ -457,7 +464,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               </Sidebar>
 
               <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
-                {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
+                {showGlobalBreadcrumbs && breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
                 {children}
                 <CustomFooter />
               </SidebarInset>
@@ -643,7 +650,7 @@ export default function RootLayout({
               <React.Suspense fallback={<LoadingState />}>
                 <InnerLayout>{children}</InnerLayout>
               </React.Suspense>
-              <Toaster />
+              <ThemedToaster offset={{ top: 40 }} />
             </IdentifierDisplayProvider>
           </AuthProvider>
         </ConfigProvider>

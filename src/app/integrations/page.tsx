@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { deleteRaIntegration } from '@/lib/dms-api';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +46,6 @@ export const IntegrationIcon: React.FC<{ type: DiscoveredIntegration['type'] }> 
 export default function IntegrationsPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { toast } = useToast();
   
   const [integrations, setIntegrations] = useState<DiscoveredIntegration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,17 +93,17 @@ export default function IntegrationsPage() {
 
   const handleDeleteIntegration = async () => {
     if (!integrationToDelete || !user?.access_token) {
-      toast({ title: "Error", description: "No integration selected or user not authenticated.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "No integration selected or user not authenticated." });
       return;
     }
     setIsDeleting(true);
     try {
       await deleteRaIntegration(integrationToDelete.raId, integrationToDelete.configKey, user.access_token);
-      toast({ title: "Success", description: "Integration has been deleted." });
+      sileo.success({ title: "Success", description: "Integration has been deleted." });
       setIntegrationToDelete(null); // Close the dialog
       loadIntegrations(); // Refresh the list
     } catch (err: any) {
-      toast({ title: "Deletion Failed", description: err.message, variant: "destructive" });
+      sileo.error({ title: "Deletion Failed", description: err.message });
     } finally {
       setIsDeleting(false);
     }

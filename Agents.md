@@ -1,38 +1,20 @@
 # Agent Instructions for Lamassu Dashboard
 
-## Project Overview
-Lamassu Dashboard is a modern web-based user interface for managing X.509 certificates and Public Key Infrastructure (PKI). It provides comprehensive certificate lifecycle management including Certificate Authorities (CAs), Registration Authorities (RAs), certificate issuance, revocation, validation, and device identity management. **Security and user experience are the highest priorities** - all PKI operations must maintain strict cryptographic standards while providing intuitive workflows for both technical and non-technical users.
+## Purpose
 
-## Architecture & Repository Overview
+Lamassu Dashboard is a Next.js and TypeScript UI for PKI, certificate lifecycle, device identity, registration authorities, validation authorities, and KMS-backed key management.
 
-**Core Components:**
-- **Certificate Management**: Full lifecycle management of X.509 certificates
-- **CA Management**: Create, import, and manage Certificate Authorities
-- **RA Management**: Configure Registration Authorities with EST protocol support
-- **Device Management**: IoT device identity and certificate lifecycle
-- **Validation Services**: OCSP and CRL-based certificate validation
-- **Platform Integrations**: AWS KMS, PKCS#11, and cloud connector support
-- **Authentication**: OIDC-based authentication with configurable providers
+This file is intentionally concise. It should capture repo-specific engineering guidance without duplicating the detailed UI rules now documented in `storybook/`.
 
-**Repository Details:**
-- **Size & Type:** Medium-scale TypeScript/Next.js project (~50k lines) focused on PKI management dashboard with comprehensive certificate handling
-- **Primary Language:** TypeScript with Next.js 15.x framework
-- **Key Frameworks:** Next.js (App Router), React 18, ShadCN UI, Tailwind CSS
-- **Authentication:** OIDC Client (oidc-client-ts) for OpenID Connect integration
-- **Cryptography:** PKI.js and ASN1.js for certificate parsing and CSR generation
-- **Container Technology:** Docker with multi-stage builds and Nginx serving
-- **Deployment:** Static export with runtime configuration injection
+## Source of truth for UI work
 
-**Core Dependencies:**
-- **Next.js 15.3+**: React framework with App Router and static export
-- **PKI.js/ASN1.js**: Certificate parsing, validation, and CSR generation
-- **OIDC Client**: OpenID Connect authentication integration
-- **ShadCN UI**: Component library built on Radix UI primitives
-- **Tailwind CSS**: Utility-first CSS framework for styling
+Do not restate styling rules in feature files or duplicate design-system guidance here.
 
-## Key Development Workflows
+Use these documents as the canonical reference before changing or adding UI:
 
-### Project Structure & Architecture
+- `storybook/styles.md`
+- `storybook/component-inventory.md`
+- `storybook/ui-review-checklist.md`
 
 **Core Directory Layout:**
 ```
@@ -113,12 +95,12 @@ Lamassu Dashboard is a modern web-based user interface for managing X.509 certif
 └── package.json                       # Dependencies and scripts
 ```
 
-**Critical Configuration Files:**
-- **`next.config.ts`** - Next.js configuration with static export enabled
-- **`package.json`** - Dependencies, scripts, and project metadata
-- **`tailwind.config.ts`** - Tailwind CSS configuration with custom theme
-- **`public/config.js`** - Runtime configuration for API endpoints and auth
-- **`config.js.tmpl`** - Template for Docker environment variable injection
+Expectations:
+
+- reuse `src/components/ui/*` primitives before creating new ones
+- reuse `src/components/shared/*` patterns before creating local variants
+- follow the existing page recipes documented in `storybook/styles.md`
+- when a pattern will likely recur, extract it instead of creating another one-off implementation
 
 **Key Integration Points:**
 - **Authentication:** `src/contexts/AuthContext.tsx` handles OIDC integration
@@ -127,92 +109,67 @@ Lamassu Dashboard is a modern web-based user interface for managing X.509 certif
 - **Low-level Crypto:** `src/lib-crypto/` — **⚠️ ALWAYS check and use this before writing any crypto code. Adding crypto logic anywhere else is forbidden.**
 - **UI Components:** `src/components/ui/` contains ShadCN base components
 
-**Testing Infrastructure:**
-- **Type Checking:** TypeScript compiler with strict mode enabled
-- **Linting:** ESLint with Next.js configuration and unused imports plugin
-- **Development:** Hot reloading with Turbopack for fast iteration
+## High-level architecture
 
-### Build & Development Workflow
+Core areas:
 
-**Critical Prerequisites:**
-- **Node.js 20+ required** - verified compatible version for Next.js 15
-- **npm or pnpm** - package manager for dependency installation
-- **Docker with multi-stage support** - required for containerized builds
+- `src/app/`: Next.js App Router pages
+- `src/components/ui/`: base UI primitives
+- `src/components/shared/`: reusable app-level components and workflows
+- `src/lib/`: API clients, PKI helpers, and domain logic
+- `src/contexts/`: React contexts such as auth and identifier display
+- `src/types/`: shared TypeScript types
 
-**Essential Build Commands:**
+Key domains:
+
+- certificate authorities
+- issued certificates
+- registration authorities
+- verification authorities
+- devices
+- signing profiles
+- integrations
+- crypto engines
+- KMS keys
+
+## Development workflow
+
+Common commands:
+
 ```bash
-# Development server with hot reloading
-npm run dev                 # Starts on port 9002 with Turbopack (~30 seconds)
-
-# Production build and export
-npm run build              # Creates optimized static export in out/ (~2-3 minutes)
-
-# Code quality and validation
-npm run lint               # ESLint code analysis (~30 seconds)
-npm run fix               # Auto-fix ESLint issues (~30 seconds)
-npm run typecheck         # TypeScript type checking (~1 minute)
-
-# Production server (after build)
-npm run start             # Serves built application
-
-# Docker operations
-docker build -t lamassu-ui:latest .    # Multi-stage build (~5-8 minutes)
-docker run -p 9002:80 lamassu-ui       # Run containerized application
+npm run dev
+npm run lint
+npm run fix
+npm run typecheck
+npm run build
 ```
 
-**Critical Build Issues & Solutions:**
-- **Module resolution errors** - ensure all imports use correct relative paths
-- **Type errors** - run `npm run typecheck` before building
-- **Missing environment variables** - check `public/config.js` configuration
-- **Docker context issues** - ensure all required files are in build context
-- **Next.js static export** - verify `output: 'export'` in `next.config.ts`
+Before shipping changes:
 
-**Development Environment Setup:**
-1. Install Node.js 20+ and npm/pnpm
-2. Clone repository: `git clone https://github.com/lamassuiot/lamassu-dashboard`
-3. **Always run `npm install` after fresh clone**
-4. **Copy and configure `public/config.js` for local development**
-5. **Run `npm run dev` to start development server on port 9002**
-6. **Always run `npm run lint` and `npm run typecheck` before committing**
+- run `npm run typecheck`
+- run `npm run lint` when relevant
+- run `npm run build` when the change affects routing, exports, or broader app behavior
 
-### Testing Strategy
+## Implementation rules
 
-**Code Quality & Validation:**
-- **Type Checking**: TypeScript strict mode with comprehensive type coverage
-  ```bash
-  npm run typecheck          # Validate all TypeScript types (~1 minute)
-  ```
-- **Linting**: ESLint with Next.js configuration and custom rules
-  ```bash
-  npm run lint              # Check code style and potential issues (~30 seconds)
-  npm run fix               # Auto-fix linting issues (~30 seconds)
-  ```
-- **Build Validation**: Static export verification
-  ```bash
-  npm run build             # Validate complete build process (~2-3 minutes)
-  ```
+### Next.js and React
 
-**Manual Testing Workflows:**
-- **Certificate Operations**: Test CA creation, certificate issuance, and revocation
-- **Authentication**: Verify OIDC login/logout flows with different providers
-- **Device Management**: Test device enrollment and certificate lifecycle
-- **API Integration**: Validate backend service communication
-- **Responsive Design**: Test UI across different screen sizes and devices
+- prefer Server Components where possible, Client Components where interaction requires them
+- keep page logic close to the route, and move reusable UI into `src/components/shared/`
+- use typed API and domain models from `src/types/` and `src/lib/`
 
-**Testing Best Practices:**
-- **Always run `npm run typecheck` before submitting changes** - catches type errors early
-- **Test authentication flows in different environments** - dev, staging, production
-- **Verify certificate operations with real PKI data** - ensure cryptographic accuracy
-- **Test Docker builds locally** - validate containerization before deployment
+### PKI and certificate handling
 
-### Development Guidelines & Patterns
+- validate and sanitize certificate, CSR, and metadata inputs
+- treat private key handling as sensitive by default
+- never expose secrets, tokens, or private keys in logs or UI state unnecessarily
+- preserve cryptographic correctness over convenience in certificate parsing, issuance, revocation, and validation flows
 
-Make sure that there is a new line at the end of any file you edit. This is a common convention in TypeScript and many other programming languages.
+### UI composition
 
-**Next.js App Router Patterns:**
-1. **Page Components** (`src/app/` directory): Use React Server Components where possible, Client Components for interactivity
-2. **Component Organization** (`src/components/` directory): Group by feature, shared components in `shared/`
-3. **API Integration** (`src/lib/` directory): Centralized API clients with consistent error handling
+- default to semantic tokens from `src/app/globals.css` and `tailwind.config.ts`
+- do not introduce new card, badge, tab, or hero variants when an existing shared pattern already fits
+- if you need a one-off variant of an existing shared component, prefer extending the shared component instead
 
 **Certificate Management Development:**
 > ⚠️ All of the operations below are already implemented in `src/lib-crypto/`. You must use those implementations — do not call `pkijs` or `asn1js` directly from outside that folder.
@@ -221,41 +178,30 @@ Make sure that there is a new line at the end of any file you edit. This is a co
 - **PEM/DER Handling**: `buffer-utils.ts` in `lib-crypto` — do not reimplement
 - **Validation**: Use functions from `cert-parser.ts` for chain validation and expiry checking
 
-**UI/UX Standards:**
-- Follow ShadCN UI component patterns with Tailwind CSS
-- Implement responsive design for mobile and desktop usage
-- Use consistent loading states and error handling
-- Provide clear feedback for all certificate operations
-- Implement proper form validation with user-friendly error messages
+### Performance and UX
 
-**Code Standards:**
-- Follow TypeScript strict mode conventions
-- Use proper React hooks patterns (useState, useEffect, useCallback)
-- Implement error boundaries for robust error handling
-- Use consistent naming conventions for files and functions
-- Prefer composition over inheritance for component design
+- avoid unnecessary repeated API calls
+- use pagination for large result sets
+- keep loading, empty, and error states explicit
+- do not block the UI thread with heavy synchronous parsing or cryptographic work
 
-### Security Considerations
-**Security is paramount** - every component must be designed with security-first principles:
+## Documentation policy
 
-- **Critical**: Validate and sanitize all certificate data before processing
-- **Mandatory**: Implement strict input validation for all forms and file uploads
-- **Essential**: Use secure defaults for all PKI operations and configurations
-- **Required**: Ensure private key generation happens client-side only when appropriate
-- **Must**: Validate certificate chains and expiry dates before acceptance
-- **Always**: Log security-relevant operations for audit purposes
-- **Never**: Expose private keys, tokens, or sensitive data in logs or client state
+When you add a reusable UI pattern or standardize a page pattern:
 
-### Performance Guidelines
-**Performance is critical** - dashboard responsiveness directly impacts user productivity:
+- update the relevant file in `storybook/`
+- avoid duplicating the same rule in multiple markdown files
+- if a new shared component becomes part of the standard toolkit, add it to `storybook/component-inventory.md`
 
-- **Critical**: Minimize API calls and implement proper loading states
-- **Mandatory**: Use React.memo and useMemo for expensive certificate parsing operations
-- **Essential**: Implement pagination for large certificate lists
-- **Required**: Optimize bundle size with proper code splitting
-- **Always**: Provide immediate UI feedback for user actions
-- **Never**: Block the UI thread with synchronous certificate operations
-- **Never**: Load entire certificate databases without pagination
+## Practical rule
+
+If you are about to build a new UI pattern, stop and check:
+
+1. Is there already a primitive for this in `src/components/ui/`?
+2. Is there already a shared version in `src/components/shared/`?
+3. Is there already a documented pattern in `storybook/styles.md`?
+
+If the answer to any of those is yes, reuse or extend it instead of reimplementing it.
 
 ---
 

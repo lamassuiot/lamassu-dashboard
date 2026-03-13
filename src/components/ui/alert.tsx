@@ -12,11 +12,11 @@ const alertVariants = cva(
       variant: {
         default: "bg-background text-foreground border-l-border [&>svg]:text-muted-foreground",
         destructive:
-          "border-l-destructive bg-destructive/10 text-destructive dark:border-l-destructive dark:bg-destructive/10 [&>svg]:text-destructive",
+          "border-l-destructive bg-destructive/10 text-foreground [&>svg]:text-destructive",
         warning:
-          "border-l-orange-500 bg-orange-50 text-orange-700 dark:border-l-orange-500/80 dark:bg-orange-950/20 [&>svg]:text-orange-500",
+          "border-l-chart-3 bg-muted/60 text-foreground [&>svg]:text-chart-3",
         success:
-          "border-l-primary bg-primary/5 text-foreground dark:border-l-primary/70 dark:bg-primary/5 [&>svg]:text-primary",
+          "border-l-chart-2 bg-muted/60 text-foreground [&>svg]:text-chart-2",
       },
     },
     defaultVariants: {
@@ -50,7 +50,6 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
 
     const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
       setIsExpanded(!isExpanded);
-      console.log('Alert clicked, isExpanded:', !isExpanded); // Debug log
       onClick?.(e);
     };
 
@@ -58,7 +57,6 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         setIsExpanded(!isExpanded);
-        console.log('Alert activated via keyboard, isExpanded:', !isExpanded); // Debug log
       }
     };
 
@@ -80,7 +78,6 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
                   child.type !== AlertTitle && 
                   child.type !== AlertDescription &&
                   child.type !== AlertExpandableContent) {
-                console.log('Rendering as icon:', child.type); // Debug log
                 return child;
               }
               return null;
@@ -113,7 +110,6 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
           <div className="px-4 pb-4">
             {React.Children.map(children, (child) => {
               if (React.isValidElement(child) && child.type === AlertExpandableContent) {
-                console.log('Rendering AlertExpandableContent'); // Debug log
                 return child;
               }
               return null;
@@ -138,8 +134,8 @@ const AlertTitle = React.forwardRef<
       "font-medium font-semibold leading-none tracking-tight ",
       variant === "default" && "text-foreground",
       variant === "destructive" && "text-destructive",
-      variant === "warning" && "text-orange-700 dark:text-orange-400",
-      variant === "success" && "text-primary",
+      variant === "warning" && "text-chart-3",
+      variant === "success" && "text-chart-2",
       className
     )}
     {...props}

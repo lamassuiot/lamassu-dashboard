@@ -7,10 +7,14 @@ interface LamassuConfig {
   LAMASSU_AUTH_ENABLED?: boolean;
   LAMASSU_AUTH_AUTHORITY?: string;
   LAMASSU_AUTH_CLIENT_ID?: string;
+  LAMASSU_AUTH_MONITOR_SESSION?: boolean;
   LAMASSU_API?: string;
   LAMASSU_PUBLIC_API?: string;
   LAMASSU_CONNECTORS?: string[];
   LAMASSU_FOOTER_ENABLED?: boolean;
+  TOAST_POSITION?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  DISPLAY_DATE_FORMAT?: string;
+  DISPLAY_DATE_AND_TIME_FORMAT?: string;
   [key: string]: any;
 }
 

@@ -11,11 +11,14 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchLatestAlerts, fetchSystemSubscriptions, unsubscribeFromAlert, type ApiSubscription } from '@/lib/alerts-api';
 import { AlertsTable } from '@/components/alerts/AlertsTable';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { SubscribeToAlertModal } from '@/components/alerts/SubscribeToAlertModal';
 import { SubscriptionDetailsModal } from '@/components/alerts/SubscriptionDetailsModal';
+import { AuditUserInfoPanel } from '@/components/alerts/AuditUserInfoPanel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
+import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 
 
 // This is the structure the UI component expects.
@@ -36,18 +39,34 @@ export interface AlertSortConfig {
     direction: SortDirection;
 }
 
+type RightPanelMode = 'subscribe' | 'audit-user' | 'subscription-details' | null;
+
+type EventCategoryFilter = 'AUDIT' | 'API';
+
+const EVENT_CATEGORY_OPTIONS: { label: string; value: EventCategoryFilter }[] = [
+  { label: 'Audit Events', value: 'AUDIT' },
+  { label: 'API Events', value: 'API' },
+];
+
+const getEventCategory = (event: AlertEvent): EventCategoryFilter => {
+  const eventType = event.type.toLowerCase();
+  return eventType.startsWith('audit.') ? 'AUDIT' : 'API';
+};
+
 export default function AlertsPage() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [allSubscriptions, setAllSubscriptions] = useState<ApiSubscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
 
   // Sorting and Filtering state
   const [sortConfig, setSortConfig] = useState<AlertSortConfig>({ column: 'lastSeen', direction: 'desc' });
   const [filterText, setFilterText] = useState('');
   const [showWithSubscriptionsOnly, setShowWithSubscriptionsOnly] = useState(false);
+  const [eventCategoryFilter, setEventCategoryFilter] = useState<EventCategoryFilter[]>(
+    EVENT_CATEGORY_OPTIONS.map((option) => option.value)
+  );
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -58,17 +77,17 @@ export default function AlertsPage() {
   const [eventTypeToSubscribe, setEventTypeToSubscribe] = useState<string | null>(null);
   const [samplePayloadToSubscribe, setSamplePayloadToSubscribe] = useState<object | null>(null);
   const [subscriptionToEdit, setSubscriptionToEdit] = useState<ApiSubscription | null>(null);
+  const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>(null);
+  const [auditEventForUserInfo, setAuditEventForUserInfo] = useState<AlertEvent | null>(null);
 
 
-  // New state for details modal
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedSubscriptionForDetails, setSelectedSubscriptionForDetails] = useState<ApiSubscription | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
 
   const performUnsubscribe = async (subscriptionId: string) => {
     if (!user?.access_token) {
-        toast({ title: 'Authentication Error', description: 'You must be logged in to unsubscribe.', variant: 'destructive' });
+        sileo.error({ title: 'Authentication Error', description: 'You must be logged in to unsubscribe.' });
         return;
     }
     
@@ -77,17 +96,16 @@ export default function AlertsPage() {
     try {
         await unsubscribeFromAlert(subscriptionId, user.access_token);
         
-        toast({ title: 'Success', description: 'You have been unsubscribed from the alert.' });
+        sileo.success({ title: 'Success', description: 'You have been unsubscribed from the alert.' });
         
-        // Close modal if open
-        if (isDetailsModalOpen) {
-            setIsDetailsModalOpen(false);
-            setSelectedSubscriptionForDetails(null);
+        if (rightPanelMode === 'subscription-details') {
+          setRightPanelMode(null);
+          setSelectedSubscriptionForDetails(null);
         }
         
         loadAlertsData(); // Re-sync with the server
     } catch (e: any) {
-        toast({ title: 'Unsubscribe Failed', description: e.message, variant: 'destructive' });
+        sileo.error({ title: 'Unsubscribe Failed', description: e.message });
     } finally {
         setIsDeleting(false);
     }
@@ -98,6 +116,7 @@ export default function AlertsPage() {
     setEventTypeToSubscribe(event.type);
     setSamplePayloadToSubscribe(event.payload);
     setIsSubscribeModalOpen(true);
+    setRightPanelMode('subscribe');
   };
   
   const handleOpenEditModal = (subscription: ApiSubscription) => {
@@ -105,27 +124,70 @@ export default function AlertsPage() {
     setSubscriptionToEdit(subscription);
     setEventTypeToSubscribe(subscription.event_type);
     setSamplePayloadToSubscribe(associatedEvent?.payload || {});
-    setIsDetailsModalOpen(false); // Close details modal
+    setSelectedSubscriptionForDetails(null);
     setIsSubscribeModalOpen(true); // Open subscribe modal in edit mode
+    setRightPanelMode('subscribe');
   };
   
   const handleSubscriptionSuccess = () => {
     setIsSubscribeModalOpen(false);
+    setRightPanelMode(null);
     setEventTypeToSubscribe(null);
     setSamplePayloadToSubscribe(null);
     setSubscriptionToEdit(null);
-    toast({ title: "Success!", description: "Subscription details saved." });
+    sileo.success({ title: "Success!", description: "Subscription details saved." });
     loadAlertsData(); // Refresh data to show new subscription
   }
+
+  const handleSubscribePanelOpenChange = (isOpen: boolean) => {
+    setIsSubscribeModalOpen(isOpen);
+
+    if (!isOpen) {
+      setRightPanelMode(null);
+      setEventTypeToSubscribe(null);
+      setSamplePayloadToSubscribe(null);
+      setSubscriptionToEdit(null);
+    } else {
+      setRightPanelMode('subscribe');
+    }
+  };
+
+  const handleOpenAuditUserInfo = (event: AlertEvent) => {
+    setAuditEventForUserInfo(event);
+    setIsSubscribeModalOpen(false);
+    setRightPanelMode('audit-user');
+  };
+
+  const handleCloseRightPanel = () => {
+    setRightPanelMode(null);
+    setIsSubscribeModalOpen(false);
+    setAuditEventForUserInfo(null);
+    setSelectedSubscriptionForDetails(null);
+    setEventTypeToSubscribe(null);
+    setSamplePayloadToSubscribe(null);
+    setSubscriptionToEdit(null);
+  };
 
   const handleViewSubscriptionDetails = (subscriptionId: string) => {
     const sub = allSubscriptions.find(s => s.id === subscriptionId);
     if (sub) {
       setSelectedSubscriptionForDetails(sub);
-      setIsDetailsModalOpen(true);
+      setIsSubscribeModalOpen(false);
+      setAuditEventForUserInfo(null);
+      setRightPanelMode('subscription-details');
     } else {
-      toast({ title: 'Error', description: 'Could not find subscription details.', variant: 'destructive'});
+      sileo.error({ title: 'Error', description: 'Could not find subscription details.'});
     }
+  };
+
+  const handleDetailsPanelOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setRightPanelMode(null);
+      setSelectedSubscriptionForDetails(null);
+      return;
+    }
+
+    setRightPanelMode('subscription-details');
   };
 
 
@@ -152,13 +214,18 @@ export default function AlertsPage() {
           subscriptionsMap.set(sub.event_type, []);
         }
         
-        let displayValue = sub.channel.type;
-        if(sub.channel.type === 'EMAIL' && sub.channel.config.email) {
-            displayValue = `${sub.channel.type}: ${sub.channel.config.email}`;
-        } else if (sub.channel.type === 'WEBHOOK' && sub.channel.config.name) {
-            displayValue = `Webhook: ${sub.channel.config.name}`;
-        } else if (sub.channel.config.url) {
-             displayValue = `${sub.channel.type}: ${new URL(sub.channel.config.url).hostname}`;
+        let displayValue: string = sub.channel.type;
+        const webhookUrl = sub.channel.config.webhook_url || sub.channel.config.url;
+        if (sub.channel.type === 'EMAIL' && sub.channel.config.email) {
+          displayValue = `${sub.channel.type}: ${sub.channel.config.email}`;
+        } else if ((sub.channel.type === 'WEBHOOK' || sub.channel.type === 'TEAMS_WEBHOOK') && sub.channel.name) {
+          displayValue = `${sub.channel.type}: ${sub.channel.name}`;
+        } else if (webhookUrl) {
+          try {
+            displayValue = `${sub.channel.type}: ${new URL(webhookUrl).hostname}`;
+          } catch {
+            displayValue = `${sub.channel.type}: ${webhookUrl}`;
+          }
         }
         
         const subscriptionDisplay = {
@@ -200,6 +267,10 @@ export default function AlertsPage() {
 
   const filteredAndSortedEvents = useMemo(() => {
     let processedEvents = [...events];
+
+    if (eventCategoryFilter.length > 0) {
+      processedEvents = processedEvents.filter((event) => eventCategoryFilter.includes(getEventCategory(event)));
+    }
 
     // Filtering
     if (filterText) {
@@ -243,7 +314,7 @@ export default function AlertsPage() {
     });
 
     return processedEvents;
-  }, [events, filterText, showWithSubscriptionsOnly, sortConfig]);
+  }, [events, filterText, showWithSubscriptionsOnly, sortConfig, eventCategoryFilter]);
 
   const totalPages = useMemo(() => Math.ceil(filteredAndSortedEvents.length / pageSize), [filteredAndSortedEvents.length, pageSize]);
   
@@ -262,7 +333,7 @@ export default function AlertsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterText, showWithSubscriptionsOnly, sortConfig, pageSize]);
+  }, [filterText, showWithSubscriptionsOnly, sortConfig, pageSize, eventCategoryFilter]);
 
 
   if (authLoading) {
@@ -283,7 +354,7 @@ export default function AlertsPage() {
           <h1 className="text-2xl font-headline font-semibold">Alerts</h1>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={loadAlertsData} variant="outline" disabled={isLoading}>
+          <Button onClick={loadAlertsData} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
         </div>
@@ -292,8 +363,20 @@ export default function AlertsPage() {
         Monitor and get notified when operations are requested to the PKI.
       </p>
 
-       <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-grow space-y-1.5">
+      <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+          <div className="w-full lg:w-auto lg:min-w-[240px] space-y-1.5">
+            <Label htmlFor="event-category-filter">Filter by Source</Label>
+            <MultiSelectDropdown
+              id="event-category-filter"
+              options={EVENT_CATEGORY_OPTIONS}
+              allOptionValues={EVENT_CATEGORY_OPTIONS.map((option) => option.value)}
+              selectedValues={eventCategoryFilter}
+              onChange={setEventCategoryFilter as (selected: string[]) => void}
+              buttonText="Filter by source..."
+            />
+          </div>
+
+          <div className="flex-1 space-y-1.5">
               <Label htmlFor="alert-filter">Filter by Event Type</Label>
               <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -306,7 +389,8 @@ export default function AlertsPage() {
                   />
               </div>
           </div>
-          <div className="flex items-end pb-1">
+
+                  <div className="flex items-end pb-1 lg:pb-2">
             <div className="flex items-center space-x-2">
                 <Checkbox id="show-with-subs" checked={showWithSubscriptionsOnly} onCheckedChange={(checked) => setShowWithSubscriptionsOnly(Boolean(checked))} />
                 <Label htmlFor="show-with-subs" className="font-normal whitespace-nowrap">
@@ -314,84 +398,102 @@ export default function AlertsPage() {
                 </Label>
             </div>
           </div>
-       </div>
+                </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center p-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="ml-2 text-muted-foreground">Loading events...</p>
-        </div>
-      ) : error ? (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error Loading Events</AlertTitle>
-          <AlertDescription>
-            {error}
-            <Button variant="link" onClick={loadAlertsData} className="p-0 h-auto ml-1">Try again?</Button>
-          </AlertDescription>
-        </Alert>
-      ) : filteredAndSortedEvents.length > 0 ? (
-        <>
-          <AlertsTable 
-              events={paginatedEvents} 
-              onSubscriptionClick={handleViewSubscriptionDetails} 
-              onSubscribe={handleOpenSubscribeModal}
-              sortConfig={sortConfig}
-              onSort={handleSort}
-          />
-          <div className="flex justify-between items-center mt-4">
-            <div className="flex items-center space-x-2">
-                <Label htmlFor="pageSizeSelectAlerts" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-                <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-                    <SelectTrigger id="pageSizeSelectAlerts" className="w-[80px]">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                </Select>
+      <SplitPanelLayout
+        isPanelOpen={!!rightPanelMode}
+        onPanelOpenChange={(isOpen) => {
+          if (!isOpen) handleCloseRightPanel();
+        }}
+        mobilePanelAsDialog
+        panel={
+          rightPanelMode === 'subscribe' && isSubscribeModalOpen ? (
+            <SubscribeToAlertModal
+              isOpen={isSubscribeModalOpen}
+              onOpenChange={handleSubscribePanelOpenChange}
+              eventType={eventTypeToSubscribe}
+              samplePayload={samplePayloadToSubscribe}
+              onSuccess={handleSubscriptionSuccess}
+              subscriptionToEdit={subscriptionToEdit}
+              presentation="inline"
+            />
+          ) : rightPanelMode === 'audit-user' ? (
+            <AuditUserInfoPanel event={auditEventForUserInfo} onClose={handleCloseRightPanel} />
+          ) : rightPanelMode === 'subscription-details' ? (
+            <SubscriptionDetailsModal
+              isOpen={rightPanelMode === 'subscription-details' && !!selectedSubscriptionForDetails}
+              onOpenChange={handleDetailsPanelOpenChange}
+              subscription={selectedSubscriptionForDetails}
+              onDelete={performUnsubscribe}
+              onEdit={handleOpenEditModal}
+              isDeleting={isDeleting}
+              presentation="inline"
+            />
+          ) : null
+        }
+      >
+          {isLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="ml-2 text-muted-foreground">Loading events...</p>
             </div>
-            <div className="flex items-center space-x-2">
-                <span className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages > 0 ? totalPages : 1}
-                </span>
-                <Button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} variant="outline" size="sm">
-                    <ChevronLeft className="mr-1 h-4 w-4" /> Previous
-                </Button>
-                <Button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} variant="outline" size="sm">
-                    Next <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
+          ) : error ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error Loading Events</AlertTitle>
+              <AlertDescription>
+                {error}
+                <Button variant="link" onClick={loadAlertsData} className="p-0 h-auto ml-1">Try again?</Button>
+              </AlertDescription>
+            </Alert>
+          ) : filteredAndSortedEvents.length > 0 ? (
+            <>
+              <AlertsTable 
+                  events={paginatedEvents} 
+                  onSubscriptionClick={handleViewSubscriptionDetails} 
+                  onSubscribe={handleOpenSubscribeModal}
+                  onViewAuditUser={handleOpenAuditUserInfo}
+                  sortConfig={sortConfig}
+                  onSort={handleSort}
+              />
+              <div className="flex justify-between items-center mt-4">
+                <div className="flex items-center space-x-2">
+                    <Label htmlFor="pageSizeSelectAlerts" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
+                    <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                        <SelectTrigger id="pageSizeSelectAlerts" className="w-[80px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <span className="text-sm text-muted-foreground">
+                        Page {currentPage} of {totalPages > 0 ? totalPages : 1}
+                    </span>
+                    <Button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} variant="outline" size="sm">
+                        <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+                    </Button>
+                    <Button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} variant="outline" size="sm">
+                        Next <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
+              <h3 className="text-lg font-semibold text-muted-foreground">{filterText ? 'No Matching Events Found' : 'No Events Found'}</h3>
+              <p className="text-sm text-muted-foreground">
+                {filterText ? 'Try adjusting your filter.' : 'No system events have been recorded yet.'}
+              </p>
             </div>
-          </div>
-        </>
-      ) : (
-        <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-          <h3 className="text-lg font-semibold text-muted-foreground">{filterText ? 'No Matching Events Found' : 'No Events Found'}</h3>
-          <p className="text-sm text-muted-foreground">
-            {filterText ? 'Try adjusting your filter.' : 'No system events have been recorded yet.'}
-          </p>
-        </div>
-      )}
+          )}
+      </SplitPanelLayout>
     </div>
-    <SubscribeToAlertModal
-      isOpen={isSubscribeModalOpen}
-      onOpenChange={setIsSubscribeModalOpen}
-      eventType={eventTypeToSubscribe}
-      samplePayload={samplePayloadToSubscribe}
-      onSuccess={handleSubscriptionSuccess}
-      subscriptionToEdit={subscriptionToEdit}
-    />
-    <SubscriptionDetailsModal
-        isOpen={isDetailsModalOpen}
-        onOpenChange={setIsDetailsModalOpen}
-        subscription={selectedSubscriptionForDetails}
-        onDelete={performUnsubscribe}
-        onEdit={handleOpenEditModal}
-        isDeleting={isDeleting}
-    />
     </>
   );
 }

@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import {
   AlertCircle,
@@ -43,7 +43,6 @@ export default function DeviceGroupDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-  const { toast } = useToast();
   const groupId = searchParams.get('groupId');
 
   const [group, setGroup] = useState<DeviceGroup | null>(null);
@@ -98,17 +97,16 @@ export default function DeviceGroupDetailsClient() {
     try {
       setIsDeleting(true);
       await deleteDeviceGroup(user.access_token, group.id);
-      toast({
+      sileo.success({
         title: 'Success',
-        description: `Device group "${group.name}" deleted successfully`,
+        description: `Device group "${group.name}" deleted successfully`
       });
       router.push('/device-groups');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete device group';
-      toast({
+      sileo.error({
         title: 'Error',
-        description: errorMessage,
-        variant: 'destructive',
+        description: errorMessage
       });
     } finally {
       setIsDeleting(false);
@@ -178,10 +176,9 @@ export default function DeviceGroupDetailsClient() {
           }
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : 'Failed to refresh device group';
-          toast({
+          sileo.error({
             title: 'Error',
-            description: errorMessage,
-            variant: 'destructive',
+            description: errorMessage
           });
         } finally {
           setIsLoading(false);
@@ -214,10 +211,10 @@ export default function DeviceGroupDetailsClient() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+            <Button variant="secondary" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
-            <Button variant="outline" onClick={() => router.push(`/device-groups/edit?groupId=${group.id}`)}>
+            <Button variant="secondary" onClick={() => router.push(`/device-groups/edit?groupId=${group.id}`)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </Button>

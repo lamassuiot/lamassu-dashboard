@@ -53,7 +53,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
   allCryptoEngines,
 }) => {
   const [filterText, setFilterText] = useState('');
-  const [selectedStatuses, setSelectedStatuses] = useState<CaStatusFilter[]>(['active', 'expired']);
+  const [selectedStatuses, setSelectedStatuses] = useState<CaStatusFilter[]>([]);
 
   const filteredCAs = useMemo(() => {
     return filterCaList(availableCAs, {
@@ -76,27 +76,28 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end py-2">
                 <div className="flex-grow space-y-1.5">
-                    <Label htmlFor="modal-ca-filter">Filter by Name</Label>
+                    <Label htmlFor="modal-ca-filter">Search</Label>
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                             id="modal-ca-filter"
-                            placeholder="e.g., My Root CA..."
+                            placeholder="Search certification authorities..."
                             value={filterText}
                             onChange={(e) => setFilterText(e.target.value)}
-                            className="pl-10"
+                            className="pl-10 h-9"
                         />
                     </div>
                 </div>
                  <div className="space-y-1.5">
-                    <Label htmlFor="modal-status-filter">Filter by Status</Label>
+                    <Label htmlFor="modal-status-filter">Status</Label>
                     <MultiSelectDropdown
                         id="modal-status-filter"
                         options={STATUS_OPTIONS}
                         allOptionValues={STATUS_OPTIONS.map(o => o.value)}
                         selectedValues={selectedStatuses}
                         onChange={setSelectedStatuses as (selected: string[]) => void}
-                        buttonText="Filter by status..."
+                        buttonText="All Statuses"
+                        className="h-9 min-h-9"
                     />
                 </div>
             </div>

@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { Copy, Check, Download } from 'lucide-react';
 import { Label } from '../ui/label';
@@ -28,7 +28,6 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   className,
   textareaClassName,
 }) => {
-  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -36,10 +35,10 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
-      toast({ title: 'Copied to clipboard!' });
+      sileo.success({ title: 'Copied to clipboard!' });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast({ title: 'Copy failed', variant: 'destructive' });
+      sileo.error({ title: 'Copy failed' });
     }
   };
   
@@ -56,7 +55,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     } catch (err) {
-        toast({ title: 'Download failed', variant: 'destructive' });
+        sileo.error({ title: 'Download failed' });
     }
   }
 

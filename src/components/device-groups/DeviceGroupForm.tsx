@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { AlertCircle, Save, X, Users, Loader2 } from 'lucide-react';
 import {
   createDeviceGroup,
@@ -43,7 +43,6 @@ interface DeviceGroupFormProps {
 export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const { toast } = useToast();
 
   const [name, setName] = useState(existingGroup?.name || '');
   const [description, setDescription] = useState(existingGroup?.description || '');
@@ -130,19 +129,17 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
     e.preventDefault();
 
     if (!validateForm()) {
-      toast({
+      sileo.error({
         title: 'Validation Error',
-        description: 'Please fix the errors in the form',
-        variant: 'destructive',
+        description: 'Please fix the errors in the form'
       });
       return;
     }
 
     if (!user?.access_token) {
-      toast({
+      sileo.error({
         title: 'Authentication Error',
-        description: 'You must be logged in to save changes',
-        variant: 'destructive',
+        description: 'You must be logged in to save changes'
       });
       return;
     }
@@ -160,9 +157,9 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
 
       if (mode === 'create') {
         const newGroup = await createDeviceGroup(user.access_token, body);
-        toast({
+        sileo.success({
           title: 'Success',
-          description: `Device group "${newGroup.name}" created successfully`,
+          description: `Device group "${newGroup.name}" created successfully`
         });
         router.push(`/device-groups/details?groupId=${newGroup.id}`);
       } else if (existingGroup) {
@@ -171,18 +168,17 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
           existingGroup.id,
           body
         );
-        toast({
+        sileo.success({
           title: 'Success',
-          description: `Device group "${updatedGroup.name}" updated successfully`,
+          description: `Device group "${updatedGroup.name}" updated successfully`
         });
         router.push(`/device-groups/details?groupId=${updatedGroup.id}`);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save device group';
-      toast({
+      sileo.error({
         title: 'Error',
-        description: errorMessage,
-        variant: 'destructive',
+        description: errorMessage
       });
     } finally {
       setIsSubmitting(false);
