@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { DISPLAY_DATE_FORMAT } from '@/lib/config';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface CertificateDetailsModalProps {
@@ -56,8 +57,8 @@ export function CertificateDetailsModal({ certificate, isOpen, onClose }: Certif
             <DetailItem label="Subject" value={certificate.subject} />
             <DetailItem label="Issuer" value={certificate.issuer} />
             <DetailItem label="Serial Number" value={<IdentifierDisplay value={certificate.serialNumber} />} />
-            <DetailItem label="Valid From" value={<DateDisplay date={certificate.validFrom} formatString="PPpp" />} />
-            <DetailItem label="Valid To" value={<DateDisplay date={certificate.validTo} formatString="PPpp" highlightExpired />} />
+            <DetailItem label="Valid From" value={<DateDisplay date={certificate.validFrom} formatString={DISPLAY_DATE_FORMAT} />} />
+            <DetailItem label="Valid To" value={<DateDisplay date={certificate.validTo} formatString={DISPLAY_DATE_FORMAT} highlightExpired />} />
             <DetailItem label="Status" value={<ApiStatusBadge status={certificate.apiStatus} />} />
             
             {certificate.publicKeyAlgorithm && <DetailItem label="Public Key Algorithm" value={certificate.publicKeyAlgorithm} />}

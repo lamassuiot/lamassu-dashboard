@@ -25,6 +25,7 @@ import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { cn } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { DISPLAY_DATE_FORMAT } from '@/lib/config';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 
@@ -558,7 +559,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid From</p>
-                          <DateDisplay date={latestCrl.valid_from} formatString="PPP" showRelative={false} className="mt-1 text-sm font-medium" />
+                          <DateDisplay date={latestCrl.valid_from} formatString={DISPLAY_DATE_FORMAT} showRelative={false} className="mt-1 text-sm font-medium" />
                         </div>
                       </div>
                     </div>
@@ -567,7 +568,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid Until</p>
-                          <DateDisplay date={latestCrl.valid_until} formatString="PPP" showRelative={false} className="mt-1 text-sm font-medium" />
+                          <DateDisplay date={latestCrl.valid_until} formatString={DISPLAY_DATE_FORMAT} showRelative={false} className="mt-1 text-sm font-medium" />
                         </div>
                       </div>
                     </div>

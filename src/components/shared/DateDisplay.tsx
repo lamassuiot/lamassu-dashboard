@@ -4,6 +4,7 @@ import React from 'react';
 import { format, parseISO, formatDistanceToNow, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
+import { DISPLAY_DATE_FORMAT } from '@/lib/config';
 
 interface DateDisplayProps {
   date: string; // ISO date string
@@ -28,7 +29,7 @@ interface DateDisplayProps {
  */
 export const DateDisplay: React.FC<DateDisplayProps> = ({
   date,
-  formatString = 'MMM dd, yyyy',
+  formatString = DISPLAY_DATE_FORMAT,
   className,
   showRelative = true,
   relativeClassName,
@@ -79,7 +80,7 @@ export const DateDisplay: React.FC<DateDisplayProps> = ({
  */
 export const CompactDateDisplay: React.FC<DateDisplayProps & { tooltipFormatString?: string }> = ({
   date,
-  formatString = 'PPP', // Full date format for tooltip
+  formatString = DISPLAY_DATE_FORMAT,
   className,
   tooltipFormatString,
   highlightExpired = false,

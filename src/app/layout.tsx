@@ -29,7 +29,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -120,7 +120,6 @@ const navigationConfig: NavGroup[] = [
       { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
       { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon },
       { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck },
-      { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck },
     ],
   },
   {

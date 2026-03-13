@@ -5,13 +5,16 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Edit, Save, X, Loader2 } from "lucide-react";
+import { Copy, Check, Save, Loader2, FileJson } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { PatchOperation } from '@/lib/ca-data';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { DetailSectionCard } from '@/components/shared/DetailSectionCard';
 
-const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <div className="h-96 w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> });
+const EDITOR_HEIGHT = '26rem';
+
+const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <div className="h-80 w-full flex items-center justify-center rounded-md bg-muted/30"><Loader2 className="h-8 w-8 animate-spin"/></div> });
 
 interface MetadataTabContentProps {
   rawJsonData: any;
@@ -34,18 +37,21 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
 }) => {
   const monacoTheme = useMonacoTheme();
   const [copied, setCopied] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
 
+  const canEdit = isEditable && !!onSave && !!itemId;
+  const isEmpty = !rawJsonData || Object.keys(rawJsonData).length === 0;
+  const initialContent = isEmpty ? '{\n  \n}' : JSON.stringify(rawJsonData, null, 2);
+  const isDirty = canEdit && content !== initialContent;
+
   useEffect(() => {
-    const jsonString = rawJsonData ? JSON.stringify(rawJsonData, null, 2) : '{}';
-    setContent(jsonString);
-  }, [rawJsonData]);
+    setContent(initialContent);
+  }, [initialContent]);
 
   const handleCopy = async () => {
-    const jsonString = JSON.stringify(rawJsonData, null, 2);
+    const jsonString = content.trim();
     if (!jsonString || jsonString === 'null' || jsonString === '{}') {
       sileo.error({ title: "Copy Failed", description: `No metadata found to copy for ${itemName}.` });
       return;
@@ -59,17 +65,6 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
       console.error(`Failed to copy metadata for ${itemName}: `, err);
       sileo.error({ title: "Copy Failed", description: `Could not copy metadata for ${itemName}.` });
     }
-  };
-  
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
-  
-  const handleCancel = () => {
-    const jsonString = rawJsonData ? JSON.stringify(rawJsonData, null, 2) : '{}';
-    setContent(jsonString);
-    setIsEditing(false);
-    setJsonError(null);
   };
   
   const handleSave = async () => {
@@ -89,7 +84,6 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
       const patch: PatchOperation[] = [{ op: 'replace', path: '', value: parsedContent }];
       await onSave(itemId, patch);
       sileo.success({ title: "Success!", description: "Metadata updated successfully." });
-      setIsEditing(false);
       onUpdateSuccess?.();
     } catch (e: any) {
       sileo.error({ title: "Save Failed", description: e.message });
@@ -99,71 +93,62 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
   };
 
   return (
-    <div className="space-y-4 py-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">{tabTitle}</h3>
-        {!isEditing && (
-          <div className="flex items-center space-x-2">
-            {isEditable && onSave && (
-              <Button onClick={handleEdit} variant="outline" size="sm">
-                <Edit className="mr-2 h-4 w-4" /> Edit
-              </Button>
-            )}
-            <Button onClick={handleCopy} variant="outline" size="sm" disabled={!rawJsonData || Object.keys(rawJsonData).length === 0}>
-              {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
-              {copied ? 'Copied' : 'Copy JSON'}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {isEditing ? (
-        <div className="space-y-2">
-          <div className="border rounded-md overflow-hidden">
-            <Editor
-              height="30rem"
-              defaultLanguage="json"
-              value={content}
-              onChange={(value) => setContent(value || '')}
-              theme={monacoTheme}
-              options={{ minimap: { enabled: false }, automaticLayout: true }}
-            />
-          </div>
-          {jsonError && <Alert variant="destructive"><AlertDescription>{jsonError}</AlertDescription></Alert>}
-          <div className="flex justify-end space-x-2 pt-2">
-            <Button variant="ghost" onClick={handleCancel} disabled={isSaving}><X className="mr-2 h-4 w-4"/>Cancel</Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+    <DetailSectionCard
+      icon={FileJson}
+      title={tabTitle}
+      description={`View${isEditable ? ' or edit' : ''} metadata attached to ${itemName}.`}
+      contentClassName="space-y-4"
+      action={canEdit || !isEmpty ? (
+        <div className="flex items-center gap-2">
+          <Button onClick={handleCopy} variant="outline" size="sm">
+            {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
+            {copied ? 'Copied' : 'Copy JSON'}
+          </Button>
+          {isDirty ? (
+            <Button onClick={handleSave} size="sm" disabled={isSaving}>
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save Changes
             </Button>
-          </div>
+          ) : null}
         </div>
-      ) : (
-        rawJsonData && Object.keys(rawJsonData).length > 0 ? (
-          <div className="border rounded-md overflow-hidden">
+      ) : undefined}
+    >
+      {canEdit || !isEmpty ? (
+        <div className="space-y-2">
+          <div className="overflow-hidden rounded-lg border">
             <Editor
-              height="30rem"
+              height={EDITOR_HEIGHT}
               defaultLanguage="json"
               value={content}
+              onChange={(value) => {
+                setContent(value || '');
+                if (jsonError) setJsonError(null);
+              }}
               theme={monacoTheme}
-              options={{ 
-                minimap: { enabled: false }, 
+              options={{
+                minimap: { enabled: false },
                 automaticLayout: true,
-                readOnly: true,
-                domReadOnly: true,
+                readOnly: !canEdit,
+                domReadOnly: !canEdit,
                 cursorStyle: 'line',
                 lineNumbers: 'on',
                 scrollBeyondLastLine: false,
               }}
             />
           </div>
-        ) : (
-           <p className="text-sm text-muted-foreground p-4 text-center border rounded-md bg-muted/20">
-              No metadata available for this item.
-            </p>
-        )
+          {jsonError && <Alert variant="destructive"><AlertDescription>{jsonError}</AlertDescription></Alert>}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/10 py-16 text-center">
+          <div className="rounded-full bg-muted p-4">
+            <FileJson className="h-8 w-8 text-muted-foreground/50" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">No metadata</p>
+            <p className="text-xs text-muted-foreground/60">This item has no custom metadata attached yet.</p>
+          </div>
+        </div>
       )}
-    </div>
+    </DetailSectionCard>
   );
 };
-

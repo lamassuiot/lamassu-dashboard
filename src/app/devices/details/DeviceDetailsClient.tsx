@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CompactDateDisplay, DateDisplay } from '@/components/shared/DateDisplay';
+import { DISPLAY_DATE_FORMAT } from '@/lib/config';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from 'lucide-react';
 import { TimelineEventItem, type TimelineEventDisplayData } from '@/components/devices/TimelineEventItem';
@@ -32,6 +33,7 @@ import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 
 interface CertificateHistoryEntry {
   version: string;
@@ -593,6 +595,13 @@ export default function DeviceDetailsClient() {
     }
   };
 
+  const handleUpdateDeviceMetadata = async (id: string, patchOperations: PatchOperation[]) => {
+    if (!user?.access_token) {
+      throw new Error("User not authenticated.");
+    }
+    await updateDeviceMetadata(id, patchOperations, user.access_token);
+  };
+
   const handleLoadMoreTimeline = () => {
     setTimelineDisplayCount(prev => prev + 5);
   };
@@ -711,28 +720,31 @@ export default function DeviceDetailsClient() {
       </div>
 
       <Tabs defaultValue="certificatesHistory" className="w-full">
-        <TabsList className="mb-5 h-auto w-full justify-start rounded-none border-b bg-transparent p-0">
-          <TabsTrigger
-            value="certificatesHistory"
-            className="rounded-none border-b-2 border-transparent px-4 pb-3 pt-1 font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-          >
-            <History className="mr-2 h-4 w-4" />Certificates History
-          </TabsTrigger>
-          <TabsTrigger
-            value="timeline"
-            className="rounded-none border-b-2 border-transparent px-4 pb-3 pt-1 font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-          >
-            <Clock className="mr-2 h-4 w-4" />Timeline
-          </TabsTrigger>
-          <TabsTrigger
-            value="metadata"
-            className="rounded-none border-b-2 border-transparent px-4 pb-3 pt-1 font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-          >
-            <SlidersHorizontal className="mr-2 h-4 w-4" />Metadata
-          </TabsTrigger>
-        </TabsList>
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            <TabsTrigger
+              value="certificatesHistory"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <History className="mr-2 h-4 w-4" />Certificates History
+            </TabsTrigger>
+            <TabsTrigger
+              value="timeline"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <Clock className="mr-2 h-4 w-4" />Timeline
+            </TabsTrigger>
+            <TabsTrigger
+              value="metadata"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />Metadata
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="timeline" className="mt-6 pb-6">
+        <div className="mt-6 pb-6">
+        <TabsContent value="timeline" className="mt-0">
           <Card className="overflow-hidden rounded-xl shadow-sm">
             <CardHeader className="border-b py-4">
               <CardTitle className="flex items-center text-lg">
@@ -775,16 +787,8 @@ export default function DeviceDetailsClient() {
           </Card>
         </TabsContent>
         
-        <TabsContent value="certificatesHistory" className="mt-6 pb-6">
-          <Card className="overflow-hidden rounded-xl shadow-sm">
-            <CardHeader className="border-b py-4">
-              <CardTitle className="flex items-center text-lg">
-                <History className="mr-3 h-5 w-5 text-primary" />
-                Certificates History
-              </CardTitle>
-              <CardDescription>History of X.509 certificates associated with this device identity.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-6">
+        <TabsContent value="certificatesHistory" className="mt-0">
+          <div>
               {isLoadingHistory ? (
                   <div className="flex items-center justify-center p-6">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -861,8 +865,8 @@ export default function DeviceDetailsClient() {
                                 cert.ca
                                 )}
                           </TableCell>
-                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validFrom} formatString="dd/MM/yy HH:mm" className="text-xs" /></TableCell>
-                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString="dd/MM/yy HH:mm" className="text-xs" highlightExpired /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validFrom} formatString={DISPLAY_DATE_FORMAT} className="text-xs" /></TableCell>
+                          <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString={DISPLAY_DATE_FORMAT} className="text-xs" highlightExpired /></TableCell>
                           <TableCell className="hidden md:table-cell">{cert.lifespan}</TableCell>
                           <TableCell>
                             <Button variant="ghost" size="icon" title="View Certificate Details" onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>
@@ -916,29 +920,21 @@ export default function DeviceDetailsClient() {
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">This device does not have an identity with a certificate history.</p>
               )}
-            </CardContent>
-          </Card>
+          </div>
         </TabsContent>
 
-        <TabsContent value="metadata" className="mt-6 pb-6">
-          <Card className="overflow-hidden rounded-xl shadow-sm">
-            <CardHeader className="border-b py-4">
-              <CardTitle className="flex items-center text-lg">
-                <SlidersHorizontal className="mr-3 h-5 w-5 text-primary" />
-                Device Metadata
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              {device.metadata && Object.keys(device.metadata).length > 0 ? (
-                <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
-                  {JSON.stringify(device.metadata, null, 2)}
-                </pre>
-              ) : (
-                <p className="text-muted-foreground">No custom metadata available for this device.</p>
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="metadata" className="mt-0">
+          <MetadataTabContent
+            rawJsonData={device.metadata}
+            itemName={device.id}
+            tabTitle="Device Metadata"
+            isEditable={true}
+            itemId={device.id}
+            onSave={handleUpdateDeviceMetadata}
+            onUpdateSuccess={fetchDeviceDetails}
+          />
         </TabsContent>
+        </div>
         
       </Tabs>
        {certToRevoke && (

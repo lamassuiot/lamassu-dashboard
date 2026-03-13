@@ -2,36 +2,20 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash2, Eye, Users } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { MetadataViewerModal } from './MetadataViewerModal';
+import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
+import { SectionHeader } from '@/components/shared/FormComponents';
 
 const SummaryItem: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="space-y-1">
     <p className="text-sm font-medium text-foreground/60">{label}</p>
     <p className="text-sm text-foreground">{value}</p>
-  </div>
-);
-
-const SectionRow: React.FC<{
-  icon: React.ElementType;
-  label: string;
-  value: string | React.ReactNode;
-}> = ({ icon: Icon, label, value }) => (
-  <div className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/20 px-4 py-3">
-    <Icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-foreground/45" />
-    <div className="min-w-0">
-      <p className="text-sm font-medium text-foreground">{label}</p>
-      {typeof value === 'string' ? (
-        <p className="mt-1 text-sm leading-6 text-foreground/70">{value}</p>
-      ) : (
-        <div className="mt-2">{value}</div>
-      )}
-    </div>
   </div>
 );
 
@@ -132,21 +116,15 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
     <>
       <Card
         className={cn(
-          "flex min-h-[360px] flex-col rounded-lg border border-border bg-card shadow-sm transition-colors",
+          "flex min-h-[360px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors",
           className
         )}
       >
-        <CardHeader className="border-b border-border/70 pb-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <Scale className="h-5 w-5 text-foreground/45" />
-                <CardTitle className="text-lg font-semibold leading-6">{profile.name}</CardTitle>
-              </div>
-              <CardDescription className="mt-2 line-clamp-3 text-sm leading-6 text-foreground/65">
-                {profile.description || "No description provided for this profile."}
-              </CardDescription>
-            </div>
+        <SectionHeader
+          icon={Scale}
+          title={profile.name}
+          description={profile.description || "No description provided for this profile."}
+          action={
             <div className="flex flex-wrap items-center justify-end gap-2">
               {profile.sign_as_ca && (
                 <Badge variant="outline" className="rounded-md text-foreground/75">
@@ -159,61 +137,68 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
                 </Badge>
               )}
             </div>
-          </div>
+          }
+        />
 
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <CardContent className="flex flex-1 flex-col gap-6 p-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <SummaryItem label="Validity" value={validityLabel} />
             <SummaryItem label="Signs" value={certificateScope} />
             <SummaryItem label="Subject source" value={subjectMode} />
             <SummaryItem label="Allowed key types" value={keyTypeValue} />
           </div>
-        </CardHeader>
 
-        <CardContent className="flex flex-1 flex-col gap-3 py-4">
-          <SectionRow
-            icon={Fingerprint}
-            label="Subject policy"
-            value={subjectPolicy}
-          />
-          <SectionRow
-            icon={BookText}
-            label="Extensions policy"
-            value={extensionsPolicy}
-          />
-          <SectionRow
-            icon={KeyRound}
-            label="Crypto rules"
-            value={
-              <div className="space-y-2">
-                <p className="text-sm leading-6 text-foreground/70">{cryptoSummary}</p>
-                <div className="flex flex-wrap gap-2">
-                  {allowedKeyTypes.length > 0 ? (
-                    allowedKeyTypes.map((keyType) => (
-                      <Badge key={keyType} variant="outline" className="rounded-md text-foreground/75">
-                        {keyType}
+          <DetailInfoRows>
+            <DetailInfoRow
+              icon={Fingerprint}
+              label="Subject policy"
+              value={subjectPolicy}
+              valueClassName="font-normal leading-6 text-foreground/70"
+              className="first:pt-0"
+            />
+            <DetailInfoRow
+              icon={BookText}
+              label="Extensions policy"
+              value={extensionsPolicy}
+              valueClassName="font-normal leading-6 text-foreground/70"
+            />
+            <DetailInfoRow
+              icon={KeyRound}
+              label="Crypto rules"
+              className="last:pb-0"
+              valueClassName="font-normal"
+              value={
+                <div className="space-y-2">
+                  <p className="text-sm leading-6 text-foreground/70">{cryptoSummary}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {allowedKeyTypes.length > 0 ? (
+                      allowedKeyTypes.map((keyType) => (
+                        <Badge key={keyType} variant="outline" className="rounded-md text-foreground/75">
+                          {keyType}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Badge variant="outline" className="rounded-md text-foreground/75">
+                        No key types allowed
                       </Badge>
-                    ))
-                  ) : (
+                    )}
                     <Badge variant="outline" className="rounded-md text-foreground/75">
-                      No key types allowed
+                      <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                      {profile.sign_as_ca ? 'Can issue CA certificates' : 'Leaf certificates only'}
                     </Badge>
-                  )}
-                  <Badge variant="outline" className="rounded-md text-foreground/75">
-                    <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-                    {profile.sign_as_ca ? 'Can issue CA certificates' : 'Leaf certificates only'}
-                  </Badge>
-                  <Badge variant="outline" className="rounded-md text-foreground/75">
-                    <Clock className="mr-1.5 h-3.5 w-3.5" />
-                    {validityLabel}
-                  </Badge>
+                    <Badge variant="outline" className="rounded-md text-foreground/75">
+                      <Clock className="mr-1.5 h-3.5 w-3.5" />
+                      {validityLabel}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-            }
-          />
+              }
+            />
+          </DetailInfoRows>
         </CardContent>
 
         {onEdit && onDelete && (
-          <CardFooter className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/70 bg-muted/10 py-4">
+          <CardFooter className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/70 bg-muted/10 px-6 py-4">
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setIsDetailsModalOpen(true)}>
                 <Eye className="mr-1.5 h-3.5 w-3.5" /> View Raw

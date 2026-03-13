@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check } from "lucide-react";
+import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,6 +29,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaStatsDisplay } from '@/components/ca/details/CaStatsDisplay';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificatesTab';
+import { ValidationAuthorityTab } from '@/components/ca/details/ValidationAuthorityTab';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 
 
@@ -475,9 +476,9 @@ export default function CertificateAuthorityDetailsClient() {
                   <Download className="mr-2 h-4 w-4" />
                   Download / View CRL
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => routerHook.push(`/verification-authorities?caId=${caDetails.id}`)}>
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  Go to VA Role
+                <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
+                  <Shield className="mr-2 h-4 w-4" />
+                  Validation Authority
                 </DropdownMenuItem>
                 {caDetails.status !== 'revoked' && (
                   <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
@@ -600,6 +601,7 @@ export default function CertificateAuthorityDetailsClient() {
               { value: 'certificate', icon: KeyRound, label: 'Certificate PEM' },
               { value: 'metadata', icon: Lock, label: 'Metadata' },
               { value: 'issued', icon: ListChecks, label: 'Issued Certificates' },
+              { value: 'validation-authority', icon: Shield, label: 'Validation Authority' },
             ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
               <TabsTrigger
                 key={value}
@@ -613,8 +615,8 @@ export default function CertificateAuthorityDetailsClient() {
           </TabsList>
         </div>
 
-        <div className="mt-6">
-          <TabsContent value="information">
+        <div className="mt-6 pb-6">
+          <TabsContent value="information" className="mt-0">
             <InformationTabContent
               item={caDetails}
               itemType="ca"
@@ -633,7 +635,7 @@ export default function CertificateAuthorityDetailsClient() {
             />
           </TabsContent>
 
-          <TabsContent value="certificate">
+          <TabsContent value="certificate" className="mt-0">
             <PemTabContent
               singlePemData={caDetails.pemData}
               fullChainPemData={fullChainPemString}
@@ -649,7 +651,7 @@ export default function CertificateAuthorityDetailsClient() {
             />
           </TabsContent>
 
-          <TabsContent value="metadata">
+          <TabsContent value="metadata" className="mt-0">
             <MetadataTabContent
               rawJsonData={caDetails.rawApiData?.metadata}
               itemName={caDetails.name}
@@ -661,11 +663,18 @@ export default function CertificateAuthorityDetailsClient() {
             />
           </TabsContent>
 
-          <TabsContent value="issued">
+          <TabsContent value="issued" className="mt-0">
             <IssuedCertificatesTab
               caId={caDetails.id}
               caIsActive={caIsActive}
               allCAs={allCertificateAuthoritiesData}
+            />
+          </TabsContent>
+
+          <TabsContent value="validation-authority" className="mt-0">
+            <ValidationAuthorityTab
+              ca={caDetails}
+              allCryptoEngines={allCryptoEngines}
             />
           </TabsContent>
         </div>

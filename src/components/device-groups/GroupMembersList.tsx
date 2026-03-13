@@ -36,6 +36,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { DISPLAY_DATE_FORMAT } from '@/lib/config';
 import { getDevicesByGroup } from '@/lib/device-groups-api';
 import type { ApiDevice } from '@/lib/devices-api';
 import { cn } from '@/lib/utils';
@@ -397,7 +398,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
                         <TableCell>
                           <DateDisplay 
                             date={device.creation_timestamp} 
-                            formatString="dd/MM/yyyy HH:mm"
+                            formatString={DISPLAY_DATE_FORMAT}
                             className="text-xs"
                             relativeClassName="text-xs"
                           />

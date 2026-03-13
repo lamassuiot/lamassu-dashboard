@@ -13,13 +13,19 @@ export const SectionHeader: React.FC<{
   icon: React.ElementType;
   title: string;
   description?: string;
-}> = ({ icon: Icon, title, description }) => (
+  action?: React.ReactNode;
+}> = ({ icon: Icon, title, description, action }) => (
   <CardHeader className={SECTION_HEADER_STYLES}>
-    <CardTitle className={SECTION_TITLE_STYLES}>
-      <Icon className="mr-3 h-5 w-5 text-primary" />
-      {title}
-    </CardTitle>
-    {description ? <CardDescription>{description}</CardDescription> : null}
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <CardTitle className={SECTION_TITLE_STYLES}>
+          <Icon className="mr-3 h-5 w-5 text-primary" />
+          {title}
+        </CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
+      </div>
+      {action}
+    </div>
   </CardHeader>
 );
 

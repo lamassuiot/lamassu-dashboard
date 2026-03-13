@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Mail, Users, Webhook, Check, ArrowLeft, Info, AlertTriangle } from 'lucide-react';
+import { Loader2, Mail, Users, Webhook, Check, ArrowLeft, Info, AlertTriangle, X } from 'lucide-react';
 import { subscribeToAlert, type SubscriptionPayload, type ApiSubscription, updateSubscription } from '@/lib/alerts-api';
 import { cn } from '@/lib/utils';
 import { JSONPath } from 'jsonpath-plus';
@@ -562,10 +562,17 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
     const panelContent = (
         <>
             <div className="border-b p-6 pb-4">
-                <h2 className="text-lg font-semibold">{isEditMode ? 'Edit Subscription' : 'Subscribe to event'}</h2>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                    <span>{isEditMode ? 'Modify' : 'Get notified when'} event occurs:</span>
-                    <Badge variant="secondary" className="max-w-full truncate">{eventType ?? 'Unknown event'}</Badge>
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <h2 className="text-lg font-semibold">{isEditMode ? 'Edit Subscription' : 'Subscribe to event'}</h2>
+                        <p className="text-sm text-muted-foreground">{isEditMode ? 'Modify' : 'Get notified when'} this event occurs.</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Close">
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="font-normal">{eventType ?? 'Unknown event'}</Badge>
                 </div>
             </div>
 

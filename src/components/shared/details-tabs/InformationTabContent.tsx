@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
 import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { DISPLAY_DATE_FORMAT } from '@/lib/config';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,10 +23,11 @@ import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
+import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
+import { DetailSectionCard } from '@/components/shared/DetailSectionCard';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 
 interface CaStats {
@@ -89,64 +91,6 @@ const UrlChips = ({ urls, label }: { urls: string[] | undefined; label: string }
     </div>
   );
 };
-
-const CardSection = ({
-  icon: Icon,
-  title,
-  description,
-  action,
-  children,
-  contentClassName,
-}: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  contentClassName?: string;
-}) => (
-  <Card className="overflow-hidden rounded-xl shadow-sm">
-    <CardHeader className="border-b py-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <CardTitle className="flex items-center text-lg">
-            <Icon className="mr-3 h-5 w-5 text-primary" />
-            {title}
-          </CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </div>
-        {action}
-      </div>
-    </CardHeader>
-    <CardContent className={cn('p-6', contentClassName)}>{children}</CardContent>
-  </Card>
-);
-
-const DividedInfoRows = ({ children }: { children: React.ReactNode }) => (
-  <div className="divide-y">{children}</div>
-);
-
-const InfoRow = ({
-  label,
-  value,
-  action,
-  className,
-}: {
-  label: string;
-  value: React.ReactNode;
-  action?: React.ReactNode;
-  className?: string;
-}) => (
-  <div className={cn('py-3', className)}>
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <div className="mt-2 text-sm font-medium min-w-0 break-words">{value}</div>
-      </div>
-      {action}
-    </div>
-  </div>
-);
 
 // ── main export ──────────────────────────────────────────────────────────────
 
@@ -241,7 +185,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Revoked on:</span>
-                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString="PPpp" showRelative={true} />
+                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString={DISPLAY_DATE_FORMAT} showRelative={true} />
               </div>
             </AlertDescription>
           </Alert>
@@ -264,7 +208,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                       : 'opacity-100 translate-x-0'
                   )}
                 >
-                  <CardSection
+                  <DetailSectionCard
                     icon={Network}
                     title="Issuance Hierarchy & Chain of Trust"
                     description="View the current chain of trust and direct child authorities."
@@ -319,7 +263,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                         </div>
                       </>
                     )}
-                  </CardSection>
+                  </DetailSectionCard>
                 </div>
               </div>
 
@@ -344,42 +288,42 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
           {/* General */}
-          <CardSection
+          <DetailSectionCard
             icon={Info}
             title="General Information"
             description="Identity, issuer, lifecycle, and serial details for this authority."
           >
-            <DividedInfoRows>
-              <InfoRow label="Full Name" value={caDetails.name} className="first:pt-0" />
-              <InfoRow label="CA ID" value={<IdentifierDisplay value={caDetails.id} />} />
-              <InfoRow label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
-              <InfoRow label="Expires On" value={<DateDisplay date={caDetails.expires} formatString="PPpp" highlightExpired />} />
-              <InfoRow label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} className="last:pb-0" />
-            </DividedInfoRows>
-          </CardSection>
+            <DetailInfoRows>
+              <DetailInfoRow label="Full Name" value={caDetails.name} className="first:pt-0" />
+              <DetailInfoRow label="CA ID" value={<IdentifierDisplay value={caDetails.id} />} />
+              <DetailInfoRow label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
+              <DetailInfoRow label="Expires On" value={<DateDisplay date={caDetails.expires} formatString={DISPLAY_DATE_FORMAT} highlightExpired />} />
+              <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} className="last:pb-0" />
+            </DetailInfoRows>
+          </DetailSectionCard>
 
           {/* Key & Signature */}
-          <CardSection
+          <DetailSectionCard
             icon={KeyRound}
             title="Key & Signature"
             description="Algorithm and identifier material associated with this CA certificate."
           >
-            <DividedInfoRows>
-              <InfoRow label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} className="first:pt-0" />
-              <InfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
-              <InfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} className="text-xs" /> : 'N/A'} />
-              <InfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} className="text-xs" /> : 'N/A'} className="last:pb-0" />
-            </DividedInfoRows>
-          </CardSection>
+            <DetailInfoRows>
+              <DetailInfoRow label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} className="first:pt-0" />
+              <DetailInfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
+              <DetailInfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} className="text-xs" /> : 'N/A'} />
+              <DetailInfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} className="text-xs" /> : 'N/A'} className="last:pb-0" />
+            </DetailInfoRows>
+          </DetailSectionCard>
 
           {/* Extensions */}
-          <CardSection
+          <DetailSectionCard
             icon={Lock}
             title="Certificate Extensions"
             description="Basic constraints and intended usages defined on the certificate."
           >
-            <DividedInfoRows>
-              <InfoRow
+            <DetailInfoRows>
+              <DetailInfoRow
                 label="Basic Constraints"
                 className="first:pt-0"
                 value={
@@ -394,7 +338,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   </div>
                 }
               />
-              <InfoRow
+              <DetailInfoRow
                 label="Key Usages"
                 className="last:pb-0"
                 value={
@@ -406,11 +350,11 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   ) : 'Not Specified'
                 }
               />
-            </DividedInfoRows>
-          </CardSection>
+            </DetailInfoRows>
+          </DetailSectionCard>
 
           {/* Default Issuance Profile */}
-          <CardSection
+          <DetailSectionCard
             icon={Info}
             title="Default Issuance Profile"
             description="Profile used by default when this CA issues new certificates."
@@ -459,12 +403,12 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 </div>
               </div>
             )}
-          </CardSection>
+          </DetailSectionCard>
           </div>
 
           {/* ── Distribution Points ── */}
           {hasDistribution && (
-            <CardSection
+            <DetailSectionCard
               icon={LinkIcon}
               title="Distribution Points"
               description="Published CRL, OCSP, and issuer endpoints for relying parties."
@@ -475,7 +419,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 <UrlChips urls={caDetails.ocspUrls} label="OCSP Responders" />
                 <UrlChips urls={caDetails.caIssuersUrls} label="CA Issuers (AIA)" />
               </div>
-            </CardSection>
+            </DetailSectionCard>
           )}
           </div>
         </SplitPanelLayout>
@@ -510,7 +454,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Revoked on:</span>
-                <DateDisplay date={certDetails.revocationTimestamp} formatString="PPpp" showRelative={false} />
+                <DateDisplay date={certDetails.revocationTimestamp} formatString={DISPLAY_DATE_FORMAT} showRelative={false} />
               </div>
             </AlertDescription>
           </Alert>
@@ -518,29 +462,29 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
-          <CardSection
+          <DetailSectionCard
             icon={Info}
             title="General Information"
             description="Identity, issuer, validity period, and serial details for this certificate."
           >
-            <DividedInfoRows>
-              <InfoRow label="Subject" value={certDetails.subject} className="first:pt-0" />
-              <InfoRow label="Issuer" value={certDetails.issuer} />
-              <InfoRow label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
-              <InfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString="PPpp" />} />
-              <InfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString="PPpp" highlightExpired />} className="last:pb-0" />
-            </DividedInfoRows>
-          </CardSection>
+            <DetailInfoRows>
+              <DetailInfoRow label="Subject" value={certDetails.subject} className="first:pt-0" />
+              <DetailInfoRow label="Issuer" value={certDetails.issuer} />
+              <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
+              <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString={DISPLAY_DATE_FORMAT} />} />
+              <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString={DISPLAY_DATE_FORMAT} highlightExpired />} className="last:pb-0" />
+            </DetailInfoRows>
+          </DetailSectionCard>
 
-          <CardSection
+          <DetailSectionCard
             icon={KeyRound}
             title="Key & Signature"
             description="Algorithm details, fingerprint material, and issuer key identifiers."
           >
-            <DividedInfoRows>
-              <InfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
-              <InfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
-              <InfoRow
+            <DetailInfoRows>
+              <DetailInfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
+              <DetailInfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
+              <DetailInfoRow
                 label="SHA-256 Fingerprint"
                 value={
                   certDetails.fingerprintSha256
@@ -549,12 +493,12 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 }
               />
               {certDetails.rawApiData?.subject_key_id && (
-                <InfoRow
+                <DetailInfoRow
                   label="SKI"
                   value={<IdentifierDisplay value={certDetails.rawApiData.subject_key_id} className="text-xs" />}
                 />
               )}
-              <InfoRow
+              <DetailInfoRow
                 label="AKI"
                 value={
                   certDetails.rawApiData?.authority_key_id && onAkiClick ? (
@@ -571,17 +515,17 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 }
                 className="last:pb-0"
               />
-            </DividedInfoRows>
-          </CardSection>
+            </DetailInfoRows>
+          </DetailSectionCard>
 
           <div className="lg:col-span-2">
-            <CardSection
+            <DetailSectionCard
               icon={Lock}
               title="Certificate Extensions"
               description="Alternative names and intended usages defined in the certificate."
             >
-              <DividedInfoRows>
-                <InfoRow
+              <DetailInfoRows>
+                <DetailInfoRow
                   label="Subject Alternative Names"
                   className="first:pt-0"
                   value={
@@ -592,7 +536,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                     ) : 'Not Specified'
                   }
                 />
-                <InfoRow
+                <DetailInfoRow
                   label="Key Usages"
                   className="last:pb-0"
                   value={
@@ -604,28 +548,28 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                     ) : 'Not Specified'
                   }
                 />
-              </DividedInfoRows>
-            </CardSection>
+              </DetailInfoRows>
+            </DetailSectionCard>
           </div>
         </div>
 
         {hasDistribution && (
-          <CardSection
+          <DetailSectionCard
             icon={LinkIcon}
             title="Distribution Points"
             description="Published CRL, OCSP, and issuer endpoints for this certificate."
-            contentClassName="space-y-4 p-6"
+            contentClassName="space-y-4"
           >
             <div className="space-y-4">
               <UrlChips urls={certDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
               <UrlChips urls={certDetails.ocspUrls} label="OCSP Responders" />
               <UrlChips urls={certDetails.caIssuersUrls} label="CA Issuers (AIA)" />
             </div>
-          </CardSection>
+          </DetailSectionCard>
         )}
 
         {certificateSpecific.certificateChainForVisualizer && (
-          <CardSection
+          <DetailSectionCard
             icon={Network}
             title="Issuance Chain"
             description="Trust path from this certificate to its issuing authorities."
@@ -639,7 +583,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 statusText: certificateSpecific.apiStatusText,
               }}
             />
-          </CardSection>
+          </DetailSectionCard>
         )}
       </div>
     );

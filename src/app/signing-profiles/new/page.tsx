@@ -226,8 +226,7 @@ export default function CreateSigningProfilePage() {
 
                 <SigningProfileForm form={form} sectionAsCards />
 
-                <Card className="overflow-hidden rounded-xl shadow-sm">
-                  <CardContent className="flex flex-col gap-3 p-6 sm:flex-row sm:justify-end">
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => router.push('/signing-profiles')}>
                     Cancel
                   </Button>
@@ -235,8 +234,7 @@ export default function CreateSigningProfilePage() {
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Create Profile
                   </Button>
-                  </CardContent>
-                </Card>
+                </div>
               </div>
             </SplitPanelLayout>
           )}

@@ -562,69 +562,73 @@ export default function CertificateDetailsClient() { // Renamed component
 
       {/* Underline tabs */}
       <Tabs defaultValue="information" className="w-full">
-        <TabsList className="w-full justify-start rounded-none bg-transparent border-b p-0 h-auto mb-5">
-          <TabsTrigger
-            value="information"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 pb-3 pt-1 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none font-medium"
-          >
-            <Info className="mr-2 h-4 w-4" />Details
-          </TabsTrigger>
-          <TabsTrigger
-            value="pem"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 pb-3 pt-1 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none font-medium"
-          >
-            <Code2 className="mr-2 h-4 w-4" />Certificate PEM
-          </TabsTrigger>
-          <TabsTrigger
-            value="metadata"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 pb-3 pt-1 text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-none font-medium"
-          >
-            <Layers className="mr-2 h-4 w-4" />Metadata
-          </TabsTrigger>
-        </TabsList>
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            <TabsTrigger
+              value="information"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <Info className="mr-2 h-4 w-4" />Details
+            </TabsTrigger>
+            <TabsTrigger
+              value="pem"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <Code2 className="mr-2 h-4 w-4" />Certificate PEM
+            </TabsTrigger>
+            <TabsTrigger
+              value="metadata"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <Layers className="mr-2 h-4 w-4" />Metadata
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="information" className="mt-6 pb-6">
-            <InformationTabContent
-              item={certificateDetails}
-              itemType="certificate"
-              certificateSpecific={{
-                certificateChainForVisualizer: certificateChainForVisualizer,
-                statusBadgeVariant: statusVariant,
-                statusBadgeClass: statusColorClass,
-                apiStatusText: statusText,
-              }}
-              routerHook={routerHook}
-              onAkiClick={handleAkiClick}
-            />
-        </TabsContent>
-
-        <TabsContent value="pem" className="mt-6 pb-6">
-            <PemTabContent
-                singlePemData={certificateDetails.pemData}
-                fullChainPemData={fullChainPemString}
-                itemName={certificateDetails.subject || certificateDetails.serialNumber}
-                itemPathToRootCount={certificateChainForVisualizer.length + 1} // Cert + CAs
-                certificateChain={certificateChainForVisualizer}
-                currentCertificate={{
-                  subject: certificateDetails.subject,
+        <div className="mt-6 pb-6">
+          <TabsContent value="information" className="mt-0">
+              <InformationTabContent
+                item={certificateDetails}
+                itemType="certificate"
+                certificateSpecific={{
+                  certificateChainForVisualizer: certificateChainForVisualizer,
                   statusBadgeVariant: statusVariant,
                   statusBadgeClass: statusColorClass,
-                  statusText: statusText,
+                  apiStatusText: statusText,
                 }}
-            />
-        </TabsContent>
+                routerHook={routerHook}
+                onAkiClick={handleAkiClick}
+              />
+          </TabsContent>
 
-        <TabsContent value="metadata" className="mt-6 pb-6">
-            <MetadataTabContent
-              rawJsonData={certificateDetails.rawApiData?.metadata}
-              itemName={getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
-              tabTitle="Certificate Metadata"
-              isEditable={true}
-              itemId={certificateDetails.serialNumber}
-              onSave={handleUpdateCertMetadata}
-              onUpdateSuccess={loadCertificate}
-            />
-        </TabsContent>
+          <TabsContent value="pem" className="mt-0">
+              <PemTabContent
+                  singlePemData={certificateDetails.pemData}
+                  fullChainPemData={fullChainPemString}
+                  itemName={certificateDetails.subject || certificateDetails.serialNumber}
+                  itemPathToRootCount={certificateChainForVisualizer.length + 1} // Cert + CAs
+                  certificateChain={certificateChainForVisualizer}
+                  currentCertificate={{
+                    subject: certificateDetails.subject,
+                    statusBadgeVariant: statusVariant,
+                    statusBadgeClass: statusColorClass,
+                    statusText: statusText,
+                  }}
+              />
+          </TabsContent>
+
+          <TabsContent value="metadata" className="mt-0">
+              <MetadataTabContent
+                rawJsonData={certificateDetails.rawApiData?.metadata}
+                itemName={getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
+                tabTitle="Certificate Metadata"
+                isEditable={true}
+                itemId={certificateDetails.serialNumber}
+                onSave={handleUpdateCertMetadata}
+                onUpdateSuccess={loadCertificate}
+              />
+          </TabsContent>
+        </div>
       </Tabs>
 
       {certificateToRevoke && (
