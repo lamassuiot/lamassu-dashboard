@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TagInput } from '@/components/shared/TagInput';
 import { AlertTriangle, Loader2, Save, Trash2, CheckCircle, XCircle, Settings2, UserPlus, Server, BookOpenCheck, Edit, PlusCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import type { ApiRaItem, RaCreationPayload } from '@/lib/dms-api';
 import { createOrUpdateRa } from '@/lib/dms-api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -84,7 +84,6 @@ const getDefaultFormValues = (ra: ApiRaItem, configKey: string): AwsIntegrationF
 };
 
 export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, configKey, onUpdate }) => {
-  const { toast } = useToast();
   const { user } = useAuth();
   
   const [enrollmentCa, setEnrollmentCa] = useState<CA | null>(null);
@@ -172,7 +171,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
   
   const onSubmit = async (data: AwsIntegrationFormValues) => {
     if (!user?.access_token) {
-        toast({ title: 'Authentication Error', variant: 'destructive' });
+        sileo.error({ title: 'Authentication Error' });
         return;
     }
 
@@ -188,16 +187,16 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
 
     try {
         await createOrUpdateRa(updatedRaPayload, user.access_token, true, ra.id);
-        toast({ title: "Success", description: "AWS IoT integration settings saved." });
+        sileo.success({ title: "Success", description: "AWS IoT integration settings saved." });
         onUpdate();
     } catch (e: any) {
-        toast({ title: "Save Failed", description: e.message, variant: "destructive" });
+        sileo.error({ title: "Save Failed", description: e.message });
     }
   };
 
   const handleSyncCa = async (isRetry = false) => {
     if (!user?.access_token || !enrollmentCa) {
-        toast({ title: 'Error', description: 'Enrollment CA not found or user not authenticated.', variant: 'destructive' });
+        sileo.error({ title: 'Error', description: 'Enrollment CA not found or user not authenticated.' });
         return;
     }
     setIsSyncing(true);
@@ -221,11 +220,11 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
         
         await updateCaMetadata(enrollmentCa.id, patchOperations, user.access_token);
         
-        toast({ title: "Success", description: "CA synchronization request has been sent." });
+        sileo.success({ title: "Success", description: "CA synchronization request has been sent." });
         loadCaData();
 
     } catch (e: any) {
-        toast({ title: "Sync Failed", description: e.message, variant: "destructive" });
+        sileo.error({ title: "Sync Failed", description: e.message });
     } finally {
         setIsSyncing(false);
     }
@@ -253,7 +252,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
         policy_document: policyDoc,
     });
 
-    toast({ title: "Policy Added", description: `${LmsRemediationPolicyName} has been added. Remember to save changes.` });
+    sileo.success({ title: "Policy Added", description: `${LmsRemediationPolicyName} has been added. Remember to save changes.` });
   };
   
   const handleShadowTypeChange = (value: 'classic' | 'named') => {

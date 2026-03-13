@@ -1,32 +1,33 @@
 
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Info, KeyRound, Lock, Link as LinkIcon, Network, Users, AlertCircle } from "lucide-react";
+import { Info, KeyRound, Lock, Link as LinkIcon, Network, Users, AlertCircle, Pencil, X, Check, ChevronRight, ExternalLink } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
-import { DetailItem } from '@/components/shared/DetailItem';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
 import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { getDisplayDateFormat } from '@/lib/config';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Loader2 } from 'lucide-react';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
+import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
+import { DetailSectionCard } from '@/components/shared/DetailSectionCard';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
+import { cn, formatCertificateUsageLabel } from '@/lib/utils';
 
 
 interface CaStats {
@@ -59,26 +60,7 @@ interface InformationTabContentProps {
   onAkiClick?: (aki: string) => void;
 }
 
-const renderUrlList = (urls: string[] | undefined, listTitle: string) => {
-  if (!urls || urls.length === 0) {
-    return null;
-  }
-  return (
-    <>
-      <h5 className="font-medium text-sm mt-1">{listTitle}</h5>
-      <ul className="list-disc list-inside space-y-1 pl-4">
-        {urls.map((url, i) => <li key={i}><a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{url}</a></li>)}
-      </ul>
-    </>
-  );
-}
-
-
-const toTitleCase = (str: string) => {
-  return str
-    .replace(/([A-Z])/g, ' $1') // insert a space before all caps
-    .replace(/^./, (s) => s.toUpperCase()); // uppercase the first character
-};
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 const getRevocationReasonLabel = (reason: string | undefined): string => {
   if (!reason) return 'Unknown';
@@ -86,6 +68,31 @@ const getRevocationReasonLabel = (reason: string | undefined): string => {
   return found ? found.label : reason;
 };
 
+/** Renders an array of URLs as small link chips. */
+const UrlChips = ({ urls, label }: { urls: string[] | undefined; label: string }) => {
+  if (!urls || urls.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {urls.map((url, i) => (
+          <a
+            key={i}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs text-primary hover:bg-muted transition-colors max-w-full"
+          >
+            <span className="truncate max-w-[320px]">{url}</span>
+            <ExternalLink className="h-3 w-3 shrink-0" />
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── main export ──────────────────────────────────────────────────────────────
 
 export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   item,
@@ -96,59 +103,47 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   onAkiClick,
   onUpdateSuccess,
 }) => {
-  const accordionTriggerStyle = "text-md font-semibold bg-gradient-to-r from-muted/50 to-muted/30 hover:from-muted/60 hover:to-muted/40 data-[state=open]:from-primary/10 data-[state=open]:to-primary/5 data-[state=open]:text-primary px-5 py-4 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md";
-
   const { user } = useAuth();
-  const { toast } = useToast();
 
-  // State for profile editing
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isChainPanelCollapsed, setIsChainPanelCollapsed] = useState(false);
 
   useEffect(() => {
-    // Load available profiles when editing starts or component mounts
     const loadProfiles = async () => {
       if (user?.access_token) {
         setIsLoadingProfiles(true);
         try {
           const profilesResponse = await fetchSigningProfiles(user.access_token);
           setAvailableProfiles(profilesResponse.list);
-        } catch (err) {
-          console.error("Failed to load signing profiles:", err);
-          toast({ title: "Error", description: "Could not load issuance profiles.", variant: "destructive" });
+        } catch {
+          sileo.error({ title: "Error", description: "Could not load issuance profiles." });
         } finally {
           setIsLoadingProfiles(false);
         }
       }
     };
-
-    // Load profiles on component mount for CA details, and when editing starts
     if (itemType === 'ca') {
       loadProfiles();
-    }
-
-    // Set initial selected profile ID from the CA item
-    if (itemType === 'ca') {
       setSelectedProfileId((item as CA).defaultProfileId || null);
     }
-  }, [item, itemType, isEditingProfile, user?.access_token, toast]);
+  }, [item, itemType, isEditingProfile, user?.access_token]);
 
   const handleSaveProfile = async () => {
     if (itemType !== 'ca' || !user?.access_token) return;
-
     const caDetails = item as CA;
     setIsSubmitting(true);
     try {
       await updateCaDefaultProfileId(caDetails.id, selectedProfileId, user.access_token);
-      toast({ title: "Success", description: "Default issuance profile updated." });
-      onUpdateSuccess?.(); // Re-fetch parent data
+      sileo.success({ title: "Success", description: "Default issuance profile updated." });
+      onUpdateSuccess?.();
       setIsEditingProfile(false);
     } catch (e: any) {
-      toast({ title: "Update Failed", description: e.message, variant: "destructive" });
+      sileo.error({ title: "Update Failed", description: e.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -156,334 +151,441 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
 
   const handleCancelEdit = () => {
     setIsEditingProfile(false);
-    // Reset selected profile to the original one from the `item` prop
-    if (itemType === 'ca') {
-      setSelectedProfileId((item as CA).defaultProfileId || null);
-    }
+    if (itemType === 'ca') setSelectedProfileId((item as CA).defaultProfileId || null);
   };
 
-  const selectedProfileForDisplay = React.useMemo(() => {
-    return availableProfiles.find(p => p.id === selectedProfileId);
-  }, [selectedProfileId, availableProfiles]);
+  const selectedProfileForDisplay = React.useMemo(
+    () => availableProfiles.find(p => p.id === selectedProfileId),
+    [selectedProfileId, availableProfiles]
+  );
 
-
+  // ── CA view ────────────────────────────────────────────────────────────────
   if (itemType === 'ca' && caSpecific) {
     const caDetails = item as CA;
 
+    const hasDistribution =
+      (caDetails.crlDistributionPoints && caDetails.crlDistributionPoints.length > 0) ||
+      (caDetails.ocspUrls && caDetails.ocspUrls.length > 0) ||
+      (caDetails.caIssuersUrls && caDetails.caIssuersUrls.length > 0);
+
     return (
-      <>
+      <div className="space-y-6">
+
+        {/* Revocation alert */}
         {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate?.revocation_timestamp && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Certificate Authority Revoked</AlertTitle>
-            <AlertDescription className="mt-2 space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-sm font-medium">Reason:</span>
-                <Badge variant="outline" className="w-fit bg-destructive/10 text-destructive border-destructive/30">
+            <AlertDescription className="mt-2 space-y-1.5 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium opacity-80">Reason:</span>
+                <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
                   {getRevocationReasonLabel(caDetails.rawApiData.certificate.revocation_reason)}
                 </Badge>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-sm font-medium">Revoked On:</span>
-                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString="PPpp" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium opacity-80">Revoked on:</span>
+                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString={getDisplayDateFormat()} showRelative={true} />
               </div>
             </AlertDescription>
           </Alert>
         )}
 
-        <Accordion type="multiple" defaultValue={['general', 'keyInfo', 'extensions', 'distribution', 'hierarchy']} className="w-full space-y-3">
-          <AccordionItem value="general" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-              <Info className="mr-2 h-5 w-5" /> General Information
-            </AccordionTrigger>
-            <AccordionContent className="space-y-0.5 px-2 pt-4 pb-2">
-              <DetailItem label="Full Name" value={caDetails.name} />
-              <DetailItem label="CA ID" value={<Badge variant="secondary">{caDetails.id}</Badge>} />
-              <DetailItem label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
-              <DetailItem label="Expires On" value={<DateDisplay date={caDetails.expires} formatString="PPpp" highlightExpired />} />
-              <DetailItem label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} showSeparator={false} />
-
-              <div className="px-4 py-3 rounded-lg mt-2 bg-muted/20 border border-border/50">
-                <dt className="text-sm font-semibold text-muted-foreground mb-3 flex items-center">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/40 mr-2" />
-                  Default Issuance Profile
-                </dt>
-                <dd className="mt-1 sm:mt-0 flex flex-col gap-2">
-                  {!isEditingProfile ? (
-                    <>
-                      {caDetails.defaultProfileId && selectedProfileForDisplay ? (
-                        <IssuanceProfileCard profile={selectedProfileForDisplay} />
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">Not Set</p>
-                      )}
-                      <Button variant="outline" size="sm" onClick={() => setIsEditingProfile(true)} className="w-fit">
-                        {caDetails.defaultProfileId ? 'Change Profile' : 'Set Profile'}
-                      </Button>
-                    </>
-                  ) : (
-                    <div className='w-full'>
-                      <SigningProfileSelector
-                        profileMode={profileMode}
-                        onProfileModeChange={setProfileMode}
-                        availableProfiles={availableProfiles}
-                        isLoadingProfiles={isLoadingProfiles}
-                        selectedProfileId={selectedProfileId}
-                        onProfileIdChange={setSelectedProfileId}
-                        inlineModeEnabled={false} // Inline mode not applicable here
-                        createModeEnabled={true}  // Allow creating a new profile
-                      />
-                      <div className="flex justify-end space-x-2 mt-4">
-                        <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSubmitting}>Cancel</Button>
-                        <Button size="sm" onClick={handleSaveProfile} disabled={isSubmitting || isLoadingProfiles}>
-                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Save
-                        </Button>
-                      </div>
-                    </div>
+        <SplitPanelLayout
+          isPanelOpen={true}
+          panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_auto]"
+          panel={
+            <div
+              className="relative overflow-hidden transition-[width] ease-in-out duration-500"
+              style={{ width: isChainPanelCollapsed ? '56px' : 'clamp(420px, 30vw, 520px)' }}
+            >
+              <div className="w-[clamp(420px,30vw,520px)]">
+                <div
+                  className={cn(
+                    'transition-[opacity,transform] duration-500 ease-in-out',
+                    isChainPanelCollapsed
+                      ? 'pointer-events-none opacity-0 translate-x-4'
+                      : 'opacity-100 translate-x-0'
                   )}
-                </dd>
+                >
+                  <DetailSectionCard
+                    icon={Network}
+                    title="Issuance Hierarchy & Chain of Trust"
+                    description="View the current chain of trust and direct child authorities."
+                    action={(
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-7 px-2"
+                        onClick={() => setIsChainPanelCollapsed(true)}
+                      >
+                        Collapse
+                      </Button>
+                    )}
+                  >
+                    {caSpecific.pathToRoot.length > 0 ? (
+                      <div className="flex w-full flex-col items-center">
+                        {caSpecific.pathToRoot.map((caNode, index) => (
+                          <CaHierarchyPathNode
+                            key={caNode.id}
+                            ca={caNode}
+                            isCurrentCa={caNode.id === caDetails.id}
+                            hasNext={index < caSpecific.pathToRoot.length - 1}
+                            isFirst={index === 0}
+                            allCryptoEngines={caSpecific.allCryptoEngines}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Hierarchy path not available.</p>
+                    )}
+
+                    {caDetails.children && caDetails.children.length > 0 && (
+                      <>
+                        <Separator className="my-4" />
+                        <div className="space-y-2">
+                          <div className="mb-3 flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <p className="text-sm font-semibold">Directly Issues To</p>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            {caDetails.children.map(child => (
+                              <button
+                                key={child.id}
+                                onClick={() => routerHook.push(`/certificate-authorities/details?caId=${child.id}`)}
+                                className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60"
+                              >
+                                <span>{child.name}</span>
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </DetailSectionCard>
+                </div>
               </div>
-            </AccordionContent>
-          </AccordionItem>
 
-          <AccordionItem value="keyInfo" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-              <KeyRound className="mr-2 h-5 w-5" /> Key & Signature Information
-            </AccordionTrigger>
-            <AccordionContent className="space-y-0.5 px-2 pt-4 pb-2">
-              <DetailItem label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} />
-              <DetailItem label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
-              <DetailItem label="Subject Key Identifier (SKI)" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} className="text-xs" /> : 'N/A'} />
-              <DetailItem label="Authority Key Identifier (AKI)" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} className="text-xs" /> : 'N/A'} showSeparator={false} />
-            </AccordionContent>
-          </AccordionItem>
+              {/* Collapsed tab — positioned within the outer wrapper so it fills exactly 56px */}
+              <button
+                type="button"
+                onClick={() => setIsChainPanelCollapsed(false)}
+                className={cn(
+                  'absolute inset-0 h-full w-full rounded-xl bg-primary/80 text-primary-foreground px-1 py-3 text-xs font-semibold [writing-mode:vertical-rl] rotate-180 transition-all duration-300 ease-in-out hover:bg-primary/90',
+                  isChainPanelCollapsed
+                    ? 'pointer-events-auto opacity-100'
+                    : 'pointer-events-none opacity-0'
+                )}
+              >
+                Show Chain of Trust
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-6 pb-6">
+          {/* ── Grid of sections ── */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
-          <AccordionItem value="extensions" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-              <Lock className="mr-2 h-5 w-5" /> Certificate Extensions
-            </AccordionTrigger>
-            <AccordionContent className="space-y-0.5 px-2 pt-4 pb-2">
-              <DetailItem label="Basic Constraints" value={
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">CA: <Badge variant={caDetails.isCa ? "default" : "secondary"} className={(caDetails.isCa ? 'bg-green-100 text-green-700' : '')}>{caDetails.isCa ? "TRUE" : "FALSE"}</Badge></div>
-                </div>
-              } showSeparator={false} />
-              <Separator className="my-3" />
-              <DetailItem label="Key Usages" value={
-                (caDetails.keyUsage && caDetails.keyUsage.length > 0) || (caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0) ? (
-                  <div className="space-y-2">
-                    {caDetails.keyUsage && caDetails.keyUsage.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {caDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
-                      </div>
-                    )}
-                    {caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {caDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
-                      </div>
-                    )}
+          {/* General */}
+          <DetailSectionCard
+            icon={Info}
+            title="General Information"
+            description="Identity, issuer, lifecycle, and serial details for this authority."
+          >
+            <DetailInfoRows>
+              <DetailInfoRow label="Full Name" value={caDetails.name} className="first:pt-0" />
+              <DetailInfoRow label="CA ID" value={<IdentifierDisplay value={caDetails.id} />} />
+              <DetailInfoRow label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
+              <DetailInfoRow label="Expires On" value={<DateDisplay date={caDetails.expires} formatString={getDisplayDateFormat()} highlightExpired />} />
+              <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} className="last:pb-0" />
+            </DetailInfoRows>
+          </DetailSectionCard>
+
+          {/* Key & Signature */}
+          <DetailSectionCard
+            icon={KeyRound}
+            title="Key & Signature"
+            description="Algorithm and identifier material associated with this CA certificate."
+          >
+            <DetailInfoRows>
+              <DetailInfoRow label="Public Key Algorithm" value={caDetails.keyAlgorithm || 'N/A'} className="first:pt-0" />
+              <DetailInfoRow label="Signature Algorithm" value={caDetails.signatureAlgorithm || 'N/A'} />
+              <DetailInfoRow label="SKI" value={caDetails.subjectKeyId ? <IdentifierDisplay value={caDetails.subjectKeyId} className="text-xs" /> : 'N/A'} />
+              <DetailInfoRow label="AKI" value={caDetails.authorityKeyId ? <IdentifierDisplay value={caDetails.authorityKeyId} className="text-xs" /> : 'N/A'} className="last:pb-0" />
+            </DetailInfoRows>
+          </DetailSectionCard>
+
+          {/* Extensions */}
+          <DetailSectionCard
+            icon={Lock}
+            title="Certificate Extensions"
+            description="Basic constraints and intended usages defined on the certificate."
+          >
+            <DetailInfoRows>
+              <DetailInfoRow
+                label="Basic Constraints"
+                className="first:pt-0"
+                value={
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">CA:</span>
+                    <Badge
+                      variant={caDetails.isCa ? 'default' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {caDetails.isCa ? 'TRUE' : 'FALSE'}
+                    </Badge>
                   </div>
-                ) : ("Not Specified")
-              } showSeparator={false} />
-            </AccordionContent>
-          </AccordionItem>
+                }
+              />
+              <DetailInfoRow
+                label="Key Usages"
+                className="last:pb-0"
+                value={
+                  (caDetails.keyUsage && caDetails.keyUsage.length > 0) || (caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0) ? (
+                    <div className="flex flex-wrap gap-1">
+                      {caDetails.keyUsage?.map(u => <Badge key={u} variant="outline" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                      {caDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                    </div>
+                  ) : 'Not Specified'
+                }
+              />
+            </DetailInfoRows>
+          </DetailSectionCard>
 
-          <AccordionItem value="distribution" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-              <LinkIcon className="mr-2 h-5 w-5" /> Distribution Points
-            </AccordionTrigger>
-            <AccordionContent className="space-y-3 px-6 pt-4 pb-2">
-              {renderUrlList(caDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
-              {caDetails.crlDistributionPoints && (caDetails.ocspUrls || caDetails.caIssuersUrls) && <Separator />}
-              {renderUrlList(caDetails.ocspUrls, 'OCSP Responders (from AIA)')}
-              {caDetails.ocspUrls && caDetails.caIssuersUrls && <Separator />}
-              {renderUrlList(caDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
-              {(!caDetails.crlDistributionPoints || caDetails.crlDistributionPoints.length === 0) && (!caDetails.ocspUrls || caDetails.ocspUrls.length === 0) && (!caDetails.caIssuersUrls || caDetails.caIssuersUrls.length === 0) && (
-                <p className="text-sm text-muted-foreground">No distribution points specified in certificate.</p>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="hierarchy" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-              <Network className="mr-2 h-5 w-5" /> Issuance Hierarchy & Chain of Trust
-            </AccordionTrigger>
-            <AccordionContent className="space-y-4 px-4 pt-4 pb-2 bg-muted/10 rounded-lg">
-              {caSpecific.pathToRoot.length > 0 ? (
-                <div className="flex flex-col items-center w-full">
-                  {caSpecific.pathToRoot.map((caNode, index) => (
-                    <CaHierarchyPathNode
-                      key={caNode.id}
-                      ca={caNode}
-                      isCurrentCa={caNode.id === caDetails.id}
-                      hasNext={index < caSpecific.pathToRoot.length - 1}
-                      isFirst={index === 0}
-                      allCryptoEngines={caSpecific.allCryptoEngines}
-                    />
-                  ))}
+          {/* Default Issuance Profile */}
+          <DetailSectionCard
+            icon={Info}
+            title="Default Issuance Profile"
+            description="Profile used by default when this CA issues new certificates."
+            action={!isEditingProfile ? (
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setIsEditingProfile(true)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleCancelEdit} disabled={isSubmitting}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          >
+            {!isEditingProfile ? (
+              <div className="space-y-3">
+                {caDetails.defaultProfileId && selectedProfileForDisplay ? (
+                  <IssuanceProfileCard profile={selectedProfileForDisplay} />
+                ) : (
+                  <Alert variant="default" className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <AlertTitle className="text-amber-700 dark:text-amber-400 text-sm">No default profile set</AlertTitle>
+                    <AlertDescription className="text-amber-600/80 dark:text-amber-500 text-xs">
+                      Certificates issued by this CA will use default settings. Set a profile to enforce key usage, validity, and extensions.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <SigningProfileSelector
+                  profileMode={profileMode}
+                  onProfileModeChange={setProfileMode}
+                  availableProfiles={availableProfiles}
+                  isLoadingProfiles={isLoadingProfiles}
+                  selectedProfileId={selectedProfileId}
+                  onProfileIdChange={setSelectedProfileId}
+                  inlineModeEnabled={false}
+                  createModeEnabled={true}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSubmitting}>Cancel</Button>
+                  <Button size="sm" onClick={handleSaveProfile} disabled={isSubmitting || isLoadingProfiles}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Check className="mr-2 h-3.5 w-3.5" /> Save
+                  </Button>
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Hierarchy path not available.</p>
-              )}
-              {caDetails.children && caDetails.children.length > 0 && (
-                <>
-                  <Separator className="my-4" />
-                  <h4 className="text-md font-semibold flex items-center"><Users className="mr-2 h-4 w-4 text-muted-foreground" />Directly Issues To:</h4>
-                  <ul className="list-disc list-inside space-y-1 pl-4">
-                    {caDetails.children.map(child => (
-                      <li key={child.id}>
-                        <Button variant="link" size="sm" className="p-0 h-auto" onClick={() => routerHook.push(`/certificate-authorities/details?caId=${child.id}`)}>
-                          {child.name} (ID: {child.id})
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </>
+              </div>
+            )}
+          </DetailSectionCard>
+          </div>
+
+          {/* ── Distribution Points ── */}
+          {hasDistribution && (
+            <DetailSectionCard
+              icon={LinkIcon}
+              title="Distribution Points"
+              description="Published CRL, OCSP, and issuer endpoints for relying parties."
+              contentClassName="space-y-4"
+            >
+              <div className="space-y-4">
+                <UrlChips urls={caDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
+                <UrlChips urls={caDetails.ocspUrls} label="OCSP Responders" />
+                <UrlChips urls={caDetails.caIssuersUrls} label="CA Issuers (AIA)" />
+              </div>
+            </DetailSectionCard>
+          )}
+          </div>
+        </SplitPanelLayout>
+
+      </div>
     );
-  } else if (itemType === 'certificate' && certificateSpecific) {
+  }
+
+  // ── Certificate view ───────────────────────────────────────────────────────
+  if (itemType === 'certificate' && certificateSpecific) {
     const certDetails = item as CertificateData;
+
+    const hasDistribution =
+      (certDetails.crlDistributionPoints && certDetails.crlDistributionPoints.length > 0) ||
+      (certDetails.ocspUrls && certDetails.ocspUrls.length > 0) ||
+      (certDetails.caIssuersUrls && certDetails.caIssuersUrls.length > 0);
+
     return (
-      <>
+      <div className="space-y-6">
+
+        {/* Revocation alert */}
         {certDetails.apiStatus?.toLowerCase() === 'revoked' && certDetails.revocationTimestamp && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Certificate Revoked</AlertTitle>
-            <AlertDescription className="mt-2 space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-sm font-medium">Reason:</span>
-                <Badge variant="outline" className="w-fit bg-destructive/10 text-destructive border-destructive/30">
+            <AlertDescription className="mt-2 space-y-1.5 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium opacity-80">Reason:</span>
+                <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
                   {getRevocationReasonLabel(certDetails.revocationReason)}
                 </Badge>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-sm font-medium">Revoked On:</span>
-                <DateDisplay date={certDetails.revocationTimestamp} formatString="PPpp" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium opacity-80">Revoked on:</span>
+                <DateDisplay date={certDetails.revocationTimestamp} formatString={getDisplayDateFormat()} showRelative={false} />
               </div>
             </AlertDescription>
           </Alert>
         )}
 
-        <Accordion type="multiple" defaultValue={['general', 'keyInfo', 'extensions', 'distribution', 'chain-visualizer']} className="w-full space-y-3">
-          <AccordionItem value="general" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-              <Info className="mr-2 h-5 w-5" /> General Information
-            </AccordionTrigger>
-            <AccordionContent className="space-y-0.5 px-2 pt-4 pb-2">
-              <DetailItem label="Subject" value={certDetails.subject} />
-              <DetailItem label="Issuer" value={certDetails.issuer} />
-              <DetailItem label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
-              <DetailItem label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString="PPpp" />} />
-              <DetailItem
-                label="Valid To"
-                value={<DateDisplay date={certDetails.validTo} formatString="PPpp" highlightExpired />}
-                showSeparator={false}
-              />
-            </AccordionContent>
-          </AccordionItem>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
-          <AccordionItem value="keyInfo" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-              <KeyRound className="mr-2 h-5 w-5" /> Key & Signature
-            </AccordionTrigger>
-            <AccordionContent className="space-y-0.5 px-2 pt-4 pb-2">
-              <DetailItem label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} />
-              <DetailItem label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
-              <DetailItem label="SHA-256 Fingerprint" value={certDetails.fingerprintSha256 ? <IdentifierDisplay value={certDetails.fingerprintSha256} className="text-xs" /> : 'N/A (Generate if needed)'} />
-              {certDetails.rawApiData?.subject_key_id && <DetailItem label="Subject Key ID (SKI)" value={<IdentifierDisplay value={certDetails.rawApiData.subject_key_id} className="text-xs" />} />}
-              <DetailItem
-                label="Authority Key Identifier (AKI)"
+          <DetailSectionCard
+            icon={Info}
+            title="General Information"
+            description="Identity, issuer, validity period, and serial details for this certificate."
+          >
+            <DetailInfoRows>
+              <DetailInfoRow label="Subject" value={certDetails.subject} className="first:pt-0" />
+              <DetailInfoRow label="Issuer" value={certDetails.issuer} />
+              <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
+              <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString={getDisplayDateFormat()} />} />
+              <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString={getDisplayDateFormat()} highlightExpired />} className="last:pb-0" />
+            </DetailInfoRows>
+          </DetailSectionCard>
+
+          <DetailSectionCard
+            icon={KeyRound}
+            title="Key & Signature"
+            description="Algorithm details, fingerprint material, and issuer key identifiers."
+          >
+            <DetailInfoRows>
+              <DetailInfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
+              <DetailInfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
+              <DetailInfoRow
+                label="SHA-256 Fingerprint"
+                value={
+                  certDetails.fingerprintSha256
+                    ? <IdentifierDisplay value={certDetails.fingerprintSha256} className="text-xs" />
+                    : 'N/A'
+                }
+              />
+              {certDetails.rawApiData?.subject_key_id && (
+                <DetailInfoRow
+                  label="SKI"
+                  value={<IdentifierDisplay value={certDetails.rawApiData.subject_key_id} className="text-xs" />}
+                />
+              )}
+              <DetailInfoRow
+                label="AKI"
                 value={
                   certDetails.rawApiData?.authority_key_id && onAkiClick ? (
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto font-mono text-xs text-left whitespace-normal break-all"
+                    <button
                       onClick={() => onAkiClick(certDetails.rawApiData.authority_key_id)}
+                      className="text-left text-primary hover:underline"
                       title="Find Issuer CA by AKI"
                     >
                       <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} className="text-xs" />
-                    </Button>
+                    </button>
                   ) : certDetails.rawApiData?.authority_key_id ? (
                     <IdentifierDisplay value={certDetails.rawApiData.authority_key_id} className="text-xs" />
-                  ) : (
-                    <span className="font-mono text-xs">N/A</span>
-                  )
+                  ) : 'N/A'
                 }
-                showSeparator={false}
+                className="last:pb-0"
               />
-            </AccordionContent>
-          </AccordionItem>
+            </DetailInfoRows>
+          </DetailSectionCard>
 
-          <AccordionItem value="extensions" className="border-b-0">
-            <AccordionTrigger className={cn(accordionTriggerStyle)}>
-              <Lock className="mr-2 h-5 w-5" /> Certificate Extensions
-            </AccordionTrigger>
-            <AccordionContent className="space-y-0.5 px-2 pt-4 pb-2">
-              <DetailItem label="Subject Alternative Names" value={
-                certDetails.sans && certDetails.sans.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {certDetails.sans.map((san, index) => <Badge key={index} variant="secondary">{san}</Badge>)}
-                  </div>
-                ) : ("Not Specified")
-              } showSeparator={false} />
-              <Separator className="my-3" />
-              <DetailItem label="Key Usages" value={
-                (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
-                  <div className="space-y-2">
-                    {certDetails.keyUsage && certDetails.keyUsage.length > 0 && (
+          <div className="lg:col-span-2">
+            <DetailSectionCard
+              icon={Lock}
+              title="Certificate Extensions"
+              description="Alternative names and intended usages defined in the certificate."
+            >
+              <DetailInfoRows>
+                <DetailInfoRow
+                  label="Subject Alternative Names"
+                  className="first:pt-0"
+                  value={
+                    certDetails.sans && certDetails.sans.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
-                        {certDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
+                        {certDetails.sans.map((san, i) => <Badge key={i} variant="secondary" className="text-xs">{san}</Badge>)}
                       </div>
-                    )}
-                    {certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {certDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{toTitleCase(usage)}</Badge>)}
-                      </div>
-                    )}
-                  </div>
-                ) : ("Not Specified")
-              } showSeparator={false} />
-            </AccordionContent>
-          </AccordionItem>
-
-          {(certDetails.crlDistributionPoints || certDetails.ocspUrls || certDetails.caIssuersUrls) && (
-            <AccordionItem value="distribution" className="border-b-0">
-              <AccordionTrigger className={cn(accordionTriggerStyle)}>
-                <LinkIcon className="mr-2 h-5 w-5" /> Distribution Points
-              </AccordionTrigger>
-              <AccordionContent className="space-y-3 px-6 pt-4 pb-2">
-                {renderUrlList(certDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
-                {(certDetails.crlDistributionPoints && certDetails.crlDistributionPoints.length > 0) && (certDetails.ocspUrls || certDetails.caIssuersUrls) && <Separator />}
-                {renderUrlList(certDetails.ocspUrls, 'OCSP Responders (from AIA)')}
-                {renderUrlList(certDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
-              </AccordionContent>
-            </AccordionItem>
-          )}
-
-          {certificateSpecific.certificateChainForVisualizer && (
-            <AccordionItem value="chain-visualizer" className="border-b-0">
-              <AccordionTrigger className={cn(accordionTriggerStyle)}>
-                <Network className="mr-2 h-5 w-5" /> Issuance Chain
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4 px-4 pt-4 pb-2 bg-muted/10 rounded-lg">
-                <IssuanceChainVisualizer
-                  certificateChain={certificateSpecific.certificateChainForVisualizer}
-                  currentCertificate={{
-                    subject: certDetails.subject,
-                    statusBadgeVariant: certificateSpecific.statusBadgeVariant,
-                    statusBadgeClass: certificateSpecific.statusBadgeClass,
-                    statusText: certificateSpecific.apiStatusText,
-                  }}
+                    ) : 'Not Specified'
+                  }
                 />
-              </AccordionContent>
-            </AccordionItem>
-          )}
-        </Accordion>
-      </>
+                <DetailInfoRow
+                  label="Key Usages"
+                  className="last:pb-0"
+                  value={
+                    (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
+                      <div className="flex flex-wrap gap-1">
+                        {certDetails.keyUsage?.map(u => <Badge key={u} variant="outline" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                        {certDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                      </div>
+                    ) : 'Not Specified'
+                  }
+                />
+              </DetailInfoRows>
+            </DetailSectionCard>
+          </div>
+        </div>
+
+        {hasDistribution && (
+          <DetailSectionCard
+            icon={LinkIcon}
+            title="Distribution Points"
+            description="Published CRL, OCSP, and issuer endpoints for this certificate."
+            contentClassName="space-y-4"
+          >
+            <div className="space-y-4">
+              <UrlChips urls={certDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
+              <UrlChips urls={certDetails.ocspUrls} label="OCSP Responders" />
+              <UrlChips urls={certDetails.caIssuersUrls} label="CA Issuers (AIA)" />
+            </div>
+          </DetailSectionCard>
+        )}
+
+        {certificateSpecific.certificateChainForVisualizer && (
+          <DetailSectionCard
+            icon={Network}
+            title="Issuance Chain"
+            description="Trust path from this certificate to its issuing authorities."
+          >
+            <IssuanceChainVisualizer
+              certificateChain={certificateSpecific.certificateChainForVisualizer}
+              currentCertificate={{
+                subject: certDetails.subject,
+                statusBadgeVariant: certificateSpecific.statusBadgeVariant,
+                statusBadgeClass: certificateSpecific.statusBadgeClass,
+                statusText: certificateSpecific.apiStatusText,
+              }}
+            />
+          </DetailSectionCard>
+        )}
+      </div>
     );
   }
 

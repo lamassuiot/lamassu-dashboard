@@ -36,11 +36,12 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { getDisplayDateFormat } from '@/lib/config';
 import { getDevicesByGroup } from '@/lib/device-groups-api';
 import type { ApiDevice } from '@/lib/devices-api';
 import { cn } from '@/lib/utils';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
@@ -106,7 +107,6 @@ const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string;
 export function GroupMembersList({ groupId, className }: GroupMembersListProps) {
   const { user } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
   
   const [devices, setDevices] = useState<ApiDevice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,7 +229,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
 
   const handleOpenEnrollModal = async (device: ApiDevice) => {
     if (!user?.access_token) {
-      toast({ title: 'Authentication Error', description: 'You must be logged in.', variant: 'destructive' });
+      sileo.error({ title: 'Authentication Error', description: 'You must be logged in.' });
       return;
     }
 
@@ -241,7 +241,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
       const raData = await fetchRaById(device.dms_owner, user.access_token);
       setRaForEnrollModal(raData);
     } catch (err: any) {
-      toast({ title: 'Error Fetching RA Details', description: err.message, variant: 'destructive' });
+      sileo.error({ title: 'Error Fetching RA Details', description: err.message });
       setIsEnrollModalOpen(false);
     }
   };
@@ -398,7 +398,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
                         <TableCell>
                           <DateDisplay 
                             date={device.creation_timestamp} 
-                            formatString="dd/MM/yyyy HH:mm"
+                            formatString={getDisplayDateFormat()}
                             className="text-xs"
                             relativeClassName="text-xs"
                           />

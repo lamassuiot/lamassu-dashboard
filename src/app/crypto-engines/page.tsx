@@ -1,76 +1,154 @@
-
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Cpu, ShieldAlert, ShieldCheck, Shield, Settings, Tag, CheckSquare, RefreshCw, ShieldQuestion as ShieldQuestionIcon, FolderKey } from 'lucide-react'; // Added DatabaseIcon, FolderKey
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { ApiCryptoEngine, ApiKeyTypeDetail } from '@/types/crypto-engine'; 
-import Image from 'next/image';
+import { fetchCryptoEngines } from '@/lib/kms-data';
+import type { ApiCryptoEngine, ApiKeyTypeDetail } from '@/types/crypto-engine';
+import {
+  CheckSquare,
+  Cpu,
+  Loader2,
+  RefreshCw,
+  Settings,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldQuestion as ShieldQuestionIcon,
+} from 'lucide-react';
 import AWSKMSLogo from "@/components/shared/CryptoEngineIcons/AWS-KMS.png";
 import AWSSMLogo from "@/components/shared/CryptoEngineIcons/AWS-SM.png";
-import PKCS11Logo from "@/components/shared/CryptoEngineIcons/PKCS11.png";
 import VaultLogo from "@/components/shared/CryptoEngineIcons/HASHICORP-VAULT.png";
-import { fetchCryptoEngines } from '@/lib/kms-data';
+import PKCS11Logo from "@/components/shared/CryptoEngineIcons/PKCS11.png";
 
+const formatEngineType = (type: string) => type.replace(/_/g, ' ');
 
-// Helper to format supported key types for display
-const formatSupportedKeyTypes = (keyTypes: ApiKeyTypeDetail[]): string => {
-  if (!keyTypes || keyTypes.length === 0) return 'Not specified';
-  return keyTypes
-    .map(kt => `${kt.type}: ${kt.sizes.join(', ')}`)
-    .join('; ');
+const getSecurityLevelInfo = (level: number): { text: string; Icon: React.ElementType; className: string } => {
+  if (level <= 1) return { text: `Level ${level} basic`, Icon: ShieldAlert, className: "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300" };
+  if (level === 2) return { text: `Level ${level} moderate`, Icon: ShieldCheck, className: "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300" };
+  if (level >= 3) return { text: `Level ${level} high`, Icon: Shield, className: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300" };
+  return { text: `Level ${level}`, Icon: Settings, className: "border-border bg-muted text-muted-foreground" };
 };
 
-// Helper for security level display
-const getSecurityLevelInfo = (level: number): { text: string; Icon: React.ElementType; badgeClass: string } => {
-  if (level <= 1) return { text: `Level ${level} (Basic)`, Icon: ShieldAlert, badgeClass: "bg-orange-100 text-orange-700 dark:bg-orange-700/30 dark:text-orange-300 border-orange-300 dark:border-orange-700" };
-  if (level === 2) return { text: `Level ${level} (Moderate)`, Icon: ShieldCheck, badgeClass: "bg-sky-100 text-sky-700 dark:bg-sky-700/30 dark:text-sky-300 border-sky-300 dark:border-sky-700" };
-  if (level >= 3) return { text: `Level ${level} (High)`, Icon: Shield, badgeClass: "bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300 border-green-300 dark:border-green-700" };
-  return { text: `Level ${level}`, Icon: Settings, badgeClass: "bg-muted text-muted-foreground border-border" };
-};
-
-const EngineIcon: React.FC<{ type: string, name: string }> = ({ type, name }) => {
+const EngineIcon: React.FC<{ type: string; name: string }> = ({ type, name }) => {
   const typeUpper = type?.toUpperCase();
-  const nameUpper = name?.toUpperCase();
-  let IconComponent: React.ElementType | null = null;
-  let iconColorClass = "text-muted-foreground";
-  let iconBGClass = "bg-transparent";
-  let imageSrc: any = null; // For next/image
+  let imageSrc: any = null;
 
-  console.log(typeUpper);
-  
-  if (typeUpper === "GOLANG") {
-    IconComponent = FolderKey;
-    iconBGClass = "bg-black";
-    iconColorClass = "text-white";
-  } else if (typeUpper === "PKCS11") {
-    imageSrc = PKCS11Logo;
-  } else if (typeUpper === "AWS_SECRETS_MANAGER") {
-    imageSrc = AWSSMLogo;
-  } else if (typeUpper === "AWS_KMS") {
-    imageSrc = AWSKMSLogo;
-  } else if (typeUpper === "HASHICORP_VAULT") {
-    imageSrc = VaultLogo;
-  } else{
-    IconComponent = ShieldQuestionIcon;
-  }
+  if (typeUpper === "PKCS11") imageSrc = PKCS11Logo;
+  else if (typeUpper === "AWS_SECRETS_MANAGER") imageSrc = AWSSMLogo;
+  else if (typeUpper === "AWS_KMS") imageSrc = AWSKMSLogo;
+  else if (typeUpper === "HASHICORP_VAULT") imageSrc = VaultLogo;
 
   if (imageSrc) {
-    return <Image src={imageSrc} alt={`${name} Icon`} width={30} height={30} className="mr-1.5 h-7 w-7"/>;
+    return (
+      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-background">
+        <Image src={imageSrc} alt={`${name} Icon`} fill className="object-contain p-1.5" />
+      </div>
+    );
   }
 
-  if (IconComponent) {
-    return <IconComponent className={cn("mr-1.5 h-7 w-7 flex-shrink-0 p-0.5", iconColorClass, iconBGClass)} />;
-  }
-  
-  return <ShieldQuestionIcon className="mr-1.5 h-7 w-7 text-muted-foreground" />;
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background">
+      <ShieldQuestionIcon className="h-5 w-5 text-muted-foreground" />
+    </div>
+  );
 };
 
+const SupportedKeyTypes: React.FC<{ keyTypes: ApiKeyTypeDetail[] }> = ({ keyTypes }) => {
+  if (!keyTypes || keyTypes.length === 0) {
+    return <p className="text-sm text-muted-foreground">No supported key types declared.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {keyTypes.map((keyType) => (
+        <div key={keyType.type} className="grid gap-2 sm:grid-cols-[72px_1fr]">
+          <div className="pt-1 text-sm font-medium text-foreground">{keyType.type}</div>
+          <div className="pt-1">
+            {keyType.sizes?.length ? (
+              <p className="font-mono text-sm text-muted-foreground">
+                {keyType.sizes.map((size) => String(size)).join(', ')}
+              </p>
+            ) : (
+              <span className="text-sm text-muted-foreground">None</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const EngineRow: React.FC<{ engine: ApiCryptoEngine }> = ({ engine }) => {
+  const securityInfo = getSecurityLevelInfo(engine.security_level);
+  const providerLabel = engine.provider?.trim() || formatEngineType(engine.type);
+  const hasMetadata = Object.keys(engine.metadata ?? {}).length > 0;
+
+  return (
+    <article className="grid gap-6 p-5 xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-8 xl:p-6">
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <EngineIcon type={engine.type} name={engine.name} />
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-semibold text-foreground">{engine.name}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{providerLabel}</p>
+            <p className="mt-2 truncate font-mono text-xs text-muted-foreground" title={engine.id}>
+              {engine.id}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {engine.default && (
+            <Badge variant="default" className="rounded-md px-2 py-0.5 text-[11px]">
+              <CheckSquare className="mr-1 h-3 w-3" />
+              Default
+            </Badge>
+          )}
+          <Badge variant="secondary" className="rounded-md px-2 py-0.5 text-[11px]">
+            {formatEngineType(engine.type)}
+          </Badge>
+          <Badge variant="outline" className={cn("rounded-md px-2 py-0.5 text-[11px]", securityInfo.className)}>
+            <securityInfo.Icon className="mr-1 h-3 w-3" />
+            {securityInfo.text}
+          </Badge>
+        </div>
+      </div>
+
+      <section>
+        <h3 className="text-sm font-semibold text-foreground">Supported key types</h3>
+        <p className="mt-1 mb-4 text-sm text-muted-foreground">
+          Algorithms and size options available for this engine.
+        </p>
+        <SupportedKeyTypes keyTypes={engine.supported_key_types} />
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-foreground">Metadata</h3>
+          <span className="text-xs text-muted-foreground">
+            {Object.keys(engine.metadata ?? {}).length} keys
+          </span>
+        </div>
+        <div className="mt-4">
+          {hasMetadata ? (
+            <pre className="max-h-72 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-foreground">
+              {JSON.stringify(engine.metadata, null, 2)}
+            </pre>
+          ) : (
+            <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+              No metadata available.
+            </div>
+          )}
+        </div>
+      </section>
+    </article>
+  );
+};
 
 export default function CryptoEnginesPage() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -80,15 +158,14 @@ export default function CryptoEnginesPage() {
 
   const fetchEngines = useCallback(async () => {
     if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading) {
-        setErrorEngines("User not authenticated. Please log in.");
-      }
+      if (!authLoading) setErrorEngines("User not authenticated. Please log in.");
       setIsLoadingEngines(false);
       return;
     }
 
     setIsLoadingEngines(true);
     setErrorEngines(null);
+
     try {
       const data = await fetchCryptoEngines(user.access_token);
       setEngines(data);
@@ -98,39 +175,50 @@ export default function CryptoEnginesPage() {
     } finally {
       setIsLoadingEngines(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading]);
+  }, [authLoading, isAuthenticated, user?.access_token]);
 
   useEffect(() => {
-    if (!authLoading) {
-      fetchEngines();
-    }
-  }, [fetchEngines, authLoading]);
+    if (!authLoading) fetchEngines();
+  }, [authLoading, fetchEngines]);
+
+  const defaultEnginesCount = engines.filter((engine) => engine.default).length;
+  const highSecurityCount = engines.filter((engine) => engine.security_level >= 3).length;
 
   if (authLoading || isLoadingEngines) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">
-          {authLoading ? "Authenticating..." : "Loading Crypto Engines..."}
-        </p>
+      <div className="flex min-h-[280px] items-center justify-center">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span>{authLoading ? 'Authenticating...' : 'Loading crypto engines...'}</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
-          <Cpu className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Crypto Engines</h1>
+    <div className="w-full space-y-6 pb-8">
+      <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Crypto Engines</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Configured engines for key management and signing.
+          </p>
+          {!errorEngines && engines.length > 0 && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              {engines.length} engines
+              {' · '}
+              {defaultEnginesCount} default
+              {' · '}
+              {highSecurityCount} high security
+            </p>
+          )}
         </div>
-        <Button onClick={fetchEngines} variant="outline" disabled={isLoadingEngines}>
-          <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingEngines && "animate-spin")} /> Refresh List
+
+        <Button onClick={fetchEngines} variant="secondary" disabled={isLoadingEngines} className="rounded-md">
+          <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingEngines && "animate-spin")} />
+          Refresh List
         </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Available cryptographic engines for key management and operations.
-      </p>
+      </header>
 
       {errorEngines && (
         <Alert variant="destructive">
@@ -138,70 +226,35 @@ export default function CryptoEnginesPage() {
           <AlertTitle>Error Loading Crypto Engines</AlertTitle>
           <AlertDescription>
             {errorEngines}
-            <Button variant="link" onClick={fetchEngines} className="p-0 h-auto ml-1">Try again?</Button>
+            <Button variant="link" onClick={fetchEngines} className="ml-1 h-auto p-0">Try again?</Button>
           </AlertDescription>
         </Alert>
       )}
 
-      {!errorEngines && engines.length === 0 && !isLoadingEngines && (
-        <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-          <h3 className="text-lg font-semibold text-muted-foreground">No Crypto Engines Found</h3>
-          <p className="text-sm text-muted-foreground">
+      {!errorEngines && engines.length === 0 && (
+        <div className="rounded-md border border-dashed border-border p-10 text-center">
+          <Cpu className="mx-auto h-5 w-5 text-muted-foreground" />
+          <h2 className="mt-4 text-base font-semibold text-foreground">No crypto engines found</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             No cryptographic engines are currently configured or available.
           </p>
         </div>
       )}
 
       {!errorEngines && engines.length > 0 && (
-        <div className="space-y-4">
-          {engines.map((engine) => {
-            const securityInfo = getSecurityLevelInfo(engine.security_level);
-            return (
-              <Card key={engine.id} className="shadow-md hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center">
-                       <EngineIcon type={engine.type} name={engine.name} />
-                       <div>
-                          <CardTitle className="text-xl">{engine.name}</CardTitle>
-                          <CardDescription>{engine.provider} - ID: <span className="font-mono text-xs">{engine.id}</span></CardDescription>
-                       </div>
-                    </div>
-                    {engine.default && (
-                      <Badge variant="default" className="text-xs bg-accent text-accent-foreground">
-                        <CheckSquare className="mr-1.5 h-3.5 w-3.5" /> Default Engine
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <securityInfo.Icon className={cn("h-4 w-4", securityInfo.badgeClass.split(' ')[1])} />
-                    <Badge variant="outline" className={cn("text-xs", securityInfo.badgeClass)}>{securityInfo.text}</Badge>
-                    <Badge variant="secondary" className="text-xs">Type: {engine.type}</Badge>
-                  </div>
+        <section className="overflow-hidden rounded-lg border border-border bg-card">
+          <div className="border-b border-border bg-muted/20 px-5 py-3 text-sm text-muted-foreground xl:grid xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-8 xl:px-6">
+            <div>Engine</div>
+            <div>Capabilities</div>
+            <div>Metadata</div>
+          </div>
 
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Supported Key Types:</h4>
-                    <p className="text-sm text-foreground bg-muted/30 p-2 rounded-md">
-                      {formatSupportedKeyTypes(engine.supported_key_types)}
-                    </p>
-                  </div>
-                  {engine.metadata && Object.keys(engine.metadata).length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-muted-foreground mb-1 flex items-center">
-                        <Tag className="mr-1.5 h-4 w-4" /> Additional Metadata:
-                      </h4>
-                      <pre className="text-xs bg-muted/30 p-2 rounded-md overflow-x-auto">
-                        {JSON.stringify(engine.metadata, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+          <div className="divide-y divide-border">
+            {engines.map((engine) => (
+              <EngineRow key={engine.id} engine={engine} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

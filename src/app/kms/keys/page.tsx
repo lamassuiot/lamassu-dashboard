@@ -10,9 +10,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, Cpu, Loader2, RefreshCw, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, Loader2, RefreshCw, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
@@ -39,7 +39,6 @@ interface KmsKey {
 
 export default function KmsKeysPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [keys, setKeys] = useState<KmsKey[]>([]);
@@ -222,15 +221,14 @@ export default function KmsKeysPage() {
       // Remove from local state after successful deletion
       setKeys(prevKeys => prevKeys.filter(k => k.id !== keyToDelete.id));
 
-      toast({
+      sileo.success({
         title: "Key Deleted",
-        description: `Key "${keyToDelete.name}" has been successfully deleted.`,
+        description: `Key "${keyToDelete.name}" has been successfully deleted.`
       });
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Deletion Failed",
-        description: error.message || "An error occurred while deleting the key.",
-        variant: "destructive",
+        description: error.message || "An error occurred while deleting the key."
       });
     } finally {
       setIsDeleting(false);
@@ -261,7 +259,7 @@ export default function KmsKeysPage() {
           <h1 className="text-2xl font-headline font-semibold">Key Management Service - Asymmetric Keys</h1>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
+          <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
           <Button onClick={handleCreateNewKey}>
@@ -383,7 +381,7 @@ export default function KmsKeysPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Strength</TableHead>
                   <TableHead>Public/Private</TableHead>
-                  <TableHead><div className="flex items-center"><Cpu className="mr-1.5 h-4 w-4 text-muted-foreground" />Crypto Engine</div></TableHead>
+                  <TableHead>Crypto Engine</TableHead>
                   <TableHead>Aliases</TableHead>
                   <TableHead>Tags</TableHead>
                   <TableHead>Related Entities</TableHead>
@@ -421,7 +419,7 @@ export default function KmsKeysPage() {
                       </TableCell>
                       <TableCell>
                         {engine ? (
-                          <CryptoEngineViewer engine={engine} />
+                          <CryptoEngineViewer engine={engine} plainIcon />
                         ) : (
                           <Badge variant="outline" className="text-xs font-normal bg-muted/40 border-muted-foreground/30">
                             {key.cryptoEngineId || 'N/A'}
@@ -597,4 +595,3 @@ export default function KmsKeysPage() {
     </div>
   );
 }
-

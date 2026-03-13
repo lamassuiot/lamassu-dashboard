@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Table,
   TableBody,
@@ -13,13 +14,18 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import type { AlertEvent, AlertSortConfig, SortableAlertColumn } from '@/app/alerts/page';
 import { Layers, ChevronDown, ChevronsUpDown, ArrowDownAZ, ArrowUpAZ, ArrowDown10, ArrowUp01 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Textarea } from '../ui/textarea';
 import { CompactDateDisplay } from '@/components/shared/DateDisplay';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
+  ssr: false,
+});
 
 interface AlertsTableProps {
   events: AlertEvent[];
   onSubscriptionClick: (subscriptionId: string) => void;
   onSubscribe: (event: AlertEvent) => void;
+  onViewAuditUser: (event: AlertEvent) => void;
   sortConfig: AlertSortConfig;
   onSort: (column: SortableAlertColumn) => void;
 }
@@ -56,7 +62,8 @@ const SortableHeader: React.FC<{
 };
 
 
-export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscriptionClick, onSubscribe, sortConfig, onSort }) => {
+export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscriptionClick, onSubscribe, onViewAuditUser, sortConfig, onSort }) => {
+  const monacoTheme = useMonacoTheme();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const handleSubscribeClick = (e: React.MouseEvent, event: AlertEvent) => {
@@ -64,15 +71,20 @@ export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscription
     onSubscribe(event);
   };
 
+  const handleViewAuditUserClick = (e: React.MouseEvent, event: AlertEvent) => {
+    e.stopPropagation();
+    onViewAuditUser(event);
+  };
+
   const toggleRow = (id: string) => {
     setExpandedRow(current => (current === id ? null : id));
   };
 
   return (
-    <div className="border rounded-lg">
+    <div className="rounded-lg">
       <Table>
-        <TableHeader>
-          <TableRow>
+        <TableHeader className="[&_tr]:border-0">
+          <TableRow className="border-0">
             <TableHead className="w-[10px]"></TableHead>{/* For expand icon */}
             <SortableHeader column="type" title="Event Type" onSort={onSort} sortConfig={sortConfig} className="w-[40%]" />
             <SortableHeader column="lastSeen" title="Last Seen" onSort={onSort} sortConfig={sortConfig} />
@@ -84,7 +96,7 @@ export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscription
         <TableBody>
           {events.map((event) => (
             <React.Fragment key={event.id}>
-              <TableRow onClick={() => toggleRow(event.id)} className="cursor-pointer">
+              <TableRow onClick={() => toggleRow(event.id)} className="cursor-pointer border-0">
                 <TableCell className="p-2">
                    <ChevronDown
                       className={cn(
@@ -125,20 +137,47 @@ export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscription
                   )}
                 </TableCell>{/*
                 */}<TableCell className="text-right">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={(e) => handleSubscribeClick(e, event)}
-                  >
-                    Subscribe
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    {event.type.toLowerCase().startsWith('audit.') && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={(e) => handleViewAuditUserClick(e, event)}
+                      >
+                        User Info
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => handleSubscribeClick(e, event)}
+                    >
+                      Subscribe
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
               {expandedRow === event.id && (
-                <TableRow>
+                <TableRow className="border-0">
                   <TableCell colSpan={6} className="p-0">
                     <div className="p-4 bg-muted/50">
-                        <Textarea value={JSON.stringify(event.payload, null, 2)} readOnly className="font-mono text-xs h-64 bg-background" />
+                      <div className="overflow-hidden rounded-md border bg-background">
+                        <MonacoEditor
+                          height="256px"
+                          language="json"
+                          value={JSON.stringify(event.payload, null, 2)}
+                          theme={monacoTheme}
+                          options={{
+                            readOnly: true,
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            fontSize: 12,
+                            lineNumbersMinChars: 3,
+                            wordWrap: 'on',
+                          }}
+                        />
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>

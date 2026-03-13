@@ -170,7 +170,10 @@ export async function downloadCrl(ski: string, accessToken: string): Promise<Arr
 export async function checkOcspStatus(targetCertPem: string, issuerCertPem: string, ocspUrl: string): Promise<OcspResponseDetails> {
     try {
         if (typeof window !== 'undefined') {
-            setEngine("webcrypto", getCrypto());
+            const webcrypto = getCrypto();
+            if (webcrypto) {
+                setEngine("webcrypto", webcrypto);
+            }
         }
 
         const parsePem = (pem: string) => {

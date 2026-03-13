@@ -5,11 +5,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, ChevronRight, Settings, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs, updateCaMetadata, fetchCaStats, revokeCa, deleteCa, parseCertificatePemDetails, updateCaStatus, reissueCa } from '@/lib/ca-data';
@@ -17,7 +17,6 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { RevocationModal } from '@/components/shared/RevocationModal';
-import { CrlCheckModal } from '@/components/shared/CrlCheckModal';
 import { DeleteCaModal } from '@/components/shared/DeleteCaModal';
 import { ReissueCaModal } from '@/components/shared/ReissueCaModal';
 
@@ -29,6 +28,8 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaStatsDisplay } from '@/components/ca/details/CaStatsDisplay';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificatesTab';
+import { ValidationAuthorityTab } from '@/components/ca/details/ValidationAuthorityTab';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 
 
 interface CaStats {
@@ -60,7 +61,6 @@ const buildCaPathToRoot = (targetCaId: string | undefined, allCAs: CA[]): CA[] =
 export default function CertificateAuthorityDetailsClient() {
   const searchParams = useSearchParams();
   const routerHook = useRouter();
-  const { toast } = useToast();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const caIdFromUrl = searchParams.get('caId');
 
@@ -74,7 +74,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const [caDetails, setCaDetails] = useState<CA | null>(null);
   const [caPathToRoot, setCaPathToRoot] = useState<CA[]>([]);
-  const [placeholderSerial, setPlaceholderSerial] = useState<string>('');
+  const placeholderSerial = '';
   const [fullChainPemString, setFullChainPemString] = useState<string>('');
 
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
@@ -89,9 +89,6 @@ export default function CertificateAuthorityDetailsClient() {
   const [caToReissue, setCaToReissue] = useState<CA | null>(null);
   const [isReissuing, setIsReissuing] = useState(false);
 
-  const [isCrlModalOpen, setIsCrlModalOpen] = useState(false);
-  const [caForCrlCheck, setCaForCrlCheck] = useState<CA | null>(null);
-
   const tabFromQuery = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<string>(tabFromQuery || "information");
 
@@ -99,6 +96,7 @@ export default function CertificateAuthorityDetailsClient() {
   const [caStats, setCaStats] = useState<CaStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [errorStats, setErrorStats] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
 
   const cryptoEngine = useMemo(() => {
     if (caDetails?.kmsKeyId && allCryptoEngines.length > 0) {
@@ -201,7 +199,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmCARevocation = async (reason: string) => {
     if (!caToRevoke || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot revoke CA. Details or authentication missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Cannot revoke CA. Details or authentication missing." });
         return;
     }
 
@@ -212,17 +210,16 @@ export default function CertificateAuthorityDetailsClient() {
         await revokeCa(caToRevoke.id, reason, user.access_token);
         // Success
         setCaDetails(prev => prev ? { ...prev, status: 'revoked' } : null);
-        toast({
+        sileo.success({
+          position: "top-center",
             title: "Certification Authority Revoked",
-            description: `Certification Authority "${caToRevoke.name}" has been successfully revoked.`,
-            variant: "default"
+            description: `Certification Authority "${caToRevoke.name}" has been successfully revoked.`
         });
 
     } catch (error: any) {
-        toast({
+        sileo.error({
             title: "Revocation Failed",
-            description: error.message,
-            variant: "destructive"
+            description: error.message
         });
     } finally {
         setIsRevoking(false);
@@ -232,7 +229,7 @@ export default function CertificateAuthorityDetailsClient() {
   
   const handleReactivateCA = async () => {
     if (!caDetails || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot reactivate CA. Details or authentication missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Cannot reactivate CA. Details or authentication missing." });
         return;
     }
 
@@ -240,16 +237,14 @@ export default function CertificateAuthorityDetailsClient() {
         await updateCaStatus(caDetails.id, 'ACTIVE', undefined, user.access_token);
         
         setCaDetails(prev => prev ? { ...prev, status: 'active' } : null);
-        toast({
+        sileo.success({
             title: "Certification Authority Re-activated",
-            description: `Certification Authority "${caDetails.name}" has been successfully re-activated.`,
-            variant: "default"
+            description: `Certification Authority "${caDetails.name}" has been successfully re-activated.`
         });
     } catch (error: any) {
-        toast({
+        sileo.error({
             title: "Re-activation Failed",
-            description: error.message,
-            variant: "destructive"
+            description: error.message
         });
     }
   };
@@ -263,7 +258,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmDeleteCA = async () => {
     if (!caToDelete || !user?.access_token) {
-        toast({ title: "Error", description: "Cannot delete CA. Details or authentication missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Cannot delete CA. Details or authentication missing." });
         return;
     }
 
@@ -272,18 +267,16 @@ export default function CertificateAuthorityDetailsClient() {
 
     try {
         await deleteCa(caToDelete.id, user.access_token);
-        toast({
+        sileo.success({
             title: "Certification Authority Deleted",
-            description: `Certification Authority "${caToDelete.name}" has been permanently deleted.`,
-            variant: "default"
+            description: `Certification Authority "${caToDelete.name}" has been permanently deleted.`
         });
         routerHook.push('/certificate-authorities'); // Redirect to the list page
 
     } catch (error: any) {
-        toast({
+        sileo.error({
             title: "Deletion Failed",
-            description: error.message,
-            variant: "destructive"
+            description: error.message
         });
     } finally {
         setIsDeleting(false);
@@ -300,7 +293,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmReissueCA = async (payload: { profile_id?: string; profile?: any }) => {
     if (!caToReissue || !user?.access_token) {
-      toast({ title: "Error", description: "Cannot reissue CA. Details or authentication missing.", variant: "destructive" });
+      sileo.error({ title: "Error", description: "Cannot reissue CA. Details or authentication missing." });
       return;
     }
 
@@ -309,18 +302,16 @@ export default function CertificateAuthorityDetailsClient() {
 
     try {
       await reissueCa(caToReissue.id, payload, user.access_token);
-      toast({
+      sileo.success({
         title: "Certification Authority Reissued",
-        description: `Certification Authority "${caToReissue.name}" has been successfully reissued.`,
-        variant: "default"
+        description: `Certification Authority "${caToReissue.name}" has been successfully reissued.`
       });
       // Reload CA data to reflect the new certificate
       loadInitialData();
     } catch (error: any) {
-      toast({
+      sileo.error({
         title: "Reissue Failed",
-        description: error.message,
-        variant: "destructive"
+        description: error.message
       });
     } finally {
       setIsReissuing(false);
@@ -328,13 +319,6 @@ export default function CertificateAuthorityDetailsClient() {
     }
   };
 
-  const handleOpenCrlModal = () => {
-    if (caDetails) {
-      setCaForCrlCheck(caDetails);
-      setIsCrlModalOpen(true);
-    }
-  };
-  
   const handleUpdateCaMetadata = async (id: string, patchOperations: PatchOperation[]) => {
     if (!user?.access_token) {
         throw new Error("User not authenticated.");
@@ -403,137 +387,221 @@ export default function CertificateAuthorityDetailsClient() {
   }
 
 
+  // Status visual helpers
+  const statusDotClass = caIsActive
+    ? 'bg-emerald-500'
+    : caDetails.status === 'revoked'
+    ? 'bg-destructive'
+    : 'bg-amber-500';
+  const statusPillClass = caIsActive
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+    : caDetails.status === 'revoked'
+    ? 'bg-destructive/10 text-destructive border-destructive/20'
+    : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800';
+  const accentBarClass = caIsActive
+    ? 'bg-primary'
+    : caDetails.status === 'revoked'
+    ? 'bg-destructive'
+    : 'bg-amber-500';
+
   return (
-    <div className="w-full">
-       <div className="flex justify-between items-center mb-4">
-        <Button variant="outline" onClick={() => routerHook.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
-      </div>
+    <div className="w-full space-y-5">
 
-      <div className="w-full mt-0">
-        <div className="p-6 pt-0 border-b">
-          <div className="flex flex-col xl:flex-row items-center justify-between gap-4">
-            <div className="flex-shrink-0 self-start xl:self-center">
-              <div className="flex items-center space-x-3">
-                <FileText className="h-8 w-8 text-primary" />
+      {/* ── Breadcrumb + actions row ── */}
+      <DetailBreadcrumbRow
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Certificate Authorities', href: '/certificate-authorities' },
+          ...caPathToRoot.slice(0, -1).map((ca) => ({
+            label: ca.name,
+            href: `/certificate-authorities/details?caId=${ca.id}`,
+          })),
+          {
+            label: (
+              <Badge variant="default" className="text-xs">
+                {caDetails.name}
+              </Badge>
+            ),
+          },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            {isCaOnHold ? (
+              <Button variant="secondary" size="sm" className="gap-2" onClick={handleReactivateCA}>
+                <ShieldAlert className="h-4 w-4" /> Re-activate
+              </Button>
+            ) : caDetails.status !== 'revoked' ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+                onClick={handleCARevocation}
+                disabled={isRevoking}
+              >
+                {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+                {isRevoking ? 'Revoking…' : 'Revoke'}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                onClick={handleDeleteCA}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {isDeleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="px-2.5">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
+                  <Shield className="mr-2 h-4 w-4" />
+                  Validation Authority
+                </DropdownMenuItem>
+                {caDetails.status !== 'revoked' && (
+                  <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Reissue CA
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
+                  disabled={!caIsActive}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Issue Certificate
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        }
+      />
+
+      {/* ── Hero header card ── */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {/* Top accent bar */}
+        <div className={cn('h-1 w-full', accentBarClass)} />
+
+        <div className="p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+
+            {/* Left: identity */}
+            <div className="flex items-start gap-4">
+              {/* Icon */}
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden">
+                {cryptoEngine
+                  ? <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
+                  : <ShieldCheck className={cn('h-7 w-7', caIsActive ? 'text-primary' : caDetails.status === 'revoked' ? 'text-destructive' : 'text-amber-500')} />
+                }
+              </div>
+
+              <div className="min-w-0 space-y-2">
                 <div>
-                    {caPathToRoot.length > 1 && (
-                      <div className="flex items-center text-sm text-muted-foreground mb-1">
-                        {caPathToRoot.slice(0, -1).map((ca, index) => (
-                          <React.Fragment key={ca.id}>
-                            <Button
-                              variant="link"
-                              className="p-0 h-auto"
-                              onClick={() => routerHook.push(`/certificate-authorities/details?caId=${ca.id}`)}
-                            >
-                              {ca.name}
-                            </Button>
-                            <ChevronRight className="h-4 w-4 mx-1" />
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    )}
-                    <h1 className="text-2xl font-headline font-semibold">{caDetails.name}</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Certification Authority ID: {caDetails.id}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      <Badge variant={statusVariant} className={cn("text-sm", statusVariant !== 'outline' ? statusColorClass : '')}>{caDetails.status.toUpperCase()}</Badge>
-                      {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
-                        <Badge variant="destructive" className="font-normal bg-red-100 dark:bg-red-900/50">
-                            Reason: {caDetails.rawApiData.certificate.revocation_reason}
-                        </Badge>
-                      )}
-                      {caDetails.caType && (
-                        <Badge variant="secondary" className="text-xs">{caDetails.caType.replace(/_/g, ' ').toUpperCase()}</Badge>
-                      )}
-                      {cryptoEngine && (
-                        <div className="border-l-2 border-border pl-2 flex items-center gap-2">
-                            <CryptoEngineViewer engine={cryptoEngine} />
-                            {caDetails.rawApiData?.certificate?.key_metadata && (
-                              <Badge variant="secondary" className="text-xs">
-                                {caDetails.rawApiData.certificate.key_metadata.type}
-                                {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}-bit`}
-                                {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
-                              </Badge>
-                            )}
-                        </div>
-                      )}
+                  <h1 className="text-2xl font-semibold tracking-tight">{caDetails.name}</h1>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">ID</span>
+                    <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
+                      {caDetails.id}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(caDetails.id);
+                        setCopiedId(true);
+                        setTimeout(() => setCopiedId(false), 2000);
+                      }}
+                    >
+                      {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                    </Button>
+                  </div>
+                </div>
 
+                {/* Badge cluster */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Status pill */}
+                  <div className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                    statusPillClass
+                  )}>
+                    <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass)} />
+                    {caDetails.status.toUpperCase()}
+                  </div>
+
+                  {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
+                    <Badge variant="outline" className="text-xs text-destructive border-destructive/30">
+                      {caDetails.rawApiData.certificate.revocation_reason}
+                    </Badge>
+                  )}
+
+                  {caDetails.caType && (
+                    <Badge variant="secondary" className="text-xs">
+                      {caDetails.caType.replace(/_/g, ' ').toUpperCase()}
+                    </Badge>
+                  )}
+
+                  {cryptoEngine && (
+                    <div className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-0.5">
+                      <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                      <span className="text-xs text-muted-foreground">{cryptoEngine.name || cryptoEngine.type}</span>
                     </div>
+                  )}
+
+                  {caDetails.rawApiData?.certificate?.key_metadata && (
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <KeyRound className="h-3 w-3" />
+                      {caDetails.rawApiData.certificate.key_metadata.type}
+                      {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
+                      {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
-            
-            <div className="flex-grow w-full xl:w-auto">
+
+            {/* Center: issued cert stats */}
+            <div className="xl:flex-1 px-6 xl:border-l">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Issued Certificates</p>
               <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
             </div>
 
           </div>
         </div>
+      </div>
 
-        <div className="px-6 py-4 border-b bg-muted/30">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={handleOpenCrlModal}>
-                <Download className="mr-2 h-4 w-4" /> Download/View CRL
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => routerHook.push(`/verification-authorities?caId=${caDetails.id}`)}
+      {/* ── Tabs ── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            {([
+              { value: 'information', icon: Info, label: 'Information' },
+              { value: 'certificate', icon: KeyRound, label: 'Certificate PEM' },
+              { value: 'metadata', icon: Lock, label: 'Metadata' },
+              { value: 'issued', icon: ListChecks, label: 'Issued Certificates' },
+              { value: 'validation-authority', icon: Shield, label: 'Validation Authority' },
+            ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
               >
-                <ShieldCheck className="mr-2 h-4 w-4" /> Go to VA Role
-              </Button>
-            </div>
-            
-            <div className="flex flex-wrap gap-2 ml-auto">
-              {isCaOnHold ? (
-                <Button variant="outline" size="sm" onClick={handleReactivateCA}>
-                  <ShieldAlert className="mr-2 h-4 w-4" />Re-activate CA
-                </Button>
-              ) : caDetails.status !== 'revoked' ? (
-                <Button variant="destructive" size="sm" onClick={handleCARevocation} disabled={isRevoking}>
-                  {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                  {isRevoking ? 'Revoking...' : 'Revoke CA'}
-                </Button>
-              ) : null}
-              {caDetails.status === 'revoked' && (
-                <Button variant="destructive" size="sm" onClick={handleDeleteCA} disabled={isDeleting}>
-                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
-                  {isDeleting ? 'Deleting...' : 'Permanently Delete'}
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4 mr-2" />
-                    More
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {caDetails.status !== 'revoked' && (
-                    <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
-                      <FileText className="mr-2 h-4 w-4" />
-                      Reissue CA
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full p-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-4 mb-6">
-            <TabsTrigger value="information"><Info className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Information</TabsTrigger>
-            <TabsTrigger value="certificate"><KeyRound className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Certificate PEM</TabsTrigger>
-            <TabsTrigger value="metadata"><Lock className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Metadata</TabsTrigger>
-            <TabsTrigger value="issued"><ListChecks className="mr-2 h-4 w-4 sm:hidden md:inline-block" />Issued Certificates</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="information">
+        <div className="mt-6 pb-6">
+          <TabsContent value="information" className="mt-0">
             <InformationTabContent
               item={caDetails}
               itemType="ca"
@@ -552,14 +620,13 @@ export default function CertificateAuthorityDetailsClient() {
             />
           </TabsContent>
 
-          <TabsContent value="certificate">
+          <TabsContent value="certificate" className="mt-0">
             <PemTabContent
               singlePemData={caDetails.pemData}
               fullChainPemData={fullChainPemString}
               itemName={caDetails.name}
               itemPathToRootCount={caPathToRoot.length}
-              toast={toast}
-              certificateChain={caPathToRoot.slice(0, -1)} // Exclude the current CA, showing only parents
+              certificateChain={caPathToRoot.slice(0, -1)}
               currentCertificate={{
                 subject: caDetails.name,
                 statusBadgeVariant: statusVariant,
@@ -569,28 +636,35 @@ export default function CertificateAuthorityDetailsClient() {
             />
           </TabsContent>
 
-          <TabsContent value="metadata">
-             <MetadataTabContent
+          <TabsContent value="metadata" className="mt-0">
+            <MetadataTabContent
               rawJsonData={caDetails.rawApiData?.metadata}
               itemName={caDetails.name}
               tabTitle="Certification Authority Metadata"
-              toast={toast}
               isEditable={true}
               itemId={caDetails.id}
               onSave={handleUpdateCaMetadata}
               onUpdateSuccess={loadInitialData}
             />
           </TabsContent>
-          
-          <TabsContent value="issued">
-            <IssuedCertificatesTab 
-              caId={caDetails.id} 
+
+          <TabsContent value="issued" className="mt-0">
+            <IssuedCertificatesTab
+              caId={caDetails.id}
               caIsActive={caIsActive}
               allCAs={allCertificateAuthoritiesData}
             />
           </TabsContent>
-        </Tabs>
-      </div>
+
+          <TabsContent value="validation-authority" className="mt-0">
+            <ValidationAuthorityTab
+              ca={caDetails}
+              allCryptoEngines={allCryptoEngines}
+            />
+          </TabsContent>
+        </div>
+      </Tabs>
+
       {caToRevoke && (
         <RevocationModal
           isOpen={isRevocationModalOpen}
@@ -626,13 +700,6 @@ export default function CertificateAuthorityDetailsClient() {
           caName={caToReissue.name}
           caExpirationDate={caToReissue.expires}
           isReissuing={isReissuing}
-        />
-      )}
-      {caForCrlCheck && (
-        <CrlCheckModal
-          isOpen={isCrlModalOpen}
-          onClose={() => setIsCrlModalOpen(false)}
-          ca={caForCrlCheck}
         />
       )}
     </div>

@@ -17,6 +17,7 @@ const createUserManager = (): UserManager | null => {
     const config = (window as any).lamassuConfig;
     const authority = config?.LAMASSU_AUTH_AUTHORITY;
     const clientId = config?.LAMASSU_AUTH_CLIENT_ID || 'frontend';
+    const monitorSession = config?.LAMASSU_AUTH_MONITOR_SESSION === true;
 
     if (!authority) {
       console.warn('LAMASSU_AUTH_AUTHORITY not found in config');
@@ -33,7 +34,7 @@ const createUserManager = (): UserManager | null => {
       scope: 'openid profile email', // Standard scopes
       userStore: new WebStorageStateStore({ store: window.localStorage }), // Persist user session
       automaticSilentRenew: true, // Proactively renew tokens
-      monitorSession: true, // Monitor for session changes with the IdP
+      monitorSession, // Opt-in: avoids CheckSessionIFrame errors when unsupported/blocked
     });
   }
   return null;

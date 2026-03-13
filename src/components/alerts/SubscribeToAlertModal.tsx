@@ -2,29 +2,35 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetDescription,
+} from '@/components/ui/sheet';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Mail, Users, Webhook, Check, ArrowLeft, Info, AlertTriangle } from 'lucide-react';
+import { Loader2, Mail, Users, Webhook, Check, ArrowLeft, Info, AlertTriangle, X } from 'lucide-react';
 import { subscribeToAlert, type SubscriptionPayload, type ApiSubscription, updateSubscription } from '@/lib/alerts-api';
 import { cn } from '@/lib/utils';
-import { Textarea } from '../ui/textarea';
 import { JSONPath } from 'jsonpath-plus';
 import { Validator } from 'jsonschema';
 import { Alert, AlertDescription as AlertDescUI } from '@/components/ui/alert';
 import { createSchema } from 'genson-js';
 import { Stepper } from '@/components/shared/Stepper';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
+    ssr: false,
+});
 
 
 interface SubscribeToAlertModalProps {
@@ -34,6 +40,8 @@ interface SubscribeToAlertModalProps {
   samplePayload: object | null;
   onSuccess: () => void;
   subscriptionToEdit?: ApiSubscription | null;
+    presentation?: 'sheet' | 'inline';
+    className?: string;
 }
 
 const channelOptions = [
@@ -57,9 +65,11 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
   samplePayload,
   onSuccess,
   subscriptionToEdit,
+    presentation = 'sheet',
+    className,
 }) => {
+  const monacoTheme = useMonacoTheme();
   const { user } = useAuth();
-  const { toast } = useToast();
   const isEditMode = !!subscriptionToEdit;
 
   const [step, setStep] = useState(1);
@@ -88,12 +98,14 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
       if (isEditMode && subscriptionToEdit) {
           // Populate from existing subscription
           const sub = subscriptionToEdit;
+          const existingWebhookUrl = sub.channel.config.webhook_url || sub.channel.config.url || '';
+          const existingWebhookMethod = sub.channel.config.webhook_method || sub.channel.config.method;
           setChannelType(sub.channel.type);
           setEmail(sub.channel.config.email || '');
-          setWebhookUrl(sub.channel.config.url || '');
-          setWebhookName(sub.channel.config.name || '');
-          setTeamsName(sub.channel.config.name || ''); // Assuming name is shared
-          setWebhookMethod(sub.channel.config.method || 'POST');
+          setWebhookUrl(existingWebhookUrl);
+          setWebhookName(sub.channel.name || '');
+          setTeamsName(sub.channel.name || '');
+          setWebhookMethod(existingWebhookMethod === 'PUT' ? 'PUT' : 'POST');
 
           if(sub.conditions && sub.conditions.length > 0) {
               const firstCond = sub.conditions[0];
@@ -205,15 +217,15 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
   const handleNext = () => {
     if(step === 1) {
         if(channelType === 'EMAIL' && !email.trim()) {
-            toast({ title: 'Validation Error', description: 'Email address is required.', variant: 'destructive' });
+            sileo.error({ title: 'Validation Error', description: 'Email address is required.' });
             return;
         }
         if(channelType === 'WEBHOOK' && (!webhookUrl.trim() || !webhookName.trim())) {
-            toast({ title: 'Validation Error', description: 'Name and Webhook URL are required.', variant: 'destructive' });
+            sileo.error({ title: 'Validation Error', description: 'Name and Webhook URL are required.' });
             return;
         }
         if(channelType === 'TEAMS_WEBHOOK' && (!webhookUrl.trim() || !teamsName.trim())) {
-            toast({ title: 'Validation Error', description: 'Name and Webhook URL are required for Teams.', variant: 'destructive' });
+            sileo.error({ title: 'Validation Error', description: 'Name and Webhook URL are required for Teams.' });
             return;
         }
     }
@@ -224,7 +236,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
 
   const handleSubmit = async () => {
     if (!eventType || !user?.access_token) {
-        toast({ title: "Error", description: "Event type or authentication is missing.", variant: "destructive" });
+        sileo.error({ title: "Error", description: "Event type or authentication is missing." });
         return;
     }
     
@@ -235,12 +247,11 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
             config = { email };
         } else if (channelType === 'WEBHOOK') {
             config = {
-                url: webhookUrl,
-                method: webhookMethod,
-                name: webhookName,
+                webhook_url: webhookUrl,
+                webhook_method: webhookMethod,
             };
         } else { // TEAMS_WEBHOOK
-            config = { url: webhookUrl, name: teamsName };
+            config = { webhook_url: webhookUrl };
         }
 
         let channelName = `${channelType.toLowerCase()}-subscription-for-${eventType}`;
@@ -272,7 +283,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
         
         onSuccess();
     } catch(e: any) {
-        toast({ title: isEditMode ? "Update Failed" : "Subscription Failed", description: e.message, variant: "destructive" });
+        sileo.error({ title: isEditMode ? "Update Failed" : "Subscription Failed", description: e.message });
     } finally {
         setIsSubmitting(false);
     }
@@ -370,26 +381,67 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                 {filterType === 'JAVASCRIPT' && (
                     <div>
                         <Label htmlFor="filter-condition-js">Javascript Function</Label>
-                        <Textarea id="filter-condition-js" value={jsFunction} onChange={e => setJsFunction(e.target.value)} rows={5} className="font-mono"/>
+                        <div id="filter-condition-js" className="mt-2 overflow-hidden rounded-md border">
+                            <MonacoEditor
+                                height="220px"
+                                language="javascript"
+                                value={jsFunction}
+                                onChange={(value) => setJsFunction(value ?? '')}
+                                theme={monacoTheme}
+                                options={{
+                                    minimap: { enabled: false },
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    fontSize: 12,
+                                    lineNumbersMinChars: 3,
+                                    wordWrap: 'on',
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
                 {filterType === 'JSON-SCHEMA' && (
                     <div>
                         <Label htmlFor="filter-condition-jsonschema">JSON Schema</Label>
-                        <Textarea id="filter-condition-jsonschema" value={jsonSchema} onChange={e => setJsonSchema(e.target.value)} rows={5} className="font-mono"/>
+                        <div id="filter-condition-jsonschema" className="mt-2 overflow-hidden rounded-md border">
+                            <MonacoEditor
+                                height="220px"
+                                language="json"
+                                value={jsonSchema}
+                                onChange={(value) => setJsonSchema(value ?? '')}
+                                theme={monacoTheme}
+                                options={{
+                                    minimap: { enabled: false },
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    fontSize: 12,
+                                    lineNumbersMinChars: 3,
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
                 {(filterType !== 'NONE') && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                         <div className="space-y-1.5">
                             <Label htmlFor="input-event">Input Event</Label>
-                             <Textarea 
-                                id="input-event"
-                                value={inputEvent}
-                                onChange={(e) => setInputEvent(e.target.value)}
-                                className="font-mono text-xs h-64"
-                                placeholder="Enter a valid JSON object..."
-                            />
+                            <div id="input-event" className="overflow-hidden rounded-md border">
+                                <MonacoEditor
+                                    height="256px"
+                                    language="json"
+                                    value={inputEvent}
+                                    onChange={(value) => setInputEvent(value ?? '')}
+                                    theme={monacoTheme}
+                                    options={{
+                                        minimap: { enabled: false },
+                                        scrollBeyondLastLine: false,
+                                        automaticLayout: true,
+                                        fontSize: 12,
+                                        lineNumbersMinChars: 3,
+                                        wordWrap: 'on',
+                                    }}
+                                />
+                            </div>
                         </div>
                         <div className="space-y-1.5">
                             <Label>Evaluation Result</Label>
@@ -458,11 +510,42 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                         <div className="space-y-1">
                             <Label className="text-muted-foreground">Condition:</Label>
                             {(filterType === 'JSON-SCHEMA' || filterType === 'JAVASCRIPT') ? (
-                                <Textarea 
-                                    value={currentCondition} 
-                                    readOnly 
-                                    className="font-mono text-xs h-28 bg-background"
-                                />
+                                filterType === 'JSON-SCHEMA' ? (
+                                    <div className="overflow-hidden rounded-md border bg-background">
+                                        <MonacoEditor
+                                            height="112px"
+                                            language="json"
+                                            value={currentCondition}
+                                            theme={monacoTheme}
+                                            options={{
+                                                readOnly: true,
+                                                minimap: { enabled: false },
+                                                scrollBeyondLastLine: false,
+                                                automaticLayout: true,
+                                                fontSize: 12,
+                                                lineNumbers: 'off',
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="overflow-hidden rounded-md border bg-background">
+                                        <MonacoEditor
+                                            height="112px"
+                                            language="javascript"
+                                            value={currentCondition}
+                                            theme={monacoTheme}
+                                            options={{
+                                                readOnly: true,
+                                                minimap: { enabled: false },
+                                                scrollBeyondLastLine: false,
+                                                automaticLayout: true,
+                                                fontSize: 12,
+                                                lineNumbers: 'off',
+                                                wordWrap: 'on',
+                                            }}
+                                        />
+                                    </div>
+                                )
                             ) : (
                                 <p className="font-mono text-xs p-2 bg-background rounded-md border">{currentCondition}</p>
                             )}
@@ -476,37 +559,71 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
     }
   }
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl lg:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Edit Subscription' : 'Subscribe to event'}</DialogTitle>
-          <DialogDescription>
-            {isEditMode ? 'Modify' : 'Get notified when'} a "<span className="font-semibold">{eventType}</span>" event occurs.
-          </DialogDescription>
-        </DialogHeader>
+    const panelContent = (
+        <>
+            <div className="border-b p-6 pb-4">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <h2 className="text-lg font-semibold">{isEditMode ? 'Edit Subscription' : 'Subscribe to event'}</h2>
+                        <p className="text-sm text-muted-foreground">{isEditMode ? 'Modify' : 'Get notified when'} this event occurs.</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Close">
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="font-normal">{eventType ?? 'Unknown event'}</Badge>
+                </div>
+            </div>
 
-        <div className="py-4">
-            <Stepper currentStep={step} steps={["Channels", "Filters", "Confirmation"]} />
-            <div className="min-h-[200px]">
-                {renderStepContent()}
+            <div className="flex-1 overflow-y-auto p-6 pt-4">
+                <Stepper currentStep={step} steps={["Channels", "Filters", "Confirmation"]} />
+                <div className="min-h-[200px]">
+                    {renderStepContent()}
+                </div>
             </div>
-        </div>
 
-        <DialogFooter className="flex justify-between w-full">
-            <div>
-                {step > 1 && <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4"/>Back</Button>}
+            <div className="flex w-full items-center justify-between border-t p-6 pt-4">
+                <div>
+                    {step > 1 && <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4"/>Back</Button>}
+                </div>
+                <div className="flex space-x-2">
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
+                    {step < 3 && <Button onClick={handleNext}>Next</Button>}
+                    {step === 3 && <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        {isEditMode ? 'Save Changes' : 'Confirm Subscription'}
+                    </Button>}
+                </div>
             </div>
-            <div className="flex space-x-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
-                {step < 3 && <Button onClick={handleNext}>Next</Button>}
-                {step === 3 && <Button onClick={handleSubmit} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                    {isEditMode ? 'Save Changes' : 'Confirm Subscription'}
-                </Button>}
-            </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+        </>
+    );
+
+    if (presentation === 'inline') {
+        if (!isOpen) return null;
+
+        return (
+            <Card className={cn("flex h-full min-h-[650px] flex-col overflow-hidden", className)}>
+                {panelContent}
+            </Card>
+        );
+    }
+
+    return (
+        <Sheet open={isOpen} onOpenChange={onOpenChange}>
+            <SheetContent side="right" className={cn("w-full sm:max-w-3xl lg:max-w-5xl p-0", className)}>
+                <SheetHeader className="sr-only">
+                    <SheetTitle>{isEditMode ? 'Edit Subscription' : 'Subscribe to event'}</SheetTitle>
+                    <SheetDescription>
+                        {isEditMode ? 'Modify' : 'Get notified when'} a "{eventType}" event occurs.
+                    </SheetDescription>
+                </SheetHeader>
+                <div className="h-full p-4">
+                    <Card className="flex h-full flex-col overflow-hidden bg-white">
+                        {panelContent}
+                    </Card>
+                </div>
+            </SheetContent>
+        </Sheet>
+    );
 };

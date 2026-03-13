@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, FileText, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { Certificate as PkijsCertificate, BasicConstraints as PkijsBasicConstraints } from "pkijs";
 import * as asn1js from "asn1js";
 import { format as formatDate } from 'date-fns';
@@ -40,7 +40,6 @@ function formatPkijsSubject(subject: any): string {
 
 export default function CreateCaImportPublicPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const { user } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,17 +85,17 @@ export default function CreateCaImportPublicPage() {
     setIsSubmitting(true);
 
     if (!user?.access_token) {
-        toast({ title: "Authentication Error", description: "You must be logged in to import a CA.", variant: "destructive" });
+        sileo.error({ title: "Authentication Error", description: "You must be logged in to import a CA." });
         setIsSubmitting(false);
         return;
     }
     if (!importedCaCertPem.trim()) {
-      toast({ title: "Validation Error", description: "Certificate PEM is required.", variant: "destructive" });
+      sileo.error({ title: "Validation Error", description: "Certificate PEM is required." });
       setIsSubmitting(false);
       return;
     }
     if (decodedImportedCertInfo?.error) {
-      toast({ title: "Certificate Error", description: "Cannot import due to invalid certificate data.", variant: "destructive" });
+      sileo.error({ title: "Certificate Error", description: "Cannot import due to invalid certificate data." });
       setIsSubmitting(false);
       return;
     }
@@ -110,16 +109,15 @@ export default function CreateCaImportPublicPage() {
     
     try {
         await importCa(payload, user.access_token);
-        toast({
+        sileo.success({
             title: "Public Certification Authority Import Successful",
-            description: `Public Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`,
-            variant: "default",
+            description: `Public Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`
         });
         router.push('/certificate-authorities');
 
     } catch (error: any) {
         console.error("Public CA Import API Error:", error);
-        toast({ title: "Import Failed", description: error.message, variant: "destructive" });
+        sileo.error({ title: "Import Failed", description: error.message });
     } finally {
         setIsSubmitting(false);
     }

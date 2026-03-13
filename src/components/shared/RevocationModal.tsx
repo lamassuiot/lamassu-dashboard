@@ -55,7 +55,14 @@ export const RevocationModal: React.FC<RevocationModalProps> = ({
   const isCaRevocationAndUnconfirmed = itemType === 'CA' && confirmationText !== itemName;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isConfirming) {
+          onClose();
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center text-xl">

@@ -84,8 +84,9 @@ export default function CertificateAuthoritiesPage() {
 
   // Filtering state
   const [filterText, setFilterText] = useState('');
-  const [selectedStatuses, setSelectedStatuses] = useState<CaStatusFilter[]>(['active', 'expired']);
-  const [selectedTypes, setSelectedTypes] = useState<CaTypeFilter[]>(['MANAGED', 'IMPORTED']);
+  const [selectedStatuses, setSelectedStatuses] = useState<CaStatusFilter[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<CaTypeFilter[]>([]);
+  const [focusedField, setFocusedField] = useState<'search' | null>(null);
 
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingCryptoEngines, setIsLoadingCryptoEngines] = useState(true);
@@ -183,59 +184,68 @@ export default function CertificateAuthoritiesPage() {
           </div>
           <p className="text-sm text-muted-foreground mb-4">Manage your Certification Authority configurations and trust stores.</p> 
 
-          <div className="flex flex-col md:flex-row gap-4 items-end mb-4">
-            <div className="flex-grow w-full space-y-1.5">
-                <Label htmlFor="ca-filter">Filter by Name</Label>
+          <div
+            className="grid items-end gap-3 mb-4 grid-cols-1 md:grid-cols-[minmax(180px,var(--col1))_minmax(210px,350px)_minmax(210px,350px)_auto]"
+            style={{
+              '--col1': focusedField === 'search' ? '2.2fr' : '0.5fr',
+              transition: 'grid-template-columns 300ms ease',
+            } as React.CSSProperties}
+          >
+            <div className="w-full min-w-0 space-y-1.5">
+                <Label htmlFor="ca-filter">Search</Label>
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
                         id="ca-filter"
-                        placeholder="e.g., My Root CA..."
+                        placeholder="Search certification authorities..."
                         value={filterText}
                         onChange={(e) => setFilterText(e.target.value)}
-                        className="pl-10"
+                        onFocus={() => setFocusedField('search')}
+                        onBlur={() => setFocusedField(null)}
+                        className="pl-10 h-9"
                     />
                 </div>
             </div>
-            <div className="w-full md:w-auto md:min-w-[200px] space-y-1.5">
-                 <Label htmlFor="status-filter">Filter by Status</Label>
+            <div className="w-full max-w-[350px] space-y-1.5">
+                 <Label htmlFor="status-filter">Status</Label>
                  <MultiSelectDropdown
                     id="status-filter"
                     options={STATUS_OPTIONS}
                     allOptionValues={STATUS_OPTIONS.map(o => o.value)}
                     selectedValues={selectedStatuses}
                     onChange={setSelectedStatuses as (selected: string[]) => void}
-                    buttonText="Filter by status..."
+                    buttonText="All Statuses"
+                    className="h-9 min-h-9"
                  />
             </div>
-            <div className="w-full md:w-auto md:min-w-[200px] space-y-1.5">
-                 <Label htmlFor="type-filter">Filter by Type</Label>
+            <div className="w-full max-w-[350px] space-y-1.5">
+                 <Label htmlFor="type-filter">Type</Label>
                  <MultiSelectDropdown
                     id="type-filter"
                     options={TYPE_OPTIONS}
                     allOptionValues={TYPE_OPTIONS.map(o => o.value)}
                     selectedValues={selectedTypes}
                     onChange={setSelectedTypes as (selected: string[]) => void}
-                    buttonText="Filter by type..."
+                    buttonText="All Types"
+                    className="h-9 min-h-9"
                  />
             </div>
-          </div>
-          
-          <div className="flex justify-end">
-             <ToggleGroup type="single" value={viewMode} onValueChange={handleViewModeChange} variant="outline" aria-label="View mode">
-              <ToggleGroupItem value="list" aria-label="List view">
+            <div className="flex items-end shrink-0 md:justify-end">
+             <ToggleGroup type="single" value={viewMode} onValueChange={handleViewModeChange} variant="outline" aria-label="View mode" className="w-full md:w-auto h-9">
+              <ToggleGroupItem value="list" aria-label="List view" className="h-9 whitespace-nowrap">
                 <List className="h-4 w-4 mr-0 sm:mr-2" />
                 <span className="hidden sm:inline">List</span>
               </ToggleGroupItem>
-              <ToggleGroupItem value="hierarchy" aria-label="Hierarchy view">
+              <ToggleGroupItem value="hierarchy" aria-label="Hierarchy view" className="h-9 whitespace-nowrap">
                 <Network className="h-4 w-4 mr-0 sm:mr-2" />
                   <span className="hidden sm:inline">Hierarchy</span>
               </ToggleGroupItem>
-                <ToggleGroupItem value="graph" aria-label="Graph view">
+                <ToggleGroupItem value="graph" aria-label="Graph view" className="h-9 whitespace-nowrap">
                 <GitFork className="h-4 w-4 mr-0 sm:mr-2" />
                   <span className="hidden sm:inline">Graph</span>
               </ToggleGroupItem>
             </ToggleGroup>
+            </div>
           </div>
         </div>
         <div className="pt-6"> 

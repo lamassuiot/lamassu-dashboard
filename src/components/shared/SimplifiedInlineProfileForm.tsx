@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { CalendarDays, ListChecks } from "lucide-react";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
+import { formatCertificateUsageLabel } from '@/lib/utils';
 
 const NESTED_CONTAINER_STYLES = "space-y-4 p-4 border rounded-md ml-4 -mt-4 bg-background";
 
@@ -56,11 +57,6 @@ export const defaultSimplifiedFormValues: SimplifiedInlineProfileFormValues = {
   validity: { type: 'Duration', durationValue: '1y' },
   keyUsages: ['CertSign', 'CRLSign'],
   extendedKeyUsages: [],
-};
-
-const toTitleCase = (str: string) => {
-  if (!str) return '';
-  return str.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (s) => s.toUpperCase());
 };
 
 interface SimplifiedInlineProfileFormProps {
@@ -138,7 +134,7 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
                               />
                             </FormControl>
                             <FormLabel className="text-sm font-normal cursor-pointer">
-                              {toTitleCase(item)}
+                              {formatCertificateUsageLabel(item)}
                             </FormLabel>
                           </FormItem>
                         )}
@@ -179,7 +175,7 @@ export const SimplifiedInlineProfileForm: React.FC<SimplifiedInlineProfileFormPr
                               />
                             </FormControl>
                             <FormLabel className="text-sm font-normal cursor-pointer">
-                              {toTitleCase(item)}
+                              {formatCertificateUsageLabel(item)}
                             </FormLabel>
                           </FormItem>
                         )}

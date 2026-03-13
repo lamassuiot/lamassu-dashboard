@@ -78,7 +78,10 @@ function formatPkijsBasicConstraints(extensions: PkijsExtension[]): string | nul
 export async function parseCsr(pem: string): Promise<DecodedCsrInfo> {
   try {
     if (typeof window !== 'undefined') {
-      setEngine("webcrypto", getCrypto());
+      const webcrypto = getCrypto();
+      if (webcrypto) {
+        setEngine("webcrypto", webcrypto);
+      }
     }
     const pemContent = pem.replace(/-----(BEGIN|END) (NEW )?CERTIFICATE REQUEST-----/g, "").replace(/\s+/g, "");
     const derBuffer = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0)).buffer;

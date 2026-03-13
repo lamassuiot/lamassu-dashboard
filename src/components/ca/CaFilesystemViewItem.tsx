@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import type { CA } from '@/lib/ca-data';
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, ChevronRight, FileSearch, FilePlus2, KeyRound, FolderTree, UploadCloud, FileText } from 'lucide-react';
+import { ShieldAlert, ChevronRight, FileSearch, FilePlus2, KeyRound, UploadCloud, FileText, HardDrive } from 'lucide-react';
 import { formatDistanceToNowStrict, isPast, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -71,7 +71,7 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({ ca, 
       IconComponent = <KeyRound className={cn("h-5 w-5 flex-shrink-0", iconColorClass)} />;
     }
   } else {
-    IconComponent = <FolderTree className={cn("h-5 w-5 flex-shrink-0", iconColorClass)} />;
+    IconComponent = <HardDrive className={cn("h-5 w-5 flex-shrink-0", iconColorClass)} />;
   }
 
 

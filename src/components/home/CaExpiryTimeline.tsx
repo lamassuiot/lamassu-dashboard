@@ -160,7 +160,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
   return (
     <>
       {hiddenItemElements}
-      <Card ref={cardRef} className={cn("shadow-lg w-full bg-[--homepage-card-background] text-primary-foreground", isFullscreen && "fixed inset-0 z-50 flex flex-col")}>
+      <Card ref={cardRef} className={cn("flex h-full w-full flex-col bg-[--homepage-card-background] text-primary-foreground shadow-lg", isFullscreen && "fixed inset-0 z-50")}>
         <CardHeader className="flex flex-row items-start justify-between">
           <div>
             <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
@@ -183,8 +183,8 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
             </Button>
           </div>
         </CardHeader>
-        <CardContent className={cn(isFullscreen && "flex-grow")}>
-          <div ref={timelineRef} className={cn("w-full", isFullscreen ? "h-full" : "h-[300px]")} />
+        <CardContent className={cn("flex-1", isFullscreen && "min-h-0")}>
+          <div ref={timelineRef} className={cn("w-full", isFullscreen ? "h-full" : "h-[320px]")} />
         </CardContent>
       </Card>
     </>

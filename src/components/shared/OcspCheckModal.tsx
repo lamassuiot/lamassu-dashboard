@@ -13,7 +13,7 @@ import type { CA } from '@/lib/ca-data';
 import { DetailItem } from './DetailItem';
 import { Badge } from '../ui/badge';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
+import { sileo } from '@/lib/toast';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib/va-api';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
@@ -72,7 +72,6 @@ interface OcspCheckModalProps {
 
 
 export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose, certificate, issuerCertificate }) => {
-    const { toast } = useToast();
     const [selectedDisplayUrl, setSelectedDisplayUrl] = useState<string>('');
     const [ocspUrl, setOcspUrl] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
@@ -125,17 +124,17 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
 
     const handleCopyPem = async (derBuffer: ArrayBuffer | null | undefined, type: 'OCSP REQUEST' | 'OCSP RESPONSE', setCopiedState: (v: boolean) => void) => {
         if (!derBuffer) {
-            toast({ title: "Error", description: "No data to copy.", variant: "destructive" });
+            sileo.error({ title: "Error", description: "No data to copy." });
             return;
         }
         try {
             const pemString = formatAsPem(arrayBufferToBase64(derBuffer), type);
             await navigator.clipboard.writeText(pemString);
             setCopiedState(true);
-            toast({ title: 'Copied!', description: `${type} PEM copied.` });
+            sileo.success({ title: 'Copied!', description: `${type} PEM copied.` });
             setTimeout(() => setCopiedState(false), 2000);
         } catch (err) {
-            toast({ title: 'Copy Failed', variant: 'destructive' });
+            sileo.error({ title: 'Copy Failed' });
         }
     };
     
@@ -158,124 +157,136 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-lg md:max-w-xl">
+            <DialogContent className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl max-h-[90vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle className="flex items-center"><ShieldCheck className="mr-2 h-6 w-6 text-primary"/>OCSP Status Check</DialogTitle>
                     <DialogDescription>
-                        Verify the revocation status of certificate <IdentifierDisplay value={certificate?.serialNumber || ''} className="text-xs" />.
+                        Verify the revocation status of certificate{' '}
+                        <span className="inline-block max-w-full align-middle">
+                            <IdentifierDisplay value={certificate?.serialNumber || ''} className="text-xs" />
+                        </span>.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="py-2 space-y-4">
-                    <div className="space-y-3">
-                        <div>
-                            <Label htmlFor="ocsp-url-select">Select a discovered URL</Label>
-                            <Select value={selectedDisplayUrl} onValueChange={handleUrlChange} disabled={isLoading || !certificate?.ocspUrls?.length}>
-                                <SelectTrigger id="ocsp-url-select">
-                                    <SelectValue placeholder="Select from certificate's AIA..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {certificate?.ocspUrls?.map(url => (
-                                        <SelectItem key={url} value={url}>{url}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                <div className="py-2 overflow-y-auto min-h-0 pr-1">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <div className="space-y-3">
+                                <div>
+                                    <Label htmlFor="ocsp-url-select">Select a discovered URL</Label>
+                                    <Select value={selectedDisplayUrl} onValueChange={handleUrlChange} disabled={isLoading || !certificate?.ocspUrls?.length}>
+                                        <SelectTrigger id="ocsp-url-select" className="w-full">
+                                            <SelectValue placeholder="Select from certificate's AIA..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {certificate?.ocspUrls?.map(url => (
+                                                <SelectItem key={url} value={url}>
+                                                    <span className="block max-w-[56ch] truncate" title={url}>{url}</span>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="relative">
+                                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="ocsp-url-input">Enter URL manually</Label>
+                                    <Input
+                                        id="ocsp-url-input"
+                                        type="text"
+                                        placeholder="http://ocsp.example.com"
+                                        value={selectedDisplayUrl}
+                                        onChange={(e) => handleUrlChange(e.target.value)}
+                                        disabled={isLoading}
+                                        className="mt-1 font-mono text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            {showHttpWarning && (
+                                <Alert variant="warning">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertTitle>Insecure URL Warning</AlertTitle>
+                                    <AlertDescription>
+                                        The provided URL uses 'http'. The request will be sent to 'https' for security reasons. This may fail if the server does not support HTTPS on this endpoint.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
+                            <Button onClick={handleSendRequest} disabled={!ocspUrl || isLoading} className="w-full">
+                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                                Send OCSP Request
+                            </Button>
                         </div>
 
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
-                        </div>
-
-                        <div>
-                            <Label htmlFor="ocsp-url-input">Enter URL manually</Label>
-                            <Input
-                                id="ocsp-url-input"
-                                type="text"
-                                placeholder="http://ocsp.example.com"
-                                value={selectedDisplayUrl}
-                                onChange={(e) => handleUrlChange(e.target.value)}
-                                disabled={isLoading}
-                                className="mt-1"
-                            />
-                        </div>
-                    </div>
-                    {showHttpWarning && (
-                        <Alert variant="warning">
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertTitle>Insecure URL Warning</AlertTitle>
-                            <AlertDescription>
-                                The provided URL uses 'http'. The request will be sent to 'https' for security reasons. This may fail if the server does not support HTTPS on this endpoint.
-                            </AlertDescription>
-                        </Alert>
-                    )}
-
-                    <Button onClick={handleSendRequest} disabled={!ocspUrl || isLoading} className="w-full">
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                        Send OCSP Request
-                    </Button>
-                </div>
-                
-                {responseDetails && (
-                    <div className="mt-4 border-t pt-4">
-                         <h4 className="text-lg font-medium mb-3">OCSP Response</h4>
-                         {responseDetails.status === 'error' ? (
-                            <Alert variant="destructive">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>{responseDetails.statusText}</AlertTitle>
-                                <AlertDescription>{responseDetails.errorDetails}</AlertDescription>
-                            </Alert>
-                         ) : (
-                            <>
-                                <div className="space-y-2">
-                                    <DetailItem label="Status" value={<StatusDisplay details={responseDetails} />} />
-                                    <DetailItem label="Responder ID" value={responseDetails.responderId} isMono />
-                                    <DetailItem label="Produced At" value={responseDetails.producedAt} />
-                                    <DetailItem label="This Update" value={responseDetails.thisUpdate} />
-                                    <DetailItem label="Next Update" value={responseDetails.nextUpdate} />
-                                    {responseDetails.status === 'revoked' && (
+                        <div className="border rounded-md p-4 min-h-[280px]">
+                            <h4 className="text-lg font-medium mb-3">OCSP Response</h4>
+                            {responseDetails ? (
+                                responseDetails.status === 'error' ? (
+                                    <Alert variant="destructive">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <AlertTitle>{responseDetails.statusText}</AlertTitle>
+                                        <AlertDescription>{responseDetails.errorDetails}</AlertDescription>
+                                    </Alert>
+                                ) : (
                                     <>
-                                        <DetailItem label="Revocation Time" value={responseDetails.revocationTime} />
-                                        <DetailItem label="Revocation Reason" value={responseDetails.revocationReason} />
+                                        <div className="space-y-2">
+                                            <DetailItem label="Status" value={<StatusDisplay details={responseDetails} />} />
+                                            <DetailItem label="Responder ID" value={responseDetails.responderId} isMono />
+                                            <DetailItem label="Produced At" value={responseDetails.producedAt} />
+                                            <DetailItem label="This Update" value={responseDetails.thisUpdate} />
+                                            <DetailItem label="Next Update" value={responseDetails.nextUpdate} />
+                                            {responseDetails.status === 'revoked' && (
+                                            <>
+                                                <DetailItem label="Revocation Time" value={responseDetails.revocationTime} />
+                                                <DetailItem label="Revocation Reason" value={responseDetails.revocationReason} />
+                                            </>
+                                            )}
+                                        </div>
+                                        <div className="mt-6 space-y-4">
+                                            <div className="space-y-2">
+                                                <Label className="font-semibold">Download/Copy Request</Label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                    <Button variant="secondary" size="sm" onClick={() => handleCopyPem(responseDetails?.requestDer, 'OCSP REQUEST', setRequestPemCopied)} disabled={!responseDetails?.requestDer}>
+                                                        {requestPemCopied ? <Check className="mr-2 h-4 w-4 text-green-500"/> : <Copy className="mr-2 h-4 w-4"/>}
+                                                        {requestPemCopied ? 'Copied' : 'Copy PEM'}
+                                                    </Button>
+                                                    <Button variant="secondary" size="sm" onClick={() => downloadPem(responseDetails?.requestDer, 'OCSP REQUEST', 'ocsp_request.pem')} disabled={!responseDetails?.requestDer}>
+                                                        <Download className="mr-2 h-4 w-4"/>Download PEM
+                                                    </Button>
+                                                    <Button variant="secondary" size="sm" onClick={() => downloadFile(responseDetails?.requestDer!, 'ocsp_request.der', 'application/ocsp-request')} disabled={!responseDetails?.requestDer}>
+                                                        <Download className="mr-2 h-4 w-4"/>Download DER
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="font-semibold">Download/Copy Response</Label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                    <Button variant="secondary" size="sm" onClick={() => handleCopyPem(responseDetails?.responseDer, 'OCSP RESPONSE', setResponsePemCopied)} disabled={!responseDetails?.responseDer}>
+                                                        {responsePemCopied ? <Check className="mr-2 h-4 w-4 text-green-500"/> : <Copy className="mr-2 h-4 w-4"/>}
+                                                        {responsePemCopied ? 'Copied' : 'Copy PEM'}
+                                                    </Button>
+                                                    <Button variant="secondary" size="sm" onClick={() => downloadPem(responseDetails?.responseDer, 'OCSP RESPONSE', 'ocsp_response.pem')} disabled={!responseDetails?.responseDer}>
+                                                        <Download className="mr-2 h-4 w-4"/>Download PEM
+                                                    </Button>
+                                                    <Button variant="secondary" size="sm" onClick={() => downloadFile(responseDetails?.responseDer!, 'ocsp_response.der', 'application/ocsp-response')} disabled={!responseDetails?.responseDer}>
+                                                        <Download className="mr-2 h-4 w-4"/>Download DER
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </>
-                                    )}
-                                </div>
-                                <div className="mt-6 space-y-4">
-                                    <div className="space-y-2">
-                                        <Label className="font-semibold">Download/Copy Request</Label>
-                                        <div className="flex space-x-2">
-                                            <Button variant="outline" size="sm" onClick={() => handleCopyPem(responseDetails?.requestDer, 'OCSP REQUEST', setRequestPemCopied)} disabled={!responseDetails?.requestDer}>
-                                                {requestPemCopied ? <Check className="mr-2 h-4 w-4 text-green-500"/> : <Copy className="mr-2 h-4 w-4"/>}
-                                                {requestPemCopied ? 'Copied' : 'Copy PEM'}
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => downloadPem(responseDetails?.requestDer, 'OCSP REQUEST', 'ocsp_request.pem')} disabled={!responseDetails?.requestDer}>
-                                                <Download className="mr-2 h-4 w-4"/>Download PEM
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => downloadFile(responseDetails?.requestDer!, 'ocsp_request.der', 'application/ocsp-request')} disabled={!responseDetails?.requestDer}>
-                                                <Download className="mr-2 h-4 w-4"/>Download DER
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="font-semibold">Download/Copy Response</Label>
-                                        <div className="flex space-x-2">
-                                            <Button variant="outline" size="sm" onClick={() => handleCopyPem(responseDetails?.responseDer, 'OCSP RESPONSE', setResponsePemCopied)} disabled={!responseDetails?.responseDer}>
-                                                {responsePemCopied ? <Check className="mr-2 h-4 w-4 text-green-500"/> : <Copy className="mr-2 h-4 w-4"/>}
-                                                {responsePemCopied ? 'Copied' : 'Copy PEM'}
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => downloadPem(responseDetails?.responseDer, 'OCSP RESPONSE', 'ocsp_response.pem')} disabled={!responseDetails?.responseDer}>
-                                                <Download className="mr-2 h-4 w-4"/>Download PEM
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => downloadFile(responseDetails?.responseDer!, 'ocsp_response.der', 'application/ocsp-response')} disabled={!responseDetails?.responseDer}>
-                                                <Download className="mr-2 h-4 w-4"/>Download DER
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </>
-                         )}
+                                )
+                            ) : (
+                                <p className="text-sm text-muted-foreground">Send an OCSP request from the left panel to view the result here.</p>
+                            )}
+                        </div>
                     </div>
-                )}
+                </div>
 
 
                 <DialogFooter>
