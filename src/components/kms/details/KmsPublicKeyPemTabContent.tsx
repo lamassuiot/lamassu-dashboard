@@ -28,15 +28,15 @@ export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps>
     try {
       // Extract the base64 part (remove PEM headers/footers and whitespace)
       const base64Data = publicKeyPem
-        .replace(/-----BEGIN PUBLIC KEY-----/g, '')
-        .replace(/-----END PUBLIC KEY-----/g, '')
-        .replace(/\s+/g, '');
+        .replaceAll('-----BEGIN PUBLIC KEY-----', '')
+        .replaceAll('-----END PUBLIC KEY-----', '')
+        .replaceAll(/\s+/g, '');
       
       // Convert base64 to binary
       const binaryString = atob(base64Data);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+        bytes[i] = binaryString.codePointAt(i) ?? 0;
       }
 
       // Calculate SHA256 hash

@@ -51,7 +51,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
         ]);
 
         const pkcs7Buffer = pkcs7Result.data as ArrayBuffer;
-        const pkcs7Base64 = btoa(new Uint8Array(pkcs7Buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+        const pkcs7Base64 = btoa(new Uint8Array(pkcs7Buffer).reduce((data, byte) => data + String.fromCodePoint(byte), ''));
         setPkcs7Certs(pkcs7Base64);
         setPemCerts((pemResult.data as string) || '');
       } catch (e: any) {

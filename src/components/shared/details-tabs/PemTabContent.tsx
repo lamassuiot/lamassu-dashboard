@@ -95,7 +95,7 @@ const PemBlock: React.FC<PemBlockProps> = ({
     {pem ? (
       <ScrollArea className={cn('w-full', height)}>
         <pre className="p-4 text-xs font-mono leading-relaxed text-foreground/80 whitespace-pre-wrap break-all">
-          {pem.replace(/\\n/g, '\n')}
+          {pem.replaceAll('\\n', '\n')}
         </pre>
       </ScrollArea>
     ) : (
@@ -119,11 +119,11 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
   const [certificateCopied, setCertificateCopied] = useState(false);
   const [chainCopied, setChainCopied] = useState(false);
 
-  const sanitizeFilename = (name: string) => name.replace(/[^a-z0-9_.-]/gi, '_').toLowerCase();
+  const sanitizeFilename = (name: string) => name.replaceAll(/[^a-z0-9_.-]/gi, '_').toLowerCase();
 
   const copyText = async (text: string, label: string, setCopied: (v: boolean) => void) => {
     try {
-      await navigator.clipboard.writeText(text.replace(/\\n/g, '\n'));
+      await navigator.clipboard.writeText(text.replaceAll('\\n', '\n'));
       setCopied(true);
       sileo.success({ title: 'Copied!', description: `${label} copied to clipboard.` });
       setTimeout(() => setCopied(false), 2000);
@@ -199,7 +199,7 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x">
             <ScrollArea className="h-96">
               <pre className="p-4 text-xs font-mono leading-relaxed text-foreground/80 whitespace-pre-wrap break-all">
-                {fullChainPemData!.replace(/\\n/g, '\n')}
+                {fullChainPemData!.replaceAll('\\n', '\n')}
               </pre>
             </ScrollArea>
 

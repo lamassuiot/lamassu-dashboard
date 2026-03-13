@@ -117,7 +117,7 @@ export default function CreateKmsKeyPage() {
         try {
             let size: number = 0;
             if (keyType === 'RSA') {
-                size = parseInt(rsaKeySize, 10);
+                size = Number.parseInt(rsaKeySize, 10);
             } else if (keyType === 'ECDSA') {
                 const sizeMap: { [key: string]: number } = { 'P-256': 256, 'P-384': 384, 'P-521': 521 };
                 size = sizeMap[ecdsaCurve];

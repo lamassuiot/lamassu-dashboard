@@ -94,9 +94,9 @@ export interface DecodedCsrInfo {
 export async function parseCsr(pem: string): Promise<DecodedCsrInfo> {
   try {
     const pemContent = pem
-      .replace(/-----(BEGIN|END) (NEW )?CERTIFICATE REQUEST-----/g, "")
-      .replace(/\s+/g, "");
-    const derBuffer = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0)).buffer;
+      .replaceAll(/-----(BEGIN|END) (NEW )?CERTIFICATE REQUEST-----/g, "")
+      .replaceAll(/\s+/g, "");
+    const derBuffer = Uint8Array.from(atob(pemContent), c => c.codePointAt(0) ?? 0).buffer;
     const asn1 = asn1js.fromBER(derBuffer);
     if (asn1.offset === -1) throw new Error("Cannot parse CSR. Invalid ASN.1 structure.");
 

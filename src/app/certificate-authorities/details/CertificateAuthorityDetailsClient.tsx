@@ -544,7 +544,7 @@ export default function CertificateAuthorityDetailsClient() {
 
                   {caDetails.caType && (
                     <Badge variant="secondary" className="text-xs">
-                      {caDetails.caType.replace(/_/g, ' ').toUpperCase()}
+                      {caDetails.caType.replaceAll('_', ' ').toUpperCase()}
                     </Badge>
                   )}
 

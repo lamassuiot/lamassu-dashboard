@@ -49,7 +49,7 @@ export const KmsCliOperations: React.FC<KmsCliOperationsProps> = ({
         if (algorithm === 'ECDSA') {
             if (!algo.startsWith('ECDSA')) return true;
 
-            const keySizeNumber = parseInt(size);
+            const keySizeNumber = Number.parseInt(size, 10);
 
             switch (keySizeNumber) {
                 case 256: return algo !== 'ECDSA_SHA_256';
@@ -110,7 +110,7 @@ export const KmsCliOperations: React.FC<KmsCliOperationsProps> = ({
     // Generate bearer token export command
     const bearerTokenExport = `export BEARER_TOKEN="${user?.access_token || 'YOUR_ACCESS_TOKEN_HERE'}"`;
 
-    const keyAliasSanitized = keyAlias.replace(/\s+/g, '_');
+    const keyAliasSanitized = keyAlias.replaceAll(/\s+/g, '_');
     const kmsUrl = getPublicAPIUrl().replace(/^https?:\/\//, "");
 
     // Generate config file content with dynamic values
@@ -379,11 +379,11 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-muted-foreground">
+                                    <label htmlFor="kms-cli-algorithm" className="text-sm font-medium text-muted-foreground">
                                         Algorithm
                                     </label>
                                     <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
-                                        <SelectTrigger>
+                                        <SelectTrigger id="kms-cli-algorithm">
                                             <SelectValue placeholder="Select algorithm" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -397,11 +397,11 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-muted-foreground">
+                                    <label htmlFor="kms-cli-input-type" className="text-sm font-medium text-muted-foreground">
                                         Input Type
                                     </label>
                                     <Select value={inputType} onValueChange={setInputType}>
-                                        <SelectTrigger>
+                                        <SelectTrigger id="kms-cli-input-type">
                                             <SelectValue placeholder="Select input type" />
                                         </SelectTrigger>
                                         <SelectContent>

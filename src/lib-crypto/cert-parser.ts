@@ -169,11 +169,11 @@ export async function parseCertificatePemDetails(pem: string): Promise<ParsedCer
 
   try {
     const pemString = pem
-      .replace(/-----(BEGIN|END) CERTIFICATE-----/g, "")
-      .replace(/\s+/g, "");
+      .replaceAll(/-----(BEGIN|END) CERTIFICATE-----/g, "")
+      .replaceAll(/\s+/g, "");
     const binaryString = window.atob(pemString);
     const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.codePointAt(i) ?? 0;
 
     const asn1 = asn1js.fromBER(bytes.buffer);
     if (asn1.offset === -1) {

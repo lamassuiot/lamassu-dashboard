@@ -10,12 +10,12 @@ export function ipToBuffer(ip: string): ArrayBuffer | null {
     parts.length === 4 &&
     parts.every(
       (p) =>
-        !isNaN(parseInt(p, 10)) &&
-        parseInt(p, 10) >= 0 &&
-        parseInt(p, 10) <= 255,
+        !Number.isNaN(Number.parseInt(p, 10)) &&
+        Number.parseInt(p, 10) >= 0 &&
+        Number.parseInt(p, 10) <= 255,
     )
   ) {
-    return new Uint8Array(parts.map((p) => parseInt(p, 10))).buffer;
+    return new Uint8Array(parts.map((p) => Number.parseInt(p, 10))).buffer;
   }
 
   if (ip.includes(":")) {
@@ -25,7 +25,7 @@ export function ipToBuffer(ip: string): ArrayBuffer | null {
       const buffer = new Uint8Array(16);
       let offset = 0;
       for (const group of hexGroups) {
-        const value = parseInt(group, 16);
+        const value = Number.parseInt(group, 16);
         buffer[offset++] = (value >> 8) & 0xff;
         buffer[offset++] = value & 0xff;
       }
@@ -44,7 +44,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = "";
   const bytes = new Uint8Array(buffer);
   for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+    binary += String.fromCodePoint(bytes[i]);
   }
   return window.btoa(binary);
 }

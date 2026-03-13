@@ -372,7 +372,7 @@ export default function KmsKeyDetailsClient() {
         // Normalise the algorithm string from the API.
         // The API may return "MLDSA", "MLDSA_65", "ML-DSA-65", etc.
         // We normalise dashes → underscores first, then classify.
-        const algoUpper = apiKey.algorithm.toUpperCase().replace(/-/g, '_');
+        const algoUpper = apiKey.algorithm.toUpperCase().replaceAll('-', '_');
         let normalizedAlgorithm: KmsKeyDetailed['algorithm'];
         if (algoUpper === 'RSA') normalizedAlgorithm = 'RSA';
         else if (algoUpper === 'ECDSA') normalizedAlgorithm = 'ECDSA';
@@ -388,7 +388,7 @@ export default function KmsKeyDetailsClient() {
           if (!['44', '65', '87'].includes(sizeStr)) {
             const variantMatch = algoUpper.match(/(?:MLDSA|ML_DSA)[_]?(\d+)/);
             if (variantMatch && ['44', '65', '87'].includes(variantMatch[1])) {
-              resolvedKeySize = parseInt(variantMatch[1], 10);
+              resolvedKeySize = Number.parseInt(variantMatch[1], 10);
             }
           }
         }

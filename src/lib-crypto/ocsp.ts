@@ -72,10 +72,10 @@ function formatResponderId(responderID: any): string {
 }
 
 function parsePem(pem: string): ArrayBuffer {
-  const pemString = pem.replace(/-----(BEGIN|END) CERTIFICATE-----/g, "").replace(/\s+/g, "");
+  const pemString = pem.replaceAll(/-----(BEGIN|END) CERTIFICATE-----/g, "").replaceAll(/\s+/g, "");
   const binary = window.atob(pemString);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.codePointAt(i) ?? 0;
   return bytes.buffer;
 }
 

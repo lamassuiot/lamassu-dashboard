@@ -488,7 +488,7 @@ export default function CertificateDetailsClient() { // Renamed component
                   <span className="text-xs font-medium text-muted-foreground">SN</span>
                   <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[320px]">
                     {(() => {
-                      const clean = certificateDetails.serialNumber.replace(/[\s:-]/g, '');
+                      const clean = certificateDetails.serialNumber.replaceAll(/[\s:-]/g, '');
                       if (identifierMode === 'with-separators') {
                         return clean.match(/.{1,2}/g)?.join(':') ?? clean;
                       }
@@ -500,7 +500,7 @@ export default function CertificateDetailsClient() { // Renamed component
                     size="sm"
                     className="h-6 w-6 p-0 shrink-0"
                     onClick={() => {
-                      navigator.clipboard.writeText(certificateDetails.serialNumber.replace(/[:\-]/g, ''));
+                      navigator.clipboard.writeText(certificateDetails.serialNumber.replaceAll(/[:\-]/g, ''));
                       setCopiedSn(true);
                       setTimeout(() => setCopiedSn(false), 2000);
                     }}
