@@ -113,42 +113,30 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
         </div>
       ) : undefined}
     >
-      {canEdit || !isEmpty ? (
-        <div className="space-y-2">
-          <div className="overflow-hidden rounded-lg border">
-            <Editor
-              height={EDITOR_HEIGHT}
-              defaultLanguage="json"
-              value={content}
-              onChange={(value) => {
-                setContent(value || '');
-                if (jsonError) setJsonError(null);
-              }}
-              theme={monacoTheme}
-              options={{
-                minimap: { enabled: false },
-                automaticLayout: true,
-                readOnly: !canEdit,
-                domReadOnly: !canEdit,
-                cursorStyle: 'line',
-                lineNumbers: 'on',
-                scrollBeyondLastLine: false,
-              }}
-            />
-          </div>
-          {jsonError && <Alert variant="destructive"><AlertDescription>{jsonError}</AlertDescription></Alert>}
+      <div className="space-y-2">
+        <div className="overflow-hidden rounded-lg border">
+          <Editor
+            height={EDITOR_HEIGHT}
+            defaultLanguage="json"
+            value={content}
+            onChange={(value) => {
+              setContent(value || '');
+              if (jsonError) setJsonError(null);
+            }}
+            theme={monacoTheme}
+            options={{
+              minimap: { enabled: false },
+              automaticLayout: true,
+              readOnly: !canEdit,
+              domReadOnly: !canEdit,
+              cursorStyle: 'line',
+              lineNumbers: 'on',
+              scrollBeyondLastLine: false,
+            }}
+          />
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/10 py-16 text-center">
-          <div className="rounded-full bg-muted p-4">
-            <FileJson className="h-8 w-8 text-muted-foreground/50" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-muted-foreground">No metadata</p>
-            <p className="text-xs text-muted-foreground/60">This item has no custom metadata attached yet.</p>
-          </div>
-        </div>
-      )}
+        {jsonError && <Alert variant="destructive"><AlertDescription>{jsonError}</AlertDescription></Alert>}
+      </div>
     </DetailSectionCard>
   );
 };

@@ -8,7 +8,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle, Database, Link as LinkIcon, Copy, Check, Settings, Lock, Edit, Delete } from "lucide-react";
+import { ArrowLeft, KeyRound, Info, FileText, ShieldCheck, FileSignature, Loader2, AlertTriangle, PenTool, BookText, X as XIcon, Terminal, Tag, PlusCircle, Link as LinkIcon, Copy, Check, Settings, Lock, Edit, Delete } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,7 +26,7 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import * as asn1js from 'asn1js';
 import * as pkijs from 'pkijs';
 import { CertificationRequest, AlgorithmIdentifier } from 'pkijs';
-import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, type PatchOperation } from '@/lib/kms-data';
+import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, updateKeyMetadata, type PatchOperation } from '@/lib/kms-data';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { KmsCliOperations } from '@/components/kms/details/KmsCliOperations';
@@ -36,6 +36,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 
 // Monaco Editor dynamic import
 const Editor = dynamic(() => import('@monaco-editor/react'), { 
@@ -390,6 +391,15 @@ export default function KmsKeyDetailsClient() {
     // Restore original tags
     setKeyTags([...originalTags]);
     setIsEditingTags(false);
+  };
+
+  const handleUpdateMetadata = async (itemId: string, patchOperations: PatchOperation[]) => {
+    if (!user?.access_token) {
+      throw new Error('Authentication token is missing.');
+    }
+
+    await updateKeyMetadata(itemId, patchOperations, user.access_token);
+    await fetchKeyData();
   };
 
   // --- CLI Operations Handlers ---
@@ -1972,42 +1982,15 @@ export default function KmsKeyDetailsClient() {
 
           {/* Metadata Tab */}
           <TabsContent value="metadata" className="mt-0">
-            <Card className="overflow-hidden rounded-xl shadow-sm">
-              <CardHeader className="border-b py-4">
-                <CardTitle className="flex items-center text-lg">
-                  <Database className="mr-3 h-5 w-5 text-primary" />
-                  Key Metadata
-                </CardTitle>
-                <CardDescription>Additional metadata associated with this key.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                {keyDetails.metadata && Object.keys(keyDetails.metadata).length > 0 ? (
-                  <div className="border rounded-md overflow-hidden">
-                    <Editor
-                      height="500px"
-                      defaultLanguage="json"
-                      value={JSON.stringify(keyDetails.metadata, null, 2)}
-                      theme={monacoTheme}
-                      options={{
-                        readOnly: true,
-                        minimap: { enabled: false },
-                        automaticLayout: true,
-                        scrollBeyondLastLine: false,
-                        fontSize: 13,
-                        lineNumbers: 'on',
-                        renderWhitespace: 'selection',
-                        folding: true,
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Database className="mx-auto h-12 w-12 opacity-20 mb-3" />
-                    <p className="text-sm">No metadata associated with this key</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <MetadataTabContent
+              rawJsonData={keyDetails.metadata}
+              itemName={keyDetails.alias || keyDetails.id}
+              tabTitle="Key Metadata"
+              isEditable={true}
+              itemId={keyDetails.id}
+              onSave={handleUpdateMetadata}
+              onUpdateSuccess={fetchKeyData}
+            />
           </TabsContent>
         </div>
       </Tabs>

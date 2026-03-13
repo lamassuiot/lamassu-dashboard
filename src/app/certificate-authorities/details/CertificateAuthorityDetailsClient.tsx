@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Download, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
+import { ArrowLeft, FileText, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +17,6 @@ import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { RevocationModal } from '@/components/shared/RevocationModal';
-import { CrlCheckModal } from '@/components/shared/CrlCheckModal';
 import { DeleteCaModal } from '@/components/shared/DeleteCaModal';
 import { ReissueCaModal } from '@/components/shared/ReissueCaModal';
 
@@ -89,9 +88,6 @@ export default function CertificateAuthorityDetailsClient() {
   const [isReissueModalOpen, setIsReissueModalOpen] = useState(false);
   const [caToReissue, setCaToReissue] = useState<CA | null>(null);
   const [isReissuing, setIsReissuing] = useState(false);
-
-  const [isCrlModalOpen, setIsCrlModalOpen] = useState(false);
-  const [caForCrlCheck, setCaForCrlCheck] = useState<CA | null>(null);
 
   const tabFromQuery = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<string>(tabFromQuery || "information");
@@ -323,13 +319,6 @@ export default function CertificateAuthorityDetailsClient() {
     }
   };
 
-  const handleOpenCrlModal = () => {
-    if (caDetails) {
-      setCaForCrlCheck(caDetails);
-      setIsCrlModalOpen(true);
-    }
-  };
-  
   const handleUpdateCaMetadata = async (id: string, patchOperations: PatchOperation[]) => {
     if (!user?.access_token) {
         throw new Error("User not authenticated.");
@@ -472,10 +461,6 @@ export default function CertificateAuthorityDetailsClient() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={handleOpenCrlModal}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Download / View CRL
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
                   <Shield className="mr-2 h-4 w-4" />
                   Validation Authority
@@ -715,13 +700,6 @@ export default function CertificateAuthorityDetailsClient() {
           caName={caToReissue.name}
           caExpirationDate={caToReissue.expires}
           isReissuing={isReissuing}
-        />
-      )}
-      {caForCrlCheck && (
-        <CrlCheckModal
-          isOpen={isCrlModalOpen}
-          onClose={() => setIsCrlModalOpen(false)}
-          ca={caForCrlCheck}
         />
       )}
     </div>

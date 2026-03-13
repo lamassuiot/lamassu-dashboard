@@ -258,3 +258,25 @@ export async function updateKeyTags(keyId: string, tags: string[], accessToken: 
         throw new Error(errorMessage);
     }
 }
+
+export async function updateKeyMetadata(keyId: string, patchOperations: PatchOperation[], accessToken: string): Promise<void> {
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/metadata`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ patches: patchOperations }),
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to update key metadata. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Metadata update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for key metadata update:", e);
+        }
+        throw new Error(errorMessage);
+    }
+}

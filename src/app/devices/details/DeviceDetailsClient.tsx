@@ -13,7 +13,7 @@ import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } fr
 import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { CompactDateDisplay, DateDisplay } from '@/components/shared/DateDisplay';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { DISPLAY_DATE_FORMAT } from '@/lib/config';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from 'lucide-react';
@@ -667,17 +667,15 @@ export default function DeviceDetailsClient() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   Device details, identity lifecycle, and certificate history.
                 </p>
+                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  <span>Created</span>
+                  <span className="text-border">·</span>
+                  <DateDisplay date={device.creation_timestamp} formatString={DISPLAY_DATE_FORMAT} showRelative={true} className="text-xs" />
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <DeviceStatusBadge status={device.status as any} />
-                <Badge variant="outline" className="text-xs">
-                  Created{' '}
-                  <CompactDateDisplay
-                    date={device.creation_timestamp}
-                    formatString="dd MMM yyyy, HH:mm"
-                    className="inline"
-                  />
-                </Badge>
                 {device.dms_owner ? (
                   <Badge variant="outline" className="text-xs">
                     Managed
@@ -745,46 +743,31 @@ export default function DeviceDetailsClient() {
 
         <div className="mt-6 pb-6">
         <TabsContent value="timeline" className="mt-0">
-          <Card className="overflow-hidden rounded-xl shadow-sm">
-            <CardHeader className="border-b py-4">
-              <CardTitle className="flex items-center text-lg">
-                <Clock className="mr-3 h-5 w-5 text-primary" />
-                Device Event Timeline
-              </CardTitle>
-              <CardDescription>Chronological record of significant events for this device and its identity.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-6">
-              {timelineEvents.length > 0 ? (
-                <>
-                <div className="relative pl-4">
-                  <div className="absolute left-[calc(0.75rem-1px)] top-2 bottom-2 w-0.5 bg-border -translate-x-1/2 z-0"></div>
-                  
-                  <ul className="space-y-0">
-                    {timelineEvents.map((event, index) => (
-                      <TimelineEventItem 
-                        key={event.id} 
-                        event={event} 
-                        isLastItem={index === timelineEvents.length -1} 
-                        onRevoke={handleOpenRevokeModal}
-                        onReactivate={handleReactivateCertificate}
-                      />
-                    ))}
-                  </ul>
+          {timelineEvents.length > 0 ? (
+            <>
+              <ul className="space-y-0">
+                {timelineEvents.map((event, index) => (
+                  <TimelineEventItem
+                    key={event.id}
+                    event={event}
+                    isLastItem={index === timelineEvents.length - 1}
+                    onRevoke={handleOpenRevokeModal}
+                    onReactivate={handleReactivateCertificate}
+                  />
+                ))}
+              </ul>
+              {allRawEvents.length > timelineDisplayCount && (
+                <div className="flex justify-center mt-4">
+                  <Button onClick={handleLoadMoreTimeline} variant="outline" disabled={isTimelineLoading}>
+                    {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Load More Events
+                  </Button>
                 </div>
-                {allRawEvents.length > timelineDisplayCount && (
-                  <div className="flex justify-center mt-4">
-                      <Button onClick={handleLoadMoreTimeline} variant="outline" disabled={isTimelineLoading}>
-                          {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                          Load More Events
-                      </Button>
-                  </div>
-                )}
-                </>
-              ) : (
-                <p className="py-8 text-center text-muted-foreground">No events recorded for this device.</p>
               )}
-            </CardContent>
-          </Card>
+            </>
+          ) : (
+            <p className="py-8 text-center text-muted-foreground">No events recorded for this device.</p>
+          )}
         </TabsContent>
         
         <TabsContent value="certificatesHistory" className="mt-0">
