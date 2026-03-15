@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Code, FormInput, Workflow } from 'lucide-react';
+import { Code, FormInput, Workflow, ListChecks } from 'lucide-react';
 import { PolicyBuilderJSON } from './PolicyBuilderJSON';
 import { PolicyBuilderForm } from './PolicyBuilderForm';
 import { PolicyBuilderFlow } from './PolicyBuilderFlow';
@@ -25,14 +25,17 @@ export function PolicyBuilder({ rules, onChange, error }: PolicyBuilderProps) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Policy Rules</CardTitle>
+    <Card className="overflow-hidden rounded-xl shadow-sm">
+      <CardHeader className="border-b py-4">
+        <CardTitle className="flex items-center text-lg">
+          <ListChecks className="mr-3 h-5 w-5 text-primary" />
+          Policy Rules
+        </CardTitle>
         <CardDescription>
-          Define access rules using JSON, a form builder, or visual flow diagram
+          Define access rules using the form builder, JSON editor, or visual flow diagram
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="form" className="flex items-center gap-2">

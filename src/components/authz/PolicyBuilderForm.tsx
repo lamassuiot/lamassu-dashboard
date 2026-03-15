@@ -14,16 +14,23 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Card,
-  CardContent,
-} from '@/components/ui/card';
-import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Plus, Trash2, AlertCircle, ChevronRight, X, Shield, Link2, User, Zap, ChevronsUpDown } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  AlertCircle,
+  ChevronRight,
+  X,
+  Shield,
+  Link2,
+  User,
+  Zap,
+  ChevronsUpDown,
+} from 'lucide-react';
 import type { EntityAddress, Rule, RelationRule, SchemaDefinition } from '@/types/authz';
 import { getSchemas } from '@/lib/authz-api';
 import { findSchemaByAddress, normalizeEntityAddress, toQualifiedEntityType } from '@/lib/policy-format';
@@ -70,7 +77,6 @@ function EntitySelector({
   const [query, setQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Build option list
   const filteredSchemas = filterByParentEntityType
     ? schemas.filter((s) =>
         Object.values(s.relations || {}).some(
@@ -89,7 +95,6 @@ function EntitySelector({
       a.schemaName.localeCompare(b.schemaName) || a.entityType.localeCompare(b.entityType)
     );
 
-  // Group by schemaName for display
   const groups = options.reduce<Record<string, SchemaDefinition[]>>((acc, s) => {
     (acc[s.schemaName] ??= []).push(s);
     return acc;
@@ -104,7 +109,6 @@ function EntitySelector({
         : placeholder;
   const displaySub = schemaName && schemaName !== '*' ? schemaName : undefined;
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -251,16 +255,38 @@ function ActionPills({ available, selected, onToggle }: ActionPillsProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SectionHeader
+// RuleSection — titled section within a rule editor
 // ─────────────────────────────────────────────────────────────────────────────
-function SectionHeader({ icon, title, description }: { icon: React.ReactNode; title: string; description?: string }) {
+function RuleSection({
+  icon,
+  title,
+  description,
+  children,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-start gap-2">
-      <span className="mt-0.5 text-muted-foreground">{icon}</span>
-      <div>
-        <p className="text-sm font-semibold text-foreground leading-tight">{title}</p>
-        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+    <div className="py-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted mt-0.5">
+            <span className="text-muted-foreground [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold leading-tight">{title}</p>
+            {description && (
+              <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+            )}
+          </div>
+        </div>
+        {action}
       </div>
+      <div className="pl-[34px]">{children}</div>
     </div>
   );
 }
@@ -322,13 +348,23 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
       )}
 
       {rules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-14 border-2 border-dashed rounded-xl bg-muted/20 gap-3">
-          <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-            <Shield className="h-5 w-5 text-muted-foreground" />
+        <button
+          type="button"
+          onClick={addRule}
+          className="w-full rounded-xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-accent/20 transition-colors p-8 text-center group"
+        >
+          <div className="flex flex-col items-center gap-2.5 text-muted-foreground group-hover:text-foreground transition-colors">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted group-hover:bg-primary/10 transition-colors">
+              <Shield className="h-5 w-5 group-hover:text-primary transition-colors" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">No rules defined yet</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Click to add your first access rule
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground font-medium">No rules defined yet</p>
-          <p className="text-xs text-muted-foreground/70">Add a rule to start configuring access control</p>
-        </div>
+        </button>
       ) : (
         <Accordion
           type="single"
@@ -338,48 +374,86 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
           onValueChange={setOpenAccordionValue}
         >
           {rules.map((rule, index) => {
-            const hasEntity = rule.schemaName || rule.entityType;
-            const entityLabel = hasEntity
-              ? (rule.entityType || '?')
-              : 'Unconfigured';
+            const hasEntity = !!(rule.schemaName && rule.entityType);
+            const hasActions = rule.actions.length > 0;
+            const hasRelations = rule.relations.length > 0;
+            const hasGrants = (rule.directGrants?.length ?? 0) > 0;
+            const entityLabel = hasEntity ? (rule.entityType || '?') : 'New Rule';
             const entitySub = rule.schemaName && rule.schemaName !== '*' ? rule.schemaName : undefined;
+
+            // Status indicator
+            const statusColor = !hasEntity
+              ? 'bg-muted-foreground/30'
+              : !hasActions
+                ? 'bg-amber-400'
+                : 'bg-green-500';
+
             return (
               <AccordionItem
                 key={index}
                 value={`rule-${index}`}
-                className="border rounded-lg px-4 bg-card shadow-sm"
+                className="overflow-hidden rounded-xl border bg-card shadow-sm"
               >
-                <AccordionTrigger className="hover:no-underline py-3.5 gap-3">
-                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <Badge variant="secondary" className="tabular-nums shrink-0 font-mono text-xs">
-                      #{index + 1}
-                    </Badge>
-                    <span className="flex items-baseline gap-1.5 min-w-0">
-                      <span className={cn('text-sm font-semibold truncate', !hasEntity && 'text-muted-foreground italic')}>
+                <AccordionTrigger className="hover:no-underline px-4 py-3.5 gap-3 hover:bg-muted/30 transition-colors [&>svg]:shrink-0">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* Status dot */}
+                    <span className={cn('h-2 w-2 rounded-full shrink-0', statusColor)} />
+
+                    {/* Rule number */}
+                    <span className="text-xs font-bold tabular-nums text-muted-foreground/60 shrink-0 w-5 text-right">
+                      {index + 1}
+                    </span>
+
+                    {/* Entity label */}
+                    <span className="flex items-baseline gap-1.5 min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          'text-sm font-semibold truncate',
+                          !hasEntity && 'text-muted-foreground italic font-normal'
+                        )}
+                      >
                         {entityLabel}
                       </span>
                       {entitySub && (
-                        <span className="text-xs text-muted-foreground truncate shrink-0">{entitySub}</span>
+                        <span className="text-xs text-muted-foreground truncate shrink-0">
+                          {entitySub}
+                        </span>
                       )}
                     </span>
-                    {rule.namespace && (
-                      <Badge variant="outline" className="text-[10px] shrink-0">{rule.namespace}</Badge>
-                    )}
-                    <div className="flex items-center gap-1 ml-auto shrink-0">
-                      {rule.actions.length > 0 && (
-                        <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-primary/90">
-                          {rule.actions.length} action{rule.actions.length !== 1 ? 's' : ''}
+
+                    {/* Summary badges */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {rule.namespace && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                          {rule.namespace}
                         </Badge>
                       )}
-                      {(rule.directGrants?.length ?? 0) > 0 && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          {rule.directGrants!.length} grant{rule.directGrants!.length !== 1 ? 's' : ''}
+                      {hasActions && (
+                        <Badge
+                          variant="default"
+                          className="text-[10px] px-1.5 py-0 bg-primary/90 gap-1"
+                        >
+                          <Zap className="h-2.5 w-2.5" />
+                          {rule.actions.length}
+                        </Badge>
+                      )}
+                      {hasRelations && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                          <Link2 className="h-2.5 w-2.5" />
+                          {rule.relations.length}
+                        </Badge>
+                      )}
+                      {hasGrants && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                          <User className="h-2.5 w-2.5" />
+                          {rule.directGrants!.length}
                         </Badge>
                       )}
                     </div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="pb-4">
+
+                <AccordionContent className="px-4 pb-0 border-t">
                   <RuleEditor
                     rule={rule}
                     onChange={(updated) => updateRule(index, updated)}
@@ -394,7 +468,12 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
         </Accordion>
       )}
 
-      <Button onClick={addRule} className="w-full border-dashed" size="sm" variant="outline">
+      <Button
+        onClick={addRule}
+        className="w-full border-dashed"
+        size="sm"
+        variant="outline"
+      >
         <Plus className="mr-2 h-4 w-4" />
         Add Rule
       </Button>
@@ -455,7 +534,10 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
   const addRelation = () => {
     onChange({
       ...rule,
-      relations: [...rule.relations, { to: { schemaName: '', entityType: '' }, via: '', actions: [], relations: [] }],
+      relations: [
+        ...rule.relations,
+        { to: { schemaName: '', entityType: '' }, via: '', actions: [], relations: [] },
+      ],
     });
   };
 
@@ -470,14 +552,13 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
   };
 
   return (
-    <div className="space-y-5 pt-2">
-      {/* ── Entity ── */}
-      <div className="space-y-2">
-        <SectionHeader
-          icon={<Shield className="h-3.5 w-3.5" />}
-          title="Target Entity"
-          description="Which entity type this rule applies to. Use * to match all."
-        />
+    <div className="divide-y">
+      {/* ── Target Entity ── */}
+      <RuleSection
+        icon={<Shield />}
+        title="Target Entity"
+        description="Which entity type this rule applies to. Use * to match all."
+      >
         <EntitySelector
           schemas={schemas}
           schemaName={rule.schemaName}
@@ -486,94 +567,109 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
           placeholder={loadingSchemas ? 'Loading schemas…' : 'Select entity type…'}
           onSelect={(sn, et) => {
             const schema = findSchemaByAddress(schemas, { schemaName: sn, entityType: et });
-            onChange({ ...rule, schemaName: sn, entityType: et, namespace: schema?.namespace || rule.namespace, actions: [] });
+            onChange({
+              ...rule,
+              schemaName: sn,
+              entityType: et,
+              namespace: schema?.namespace || rule.namespace,
+              actions: [],
+            });
           }}
           error={!rule.schemaName || !rule.entityType ? 'Required' : undefined}
         />
-      </div>
+      </RuleSection>
 
-      <div className="border-t" />
-
-      {/* ── Actions ── */}
-      <div className="space-y-2">
-        <SectionHeader
-          icon={<Zap className="h-3.5 w-3.5" />}
-          title="Allowed Actions"
-          description={
-            !rule.schemaName || !rule.entityType
-              ? 'Select an entity first'
-              : availableActions.length === 0
-                ? 'No actions available for this entity'
-                : undefined
-          }
-        />
+      {/* ── Allowed Actions ── */}
+      <RuleSection
+        icon={<Zap />}
+        title="Allowed Actions"
+        description={
+          !rule.schemaName || !rule.entityType
+            ? 'Select an entity first to see available actions'
+            : availableActions.length === 0
+              ? 'No actions available for this entity type'
+              : 'Toggle the actions this rule permits'
+        }
+      >
         {rule.schemaName && rule.entityType && availableActions.length > 0 && (
           <ActionPills available={availableActions} selected={rule.actions} onToggle={toggleAction} />
         )}
-        {rule.actions.length === 0 && rule.schemaName && rule.entityType && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">No actions selected — rule will not grant access</p>
+        {rule.actions.length === 0 && rule.schemaName && rule.entityType && availableActions.length > 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+            No actions selected — this rule will not grant any access
+          </p>
         )}
-      </div>
-
-      <div className="border-t" />
+      </RuleSection>
 
       {/* ── Direct Grants ── */}
-      <div className="space-y-2">
-        <SectionHeader
-          icon={<User className="h-3.5 w-3.5" />}
-          title="Direct Grants"
-          description="Principal IDs that are directly granted access (optional)."
-        />
-        <div className="flex gap-2">
-          <Input
-            value={grantInput}
-            onChange={(e) => setGrantInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGrant(); } }}
-            placeholder="Enter principal ID and press Enter…"
-            className="h-8 text-sm"
-          />
-          <Button onClick={addGrant} size="sm" variant="outline" className="h-8 shrink-0">
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-        {(rule.directGrants?.length ?? 0) > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {rule.directGrants!.map((grant) => (
-              <span
-                key={grant}
-                className="inline-flex items-center gap-1 rounded-full border bg-secondary/50 px-2.5 py-0.5 text-xs font-medium text-secondary-foreground"
-              >
-                {grant}
-                <button
-                  type="button"
-                  onClick={() => removeGrant(grant)}
-                  className="ml-0.5 rounded-full hover:text-destructive transition-colors"
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </span>
-            ))}
+      <RuleSection
+        icon={<User />}
+        title="Direct Grants"
+        description="Principal IDs explicitly granted access by this rule (optional)."
+      >
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              value={grantInput}
+              onChange={(e) => setGrantInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addGrant();
+                }
+              }}
+              placeholder="Enter a principal ID and press Enter…"
+              className="h-8 text-sm font-mono"
+            />
+            <Button onClick={addGrant} size="sm" variant="outline" className="h-8 shrink-0">
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
           </div>
-        )}
-      </div>
-
-      <div className="border-t" />
+          {(rule.directGrants?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {rule.directGrants!.map((grant) => (
+                <span
+                  key={grant}
+                  className="inline-flex items-center gap-1 rounded-full border bg-secondary/50 px-2.5 py-0.5 text-xs font-mono text-secondary-foreground"
+                >
+                  {grant}
+                  <button
+                    type="button"
+                    onClick={() => removeGrant(grant)}
+                    className="ml-0.5 rounded-full hover:text-destructive transition-colors"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </RuleSection>
 
       {/* ── Relations ── */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <SectionHeader
-            icon={<Link2 className="h-3.5 w-3.5" />}
-            title="Relations"
-            description="Access granted via related entities. Wildcards not allowed here."
-          />
-          <Button onClick={addRelation} size="sm" variant="outline" className="h-7 text-xs shrink-0">
-            <Plus className="mr-1.5 h-3 w-3" />
+      <RuleSection
+        icon={<Link2 />}
+        title="Relations"
+        description="Grant access via related entities. Wildcards are not permitted here."
+        action={
+          <Button
+            onClick={addRelation}
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs shrink-0"
+          >
+            <Plus className="mr-1 h-3 w-3" />
             Add Relation
           </Button>
-        </div>
-        {rule.relations.length > 0 && (
-          <div className="space-y-2 mt-1">
+        }
+      >
+        {rule.relations.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">
+            No relations configured — access is direct only.
+          </p>
+        ) : (
+          <div className="space-y-2">
             {rule.relations.map((relation, index) => (
               <RelationEditor
                 key={index}
@@ -587,11 +683,16 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
             ))}
           </div>
         )}
-      </div>
+      </RuleSection>
 
       {/* ── Delete ── */}
-      <div className="flex justify-end pt-2 border-t">
-        <Button onClick={onDelete} variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 text-xs">
+      <div className="py-3 flex justify-end">
+        <Button
+          onClick={onDelete}
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 text-xs"
+        >
           <Trash2 className="mr-1.5 h-3 w-3" />
           Delete Rule
         </Button>
@@ -612,7 +713,14 @@ interface RelationEditorProps {
   parentEntity: EntityAddress;
 }
 
-function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEntity }: RelationEditorProps) {
+function RelationEditor({
+  relation,
+  onChange,
+  onDelete,
+  depth,
+  schemas,
+  parentEntity,
+}: RelationEditorProps) {
   const normalizedParentEntityType = parentEntity.entityType;
 
   const entitiesPointingToParent = schemas.filter((schema) =>
@@ -633,17 +741,15 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
   const hasEntityWildcard = selectedTargetAddress.entityType.includes('*');
   const hasViaWildcard = relation.via.includes('*');
 
-  const availableRestrictedSchemas = Array.from(
-    new Set(availableTargetEntities.map((e) => e.schemaName))
-  ).sort();
-
   const targetSchema = selectedTargetSchema;
   const availableActions = targetSchema
     ? [...(targetSchema.atomicActions || []), ...(targetSchema.globalActions || [])]
     : [];
 
   const targetEntityData = availableTargetEntities.find(
-    (e) => e.schemaName === selectedTargetAddress.schemaName && e.entityType === targetSchema?.entityType
+    (e) =>
+      e.schemaName === selectedTargetAddress.schemaName &&
+      e.entityType === targetSchema?.entityType
   );
   const relationsForTarget = targetEntityData ? targetEntityData.relations : [];
 
@@ -657,7 +763,10 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
   const addNestedRelation = () => {
     onChange({
       ...relation,
-      relations: [...(relation.relations || []), { to: '', via: '', actions: [], relations: [] }],
+      relations: [
+        ...(relation.relations || []),
+        { to: '', via: '', actions: [], relations: [] },
+      ],
     });
   };
   const updateNestedRelation = (index: number, updated: RelationRule) => {
@@ -666,129 +775,170 @@ function RelationEditor({ relation, onChange, onDelete, depth, schemas, parentEn
     onChange({ ...relation, relations: newRelations });
   };
   const deleteNestedRelation = (index: number) => {
-    onChange({ ...relation, relations: relation.relations?.filter((_, i) => i !== index) || [] });
+    onChange({
+      ...relation,
+      relations: relation.relations?.filter((_, i) => i !== index) || [],
+    });
   };
 
   const noEntitiesAvailable = availableTargetEntities.length === 0;
 
+  // Accent colors per depth
+  const depthAccent = [
+    'border-l-sky-400 dark:border-l-sky-600',
+    'border-l-violet-400 dark:border-l-violet-600',
+    'border-l-emerald-400 dark:border-l-emerald-600',
+  ][Math.min(depth, 2)];
+
   return (
     <div
       className={cn(
-        'rounded-lg border bg-muted/20 p-3 space-y-3',
-        depth > 0 && 'ml-4 border-l-2 border-l-primary/30'
+        'rounded-lg border bg-muted/20 overflow-hidden',
+        depth > 0 && 'ml-4'
       )}
     >
-      {/* Header row */}
-      <div className="flex items-center justify-between">
+      {/* Relation header */}
+      <div className={cn('flex items-center justify-between px-3 py-2 border-b border-l-2', depthAccent)}>
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <ChevronRight className="h-3 w-3" />
           {depth === 0 ? 'Relation' : `Nested relation (level ${depth})`}
+          {selectedTargetAddress.entityType && (
+            <>
+              <span className="text-muted-foreground/40 mx-0.5">·</span>
+              <span className="font-mono text-foreground">{selectedTargetAddress.entityType}</span>
+              {relation.via && (
+                <>
+                  <span className="text-muted-foreground/40 mx-0.5">via</span>
+                  <span className="font-mono text-foreground">{relation.via}</span>
+                </>
+              )}
+            </>
+          )}
         </div>
-        <Button onClick={onDelete} variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive">
+        <Button
+          onClick={onDelete}
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+        >
           <X className="h-3 w-3" />
         </Button>
       </div>
 
-      {noEntitiesAvailable ? (
-        <p className="text-xs text-muted-foreground italic py-1">
-          No entities have a relation pointing to{' '}
-          <span className="font-mono">{toQualifiedEntityType(parentEntity)}</span>
-        </p>
-      ) : (
-        <>
-          {/* Target entity + via on the same row */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Target entity *</Label>
-              <EntitySelector
-                schemas={schemas}
-                schemaName={selectedTargetAddress.schemaName}
-                entityType={selectedTargetAddress.entityType}
-                filterByParentEntityType={normalizedParentEntityType}
-                placeholder="Select target…"
-                onSelect={(sn, et) =>
-                  onChange({ ...relation, to: { schemaName: sn, entityType: et }, via: '', actions: [] })
-                }
-                error={
-                  hasSchemaWildcard || hasEntityWildcard
-                    ? 'Wildcards not allowed here'
-                    : !selectedTargetAddress.schemaName || !selectedTargetAddress.entityType
-                      ? 'Required'
-                      : undefined
-                }
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Via relation *</Label>
-              {!selectedTargetAddress.entityType ? (
-                <div className="h-9 flex items-center px-3 text-xs text-muted-foreground italic border rounded-md bg-muted/30">
-                  Select target first
-                </div>
-              ) : relationsForTarget.length === 0 ? (
-                <div className="h-9 flex items-center px-3 text-xs text-muted-foreground italic border rounded-md bg-muted/30">
-                  No relations to {selectedTargetQualified}
-                </div>
-              ) : (
-                <Select
-                  value={relation.via}
-                  onValueChange={(value) => onChange({ ...relation, via: value })}
-                >
-                  <SelectTrigger className={cn('h-9 text-sm', hasViaWildcard && 'border-destructive')}>
-                    <SelectValue placeholder="Select relation…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {relationsForTarget.map((r) => (
-                      <SelectItem key={r.name} value={r.name}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {hasViaWildcard && <p className="text-xs text-destructive">Wildcards not allowed</p>}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Allowed actions *</Label>
-            {!selectedTargetAddress.entityType ? (
-              <p className="text-xs text-muted-foreground italic">Select target entity first</p>
-            ) : availableActions.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">No actions for {selectedTargetQualified}</p>
-            ) : (
-              <ActionPills available={availableActions} selected={relation.actions} onToggle={toggleAction} />
-            )}
-          </div>
-
-          {/* Nested relations */}
-          {depth < 3 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Nested relations</Label>
-                <Button onClick={addNestedRelation} size="sm" variant="ghost" className="h-6 text-xs px-2">
-                  <Plus className="h-3 w-3 mr-1" /> Add nested
-                </Button>
+      <div className="p-3 space-y-3">
+        {noEntitiesAvailable ? (
+          <p className="text-xs text-muted-foreground italic py-1">
+            No entities have a relation pointing to{' '}
+            <span className="font-mono">{toQualifiedEntityType(parentEntity)}</span>
+          </p>
+        ) : (
+          <>
+            {/* Target entity + via */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Target entity *</Label>
+                <EntitySelector
+                  schemas={schemas}
+                  schemaName={selectedTargetAddress.schemaName}
+                  entityType={selectedTargetAddress.entityType}
+                  filterByParentEntityType={normalizedParentEntityType}
+                  placeholder="Select target…"
+                  onSelect={(sn, et) =>
+                    onChange({ ...relation, to: { schemaName: sn, entityType: et }, via: '', actions: [] })
+                  }
+                  error={
+                    hasSchemaWildcard || hasEntityWildcard
+                      ? 'Wildcards not allowed here'
+                      : !selectedTargetAddress.schemaName || !selectedTargetAddress.entityType
+                        ? 'Required'
+                        : undefined
+                  }
+                />
               </div>
-              {relation.relations && relation.relations.length > 0 && (
-                <div className="space-y-2">
-                  {relation.relations.map((nested, index) => (
-                    <RelationEditor
-                      key={index}
-                      relation={nested}
-                      onChange={(updated) => updateNestedRelation(index, updated)}
-                      onDelete={() => deleteNestedRelation(index)}
-                      depth={depth + 1}
-                      schemas={schemas}
-                      parentEntity={selectedTargetAddress}
-                    />
-                  ))}
-                </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Via relation *</Label>
+                {!selectedTargetAddress.entityType ? (
+                  <div className="h-9 flex items-center px-3 text-xs text-muted-foreground italic border rounded-md bg-muted/30">
+                    Select target first
+                  </div>
+                ) : relationsForTarget.length === 0 ? (
+                  <div className="h-9 flex items-center px-3 text-xs text-muted-foreground italic border rounded-md bg-muted/30">
+                    No relations to {selectedTargetQualified}
+                  </div>
+                ) : (
+                  <Select
+                    value={relation.via}
+                    onValueChange={(value) => onChange({ ...relation, via: value })}
+                  >
+                    <SelectTrigger className={cn('h-9 text-sm', hasViaWildcard && 'border-destructive')}>
+                      <SelectValue placeholder="Select relation…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {relationsForTarget.map((r) => (
+                        <SelectItem key={r.name} value={r.name}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {hasViaWildcard && <p className="text-xs text-destructive">Wildcards not allowed</p>}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Allowed actions *</Label>
+              {!selectedTargetAddress.entityType ? (
+                <p className="text-xs text-muted-foreground italic">Select target entity first</p>
+              ) : availableActions.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">
+                  No actions for {selectedTargetQualified}
+                </p>
+              ) : (
+                <ActionPills
+                  available={availableActions}
+                  selected={relation.actions}
+                  onToggle={toggleAction}
+                />
               )}
             </div>
-          )}
-        </>
-      )}
+
+            {/* Nested relations */}
+            {depth < 3 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Nested relations</Label>
+                  <Button
+                    onClick={addNestedRelation}
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-xs px-2"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add nested
+                  </Button>
+                </div>
+                {relation.relations && relation.relations.length > 0 && (
+                  <div className="space-y-2">
+                    {relation.relations.map((nested, index) => (
+                      <RelationEditor
+                        key={index}
+                        relation={nested}
+                        onChange={(updated) => updateNestedRelation(index, updated)}
+                        onDelete={() => deleteNestedRelation(index)}
+                        depth={depth + 1}
+                        schemas={schemas}
+                        parentEntity={selectedTargetAddress}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

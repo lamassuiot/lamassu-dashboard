@@ -15,8 +15,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Plus, Trash2, Loader2, AlertCircle, Info } from 'lucide-react';
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Loader2,
+  AlertCircle,
+  Info,
+  ShieldCheck,
+  UserCheck,
+  CheckCircle2,
+  UserCog,
+  Settings2,
+  Lock,
+} from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 import { createPrincipal } from '@/lib/authz-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
@@ -28,6 +42,43 @@ import type {
   X509CaTrustIdentityType,
 } from '@/types/authz';
 
+type SupportedPrincipalType = Extract<PrincipalType, 'oidc' | 'x509'>;
+
+const PRINCIPAL_TYPE_CONFIG: Record<
+  SupportedPrincipalType,
+  {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    short: string;
+    description: string;
+    iconColor: string;
+    iconBg: string;
+    selectedBorder: string;
+    selectedBg: string;
+  }
+> = {
+  oidc: {
+    icon: UserCheck,
+    label: 'OpenID Connect',
+    short: 'OIDC',
+    description: 'Authenticate users via identity providers using JWT claims',
+    iconColor: 'text-violet-600',
+    iconBg: 'bg-violet-100 dark:bg-violet-950/50',
+    selectedBorder: 'border-violet-400 dark:border-violet-600',
+    selectedBg: 'bg-violet-50/60 dark:bg-violet-950/20',
+  },
+  x509: {
+    icon: ShieldCheck,
+    label: 'X.509 Certificate',
+    short: 'X.509',
+    description: 'Authenticate devices or services via mTLS client certificates',
+    iconColor: 'text-sky-600',
+    iconBg: 'bg-sky-100 dark:bg-sky-950/50',
+    selectedBorder: 'border-sky-400 dark:border-sky-600',
+    selectedBg: 'bg-sky-50/60 dark:bg-sky-950/20',
+  },
+};
+
 export default function NewPrincipalPage() {
   const router = useRouter();
   const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
@@ -37,7 +88,7 @@ export default function NewPrincipalPage() {
   // Basic principal fields
   const [principalId, setPrincipalId] = useState(crypto.randomUUID());
   const [name, setName] = useState('');
-  const [type, setType] = useState<PrincipalType>('oidc');
+  const [type, setType] = useState<SupportedPrincipalType>('oidc');
   const [active, setActive] = useState(true);
   const [description, setDescription] = useState('');
 
@@ -140,7 +191,6 @@ export default function NewPrincipalPage() {
     e.preventDefault();
     setError(null);
 
-    // Validation
     if (!name.trim()) {
       setError('Principal name is required');
       return;
@@ -178,12 +228,8 @@ export default function NewPrincipalPage() {
       setSubmitting(true);
 
       let authConfig: any = {};
-      if (type === 'api_key') {
-        authConfig = { apiKeyHash: '' };
-      } else if (type === 'oidc') {
-        authConfig = {
-          claims: claims,
-        };
+      if (type === 'oidc') {
+        authConfig = { claims };
       } else if (type === 'x509') {
         const selectedCaPem = selectedCa?.rawApiData?.certificate?.certificate;
         const resolvedCaTrustValue = await deriveCaTrustValue();
@@ -215,11 +261,11 @@ export default function NewPrincipalPage() {
 
       const principalData: any = {
         id: principalId,
-        name: name,
+        name,
         description: description.trim(),
-        type: type,
-        authConfig: authConfig,
-        active: active,
+        type,
+        authConfig,
+        active,
       };
 
       await createPrincipal(principalData);
@@ -231,111 +277,119 @@ export default function NewPrincipalPage() {
   };
 
   const renderOidcForm = () => (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-medium">Claims</h3>
-            <p className="text-sm text-muted-foreground">
-              Define claim conditions for principal identification
-            </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Define claim conditions used to match the JWT of an incoming authentication request.
+        </p>
+        <Button type="button" variant="outline" size="sm" onClick={handleAddClaim} className="shrink-0 ml-4">
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Add Claim
+        </Button>
+      </div>
+
+      {claims.length === 0 && (
+        <button
+          type="button"
+          onClick={handleAddClaim}
+          className="w-full rounded-xl border-2 border-dashed border-border hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50/30 dark:hover:bg-violet-950/10 transition-colors p-6 text-center group"
+        >
+          <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:text-violet-600 transition-colors">
+            <div className="h-9 w-9 rounded-lg bg-accent flex items-center justify-center group-hover:bg-violet-100 dark:group-hover:bg-violet-950/50 transition-colors">
+              <Plus className="h-4 w-4" />
+            </div>
+            <p className="text-sm font-medium">Add your first claim condition</p>
+            <p className="text-xs">At least one claim is required to identify this principal</p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={handleAddClaim}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Claim
-          </Button>
-        </div>
+        </button>
+      )}
 
-        {claims.length === 0 && (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              No claims configured. Add at least one claim to identify this principal.
-            </AlertDescription>
-          </Alert>
-        )}
-
+      <div className="space-y-3">
         {claims.map((claim, index) => (
-          <Card key={index}>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <h4 className="text-sm font-medium">Claim {index + 1}</h4>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveClaim(index)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Claim Name <span className="text-destructive">*</span></Label>
-                    <Input
-                      placeholder="sub, email, groups..."
-                      value={claim.claim}
-                      onChange={(e) => handleUpdateClaim(index, 'claim', e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Operator</Label>
-                    <Select
-                      value={claim.operator}
-                      onValueChange={(value: 'equals' | 'contains' | 'matches') =>
-                        handleUpdateClaim(index, 'operator', value)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="equals">Equals</SelectItem>
-                        <SelectItem value="contains">Contains</SelectItem>
-                        <SelectItem value="matches">Matches (Regex)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Value <span className="text-destructive">*</span></Label>
-                    <Input
-                      placeholder={
-                        claim.operator === 'matches'
-                          ? '^[a-z]+@example\\.com$'
-                          : 'Claim value...'
-                      }
-                      value={claim.value}
-                      onChange={(e) => handleUpdateClaim(index, 'value', e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {claim.operator === 'matches' && (
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertDescription>
-                      Using regex pattern matching. Ensure your pattern is valid.
-                    </AlertDescription>
-                  </Alert>
-                )}
+          <div key={index} className="relative rounded-xl border bg-card overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-violet-400 dark:bg-violet-600" />
+            <div className="p-4 pl-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Condition {index + 1}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleRemoveClaim(index)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
-            </CardContent>
-          </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">
+                    Claim Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    placeholder="sub, email, groups…"
+                    value={claim.claim}
+                    onChange={(e) => handleUpdateClaim(index, 'claim', e.target.value)}
+                    required
+                    className="font-mono text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Operator</Label>
+                  <Select
+                    value={claim.operator}
+                    onValueChange={(value: 'equals' | 'contains' | 'matches') =>
+                      handleUpdateClaim(index, 'operator', value)
+                    }
+                  >
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="equals">Equals</SelectItem>
+                      <SelectItem value="contains">Contains</SelectItem>
+                      <SelectItem value="matches">Matches (Regex)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">
+                    Value <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    placeholder={
+                      claim.operator === 'matches' ? '^[a-z]+@example\\.com$' : 'Claim value…'
+                    }
+                    value={claim.value}
+                    onChange={(e) => handleUpdateClaim(index, 'value', e.target.value)}
+                    required
+                    className="font-mono text-sm"
+                  />
+                </div>
+              </div>
+
+              {claim.operator === 'matches' && (
+                <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  Regex pattern — ensure it is valid before saving.
+                </p>
+              )}
+            </div>
+          </div>
         ))}
       </div>
     </div>
   );
 
   const renderX509Form = () => (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="caTrustIdentityType">
+    <div className="space-y-5">
+      <div className="space-y-1.5">
+        <Label htmlFor="caTrustIdentityType" className="text-sm">
           CA Identity Type <span className="text-destructive">*</span>
         </Label>
         <Select
@@ -350,40 +404,61 @@ export default function NewPrincipalPage() {
             <SelectItem value="authority_key_id">Authority Key Identifier (AKI)</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Select how the trusted CA is identified for certificate matching
         </p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="ca-selector-button">
+      <div className="space-y-1.5">
+        <Label className="text-sm">
           Certification Authority <span className="text-destructive">*</span>
         </Label>
-        <Button
-          id="ca-selector-button"
+        <button
           type="button"
-          variant="outline"
-          className="w-full justify-start text-left font-normal"
           onClick={handleOpenCaSelector}
+          className={cn(
+            'w-full rounded-xl border-2 border-dashed p-4 text-left transition-all',
+            'hover:border-sky-300 dark:hover:border-sky-700 hover:bg-sky-50/30 dark:hover:bg-sky-950/10',
+            selectedCa
+              ? 'border-sky-300 dark:border-sky-700 bg-sky-50/40 dark:bg-sky-950/20'
+              : 'border-border'
+          )}
         >
-          {selectedCa ? selectedCa.name : 'Select Certification Authority'}
-        </Button>
-        {(caTrustValue || selectedCa) && (
-          <p className="text-xs text-muted-foreground break-all">
-            {caTrustIdentityType === 'fingerprint'
-              ? `SHA-256: ${caTrustValue || 'Not available for selected CA'}`
-              : `AKI: ${selectedCa?.authorityKeyId || caTrustValue}`}
-          </p>
-        )}
-        <p className="text-sm text-muted-foreground">
-          {caTrustIdentityType === 'fingerprint'
-            ? 'The SHA-256 fingerprint of the DER-encoded CA certificate'
-            : 'The Authority Key Identifier (AKI) of the trusted CA'}
-        </p>
+          {selectedCa ? (
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                <ShieldCheck className="h-4 w-4 text-sky-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{selectedCa.name}</p>
+                {caTrustValue && (
+                  <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+                    {caTrustValue}
+                  </p>
+                )}
+              </div>
+              <span className="ml-auto shrink-0 text-xs text-sky-600 font-medium">Change</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent">
+                <Plus className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Select a Certification Authority</p>
+                <p className="text-xs mt-0.5">
+                  {caTrustIdentityType === 'fingerprint'
+                    ? 'SHA-256 fingerprint will be derived automatically'
+                    : 'Authority Key Identifier (AKI) will be resolved automatically'}
+                </p>
+              </div>
+            </div>
+          )}
+        </button>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="matchMode">Match Mode</Label>
+      <div className="space-y-1.5">
+        <Label htmlFor="matchMode" className="text-sm">Match Mode</Label>
         <Select
           value={matchMode}
           onValueChange={(value: X509AuthConfig['match_mode']) => setMatchMode(value)}
@@ -397,19 +472,16 @@ export default function NewPrincipalPage() {
             <SelectItem value="cn_and_ca">Common Name (CN) + CA</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground">
-          {matchMode === 'any_from_ca' &&
-            'Trust any certificate issued by the specified CA'}
-          {matchMode === 'serial_and_ca' &&
-            'Match specific certificate by serial number and CA'}
-          {matchMode === 'cn_and_ca' &&
-            'Match certificates by Common Name pattern (supports wildcards like *.example.com)'}
+        <p className="text-xs text-muted-foreground">
+          {matchMode === 'any_from_ca' && 'Trust any certificate issued by the specified CA'}
+          {matchMode === 'serial_and_ca' && 'Match a specific certificate by serial number and issuing CA'}
+          {matchMode === 'cn_and_ca' && 'Match certificates by Common Name pattern — supports wildcards like *.example.com'}
         </p>
       </div>
 
       {matchMode === 'serial_and_ca' && (
-        <div className="space-y-2">
-          <Label htmlFor="serialNumber">
+        <div className="space-y-1.5">
+          <Label htmlFor="serialNumber" className="text-sm">
             Serial Number <span className="text-destructive">*</span>
           </Label>
           <Input
@@ -418,60 +490,52 @@ export default function NewPrincipalPage() {
             value={serialNumber}
             onChange={(e) => setSerialNumber(e.target.value)}
             required
+            className="font-mono text-sm"
           />
-          <p className="text-sm text-muted-foreground">
-            The certificate serial number in hex format (colon-separated)
+          <p className="text-xs text-muted-foreground">
+            Certificate serial number in colon-separated hex format
           </p>
         </div>
       )}
 
       {matchMode === 'cn_and_ca' && (
-        <div className="space-y-2">
-          <Label htmlFor="subjectCn">
+        <div className="space-y-1.5">
+          <Label htmlFor="subjectCn" className="text-sm">
             Subject Common Name (CN) <span className="text-destructive">*</span>
           </Label>
           <Input
             id="subjectCn"
-            placeholder="device-*.example.com or specific.device.com"
+            placeholder="device-*.example.com"
             value={subjectCn}
             onChange={(e) => setSubjectCn(e.target.value)}
             required
+            className="font-mono text-sm"
           />
-          <p className="text-sm text-muted-foreground">
-            Certificate CN pattern. Use * for wildcard matching (e.g., *.sensors.example.com)
+          <p className="text-xs text-muted-foreground">
+            Use <code className="rounded bg-muted px-1 py-0.5 text-xs">*</code> for wildcard
+            matching — e.g.{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">*.sensors.example.com</code>
           </p>
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              Examples: warehouse-*.sensors.example.com, factory-floor-*.example.com, or exact match like gateway-001.example.com
-            </AlertDescription>
-          </Alert>
         </div>
       )}
     </div>
   );
 
-  const renderApiKeyForm = () => (
-    <Alert>
-      <Info className="h-4 w-4" />
-      <AlertDescription>
-        API Key will be generated automatically when the principal is created. You will receive
-        the key once during creation - store it securely as it cannot be retrieved later.
-      </AlertDescription>
-    </Alert>
-  );
+  const selectedTypeConfig = PRINCIPAL_TYPE_CONFIG[type];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+        <Button variant="ghost" size="icon" className="-ml-1 shrink-0" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Create New Principal</h1>
-          <p className="text-muted-foreground mt-2">
-            Add a new authentication principal to your authorization system
-          </p>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight">Create New Principal</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Add an authentication identity to your authorization system
+            </p>
+          </div>
         </div>
       </div>
 
@@ -483,106 +547,184 @@ export default function NewPrincipalPage() {
       )}
 
       <form onSubmit={handleSubmit}>
-        <div className="grid gap-6">
-          {/* Basic Information Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>
-                Configure the fundamental properties of this principal
-              </CardDescription>
+        <div className="space-y-5">
+
+          {/* Section 01 — Identity */}
+          <Card className="overflow-hidden rounded-xl shadow-sm">
+            <CardHeader className="border-b py-4">
+              <CardTitle className="flex items-center text-lg">
+                <UserCog className="mr-3 h-5 w-5 text-primary" />
+                Identity
+              </CardTitle>
+              <CardDescription>Basic information about this principal</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">
-                  Principal Name <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  placeholder="Alice (System Administrator)"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-                <p className="text-sm text-muted-foreground">
-                  A descriptive name for this principal (e.g., user name, device name, or group name)
-                </p>
-              </div>
+            <CardContent className="p-6">
+              <div className="divide-y">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name" className="text-sm">
+                      Name <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="name"
+                      placeholder="Alice (System Administrator)"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      A descriptive name — e.g., a user name, device, or service identifier
+                    </p>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="id">Principal ID</Label>
-                <Input
-                  id="id"
-                  value={principalId}
-                  onChange={(e) => setPrincipalId(e.target.value)}
-                  disabled
-                />
-                <p className="text-sm text-muted-foreground">
-                  Unique identifier (auto-generated, can be customized before creation)
-                </p>
-              </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="id" className="text-sm">Principal ID</Label>
+                    <Input
+                      id="id"
+                      value={principalId}
+                      onChange={(e) => setPrincipalId(e.target.value)}
+                      disabled
+                      className="font-mono text-xs text-muted-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground">Auto-generated unique identifier</p>
+                  </div>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="System administrator with full access to all IoT devices and policies"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Optional description explaining the purpose and scope of this principal
-                </p>
+                <div className="pt-5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="description" className="text-sm">Description</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="System administrator with full access to all IoT devices and policies"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={2}
+                      className="resize-none text-sm"
+                    />
+                  </div>
+                </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="type">
-                  Principal Type <span className="text-destructive">*</span>
-                </Label>
-                <Select value={type} onValueChange={(value: PrincipalType) => setType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="oidc">OIDC (OpenID Connect)</SelectItem>
-                    <SelectItem value="x509">X.509 Certificate</SelectItem>
-                    <SelectItem value="api_key">API Key</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  {type === 'oidc' && 'Authenticate users via OIDC providers (Google, Okta, Auth0, etc.)'}
-                  {type === 'x509' && 'Authenticate devices or services via X.509 certificates (mTLS)'}
-                  {type === 'api_key' && 'Authenticate via API key for programmatic access'}
-                </p>
+          {/* Section 02 — Authentication Method */}
+          <Card className="overflow-hidden rounded-xl shadow-sm">
+            <CardHeader className="border-b py-4">
+              <CardTitle className="flex items-center text-lg">
+                <Lock className="mr-3 h-5 w-5 text-primary" />
+                Authentication Method
+              </CardTitle>
+              <CardDescription>Configure how this principal will be authenticated</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="divide-y">
+                {/* Visual type picker */}
+                <div className="pb-6 space-y-2">
+                  <Label className="text-sm">
+                    Principal Type <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
+                    {(Object.entries(PRINCIPAL_TYPE_CONFIG) as [SupportedPrincipalType, typeof PRINCIPAL_TYPE_CONFIG[SupportedPrincipalType]][]).map(
+                      ([typeKey, config]) => {
+                        const Icon = config.icon;
+                        const isSelected = type === typeKey;
+                        return (
+                          <button
+                            key={typeKey}
+                            type="button"
+                            onClick={() => setType(typeKey)}
+                            className={cn(
+                              'relative flex flex-col gap-3 rounded-xl border-2 p-4 text-left transition-all',
+                              'hover:border-border/80 hover:bg-accent/20',
+                              isSelected
+                                ? cn(config.selectedBorder, config.selectedBg, 'shadow-sm')
+                                : 'border-border bg-card'
+                            )}
+                          >
+                            {isSelected && (
+                              <CheckCircle2
+                                className={cn('absolute top-3 right-3 h-4 w-4', config.iconColor)}
+                              />
+                            )}
+                            <div
+                              className={cn(
+                                'flex h-9 w-9 items-center justify-center rounded-lg',
+                                config.iconBg
+                              )}
+                            >
+                              <Icon className={cn('h-4 w-4', config.iconColor)} />
+                            </div>
+                            <div>
+                              <p
+                                className={cn(
+                                  'text-sm font-semibold leading-tight',
+                                  isSelected ? config.iconColor : 'text-foreground'
+                                )}
+                              >
+                                {config.short}
+                                <span className="ml-1.5 font-normal text-muted-foreground">
+                                  — {config.label}
+                                </span>
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                {config.description}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+
+                {/* Type-specific configuration */}
+                <div className="pt-6">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div
+                      className={cn(
+                        'flex h-6 w-6 items-center justify-center rounded-md',
+                        selectedTypeConfig.iconBg
+                      )}
+                    >
+                      <selectedTypeConfig.icon className={cn('h-3.5 w-3.5', selectedTypeConfig.iconColor)} />
+                    </div>
+                    <span className="text-sm font-medium">{selectedTypeConfig.label} Configuration</span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+
+                  {type === 'oidc' && renderOidcForm()}
+                  {type === 'x509' && renderX509Form()}
+                </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex items-center space-x-2">
+          {/* Section 03 — Settings */}
+          <Card className="overflow-hidden rounded-xl shadow-sm">
+            <CardHeader className="border-b py-4">
+              <CardTitle className="flex items-center text-lg">
+                <Settings2 className="mr-3 h-5 w-5 text-primary" />
+                Settings
+              </CardTitle>
+              <CardDescription>Principal activation and access controls</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="active" className="text-sm font-medium cursor-pointer">
+                    Active
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Inactive principals are blocked from authenticating
+                  </p>
+                </div>
                 <Switch id="active" checked={active} onCheckedChange={setActive} />
-                <Label htmlFor="active" className="cursor-pointer">
-                  Active
-                </Label>
               </div>
             </CardContent>
           </Card>
 
-          {/* Authentication Configuration Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Authentication Configuration</CardTitle>
-              <CardDescription>
-                Configure how this principal will be authenticated
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {type === 'oidc' && renderOidcForm()}
-              {type === 'x509' && renderX509Form()}
-              {type === 'api_key' && renderApiKeyForm()}
-            </CardContent>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-4">
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-1">
             <Button
               type="button"
               variant="outline"
@@ -592,8 +734,14 @@ export default function NewPrincipalPage() {
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Principal
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                'Create Principal'
+              )}
             </Button>
           </div>
         </div>

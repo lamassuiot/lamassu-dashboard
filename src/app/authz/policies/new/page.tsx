@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, ScrollText } from 'lucide-react';
 import { createPolicy } from '@/lib/authz-api';
 import type { Rule } from '@/types/authz';
 import { PolicyBuilder } from '@/components/authz/PolicyBuilder';
@@ -58,16 +58,21 @@ export default function NewPolicyPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={handleCancel}>
-          <ArrowLeft className="h-5 w-5" />
+        <Button variant="ghost" size="icon" className="-ml-1 shrink-0" onClick={handleCancel}>
+          <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Create New Policy</h1>
-          <p className="text-muted-foreground mt-2">
-            Define a new authorization policy with rules using JSON, forms, or visual flow diagram
-          </p>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <ScrollText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight">Create New Policy</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Define an authorization policy with access rules
+            </p>
+          </div>
         </div>
       </div>
 
@@ -78,35 +83,36 @@ export default function NewPolicyPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Policy Details</CardTitle>
-          <CardDescription>
-            Provide basic information about this policy
-          </CardDescription>
+      <Card className="overflow-hidden rounded-xl shadow-sm">
+        <CardHeader className="border-b py-4">
+          <CardTitle className="flex items-center text-lg">
+            <ScrollText className="mr-3 h-5 w-5 text-primary" />
+            Policy Details
+          </CardTitle>
+          <CardDescription>Provide basic information about this policy</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Policy Name *</Label>
-            <Input
-              id="name"
-              placeholder="Enter policy name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Input
-              id="description"
-              placeholder="Enter policy description"
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-            />
+        <CardContent className="p-6">
+          <div className="divide-y">
+            <div className="pb-5 space-y-1.5">
+              <Label htmlFor="name" className="text-sm">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="name"
+                placeholder="e.g. IoT Device Read Access"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+            <div className="pt-5 space-y-1.5">
+              <Label htmlFor="description" className="text-sm">Description</Label>
+              <Input
+                id="description"
+                placeholder="Describe the purpose and scope of this policy"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -117,17 +123,19 @@ export default function NewPolicyPage() {
         error={error}
       />
 
-      <div className="flex items-center justify-end gap-4">
-        <Button
-          variant="outline"
-          onClick={handleCancel}
-          disabled={submitting}
-        >
+      <div className="flex justify-end gap-3 pt-1">
+        <Button variant="outline" onClick={handleCancel} disabled={submitting}>
           Cancel
         </Button>
         <Button onClick={handleSubmit} disabled={submitting}>
-          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Create Policy
+          {submitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating…
+            </>
+          ) : (
+            'Create Policy'
+          )}
         </Button>
       </div>
     </div>

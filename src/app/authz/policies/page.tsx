@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Loader2, AlertCircle, Eye } from 'lucide-react';
+import { Plus, Trash2, Loader2, AlertCircle, Eye, ScrollText } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { listPolicies, deletePolicy } from '@/lib/authz-api';
 import type { Policy } from '@/types/authz';
@@ -85,15 +85,18 @@ export default function PoliciesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Authorization Policies</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage access control policies and rules
-          </p>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <ScrollText className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Authorization Policies</h1>
+            <p className="text-muted-foreground mt-0.5 text-sm">Manage access control policies and rules</p>
+          </div>
         </div>
-        <Button onClick={handleCreatePolicy}>
+        <Button onClick={handleCreatePolicy} className="shrink-0">
           <Plus className="mr-2 h-4 w-4" />
           Create Policy
         </Button>

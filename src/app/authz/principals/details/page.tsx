@@ -5,14 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  ArrowLeft, 
-  Loader2, 
-  AlertCircle, 
-  Edit, 
-  Trash2, 
-  CheckCircle, 
-  XCircle, 
+import {
+  ArrowLeft,
+  Loader2,
+  AlertCircle,
+  Edit,
+  Trash2,
+  CheckCircle,
+  XCircle,
   Plus,
   Shield,
   Calendar,
@@ -23,7 +23,8 @@ import {
   Check,
   FileJson,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Info,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -61,7 +62,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies, getPolicy } from '@/lib/authz-api';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
@@ -110,8 +110,7 @@ function PrincipalDetailsContent() {
       setPrincipal(principalData);
       setPolicies(policiesData.policies || []);
       setAllPolicies(allPoliciesData.policies || []);
-      
-      // Fetch full policy details for each assigned policy
+
       const assignedPolicies = policiesData.policies || [];
       if (assignedPolicies.length > 0) {
         const enriched = await Promise.all(
@@ -129,7 +128,7 @@ function PrincipalDetailsContent() {
       } else {
         setEnrichedPolicies([]);
       }
-      
+
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load principal details');
@@ -177,10 +176,7 @@ function PrincipalDetailsContent() {
   const getFilteredPolicies = () => {
     const availablePolicies = getAvailablePolicies();
     const query = policySearchQuery.trim().toLowerCase();
-    if (!query) {
-      return availablePolicies;
-    }
-
+    if (!query) return availablePolicies;
     return availablePolicies.filter((policy) =>
       policy.name.toLowerCase().includes(query) ||
       policy.id.toLowerCase().includes(query) ||
@@ -246,69 +242,36 @@ function PrincipalDetailsContent() {
 
   const renderAuthConfig = () => {
     if (!principal) return null;
-    
     const { authConfig, type } = principal;
-
-    if (type === 'api_key') {
-      return (
-        <div className="space-y-4">
-          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border">
-            <Key className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div className="flex-1">
-              <p className="font-medium text-sm">API Key Authentication</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Authenticates using a hashed API key for programmatic access
-              </p>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">STATUS</p>
-            <Badge variant="secondary" className="mt-1">
-              <Check className="mr-1 h-3 w-3" />
-              API Key Hash Configured
-            </Badge>
-          </div>
-        </div>
-      );
-    }
 
     if (type === 'oidc') {
       const oidcConfig = authConfig as any;
       return (
-        <div className="space-y-4">
-          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border">
-            <Link2 className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div className="flex-1">
-              <p className="font-medium text-sm">OpenID Connect (OIDC)</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Authenticates via OIDC provider claims
-              </p>
+        <div className="divide-y">
+          {oidcConfig.issuer && (
+            <div className="pb-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Issuer</p>
+              <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto font-mono">
+                {String(oidcConfig.issuer)}
+              </code>
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">ISSUER</p>
-            <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto">
-              {String(oidcConfig.issuer)}
-            </code>
-          </div>
-
+          )}
           {oidcConfig.claims && oidcConfig.claims.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">CLAIM CONDITIONS</p>
+            <div className={oidcConfig.issuer ? 'pt-4' : ''}>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+                Claim Conditions
+              </p>
               <div className="space-y-2">
                 {oidcConfig.claims.map((claim: any, index: number) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg text-sm border"
-                  >
-                    <Badge variant="outline" className="font-mono text-xs shrink-0">
-                      {claim.claim}
-                    </Badge>
-                    <span className="text-muted-foreground shrink-0">{claim.operator}</span>
-                    <code className="font-mono text-xs bg-background px-2 py-0.5 rounded flex-1 overflow-x-auto">
-                      {claim.value}
-                    </code>
+                  <div key={index} className="relative rounded-lg border bg-card overflow-hidden">
+                    <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-violet-400 dark:bg-violet-600" />
+                    <div className="pl-4 pr-3 py-2 flex items-center gap-2">
+                      <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded shrink-0">
+                        {claim.claim}
+                      </code>
+                      <span className="text-xs text-muted-foreground shrink-0">{claim.operator}</span>
+                      <code className="text-xs font-mono flex-1 truncate">{claim.value}</code>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -321,55 +284,53 @@ function PrincipalDetailsContent() {
     if (type === 'x509') {
       const x509Config = normalizeX509AuthConfig(authConfig);
       return (
-        <div className="space-y-4">
-          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg border">
-            <Shield className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div className="flex-1">
-              <p className="font-medium text-sm">X.509 Certificate (mTLS)</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Authenticates using client certificates for secure device/service authentication
-              </p>
-            </div>
-          </div>
-
+        <div className="divide-y">
           {x509Config.ca_trust?.identity_type && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">CA IDENTITY TYPE</p>
-              <Badge variant="outline" className="mt-1">
+            <div className="pb-4 first:pt-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                CA Identity Type
+              </p>
+              <Badge variant="secondary" className="font-mono text-xs">
                 {String(x509Config.ca_trust.identity_type).replace(/_/g, ' ')}
               </Badge>
             </div>
           )}
-
           {x509Config.ca_trust?.value && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">CA TRUST VALUE</p>
-              <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto break-all">
+            <div className="py-4 first:pt-0 last:pb-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                CA Trust Value
+              </p>
+              <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto break-all font-mono">
                 {x509Config.ca_trust.value}
               </code>
             </div>
           )}
-
           {x509Config.match_mode && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">MATCH MODE</p>
-              <Badge variant="outline" className="mt-1">{String(x509Config.match_mode).replace(/_/g, ' ')}</Badge>
+            <div className="py-4 first:pt-0 last:pb-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+                Match Mode
+              </p>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {String(x509Config.match_mode).replace(/_/g, ' ')}
+              </Badge>
             </div>
           )}
-
           {x509Config.serial_number && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">SERIAL NUMBER</p>
-              <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto">
+            <div className="py-4 first:pt-0 last:pb-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                Serial Number
+              </p>
+              <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto font-mono">
                 {x509Config.serial_number}
               </code>
             </div>
           )}
-
           {x509Config.subject_cn && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">SUBJECT CN</p>
-              <p className="text-sm font-medium">{x509Config.subject_cn}</p>
+            <div className="py-4 first:pt-0 last:pb-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                Subject CN
+              </p>
+              <p className="text-sm font-mono">{x509Config.subject_cn}</p>
             </div>
           )}
         </div>
@@ -385,230 +346,199 @@ function PrincipalDetailsContent() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Hero Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4 flex-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push('/authz/principals')}
-            className="mt-1"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                {getPrincipalTypeIcon(principal.type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h1 className="text-3xl font-bold truncate">{principal.name}</h1>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="secondary" className="font-mono text-xs">
-                {principal.type.toUpperCase()}
-              </Badge>
-              {principal.active ? (
-                <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200">
-                  <CheckCircle className="h-3 w-3" />
-                  Active
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1 bg-gray-50 text-gray-600 border-gray-200">
-                  <XCircle className="h-3 w-3" />
-                  Inactive
-                </Badge>
-              )}
-              <Separator orientation="vertical" className="h-4" />
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" />
-                Created {new Date(principal.createdAt).toLocaleDateString()}
-              </div>
-            </div>
-
-            <div className="mt-3 flex items-center gap-2">
-              <code className="text-xs bg-muted px-2 py-1 rounded border">
-                {principal.id}
-              </code>
+    <div className="space-y-5">
+      {/* Header card */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="h-1 w-full bg-primary" />
+        <div className="p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-4 min-w-0">
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={() => copyToClipboard(principal.id)}
-                className="h-7 px-2"
+                size="icon"
+                className="-ml-1 mt-0.5 shrink-0"
+                onClick={() => router.push('/authz/principals')}
               >
-                {copiedId ? (
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
+                <ArrowLeft className="h-4 w-4" />
               </Button>
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
+                  {getPrincipalTypeIcon(principal.type)}
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-semibold tracking-tight truncate">{principal.name}</h1>
+                  <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                    <Badge variant="secondary" className="font-mono text-xs uppercase">
+                      {principal.type.replace('_', ' ')}
+                    </Badge>
+                    {principal.active ? (
+                      <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
+                        <CheckCircle className="h-3 w-3" />
+                        Active
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="gap-1">
+                        <XCircle className="h-3 w-3" />
+                        Inactive
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono text-muted-foreground">
+                      {principal.id}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => copyToClipboard(principal.id)}
+                    >
+                      {copiedId ? (
+                        <Check className="h-3 w-3 text-green-600" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
+                  {principal.description && (
+                    <p className="mt-2 text-sm text-muted-foreground max-w-2xl">{principal.description}</p>
+                  )}
+                </div>
+              </div>
             </div>
-            {principal.description && (
-              <p className="mt-3 text-sm text-muted-foreground max-w-2xl">{principal.description}</p>
-            )}
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/authz/principals/edit?principalId=${principal.id}`)}
-          >
-            <Edit className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <MoreVertical className="h-4 w-4" />
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/authz/principals/edit?principalId=${principal.id}`)}
+              >
+                <Edit className="mr-1.5 h-3.5 w-3.5" />
+                Edit
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => router.push(`/authz/principals/edit?principalId=${principal.id}`)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Principal
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Principal
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => router.push(`/authz/principals/edit?principalId=${principal.id}`)}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit Principal
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Principal
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </div>
       </div>
 
-      <Separator />
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            <TabsTrigger
+              value="overview"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <Info className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="policies"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <Shield className="h-4 w-4" />
+              Policies
+              {policies.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {policies.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="raw"
+              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+            >
+              <FileJson className="h-4 w-4" />
+              Raw JSON
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      {/* Tabs Navigation */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="policies">
-            Policies
-            {policies.length > 0 && (
-              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
-                {policies.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="raw">Raw JSON</TabsTrigger>
-        </TabsList>
+        <div className="mt-6">
 
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Authentication Configuration */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Authentication Configuration
+        <TabsContent value="overview" className="mt-0 space-y-5">
+          <div className="grid gap-5 md:grid-cols-2">
+            {/* Authentication Card */}
+            <Card className="overflow-hidden rounded-xl shadow-sm">
+              <CardHeader className="border-b py-4">
+                <CardTitle className="flex items-center text-lg">
+                  <Shield className="mr-3 h-5 w-5 text-primary" />
+                  Authentication
                 </CardTitle>
-                <CardDescription>
-                  How this principal authenticates
-                </CardDescription>
+                <CardDescription>How this principal authenticates</CardDescription>
               </CardHeader>
-              <CardContent>{renderAuthConfig()}</CardContent>
+              <CardContent className="p-6">{renderAuthConfig()}</CardContent>
             </Card>
 
-            {/* Metadata */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
+            {/* Metadata Card */}
+            <Card className="overflow-hidden rounded-xl shadow-sm">
+              <CardHeader className="border-b py-4">
+                <CardTitle className="flex items-center text-lg">
+                  <Calendar className="mr-3 h-5 w-5 text-primary" />
                   Metadata
                 </CardTitle>
-                <CardDescription>
-                  Timestamps and system information
-                </CardDescription>
+                <CardDescription>Timestamps and system information</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">CREATED</p>
-                  <DateDisplay 
-                    date={principal.createdAt} 
-                    formatString="MMM dd, yyyy"
-                    className="text-sm"
-                    highlightExpired={false}
-                  />
-                </div>
-                <Separator />
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">LAST UPDATED</p>
-                  <DateDisplay 
-                    date={principal.updatedAt} 
-                    formatString="MMM dd, yyyy"
-                    className="text-sm"
-                    highlightExpired={false}
-                  />
-                </div>
-                <Separator />
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">DESCRIPTION</p>
-                  {principal.description ? (
-                    <p className="text-sm text-muted-foreground break-words">{principal.description}</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No description provided</p>
-                  )}
-                </div>
-                <Separator />
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">PRINCIPAL ID</p>
-                  <div className="flex items-center gap-2">
-                    <code className="text-xs bg-muted px-2 py-1 rounded flex-1 overflow-x-auto">
-                      {principal.id}
-                    </code>
+              <CardContent className="p-6">
+                <div className="divide-y">
+                  <div className="pb-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                      Created
+                    </p>
+                    <DateDisplay
+                      date={principal.createdAt}
+                      formatString="MMM dd, yyyy"
+                      className="text-sm"
+                      highlightExpired={false}
+                    />
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Status</p>
-                    <p className="text-2xl font-bold mt-1">
-                      {principal.active ? 'Active' : 'Inactive'}
+                  <div className="py-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                      Last Updated
+                    </p>
+                    <DateDisplay
+                      date={principal.updatedAt}
+                      formatString="MMM dd, yyyy"
+                      className="text-sm"
+                      highlightExpired={false}
+                    />
+                  </div>
+                  <div className="py-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                      Assigned Policies
+                    </p>
+                    <p className="text-sm font-medium">
+                      {policies.length} {policies.length === 1 ? 'policy' : 'policies'}
                     </p>
                   </div>
-                  {principal.active ? (
-                    <CheckCircle className="h-10 w-10 text-green-600" />
-                  ) : (
-                    <XCircle className="h-10 w-10 text-gray-400" />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Assigned Policies</p>
-                    <p className="text-2xl font-bold mt-1">{policies.length}</p>
-                  </div>
-                  <Shield className="h-10 w-10 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Auth Type</p>
-                    <p className="text-2xl font-bold mt-1">{principal.type.toUpperCase()}</p>
-                  </div>
-                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                    {getPrincipalTypeIcon(principal.type)}
+                  <div className="pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                      Principal ID
+                    </p>
+                    <code className="text-xs bg-muted px-2 py-1 rounded block overflow-x-auto font-mono break-all">
+                      {principal.id}
+                    </code>
                   </div>
                 </div>
               </CardContent>
@@ -617,27 +547,34 @@ function PrincipalDetailsContent() {
         </TabsContent>
 
         {/* Policies Tab */}
-        <TabsContent value="policies" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Policy Assignments</h3>
-              <p className="text-sm text-muted-foreground">
-                Manage policies assigned to this principal
-              </p>
-            </div>
-            <Button onClick={() => setGrantDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Assign Policy
-            </Button>
-          </div>
+        <TabsContent value="policies">
+          <Card className="overflow-hidden rounded-xl shadow-sm">
+            <CardHeader className="border-b py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center text-lg">
+                    <Shield className="mr-3 h-5 w-5 text-primary" />
+                    Policy Assignments
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {policies.length === 0
+                      ? 'No policies assigned yet'
+                      : `${policies.length} ${policies.length === 1 ? 'policy' : 'policies'} assigned`}
+                  </CardDescription>
+                </div>
+                <Button size="sm" onClick={() => setGrantDialogOpen(true)}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Assign Policy
+                </Button>
+              </div>
+            </CardHeader>
 
-          {policies.length === 0 ? (
-            <Card>
-              <CardContent className="py-12">
+            {policies.length === 0 ? (
+              <CardContent className="p-12">
                 <div className="text-center space-y-3">
                   <div className="flex justify-center">
-                    <div className="p-3 rounded-full bg-muted">
-                      <Shield className="h-8 w-8 text-muted-foreground" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                      <Shield className="h-6 w-6 text-muted-foreground" />
                     </div>
                   </div>
                   <div>
@@ -646,126 +583,138 @@ function PrincipalDetailsContent() {
                       Assign a policy to grant permissions to this principal
                     </p>
                   </div>
-                  <Button variant="outline" onClick={() => setGrantDialogOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
+                  <Button variant="outline" size="sm" onClick={() => setGrantDialogOpen(true)}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
                     Assign First Policy
                   </Button>
                 </div>
               </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Policy</TableHead>
-                    <TableHead>Granted At</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {enrichedPolicies.map(({ grantedPolicy, fullPolicy }) => {
-                    const isExpanded = expandedPolicies.has(grantedPolicy.policyId);
-                    return (
-                      <TableRow key={grantedPolicy.policyId}>
-                        <TableCell colSpan={3}>
-                          <div className="space-y-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 space-y-1">
-                                <button
-                                  onClick={() => router.push(`/authz/policies/details?policyId=${grantedPolicy.policyId}`)}
-                                  className="font-medium hover:underline text-left"
-                                >
-                                  {fullPolicy?.name || grantedPolicy.policyName}
-                                </button>
-                                {fullPolicy?.description && (
-                                  <p className="text-sm text-muted-foreground">{fullPolicy.description}</p>
-                                )}
-                                <p className="text-xs text-muted-foreground font-mono">{grantedPolicy.policyId}</p>
-                              </div>
-                              
-                              <div className="flex items-center gap-2">
-                                <DateDisplay 
-                                  date={grantedPolicy.grantedAt} 
-                                  formatString="MMM dd, yyyy"
-                                  className="text-sm"
-                                  highlightExpired={false}
-                                />
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => togglePolicyJson(grantedPolicy.policyId)}
-                                >
-                                  {isExpanded ? (
-                                    <ChevronUp className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronDown className="h-4 w-4" />
+            ) : (
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Policy</TableHead>
+                      <TableHead>Granted At</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {enrichedPolicies.map(({ grantedPolicy, fullPolicy }) => {
+                      const isExpanded = expandedPolicies.has(grantedPolicy.policyId);
+                      return (
+                        <TableRow key={grantedPolicy.policyId}>
+                          <TableCell colSpan={3}>
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 space-y-1">
+                                  <button
+                                    onClick={() =>
+                                      router.push(
+                                        `/authz/policies/details?policyId=${grantedPolicy.policyId}`
+                                      )
+                                    }
+                                    className="font-medium hover:underline text-left"
+                                  >
+                                    {fullPolicy?.name || grantedPolicy.policyName}
+                                  </button>
+                                  {fullPolicy?.description && (
+                                    <p className="text-sm text-muted-foreground">
+                                      {fullPolicy.description}
+                                    </p>
                                   )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => router.push(`/authz/policies/details?policyId=${grantedPolicy.policyId}`)}
-                                >
-                                  View
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedPolicyToRevoke(grantedPolicy);
-                                    setRevokeDialogOpen(true);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {isExpanded && fullPolicy && (
-                              <div className="mt-3 pt-3 border-t">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <FileJson className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-sm font-medium">Policy Definition</span>
+                                  <p className="text-xs text-muted-foreground font-mono">
+                                    {grantedPolicy.policyId}
+                                  </p>
                                 </div>
-                                <pre className="bg-muted p-3 rounded-lg overflow-auto max-h-[400px] text-xs">
-                                  {JSON.stringify(fullPolicy, null, 2)}
-                                </pre>
+
+                                <div className="flex items-center gap-2">
+                                  <DateDisplay
+                                    date={grantedPolicy.grantedAt}
+                                    formatString="MMM dd, yyyy"
+                                    className="text-sm"
+                                    highlightExpired={false}
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => togglePolicyJson(grantedPolicy.policyId)}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      router.push(
+                                        `/authz/policies/details?policyId=${grantedPolicy.policyId}`
+                                      )
+                                    }
+                                  >
+                                    View
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => {
+                                      setSelectedPolicyToRevoke(grantedPolicy);
+                                      setRevokeDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
+
+                              {isExpanded && fullPolicy && (
+                                <div className="mt-2 pt-3 border-t">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <FileJson className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-sm font-medium">Policy Definition</span>
+                                  </div>
+                                  <pre className="bg-muted p-3 rounded-lg overflow-auto max-h-[400px] text-xs">
+                                    {JSON.stringify(fullPolicy, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            )}
+          </Card>
         </TabsContent>
 
         {/* Raw JSON Tab */}
         <TabsContent value="raw">
-          <Card>
-            <CardHeader>
+          <Card className="overflow-hidden rounded-xl shadow-sm">
+            <CardHeader className="border-b py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileJson className="h-5 w-5" />
+                  <CardTitle className="flex items-center text-lg">
+                    <FileJson className="mr-3 h-5 w-5 text-primary" />
                     Complete Principal Definition
                   </CardTitle>
-                  <CardDescription>
-                    Raw JSON representation of this principal
-                  </CardDescription>
+                  <CardDescription>Raw JSON representation of this principal</CardDescription>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setJsonExpanded(!jsonExpanded)}
-                  className="flex items-center gap-2"
+                  className="gap-1.5"
                 >
                   {jsonExpanded ? (
                     <>
@@ -782,7 +731,7 @@ function PrincipalDetailsContent() {
               </div>
             </CardHeader>
             {jsonExpanded && (
-              <CardContent>
+              <CardContent className="p-6">
                 <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[600px] text-xs">
                   {JSON.stringify(principal, null, 2)}
                 </pre>
@@ -790,6 +739,7 @@ function PrincipalDetailsContent() {
             )}
           </Card>
         </TabsContent>
+        </div>
       </Tabs>
 
       {/* Grant Policy Dialog */}
@@ -806,9 +756,7 @@ function PrincipalDetailsContent() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign Policy</DialogTitle>
-            <DialogDescription>
-              Select a policy and confirm assignment.
-            </DialogDescription>
+            <DialogDescription>Select a policy and confirm assignment.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -819,7 +767,9 @@ function PrincipalDetailsContent() {
                 value={policySearchQuery}
                 onChange={(e) => setPolicySearchQuery(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Select one policy from the list, then click Assign Policy.</p>
+              <p className="text-xs text-muted-foreground">
+                Select one policy from the list, then click Assign Policy.
+              </p>
             </div>
 
             {getAvailablePolicies().length === 0 ? (
@@ -886,8 +836,8 @@ function PrincipalDetailsContent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke Policy</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to revoke the policy &quot;{selectedPolicyToRevoke?.policyName}&quot; from this principal?
-              This action cannot be undone.
+              Are you sure you want to revoke the policy &quot;{selectedPolicyToRevoke?.policyName}&quot; from
+              this principal? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

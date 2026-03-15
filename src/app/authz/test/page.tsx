@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, AlertCircle, CheckCircle, XCircle, Play, Filter } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, XCircle, Play, Filter, ShieldCheck, Globe, Database, TestTube2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -294,18 +294,21 @@ export default function AuthorizationTestPage() {
   // ─── Render ───────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Authorization Test</h1>
-          <p className="text-muted-foreground mt-2">Test authorization rules and policies</p>
+    <div className="space-y-6 w-full pb-8">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <TestTube2 className="h-8 w-8 text-primary" />
+          <h1 className="text-2xl font-headline font-semibold">Authorization Test</h1>
         </div>
-        <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-3">
           <span className={`text-sm font-medium ${!matchMode ? 'text-foreground' : 'text-muted-foreground'}`}>Principal</span>
           <Switch checked={matchMode} onCheckedChange={handleToggleMatchMode} id="match-mode-toggle" />
           <span className={`text-sm font-medium ${matchMode ? 'text-foreground' : 'text-muted-foreground'}`}>Match</span>
         </div>
       </div>
+      <p className="text-sm text-muted-foreground">
+        Test authorization rules and policies.
+      </p>
 
       {error && (
         <Alert variant="destructive">
@@ -314,16 +317,30 @@ export default function AuthorizationTestPage() {
         </Alert>
       )}
 
-      <Tabs defaultValue="authorize" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="authorize">Authorize</TabsTrigger>
-          <TabsTrigger value="filter">Get Filter</TabsTrigger>
-          <TabsTrigger value="global-caps">Global Capabilities</TabsTrigger>
-          <TabsTrigger value="entity-caps">Entity Capabilities</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="authorize" className="w-full">
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            <TabsTrigger value="authorize" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">
+              <ShieldCheck className="h-4 w-4" />
+              Authorize
+            </TabsTrigger>
+            <TabsTrigger value="filter" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">
+              <Filter className="h-4 w-4" />
+              Get Filter
+            </TabsTrigger>
+            <TabsTrigger value="global-caps" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">
+              <Globe className="h-4 w-4" />
+              Global Capabilities
+            </TabsTrigger>
+            <TabsTrigger value="entity-caps" className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">
+              <Database className="h-4 w-4" />
+              Entity Capabilities
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ── Authorize ────────────────────────────────────────── */}
-        <TabsContent value="authorize" className="space-y-6">
+        <TabsContent value="authorize" className="mt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
@@ -466,7 +483,7 @@ export default function AuthorizationTestPage() {
         </TabsContent>
 
         {/* ── Get Filter ───────────────────────────────────────── */}
-        <TabsContent value="filter" className="space-y-6">
+        <TabsContent value="filter" className="mt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
@@ -577,7 +594,7 @@ export default function AuthorizationTestPage() {
         </TabsContent>
 
         {/* ── Global Capabilities ──────────────────────────────── */}
-        <TabsContent value="global-caps" className="space-y-6">
+        <TabsContent value="global-caps" className="mt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
@@ -648,7 +665,7 @@ export default function AuthorizationTestPage() {
         </TabsContent>
 
         {/* ── Entity Capabilities ──────────────────────────────── */}
-        <TabsContent value="entity-caps" className="space-y-6">
+        <TabsContent value="entity-caps" className="mt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>

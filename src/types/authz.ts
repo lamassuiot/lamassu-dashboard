@@ -35,9 +35,6 @@ export interface ClaimCondition {
   value: string;
 }
 
-export interface ApiKeyAuthConfig {
-  apiKeyHash?: string; // bcrypt hash, populated server-side
-}
 
 export interface OIDCAuthConfig {
   claims: ClaimCondition[];
@@ -60,9 +57,9 @@ export interface X509AuthConfig {
   subject_cn?: string;
 }
 
-export type PrincipalType = 'api_key' | 'oidc' | 'x509';
+export type PrincipalType = 'oidc' | 'x509';
 
-export type AuthConfig = ApiKeyAuthConfig | OIDCAuthConfig | X509AuthConfig;
+export type AuthConfig = OIDCAuthConfig | X509AuthConfig;
 
 export interface Principal {
   id: string;
@@ -147,7 +144,7 @@ export interface FilterResponse {
 
 export interface MatchAndAuthorizeRequest {
   authMaterial: any; // API key, JWT, or certificate data
-  authType: 'api_key' | 'oidc' | 'x509';
+  authType:  'oidc' | 'x509';
   namespace: string;
   schemaName: string;
   action: string;
@@ -167,7 +164,7 @@ export interface MatchAndAuthorizeResponse {
 
 export interface MatchAndGetFilterRequest {
   authMaterial: any; // API key, JWT, or certificate data
-  authType: 'api_key' | 'oidc' | 'x509';
+  authType:  'oidc' | 'x509';
   namespace: string;
   schemaName: string;
   entityType: string;
@@ -195,7 +192,7 @@ export interface CapabilitiesResponse {
 }
 
 export interface MatchAndGetCapabilitiesRequest {
-  authType: 'api_key' | 'oidc' | 'x509';
+  authType:  'oidc' | 'x509';
   authMaterial: any;
 }
 
@@ -227,7 +224,7 @@ export interface CheckEntityTypeActionsResponse {
 
 // Match-variant: resolve principal from auth material first
 export interface MatchAndCheckEntityTypeActionsRequest {
-  authType: 'api_key' | 'oidc' | 'x509';
+  authType:  'oidc' | 'x509';
   authMaterial: any;
   namespace: string;
   schema_name: string;
@@ -262,7 +259,7 @@ export interface GlobalCapabilitiesResponse {
 
 /** POST /authz/match/capabilities/global — resolve from auth material */
 export interface MatchGlobalCapabilitiesRequest {
-  auth_type: 'api_key' | 'oidc' | 'x509';
+  auth_type:  'oidc' | 'x509';
   auth_material: string;
 }
 
@@ -308,7 +305,7 @@ export interface EntityCapabilitiesResponse {
 
 /** POST /authz/match/capabilities/entity — resolve from auth material */
 export interface MatchEntityCapabilitiesRequest {
-  auth_type: 'api_key' | 'oidc' | 'x509';
+  auth_type:  'oidc' | 'x509';
   auth_material: string;
   queries: EntityCapabilityQuery[];
 }

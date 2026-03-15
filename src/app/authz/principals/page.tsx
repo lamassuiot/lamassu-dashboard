@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Loader2, AlertCircle, Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Trash2, Loader2, AlertCircle, Eye, CheckCircle, XCircle, UserCheck } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { listPrincipals, deletePrincipal, updatePrincipal } from '@/lib/authz-api';
 import type { Principal, PrincipalType } from '@/types/authz';
@@ -121,19 +121,20 @@ export default function PrincipalsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full pb-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Principals</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage authentication principals and identities
-          </p>
+        <div className="flex items-center space-x-3">
+          <UserCheck className="h-8 w-8 text-primary" />
+          <h1 className="text-2xl font-headline font-semibold">Principals</h1>
         </div>
         <Button onClick={handleCreatePrincipal}>
           <Plus className="mr-2 h-4 w-4" />
           Create Principal
         </Button>
       </div>
+      <p className="text-sm text-muted-foreground">
+        Manage authentication principals and identities.
+      </p>
 
       {error && (
         <Alert variant="destructive">
