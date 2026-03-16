@@ -767,3 +767,53 @@ export async function deleteSigningProfile(profileId: string, accessToken: strin
         throw new Error(errorMessage);
     }
 }
+
+// --- Create Certificate (server-side key generation or reuse) ---
+
+export interface CreateCertificateKeySpec {
+    // Generate mode: set type + bits, optionally engine_id
+    type?: string;
+    bits?: number;
+    engine_id?: string;
+    // Reuse mode: set key_identifier (KeyID, Alias, or PKCS11URI)
+    key_identifier?: string;
+}
+
+export interface CreateCertificateCertSpec {
+    subject: {
+        common_name: string;
+        organization?: string;
+        organization_unit?: string;
+        country?: string;
+        state?: string;
+        locality?: string;
+    };
+    validity: { type: string; duration?: string; time?: string };
+    key_usage?: string[];
+    extended_key_usages?: string[];
+    is_ca?: boolean;
+}
+
+export interface CreateCertificatePayload {
+    ca_id: string;
+    key_spec: CreateCertificateKeySpec;
+    cert_spec: CreateCertificateCertSpec;
+    issuance_profile_id?: string;
+    metadata?: Record<string, any>;
+}
+
+export async function createCertificate(payload: CreateCertificatePayload, accessToken: string): Promise<any> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.err || result.message || `Failed to create certificate. Status: ${response.status}`);
+    }
+    return result;
+}
