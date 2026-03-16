@@ -30,7 +30,7 @@ import {
     KEY_USAGE_OPTIONS, EKU_OPTIONS,
     KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS,
 } from '@/lib/form-options';
-import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, type ApiSigningProfile } from '@/lib/ca-data';
+import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, type ApiSigningProfile, type CreateCertificateIssuanceProfile } from '@/lib/ca-data';
 import { fetchCryptoEngines, fetchKmsKey } from '@/lib/kms-data';
 import { parseCertificatePemDetails } from '@/lib-crypto/cert-parser';
 import { useAuth } from '@/contexts/AuthContext';
@@ -182,24 +182,29 @@ export default function CreateCertificateClient() {
             }
             : { key_identifier: kmsKeyIdentifier.trim() };
 
+        const inlineProfile: CreateCertificateIssuanceProfile = {
+            validity: formatValidityForApi(validity),
+            sign_as_ca: isCA,
+            honor_key_usage: true,
+            key_usage: selectedKeyUsages,
+            honor_extended_key_usages: true,
+            extended_key_usages: selectedEkus,
+        };
+
         const payload: Record<string, unknown> = {
             ca_id: selectedCa!.id,
             key_spec: keySpec,
-            cert_spec: {
-                subject: {
-                    common_name: commonName.trim(),
-                    ...(organization.trim() ? { organization: organization.trim() } : {}),
-                    ...(organizationalUnit.trim() ? { organization_unit: organizationalUnit.trim() } : {}),
-                    ...(country.trim() ? { country: country.trim() } : {}),
-                    ...(stateProvince.trim() ? { state: stateProvince.trim() } : {}),
-                    ...(locality.trim() ? { locality: locality.trim() } : {}),
-                },
-                validity: formatValidityForApi(validity),
-                key_usage: selectedKeyUsages,
-                extended_key_usages: selectedEkus,
-                is_ca: isCA,
+            subject: {
+                common_name: commonName.trim(),
+                ...(organization.trim() ? { organization: organization.trim() } : {}),
+                ...(organizationalUnit.trim() ? { organization_unit: organizationalUnit.trim() } : {}),
+                ...(country.trim() ? { country: country.trim() } : {}),
+                ...(stateProvince.trim() ? { state: stateProvince.trim() } : {}),
+                ...(locality.trim() ? { locality: locality.trim() } : {}),
             },
-            ...(profileMode === 'reuse' && profileId.trim() ? { issuance_profile_id: profileId.trim() } : {}),
+            ...(profileMode === 'reuse' && profileId.trim()
+                ? { issuance_profile_id: profileId.trim() }
+                : { issuance_profile: inlineProfile }),
         };
 
         setStep(2);
@@ -226,6 +231,7 @@ export default function CreateCertificateClient() {
                 } catch { /* SKI lookup is best-effort */ }
             }
 
+            sileo.success({ title: "Certificate Created", description: "The key pair was generated and the certificate was signed successfully." });
             setStep(3);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "An unknown error occurred.";

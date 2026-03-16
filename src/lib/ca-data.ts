@@ -779,7 +779,27 @@ export interface CreateCertificateKeySpec {
     key_identifier?: string;
 }
 
-export interface CreateCertificateCertSpec {
+export interface CreateCertificateIssuanceProfile {
+    validity: { type: string; duration?: string; time?: string };
+    sign_as_ca: boolean;
+    honor_key_usage: boolean;
+    key_usage: string[];
+    honor_extended_key_usages: boolean;
+    extended_key_usages: string[];
+    honor_subject?: boolean;
+    honor_extensions?: boolean;
+    crypto_enforcement?: {
+        enabled: boolean;
+        allow_rsa_keys: boolean;
+        allow_ecdsa_keys: boolean;
+        allowed_rsa_key_sizes?: number[];
+        allowed_ecdsa_key_sizes?: number[];
+    };
+}
+
+export interface CreateCertificatePayload {
+    ca_id: string;
+    key_spec: CreateCertificateKeySpec;
     subject: {
         common_name: string;
         organization?: string;
@@ -788,17 +808,10 @@ export interface CreateCertificateCertSpec {
         state?: string;
         locality?: string;
     };
-    validity: { type: string; duration?: string; time?: string };
-    key_usage?: string[];
-    extended_key_usages?: string[];
-    is_ca?: boolean;
-}
-
-export interface CreateCertificatePayload {
-    ca_id: string;
-    key_spec: CreateCertificateKeySpec;
-    cert_spec: CreateCertificateCertSpec;
+    // At most one of issuance_profile_id or issuance_profile should be set.
+    // If neither is set, the CA's default profile is used.
     issuance_profile_id?: string;
+    issuance_profile?: CreateCertificateIssuanceProfile;
     metadata?: Record<string, any>;
 }
 
