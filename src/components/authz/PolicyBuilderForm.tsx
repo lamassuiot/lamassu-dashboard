@@ -56,7 +56,8 @@ interface EntitySelectorProps {
   schemas: SchemaDefinition[];
   schemaName: string;
   entityType: string;
-  onSelect: (schemaName: string, entityType: string) => void;
+  namespace?: string;
+  onSelect: (schemaName: string, entityType: string, namespace?: string) => void;
   includeWildcard?: boolean;
   placeholder?: string;
   error?: string;
@@ -67,6 +68,7 @@ function EntitySelector({
   schemas,
   schemaName,
   entityType,
+  namespace,
   onSelect,
   includeWildcard = false,
   placeholder = 'Select entity…',
@@ -137,9 +139,9 @@ function EntitySelector({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const choose = (enc: string) => {
+  const choose = (enc: string, ns?: string) => {
     const { schemaName: sn, entityType: et } = decodeEntity(enc);
-    onSelect(sn, et);
+    onSelect(sn, et, ns);
     setOpen(false);
     setQuery('');
   };
@@ -189,28 +191,6 @@ function EntitySelector({
           </div>
 
           <div className="max-h-72 overflow-y-auto">
-            {/* Wildcard option */}
-            {includeWildcard && (
-              <div className="py-1 border-b">
-                <button
-                  type="button"
-                  onClick={() => choose(encodeEntity('*', '*'))}
-                  className={cn(
-                    'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent cursor-pointer transition-colors',
-                    selectedValue === encodeEntity('*', '*') && 'bg-accent'
-                  )}
-                >
-                  {selectedValue === encodeEntity('*', '*') ? (
-                    <Check className="h-3 w-3 text-primary shrink-0" />
-                  ) : (
-                    <span className="h-3 w-3 shrink-0" />
-                  )}
-                  <span className="font-mono font-semibold">*</span>
-                  <span className="text-muted-foreground text-xs">all entities</span>
-                </button>
-              </div>
-            )}
-
             {!hasGroups && (
               <p className="px-3 py-4 text-center text-xs text-muted-foreground">No results</p>
             )}
@@ -234,6 +214,32 @@ function EntitySelector({
                     Entity Type
                   </span>
                 </div>
+
+                {/* Wildcard row for this namespace */}
+                {includeWildcard && (
+                  <button
+                    type="button"
+                    onClick={() => choose(encodeEntity('*', '*'), ns)}
+                    className={cn(
+                      'grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] w-full items-center px-3 py-1.5 gap-2',
+                      'hover:bg-accent cursor-pointer transition-colors text-left',
+                      isWildcard && namespace === ns && 'bg-accent'
+                    )}
+                  >
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {isWildcard && namespace === ns ? (
+                        <Check className="h-3 w-3 text-primary shrink-0" />
+                      ) : (
+                        <span className="h-3 w-3 shrink-0" />
+                      )}
+                      <span className="text-xs text-muted-foreground font-mono truncate">&quot;&quot;</span>
+                    </span>
+                    <span className="text-sm font-medium truncate flex items-center gap-1.5">
+                      <span className="font-mono">&quot;&quot;</span>
+                      <span className="text-xs text-muted-foreground italic">(all entities)</span>
+                    </span>
+                  </button>
+                )}
 
                 {/* Rows per namespace */}
                 {Object.entries(schemaGroups).flatMap(([, items]) =>
@@ -508,8 +514,9 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
             const hasActions = rule.actions.length > 0;
             const hasRelations = rule.relations.length > 0;
             const hasGrants = (rule.directGrants?.length ?? 0) > 0;
-            const entityLabel = hasEntity ? (rule.entityType || '?') : 'New Rule';
-            const entitySub = rule.schemaName && rule.schemaName !== '*' ? rule.schemaName : undefined;
+            const entityLabel = hasEntity ? null : 'New Rule';
+            const schemaDisplay = rule.schemaName || '';
+            const entityDisplay = rule.entityType || '';
 
             const statusColor = !hasEntity
               ? 'bg-muted-foreground/30'
@@ -529,27 +536,27 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                     <span className="text-xs font-bold tabular-nums text-muted-foreground/60 shrink-0 w-5 text-right">
                       {index + 1}
                     </span>
-                    <span className="flex items-baseline gap-1.5 min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          'text-sm font-semibold truncate',
-                          !hasEntity && 'text-muted-foreground italic font-normal'
-                        )}
-                      >
-                        {entityLabel}
-                      </span>
-                      {entitySub && (
-                        <span className="text-xs text-muted-foreground truncate shrink-0">
-                          {entitySub}
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="flex items-center gap-1.5 min-w-0 flex-1 font-mono text-xs">
                       {rule.namespace && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono shrink-0">
                           {rule.namespace}
                         </Badge>
                       )}
+                      {entityLabel ? (
+                        <span className="text-sm text-muted-foreground italic font-sans font-normal">
+                          {entityLabel}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-muted-foreground">Schema:</span>
+                          <span className="font-semibold text-foreground truncate">{schemaDisplay}</span>
+                          <span className="text-muted-foreground/40">/</span>
+                          <span className="text-muted-foreground">Entity:</span>
+                          <span className="font-semibold text-foreground truncate">{entityDisplay}</span>
+                        </>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {hasActions && (
                         <Badge
                           variant="default"
@@ -685,15 +692,16 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
           schemas={schemas}
           schemaName={rule.schemaName}
           entityType={rule.entityType}
+          namespace={rule.namespace}
           includeWildcard
           placeholder={loadingSchemas ? 'Loading schemas…' : 'Select entity type…'}
-          onSelect={(sn, et) => {
+          onSelect={(sn, et, ns) => {
             const schema = findSchemaByAddress(schemas, { schemaName: sn, entityType: et });
             onChange({
               ...rule,
               schemaName: sn,
               entityType: et,
-              namespace: schema?.namespace || rule.namespace,
+              namespace: ns ?? schema?.namespace ?? rule.namespace,
               actions: [],
             });
           }}

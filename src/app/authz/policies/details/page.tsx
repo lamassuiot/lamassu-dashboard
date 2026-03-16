@@ -85,15 +85,15 @@ const getActionClassName = (action: string): string => {
 
 function EntityTypePill({ schema, entity, size = 'sm' }: { schema: string; entity: string; size?: 'sm' | 'md' }) {
   const textSize = size === 'md' ? 'text-sm' : 'text-xs';
+  const schemaDisplay = schema || '""';
+  const entityDisplay = entity || '""';
   return (
-    <span className={`inline-flex items-center gap-0.5 font-mono ${textSize} bg-muted border rounded px-2 py-0.5`}>
-      {schema && (
-        <>
-          <span className="text-muted-foreground">{schema}</span>
-          <span className="text-muted-foreground/50">.</span>
-        </>
-      )}
-      <span className="font-semibold text-foreground">{entity || '*'}</span>
+    <span className={`inline-flex items-center gap-1.5 font-mono ${textSize} bg-muted border rounded px-2 py-0.5`}>
+      <span className="text-muted-foreground">Schema:</span>
+      <span className="font-semibold text-foreground">{schemaDisplay}</span>
+      <span className="text-muted-foreground/40">/</span>
+      <span className="text-muted-foreground">Entity:</span>
+      <span className="font-semibold text-foreground">{entityDisplay}</span>
     </span>
   );
 }
