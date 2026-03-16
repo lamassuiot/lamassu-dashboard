@@ -232,10 +232,10 @@ function EntitySelector({
                       ) : (
                         <span className="h-3 w-3 shrink-0" />
                       )}
-                      <span className="text-xs text-muted-foreground font-mono truncate">&quot;&quot;</span>
+                      <span className="text-xs text-muted-foreground font-mono truncate">*</span>
                     </span>
                     <span className="text-sm font-medium truncate flex items-center gap-1.5">
-                      <span className="font-mono">&quot;&quot;</span>
+                      <span className="font-mono">*</span>
                       <span className="text-xs text-muted-foreground italic">(all entities)</span>
                     </span>
                   </button>

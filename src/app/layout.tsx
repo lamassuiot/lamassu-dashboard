@@ -287,16 +287,21 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [globalCapabilities, setGlobalCapabilities] = useState<Record<string, string[]> | null>(null);
+  const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false);
 
   useEffect(() => {
+    setCapabilitiesLoaded(false);
+
     if (!user?.access_token) {
       setGlobalCapabilities(null);
+      setCapabilitiesLoaded(true);
       return;
     }
 
     matchAndGetGlobalCapabilities({ auth_type: 'oidc', auth_material: user.access_token })
       .then(res => setGlobalCapabilities(res.global_actions))
-      .catch(() => setGlobalCapabilities(null));
+      .catch(() => setGlobalCapabilities(null))
+      .finally(() => setCapabilitiesLoaded(true));
   }, [user?.access_token]);
 
   const isNavItemVisible = useCallback((item: NavItem): boolean => {
@@ -338,6 +343,10 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       window.location.reload();
     }
   };
+
+  if (!capabilitiesLoaded) {
+    return <LoadingState />;
+  }
 
   return (
     <TooltipProvider>
