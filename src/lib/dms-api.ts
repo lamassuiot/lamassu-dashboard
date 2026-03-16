@@ -41,6 +41,19 @@ export interface ApiRaEstSettings {
         config: ApiRaWebhookHttpClient;
     };
 }
+export interface ApiRaCmpClientCertSettings {
+    validation_cas: string[];
+    chain_level_validation: number;
+    allow_expired: boolean;
+}
+export interface ApiRaCmpSettings {
+    confirmation_mode: string;
+    confirmation_timeout: string;
+    enrollment_ca: string;
+    auth_mode: string;
+    client_certificate_settings?: ApiRaCmpClientCertSettings;
+    protection_ca?: string;
+}
 export interface ApiRaEnrollmentSettings {
     registration_mode: string;
     enrollment_ca: string;
@@ -48,6 +61,7 @@ export interface ApiRaEnrollmentSettings {
     enable_replaceable_enrollment: boolean;
     verify_csr_signature?: boolean; // Optional field for backwards compatibility
     est_rfc7030_settings?: ApiRaEstSettings;
+    lwc_rfc9483_settings?: ApiRaCmpSettings;
     device_provisioning_profile: {
         icon: string;
         icon_color: string;
