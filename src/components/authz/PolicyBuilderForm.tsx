@@ -30,6 +30,7 @@ import {
   User,
   Zap,
   ChevronsUpDown,
+  Check,
 } from 'lucide-react';
 import type { EntityAddress, Rule, RelationRule, SchemaDefinition } from '@/types/authz';
 import { getSchemas } from '@/lib/authz-api';
@@ -49,7 +50,7 @@ const decodeEntity = (encoded: string): { schemaName: string; entityType: string
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EntitySelector — single combobox that shows entityType + schemaName subtitle
+// EntitySelector — combobox grouped by namespace, tabular schema/entity columns
 // ─────────────────────────────────────────────────────────────────────────────
 interface EntitySelectorProps {
   schemas: SchemaDefinition[];
@@ -59,7 +60,6 @@ interface EntitySelectorProps {
   includeWildcard?: boolean;
   placeholder?: string;
   error?: string;
-  /** Restrict choices to entities that have a relation pointing at parentEntityType */
   filterByParentEntityType?: string;
 }
 
@@ -89,25 +89,42 @@ function EntitySelector({
     .filter((s) => {
       if (!query) return true;
       const q = query.toLowerCase();
-      return s.entityType.toLowerCase().includes(q) || s.schemaName.toLowerCase().includes(q);
+      return (
+        s.entityType.toLowerCase().includes(q) ||
+        s.schemaName.toLowerCase().includes(q) ||
+        (s.namespace || '').toLowerCase().includes(q)
+      );
     })
-    .sort((a, b) =>
-      a.schemaName.localeCompare(b.schemaName) || a.entityType.localeCompare(b.entityType)
-    );
+    .sort((a, b) => {
+      const nsCmp = (a.namespace || 'other').localeCompare(b.namespace || 'other');
+      if (nsCmp !== 0) return nsCmp;
+      return a.schemaName.localeCompare(b.schemaName) || a.entityType.localeCompare(b.entityType);
+    });
 
-  const groups = options.reduce<Record<string, SchemaDefinition[]>>((acc, s) => {
-    (acc[s.schemaName] ??= []).push(s);
-    return acc;
-  }, {});
+  // Group by namespace → schemaName
+  const namespaceGroups = options.reduce<Record<string, Record<string, SchemaDefinition[]>>>(
+    (acc, s) => {
+      const ns = s.namespace || 'other';
+      if (!acc[ns]) acc[ns] = {};
+      if (!acc[ns][s.schemaName]) acc[ns][s.schemaName] = [];
+      acc[ns][s.schemaName].push(s);
+      return acc;
+    },
+    {}
+  );
 
   const selectedValue = schemaName && entityType ? encodeEntity(schemaName, entityType) : '';
-  const displayLabel =
-    schemaName === '*' && entityType === '*'
-      ? '* (all entities)'
-      : entityType
-        ? entityType
-        : placeholder;
-  const displaySub = schemaName && schemaName !== '*' ? schemaName : undefined;
+  const selectedSchema = schemas.find(
+    (s) => s.schemaName === schemaName && s.entityType === entityType
+  );
+  const isWildcard = schemaName === '*' && entityType === '*';
+
+  const displayLabel = isWildcard ? '* (all entities)' : entityType || placeholder;
+  const displaySub = selectedSchema
+    ? [selectedSchema.namespace, selectedSchema.schemaName].filter(Boolean).join(' · ')
+    : schemaName && schemaName !== '*'
+      ? schemaName
+      : undefined;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -127,6 +144,8 @@ function EntitySelector({
     setQuery('');
   };
 
+  const hasGroups = Object.keys(namespaceGroups).length > 0;
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -141,10 +160,12 @@ function EntitySelector({
       >
         <span className="flex items-center gap-2 min-w-0 flex-1">
           {selectedValue ? (
-            <span className="flex items-center gap-2 min-w-0">
-              <span className="font-medium truncate">{displayLabel}</span>
+            <span className="flex flex-col min-w-0 text-left">
+              <span className="font-medium text-sm leading-tight truncate">{displayLabel}</span>
               {displaySub && (
-                <span className="text-xs text-muted-foreground truncate shrink-0">{displaySub}</span>
+                <span className="text-[10px] text-muted-foreground leading-tight truncate">
+                  {displaySub}
+                </span>
               )}
             </span>
           ) : (
@@ -155,7 +176,8 @@ function EntitySelector({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+        <div className="absolute z-50 mt-1 w-full min-w-[280px] rounded-md border bg-popover shadow-md">
+          {/* Search */}
           <div className="p-2 border-b">
             <Input
               autoFocus
@@ -165,45 +187,92 @@ function EntitySelector({
               className="h-7 text-xs"
             />
           </div>
-          <div className="max-h-56 overflow-y-auto py-1">
+
+          <div className="max-h-72 overflow-y-auto">
+            {/* Wildcard option */}
             {includeWildcard && (
-              <button
-                type="button"
-                onClick={() => choose(encodeEntity('*', '*'))}
-                className={cn(
-                  'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent cursor-pointer',
-                  selectedValue === encodeEntity('*', '*') && 'bg-accent'
-                )}
-              >
-                <span className="font-mono font-semibold">*</span>
-                <span className="text-muted-foreground text-xs">all entities</span>
-              </button>
+              <div className="py-1 border-b">
+                <button
+                  type="button"
+                  onClick={() => choose(encodeEntity('*', '*'))}
+                  className={cn(
+                    'flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent cursor-pointer transition-colors',
+                    selectedValue === encodeEntity('*', '*') && 'bg-accent'
+                  )}
+                >
+                  {selectedValue === encodeEntity('*', '*') ? (
+                    <Check className="h-3 w-3 text-primary shrink-0" />
+                  ) : (
+                    <span className="h-3 w-3 shrink-0" />
+                  )}
+                  <span className="font-mono font-semibold">*</span>
+                  <span className="text-muted-foreground text-xs">all entities</span>
+                </button>
+              </div>
             )}
-            {Object.keys(groups).length === 0 && (
+
+            {!hasGroups && (
               <p className="px-3 py-4 text-center text-xs text-muted-foreground">No results</p>
             )}
-            {Object.entries(groups).map(([grpSchema, items]) => (
-              <div key={grpSchema}>
-                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  {grpSchema}
+
+            {Object.entries(namespaceGroups).map(([ns, schemaGroups]) => (
+              <div key={ns} className="py-1">
+                {/* Namespace header */}
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 shrink-0">
+                    {ns}
+                  </span>
+                  <div className="flex-1 h-px bg-border/40" />
                 </div>
-                {items.map((s) => {
-                  const enc = encodeEntity(s.schemaName, s.entityType);
-                  return (
-                    <button
-                      key={enc}
-                      type="button"
-                      onClick={() => choose(enc)}
-                      className={cn(
-                        'flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-accent cursor-pointer',
-                        selectedValue === enc && 'bg-accent font-medium'
-                      )}
-                    >
-                      <span>{s.entityType}</span>
-                      <span className="text-xs text-muted-foreground ml-2">{s.schemaName}</span>
-                    </button>
-                  );
-                })}
+
+                {/* Column headers */}
+                <div className="grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-center px-3 pb-1 gap-2">
+                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/40 pl-5">
+                    Schema
+                  </span>
+                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/40">
+                    Entity Type
+                  </span>
+                </div>
+
+                {/* Rows per namespace */}
+                {Object.entries(schemaGroups).flatMap(([, items]) =>
+                  items.map((s) => {
+                    const enc = encodeEntity(s.schemaName, s.entityType);
+                    const isSelected = selectedValue === enc;
+                    return (
+                      <button
+                        key={enc}
+                        type="button"
+                        onClick={() => choose(enc)}
+                        className={cn(
+                          'grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] w-full items-center px-3 py-1.5 gap-2',
+                          'hover:bg-accent cursor-pointer transition-colors text-left',
+                          isSelected && 'bg-accent'
+                        )}
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {isSelected ? (
+                            <Check className="h-3 w-3 text-primary shrink-0" />
+                          ) : (
+                            <span className="h-3 w-3 shrink-0" />
+                          )}
+                          <span className="text-xs text-muted-foreground font-mono truncate">
+                            {s.schemaName}
+                          </span>
+                        </span>
+                        <span
+                          className={cn(
+                            'text-sm truncate',
+                            isSelected ? 'font-semibold text-foreground' : 'font-medium'
+                          )}
+                        >
+                          {s.entityType}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
               </div>
             ))}
           </div>
@@ -215,41 +284,102 @@ function EntitySelector({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ActionPills — a row of toggle pills for selecting actions
+// ActionSelector — checkbox list grouped by atomic / global actions
 // ─────────────────────────────────────────────────────────────────────────────
-interface ActionPillsProps {
-  available: string[];
+interface ActionSelectorProps {
+  atomicActions: string[];
+  globalActions: string[];
+  extraActions?: string[]; // already-selected actions not found in schema
   selected: string[];
   onToggle: (action: string) => void;
+  includeWildcard?: boolean;
 }
-function ActionPills({ available, selected, onToggle }: ActionPillsProps) {
+
+function ActionSelector({
+  atomicActions,
+  globalActions,
+  extraActions = [],
+  selected,
+  onToggle,
+  includeWildcard = false,
+}: ActionSelectorProps) {
   const isWild = selected.includes('*');
+
+  const renderRow = (action: string, isWildOption = false) => {
+    const isSelected = selected.includes(action);
+    const disabled = isWild && !isWildOption;
+    return (
+      <label
+        key={action}
+        className={cn(
+          'flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer select-none transition-colors text-sm',
+          disabled ? 'opacity-40 pointer-events-none' : 'hover:bg-accent',
+          isSelected && !disabled && 'bg-accent/70',
+        )}
+      >
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggle(action)}
+          disabled={disabled}
+          className="h-3.5 w-3.5 rounded accent-primary shrink-0"
+        />
+        <span
+          className={cn(
+            'font-mono text-xs',
+            isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'
+          )}
+        >
+          {action}
+        </span>
+        {isWildOption && (
+          <span className="text-[10px] text-muted-foreground italic">(all actions)</span>
+        )}
+      </label>
+    );
+  };
+
+  const hasAtomic = atomicActions.length > 0;
+  const hasGlobal = globalActions.length > 0;
+  const hasExtra = extraActions.length > 0;
+
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {available.map((action) => {
-        const active = selected.includes(action);
-        const isWildOption = action === '*';
-        return (
-          <button
-            key={action}
-            type="button"
-            onClick={() => onToggle(action)}
-            className={cn(
-              'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors border',
-              active
-                ? isWildOption
-                  ? 'bg-purple-600 border-purple-600 text-white hover:bg-purple-700'
-                  : 'bg-primary border-primary text-primary-foreground hover:bg-primary/90'
-                : 'bg-background border-border text-muted-foreground hover:border-primary/60 hover:text-foreground',
-              isWild && !isWildOption && 'opacity-40 pointer-events-none',
-            )}
-          >
-            {isWildOption && <Zap className="h-2.5 w-2.5" />}
-            {action}
-            {active && <X className="h-2.5 w-2.5 ml-0.5" />}
-          </button>
-        );
-      })}
+    <div className="rounded-md border bg-muted/20 divide-y">
+      {includeWildcard && (
+        <div className="p-2">
+          {renderRow('*', true)}
+        </div>
+      )}
+      {hasAtomic && (
+        <div className="p-2 space-y-0.5">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
+            Atomic
+          </p>
+          <div className="grid grid-cols-2 gap-0.5">
+            {atomicActions.map((a) => renderRow(a))}
+          </div>
+        </div>
+      )}
+      {hasGlobal && (
+        <div className="p-2 space-y-0.5">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
+            Global
+          </p>
+          <div className="grid grid-cols-2 gap-0.5">
+            {globalActions.map((a) => renderRow(a))}
+          </div>
+        </div>
+      )}
+      {hasExtra && (
+        <div className="p-2 space-y-0.5">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
+            Other
+          </p>
+          <div className="grid grid-cols-2 gap-0.5">
+            {extraActions.map((a) => renderRow(a))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -381,7 +511,6 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
             const entityLabel = hasEntity ? (rule.entityType || '?') : 'New Rule';
             const entitySub = rule.schemaName && rule.schemaName !== '*' ? rule.schemaName : undefined;
 
-            // Status indicator
             const statusColor = !hasEntity
               ? 'bg-muted-foreground/30'
               : !hasActions
@@ -396,15 +525,10 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
               >
                 <AccordionTrigger className="hover:no-underline px-4 py-3.5 gap-3 hover:bg-muted/30 transition-colors [&>svg]:shrink-0">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {/* Status dot */}
                     <span className={cn('h-2 w-2 rounded-full shrink-0', statusColor)} />
-
-                    {/* Rule number */}
                     <span className="text-xs font-bold tabular-nums text-muted-foreground/60 shrink-0 w-5 text-right">
                       {index + 1}
                     </span>
-
-                    {/* Entity label */}
                     <span className="flex items-baseline gap-1.5 min-w-0 flex-1">
                       <span
                         className={cn(
@@ -420,8 +544,6 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                         </span>
                       )}
                     </span>
-
-                    {/* Summary badges */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {rule.namespace && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
@@ -502,15 +624,15 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
   const selectedSchema = findSchemaByAddress(schemas, selectedEntityAddress);
   const isWildcardRule =
     selectedEntityAddress.schemaName.includes('*') || selectedEntityAddress.entityType.includes('*');
-  const availableActions = Array.from(
-    new Set([
-      ...(selectedSchema
-        ? [...(selectedSchema.atomicActions || []), ...(selectedSchema.globalActions || [])]
-        : []),
-      ...(isWildcardRule ? ['*'] : []),
-      ...rule.actions,
-    ])
+
+  const atomicActions = selectedSchema?.atomicActions || [];
+  const globalActions = selectedSchema?.globalActions || [];
+  // Actions already in the rule but not in the schema (e.g. from manual edits)
+  const extraActions = rule.actions.filter(
+    (a) => a !== '*' && !atomicActions.includes(a) && !globalActions.includes(a)
   );
+
+  const hasAnyActions = atomicActions.length > 0 || globalActions.length > 0 || extraActions.length > 0 || isWildcardRule;
 
   const toggleAction = (action: string) => {
     const newActions = rule.actions.includes(action)
@@ -586,15 +708,22 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
         description={
           !rule.schemaName || !rule.entityType
             ? 'Select an entity first to see available actions'
-            : availableActions.length === 0
+            : !hasAnyActions
               ? 'No actions available for this entity type'
-              : 'Toggle the actions this rule permits'
+              : 'Select the actions this rule permits'
         }
       >
-        {rule.schemaName && rule.entityType && availableActions.length > 0 && (
-          <ActionPills available={availableActions} selected={rule.actions} onToggle={toggleAction} />
+        {rule.schemaName && rule.entityType && hasAnyActions && (
+          <ActionSelector
+            atomicActions={atomicActions}
+            globalActions={globalActions}
+            extraActions={extraActions}
+            selected={rule.actions}
+            onToggle={toggleAction}
+            includeWildcard={isWildcardRule}
+          />
         )}
-        {rule.actions.length === 0 && rule.schemaName && rule.entityType && availableActions.length > 0 && (
+        {rule.actions.length === 0 && rule.schemaName && rule.entityType && hasAnyActions && (
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
             No actions selected — this rule will not grant any access
           </p>
@@ -741,15 +870,16 @@ function RelationEditor({
   const hasEntityWildcard = selectedTargetAddress.entityType.includes('*');
   const hasViaWildcard = relation.via.includes('*');
 
-  const targetSchema = selectedTargetSchema;
-  const availableActions = targetSchema
-    ? [...(targetSchema.atomicActions || []), ...(targetSchema.globalActions || [])]
-    : [];
+  const atomicActions = selectedTargetSchema?.atomicActions || [];
+  const globalActions = selectedTargetSchema?.globalActions || [];
+  const extraActions = relation.actions.filter(
+    (a) => a !== '*' && !atomicActions.includes(a) && !globalActions.includes(a)
+  );
 
   const targetEntityData = availableTargetEntities.find(
     (e) =>
       e.schemaName === selectedTargetAddress.schemaName &&
-      e.entityType === targetSchema?.entityType
+      e.entityType === selectedTargetSchema?.entityType
   );
   const relationsForTarget = targetEntityData ? targetEntityData.relations : [];
 
@@ -783,7 +913,6 @@ function RelationEditor({
 
   const noEntitiesAvailable = availableTargetEntities.length === 0;
 
-  // Accent colors per depth
   const depthAccent = [
     'border-l-sky-400 dark:border-l-sky-600',
     'border-l-violet-400 dark:border-l-violet-600',
@@ -891,13 +1020,15 @@ function RelationEditor({
               <Label className="text-xs text-muted-foreground">Allowed actions *</Label>
               {!selectedTargetAddress.entityType ? (
                 <p className="text-xs text-muted-foreground italic">Select target entity first</p>
-              ) : availableActions.length === 0 ? (
+              ) : atomicActions.length === 0 && globalActions.length === 0 && extraActions.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">
                   No actions for {selectedTargetQualified}
                 </p>
               ) : (
-                <ActionPills
-                  available={availableActions}
+                <ActionSelector
+                  atomicActions={atomicActions}
+                  globalActions={globalActions}
+                  extraActions={extraActions}
                   selected={relation.actions}
                   onToggle={toggleAction}
                 />
