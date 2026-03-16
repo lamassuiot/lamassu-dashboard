@@ -731,50 +731,69 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
       </RuleSection>
 
       {/* ── Direct Grants ── */}
-      <RuleSection
-        icon={<User />}
-        title="Direct Grants"
-        description="Principal IDs explicitly granted access by this rule (optional)."
-      >
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Input
-              value={grantInput}
-              onChange={(e) => setGrantInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  addGrant();
-                }
-              }}
-              placeholder="Enter a principal ID and press Enter…"
-              className="h-8 text-sm font-mono"
-            />
-            <Button onClick={addGrant} size="sm" variant="outline" className="h-8 shrink-0">
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-          {(rule.directGrants?.length ?? 0) > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {rule.directGrants!.map((grant) => (
-                <span
-                  key={grant}
-                  className="inline-flex items-center gap-1 rounded-full border bg-secondary/50 px-2.5 py-0.5 text-xs font-mono text-secondary-foreground"
-                >
-                  {grant}
-                  <button
-                    type="button"
-                    onClick={() => removeGrant(grant)}
-                    className="ml-0.5 rounded-full hover:text-destructive transition-colors"
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                </span>
-              ))}
+      {(() => {
+        const hasAtomicSelected =
+          rule.actions.includes('*') ||
+          rule.actions.some((a) => atomicActions.includes(a));
+        const hasNoGrants = (rule.directGrants?.length ?? 0) === 0;
+        const showAtomicWarning = hasAtomicSelected && hasNoGrants;
+
+        return (
+          <RuleSection
+            icon={<User />}
+            title="Direct Grants"
+            description="Principal IDs explicitly granted access by this rule (optional)."
+          >
+            <div className="space-y-2">
+              {showAtomicWarning && (
+                <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Atomic actions require a specific entity instance — without direct grants or
+                    relations, the principal will never match these actions.
+                  </span>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={grantInput}
+                  onChange={(e) => setGrantInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addGrant();
+                    }
+                  }}
+                  placeholder="Enter a principal ID and press Enter…"
+                  className="h-8 text-sm font-mono"
+                />
+                <Button onClick={addGrant} size="sm" variant="outline" className="h-8 shrink-0">
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              {(rule.directGrants?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {rule.directGrants!.map((grant) => (
+                    <span
+                      key={grant}
+                      className="inline-flex items-center gap-1 rounded-full border bg-secondary/50 px-2.5 py-0.5 text-xs font-mono text-secondary-foreground"
+                    >
+                      {grant}
+                      <button
+                        type="button"
+                        onClick={() => removeGrant(grant)}
+                        className="ml-0.5 rounded-full hover:text-destructive transition-colors"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </RuleSection>
+          </RuleSection>
+        );
+      })()}
 
       {/* ── Relations ── */}
       <RuleSection
