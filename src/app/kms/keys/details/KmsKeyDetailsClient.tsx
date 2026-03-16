@@ -13,7 +13,7 @@ import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -475,11 +475,7 @@ export default function KmsKeyDetailsClient() {
         const uniqueSerials = [...new Set(boundCertificateResources.map(resource => resource.resource_id))];
         const certificateResults = await Promise.all(
           uniqueSerials.map(async (serialNumber) => {
-            const { certificates } = await fetchIssuedCertificates({
-              accessToken: user.access_token,
-              apiQueryString: `serial_number=${encodeURIComponent(serialNumber)}&page_size=1`,
-            });
-            return certificates[0] || null;
+            return fetchIssuedCertificate(serialNumber, user.access_token).catch(() => null);
           })
         );
 

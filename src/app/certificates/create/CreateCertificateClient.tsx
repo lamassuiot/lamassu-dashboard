@@ -17,8 +17,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
     ArrowLeft, Loader2, CheckCircle2, AlertTriangle, KeyRound,
     FileText, Settings2, Copy, Check, Download as DownloadIcon,
-    ChevronsUpDown, BookOpen,
+    ChevronsUpDown, BookText,
 } from "lucide-react";
+import { cn } from '@/lib/utils';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { KmsKeySelector } from '@/components/shared/KmsKeySelector';
@@ -29,8 +30,9 @@ import {
     KEY_USAGE_OPTIONS, EKU_OPTIONS,
     KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS,
 } from '@/lib/form-options';
-import { createCertificate, fetchAndProcessCAs, type CA } from '@/lib/ca-data';
-import { fetchCryptoEngines } from '@/lib/kms-data';
+import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, type ApiSigningProfile } from '@/lib/ca-data';
+import { fetchCryptoEngines, fetchKmsKey } from '@/lib/kms-data';
+import { parseCertificatePemDetails } from '@/lib-crypto/cert-parser';
 import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -64,6 +66,7 @@ export default function CreateCertificateClient() {
     const [issuedCertPem, setIssuedCertPem] = useState<string | null>(null);
     const [issuedSerialNumber, setIssuedSerialNumber] = useState<string | null>(null);
     const [certCopied, setCertCopied] = useState(false);
+    const [issuedKeyId, setIssuedKeyId] = useState<string | null>(null);
 
     // CA state
     const [allCAs, setAllCAs] = useState<CA[]>([]);
@@ -95,21 +98,27 @@ export default function CreateCertificateClient() {
     const [selectedEkus, setSelectedEkus] = useState<string[]>(['ClientAuth']);
     const [isCA, setIsCA] = useState(false);
 
-    // Issuance profile
-    const [useProfile, setUseProfile] = useState(false);
+    // Profile
+    const [profileMode, setProfileMode] = useState<'reuse' | 'inline'>('inline');
     const [profileId, setProfileId] = useState('');
+    const [allProfiles, setAllProfiles] = useState<ApiSigningProfile[]>([]);
+    const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
 
     const loadPageData = useCallback(async () => {
         if (!user?.access_token) return;
         setIsLoadingCAs(true);
         setErrorCAs(null);
         try {
-            const [cas, engines] = await Promise.all([
+            setIsLoadingProfiles(true);
+        const [cas, engines, profilesResp] = await Promise.all([
                 fetchAndProcessCAs(user.access_token),
                 fetchCryptoEngines(user.access_token),
+                fetchSigningProfiles(user.access_token),
             ]);
             setAllCAs(cas);
             setAllCryptoEngines(engines);
+            setAllProfiles(profilesResp.list ?? []);
+            setIsLoadingProfiles(false);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Failed to load data.";
             setErrorCAs(message);
@@ -190,7 +199,7 @@ export default function CreateCertificateClient() {
                 extended_key_usages: selectedEkus,
                 is_ca: isCA,
             },
-            ...(useProfile && profileId.trim() ? { issuance_profile_id: profileId.trim() } : {}),
+            ...(profileMode === 'reuse' && profileId.trim() ? { issuance_profile_id: profileId.trim() } : {}),
         };
 
         setStep(2);
@@ -205,6 +214,18 @@ export default function CreateCertificateClient() {
             const pem = result.certificate ? window.atob(result.certificate) : null;
             setIssuedCertPem(pem);
             setIssuedSerialNumber(result.serial_number ?? null);
+
+            if (pem) {
+                try {
+                    const parsed = await parseCertificatePemDetails(pem);
+                    if (parsed.subjectKeyId) {
+                        const ski = parsed.subjectKeyId.replace(/:/g, '');
+                        const kmsKey = await fetchKmsKey(ski, user!.access_token!).catch(() => null);
+                        if (kmsKey) setIssuedKeyId(kmsKey.key_id);
+                    }
+                } catch { /* SKI lookup is best-effort */ }
+            }
+
             setStep(3);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "An unknown error occurred.";
@@ -378,139 +399,177 @@ export default function CreateCertificateClient() {
                         </CardContent>
                     </Card>
 
-                    {/* Certificate Details */}
+                    {/* Subject */}
                     <Card className={DETAIL_CARD_CLASSNAME}>
-                        <SectionHeader icon={Settings2} title="Certificate Details" />
-                        <CardContent className="p-6 space-y-6">
-
-                            {/* Subject */}
-                            <div className="space-y-4">
-                                <h4 className="text-sm font-medium">Subject</h4>
+                        <SectionHeader icon={Settings2} title="Subject" />
+                        <CardContent className="p-6 space-y-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="cc-cn">
+                                    Common Name (CN) <span className="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                    id="cc-cn"
+                                    placeholder="e.g. my-service.example.com"
+                                    value={commonName}
+                                    onChange={(e) => setCommonName(e.target.value)}
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="cc-cn">
-                                        Common Name (CN) <span className="text-destructive">*</span>
-                                    </Label>
+                                    <Label htmlFor="cc-org">Organization (O)</Label>
+                                    <Input id="cc-org" placeholder="ACME Corp" value={organization} onChange={(e) => setOrganization(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="cc-ou">Organizational Unit (OU)</Label>
+                                    <Input id="cc-ou" placeholder="Engineering" value={organizationalUnit} onChange={(e) => setOrganizationalUnit(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="cc-locality">Locality (L)</Label>
+                                    <Input id="cc-locality" placeholder="San Francisco" value={locality} onChange={(e) => setLocality(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="cc-state">State / Province (ST)</Label>
+                                    <Input id="cc-state" placeholder="California" value={stateProvince} onChange={(e) => setStateProvince(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="cc-country">Country (C)</Label>
                                     <Input
-                                        id="cc-cn"
-                                        placeholder="e.g. my-service.example.com"
-                                        value={commonName}
-                                        onChange={(e) => setCommonName(e.target.value)}
+                                        id="cc-country"
+                                        placeholder="US"
+                                        maxLength={2}
+                                        value={country}
+                                        onChange={(e) => setCountry(e.target.value.toUpperCase())}
                                     />
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="cc-org">Organization (O)</Label>
-                                        <Input id="cc-org" placeholder="ACME Corp" value={organization} onChange={(e) => setOrganization(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="cc-ou">Organizational Unit (OU)</Label>
-                                        <Input id="cc-ou" placeholder="Engineering" value={organizationalUnit} onChange={(e) => setOrganizationalUnit(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="cc-locality">Locality (L)</Label>
-                                        <Input id="cc-locality" placeholder="San Francisco" value={locality} onChange={(e) => setLocality(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="cc-state">State / Province (ST)</Label>
-                                        <Input id="cc-state" placeholder="California" value={stateProvince} onChange={(e) => setStateProvince(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="cc-country">Country (C)</Label>
-                                        <Input
-                                            id="cc-country"
-                                            placeholder="US"
-                                            maxLength={2}
-                                            value={country}
-                                            onChange={(e) => setCountry(e.target.value.toUpperCase())}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Validity */}
-                            <ExpirationInput
-                                label="Validity"
-                                value={validity}
-                                onValueChange={setValidity}
-                                idPrefix="cc-validity"
-                            />
-
-                            {/* Key Usages */}
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">Key Usages</Label>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
-                                    {KEY_USAGE_OPTIONS.map((opt) => (
-                                        <div key={opt.id} className="flex items-center gap-2">
-                                            <Checkbox
-                                                id={`cc-ku-${opt.id}`}
-                                                checked={selectedKeyUsages.includes(opt.id)}
-                                                onCheckedChange={() => handleKeyUsageToggle(opt.id)}
-                                            />
-                                            <Label htmlFor={`cc-ku-${opt.id}`} className="font-normal text-sm cursor-pointer">
-                                                {opt.label}
-                                            </Label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Extended Key Usages */}
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">Extended Key Usages</Label>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
-                                    {EKU_OPTIONS.map((opt) => (
-                                        <div key={opt.id} className="flex items-center gap-2">
-                                            <Checkbox
-                                                id={`cc-eku-${opt.id}`}
-                                                checked={selectedEkus.includes(opt.id)}
-                                                onCheckedChange={() => handleEkuToggle(opt.id)}
-                                            />
-                                            <Label htmlFor={`cc-eku-${opt.id}`} className="font-normal text-sm cursor-pointer">
-                                                {opt.label}
-                                            </Label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Is CA */}
-                            <div className="flex items-center justify-between rounded-md border p-3 bg-background">
-                                <div className="space-y-0.5">
-                                    <Label htmlFor="cc-isCA" className="font-medium cursor-pointer">Mark as CA Certificate</Label>
-                                    <p className="text-xs text-muted-foreground">Enables Basic Constraints with the CA flag.</p>
-                                </div>
-                                <Switch id="cc-isCA" checked={isCA} onCheckedChange={setIsCA} />
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Issuance Profile (optional) */}
+                    {/* Profile */}
                     <Card className={DETAIL_CARD_CLASSNAME}>
-                        <SectionHeader
-                            icon={BookOpen}
-                            title="Issuance Profile"
-                            description="Optionally reference a profile to override certificate policies."
-                            action={
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-sm text-muted-foreground">Override</span>
-                                    <Switch id="cc-useProfile" checked={useProfile} onCheckedChange={setUseProfile} />
+                        <SectionHeader icon={BookText} title="Profile" />
+                        <CardContent className="p-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div
+                                    className={cn(
+                                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
+                                        profileMode === 'reuse' ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:border-primary/50"
+                                    )}
+                                    onClick={() => setProfileMode('reuse')}
+                                >
+                                    <div className="p-4 flex items-center space-x-3">
+                                        <div className={cn("p-2 rounded-lg", profileMode === 'reuse' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                                            <BookText className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-semibold">Reuse Profile</h3>
+                                            <p className="text-sm text-muted-foreground">Use a predefined issuance template</p>
+                                        </div>
+                                    </div>
                                 </div>
-                            }
-                        />
-                        {useProfile && (
-                            <CardContent className="p-6 space-y-1.5">
-                                <Label htmlFor="cc-profileId">Profile ID</Label>
-                                <p className="text-xs text-muted-foreground">
-                                    Takes precedence over the CA&apos;s default profile.
-                                </p>
-                                <Input
-                                    id="cc-profileId"
-                                    placeholder="e.g. tls-server-profile"
-                                    value={profileId}
-                                    onChange={(e) => setProfileId(e.target.value)}
-                                />
-                            </CardContent>
-                        )}
+                                <div
+                                    className={cn(
+                                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
+                                        profileMode === 'inline' ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:border-primary/50"
+                                    )}
+                                    onClick={() => setProfileMode('inline')}
+                                >
+                                    <div className="p-4 flex items-center space-x-3">
+                                        <div className={cn("p-2 rounded-lg", profileMode === 'inline' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                                            <Settings2 className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-semibold">Define Inline</h3>
+                                            <p className="text-sm text-muted-foreground">Define a one-time issuance policy</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {profileMode === 'reuse' && (
+                                <div className="pt-4 mt-4 border-t space-y-1.5">
+                                    <Label htmlFor="cc-profileId">Profile</Label>
+                                    <p className="text-xs text-muted-foreground">Takes precedence over the CA&apos;s default profile.</p>
+                                    <Select
+                                        value={profileId}
+                                        onValueChange={setProfileId}
+                                        disabled={isLoadingProfiles}
+                                    >
+                                        <SelectTrigger id="cc-profileId">
+                                            <SelectValue placeholder={isLoadingProfiles ? "Loading profiles..." : "Select a profile..."} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {allProfiles.map((p) => (
+                                                <SelectItem key={p.id} value={p.id}>
+                                                    {p.name}
+                                                    {p.description && (
+                                                        <span className="text-muted-foreground ml-2 text-xs">— {p.description}</span>
+                                                    )}
+                                                </SelectItem>
+                                            ))}
+                                            {allProfiles.length === 0 && !isLoadingProfiles && (
+                                                <SelectItem value="__none__" disabled>No profiles available</SelectItem>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                    {profileId && (
+                                        <p className="text-xs text-muted-foreground font-mono">ID: {profileId}</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {profileMode === 'inline' && (
+                                <div className="pt-4 mt-4 border-t space-y-4">
+                                    <ExpirationInput
+                                        label="Validity"
+                                        value={validity}
+                                        onValueChange={setValidity}
+                                        idPrefix="cc-validity"
+                                    />
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Key Usages</Label>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
+                                            {KEY_USAGE_OPTIONS.map((opt) => (
+                                                <div key={opt.id} className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`cc-ku-${opt.id}`}
+                                                        checked={selectedKeyUsages.includes(opt.id)}
+                                                        onCheckedChange={() => handleKeyUsageToggle(opt.id)}
+                                                    />
+                                                    <Label htmlFor={`cc-ku-${opt.id}`} className="font-normal text-sm cursor-pointer">
+                                                        {opt.label}
+                                                    </Label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Extended Key Usages</Label>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
+                                            {EKU_OPTIONS.map((opt) => (
+                                                <div key={opt.id} className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`cc-eku-${opt.id}`}
+                                                        checked={selectedEkus.includes(opt.id)}
+                                                        onCheckedChange={() => handleEkuToggle(opt.id)}
+                                                    />
+                                                    <Label htmlFor={`cc-eku-${opt.id}`} className="font-normal text-sm cursor-pointer">
+                                                        {opt.label}
+                                                    </Label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between rounded-md border p-3 bg-background">
+                                        <div className="space-y-0.5">
+                                            <Label htmlFor="cc-isCA" className="font-medium cursor-pointer">Mark as CA Certificate</Label>
+                                            <p className="text-xs text-muted-foreground">Enables Basic Constraints with the CA flag.</p>
+                                        </div>
+                                        <Switch id="cc-isCA" checked={isCA} onCheckedChange={setIsCA} />
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
                     </Card>
                 </div>
             )}
@@ -651,6 +710,15 @@ export default function CreateCertificateClient() {
                                     onClick={() => router.push(`/certificates/details?certificateId=${issuedSerialNumber}`)}
                                 >
                                     View Certificate Details
+                                </Button>
+                            )}
+                            {issuedKeyId && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => router.push(`/kms/keys/details?keyId=${encodeURIComponent(issuedKeyId)}`)}
+                                >
+                                    <KeyRound className="mr-2 h-4 w-4" /> View Key in KMS
                                 </Button>
                             )}
                         </>
