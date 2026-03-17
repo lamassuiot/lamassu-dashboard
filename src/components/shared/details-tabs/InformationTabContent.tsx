@@ -13,7 +13,7 @@ import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode
 import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
-import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import type { NavigateFunction } from 'react-router-dom';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
@@ -56,7 +56,7 @@ interface InformationTabContentProps {
     statusBadgeClass?: string;
     apiStatusText: string;
   };
-  routerHook: AppRouterInstance;
+  routerHook: NavigateFunction;
   onAkiClick?: (aki: string) => void;
 }
 

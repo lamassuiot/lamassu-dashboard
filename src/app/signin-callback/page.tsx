@@ -3,12 +3,12 @@
 
 import { useEffect } from 'react';
 import { useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export default function SigninCallbackPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { userManager } = useAuth();
   const hasProcessedCallback = useRef(false);
 
@@ -29,14 +29,14 @@ export default function SigninCallbackPage() {
         console.log("SigninCallback: Processing callback...");
         await userManager.signinRedirectCallback();
         console.log("SigninCallback: Callback processed, redirecting to /.");
-        router.push('/');
+        navigate('/');
       } catch (error) {
         console.error('SigninCallback: Error processing signin callback:', error);
-        router.push('/'); // Fallback to home/login
+        navigate('/'); // Fallback to home/login
       }
     };
     processCallback();
-  }, [userManager, router]);
+  }, [userManager, navigate]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">

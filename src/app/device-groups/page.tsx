@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { sileo } from '@/lib/toast';
 import { Layers, Plus, Search, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { getDeviceGroups, deleteDeviceGroup } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
 import { DeviceGroupsList } from '@/components/device-groups/DeviceGroupsList';
@@ -117,7 +117,7 @@ export default function DeviceGroupsPage() {
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
           <Button asChild disabled={isLoading}>
-            <Link href="/device-groups/new">
+            <Link to="/device-groups/new">
               <Plus className="mr-2 h-4 w-4" />
               Create New Group
             </Link>
@@ -180,7 +180,7 @@ export default function DeviceGroupsPage() {
             There are no device groups registered in the system yet.
           </p>
           <Button asChild className="mt-4">
-            <Link href="/device-groups/new">
+            <Link to="/device-groups/new">
               <Plus className="mr-2 h-4 w-4" />
               Create Device Group
             </Link>

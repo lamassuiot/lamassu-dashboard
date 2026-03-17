@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { CertificateList } from '@/components/CertificateList';
 import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import type { CertificateData } from '@/types/certificate';
@@ -67,7 +67,7 @@ const CertificatesPageSkeleton = () => (
 
 
 export default function CertificatesPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [isClientMounted, setIsClientMounted] = useState(false);
@@ -193,7 +193,7 @@ export default function CertificatesPage() {
       return;
     }
     setIsCaSelectorOpen(false);
-    router.push(`/certificate-authorities/issue-certificate?caId=${ca.id}`);
+    navigate(`/certificate-authorities/issue-certificate?caId=${ca.id}`);
   };
 
   const handleInspectCertificate = (certificate: CertificateData) => {
@@ -261,7 +261,7 @@ export default function CertificatesPage() {
             <Button onClick={refreshCertificates} variant="secondary" disabled={isLoadingApi && certificates.length > 0}>
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && certificates.length > 0 && "animate-spin")} /> Refresh List
             </Button>
-            <Button onClick={() => router.push('/certificates/import')} variant="secondary">
+            <Button onClick={() => navigate('/certificates/import')} variant="secondary">
                 <Upload className="mr-2 h-4 w-4" /> Import Certificate
             </Button>
             <Button onClick={() => handleOpenCaSelector('issue')} variant="default">

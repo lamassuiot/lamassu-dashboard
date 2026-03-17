@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
@@ -43,8 +43,8 @@ const getValidityLabel = (profile: ApiSigningProfile) => {
 };
 
 export default function EditSigningProfilePage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const profileId = searchParams.get('id');
   const isEditMode = !!profileId;
 
@@ -180,7 +180,7 @@ export default function EditSigningProfilePage() {
     try {
         await updateSigningProfile(profileId, payload, user.access_token);
         sileo.success({ title: "Profile Updated", description: `Issuance Profile "${data.profileName}" has been successfully updated.` });
-        router.push('/signing-profiles');
+        navigate('/signing-profiles');
     } catch (error: any) {
         sileo.error({ title: `Update Failed`, description: error.message });
     } finally {
@@ -200,7 +200,7 @@ export default function EditSigningProfilePage() {
   if (errorProfile) {
     return (
       <div className="space-y-4">
-        <Button variant="outline" onClick={() => router.push('/signing-profiles')}>
+        <Button variant="outline" onClick={() => navigate('/signing-profiles')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Issuance Profiles
         </Button>
         <Alert variant="destructive">
@@ -257,7 +257,7 @@ export default function EditSigningProfilePage() {
           },
         ]}
         actions={
-          <Button variant="outline" onClick={() => router.push('/signing-profiles')}>
+          <Button variant="outline" onClick={() => navigate('/signing-profiles')}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Issuance Profiles
           </Button>
         }
@@ -331,7 +331,7 @@ export default function EditSigningProfilePage() {
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => router.push('/signing-profiles')}>
+              <Button type="button" variant="outline" onClick={() => navigate('/signing-profiles')}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting || !profileData} className="min-w-36">

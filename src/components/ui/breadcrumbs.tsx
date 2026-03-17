@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,7 +28,7 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
           <li key={index} className="flex items-center">
             {item.href && index < items.length -1 ? (
               <Link
-                href={item.href}
+                to={item.href}
                 className="hover:text-primary hover:underline transition-colors"
               >
                 {item.label}

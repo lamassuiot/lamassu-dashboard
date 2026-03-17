@@ -12,7 +12,7 @@ import type { ApiRaItem } from '@/lib/dms-api';
 import { cn } from '@/lib/utils';
 import type { SortableColumn, SortDirection } from '@/app/registration-authorities/page';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
@@ -88,7 +88,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
   sortConfig,
   requestSort,
 }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
@@ -190,7 +190,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                       <CaVisualizerCard 
                         ca={ca} 
                         allCryptoEngines={allCryptoEngines}
-                      onClick={(selectedCa) => router.push(`/certificate-authorities/details?caId=${selectedCa.id}`)}
+                      onClick={(selectedCa) => navigate(`/certificate-authorities/details?caId=${selectedCa.id}`)}
                       className="min-w-0 !bg-transparent !border-0 !shadow-none hover:!bg-muted/50"
                     />
                   ) : (

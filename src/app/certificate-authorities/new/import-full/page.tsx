@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -40,7 +40,7 @@ const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 
 export default function CreateCaImportFullPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -185,7 +185,7 @@ export default function CreateCaImportFullPage() {
             title: "Certification Authority Import Successful",
             description: `Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`
         });
-        router.push('/certificate-authorities');
+        navigate('/certificate-authorities');
 
     } catch (error: any) {
         sileo.error({ title: "Import Failed", description: error.message });
@@ -202,7 +202,7 @@ export default function CreateCaImportFullPage() {
 
   return (
     <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+      <Button variant="outline" onClick={() => navigate('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 

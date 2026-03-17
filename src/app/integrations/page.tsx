@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,21 +30,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import Image from 'next/image';
+
 import AwsIcon from '../aws.svg';
 
 
 export const IntegrationIcon: React.FC<{ type: DiscoveredIntegration['type'] }> = ({ type }) => {
     switch (type) {
         case 'AWS_IOT_CORE':
-            return <Image src={AwsIcon} alt="AWS IoT Core Icon" className="h-6 w-6" width={24} height={24} />;
+            return <img src={AwsIcon} alt="AWS IoT Core Icon" className="h-6 w-6" width={24} height={24} />;
         default:
             return <Blocks className="h-6 w-6 text-primary" />;
     }
 };
 
 export default function IntegrationsPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [integrations, setIntegrations] = useState<DiscoveredIntegration[]>([]);
@@ -80,12 +80,12 @@ export default function IntegrationsPage() {
   }, [authLoading, loadIntegrations]);
 
   const handleCreateNewIntegration = () => {
-    router.push('/integrations/new');
+    navigate('/integrations/new');
   };
 
   const handleConfigure = (integration: DiscoveredIntegration) => {
     if (integration.type === 'AWS_IOT_CORE') {
-        router.push(`/integrations/configure?raId=${integration.raId}&configKey=${integration.configKey}`);
+        navigate(`/integrations/configure?raId=${integration.raId}&configKey=${integration.configKey}`);
     } else {
         alert(`Configuration for ${integration.typeName} is not yet implemented.`);
     }
@@ -180,7 +180,7 @@ export default function IntegrationsPage() {
                           </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => router.push(`/registration-authorities/new?raId=${integration.raId}`)}>
+                          <DropdownMenuItem onClick={() => navigate(`/registration-authorities/new?raId=${integration.raId}`)}>
                               <Eye className="mr-2 h-4 w-4" />
                               <span>View RA</span>
                           </DropdownMenuItem>
@@ -207,7 +207,7 @@ export default function IntegrationsPage() {
                         <Button
                             variant="link"
                             className="p-0 h-auto font-mono text-xs"
-                            onClick={() => router.push(`/registration-authorities/new?raId=${integration.raId}`)}
+                            onClick={() => navigate(`/registration-authorities/new?raId=${integration.raId}`)}
                             title={`Edit RA ${integration.raId}`}
                         >
                             {integration.raId}

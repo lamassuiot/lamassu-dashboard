@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -38,7 +38,7 @@ interface KmsKey {
 }
 
 export default function KmsKeysPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [keys, setKeys] = useState<KmsKey[]>([]);
@@ -199,7 +199,7 @@ export default function KmsKeysPage() {
 
 
   const handleCreateNewKey = () => {
-    router.push('/kms/keys/new');
+    navigate('/kms/keys/new');
   };
 
   const confirmDeleteKey = (key: KmsKey) => {
@@ -238,7 +238,7 @@ export default function KmsKeysPage() {
   };
 
   const handleViewDetails = (keyIdValue: string) => {
-    router.push(`/kms/keys/details?keyId=${keyIdValue}`);
+    navigate(`/kms/keys/details?keyId=${keyIdValue}`);
   };
 
   if (authLoading || (isLoading && keys.length === 0)) {
@@ -520,13 +520,13 @@ export default function KmsKeysPage() {
                               <Eye className="mr-2 h-4 w-4" /> View Details
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => router.push(`/kms/keys/details?keyId=${key.id}&tab=generate-csr`)}
+                              onClick={() => navigate(`/kms/keys/details?keyId=${key.id}&tab=generate-csr`)}
                               disabled={!key.hasPrivateKey}
                             >
                               <FileSignature className="mr-2 h-4 w-4" /> Generate CSR
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => router.push(`/kms/keys/details?keyId=${key.id}&tab=sign-verify`)}
+                              onClick={() => navigate(`/kms/keys/details?keyId=${key.id}&tab=sign-verify`)}
                               disabled={!key.hasPrivateKey}
                             >
                               <PenTool className="mr-2 h-4 w-4" /> Sign / Verify

@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Rocket, ShieldCheck, FilePlus2, ArrowRight, ArrowLeft, Loader2, CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
 import { BackendStatusCheck } from './BackendStatusCheck';
@@ -51,7 +51,7 @@ interface ValidationError {
 
 
 export const InitializationWizard: React.FC = () => {
-    const router = useRouter();
+    const navigate = useNavigate();
     const { user } = useAuth();
 
     const [currentStep, setCurrentStep] = useState(1);
@@ -495,7 +495,7 @@ export const InitializationWizard: React.FC = () => {
     };
 
     const handleCreateRootCA = () => {
-        router.push('/certificate-authorities/new/generate');
+        navigate('/certificate-authorities/new/generate');
     };
 
     const LogIcon: React.FC<{ status: LogEntry['status'] }> = ({ status }) => {

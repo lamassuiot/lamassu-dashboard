@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -197,7 +197,7 @@ export function DeviceGroupsList({ groups, onDelete }: DeviceGroupsListProps) {
                         )}
                         <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <Link
-                          href={`/device-groups/details?groupId=${group.id}`}
+                          to={`/device-groups/details?groupId=${group.id}`}
                           className="hover:underline truncate"
                         >
                           {group.name}
@@ -220,13 +220,13 @@ export function DeviceGroupsList({ groups, onDelete }: DeviceGroupsListProps) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/device-groups/details?groupId=${group.id}`}>
+                          <Link to={`/device-groups/details?groupId=${group.id}`}>
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href={`/device-groups/edit?groupId=${group.id}`}>
+                          <Link to={`/device-groups/edit?groupId=${group.id}`}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </Link>

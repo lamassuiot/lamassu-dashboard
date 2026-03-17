@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import Image from 'next/image';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
@@ -46,7 +46,7 @@ const EngineIcon: React.FC<{ type: string; name: string }> = ({ type, name }) =>
   if (imageSrc) {
     return (
       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-background">
-        <Image src={imageSrc} alt={`${name} Icon`} fill className="object-contain p-1.5" />
+        <img src={imageSrc} alt={`${name} Icon`} className="absolute inset-0 h-full w-full object-contain p-1.5" />
       </div>
     );
   }

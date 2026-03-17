@@ -2,18 +2,18 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export default function SignoutCallbackPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { userManager } = useAuth();
 
   useEffect(() => {
     if (!userManager) {
       console.log("SignoutCallback: Waiting for UserManager. Redirecting home.");
-      router.push('/');
+      navigate('/');
       return;
     }
 
@@ -26,11 +26,11 @@ export default function SignoutCallbackPage() {
         console.error('SignoutCallback: Error processing signout callback:', error);
       } finally {
         console.log("SignoutCallback: Redirecting to /.");
-        router.push('/');
+        navigate('/');
       }
     };
     processSignout();
-  }, [userManager, router]);
+  }, [userManager, navigate]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">

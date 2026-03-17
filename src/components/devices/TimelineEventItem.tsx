@@ -19,7 +19,7 @@ import {
   CalendarRange,
   BadgeAlert,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { IdentifierDisplay } from '../shared/IdentifierDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
@@ -125,7 +125,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
   onRevoke,
   onReactivate,
 }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const visuals = eventTypeVisuals[event.eventType] ?? eventTypeVisuals['DEFAULT'];
 
   const cert = event.certificate;
@@ -194,7 +194,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
                     variant="link"
                     className="h-auto p-0 text-xs font-normal text-foreground"
                     onClick={() =>
-                      router.push(
+                      navigate(
                         `/certificates/details?certificateId=${cert.serialNumber}`,
                       )
                     }
@@ -240,7 +240,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
                     variant="link"
                     className="h-auto p-0 text-left text-[11px] font-normal text-muted-foreground whitespace-normal leading-snug"
                     onClick={() =>
-                      router.push(
+                      navigate(
                         `/certificate-authorities/details?caId=${cert.issuerCaId}`,
                       )
                     }

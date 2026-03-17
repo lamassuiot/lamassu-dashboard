@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
+import { useSearchParams, useNavigate } from 'react-router-dom'; 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -57,8 +57,8 @@ const getCertSubjectCommonName = (subject: string): string => {
 };
 
 export default function DeviceDetailsClient() { 
-  const searchParams = useSearchParams(); 
-  const routerHook = useRouter();
+  const [searchParams] = useSearchParams(); 
+  const routerHook = useNavigate();
   const deviceId = searchParams.get('deviceId'); 
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
@@ -209,7 +209,7 @@ export default function DeviceDetailsClient() {
       // Clean up the URL to prevent re-opening on refresh
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('action');
-      routerHook.replace(newUrl.toString(), { scroll: false });
+      routerHook(newUrl.toString());
     }
   }, [searchParams, routerHook]);
 
@@ -561,7 +561,7 @@ export default function DeviceDetailsClient() {
             description: "Device has been permanently deleted."
         });
         setIsDeleteModalOpen(false);
-        routerHook.push('/devices'); // Redirect to the list page
+        routerHook('/devices'); // Redirect to the list page
     } catch (e: any) {
         sileo.error({
             title: "Deletion Failed",
@@ -621,7 +621,7 @@ export default function DeviceDetailsClient() {
   if (errorDevice) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="outline" onClick={() => routerHook(-1)} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert variant="destructive">
@@ -636,7 +636,7 @@ export default function DeviceDetailsClient() {
   if (!device) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="outline" onClick={() => routerHook(-1)} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert>
@@ -833,7 +833,7 @@ export default function DeviceDetailsClient() {
                             <Button
                                 variant="link"
                                 className="p-0 h-auto text-xs"
-                                onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
+                                onClick={() => routerHook(`/certificates/details?certificateId=${cert.serialNumber}`)}
                                 title={`View details for certificate ${cert.serialNumber}`}
                             >
                                 <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
@@ -864,7 +864,7 @@ export default function DeviceDetailsClient() {
                                 <Button
                                     variant="link"
                                     className="p-0 h-auto font-normal text-left whitespace-normal leading-tight"
-                                    onClick={() => routerHook.push(`/certificate-authorities/details?caId=${cert.issuerCaId}`)}
+                                    onClick={() => routerHook(`/certificate-authorities/details?caId=${cert.issuerCaId}`)}
                                     title={`View details for CA ${cert.ca}`}
                                 >
                                     {cert.ca}
@@ -877,7 +877,7 @@ export default function DeviceDetailsClient() {
                           <TableCell className="hidden lg:table-cell"><DateDisplay date={cert.validTo} formatString={getDisplayDateFormat()} className="text-xs" highlightExpired /></TableCell>
                           <TableCell className="hidden md:table-cell">{cert.lifespan}</TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="icon" title="View Certificate Details" onClick={() => routerHook.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>
+                            <Button variant="ghost" size="icon" title="View Certificate Details" onClick={() => routerHook(`/certificates/details?certificateId=${cert.serialNumber}`)}>
                               <ChevronRight className="h-4 w-4" />
                             </Button>
                           </TableCell>

@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import {
     Sheet,
     SheetContent,
@@ -28,9 +27,12 @@ import { createSchema } from 'genson-js';
 import { Stepper } from '@/components/shared/Stepper';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
-const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
-    ssr: false,
-});
+const MonacoEditorLazy = React.lazy(() => import('@monaco-editor/react'));
+const MonacoEditor = (props: Parameters<typeof MonacoEditorLazy>[0]) => (
+  <React.Suspense fallback={null}>
+    <MonacoEditorLazy {...props} />
+  </React.Suspense>
+);
 
 
 interface SubscribeToAlertModalProps {

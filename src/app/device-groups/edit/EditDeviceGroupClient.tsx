@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -12,7 +12,7 @@ import type { DeviceGroup } from '@/types/device-group';
 import { DeviceGroupForm } from '@/components/device-groups/DeviceGroupForm';
 
 export default function EditDeviceGroupClient() {
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const groupId = searchParams.get('groupId');
 

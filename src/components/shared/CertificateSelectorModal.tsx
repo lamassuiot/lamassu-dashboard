@@ -15,7 +15,7 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
-import type { ApiStatusFilterValue } from '@/app/certificates/page'; // Import shared type
+import type { ApiStatusFilterValue } from '@/hooks/usePaginatedCertificateFetcher'; // Import shared type
 
 // Define API_STATUS_VALUES locally if not exportable or if preferred for modal's independence
 const MODAL_API_STATUS_VALUES = {

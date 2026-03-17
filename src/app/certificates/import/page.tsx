@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,15 +13,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
 import { parseCertificatePemDetails } from '@/lib/ca-data';
-import dynamic from 'next/dynamic';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
-// Dynamically import Monaco Editor to avoid SSR issues
-const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
-  ssr: false,
-  loading: () => <div className="h-32 bg-muted animate-pulse rounded" />
-});
+const MonacoEditorLazy = React.lazy(() => import('@monaco-editor/react'));
+const MonacoEditor = (props: Parameters<typeof MonacoEditorLazy>[0]) => (
+  <React.Suspense fallback={<div className="h-32 bg-muted animate-pulse rounded" />}>
+    <MonacoEditorLazy {...props} />
+  </React.Suspense>
+);
 
 interface ParsedCertificateInfo {
   subject?: string;
@@ -37,7 +37,7 @@ const ALLOWED_EXTENSIONS = ['.pem', '.crt', '.cer'];
 
 export default function ImportCertificatePage() {
   const monacoTheme = useMonacoTheme();
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -208,7 +208,7 @@ export default function ImportCertificatePage() {
       });
 
       // Navigate back to certificates page
-      router.push('/certificates');
+      navigate('/certificates');
 
     } catch (error) {
       console.error('Error importing certificate:', error);
@@ -225,7 +225,7 @@ export default function ImportCertificatePage() {
     <div className="w-full space-y-6 mb-8">
       {/* Header with back button */}
       <div className="flex items-center space-x-4">
-        <Button variant="outline" onClick={() => router.push('/certificates')}>
+        <Button variant="outline" onClick={() => navigate('/certificates')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certificates
         </Button>
         <div className="flex items-center space-x-3">
@@ -359,7 +359,7 @@ export default function ImportCertificatePage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push('/certificates')}
+            onClick={() => navigate('/certificates')}
             disabled={isLoading}
           >
             Cancel

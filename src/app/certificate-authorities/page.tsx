@@ -2,13 +2,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Landmark, List, Network, Loader2, GitFork, AlertCircle as AlertCircleIcon, PlusCircle, Search, UploadCloud, FileText } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import dynamic from 'next/dynamic';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,44 +19,9 @@ import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
 import { filterCaList } from '@/lib/ca-utils';
 
 
-const CaFilesystemView = dynamic(() => 
-  import('@/components/ca/CaFilesystemView').then(mod => mod.CaFilesystemView), 
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg">Loading List View...</p>
-      </div>
-    )
-  }
-);
-
-const CaHierarchyView = dynamic(() => 
-  import('@/components/ca/CaHierarchyView').then(mod => mod.CaHierarchyView), 
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg">Loading Hierarchy View...</p>
-      </div>
-    )
-  }
-);
-
-const CaGraphView = dynamic(() =>
-  import('@/components/ca/CaGraphView').then(mod => mod.CaGraphView),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg">Loading Graph View...</p>
-      </div>
-    )
-  }
-);
+import { CaFilesystemView } from '@/components/ca/CaFilesystemView';
+import { CaHierarchyView } from '@/components/ca/CaHierarchyView';
+import { CaGraphView } from '@/components/ca/CaGraphView';
 
 type ViewMode = 'list' | 'hierarchy' | 'graph';
 
@@ -75,7 +39,7 @@ const TYPE_OPTIONS: { value: CaTypeFilter, label: string; icon: React.ElementTyp
 
 
 export default function CertificateAuthoritiesPage() {
-  const router = useRouter(); 
+  const navigate = useNavigate(); 
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [cas, setCas] = useState<CA[]>([]);
   const [isLoadingCas, setIsLoadingCas] = useState(true);
@@ -145,7 +109,7 @@ export default function CertificateAuthoritiesPage() {
 
 
   const handleCreateNewCAClick = () => {
-    router.push('/certificate-authorities/new');
+    navigate('/certificate-authorities/new');
   };
 
   const handleViewModeChange = (newMode: string) => {
@@ -262,13 +226,13 @@ export default function CertificateAuthoritiesPage() {
           {!(errorCas || (viewMode === 'list' && errorCryptoEngines)) && filteredCAs.length > 0 ? (
             <>
               {viewMode === 'list' && (
-                <CaFilesystemView cas={filteredCAs} router={router} allCAs={cas} allCryptoEngines={allCryptoEngines} />
+                <CaFilesystemView cas={filteredCAs} router={navigate} allCAs={cas} allCryptoEngines={allCryptoEngines} />
               )}
               {viewMode === 'hierarchy' && (
-                <CaHierarchyView cas={filteredCAs} router={router} allCAs={cas} allCryptoEngines={allCryptoEngines} />
+                <CaHierarchyView cas={filteredCAs} router={navigate} allCAs={cas} allCryptoEngines={allCryptoEngines} />
               )}
               {viewMode === 'graph' && (
-                <CaGraphView cas={filteredCAs} allCryptoEngines={allCryptoEngines} router={router} />
+                <CaGraphView cas={filteredCAs} allCryptoEngines={allCryptoEngines} router={navigate} />
               )}
             </>
           ) : (

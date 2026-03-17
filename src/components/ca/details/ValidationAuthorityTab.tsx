@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -83,7 +83,7 @@ interface ValidationAuthorityTabProps {
 }
 
 export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [config, setConfig] = useState<VAConfig | null>(null);
@@ -588,7 +588,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                                         <Button
                                           variant="link"
                                           className="h-auto p-0 text-xs font-mono"
-                                          onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
+                                          onClick={() => navigate(`/certificates/details?certificateId=${cert.serialNumber}`)}
                                         >
                                           <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
                                         </Button>

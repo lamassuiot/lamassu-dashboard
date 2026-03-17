@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
@@ -59,8 +59,8 @@ const buildCaPathToRoot = (targetCaId: string | undefined, allCAs: CA[]): CA[] =
 };
 
 export default function CertificateAuthorityDetailsClient() {
-  const searchParams = useSearchParams();
-  const routerHook = useRouter();
+  const [searchParams] = useSearchParams();
+  const routerHook = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const caIdFromUrl = searchParams.get('caId');
 
@@ -271,7 +271,7 @@ export default function CertificateAuthorityDetailsClient() {
             title: "Certification Authority Deleted",
             description: `Certification Authority "${caToDelete.name}" has been permanently deleted.`
         });
-        routerHook.push('/certificate-authorities'); // Redirect to the list page
+        routerHook('/certificate-authorities'); // Redirect to the list page
 
     } catch (error: any) {
         sileo.error({
@@ -338,7 +338,7 @@ export default function CertificateAuthorityDetailsClient() {
   if ((errorCAs || errorEngines) && !caDetails) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="outline" onClick={() => routerHook(-1)} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert variant="destructive">
@@ -356,7 +356,7 @@ export default function CertificateAuthorityDetailsClient() {
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <FileText className="h-12 w-12 text-muted-foreground" />
         <p className="text-muted-foreground">Certification Authority with ID "{caIdFromUrl || 'Unknown'}" not found or data is unavailable.</p>
-        <Button variant="outline" onClick={() => routerHook.push('/certificate-authorities')} className="mt-4">
+        <Button variant="outline" onClick={() => routerHook('/certificate-authorities')} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authorities
         </Button>
       </div>
@@ -472,7 +472,7 @@ export default function CertificateAuthorityDetailsClient() {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
-                  onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
+                  onClick={() => routerHook(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
                   disabled={!caIsActive}
                 >
                   <FileText className="mr-2 h-4 w-4" />

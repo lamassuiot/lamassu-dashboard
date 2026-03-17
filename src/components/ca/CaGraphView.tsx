@@ -37,7 +37,7 @@ import { toPng } from 'html-to-image';
 interface CaGraphViewProps {
   cas: CA[];
   allCryptoEngines: ApiCryptoEngine[];
-  router: ReturnType<typeof import('next/navigation').useRouter>;
+  router: ReturnType<typeof import('react-router-dom').useNavigate>;
 }
 
 interface CaNodeData extends Record<string, unknown> {
@@ -780,7 +780,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
               type: 'caNode',
               data: {
                 ca,
-                onClick: () => router.push(`/certificate-authorities/details?caId=${ca.id}`),
+                onClick: () => router(`/certificate-authorities/details?caId=${ca.id}`),
               },
               position: { x: 20, y: 85 + index * 95 }, // Offset for crypto engine header
               parentId: groupId,
@@ -798,7 +798,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
             type: 'caNode',
             data: {
               ca,
-              onClick: () => router.push(`/certificate-authorities/details?caId=${ca.id}`),
+              onClick: () => router(`/certificate-authorities/details?caId=${ca.id}`),
             },
             position: { x: 0, y: 0 },
             width: 380,
@@ -814,7 +814,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           type: 'caNode',
           data: {
             ca,
-            onClick: () => router.push(`/certificate-authorities/details?caId=${ca.id}`),
+            onClick: () => router(`/certificate-authorities/details?caId=${ca.id}`),
           },
           position: { x: 0, y: 0 },
           width: 380,
@@ -831,7 +831,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
           type: 'caNode',
           data: {
             ca,
-            onClick: () => router.push(`/certificate-authorities/details?caId=${ca.id}`),
+            onClick: () => router(`/certificate-authorities/details?caId=${ca.id}`),
           },
           position: { x: 0, y: 0 },
           width: 380,

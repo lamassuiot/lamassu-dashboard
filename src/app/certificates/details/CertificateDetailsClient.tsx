@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
+import { useSearchParams, useNavigate } from 'react-router-dom'; 
 import { Button } from "@/components/ui/button";
 import { FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, Settings, KeyRound, Copy, Check, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -62,8 +62,8 @@ const buildCertificateChainPem = (
 
 
 export default function CertificateDetailsClient() { // Renamed component
-  const searchParams = useSearchParams(); // Changed from useParams
-  const routerHook = useRouter();
+  const [searchParams] = useSearchParams(); 
+  const routerHook = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { mode: identifierMode } = useIdentifierDisplay();
   const certificateId = searchParams.get('certificateId'); // Get certificateId from query params
@@ -338,7 +338,7 @@ export default function CertificateDetailsClient() { // Renamed component
         await deleteCertificate(certificateDetails.serialNumber, user.access_token);
         sileo.success({ title: "Certificate Deleted", description: "The certificate has been permanently removed." });
         setIsDeleteModalOpen(false);
-        routerHook.push('/certificates');
+        routerHook('/certificates');
     } catch (error: any) {
         sileo.error({ title: "Deletion Failed", description: error.message });
         setIsDeleting(false);
@@ -362,7 +362,7 @@ export default function CertificateDetailsClient() { // Renamed component
   if (errorCert || errorDependencies) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="outline" onClick={() => routerHook(-1)} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert variant="destructive">
@@ -380,7 +380,7 @@ export default function CertificateDetailsClient() { // Renamed component
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <FileText className="h-12 w-12 text-muted-foreground" />
         <p className="text-muted-foreground">Certificate with Serial Number "{certificateId || 'Unknown'}" not found or data is unavailable.</p>
-        <Button variant="outline" onClick={() => routerHook.push('/certificates')} className="mt-4">
+        <Button variant="outline" onClick={() => routerHook('/certificates')} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certificates List
         </Button>
       </div>

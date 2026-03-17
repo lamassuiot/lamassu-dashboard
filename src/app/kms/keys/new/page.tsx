@@ -3,8 +3,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -25,11 +24,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { cn } from '@/lib/utils';
 
-// Monaco Editor dynamic import to avoid SSR issues
-const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
-  ssr: false,
-  loading: () => <div className="h-48 w-full flex items-center justify-center bg-muted/30 rounded-md border"><Loader2 className="h-8 w-8 animate-spin"/></div>
-});
+// Monaco Editor lazy import
+const MonacoEditorLazy = React.lazy(() => import('@monaco-editor/react'));
+const MonacoEditor = (props: Parameters<typeof MonacoEditorLazy>[0]) => (
+  <React.Suspense fallback={<div className="h-48 w-full flex items-center justify-center bg-muted/30 rounded-md border"><Loader2 className="h-8 w-8 animate-spin"/></div>}>
+    <MonacoEditorLazy {...props} />
+  </React.Suspense>
+);
 
 const creationModes = [
   {
@@ -55,7 +56,7 @@ const creationModes = [
 
 export default function CreateKmsKeyPage() {
   const monacoTheme = useMonacoTheme();
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
@@ -260,7 +261,7 @@ export default function CreateKmsKeyPage() {
                 title: "Key Pair Created",
                 description: `Key pair with name "${keyName.trim()}" has been successfully created.`
             });
-            router.push('/kms/keys');
+            navigate('/kms/keys');
 
         } catch (error: any) {
             sileo.error({ title: "Creation Failed", description: error.message });
@@ -315,7 +316,7 @@ export default function CreateKmsKeyPage() {
           title: "Key Pair Imported",
           description: `Key pair with name "${importKeyName.trim()}" has been successfully imported.`
         });
-        router.push('/kms/keys');
+        navigate('/kms/keys');
 
       } catch (error: any) {
         sileo.error({ title: "Import Failed", description: error.message });
@@ -334,7 +335,7 @@ export default function CreateKmsKeyPage() {
         title: "KMS Key Import Mocked",
         description: `Public key import submitted. Check console.`
       });
-      router.push('/kms/keys');
+      navigate('/kms/keys');
       setIsSubmitting(false);
     }
   };
@@ -344,7 +345,7 @@ export default function CreateKmsKeyPage() {
   if (!selectedMode) {
     return (
       <div className="w-full space-y-8 mb-8">
-        <Button variant="outline" onClick={() => router.push('/kms/keys')} className="mb-0">
+        <Button variant="outline" onClick={() => navigate('/kms/keys')} className="mb-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
         <div className="mx-auto max-w-4xl space-y-2 text-center">
@@ -412,7 +413,7 @@ export default function CreateKmsKeyPage() {
   return (
     <div className="w-full space-y-6 mb-8">
       <div className="flex justify-between items-center">
-        <Button variant="outline" onClick={() => router.push('/kms/keys')}>
+        <Button variant="outline" onClick={() => navigate('/kms/keys')}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
         <Button

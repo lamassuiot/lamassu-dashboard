@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
 import { User, UserManager, WebStorageStateStore, Log, UserProfile } from 'oidc-client-ts';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 
 // Optional: Configure oidc-client-ts logging
@@ -52,7 +52,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { config, isConfigLoaded } = useConfig();
   const [authMode, setAuthMode] = useState<'loading' | 'enabled' | 'disabled'>('loading');
 
@@ -87,20 +87,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             await userManagerInstance.signoutRedirect();
           }
         } else {
-          router.push('/');
+          navigate('/');
         }
       } catch (error) {
         console.error("AuthContext: Logout redirect error:", error);
         setUser(null);
         await userManagerInstance.removeUser();
-        router.push('/');
+        navigate('/');
       }
     }
-  }, [userManagerInstance, router]);
+  }, [userManagerInstance, navigate]);
 
   const signoutRedirectCognito = useCallback(async () => {
     if (!userManagerInstance) {
-      router.push('/');
+      navigate('/');
       return;
     }
 
@@ -114,7 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     })
 
-  }, [userManagerInstance, router]);
+  }, [userManagerInstance, navigate]);
 
 
   useEffect(() => {

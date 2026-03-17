@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -35,8 +35,8 @@ interface ParsedCaCert {
 
 
 export default function EstCaCertsPage() {
-    const router = useRouter();
-    const searchParams = useSearchParams();
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const raId = searchParams.get('raId');
     const { user, isLoading: authLoading, isAuthenticated } = useAuth();
     
@@ -122,7 +122,7 @@ export default function EstCaCertsPage() {
     
     return (
         <div className="space-y-6 w-full pb-12">
-            <Button variant="outline" onClick={() => router.back()}>
+            <Button variant="outline" onClick={() => navigate(-1)}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
             <div className="flex items-center space-x-3">

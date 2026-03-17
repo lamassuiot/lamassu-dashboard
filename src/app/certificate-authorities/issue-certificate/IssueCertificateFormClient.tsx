@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -65,8 +65,8 @@ const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 
 
 export default function IssueCertificateFormClient() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const caId = searchParams.get('caId');
   const prefilledCn = searchParams.get('prefill_cn');
@@ -177,7 +177,7 @@ export default function IssueCertificateFormClient() {
       description: "Certificate issued successfully.",
       button: {
         title: "View certificate",
-        onClick: () => router.push(`/certificates/details?certificateId=${serialNumber}`),
+        onClick: () => navigate(`/certificates/details?certificateId=${serialNumber}`),
       },
     });
   };
@@ -494,7 +494,7 @@ export default function IssueCertificateFormClient() {
   return (
     <div className="w-full space-y-6">
       <div className="flex justify-between items-center">
-        <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authority</Button>
+        <Button variant="outline" onClick={() => navigate(-1)}><ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authority</Button>
       </div>
 
       <div>
@@ -846,14 +846,14 @@ export default function IssueCertificateFormClient() {
                     <>
                         <Button type="button" variant="outline" onClick={() => {
                             if (returnToDevice) {
-                                router.push(`/devices/details?deviceId=${returnToDevice}&action=assignIdentity`);
+                                navigate(`/devices/details?deviceId=${returnToDevice}&action=assignIdentity`);
                             } else {
-                                router.push(`/certificate-authorities/details?caId=${caId}&tab=issued`);
+                                navigate(`/certificate-authorities/details?caId=${caId}&tab=issued`);
                             }
                         }}>
                             Finish
                         </Button>
-                        <Button type="button" onClick={() => router.push(`/certificates/details?certificateId=${issuedCertificate?.serial}`)} disabled={!issuedCertificate?.serial}>
+                        <Button type="button" onClick={() => navigate(`/certificates/details?certificateId=${issuedCertificate?.serial}`)} disabled={!issuedCertificate?.serial}>
                             View Certificate Details
                         </Button>
                     </>

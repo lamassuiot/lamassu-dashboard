@@ -15,7 +15,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
 interface CaHierarchyViewProps {
   cas: CA[];
-  router: ReturnType<typeof import('next/navigation').useRouter>;
+  router: ReturnType<typeof import('react-router-dom').useNavigate>;
   allCAs: CA[];
   allCryptoEngines: ApiCryptoEngine[];
 }
@@ -27,9 +27,9 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
     );
   }
 
-  const renderTreeNodes = (ca: CA, currentRouter: ReturnType<typeof import('next/navigation').useRouter>, currentAllCAs: CA[], currentAllCryptoEngines: ApiCryptoEngine[]): React.ReactNode => {
+  const renderTreeNodes = (ca: CA, currentRouter: ReturnType<typeof import('react-router-dom').useNavigate>, currentAllCAs: CA[], currentAllCryptoEngines: ApiCryptoEngine[]): React.ReactNode => {
     const handleNodeClick = (selectedCa: CA) => {
-      currentRouter.push(`/certificate-authorities/details?caId=${selectedCa.id}`); // Updated navigation
+      currentRouter(`/certificate-authorities/details?caId=${selectedCa.id}`); // Updated navigation
     };
 
     return (
@@ -50,7 +50,7 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
   };
 
   const handleRootNodeClick = (selectedCa: CA) => {
-    router.push(`/certificate-authorities/details?caId=${selectedCa.id}`); // Updated navigation
+    router(`/certificate-authorities/details?caId=${selectedCa.id}`); // Updated navigation
   };
 
   return (

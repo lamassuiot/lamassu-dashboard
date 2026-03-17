@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -111,8 +111,8 @@ type SortableColumn = 'id' | 'status' | 'deviceGroup' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
 export default function DevicesPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [devices, setDevices] = useState<DeviceData[]>([]);
@@ -313,7 +313,7 @@ export default function DevicesPage() {
   };
 
   const handleViewDetails = (deviceIdValue: string) => {
-    router.push(`/devices/details?deviceId=${deviceIdValue}`);
+    navigate(`/devices/details?deviceId=${deviceIdValue}`);
   };
 
   const handleDmsOwnerChange = (dmsId: string | null) => {
@@ -324,7 +324,7 @@ export default function DevicesPage() {
       currentParams.delete('dms_owner');
     }
     const newQueryString = currentParams.toString();
-    router.push(`/devices${newQueryString ? `?${newQueryString}` : ''}`);
+    navigate(`/devices${newQueryString ? `?${newQueryString}` : ''}`);
   };
 
   const handleOpenEnrollModal = async (device: DeviceData) => {

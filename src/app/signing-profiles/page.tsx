@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn, getCookie, setCookie } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,7 +40,7 @@ const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
 export default function SigningProfilesPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [profiles, setProfiles] = useState<ApiSigningProfile[]>([]);
@@ -171,11 +171,11 @@ export default function SigningProfilesPage() {
   };
 
   const handleCreateNewProfile = () => {
-    router.push('/signing-profiles/new');
+    navigate('/signing-profiles/new');
   };
 
   const handleEditProfile = (profileId: string) => {
-    router.push(`/signing-profiles/edit?id=${profileId}`);
+    navigate(`/signing-profiles/edit?id=${profileId}`);
   };
 
   const handleDeleteProfileClick = (profile: ApiSigningProfile) => {

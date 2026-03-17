@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,7 +33,7 @@ interface DecodedImportedCertInfo {
 
 
 export default function CreateCaImportPublicPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,7 +99,7 @@ export default function CreateCaImportPublicPage() {
             title: "Public Certification Authority Import Successful",
             description: `Public Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`
         });
-        router.push('/certificate-authorities');
+        navigate('/certificate-authorities');
 
     } catch (error: any) {
         console.error("Public CA Import API Error:", error);
@@ -111,7 +111,7 @@ export default function CreateCaImportPublicPage() {
 
   return (
     <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+      <Button variant="outline" onClick={() => navigate('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
