@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,8 +40,8 @@ import { CompactGroupStats } from '@/components/device-groups/CompactGroupStats'
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
 
 export default function DeviceGroupDetailsClient() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const groupId = searchParams.get('groupId');
 
@@ -101,7 +101,7 @@ export default function DeviceGroupDetailsClient() {
         title: 'Success',
         description: `Device group "${group.name}" deleted successfully`
       });
-      router.push('/device-groups');
+      navigate('/device-groups');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete device group';
       sileo.error({
@@ -126,7 +126,7 @@ export default function DeviceGroupDetailsClient() {
   if (error || !groupId) {
     return (
       <div className="w-full space-y-4 p-4">
-        <Button variant="outline" onClick={() => router.back()} className="mb-4">
+        <Button variant="outline" onClick={() => navigate(-1)} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
         <Alert variant="destructive">
@@ -141,7 +141,7 @@ export default function DeviceGroupDetailsClient() {
   if (!group) {
     return (
       <div className="w-full space-y-4 p-4">
-        <Button variant="outline" onClick={() => router.back()} className="mb-4">
+        <Button variant="outline" onClick={() => navigate(-1)} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
         <Alert>
@@ -191,7 +191,7 @@ export default function DeviceGroupDetailsClient() {
   return (
     <div className="space-y-6 w-full">
       <div className="flex items-center justify-between gap-4">
-        <Button variant="outline" onClick={() => router.back()}>
+        <Button variant="outline" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
         <CompactGroupStats groupId={group.id} />
@@ -214,7 +214,7 @@ export default function DeviceGroupDetailsClient() {
             <Button variant="secondary" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
-            <Button variant="secondary" onClick={() => router.push(`/device-groups/edit?groupId=${group.id}`)}>
+            <Button variant="secondary" onClick={() => navigate(`/device-groups/edit?groupId=${group.id}`)}>
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </Button>
@@ -230,7 +230,7 @@ export default function DeviceGroupDetailsClient() {
             <Button
               variant="link"
               className="h-auto p-0 text-sm"
-              onClick={() => router.push(`/device-groups/details?groupId=${parentGroup.id}`)}
+              onClick={() => navigate(`/device-groups/details?groupId=${parentGroup.id}`)}
             >
               <FolderTree className="h-4 w-4 mr-1" />
               {parentGroup.name}
@@ -268,7 +268,7 @@ export default function DeviceGroupDetailsClient() {
                       <Button
                         variant="link"
                         className="h-auto p-0 text-sm"
-                        onClick={() => router.push(`/device-groups/details?groupId=${parentGroup.id}`)}
+                        onClick={() => navigate(`/device-groups/details?groupId=${parentGroup.id}`)}
                       >
                         <FolderTree className="h-4 w-4 mr-1" />
                         {parentGroup.name}

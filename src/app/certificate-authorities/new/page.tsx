@@ -3,7 +3,7 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight } from "lucide-react";
@@ -56,11 +56,11 @@ const creationModes: CreationMode[] = [
 
 
 export default function CreateCaHubPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   return (
     <div className="w-full space-y-8 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities')} className="mb-0">
+      <Button variant="outline" onClick={() => navigate('/certificate-authorities')} className="mb-0">
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authorities
       </Button>
       <div className="text-center">
@@ -82,7 +82,7 @@ export default function CreateCaHubPage() {
                   key={mode.id}
                   type="button"
                   className="flex w-full cursor-pointer items-start gap-4 px-6 py-5 text-left transition-colors hover:bg-muted/30"
-                  onClick={() => router.push(mode.href)}
+                  onClick={() => navigate(mode.href)}
                 >
                   <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5">
                     {icon}

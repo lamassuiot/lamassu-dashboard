@@ -4,7 +4,7 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Landmark, FileText, Users, Router } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface SummaryStats {
@@ -26,12 +26,12 @@ const StatItem: React.FC<{
   isLoading: boolean;
   icon: React.ElementType;
 }> = ({ value, label, href, isLoading, icon: Icon }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      router.push(href);
+      navigate(href);
     }
   };
 
@@ -40,7 +40,7 @@ const StatItem: React.FC<{
       role="button"
       tabIndex={0}
       className="bg-[--homepage-card-background] text-primary-foreground hover:bg-[--homepage-card-background]/90 transition-colors cursor-pointer p-4 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background shadow-lg"
-      onClick={() => router.push(href)}
+      onClick={() => navigate(href)}
       onKeyDown={handleKeyDown}
     >
       <div className="flex items-center space-x-4">

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import dynamic from 'next/dynamic';
 import {
   Table,
   TableBody,
@@ -17,9 +16,12 @@ import { cn } from '@/lib/utils';
 import { CompactDateDisplay } from '@/components/shared/DateDisplay';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
-const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
-  ssr: false,
-});
+const MonacoEditorLazy = React.lazy(() => import('@monaco-editor/react'));
+const MonacoEditor = (props: Parameters<typeof MonacoEditorLazy>[0]) => (
+  <React.Suspense fallback={null}>
+    <MonacoEditorLazy {...props} />
+  </React.Suspense>
+);
 
 interface AlertsTableProps {
   events: AlertEvent[];

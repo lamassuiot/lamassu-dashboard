@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ const templateMetadata = [
 
 
 export default function CreateSigningProfilePage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user } = useAuth();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,7 +94,7 @@ export default function CreateSigningProfilePage() {
     try {
         await createSigningProfile(payload, user.access_token);
         sileo.success({ title: "Profile Created", description: `Issuance Profile "${data.profileName}" has been successfully created.` });
-        router.push('/signing-profiles');
+        navigate('/signing-profiles');
     } catch (error: any) {
         sileo.error({ title: `Creation Failed`, description: error.message });
     } finally {
@@ -130,7 +130,7 @@ export default function CreateSigningProfilePage() {
             <Stepper currentStep={view === 'template' ? 1 : 2} steps={["Choose Template", "Configure Profile"]} />
           </div>
         </div>
-        <Button variant="outline" onClick={() => router.push('/signing-profiles')}>
+        <Button variant="outline" onClick={() => navigate('/signing-profiles')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Issuance Profiles
         </Button>
       </div>
@@ -227,7 +227,7 @@ export default function CreateSigningProfilePage() {
                 <SigningProfileForm form={form} sectionAsCards />
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="outline" onClick={() => router.push('/signing-profiles')}>
+                  <Button type="button" variant="outline" onClick={() => navigate('/signing-profiles')}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isSubmitting} className="min-w-36">

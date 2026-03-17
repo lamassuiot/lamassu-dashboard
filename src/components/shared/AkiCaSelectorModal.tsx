@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,7 +28,7 @@ export const AkiCaSelectorModal: React.FC<AkiCaSelectorModalProps> = ({
   aki,
   allCryptoEngines,
 }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const [foundCAs, setFoundCAs] = useState<CA[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,7 +58,7 @@ export const AkiCaSelectorModal: React.FC<AkiCaSelectorModalProps> = ({
 
   const handleCaSelected = (ca: CA) => {
     onOpenChange(false);
-    router.push(`/certificate-authorities/details?caId=${ca.id}`);
+    navigate(`/certificate-authorities/details?caId=${ca.id}`);
   };
 
   return (

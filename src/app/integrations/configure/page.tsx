@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, AlertTriangle, ArrowLeft, Settings, BookText } from 'lucide-react';
@@ -14,8 +14,8 @@ import { DetailItem } from '@/components/shared/DetailItem';
 
 
 export default function ConfigureIntegrationPage() {
-    const router = useRouter();
-    const searchParams = useSearchParams();
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { user, isLoading: authLoading, isAuthenticated } = useAuth();
     
     const raId = searchParams.get('raId');
@@ -84,7 +84,7 @@ export default function ConfigureIntegrationPage() {
     if (error) {
         return (
             <div className="w-full space-y-4 p-4">
-                <Button variant="outline" onClick={() => router.back()} className="mb-4">
+                <Button variant="outline" onClick={() => navigate(-1)} className="mb-4">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                 <Alert variant="destructive">
@@ -99,7 +99,7 @@ export default function ConfigureIntegrationPage() {
     if (!raData || !configKey) {
          return (
             <div className="w-full space-y-4 p-4">
-                <Button variant="outline" onClick={() => router.back()} className="mb-4">
+                <Button variant="outline" onClick={() => navigate(-1)} className="mb-4">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
                 <Alert variant="warning">
@@ -132,7 +132,7 @@ export default function ConfigureIntegrationPage() {
     return (
         <div className="w-full space-y-6 mb-8">
             <div className="flex justify-between items-center">
-                <Button variant="outline" onClick={() => router.push('/integrations')}>
+                <Button variant="outline" onClick={() => navigate('/integrations')}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Integrations
                 </Button>
                  <Button variant="outline" onClick={() => setIsMetadataModalOpen(true)}>

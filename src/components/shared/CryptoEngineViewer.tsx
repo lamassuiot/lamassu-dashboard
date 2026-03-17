@@ -5,7 +5,7 @@ import React from 'react';
 import { ShieldQuestion, FolderKey } from 'lucide-react';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
+
 import AWSKMSLogo from "./CryptoEngineIcons/AWS-KMS.png"
 import AWSSMLogo from "./CryptoEngineIcons/AWS-SM.png"
 import PKCS11Logo from "./CryptoEngineIcons/PKCS11.png"
@@ -51,7 +51,7 @@ export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, 
   
   let iconNode: React.ReactNode;
   if(imageSrc) {
-    iconNode = <Image src={imageSrc} alt={`${engine.name} Icon`} className="h-full w-full object-contain" layout="fill" />;
+    iconNode = <img src={imageSrc} alt={`${engine.name} Icon`} className="h-full w-full object-contain" />;
   } else if (IconComponent) {
     iconNode = <IconComponent className={cn("h-full w-full p-0.5", iconColorClass, iconBGClass)} />
   } else {

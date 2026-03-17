@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { sileo } from '@/lib/toast';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
@@ -68,7 +68,7 @@ export function CertificateList({
   showIssuerColumn = true,
   columnVisibility: providedColumnVisibility,
 }: CertificateListProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const columnVisibility = { ...DEFAULT_COLUMN_VISIBILITY, ...providedColumnVisibility };
 
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
@@ -246,7 +246,7 @@ export function CertificateList({
                       <Button
                         variant="link"
                         className="p-0 h-auto font-medium text-left whitespace-normal"
-                        onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
+                        onClick={() => navigate(`/certificates/details?certificateId=${cert.serialNumber}`)}
                         title={`View details for ${getCommonName(cert.subject)}`}
                       >
                         {getCommonName(cert.subject)}
@@ -264,7 +264,7 @@ export function CertificateList({
                         <Button
                           variant="link"
                           className="p-0 h-auto text-left whitespace-normal leading-tight"
-                          onClick={() => router.push(`/certificate-authorities/details?caId=${issuerCa.id}`)}
+                          onClick={() => navigate(`/certificate-authorities/details?caId=${issuerCa.id}`)}
                           title={`View details for CA: ${issuerCa.name}`}
                         >
                           {issuerCa.name}
@@ -317,7 +317,7 @@ export function CertificateList({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}>
+                        <DropdownMenuItem onClick={() => navigate(`/certificates/details?certificateId=${cert.serialNumber}`)}>
                           <FileText className="mr-2 h-4 w-4" />
                           <span>View Details</span>
                         </DropdownMenuItem>

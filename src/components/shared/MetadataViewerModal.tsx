@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,12 @@ import { Copy, Check, Edit, Save, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
-const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> });
+const EditorLazy = React.lazy(() => import('@monaco-editor/react'));
+const Editor = (props: Parameters<typeof EditorLazy>[0]) => (
+  <React.Suspense fallback={<div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div>}>
+    <EditorLazy {...props} />
+  </React.Suspense>
+);
 
 interface MetadataViewerModalProps {
   isOpen: boolean;

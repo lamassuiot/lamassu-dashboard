@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +52,7 @@ const downloadFile = (data: ArrayBuffer, filename: string, mimeType: string) => 
 
 
 export function VerificationAuthoritiesClient() { // Renamed component
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const caIdFromUrl = searchParams.get('caId');
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [selectedCaForConfig, setSelectedCaForConfig] = useState<CA | null>(null);

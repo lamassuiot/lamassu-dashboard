@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -47,7 +47,7 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
   profileName,
   onUsageLoaded,
 }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
   
   const [cas, setCas] = useState<CA[]>([]);
@@ -86,7 +86,7 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
 
   const handleCaSelected = (ca: CA) => {
     onOpenChange(false);
-    router.push(`/certificate-authorities/details?caId=${ca.id}`);
+    navigate(`/certificate-authorities/details?caId=${ca.id}`);
   };
 
   return (

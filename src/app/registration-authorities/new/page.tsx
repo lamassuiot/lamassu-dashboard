@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -71,8 +71,8 @@ function hslToHex(h: number, s: number, l: number) {
 }
 
 export default function CreateOrEditRegistrationAuthorityPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const raIdFromQuery = searchParams.get('raId');
@@ -385,7 +385,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         
         sileo.success({ title: "Success!", description: `Registration Authority "${raName}" ${isEditMode ? 'updated' : 'created'} successfully.` });
         if(!isEditMode) {
-          router.push('/registration-authorities');
+          navigate('/registration-authorities');
         }
 
     } catch (error: any) {
@@ -479,13 +479,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             },
           ]}
           actions={
-            <Button variant="outline" onClick={() => router.back()}>
+            <Button variant="outline" onClick={() => navigate(-1)}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs
             </Button>
           }
         />
       ) : (
-        <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs</Button>
+        <Button variant="outline" onClick={() => navigate(-1)}><ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs</Button>
       )}
 
       {isEditMode ? (
@@ -910,7 +910,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </div>
               </SettingsCard>
               <div className="flex justify-end space-x-2 pt-8">
-                  <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
                   <Button type="submit" disabled={isSubmitting}>
                       {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4" />}
                       {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}

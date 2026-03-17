@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,9 +13,11 @@ import { Loader2 } from 'lucide-react';
 import type { AwsPolicy } from './AwsIotIntegrationTab';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 
-const Editor = dynamic(
-    () => import('@monaco-editor/react'), 
-    { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div> }
+const EditorLazy = React.lazy(() => import('@monaco-editor/react'));
+const Editor = (props: Parameters<typeof EditorLazy>[0]) => (
+  <React.Suspense fallback={<div className="h-full w-full flex items-center justify-center bg-muted/30 rounded-md"><Loader2 className="h-8 w-8 animate-spin"/></div>}>
+    <EditorLazy {...props} />
+  </React.Suspense>
 );
 
 interface AwsPolicyEditorModalProps {

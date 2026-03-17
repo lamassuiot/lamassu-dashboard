@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,7 +15,7 @@ import { fetchRaById, updateRaMetadata } from '@/lib/dms-api';
 import { DmsSelector } from '@/components/shared/DmsSelector';
 
 export default function CreateIntegrationPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { config } = useConfig();
 
@@ -80,7 +80,7 @@ export default function CreateIntegrationPage() {
         title: "Integration Registered",
         description: `Successfully registered ${selectedConnectorId} integration for ${selectedRa.name}.`
       });
-      router.push('/integrations');
+      navigate('/integrations');
 
     } catch (err: any) {
       sileo.error({ title: "Registration Failed", description: err.message });
@@ -91,7 +91,7 @@ export default function CreateIntegrationPage() {
 
   return (
     <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.back()}>
+      <Button variant="outline" onClick={() => navigate(-1)}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back
       </Button>
 

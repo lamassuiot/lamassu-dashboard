@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +94,7 @@ const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | null;
 
 export default function RegistrationAuthoritiesPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [ras, setRas] = useState<ApiRaItem[]>([]);
@@ -289,7 +289,7 @@ export default function RegistrationAuthoritiesPage() {
   };
 
   const handleCreateNewRAClick = () => {
-    router.push('/registration-authorities/new');
+    navigate('/registration-authorities/new');
   };
   
   const handleOpenEnrollModal = (ra: ApiRaItem) => {
@@ -492,8 +492,8 @@ export default function RegistrationAuthoritiesPage() {
             getCaNameById={getCaNameById}
             allCAs={allCAs}
             allCryptoEngines={allCryptoEngines}
-            onEdit={(raId) => router.push(`/registration-authorities/new?raId=${raId}`)}
-            onViewDevices={(raId) => router.push(`/devices?dms_owner=${raId}`)}
+            onEdit={(raId) => navigate(`/registration-authorities/new?raId=${raId}`)}
+            onViewDevices={(raId) => navigate(`/devices?dms_owner=${raId}`)}
             onShowMetadata={handleShowMetadata}
             onOpenEnrollModal={handleOpenEnrollModal}
             onOpenReEnrollModal={handleOpenReEnrollModal}
@@ -542,10 +542,10 @@ export default function RegistrationAuthoritiesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => router.push(`/registration-authorities/new?raId=${ra.id}`)}>
+                        <DropdownMenuItem onClick={() => navigate(`/registration-authorities/new?raId=${ra.id}`)}>
                           <Edit className="mr-2 h-4 w-4" /><span>Edit</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/devices?dms_owner=${ra.id}`)}>
+                        <DropdownMenuItem onClick={() => navigate(`/devices?dms_owner=${ra.id}`)}>
                           <RouterIcon className="mr-2 h-4 w-4" /><span>View Devices</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleShowMetadata(ra)}>

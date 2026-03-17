@@ -3,7 +3,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Copy, Check, Save, Loader2, FileJson } from "lucide-react";
 import { sileo } from '@/lib/toast';
@@ -14,7 +13,12 @@ import { DetailSectionCard } from '@/components/shared/DetailSectionCard';
 
 const EDITOR_HEIGHT = '26rem';
 
-const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false, loading: () => <div className="h-80 w-full flex items-center justify-center rounded-md bg-muted/30"><Loader2 className="h-8 w-8 animate-spin"/></div> });
+const EditorLazy = React.lazy(() => import('@monaco-editor/react'));
+const Editor = (props: Parameters<typeof EditorLazy>[0]) => (
+  <React.Suspense fallback={<div className="h-80 w-full flex items-center justify-center rounded-md bg-muted/30"><Loader2 className="h-8 w-8 animate-spin"/></div>}>
+    <EditorLazy {...props} />
+  </React.Suspense>
+);
 
 interface MetadataTabContentProps {
   rawJsonData: any;

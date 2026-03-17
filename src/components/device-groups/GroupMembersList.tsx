@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -106,7 +106,7 @@ const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string;
 
 export function GroupMembersList({ groupId, className }: GroupMembersListProps) {
   const { user } = useAuth();
-  const router = useRouter();
+  const navigate = useNavigate();
   
   const [devices, setDevices] = useState<ApiDevice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -224,7 +224,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
   };
 
   const handleViewDetails = (deviceId: string) => {
-    router.push(`/devices/details?deviceId=${deviceId}`);
+    navigate(`/devices/details?deviceId=${deviceId}`);
   };
 
   const handleOpenEnrollModal = async (device: ApiDevice) => {

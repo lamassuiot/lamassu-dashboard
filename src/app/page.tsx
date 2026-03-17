@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'react-router-dom';
 import { DeviceStatusChartCard } from '@/components/home/DeviceStatusChartCard';
 import { CaExpiryTimeline } from '@/components/home/CaExpiryTimeline';
 import { SummaryStatsCard } from '@/components/home/SummaryStatsCard';
@@ -46,7 +46,7 @@ interface SummaryStats {
 
 export default function HomePage() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   // State for timeline
   const [allCAs, setAllCAs] = useState<CA[]>([]);

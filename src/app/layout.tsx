@@ -1,17 +1,9 @@
-
-
 'use client';
 
-import './globals.css';
-import { ThemedToaster } from '@/components/shared/ThemedToaster';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { ConfigProvider } from '@/contexts/ConfigContext';
-import Script from 'next/script';
+import { useAuth } from '@/contexts/AuthContext';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { usePathname, useSearchParams }
-  from 'next/navigation';
+import { Link, useLocation, useSearchParams, Outlet } from 'react-router-dom';
 import {
   SidebarProvider,
   Sidebar,
@@ -28,7 +20,7 @@ import {
 } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
-import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
+import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -36,10 +28,9 @@ import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { jwtDecode } from 'jwt-decode';
-import Image from 'next/image'
-import LogoFullWhite from './lamassu_full_white.svg'
-import LogoFullBlue from './lamassu_full_blue.svg'
-import LogoBlue from './lamassu_logo_blue.svg'
+import LogoFullWhite from './lamassu_full_white.svg';
+import LogoFullBlue from './lamassu_full_blue.svg';
+import LogoBlue from './lamassu_logo_blue.svg';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,22 +70,31 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'verification-authorities': "Verification Authorities",
   'new': "New",
   'details': "Details",
+  'generate': "Generate",
+  'generate-existing-key': "Generate with Existing Key",
+  'import-full': "Import Full Certificate",
+  'import-public': "Import Public Certificate",
   'issue-certificate': "Issue Certificate",
-  'kms': "KMS",
-  'keys': "Keys",
+  'import': "Import",
+  'crypto-engines': "Crypto Engines",
   'devices': "Devices",
   'device-groups': "Device Groups",
   'integrations': "Platform Integrations",
-  'crypto-engines': "Crypto Engines",
+  'kms': "KMS",
+  'keys': "Keys",
   'alerts': "Alerts",
+  'settings': "Settings",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
+  'cacerts': "CA Certificates",
+  'configure': "Configure",
+  'edit': "Edit",
 };
 
 interface NavItem {
   href: string;
   label: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   devOnly?: boolean;
 }
 
@@ -154,7 +154,7 @@ function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): Br
 
   for (let i = 0; i < pathSegments.length; i++) {
     const segment = pathSegments[i];
-    let label = PATH_SEGMENT_TO_LABEL_MAP[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
+    const label = PATH_SEGMENT_TO_LABEL_MAP[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
 
     currentHref += `/${segment}`;
     const isLastSegment = i === pathSegments.length - 1;
@@ -168,7 +168,6 @@ function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): Br
     } else if (segment === 'issue-certificate' && queryParams.get('caId')) {
       hrefWithQuery += `?caId=${queryParams.get('caId')}`;
     }
-
 
     if (isLastSegment) {
       breadcrumbItems.push({ label });
@@ -226,8 +225,9 @@ const CustomFooter = () => {
 const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
   const { isAuthenticated, user, login, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const pathname = location.pathname;
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
@@ -255,10 +255,8 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
 
   const handleRunWizard = () => {
     if (typeof document !== 'undefined') {
-      // Clear completion cookie
       document.cookie = 'lamassu_wizard_completed=; path=/; max-age=0';
-      // Set a short-lived cookie to force the wizard to open
-      document.cookie = 'force_wizard_open=true; path=/; max-age=5'; // Expires in 5 seconds
+      document.cookie = 'force_wizard_open=true; path=/; max-age=5';
       window.location.reload();
     }
   };
@@ -280,14 +278,14 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               />
               <Separator orientation="vertical" className="h-full bg-header-foreground/30" />
             </div>
-            <Image
+            <img
               src={LogoFullWhite}
               height={60}
               width={280}
               alt="LamassuIoT Logo"
               className="hidden md:block h-full w-auto"
             />
-            <Image
+            <img
               src={LogoBlue}
               height={60}
               width={60}
@@ -391,21 +389,21 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                     <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
                       <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
                     </div>
-                    <Image
+                    <img
                       src={LogoFullBlue}
                       height={30}
                       width={140}
                       alt="LamassuIoT Logo"
                       className="group-data-[collapsible=icon]:hidden dark:hidden"
                     />
-                    <Image
+                    <img
                       src={LogoFullWhite}
                       height={30}
                       width={140}
                       alt="LamassuIoT Logo"
                       className="group-data-[collapsible=icon]:hidden hidden dark:block"
                     />
-                    <Image
+                    <img
                       src={LogoBlue}
                       height={30}
                       width={30}
@@ -417,12 +415,12 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                 <SidebarContent className="p-2">
                   <SidebarMenu>
                     {navigationConfig.map((group, groupIndex) => {
-                      if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                      if (group.devOnly && !import.meta.env.DEV) {
                         return null;
                       }
 
                       const filteredItems = group.items.filter(item =>
-                        !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
+                        !(item.devOnly && !import.meta.env.DEV)
                       );
 
                       if (filteredItems.length === 0) {
@@ -443,7 +441,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                                 isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
                                 tooltip={{ children: item.label, side: 'right', align: 'center' }}
                               >
-                                <Link href={item.href} className="flex items-center w-full justify-start">
+                                <Link to={item.href} className="flex items-center w-full justify-start">
                                   <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
                                   <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
                                 </Link>
@@ -457,9 +455,6 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                 </SidebarContent>
                 <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
                   <CustomSidebarToggle />
-                  <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-
-                  </div>
                 </SidebarFooter>
               </Sidebar>
 
@@ -472,7 +467,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
           )
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
-            <Image
+            <img
               src={LogoBlue}
               height={75}
               width={75}
@@ -533,12 +528,12 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
 };
 
 
-const InnerLayout = ({ children }: { children: React.ReactNode }) => {
+const InnerLayout = () => {
   const { isLoading: authIsLoading, user } = useAuth();
   const [clientMounted, setClientMounted] = React.useState(false);
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
 
-  // State to determine if the wizard should be shown
   const [isWizardMode, setIsWizardMode] = useState(false);
   const [isCheckingSystem, setIsCheckingSystem] = useState(true);
 
@@ -548,23 +543,20 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    // Check for the force-open cookie first
     const forceOpen = document.cookie.includes('force_wizard_open=true');
     if (forceOpen) {
-      document.cookie = 'force_wizard_open=; path=/; max-age=0'; // Delete the cookie after reading
+      document.cookie = 'force_wizard_open=; path=/; max-age=0';
       setIsWizardMode(true);
       setIsCheckingSystem(false);
       return;
     }
 
-    // Only check CA stats on the homepage
     if (pathname !== '/') {
       setIsWizardMode(false);
       setIsCheckingSystem(false);
       return;
     }
 
-    // Check if the completion cookie is set
     const wizardCompleted = document.cookie.includes('lamassu_wizard_completed=true');
     if (wizardCompleted) {
       setIsWizardMode(false);
@@ -577,13 +569,12 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
       if (stats.cas.total === 0) {
         setIsWizardMode(true);
       } else {
-        // If CAs exist, set the completion cookie and don't show the wizard.
-        document.cookie = "lamassu_wizard_completed=true; path=/; max-age=315360000"; // 10 years
+        document.cookie = "lamassu_wizard_completed=true; path=/; max-age=315360000";
         setIsWizardMode(false);
       }
     } catch (error) {
       console.error("Failed to fetch system stats for wizard check:", error);
-      setIsWizardMode(false); // Default to showing dashboard on error
+      setIsWizardMode(false);
     } finally {
       setIsCheckingSystem(false);
     }
@@ -594,21 +585,10 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     if (!authIsLoading && user) {
       checkSystemStatus();
     } else if (!authIsLoading && !user) {
-      // If not authenticated, not in wizard mode and not checking
       setIsWizardMode(false);
       setIsCheckingSystem(false);
     }
   }, [authIsLoading, user, checkSystemStatus]);
-
-
-  const isCallbackPage =
-    pathname === '/signin-callback' ||
-    pathname === '/silent-renew-callback' ||
-    pathname === '/signout-callback';
-
-  if (isCallbackPage) {
-    return <>{children}</>;
-  }
 
   if (!clientMounted) {
     return <LoadingState />;
@@ -622,40 +602,15 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     return <MainLayoutContent isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
   }
 
-  return <MainLayoutContent>{children}</MainLayoutContent>;
+  return <MainLayoutContent><Outlet /></MainLayoutContent>;
 };
 
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function Layout() {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <Script src="/config.js" strategy="beforeInteractive" />
-        <title>LamassuIoT Certificate Manager</title>
-        <meta name="description" content="Manage and verify your X.509 certificates with LamassuIoT." />
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-        <link rel="stylesheet" href="/custom-theme.css"></link>
-      </head>
-      <body className="font-body antialiased">
-        <ConfigProvider>
-          <AuthProvider>
-            <IdentifierDisplayProvider>
-              <React.Suspense fallback={<LoadingState />}>
-                <InnerLayout>{children}</InnerLayout>
-              </React.Suspense>
-              <ThemedToaster offset={{ top: 40 }} />
-            </IdentifierDisplayProvider>
-          </AuthProvider>
-        </ConfigProvider>
-      </body>
-    </html>
+    <React.Suspense fallback={<LoadingState />}>
+      <InnerLayout />
+    </React.Suspense>
   );
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +41,7 @@ interface DeviceGroupFormProps {
 }
 
 export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [name, setName] = useState(existingGroup?.name || '');
@@ -161,7 +161,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
           title: 'Success',
           description: `Device group "${newGroup.name}" created successfully`
         });
-        router.push(`/device-groups/details?groupId=${newGroup.id}`);
+        navigate(`/device-groups/details?groupId=${newGroup.id}`);
       } else if (existingGroup) {
         const updatedGroup = await updateDeviceGroup(
           user.access_token,
@@ -172,7 +172,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
           title: 'Success',
           description: `Device group "${updatedGroup.name}" updated successfully`
         });
-        router.push(`/device-groups/details?groupId=${updatedGroup.id}`);
+        navigate(`/device-groups/details?groupId=${updatedGroup.id}`);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save device group';
@@ -187,9 +187,9 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
 
   const handleCancel = () => {
     if (mode === 'edit' && existingGroup) {
-      router.push(`/device-groups/details?groupId=${existingGroup.id}`);
+      navigate(`/device-groups/details?groupId=${existingGroup.id}`);
     } else {
-      router.push('/device-groups');
+      navigate('/device-groups');
     }
   };
 

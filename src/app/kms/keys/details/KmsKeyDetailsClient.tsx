@@ -3,8 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import dynamic from 'next/dynamic';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -92,8 +91,8 @@ const signatureAlgorithms = [...SIGNATURE_ALGORITHMS];
 
 export default function KmsKeyDetailsClient() {
   const monacoTheme = useMonacoTheme();
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const keyId = searchParams.get('keyId');
 
@@ -700,7 +699,7 @@ export default function KmsKeyDetailsClient() {
   if (error) {
     return (
       <div className="w-full space-y-4 p-4">
-        <Button variant="outline" onClick={() => router.back()} className="mb-4">
+        <Button variant="outline" onClick={() => navigate(-1)} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
         <Alert variant="destructive">
@@ -717,7 +716,7 @@ export default function KmsKeyDetailsClient() {
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <KeyRound className="h-12 w-12 text-muted-foreground" />
         <p className="text-muted-foreground">KMS Key with ID "{keyId || 'Unknown'}" not found.</p>
-        <Button variant="outline" onClick={() => router.push('/kms/keys')} className="mt-4">
+        <Button variant="outline" onClick={() => navigate('/kms/keys')} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
       </div>
@@ -1183,7 +1182,7 @@ export default function KmsKeyDetailsClient() {
                                   <button
                                     type="button"
                                     className="text-left text-primary hover:underline"
-                                    onClick={() => router.push(`/certificates/details?certificateId=${certificate.serialNumber}`)}
+                                    onClick={() => navigate(`/certificates/details?certificateId=${certificate.serialNumber}`)}
                                   >
                                     {getCertSubjectCommonName(certificate.subject) || certificate.serialNumber}
                                   </button>

@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ const creationModes = [
 ];
 
 export default function CreateKmsKeyPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
@@ -136,7 +136,7 @@ export default function CreateKmsKeyPage() {
                 title: "Key Pair Created",
                 description: `Key pair with name "${keyName.trim()}" has been successfully created.`
             });
-            router.push('/kms/keys');
+            navigate('/kms/keys');
 
         } catch (error: any) {
             sileo.error({ title: "Creation Failed", description: error.message });
@@ -155,7 +155,7 @@ export default function CreateKmsKeyPage() {
         title: "KMS Key Import Mocked",
         description: `Key import submitted. Check console.`
       });
-      router.push('/kms/keys');
+      navigate('/kms/keys');
       setIsSubmitting(false);
 
     } else if (selectedMode === 'importPublicKey') {
@@ -169,7 +169,7 @@ export default function CreateKmsKeyPage() {
         title: "KMS Key Import Mocked",
         description: `Public key import submitted. Check console.`
       });
-      router.push('/kms/keys');
+      navigate('/kms/keys');
       setIsSubmitting(false);
     }
   };
@@ -179,7 +179,7 @@ export default function CreateKmsKeyPage() {
   if (!selectedMode) {
     return (
       <div className="w-full space-y-8 mb-8">
-        <Button variant="outline" onClick={() => router.push('/kms/keys')} className="mb-0">
+        <Button variant="outline" onClick={() => navigate('/kms/keys')} className="mb-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
         <div className="text-center">
@@ -217,7 +217,7 @@ export default function CreateKmsKeyPage() {
   return (
     <div className="w-full space-y-6 mb-8">
       <div className="flex justify-between items-center">
-        <Button variant="outline" onClick={() => router.push('/kms/keys')}>
+        <Button variant="outline" onClick={() => navigate('/kms/keys')}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
         <Button variant="ghost" onClick={() => setSelectedMode(null)} className="text-primary hover:text-primary/80">

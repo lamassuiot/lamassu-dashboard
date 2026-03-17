@@ -8,7 +8,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
 interface CaFilesystemViewProps {
   cas: CA[];
-  router: ReturnType<typeof import('next/navigation').useRouter>; 
+  router: ReturnType<typeof import('react-router-dom').useNavigate>; 
   allCAs: CA[];
   allCryptoEngines: ApiCryptoEngine[];
 }

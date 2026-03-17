@@ -6,7 +6,7 @@ import type { CA } from '@/lib/ca-data';
 import { Clock, CheckCircle, XCircle, ChevronDown, Landmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 
@@ -43,12 +43,12 @@ const getStatusVisuals = (ca: CA, isCurrentCa: boolean): { icon: React.ElementTy
 };
 
 export const CaHierarchyPathNode: React.FC<CaHierarchyPathNodeProps> = ({ ca, isCurrentCa, hasNext, isFirst, isDimmed, allCryptoEngines, invertSeparator = false }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { icon: StatusIcon, colorClass: statusColorClass, text: statusText } = getStatusVisuals(ca, isCurrentCa);
 
   const handleNodeClick = () => {
     if (!isCurrentCa) { 
-      router.push(`/certificate-authorities/details?caId=${ca.id}`);
+      navigate(`/certificate-authorities/details?caId=${ca.id}`);
     }
   };
 

@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import type { CA } from '@/lib/ca-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { DataSet } from "vis-data/esnext";
 import { Timeline } from "vis-timeline/esnext";
 import 'vis-timeline/styles/vis-timeline-graph2d.css';
@@ -29,7 +29,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isReadyForTimeline, setIsReadyForTimeline] = useState(false);
-  const router = useRouter();
+  const navigate = useNavigate();
   
   const hiddenItemElements = useMemo(() => {
     // This memoized component will re-render only when `cas` or `allCryptoEngines` changes.
@@ -127,13 +127,13 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
       timelineInstance.current = new Timeline(timelineRef.current, new DataSet(), options);
       timelineInstance.current.addCustomTime(new Date(), 'now-marker');
       timelineInstance.current.on('select', properties => {
-        if (properties.items.length > 0) router.push(`/certificate-authorities/details?caId=${properties.items[0]}`);
+        if (properties.items.length > 0) navigate(`/certificate-authorities/details?caId=${properties.items[0]}`);
       });
     }
     return () => {
       timelineInstance.current?.destroy();
     };
-  }, [router]);
+  }, [navigate]);
 
 
   useEffect(() => {
@@ -155,7 +155,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
       timelineInstance.current.setItems(new DataSet(itemsData as any));
       timelineInstance.current.fit();
     }
-  }, [isReadyForTimeline, cas, allCryptoEngines, router]);
+  }, [isReadyForTimeline, cas, allCryptoEngines, navigate]);
 
   return (
     <>

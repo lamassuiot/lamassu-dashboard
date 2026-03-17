@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -23,7 +23,7 @@ interface IssuedCertificatesTabProps {
 }
 
 export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ caId, caIsActive, allCAs }) => {
-    const routerHook = useRouter();
+    const routerHook = useNavigate();
     const { user, isLoading: authLoading } = useAuth();
 
     const {
@@ -44,7 +44,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
 
     const handleIssueNewCertificate = () => {
         if (caId) {
-            routerHook.push(`/certificate-authorities/issue-certificate?caId=${caId}`);
+            routerHook(`/certificate-authorities/issue-certificate?caId=${caId}`);
         } else {
             sileo.error({ title: "Error", description: "Cannot issue certificate, CA ID is missing." });
         }

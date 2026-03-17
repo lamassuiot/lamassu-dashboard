@@ -32,7 +32,7 @@ const getExpiryTextAndSimplifiedStatus = (expires: string, status: CA['status'])
 interface CaFilesystemViewItemProps {
   ca: CA;
   level: number;
-  router: ReturnType<typeof import('next/navigation').useRouter>;
+  router: ReturnType<typeof import('react-router-dom').useNavigate>;
   allCAs: CA[];
   allCryptoEngines: ApiCryptoEngine[];
 }
@@ -50,12 +50,12 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({ ca, 
   
   const handleDetailsClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/certificate-authorities/details?caId=${ca.id}`);
+    router(`/certificate-authorities/details?caId=${ca.id}`);
   };
 
   const handleIssueCertClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/certificate-authorities/issue-certificate?caId=${ca.id}`);
+    router(`/certificate-authorities/issue-certificate?caId=${ca.id}`);
   };
 
   let IconComponent: React.ReactNode;

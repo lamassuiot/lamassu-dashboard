@@ -3,7 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -76,7 +76,7 @@ const calculateExpirationDate = (durationStr: string): Date => {
 };
 
 export default function CreateCaGeneratePage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -436,7 +436,7 @@ export default function CreateCaGeneratePage() {
       await createCa(payload, user!.access_token!);
 
       sileo.success({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.` });
-      router.push('/certificate-authorities');
+      navigate('/certificate-authorities');
 
     } catch (error: any) {
       console.error("CA Creation API Error:", error);
@@ -454,7 +454,7 @@ export default function CreateCaGeneratePage() {
 
   return (
     <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+      <Button variant="outline" onClick={() => navigate('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 

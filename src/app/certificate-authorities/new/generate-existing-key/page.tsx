@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ import type { CreateSigningProfilePayload } from '@/lib/ca-data';
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
 export default function CreateCaExistingKeyPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -394,7 +394,7 @@ export default function CreateCaExistingKeyPage() {
       await createCa(payload, user!.access_token!);
 
       sileo.success({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.` });
-      router.push('/certificate-authorities');
+      navigate('/certificate-authorities');
 
     } catch (error: any) {
       console.error("CA Creation API Error:", error);
@@ -412,7 +412,7 @@ export default function CreateCaExistingKeyPage() {
 
   return (
     <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+      <Button variant="outline" onClick={() => navigate('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
