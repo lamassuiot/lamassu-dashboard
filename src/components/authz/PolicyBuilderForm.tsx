@@ -31,8 +31,18 @@ import {
   Zap,
   ChevronsUpDown,
   Check,
+  SlidersHorizontal,
 } from 'lucide-react';
-import type { EntityAddress, Rule, RelationRule, SchemaDefinition } from '@/types/authz';
+import type {
+  EntityAddress,
+  Rule,
+  RelationRule,
+  SchemaDefinition,
+  ColumnFilter,
+  FilterableField,
+  FilterableFieldType,
+  FilterOperator,
+} from '@/types/authz';
 import { getSchemas } from '@/lib/authz-api';
 import { findSchemaByAddress, normalizeEntityAddress, toQualifiedEntityType } from '@/lib/policy-format';
 import { cn } from '@/lib/utils';
@@ -47,6 +57,31 @@ const decodeEntity = (encoded: string): { schemaName: string; entityType: string
   const idx = encoded.indexOf(SEP);
   if (idx < 0) return { schemaName: '', entityType: encoded };
   return { schemaName: encoded.slice(0, idx), entityType: encoded.slice(idx + SEP.length) };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Column filter constants
+// ─────────────────────────────────────────────────────────────────────────────
+const OPERATORS_BY_TYPE: Record<FilterableFieldType, FilterOperator[]> = {
+  string:    ['eq', 'neq', 'in', 'like'],
+  int:       ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in'],
+  float:     ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'],
+  bool:      ['eq', 'neq'],
+  timestamp: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'],
+  jsonb:     ['eq', 'neq'],
+};
+
+const ALL_OPERATORS: FilterOperator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'like'];
+
+const OPERATOR_SQL: Record<FilterOperator, string> = {
+  eq:   '=',
+  neq:  '≠',
+  gt:   '>',
+  gte:  '≥',
+  lt:   '<',
+  lte:  '≤',
+  in:   'IN',
+  like: 'LIKE',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -391,6 +426,150 @@ function ActionSelector({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ColumnFilterRow — single column-filter condition editor
+// ─────────────────────────────────────────────────────────────────────────────
+interface ColumnFilterRowProps {
+  filter: ColumnFilter;
+  filterableFields: FilterableField[];
+  onChange: (filter: ColumnFilter) => void;
+  onDelete: () => void;
+}
+
+function ColumnFilterRow({ filter, filterableFields, onChange, onDelete }: ColumnFilterRowProps) {
+  const [inInput, setInInput] = useState('');
+
+  const fieldDef = filterableFields.find((f) => f.column === filter.column);
+  const fieldType = fieldDef?.type;
+  const availableOps = fieldType ? OPERATORS_BY_TYPE[fieldType] : ALL_OPERATORS;
+  const isIn = filter.operator === 'in';
+  const inValues = Array.isArray(filter.value) ? (filter.value as string[]) : [];
+
+  const handleColumnChange = (column: string) => {
+    const newField = filterableFields.find((f) => f.column === column);
+    const newType = newField?.type;
+    const newOps = newType ? OPERATORS_BY_TYPE[newType] : ALL_OPERATORS;
+    const newOp = newOps.includes(filter.operator) ? filter.operator : newOps[0];
+    onChange({ column, type: newType, operator: newOp, value: newOp === 'in' ? [] : '' });
+  };
+
+  const handleOperatorChange = (operator: FilterOperator) => {
+    const wasIn = filter.operator === 'in';
+    const goingIn = operator === 'in';
+    const value = wasIn && !goingIn ? '' : !wasIn && goingIn ? [] : filter.value;
+    onChange({ ...filter, operator, value });
+  };
+
+  const addInValue = () => {
+    const val = inInput.trim();
+    if (!val || inValues.includes(val)) return;
+    onChange({ ...filter, value: [...inValues, val] });
+    setInInput('');
+  };
+
+  return (
+    <div className="flex items-start gap-2 rounded-md border bg-muted/10 p-2.5">
+      {/* Column */}
+      <div className="min-w-0 w-36 shrink-0">
+        <Select value={filter.column} onValueChange={handleColumnChange}>
+          <SelectTrigger className="h-8 text-xs font-mono">
+            <SelectValue placeholder="column…" />
+          </SelectTrigger>
+          <SelectContent>
+            {filterableFields.map((f) => (
+              <SelectItem key={f.column} value={f.column}>
+                <span className="font-mono">{f.column}</span>
+                <span className="ml-2 text-[10px] text-muted-foreground">{f.type}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Operator */}
+      <div className="w-24 shrink-0">
+        <Select
+          value={filter.operator}
+          onValueChange={(v) => handleOperatorChange(v as FilterOperator)}
+        >
+          <SelectTrigger className="h-8 text-xs font-mono">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableOps.map((op) => (
+              <SelectItem key={op} value={op}>
+                <span className="font-mono">{op}</span>
+                <span className="ml-1.5 text-muted-foreground text-[10px]">{OPERATOR_SQL[op]}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Value */}
+      <div className="min-w-0 flex-1">
+        {isIn ? (
+          <div className="space-y-1">
+            <div className="flex gap-1">
+              <Input
+                value={inInput}
+                onChange={(e) => setInInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    addInValue();
+                  }
+                }}
+                placeholder="value, Enter to add…"
+                className="h-8 text-xs font-mono"
+              />
+              <Button onClick={addInValue} size="sm" variant="outline" className="h-8 w-8 p-0 shrink-0">
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+            {inValues.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {inValues.map((v) => (
+                  <span
+                    key={v}
+                    className="inline-flex items-center gap-0.5 rounded-full border bg-secondary/50 px-2 py-0.5 text-[10px] font-mono"
+                  >
+                    {v}
+                    <button
+                      type="button"
+                      onClick={() => onChange({ ...filter, value: inValues.filter((x) => x !== v) })}
+                      className="ml-0.5 hover:text-destructive"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <Input
+            value={typeof filter.value === 'string' || typeof filter.value === 'number' ? String(filter.value) : ''}
+            onChange={(e) => onChange({ ...filter, value: e.target.value })}
+            placeholder="value…"
+            className="h-8 text-xs font-mono"
+          />
+        )}
+      </div>
+
+      {/* Delete */}
+      <Button
+        onClick={onDelete}
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+      >
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RuleSection — titled section within a rule editor
 // ─────────────────────────────────────────────────────────────────────────────
 function RuleSection({
@@ -514,6 +693,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
             const hasActions = rule.actions.length > 0;
             const hasRelations = rule.relations.length > 0;
             const hasGrants = (rule.directGrants?.length ?? 0) > 0;
+            const hasFilters = (rule.columnFilters?.length ?? 0) > 0;
             const entityLabel = hasEntity ? null : 'New Rule';
             const schemaDisplay = rule.schemaName || '';
             const entityDisplay = rule.entityType || '';
@@ -576,6 +756,12 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
                           <User className="h-2.5 w-2.5" />
                           {rule.directGrants!.length}
+                        </Badge>
+                      )}
+                      {hasFilters && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                          <SlidersHorizontal className="h-2.5 w-2.5" />
+                          {rule.columnFilters!.length}
                         </Badge>
                       )}
                     </div>
@@ -651,7 +837,7 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
   const addGrant = () => {
     const val = grantInput.trim();
     if (val && !rule.directGrants?.includes(val)) {
-      onChange({ ...rule, directGrants: [...(rule.directGrants || []), val] });
+      onChange({ ...rule, directGrants: [...(rule.directGrants || []), val], columnFilters: [] });
       setGrantInput('');
     }
   };
@@ -678,6 +864,33 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
 
   const deleteRelation = (index: number) => {
     onChange({ ...rule, relations: rule.relations.filter((_, i) => i !== index) });
+  };
+
+  const filterableFields = selectedSchema?.filterable || [];
+
+  const addColumnFilter = () => {
+    const firstField = filterableFields[0];
+    const firstOp: FilterOperator = firstField
+      ? (OPERATORS_BY_TYPE[firstField.type]?.[0] ?? 'eq')
+      : 'eq';
+    onChange({
+      ...rule,
+      directGrants: [],
+      columnFilters: [
+        ...(rule.columnFilters || []),
+        { column: firstField?.column ?? '', type: firstField?.type, operator: firstOp, value: '' },
+      ],
+    });
+  };
+
+  const updateColumnFilter = (index: number, updated: ColumnFilter) => {
+    const next = [...(rule.columnFilters || [])];
+    next[index] = updated;
+    onChange({ ...rule, columnFilters: next });
+  };
+
+  const deleteColumnFilter = (index: number) => {
+    onChange({ ...rule, columnFilters: (rule.columnFilters || []).filter((_, i) => i !== index) });
   };
 
   return (
@@ -738,6 +951,39 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
         )}
       </RuleSection>
 
+      {/* ── Column Filters ── */}
+      {filterableFields.length > 0 && (
+        <RuleSection
+          icon={<SlidersHorizontal />}
+          title="Column Filters"
+          description="Scope access to rows matching these conditions (ANDed together)"
+          action={
+            <Button onClick={addColumnFilter} size="sm" variant="outline" className="h-7 text-xs shrink-0">
+              <Plus className="mr-1 h-3 w-3" />
+              Add Filter
+            </Button>
+          }
+        >
+          {(rule.columnFilters?.length ?? 0) === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              No filters — access applies to all rows.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {rule.columnFilters!.map((filter, index) => (
+                <ColumnFilterRow
+                  key={index}
+                  filter={filter}
+                  filterableFields={filterableFields}
+                  onChange={(updated) => updateColumnFilter(index, updated)}
+                  onDelete={() => deleteColumnFilter(index)}
+                />
+              ))}
+            </div>
+          )}
+        </RuleSection>
+      )}
+
       {/* ── Direct Grants ── */}
       {(() => {
         const hasAtomicSelected =
@@ -745,6 +991,7 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
           rule.actions.some((a) => atomicActions.includes(a));
         const hasNoGrants = (rule.directGrants?.length ?? 0) === 0;
         const showAtomicWarning = hasAtomicSelected && hasNoGrants;
+        const blockedByFilters = (rule.columnFilters?.length ?? 0) > 0;
 
         return (
           <RuleSection
@@ -753,50 +1000,58 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
             description="Principal IDs explicitly granted access by this rule (optional)."
           >
             <div className="space-y-2">
-              {showAtomicWarning && (
-                <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    Atomic actions require a specific entity instance — without direct grants or
-                    relations, the principal will never match these actions.
-                  </span>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Input
-                  value={grantInput}
-                  onChange={(e) => setGrantInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addGrant();
-                    }
-                  }}
-                  placeholder="Enter a principal ID and press Enter…"
-                  className="h-8 text-sm font-mono"
-                />
-                <Button onClick={addGrant} size="sm" variant="outline" className="h-8 shrink-0">
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              {(rule.directGrants?.length ?? 0) > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {rule.directGrants!.map((grant) => (
-                    <span
-                      key={grant}
-                      className="inline-flex items-center gap-1 rounded-full border bg-secondary/50 px-2.5 py-0.5 text-xs font-mono text-secondary-foreground"
-                    >
-                      {grant}
-                      <button
-                        type="button"
-                        onClick={() => removeGrant(grant)}
-                        className="ml-0.5 rounded-full hover:text-destructive transition-colors"
-                      >
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
+              {blockedByFilters ? (
+                <p className="text-xs text-muted-foreground italic">
+                  Not available when column filters are configured.
+                </p>
+              ) : (
+                <>
+                  {showAtomicWarning && (
+                    <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        Atomic actions require a specific entity instance — without direct grants or
+                        relations, the principal will never match these actions.
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Input
+                      value={grantInput}
+                      onChange={(e) => setGrantInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addGrant();
+                        }
+                      }}
+                      placeholder="Enter a principal ID and press Enter…"
+                      className="h-8 text-sm font-mono"
+                    />
+                    <Button onClick={addGrant} size="sm" variant="outline" className="h-8 shrink-0">
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  {(rule.directGrants?.length ?? 0) > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {rule.directGrants!.map((grant) => (
+                        <span
+                          key={grant}
+                          className="inline-flex items-center gap-1 rounded-full border bg-secondary/50 px-2.5 py-0.5 text-xs font-mono text-secondary-foreground"
+                        >
+                          {grant}
+                          <button
+                            type="button"
+                            onClick={() => removeGrant(grant)}
+                            className="ml-0.5 rounded-full hover:text-destructive transition-colors"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </RuleSection>

@@ -86,6 +86,9 @@ export const normalizeRule = (value: unknown): Rule => {
     directGrants: Array.isArray(rule.directGrants)
       ? rule.directGrants.filter((g: unknown) => typeof g === 'string')
       : [],
+    ...(Array.isArray(rule.columnFilters) && rule.columnFilters.length > 0
+      ? { columnFilters: rule.columnFilters }
+      : {}),
   };
 };
 
