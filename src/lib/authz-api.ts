@@ -47,13 +47,36 @@ const getSelectedPrincipal = (): string => {
 };
 
 /**
- * Get headers with principal context for authorization requests
+ * Reads the OIDC access token from localStorage using the same key format
+ * that oidc-client-ts writes: `oidc.user:<authority>:<client_id>`.
+ * Returns null when auth is disabled or the session has expired.
+ */
+const getAccessToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const config = (window as any).lamassuConfig;
+  const authority = config?.LAMASSU_AUTH_AUTHORITY;
+  const clientId = config?.LAMASSU_AUTH_CLIENT_ID || 'frontend';
+  if (!authority) return null;
+  const raw = localStorage.getItem(`oidc.user:${authority}:${clientId}`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw).access_token ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Get headers with principal context for authorization requests.
+ * Includes the Bearer token when an OIDC session is active.
  */
 const getAuthzHeaders = (): HeadersInit => {
   const selectedPrincipal = getSelectedPrincipal();
+  const token = getAccessToken();
   return {
     'Content-Type': 'application/json',
     'X-Principal-ID': selectedPrincipal === 'admin' ? 'admin-mode' : selectedPrincipal,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 };
 

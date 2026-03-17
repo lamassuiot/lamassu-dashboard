@@ -1,10 +1,12 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { CertificateData } from '@/types/certificate';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useEntityCapabilities } from '@/hooks/useEntityCapabilities';
+import { EntityActionGuard } from '@/components/authz/EntityActionGuard';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eye, MoreVertical, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, ChevronsUpDown, ShieldAlert, FileText, ShieldCheck, Download } from 'lucide-react';
 import {
@@ -78,6 +80,21 @@ export function CertificateList({
   const [isOcspModalOpen, setIsOcspModalOpen] = useState(false);
   const [certForOcsp, setCertForOcsp] = useState<CertificateData | null>(null);
   const [issuerForOcsp, setIssuerForOcsp] = useState<CA | null>(null);
+
+  // Batch-fetch entity capabilities for all visible certificates
+  const certCapabilityQueries = useMemo(
+    () =>
+      certificates.map((cert) => ({
+        namespace: 'pki',
+        schema_name: 'ca',
+        entity_type: 'certificate',
+        entity_id: cert.serialNumber.replace(/:/g, ''),
+      })),
+    // Re-query whenever the set of serial numbers changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [certificates.map((c) => c.serialNumber).join(',')],
+  );
+  const { canPerform } = useEntityCapabilities(certCapabilityQueries);
 
 
   const SortableHeader: React.FC<{ column: SortableCertColumn; title: string; className?: string; center?: boolean; dateColumn?: boolean }> = ({ column, title, className, center = false, dateColumn = false }) => {
@@ -330,13 +347,17 @@ export function CertificateList({
                         </DropdownMenuItem>
 
                         {isOnHold ? (
-                          <DropdownMenuItem onClick={() => handleReactivateCertificate(cert)}>
-                            <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate Certificate
-                          </DropdownMenuItem>
+                          <EntityActionGuard allowed={canPerform(cert.serialNumber.replace(/:/g, ''), 'status-update/revoke')}>
+                            <DropdownMenuItem onClick={() => handleReactivateCertificate(cert)}>
+                              <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate Certificate
+                            </DropdownMenuItem>
+                          </EntityActionGuard>
                         ) : (
-                          <DropdownMenuItem onClick={() => handleOpenRevokeCertModal(cert)} disabled={cert.apiStatus?.toUpperCase() === 'REVOKED'}>
-                            <ShieldAlert className="mr-2 h-4 w-4" /> Revoke Certificate
-                          </DropdownMenuItem>
+                          <EntityActionGuard allowed={canPerform(cert.serialNumber.replace(/:/g, ''), 'status-update/revoke')}>
+                            <DropdownMenuItem onClick={() => handleOpenRevokeCertModal(cert)} disabled={cert.apiStatus?.toUpperCase() === 'REVOKED'}>
+                              <ShieldAlert className="mr-2 h-4 w-4" /> Revoke Certificate
+                            </DropdownMenuItem>
+                          </EntityActionGuard>
                         )}
 
                         <DropdownMenuSeparator />

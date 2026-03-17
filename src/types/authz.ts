@@ -12,6 +12,7 @@ export interface Rule {
   actions: string[];
   relations: RelationRule[];
   directGrants?: string[];
+  columnFilters?: ColumnFilter[];
 }
 
 export interface RelationRule {
@@ -79,6 +80,21 @@ export interface PolicyGrant {
   grantedAt: string;
 }
 
+export type FilterableFieldType = 'string' | 'int' | 'float' | 'bool' | 'timestamp' | 'jsonb';
+export type FilterOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like';
+
+export interface FilterableField {
+  column: string;
+  type: FilterableFieldType;
+}
+
+export interface ColumnFilter {
+  column: string;
+  type?: FilterableFieldType; // optional; validated against schema's filterable declaration when present
+  operator: FilterOperator;
+  value: string | number | boolean | string[];
+}
+
 export interface SchemaDefinition {
   entityType: string;
   schemaName: string;
@@ -87,7 +103,9 @@ export interface SchemaDefinition {
   relations: Record<string, RelationConfig>;
   atomicActions?: string[]; // actions requiring entity ID: read, write, delete, etc.
   globalActions?: string[]; // actions not requiring entity ID: create, list, etc.
-  namespace?: string; // authorization namespace: pki, iot, etc.
+  filterable?: FilterableField[]; // columns available for column-filter conditions
+  configSchema?: string; // authorization namespace set during loading (e.g. "pki", "iot")
+  namespace?: string; // frontend-derived namespace key from grouped schema response
 }
 
 export interface GroupedSchemas {

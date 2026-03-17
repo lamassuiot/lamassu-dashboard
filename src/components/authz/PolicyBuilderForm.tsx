@@ -949,7 +949,7 @@ function RelationEditor({
   return (
     <div
       className={cn(
-        'rounded-lg border bg-muted/20 overflow-hidden',
+        'rounded-lg border bg-muted/20',
         depth > 0 && 'ml-4'
       )}
     >
@@ -1054,7 +1054,7 @@ function RelationEditor({
               ) : (
                 <ActionSelector
                   atomicActions={atomicActions}
-                  globalActions={globalActions}
+                  globalActions={[]}
                   extraActions={extraActions}
                   selected={relation.actions}
                   onToggle={toggleAction}
