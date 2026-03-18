@@ -468,15 +468,6 @@ function EditPrincipalContent() {
     </div>
   );
 
-  const renderApiKeyForm = () => (
-    <Alert>
-      <Info className="h-4 w-4" />
-      <AlertDescription>
-        API key material cannot be edited from the dashboard. You can update name and status for this principal.
-      </AlertDescription>
-    </Alert>
-  );
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -569,7 +560,6 @@ function EditPrincipalContent() {
                   <SelectContent>
                     <SelectItem value="oidc">OIDC (OpenID Connect)</SelectItem>
                     <SelectItem value="x509">X.509 Certificate</SelectItem>
-                    <SelectItem value="api_key">API Key</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -593,7 +583,6 @@ function EditPrincipalContent() {
             <CardContent>
               {type === 'oidc' && renderOidcForm()}
               {type === 'x509' && renderX509Form()}
-              {type === 'api_key' && renderApiKeyForm()}
             </CardContent>
           </Card>
 

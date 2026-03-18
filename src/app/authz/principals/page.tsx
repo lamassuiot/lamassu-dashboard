@@ -88,8 +88,6 @@ export default function PrincipalsPage() {
 
   const getPrincipalTypeColor = (type: PrincipalType) => {
     switch (type) {
-      case 'api_key':
-        return 'default';
       case 'oidc':
         return 'secondary';
       case 'x509':
@@ -101,8 +99,6 @@ export default function PrincipalsPage() {
 
   const getPrincipalTypeLabel = (type: PrincipalType) => {
     switch (type) {
-      case 'api_key':
-        return 'API Key';
       case 'oidc':
         return 'OIDC';
       case 'x509':

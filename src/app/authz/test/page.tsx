@@ -43,7 +43,7 @@ export default function AuthorizationTestPage() {
 
   // Global match mode toggle + shared auth credentials
   const [matchMode, setMatchMode] = useState(false);
-  const [authCreds, setAuthCreds] = useState({ authType: 'x509' as 'api_key' | 'oidc' | 'x509', value: '' });
+  const [authCreds, setAuthCreds] = useState({ authType: 'x509' as  'oidc' | 'x509', value: '' });
 
   // Authorize
   const [authorizeForm, setAuthorizeForm] = useState({ principalId: '', namespace: '', schemaName: '', action: '', entityType: '', entityKey: '' });
@@ -250,28 +250,25 @@ export default function AuthorizationTestPage() {
             <Label htmlFor={`${idPrefix}-auth-type`}>Authentication Type</Label>
             <Select
               value={authCreds.authType}
-              onValueChange={(v: 'api_key' | 'oidc' | 'x509') => setAuthCreds({ ...authCreds, authType: v, value: '' })}
+              onValueChange={(v: 'oidc' | 'x509') => setAuthCreds({ ...authCreds, authType: v, value: '' })}
             >
               <SelectTrigger id={`${idPrefix}-auth-type`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="x509">X.509 Certificate</SelectItem>
                 <SelectItem value="oidc">OIDC / JWT Token</SelectItem>
-                <SelectItem value="api_key">API Key</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-auth-value`}>
-              {authCreds.authType === 'x509' ? 'X.509 Certificate (PEM)' : authCreds.authType === 'oidc' ? 'JWT Token' : 'API Key'}
+              {authCreds.authType === 'x509' ? 'X.509 Certificate (PEM)' : 'JWT Token'}
             </Label>
             <Textarea
               id={`${idPrefix}-auth-value`}
               placeholder={
                 authCreds.authType === 'x509'
                   ? '-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----'
-                  : authCreds.authType === 'oidc'
-                  ? 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'
-                  : 'your-api-key-here'
+                  : 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'
               }
               value={authCreds.value}
               onChange={(e) => setAuthCreds({ ...authCreds, value: e.target.value })}

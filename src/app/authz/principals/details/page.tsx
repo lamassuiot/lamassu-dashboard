@@ -16,7 +16,6 @@ import {
   Plus,
   Shield,
   Calendar,
-  Key,
   Link2,
   MoreVertical,
   Copy,
@@ -216,8 +215,6 @@ function PrincipalDetailsContent() {
 
   const getPrincipalTypeIcon = (type: string) => {
     switch (type) {
-      case 'api_key':
-        return <Key className="h-5 w-5" />;
       case 'oidc':
         return <Link2 className="h-5 w-5" />;
       case 'x509':
