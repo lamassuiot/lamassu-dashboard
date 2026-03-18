@@ -88,7 +88,7 @@ export function CertificateList({
         namespace: 'pki',
         schema_name: 'ca',
         entity_type: 'certificate',
-        entity_id: cert.serialNumber.replace(/:/g, ''),
+        entity_key: cert.serialNumber.replace(/:/g, ''),
       })),
     // Re-query whenever the set of serial numbers changes
     // eslint-disable-next-line react-hooks/exhaustive-deps

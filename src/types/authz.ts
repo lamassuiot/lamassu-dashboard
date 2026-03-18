@@ -127,13 +127,16 @@ export interface PolicyStats {
   lastModified?: string;
 }
 
+/** entityKey sent in requests: plain string (single-PK shorthand) or explicit column map. Omit for global actions. */
+export type FlexEntityKey = string | Record<string, string>;
+
 export interface AuthorizeRequest {
   principalId: string;
   namespace: string;
   schemaName: string;
   action: string;
   entityType: string;
-  entityId: string;
+  entityKey?: FlexEntityKey;
 }
 
 export interface AuthorizeResponse {
@@ -143,7 +146,7 @@ export interface AuthorizeResponse {
   schemaName: string;
   action: string;
   entityType: string;
-  entityId: string;
+  entityKey: Record<string, string>;
 }
 
 export interface FilterRequest {
@@ -167,7 +170,7 @@ export interface MatchAndAuthorizeRequest {
   schemaName: string;
   action: string;
   entityType: string;
-  entityId?: string;
+  entityKey?: FlexEntityKey;
 }
 
 export interface MatchAndAuthorizeResponse {
@@ -175,7 +178,7 @@ export interface MatchAndAuthorizeResponse {
   namespace: string;
   schemaName: string;
   entityType: string;
-  entityId: string;
+  entityKey: Record<string, string>;
   action: string;
   matchedPrincipals: string[];
 }
@@ -292,7 +295,7 @@ export interface EntityCapabilityQuery {
   namespace: string;
   schema_name: string;
   entity_type: string;
-  entity_id: string;
+  entity_key: FlexEntityKey;
 }
 
 /** POST /authz/capabilities/entity — known principal */
@@ -306,7 +309,7 @@ export interface EntityCapabilityResult {
   namespace: string;
   schema_name: string;
   entity_type: string;
-  entity_id: string;
+  entity_key: Record<string, string>;
   /** Empty array means no access — never absent on success. */
   actions: string[];
   /** Set when this specific query item could not be evaluated (unknown schema etc). */

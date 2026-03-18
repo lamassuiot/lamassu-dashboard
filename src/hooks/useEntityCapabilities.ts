@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { getEntityCapabilities, matchAndGetEntityCapabilities } from '@/lib/authz-api';
-import type { EntityCapabilityQuery } from '@/types/authz';
+import type { EntityCapabilityQuery, FlexEntityKey } from '@/types/authz';
 
 /**
  * Reads the OIDC access token from localStorage using the same key that
@@ -27,14 +27,20 @@ const getAccessToken = (): string | null => {
 const getSelectedPrincipal = (): string =>
   typeof window !== 'undefined' ? (localStorage.getItem('selectedPrincipal') || 'admin') : 'admin';
 
+const serializeEntityKey = (key: FlexEntityKey): string =>
+  typeof key === 'string'
+    ? key
+    : JSON.stringify(Object.fromEntries(Object.entries(key).sort(([a], [b]) => a.localeCompare(b))));
+
 export interface UseEntityCapabilitiesResult {
   isLoading: boolean;
   error: string | null;
   /**
-   * Returns true if the current principal can perform `action` on the entity with `entityId`.
+   * Returns true if the current principal can perform `action` on the entity identified by `entityKey`.
+   * Accepts the same FlexEntityKey as the query — plain string or column map.
    * Returns false during loading or when the entity has no matching allowed action.
    */
-  canPerform: (entityId: string, action: string) => boolean;
+  canPerform: (entityKey: FlexEntityKey, action: string) => boolean;
 }
 
 /**
@@ -47,10 +53,10 @@ export interface UseEntityCapabilitiesResult {
  *
  * @example
  * const { canPerform } = useEntityCapabilities([
- *   { namespace: 'pki', schema_name: 'lamassu', entity_type: 'Certificate', entity_id: cert.serialNumber },
+ *   { namespace: 'pki', schema_name: 'lamassu', entity_type: 'Certificate', entity_key: { serial_number: cert.serialNumber } },
  * ]);
  *
- * <EntityActionGuard allowed={canPerform(cert.serialNumber, 'revoke')}>
+ * <EntityActionGuard allowed={canPerform({ serial_number: cert.serialNumber }, 'revoke')}>
  *   <Button>Revoke</Button>
  * </EntityActionGuard>
  */
@@ -58,14 +64,14 @@ export function useEntityCapabilities(
   queries: EntityCapabilityQuery[],
   skip = false,
 ): UseEntityCapabilitiesResult {
-  // Map entity_id → allowed actions
+  // Map serialised entity_key → allowed actions
   const [actionsMap, setActionsMap] = useState<Map<string, string[]>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Stable serialisation key — only re-fetch when the actual queries change
   const queriesKey = queries
-    .map((q) => `${q.namespace}|${q.schema_name}|${q.entity_type}|${q.entity_id}`)
+    .map((q) => `${q.namespace}|${q.schema_name}|${q.entity_type}|${serializeEntityKey(q.entity_key)}`)
     .sort()
     .join(';;');
 
@@ -98,7 +104,7 @@ export function useEntityCapabilities(
         if (cancelled) return;
         const map = new Map<string, string[]>();
         for (const result of resp.results) {
-          map.set(result.entity_id, result.actions);
+          map.set(serializeEntityKey(result.entity_key), result.actions);
         }
         setActionsMap(map);
         lastFetchedKey.current = queriesKey;
@@ -119,8 +125,8 @@ export function useEntityCapabilities(
   }, [queriesKey, skip]);
 
   const canPerform = useCallback(
-    (entityId: string, action: string): boolean => {
-      const actions = actionsMap.get(entityId);
+    (entityKey: FlexEntityKey, action: string): boolean => {
+      const actions = actionsMap.get(serializeEntityKey(entityKey));
       if (!actions) return false;
       return actions.includes('*') || actions.includes(action);
     },

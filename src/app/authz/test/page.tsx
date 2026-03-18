@@ -31,6 +31,7 @@ import type {
   MatchAndAuthorizeResponse, MatchAndGetFilterResponse,
   GlobalCapabilitiesResponse, MatchGlobalCapabilitiesResponse,
   EntityCapabilitiesResponse, MatchEntityCapabilitiesResponse,
+  FlexEntityKey,
 } from '@/types/authz';
 
 
@@ -45,7 +46,7 @@ export default function AuthorizationTestPage() {
   const [authCreds, setAuthCreds] = useState({ authType: 'x509' as 'api_key' | 'oidc' | 'x509', value: '' });
 
   // Authorize
-  const [authorizeForm, setAuthorizeForm] = useState({ principalId: '', namespace: '', schemaName: '', action: '', entityType: '', entityId: '' });
+  const [authorizeForm, setAuthorizeForm] = useState({ principalId: '', namespace: '', schemaName: '', action: '', entityType: '', entityKey: '' });
   const [authorizeResult, setAuthorizeResult] = useState<AuthorizeResponse | MatchAndAuthorizeResponse | null>(null);
 
   // Filter
@@ -58,7 +59,7 @@ export default function AuthorizationTestPage() {
 
   // Entity Capabilities
   const [entityCapsForm, setEntityCapsForm] = useState({ principalId: '' });
-  const [entityCapsQuery, setEntityCapsQuery] = useState({ namespace: '', schemaName: '', entityType: '', entityId: '' });
+  const [entityCapsQuery, setEntityCapsQuery] = useState({ namespace: '', schemaName: '', entityType: '', entityKey: '' });
   const [entityCapsResult, setEntityCapsResult] = useState<EntityCapabilitiesResponse | MatchEntityCapabilitiesResponse | null>(null);
 
   // ─── Helpers ─────────────────────────────────────────────────
@@ -119,17 +120,35 @@ export default function AuthorizationTestPage() {
 
   // ─── Handlers ────────────────────────────────────────────────
 
+  /** Parse a user-supplied entityKey string as FlexEntityKey.
+   * Plain string (e.g. "device-42") → passes through as-is.
+   * JSON object (e.g. '{"device_id":"device-42"}') → parsed to Record.
+   * Anything else (array, number…) throws with a helpful message.
+   */
+  const parseFlexEntityKey = (input: string): FlexEntityKey => {
+    const trimmed = input.trim();
+    if (!trimmed.startsWith('{')) return trimmed; // plain string shorthand
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) return parsed as Record<string, string>;
+      throw new Error('Entity key JSON must be an object, e.g. {"device_id": "device-42"}');
+    } catch (e: any) {
+      throw new Error(e.message ?? 'Entity key is not valid JSON — use a plain ID or a JSON object');
+    }
+  };
+
   const handleAuthorize = async () => {
     if (matchMode) {
       if (!authCreds.value || !authorizeForm.action) { setError('Auth material and action are required'); return; }
     } else {
-      if (!authorizeForm.principalId || !authorizeForm.action || !authorizeForm.entityId) { setError('Principal, action, and entity ID are required'); return; }
+      if (!authorizeForm.principalId || !authorizeForm.action) { setError('Principal and action are required'); return; }
     }
     if (setEntityTargetValidationErrorIfNeeded(authorizeForm.namespace, authorizeForm.schemaName, authorizeForm.entityType)) return;
     try {
       setLoading(true);
       setError(null);
       if (matchMode) {
+        const entityKey = authorizeForm.entityKey ? parseFlexEntityKey(authorizeForm.entityKey) : undefined;
         setAuthorizeResult(await matchAndAuthorize({
           authMaterial: authCreds.value,
           authType: authCreds.authType,
@@ -137,7 +156,7 @@ export default function AuthorizationTestPage() {
           schemaName: authorizeForm.schemaName,
           action: authorizeForm.action,
           entityType: authorizeForm.entityType,
-          entityId: authorizeForm.entityId || undefined,
+          ...(entityKey !== undefined ? { entityKey } : {}),
         }));
       } else {
         setAuthorizeResult(await authorize({
@@ -146,7 +165,7 @@ export default function AuthorizationTestPage() {
           schemaName: authorizeForm.schemaName,
           action: authorizeForm.action,
           entityType: authorizeForm.entityType,
-          entityId: authorizeForm.entityId,
+          ...(authorizeForm.entityKey ? { entityKey: parseFlexEntityKey(authorizeForm.entityKey) } : {}),
         }));
       }
     } catch (err: any) {
@@ -202,14 +221,14 @@ export default function AuthorizationTestPage() {
     } else {
       if (!entityCapsForm.principalId) { setError('Principal ID is required'); return; }
     }
-    if (!entityCapsQuery.namespace || !entityCapsQuery.schemaName || !entityCapsQuery.entityType || !entityCapsQuery.entityId) {
-      setError('Namespace, schema name, entity type, and entity ID are all required');
+    if (!entityCapsQuery.namespace || !entityCapsQuery.schemaName || !entityCapsQuery.entityType || !entityCapsQuery.entityKey) {
+      setError('Namespace, schema name, entity type, and entity key are all required');
       return;
     }
-    const q = { namespace: entityCapsQuery.namespace, schema_name: entityCapsQuery.schemaName, entity_type: entityCapsQuery.entityType, entity_id: entityCapsQuery.entityId };
     try {
       setLoading(true);
       setError(null);
+      const q = { namespace: entityCapsQuery.namespace, schema_name: entityCapsQuery.schemaName, entity_type: entityCapsQuery.entityType, entity_key: parseFlexEntityKey(entityCapsQuery.entityKey) };
       if (matchMode) {
         setEntityCapsResult(await matchAndGetEntityCapabilities({ auth_type: authCreds.authType, auth_material: authCreds.value, queries: [q] }));
       } else {
@@ -412,11 +431,11 @@ export default function AuthorizationTestPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{matchMode ? 'Entity ID (Optional)' : 'Entity ID'}</Label>
+                  <Label>{matchMode ? 'Entity Key (optional — omit for global actions)' : 'Entity Key (omit for global actions)'}</Label>
                   <Input
-                    placeholder="Enter entity ID"
-                    value={authorizeForm.entityId}
-                    onChange={(e) => setAuthorizeForm({ ...authorizeForm, entityId: e.target.value })}
+                    placeholder='device-42  or  {"device_id": "device-42"}'
+                    value={authorizeForm.entityKey}
+                    onChange={(e) => setAuthorizeForm({ ...authorizeForm, entityKey: e.target.value })}
                   />
                 </div>
 
@@ -426,7 +445,7 @@ export default function AuthorizationTestPage() {
                     {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                     Test Authorization
                   </Button>
-                  <Button variant="outline" onClick={() => { setAuthorizeForm({ principalId: '', namespace: '', schemaName: '', action: '', entityType: '', entityId: '' }); setAuthorizeResult(null); setError(null); }}>
+                  <Button variant="outline" onClick={() => { setAuthorizeForm({ principalId: '', namespace: '', schemaName: '', action: '', entityType: '', entityKey: '' }); setAuthorizeResult(null); setError(null); }}>
                     Reset
                   </Button>
                 </div>
@@ -468,7 +487,7 @@ export default function AuthorizationTestPage() {
                       <div><p className="font-medium text-muted-foreground">Namespace</p><Badge variant="secondary">{authorizeResult.namespace}</Badge></div>
                       <div><p className="font-medium text-muted-foreground">Schema Name</p><Badge variant="secondary">{authorizeResult.schemaName}</Badge></div>
                       <div><p className="font-medium text-muted-foreground">Entity Type</p><Badge variant="outline">{authorizeResult.entityType}</Badge></div>
-                      <div><p className="font-medium text-muted-foreground">Entity ID</p><p className="font-mono">{authorizeResult.entityId}</p></div>
+                      <div><p className="font-medium text-muted-foreground">Entity Key</p><pre className="font-mono text-xs">{JSON.stringify(authorizeResult.entityKey, null, 2)}</pre></div>
                     </div>
                     <Separator />
                     <details className="border rounded-lg">
@@ -727,11 +746,11 @@ export default function AuthorizationTestPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Entity ID</Label>
+                  <Label>Entity Key (omit for global actions)</Label>
                   <Input
-                    placeholder="Enter entity ID"
-                    value={entityCapsQuery.entityId}
-                    onChange={(e) => setEntityCapsQuery({ ...entityCapsQuery, entityId: e.target.value })}
+                    placeholder='device-42  or  {"device_id": "device-42"}'
+                    value={entityCapsQuery.entityKey}
+                    onChange={(e) => setEntityCapsQuery({ ...entityCapsQuery, entityKey: e.target.value })}
                   />
                 </div>
 
@@ -741,7 +760,7 @@ export default function AuthorizationTestPage() {
                     {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                     Get Entity Capabilities
                   </Button>
-                  <Button variant="outline" onClick={() => { setEntityCapsForm({ principalId: '' }); setEntityCapsQuery({ namespace: '', schemaName: '', entityType: '', entityId: '' }); setEntityCapsResult(null); setError(null); }}>
+                  <Button variant="outline" onClick={() => { setEntityCapsForm({ principalId: '' }); setEntityCapsQuery({ namespace: '', schemaName: '', entityType: '', entityKey: '' }); setEntityCapsResult(null); setError(null); }}>
                     Reset
                   </Button>
                 </div>
@@ -770,7 +789,7 @@ export default function AuthorizationTestPage() {
                         <div><p className="font-medium text-muted-foreground">Namespace</p><Badge variant="secondary">{r.namespace}</Badge></div>
                         <div><p className="font-medium text-muted-foreground">Schema Name</p><Badge variant="secondary">{r.schema_name}</Badge></div>
                         <div><p className="font-medium text-muted-foreground">Entity Type</p><Badge variant="outline">{r.entity_type}</Badge></div>
-                        <div><p className="font-medium text-muted-foreground">Entity ID</p><p className="font-mono">{r.entity_id}</p></div>
+                        <div><p className="font-medium text-muted-foreground">Entity Key</p><pre className="font-mono text-xs">{JSON.stringify(r.entity_key, null, 2)}</pre></div>
                       </div>
                       <Separator />
                       <div>

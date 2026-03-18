@@ -104,7 +104,7 @@ export default function CertificateDetailsClient() { // Renamed component
               namespace: 'pki',
               schema_name: 'ca',
               entity_type: 'certificate',
-              entity_id: certificateDetails.serialNumber.replace(/:/g, ''),
+              entity_key: certificateDetails.serialNumber.replace(/:/g, ''),
             },
           ]
         : [],
