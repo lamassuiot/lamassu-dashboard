@@ -1,6 +1,6 @@
 import { beforeAll, afterEach, afterAll, vi } from 'vitest'
 import { server } from './msw-server'
-import '@testing-library/jest-dom'
+import '@testing-library/jest-dom/vitest'
 
 // Setup MSW
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }))
