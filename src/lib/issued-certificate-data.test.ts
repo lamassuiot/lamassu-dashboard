@@ -345,6 +345,8 @@ describe('issued-certificate-data', () => {
   })
 
   describe('updateCertificateMetadata', () => {
+    const patchOperations = [{ op: 'replace' as const, path: '/metadata/key', value: 'value' }]
+
     it('should update certificate metadata successfully', async () => {
       server.use(
         http.put(`${CA_API_BASE}/certificates/123456/metadata`, () => {
@@ -353,7 +355,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        updateCertificateMetadata('123456', { key: 'value' }, MOCK_TOKEN)
+        updateCertificateMetadata('123456', patchOperations, MOCK_TOKEN)
       ).resolves.toBeUndefined()
     })
 
@@ -368,7 +370,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        updateCertificateMetadata('123456', {}, MOCK_TOKEN)
+        updateCertificateMetadata('123456', [], MOCK_TOKEN)
       ).rejects.toThrow('Failed to update certificate metadata')
     })
 
@@ -380,7 +382,7 @@ describe('issued-certificate-data', () => {
       )
 
       await expect(
-        updateCertificateMetadata('123456', {}, MOCK_TOKEN)
+        updateCertificateMetadata('123456', [], MOCK_TOKEN)
       ).rejects.toThrow('Failed to update certificate metadata')
     })
   })
@@ -577,4 +579,3 @@ describe('issued-certificate-data', () => {
     })
   })
 })
-

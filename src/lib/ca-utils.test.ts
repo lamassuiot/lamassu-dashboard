@@ -2,69 +2,82 @@ import { describe, it, expect } from 'vitest'
 import { filterCaList, type CaStatusFilter, type CaTypeFilter } from './ca-utils'
 import type { CA } from './ca-data'
 
+function makeCa(overrides: Partial<CA> = {}): CA {
+  return {
+    id: 'ca-default',
+    name: 'Default CA',
+    status: 'active',
+    expires: '2025-01-01T00:00:00Z',
+    issuer: 'Self-signed',
+    serialNumber: '1',
+    keyAlgorithm: 'RSA 2048',
+    ...overrides,
+  }
+}
+
 describe('ca-utils', () => {
   describe('filterCaList', () => {
     // Test fixture - nested CA tree structure
     const mockCaTree: CA[] = [
-      {
+      makeCa({
         id: 'ca-1',
         name: 'Root CA Active',
         status: 'active' as CaStatusFilter,
         caType: 'MANAGED',
         level: 0,
         children: [
-          {
+          makeCa({
             id: 'ca-1-1',
             name: 'Intermediate CA Active',
             status: 'active' as CaStatusFilter,
             caType: 'MANAGED',
             level: 1,
             children: [
-              {
+              makeCa({
                 id: 'ca-1-1-1',
                 name: 'Leaf CA Active',
                 status: 'active' as CaStatusFilter,
                 caType: 'MANAGED',
                 level: 2,
                 children: [],
-              } as CA,
+              }),
             ],
-          } as CA,
-          {
+          }),
+          makeCa({
             id: 'ca-1-2',
             name: 'Intermediate CA Expired',
             status: 'expired' as CaStatusFilter,
             caType: 'MANAGED',
             level: 1,
             children: [],
-          } as CA,
+          }),
         ],
-      } as CA,
-      {
+      }),
+      makeCa({
         id: 'ca-2',
         name: 'Root CA Revoked',
         status: 'revoked' as CaStatusFilter,
         caType: 'IMPORTED',
         level: 0,
         children: [],
-      } as CA,
-      {
+      }),
+      makeCa({
         id: 'ca-3',
         name: 'Root CA External',
         status: 'active' as CaStatusFilter,
         caType: 'EXTERNAL_PUBLIC',
         level: 0,
         children: [
-          {
+          makeCa({
             id: 'ca-3-1',
             name: 'External Intermediate',
             status: 'active' as CaStatusFilter,
             caType: 'EXTERNAL_PUBLIC',
             level: 1,
             children: [],
-          } as CA,
+          }),
         ],
-      } as CA,
+      }),
     ]
 
     it('should return all CAs when no filters are applied', () => {
@@ -229,14 +242,14 @@ describe('ca-utils', () => {
 
     it('should handle CAs with no children', () => {
       const flatCaList: CA[] = [
-        {
+        makeCa({
           id: 'ca-1',
           name: 'CA 1',
           status: 'active' as CaStatusFilter,
           caType: 'MANAGED',
           level: 0,
           children: [],
-        } as CA,
+        }),
       ]
 
       const result = filterCaList(flatCaList, {
@@ -249,13 +262,13 @@ describe('ca-utils', () => {
 
     it('should handle CAs with undefined children array', () => {
       const caListUndefinedChildren: CA[] = [
-        {
+        makeCa({
           id: 'ca-1',
           name: 'CA 1',
           status: 'active' as CaStatusFilter,
           caType: 'MANAGED',
           level: 0,
-        } as CA,
+        }),
       ]
 
       const result = filterCaList(caListUndefinedChildren, {
@@ -280,41 +293,41 @@ describe('ca-utils', () => {
 
     it('should handle deeply nested hierarchies', () => {
       const deepTree: CA[] = [
-        {
+        makeCa({
           id: 'level-0',
           name: 'Level 0',
           status: 'active' as CaStatusFilter,
           caType: 'MANAGED',
           level: 0,
           children: [
-            {
+            makeCa({
               id: 'level-1',
               name: 'Level 1',
               status: 'active' as CaStatusFilter,
               caType: 'MANAGED',
               level: 1,
               children: [
-                {
+                makeCa({
                   id: 'level-2',
                   name: 'Level 2',
                   status: 'active' as CaStatusFilter,
                   caType: 'MANAGED',
                   level: 2,
                   children: [
-                    {
+                    makeCa({
                       id: 'level-3',
                       name: 'Deep Match',
                       status: 'active' as CaStatusFilter,
                       caType: 'MANAGED',
                       level: 3,
                       children: [],
-                    } as CA,
+                    }),
                   ],
-                } as CA,
+                }),
               ],
-            } as CA,
+            }),
           ],
-        } as CA,
+        }),
       ]
 
       const result = filterCaList(deepTree, {

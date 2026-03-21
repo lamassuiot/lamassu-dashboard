@@ -25,7 +25,6 @@ import {
   deleteSigningProfile,
   parseCertificatePemDetails,
   type CA,
-  type CaStats,
   type CreateCaPayload,
   type ImportCaPayload,
   type PatchOperation,
@@ -36,6 +35,78 @@ import {
 
 const MOCK_TOKEN = 'test-access-token'
 const CA_API_BASE = 'https://api.test.lamassu.io/ca/v1'
+
+type CaStats = Awaited<ReturnType<typeof fetchCaStats>>
+
+function makeCreateCaPayload(): CreateCaPayload {
+  return {
+    parent_id: '',
+    id: 'new-ca',
+    engine_id: 'golang',
+    profile_id: 'profile-1',
+    subject: { common_name: 'New CA' },
+    key_metadata: { type: 'RSA', bits: 2048 },
+    ca_expiration: { type: 'Duration', duration: '1y' },
+    ca_type: 'MANAGED',
+  }
+}
+
+function makeImportCaPayload(): ImportCaPayload {
+  return {
+    id: 'imported-ca',
+    engine_id: 'golang',
+    private_key: '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----',
+    ca: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
+    ca_chain: [],
+    ca_type: 'IMPORTED',
+    parent_id: '',
+  }
+}
+
+function makeSigningProfilePayload(
+  overrides: Partial<CreateSigningProfilePayload> = {},
+): CreateSigningProfilePayload {
+  return {
+    name: 'New Profile',
+    description: 'Profile description',
+    validity: { type: 'Duration', duration: '1y' },
+    sign_as_ca: false,
+    honor_key_usage: true,
+    key_usage: ['digitalSignature'],
+    honor_extended_key_usages: true,
+    extended_key_usages: ['serverAuth'],
+    honor_subject: false,
+    honor_extensions: false,
+    crypto_enforcement: {
+      enabled: false,
+      allow_rsa_keys: true,
+      allow_ecdsa_keys: true,
+    },
+    ...overrides,
+  }
+}
+
+function makeApiSigningProfile(overrides: Partial<ApiSigningProfile> = {}): ApiSigningProfile {
+  return {
+    id: 'profile-123',
+    name: 'Profile',
+    description: 'Profile description',
+    validity: { type: 'Duration', duration: '1y' },
+    sign_as_ca: false,
+    honor_key_usage: true,
+    key_usage: ['digitalSignature'],
+    honor_extended_key_usages: true,
+    extended_key_usages: ['serverAuth'],
+    honor_subject: false,
+    honor_extensions: false,
+    crypto_enforcement: {
+      enabled: false,
+      allow_rsa_keys: true,
+      allow_ecdsa_keys: true,
+    },
+    ...overrides,
+  }
+}
 
 describe('ca-data', () => {
   // Utility Functions
@@ -190,12 +261,7 @@ describe('ca-data', () => {
 
   // CA API Operations
   describe('createCa', () => {
-    const payload: CreateCaPayload = {
-      subject: { commonName: 'New CA' },
-      keyMetadata: { type: 'RSA', bits: 2048 },
-      issuanceExpiration: { type: 'Duration', duration: '1y' },
-      engineId: 'golang',
-    } as CreateCaPayload
+    const payload = makeCreateCaPayload()
 
     it('should create CA successfully', async () => {
       server.use(
@@ -239,10 +305,7 @@ describe('ca-data', () => {
   })
 
   describe('importCa', () => {
-    const payload: ImportCaPayload = {
-      certificate: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
-      engineId: 'golang',
-    } as ImportCaPayload
+    const payload = makeImportCaPayload()
 
     it('should import CA successfully', async () => {
       server.use(
@@ -306,12 +369,9 @@ describe('ca-data', () => {
 
     it('should fetch CA statistics successfully', async () => {
       const mockStats: CaStats = {
-        total_issued_certificates: 100,
-        status_distribution: {
-          active: 80,
-          revoked: 15,
-          expired: 5,
-        },
+        ACTIVE: 80,
+        REVOKED: 15,
+        EXPIRED: 5,
       }
 
       server.use(
@@ -323,7 +383,7 @@ describe('ca-data', () => {
       const result = await fetchCaStats(caId, MOCK_TOKEN)
 
       expect(result).toEqual(mockStats)
-      expect(result.total_issued_certificates).toBe(100)
+      expect(result.ACTIVE).toBe(80)
     })
 
     it('should handle fetch error', async () => {
@@ -576,18 +636,17 @@ describe('ca-data', () => {
   describe('fetchSigningProfiles', () => {
     it('should fetch signing profiles successfully', async () => {
       const mockResponse = {
-        total_items: 2,
+        next: null,
         list: [
-          {
+          makeApiSigningProfile({
             id: 'profile-1',
             name: 'Standard Profile',
-            key_usages: ['digitalSignature', 'keyEncipherment'],
-          },
-          {
+            key_usage: ['digitalSignature', 'keyEncipherment'],
+          }),
+          makeApiSigningProfile({
             id: 'profile-2',
             name: 'Code Signing',
-            key_usages: ['digitalSignature'],
-          },
+          }),
         ],
       }
 
@@ -600,7 +659,7 @@ describe('ca-data', () => {
       const result = await fetchSigningProfiles(MOCK_TOKEN)
 
       expect(result.list).toHaveLength(2)
-      expect(result.total_items).toBe(2)
+      expect(result.next).toBeNull()
     })
 
     it('should handle query parameters', async () => {
@@ -609,7 +668,7 @@ describe('ca-data', () => {
       server.use(
         http.get(`${CA_API_BASE}/profiles`, ({ request }) => {
           capturedUrl = new URL(request.url)
-          return HttpResponse.json({ total_items: 0, list: [] })
+          return HttpResponse.json({ next: null, list: [] })
         })
       )
 
@@ -622,19 +681,10 @@ describe('ca-data', () => {
   })
 
   describe('createSigningProfile', () => {
-    const payload: CreateSigningProfilePayload = {
-      name: 'New Profile',
-      key_usages: ['digitalSignature'],
-      extended_key_usages: ['serverAuth'],
-      validity: { type: 'Duration', duration: '1y' },
-    } as CreateSigningProfilePayload
+    const payload = makeSigningProfilePayload()
 
     it('should create signing profile successfully', async () => {
-      const mockResponse: ApiSigningProfile = {
-        id: 'profile-123',
-        name: 'New Profile',
-        key_usages: ['digitalSignature'],
-      } as ApiSigningProfile
+      const mockResponse = makeApiSigningProfile({ id: 'profile-123', name: 'New Profile' })
 
       server.use(
         http.post(`${CA_API_BASE}/profiles`, () => {
@@ -668,11 +718,7 @@ describe('ca-data', () => {
     const profileId = 'profile-123'
 
     it('should fetch signing profile by ID successfully', async () => {
-      const mockProfile: ApiSigningProfile = {
-        id: profileId,
-        name: 'Test Profile',
-        key_usages: ['digitalSignature'],
-      } as ApiSigningProfile
+      const mockProfile = makeApiSigningProfile({ id: profileId, name: 'Test Profile' })
 
       server.use(
         http.get(`${CA_API_BASE}/profiles/${profileId}`, () => {
@@ -704,10 +750,10 @@ describe('ca-data', () => {
 
   describe('updateSigningProfile', () => {
     const profileId = 'profile-123'
-    const payload: CreateSigningProfilePayload = {
+    const payload = makeSigningProfilePayload({
       name: 'Updated Profile',
-      key_usages: ['digitalSignature', 'keyEncipherment'],
-    } as CreateSigningProfilePayload
+      key_usage: ['digitalSignature', 'keyEncipherment'],
+    })
 
     it('should update signing profile successfully', async () => {
       server.use(
@@ -1017,12 +1063,7 @@ XQGdcNTVHA==
 
   describe('CA operations error handling', () => {
     it('should handle createCa with non-JSON error response', async () => {
-      const payload: CreateCaPayload = {
-        subject: { commonName: 'New CA' },
-        keyMetadata: { type: 'RSA', bits: 2048 },
-        issuanceExpiration: { type: 'Duration', duration: '1y' },
-        engineId: 'golang',
-      } as CreateCaPayload
+      const payload = makeCreateCaPayload()
 
       server.use(
         http.post(`${CA_API_BASE}/cas`, () => {
@@ -1034,10 +1075,7 @@ XQGdcNTVHA==
     })
 
     it('should handle importCa with non-JSON error response', async () => {
-      const payload: ImportCaPayload = {
-        certificate: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
-        engineId: 'golang',
-      } as ImportCaPayload
+      const payload = makeImportCaPayload()
 
       server.use(
         http.post(`${CA_API_BASE}/cas/import`, () => {
@@ -1135,12 +1173,7 @@ XQGdcNTVHA==
     })
 
     it('should handle createSigningProfile with non-JSON error response', async () => {
-      const payload: CreateSigningProfilePayload = {
-        name: 'New Profile',
-        key_usages: ['digitalSignature'],
-        extended_key_usages: ['serverAuth'],
-        validity: { type: 'Duration', duration: '1y' },
-      } as CreateSigningProfilePayload
+      const payload = makeSigningProfilePayload()
 
       server.use(
         http.post(`${CA_API_BASE}/profiles`, () => {
@@ -1169,10 +1202,9 @@ XQGdcNTVHA==
 
     it('should handle updateSigningProfile with non-JSON error response', async () => {
       const profileId = 'profile-123'
-      const payload: CreateSigningProfilePayload = {
+      const payload = makeSigningProfilePayload({
         name: 'Updated Profile',
-        key_usages: ['digitalSignature'],
-      } as CreateSigningProfilePayload
+      })
 
       server.use(
         http.put(`${CA_API_BASE}/profiles/${profileId}`, () => {
@@ -1614,4 +1646,3 @@ XQGdcNTVHA==
     })
   })
 })
-

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   get_KMS_API_BASE_URL,
   get_CA_API_BASE_URL,
@@ -100,10 +100,10 @@ describe('api-domains', () => {
 
   describe('handleApiError', () => {
     it('should return parsed JSON for successful response', async () => {
-      const mockResponse = {
-        ok: true,
-        json: async () => ({ data: 'success' }),
-      } as Response
+      const mockResponse = new Response(JSON.stringify({ data: 'success' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
 
       const result = await handleApiError(mockResponse, 'Test operation failed')
       expect(result).toEqual({ data: 'success' })
@@ -116,7 +116,7 @@ describe('api-domains', () => {
         json: async () => {
           throw new Error('Not JSON')
         },
-      } as Response
+      } as unknown as Response
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
@@ -128,7 +128,7 @@ describe('api-domains', () => {
         ok: false,
         status: 400,
         json: async () => ({ err: 'Invalid request parameters' }),
-      } as Response
+      } as unknown as Response
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
@@ -140,7 +140,7 @@ describe('api-domains', () => {
         ok: false,
         status: 403,
         json: async () => ({ message: 'Forbidden access' }),
-      } as Response
+      } as unknown as Response
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
@@ -152,7 +152,7 @@ describe('api-domains', () => {
         ok: false,
         status: 404,
         json: async () => ({ err: 'Resource not found' }),
-      } as Response
+      } as unknown as Response
 
       await expect(
         handleApiError(mockResponse, 'Fetch resource failed')
@@ -166,7 +166,7 @@ describe('api-domains', () => {
         json: async () => {
           throw new Error('Network error')
         },
-      } as Response
+      } as unknown as Response
 
       await expect(
         handleApiError(mockResponse, 'Network request failed')

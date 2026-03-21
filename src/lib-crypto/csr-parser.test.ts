@@ -207,7 +207,7 @@ INVALID!!!BASE64@@@
       expect(result.error).toBeUndefined()
       expect(result.publicKeyInfo).toBeDefined()
       // Should either show known name (RSA) or OID
-      expect(result.publicKeyInfo.length).toBeGreaterThan(0)
+      expect(result.publicKeyInfo?.length ?? 0).toBeGreaterThan(0)
     })
 
     it('should handle RSA key size calculation correctly', async () => {

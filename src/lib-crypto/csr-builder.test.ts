@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildSelfSignedCsr, buildSignedCsr } from '@/lib-crypto'
 import { parseCsr } from '@/lib-crypto'
+import type { CsrSan } from './csr-builder'
 
 const subject = {
   commonName: 'example.com',
@@ -11,7 +12,7 @@ const subject = {
   country: 'US',
 }
 
-const sans = [
+const sans: CsrSan[] = [
   { type: 'DNS', value: 'example.com' },
   { type: 'IP', value: '127.0.0.1' },
 ]

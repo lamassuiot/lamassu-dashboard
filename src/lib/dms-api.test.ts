@@ -243,6 +243,7 @@ describe('dms-api', () => {
   describe('updateRegistrationAuthority', () => {
     const raId = 'ra-123'
     const updatePayload = {
+      id: raId,
       name: 'Updated RA Name',
       metadata: { updated: true },
       settings: mockRa.settings,
@@ -600,4 +601,3 @@ describe('dms-api', () => {
     })
   })
 })
-

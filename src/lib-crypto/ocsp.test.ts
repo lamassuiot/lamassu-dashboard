@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { checkOcspStatus } from '@/lib-crypto'
 import { VALID_RSA_CERT_PEM } from '@/lib/test-utils/fixtures/certificates'
 

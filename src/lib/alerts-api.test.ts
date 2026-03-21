@@ -196,7 +196,7 @@ describe('alerts-api', () => {
       channel: {
         type: 'WEBHOOK',
         name: 'Webhook Alert',
-        config: { url: 'https://example.com/webhook', method: 'POST' },
+        config: { webhook_url: 'https://example.com/webhook', webhook_method: 'POST' },
       },
     }
 

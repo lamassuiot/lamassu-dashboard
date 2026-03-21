@@ -27,13 +27,11 @@ describe('kms-data', () => {
     id: 'engine-1',
     type: 'PKCS11',
     name: 'Test Engine',
+    provider: 'softhsm',
+    security_level: 1,
     metadata: {},
-    creation_ts: '2024-12-01T00:00:00Z',
-    pkcs11_config: {
-      module_path: '/usr/lib/softhsm/libsofthsm2.so',
-      pin: 'pin',
-      slot: 0,
-    },
+    supported_key_types: [{ type: 'RSA', sizes: [2048, 4096] }],
+    default: false,
   }
 
   const mockKey: ApiKmsKey = {
