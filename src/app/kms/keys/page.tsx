@@ -283,8 +283,8 @@ export default function KmsKeysPage() {
       <div 
         className="grid grid-cols-1 md:grid-cols-[var(--col1)_var(--col2)] gap-4 items-end transition-grid duration-500 ease-in-out"
         style={{
-          '--col1': focusedField === 'alias' ? '2fr' : focusedField === 'metadata' ? '1fr' : '1fr',
-          '--col2': focusedField === 'metadata' ? '2fr' : focusedField === 'alias' ? '1fr' : '1fr',
+          '--col1': focusedField === 'alias' ? '2fr' : '1fr',
+          '--col2': focusedField === 'metadata' ? '2fr' : '1fr',
         } as React.CSSProperties}
       >
         <div className="space-y-1">

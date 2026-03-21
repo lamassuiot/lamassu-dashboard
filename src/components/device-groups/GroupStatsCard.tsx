@@ -71,7 +71,7 @@ export function GroupStatsCard({ groupId, className }: GroupStatsCardProps) {
         <CardContent className="space-y-4">
           <Skeleton className="h-20 w-full" />
           <div className="space-y-2">
-            {[...Array(3)].map((_, i) => (
+            {[...new Array(3)].map((_, i) => (
               <Skeleton key={i} className="h-8 w-full" />
             ))}
           </div>

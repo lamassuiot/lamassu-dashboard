@@ -575,7 +575,7 @@ export default function RegistrationAuthoritiesPage() {
                   {/* Badge cluster */}
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     <Badge variant="secondary" className="text-xs">{ra.settings.enrollment_settings.registration_mode}</Badge>
-                    <Badge variant="outline" className="text-xs">{authMode?.replace(/_/g, ' ') || 'N/A'}</Badge>
+                    <Badge variant="outline" className="text-xs">{authMode?.replaceAll('_', ' ') || 'N/A'}</Badge>
                     {keygen?.enabled && (
                       <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-300 dark:border-emerald-700">Server Keygen</Badge>
                     )}

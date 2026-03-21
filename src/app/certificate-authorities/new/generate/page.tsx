@@ -41,7 +41,7 @@ const formatDurationToHuman = (durationStr: string): string => {
   const parts: string[] = [];
   let match;
   while ((match = regex.exec(durationStr)) !== null) {
-    const value = parseInt(match[1], 10);
+    const value = Number.parseInt(match[1], 10);
     const unit = match[2];
     switch (unit) {
       case 'y': parts.push(`${value} year${value !== 1 ? 's' : ''}`); break;
@@ -61,7 +61,7 @@ const calculateExpirationDate = (durationStr: string): Date => {
   const regex = /(\d+)(y|w|d|h|m|s)/g;
   let match;
   while ((match = regex.exec(durationStr)) !== null) {
-    const value = parseInt(match[1], 10);
+    const value = Number.parseInt(match[1], 10);
     const unit = match[2];
     switch (unit) {
       case 'y': duration.years = value; break;

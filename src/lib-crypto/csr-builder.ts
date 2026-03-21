@@ -175,10 +175,10 @@ export async function buildSignedCsr(
   const publicKeyDer = Uint8Array.from(
     atob(
       publicKeyPem
-        .replace(/-----(BEGIN|END) PUBLIC KEY-----/g, "")
-        .replace(/\s+/g, ""),
+        .replaceAll(/-----(BEGIN|END) PUBLIC KEY-----/g, "")
+        .replaceAll(/\s+/g, ""),
     ),
-    (c) => c.charCodeAt(0),
+    (c) => c.codePointAt(0) ?? 0,
   ).buffer;
 
   if (MLDSA_ALGORITHMS.has(signAlgorithm)) {
@@ -247,7 +247,7 @@ export async function buildSignedCsr(
 
   const signatureBase64 = await signFn(arrayBufferToBase64(tbs));
   const rawSignature = Uint8Array.from(atob(signatureBase64), (c) =>
-    c.charCodeAt(0),
+    c.codePointAt(0) ?? 0,
   );
 
   // --- Attach the signature value ---

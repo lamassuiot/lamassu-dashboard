@@ -226,16 +226,16 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
     <div className="space-y-4">
       <Label>Profile Mode</Label>
       <div className={cn("grid grid-cols-1 gap-4", gridColsClass)}>
-        <div className={cardClass('reuse')} onClick={() => onProfileModeChange('reuse')}>
+        <div className={cardClass('reuse')} role="button" tabIndex={0} onClick={() => onProfileModeChange('reuse')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onProfileModeChange('reuse'); } }}>
           <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('reuse')}><BookText className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Reuse Existing Profile</h3><p className="text-sm text-muted-foreground">Use predefined issuance templates</p></div></div>
         </div>
         {inlineModeEnabled && (
-            <div className={cardClass('inline')} onClick={() => onProfileModeChange('inline')}>
+            <div className={cardClass('inline')} role="button" tabIndex={0} onClick={() => onProfileModeChange('inline')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onProfileModeChange('inline'); } }}>
               <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('inline')}><Settings2 className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Inline Profile</h3><p className="text-sm text-muted-foreground">Define a one-time issuance policy</p></div></div>
             </div>
         )}
         {createModeEnabled && (
-            <div className={cardClass('create')} onClick={() => onProfileModeChange('create')}>
+            <div className={cardClass('create')} role="button" tabIndex={0} onClick={() => onProfileModeChange('create')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onProfileModeChange('create'); } }}>
               <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('create')}><PlusCircle className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Create New Profile</h3><p className="text-sm text-muted-foreground">Create a new reusable profile</p></div></div>
             </div>
         )}

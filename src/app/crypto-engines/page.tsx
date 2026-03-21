@@ -25,7 +25,7 @@ import AWSSMLogo from "@/components/shared/CryptoEngineIcons/AWS-SM.png";
 import VaultLogo from "@/components/shared/CryptoEngineIcons/HASHICORP-VAULT.png";
 import PKCS11Logo from "@/components/shared/CryptoEngineIcons/PKCS11.png";
 
-const formatEngineType = (type: string) => type.replace(/_/g, ' ');
+const formatEngineType = (type: string) => type.replaceAll('_', ' ');
 
 const getSecurityLevelInfo = (level: number): { text: string; Icon: React.ElementType; className: string } => {
   if (level <= 1) return { text: `Level ${level} basic`, Icon: ShieldAlert, className: "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300" };

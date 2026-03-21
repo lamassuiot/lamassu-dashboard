@@ -271,8 +271,7 @@ export default function EditSigningProfilePage() {
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    Editing
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />{"Editing"}
                   </div>
                   <Badge variant="outline">{profileData.sign_as_ca ? 'CA Signing' : 'Leaf Certificates'}</Badge>
                   {profileData.crypto_enforcement?.enabled ? <Badge variant="outline">Crypto Enforcement</Badge> : null}

@@ -170,7 +170,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
       }
 
       const response = await getDevicesByGroup(user.access_token, groupId, {
-        pageSize: parseInt(pageSize),
+        pageSize: Number.parseInt(pageSize),
         bookmark: bookmark || undefined,
         sortBy: apiSortColumn as any,
         sortMode: sortConfig.direction as any,

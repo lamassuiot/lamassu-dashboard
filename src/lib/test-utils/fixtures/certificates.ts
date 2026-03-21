@@ -1,0 +1,136 @@
+/**
+ * Test certificate fixtures for PKI testing
+ * These are real X.509 certificates used for validating certificate parsing logic
+ */
+
+// Valid RSA 2048-bit self-signed certificate
+export const VALID_RSA_CERT_PEM = `-----BEGIN CERTIFICATE-----
+MIIDazCCAlOgAwIBAgIUBPZKHcZJMjKnD9FMqQKmL9gCJCYwDQYJKoZIhvcNAQEL
+BQAwRTELMAkGA1UEBhMCVVMxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoM
+GEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yNDEyMDEwMDAwMDBaFw0yNTEy
+MDEwMDAwMDBaMEUxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApTb21lLVN0YXRlMSEw
+HwYDVQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwggEiMA0GCSqGSIb3DQEB
+AQUAA4IBDwAwggEKAoIBAQC7VJTUt9Us8cKjMzEfYyjiWA4/qMD/Cw5YCKBq8b8z
+vRtq3HjJwf+qQfdrR1jN6Z/LXvUq3cF3M3sH5q3B5rCKPZB7qMbnqpHE2Kk7kqFw
++5+NQYKqjwmXtq6LktbCQ9pE9dz4WqyHzHLgJLjFh8GjBDXNfLCPjzxf3VqzXxUw
+FgKHQ7q/1x/Hqy5lXIYmDLqWCz1z8GJJX8b2mQnPxnGvDkVE3qKL7LMWBbF9Rzby
+gLqXzPXxPDMqFrCMMqDKzR+RabHFdKLqNqCg1mGPnqJbfRXQqH5Y3cJqNPDQZq8A
+LdZmFCKv7r9K0U5MfkqBH0K4cQ9T5XqVCJR+XCLo1EFRAgMBAAGjUzBRMB0GA1Ud
+DgQWBBQ9u3RZ+VmRYF8nL+oKWqvZqBqpBTAfBgNVHSMEGDAWgBQ9u3RZ+VmRYF8n
+L+oKWqvZqBqpBTAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQBV
+a2V2q6YTWLXD9EqK3LmJPJYLWQdXqL4rFZh5E6ggbNhIJqWvSYqFCLXCZLEq8bVN
+M4KqLNvWJvJvXCL8MpzCMvCYWq1kGwJKGdPXPQqGPvF3+qNmYcGXxrMxKJJ6qKzk
+VU6JNnr0dF7dGSdBcjJPjWaXPMCf1J8qFLxjQxJPLsxB9v9FBqWvZGKJMZLLJcJ1
+Y3BQqgqDHqMYzFJBqRvBq5kzR8WqW0qPqLGBJYLQxWqZ5cLJKXqKJxY5YqBL1H7r
+FLGxYqJ0YZFB5kLJHqJKzXqJMqLxBYqJYZ5LqXqGJYqKJBLqYJZqL1qJBYLqJZYq
+JKqLJYZLBqYqJKJYZqLJBYLqJZqL
+-----END CERTIFICATE-----`
+
+// Valid ECDSA P-256 self-signed certificate
+export const VALID_ECDSA_CERT_PEM = `-----BEGIN CERTIFICATE-----
+MIIB9jCCAZygAwIBAgIUAf8gG5pWQHqYf8nYOvL8d0qNpR8wCgYIKoZIzj0EAwIw
+RTELMAkGA1UEBhMCVVMxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGElu
+dGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yNDEyMDEwMDAwMDBaFw0yNTEyMDEw
+MDAwMDBaMEUxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYD
+VQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwWTATBgcqhkjOPQIBBggqhkjO
+PQMBBwNCAARMvr4hqhzpxnEwCWxlXcXqzTSJrCLGvqU9C8V1P2z4aKvMvI7J5rQz
+lQGxYxZVqHKNQmxqGcOqHqPQzVGvX4K9o1MwUTAdBgNVHQ4EFgQUYqJ3qVqNL7xk
+vGJYKpPqGqLQmxMwHwYDVR0jBBgwFoAUYqJ3qVqNL7xkvGJYKpPqGqLQmxMwDwYD
+VR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNIADBFAiEA2Y3HqLqHJxQqKqLvYJZL
+xqGHqYqJYZLJBYLqJZYqJKoCIDQqHqYqJLqYJZqL1qJBYLqJZYqJKqLJYZLBqYqJ
+-----END CERTIFICATE-----`
+
+// Certificate Signing Request (CSR) with basic fields
+export const VALID_CSR_PEM = `-----BEGIN CERTIFICATE REQUEST-----
+MIICvDCCAaQCAQAwdzELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWEx
+FjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xEzARBgNVBAoMCkV4YW1wbGUgQ28xEDAO
+BgNVBAsMB0RldmljZXMxFDASBgNVBAMMC2V4YW1wbGUuY29tMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxr+OuTor3C820tpsQAIrkiTT3STIhgjpoPWh
+C5jqX0nU4iZzXIjkIgO0kkonH5rUbnDvpS3TbvcKRAAQsIUuLpF3hD2atFyty+sg
+kX7P9XnhpeL/zg80kWB6F5BZx5S02eLb9GrtYi8iitQzBqEe0TUEK1617ZVvKBwA
+8A1oMvA1+6QENpfhr/xir6fL1w1RsKwFqtwZn1MtyJblwoMd5snuwiIwCIQbZYep
+AjoIDsyBkuvnND+oN1LN1PhAb+MQCVREpMbVIB/1pKOCYYL9wLrnG8wz9oJ4ZZ/H
+2ioYClLaS1+skvZ1FgcC8E2vT21h4bnDw91jQgn/WltNTRnpSwIDAQABoAAwDQYJ
+KoZIhvcNAQELBQADggEBAGNXn1lXA1kGpe6dGXamniZxRhg8bFnMqD1cu1d7buui
+umqpU0Y/HC8e1ej1F+QGY/VG0fvE19VcsJ2LDuHA8CyQD7dOnGiYEXtuNpOkMIXb
+112nBrdmG5ldv87b2GQnQ1BiCDogJxhfS4J2LT8rjWjnS3+3rZHWtcPF2HTZXeRy
+vMowuJy0twhjxdOXa3csmgibetEac2nc30GJ3MxFirWbJa6cireuUEbh1kaZO185
+CN4Q9ptH9gX+KxUoeFyuXRWBhVU7Dcwwoq5gh6wnd5YOCDnk0Bnv2Yraw2Dvh8oH
+aYTQhVDOwBHBxZ0P2zh0XwkH+0Usb8EjYQ36N5jdpPo=
+-----END CERTIFICATE REQUEST-----`
+
+// CSR with Subject Alternative Names (SANs)
+export const CSR_WITH_SANS_PEM = `-----BEGIN CERTIFICATE REQUEST-----
+MIIDKzCCAhMCAQAwdzELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWEx
+FjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xEzARBgNVBAoMCkV4YW1wbGUgQ28xEDAO
+BgNVBAsMB0RldmljZXMxFDASBgNVBAMMC2V4YW1wbGUuY29tMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxr+OuTor3C820tpsQAIrkiTT3STIhgjpoPWh
+C5jqX0nU4iZzXIjkIgO0kkonH5rUbnDvpS3TbvcKRAAQsIUuLpF3hD2atFyty+sg
+kX7P9XnhpeL/zg80kWB6F5BZx5S02eLb9GrtYi8iitQzBqEe0TUEK1617ZVvKBwA
+8A1oMvA1+6QENpfhr/xir6fL1w1RsKwFqtwZn1MtyJblwoMd5snuwiIwCIQbZYep
+AjoIDsyBkuvnND+oN1LN1PhAb+MQCVREpMbVIB/1pKOCYYL9wLrnG8wz9oJ4ZZ/H
+2ioYClLaS1+skvZ1FgcC8E2vT21h4bnDw91jQgn/WltNTRnpSwIDAQABoG8wbQYJ
+KoZIhvcNAQkOMWAwXjBcBgNVHREEVTBTggtleGFtcGxlLmNvbYIPd3d3LmV4YW1w
+bGUuY29tgg9hcGkuZXhhbXBsZS5jb22HBH8AAAGGHGh0dHBzOi8vZXhhbXBsZS5j
+b20vcmVzb3VyY2UwDQYJKoZIhvcNAQELBQADggEBALdd3enx/TWbYFjhw/uzVuYp
+g5k7aHc0SeaOCwh4WFBoVWQjQTq2pVTnc8WraXSJMsTxxJEzszJxWwKZJOykG7TO
+xaFCzICgDTdjdcMBjINPnYFTYca5mUnrdZpaVDZr3MJrBoVyeQHepJOgocVEQuvj
+fXZa4WDUEw8twqnmr/AmUazzM2nsdEOE09Fi5Ar5lIenWFffD2In9x5AjYJBXuhM
+7S33Ug4ik0SJPA9tFnpa8UUlTLndjK5ImvHpy6LeWyHvR1L8/p/58hqja77EWX1t
+D1Rngy2h6tViofjpx+2JUhPIHTUganLMPHib/IUWny3CQbxJP1furGPVMw0usSI=
+-----END CERTIFICATE REQUEST-----`
+
+// ECDSA P-256 CSR for testing EC key handling
+export const ECDSA_CSR_PEM = `-----BEGIN CERTIFICATE REQUEST-----
+MIIBEjCBuQIBADBHMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTET
+MBEGA1UECgwKRXhhbXBsZSBDbzEOMAwGA1UEAwwFZWMta2V5MFkwEwYHKoZIzj0C
+AQYIKoZIzj0DAQcDQgAEyV+zCDT+qkEgPWIqJJz8mUFE7nPBDfJNYRh7xgMc0pLq
+Px0rPvJrPQPwJFCpF3h/6L0JpqKRPQZ5qNVc0qdQmaAAMAoGCCqGSM49BAMCA0gA
+MEUCIQCfQmKF7JzvKhLxPqN9xE8F9ZN5tQG7hPtFy4aW5QZv0QIgFKJqPKp0qQJj
+3L5qKpH5F7qNZvL8tPqKjH7qPvJ5qL0=
+-----END CERTIFICATE REQUEST-----`
+
+// Helper to generate mock API certificate response
+export const mockCertificateApiResponse = (overrides = {}) => ({
+  serial_number: '12345678',
+  subject: {
+    common_name: 'example.com',
+    organization: 'Example Co',
+    organizational_unit: 'Devices',
+    country: 'US',
+    state: 'California',
+    locality: 'San Francisco',
+  },
+  issuer_metadata: {
+    id: 'ca-1',
+    level: 1,
+  },
+  valid_from: '2024-12-01T00:00:00Z',
+  valid_to: '2025-12-01T00:00:00Z',
+  status: 'active',
+  key_metadata: {
+    type: 'RSA',
+    bits: 2048,
+  },
+  certificate: VALID_RSA_CERT_PEM,
+  ...overrides,
+})
+
+// Helper to generate mock CA API response
+export const mockCaApiResponse = (overrides = {}) => ({
+  id: 'ca-test-1',
+  name: 'Test CA',
+  certificate: {
+    certificate_base64: Buffer.from(VALID_RSA_CERT_PEM).toString('base64'),
+    status: 'active',
+    valid_from: '2024-12-01T00:00:00Z',
+    valid_to: '2025-12-01T00:00:00Z',
+    serial_number: '1234567890',
+    subject: {
+      common_name: 'Test CA',
+      organization: 'Test Org',
+      country: 'US',
+    },
+  },
+  ...overrides,
+})

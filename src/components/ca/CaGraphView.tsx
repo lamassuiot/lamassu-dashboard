@@ -215,7 +215,10 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
         borderColor,
         shadowColor
       )}
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
     >
       {/* Handles on all four sides for dynamic edge connections - both source and target */}
       <Handle type="target" position={Position.Top} id="target-top" style={{ opacity: 0 }} />

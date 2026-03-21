@@ -33,7 +33,7 @@ export const IdentifierDisplay: React.FC<IdentifierDisplayProps> = ({
     if (!text || text.length === 0) return text;
     
     // Remove any existing separators (colons, hyphens, spaces)
-    const cleanText = text.replace(/[\s:-]/g, '');
+    const cleanText = text.replaceAll(/[\s:-]/g, '');
     
     // Split into chunks and join with separator
     const chunks: string[] = [];
@@ -46,7 +46,7 @@ export const IdentifierDisplay: React.FC<IdentifierDisplayProps> = ({
 
   const displayValue = mode === 'with-separators' 
     ? formatWithSeparators(value) 
-    : value.replace(/[\s:-]/g, ''); // Remove any existing separators in without-separators mode
+    : value.replaceAll(/[\s:-]/g, ''); // Remove any existing separators in without-separators mode
 
   return (
     <span className={cn('font-mono text-sm', className)}>

@@ -181,7 +181,7 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
         let expirationDate = now;
         
         while ((match = durationRegex.exec(validity.durationValue)) !== null) {
-          const value = parseInt(match[1]);
+          const value = Number.parseInt(match[1], 10);
           const unit = match[2];
           
           switch (unit) {
