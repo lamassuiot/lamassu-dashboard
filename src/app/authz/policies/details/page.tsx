@@ -12,15 +12,12 @@ import {
   Edit,
   Trash2,
   Shield,
-  Users,
-  FileText,
   MoreVertical,
   Copy,
   Check,
   FileJson,
   ChevronDown,
   ChevronUp,
-  Calendar,
   Zap,
   GitBranch,
   CheckCircle2,
@@ -47,6 +44,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getPolicy, getPolicyStats, deletePolicy } from '@/lib/authz-api';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import type { Policy, PolicyStats, RelationRule } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { normalizeEntityAddress } from '@/lib/policy-format';
@@ -336,87 +334,122 @@ function PolicyDetailsContent() {
         </Alert>
       )}
 
+      <DetailBreadcrumbRow
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Authorization', href: '/authz/policies' },
+          {
+            label: (
+              <Badge variant="default" className="text-xs">
+                {policy.name}
+              </Badge>
+            ),
+          },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}
+            >
+              <Edit className="mr-1.5 h-3.5 w-3.5" />
+              Edit
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Policy
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Policy
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        }
+      />
+
       {/* Header card */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="h-1 w-full bg-primary" />
         <div className="p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4 min-w-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="-ml-1 mt-0.5 shrink-0"
-                onClick={() => router.push('/authz/policies')}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
-                  <Shield className="h-5 w-5" />
+          {/* Hero content */}
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
+                <Shield className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-2xl font-semibold tracking-tight truncate">{policy.name}</h1>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono text-muted-foreground">
+                    {policy.id}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => copyToClipboard(policy.id)}
+                  >
+                    {copiedId ? (
+                      <Check className="h-3 w-3 text-green-600" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
                 </div>
-                <div className="min-w-0">
-                  <h1 className="text-2xl font-semibold tracking-tight truncate">{policy.name}</h1>
-                  <div className="flex items-center gap-2 flex-wrap mt-1.5">
-                    <Badge variant="secondary" className="text-xs">
-                      {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono text-muted-foreground">
-                      {policy.id}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => copyToClipboard(policy.id)}
-                    >
-                      {copiedId ? (
-                        <Check className="h-3 w-3 text-green-600" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
-                    </Button>
-                  </div>
-                  {policy.description && (
-                    <p className="mt-2 text-sm text-muted-foreground max-w-2xl">{policy.description}</p>
-                  )}
-                </div>
+                {policy.description && (
+                  <p className="mt-2 text-sm text-muted-foreground max-w-2xl">{policy.description}</p>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}
-              >
-                <Edit className="mr-1.5 h-3.5 w-3.5" />
-                Edit
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}
-                  >
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit Policy
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => setDeleteDialogOpen(true)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Policy
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            {/* Summary stats */}
+            <div className="grid grid-cols-3 gap-6 xl:min-w-[480px] xl:border-l xl:pl-6">
+              <div className="text-center">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Rules</p>
+                <p className="mt-1 text-2xl font-semibold tracking-tight">{policy.rules.length}</p>
+                <p className="text-xs text-muted-foreground">{policy.rules.length === 1 ? 'rule defined' : 'rules defined'}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Principals</p>
+                <p className="mt-1 text-2xl font-semibold tracking-tight">
+                  {stats ? stats.principalCount : '—'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {stats ? (stats.principalCount === 1 ? 'assigned' : 'assigned') : 'loading…'}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Last Modified</p>
+                <div className="mt-1">
+                  {stats?.lastModified ? (
+                    <DateDisplay
+                      date={stats.lastModified}
+                      formatString="MMM dd, yyyy"
+                      className="text-sm font-semibold"
+                      highlightExpired={false}
+                    />
+                  ) : (
+                    <span className="text-2xl font-semibold tracking-tight">—</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">modification date</p>
+              </div>
             </div>
           </div>
         </div>
@@ -446,54 +479,6 @@ function PolicyDetailsContent() {
         <div className="mt-6">
           {/* Overview Tab */}
           <TabsContent value="overview" className="mt-0 space-y-5">
-            {/* Stats Cards */}
-            {stats && (
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card className="overflow-hidden rounded-xl shadow-sm">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b py-4">
-                    <CardTitle className="text-sm font-medium">Total Rules</CardTitle>
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="text-2xl font-bold">{stats.ruleCount}</div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {policy.rules.length === 1 ? 'rule' : 'rules'} defined
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card className="overflow-hidden rounded-xl shadow-sm">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b py-4">
-                    <CardTitle className="text-sm font-medium">Assigned Principals</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="text-2xl font-bold">{stats.principalCount}</div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {stats.principalCount === 1 ? 'principal has' : 'principals have'} this policy
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card className="overflow-hidden rounded-xl shadow-sm">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b py-4">
-                    <CardTitle className="text-sm font-medium">Last Modified</CardTitle>
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    {stats.lastModified ? (
-                      <DateDisplay
-                        date={stats.lastModified}
-                        formatString="MMM dd, yyyy"
-                        className="text-sm font-medium"
-                        highlightExpired={false}
-                      />
-                    ) : (
-                      <div className="text-sm text-muted-foreground">N/A</div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
             {/* Policy Rules */}
             <Card className="overflow-hidden rounded-xl shadow-sm">
               <CardHeader className="border-b py-4">
