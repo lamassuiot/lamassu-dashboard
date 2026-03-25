@@ -604,14 +604,49 @@ export default function CreateCaExistingKeyPage() {
               <SectionHeader icon={Settings} title="CA Settings" />
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="caType">CA Type</Label>
-                  <Select value={caType} onValueChange={handleCaTypeChange} disabled={isSubmitting}>
-                    <SelectTrigger id="caType"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="root">Root CA</SelectItem>
-                      <SelectItem value="intermediate">Intermediate CA</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>CA Type</Label>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => !isSubmitting && handleCaTypeChange('root')}
+                      disabled={isSubmitting}
+                      className={cn(
+                        "flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        caType === 'root'
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-background hover:border-muted-foreground/50 hover:bg-muted/30",
+                        isSubmitting && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Shield className={cn("h-5 w-5", caType === 'root' ? "text-primary" : "text-muted-foreground")} />
+                        <span className={cn("font-semibold text-sm", caType === 'root' ? "text-primary" : "text-foreground")}>Root CA</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        Self-signed trust anchor. Top of the certificate chain.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => !isSubmitting && handleCaTypeChange('intermediate')}
+                      disabled={isSubmitting}
+                      className={cn(
+                        "flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        caType === 'intermediate'
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-background hover:border-muted-foreground/50 hover:bg-muted/30",
+                        isSubmitting && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <BookText className={cn("h-5 w-5", caType === 'intermediate' ? "text-primary" : "text-muted-foreground")} />
+                        <span className={cn("font-semibold text-sm", caType === 'intermediate' ? "text-primary" : "text-foreground")}>Intermediate CA</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        Signed by a parent CA. Issues end-entity certificates.
+                      </p>
+                    </button>
+                  </div>
                 </div>
                 {caType === 'intermediate' && (
                   <>
