@@ -30,7 +30,7 @@ import {
     KEY_USAGE_OPTIONS, EKU_OPTIONS,
     KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS,
 } from '@/lib/form-options';
-import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, type ApiSigningProfile, type CreateCertificateIssuanceProfile } from '@/lib/ca-data';
+import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, type ApiSigningProfile, type CreateCertificateIssuanceProfile, type CreateCertificateKeySpec, type CreateCertificatePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines, fetchKmsKey } from '@/lib/kms-data';
 import { parseCertificatePemDetails } from '@/lib-crypto/cert-parser';
 import { useAuth } from '@/contexts/AuthContext';
@@ -49,7 +49,7 @@ const ECDSA_CURVE_BITS: Record<string, number> = {
 
 const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 
-function formatValidityForApi(config: ExpirationConfig): { type: string; duration?: string; time?: string } {
+function formatValidityForApi(config: ExpirationConfig): { type: "Duration" | "Date"; duration?: string; time?: string } {
     if (config.type === "Duration") return { type: "Duration", duration: config.durationValue };
     if (config.type === "Date" && config.dateValue) return { type: "Date", time: formatISO(config.dateValue) };
     if (config.type === "Indefinite") return { type: "Date", time: INDEFINITE_DATE_API_VALUE };
@@ -108,8 +108,8 @@ export default function CreateCertificateClient() {
         if (!user?.access_token) return;
         setIsLoadingCAs(true);
         setErrorCAs(null);
+        setIsLoadingProfiles(true);
         try {
-            setIsLoadingProfiles(true);
         const [cas, engines, profilesResp] = await Promise.all([
                 fetchAndProcessCAs(user.access_token),
                 fetchCryptoEngines(user.access_token),
@@ -118,12 +118,12 @@ export default function CreateCertificateClient() {
             setAllCAs(cas);
             setAllCryptoEngines(engines);
             setAllProfiles(profilesResp.list ?? []);
-            setIsLoadingProfiles(false);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Failed to load data.";
             setErrorCAs(message);
         } finally {
             setIsLoadingCAs(false);
+            setIsLoadingProfiles(false);
         }
     }, [user?.access_token]);
 
@@ -174,7 +174,7 @@ export default function CreateCertificateClient() {
             return;
         }
 
-        const keySpec = keyMode === 'generate'
+        const keySpec: CreateCertificateKeySpec = keyMode === 'generate'
             ? {
                 type: keyType,
                 bits: keyType === 'RSA' ? parseInt(rsaKeySize, 10) : ECDSA_CURVE_BITS[ecdsaCurve],
@@ -191,7 +191,7 @@ export default function CreateCertificateClient() {
             extended_key_usages: selectedEkus,
         };
 
-        const payload: Record<string, unknown> = {
+        const payload: CreateCertificatePayload = {
             ca_id: selectedCa!.id,
             key_spec: keySpec,
             subject: {
@@ -213,7 +213,7 @@ export default function CreateCertificateClient() {
 
         try {
             const result = await createCertificate(
-                payload as unknown as Parameters<typeof createCertificate>[0],
+                payload,
                 user!.access_token!,
             );
             const pem = result.certificate ? window.atob(result.certificate) : null;

@@ -475,7 +475,13 @@ export default function KmsKeyDetailsClient() {
         const uniqueSerials = [...new Set(boundCertificateResources.map(resource => resource.resource_id))];
         const certificateResults = await Promise.all(
           uniqueSerials.map(async (serialNumber) => {
-            return fetchIssuedCertificate(serialNumber, user.access_token).catch(() => null);
+            return fetchIssuedCertificate(serialNumber, user.access_token).catch((err: unknown) => {
+              // Treat 404 (certificate no longer exists) as absent rather than an error.
+              // All other failures (auth, network, 5xx) are re-thrown so the outer
+              // catch can surface them via setBoundCertificatesError.
+              if (err instanceof Error && /HTTP error 404/.test(err.message)) return null;
+              throw err;
+            });
           })
         );
 
