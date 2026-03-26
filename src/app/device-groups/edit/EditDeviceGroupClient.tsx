@@ -1,18 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Info } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { getDeviceGroupByID } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
 import { DeviceGroupForm } from '@/components/device-groups/DeviceGroupForm';
 
 export default function EditDeviceGroupClient() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user } = useAuth();
   const groupId = searchParams.get('groupId');
 
@@ -46,10 +48,14 @@ export default function EditDeviceGroupClient() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        <div>
-          <Skeleton className="h-10 w-64 mb-2" />
-          <Skeleton className="h-6 w-96" />
+      <div className="w-full space-y-6 mb-8">
+        <Skeleton className="h-9 w-40" />
+        <div className="flex items-center space-x-3">
+          <Skeleton className="h-8 w-8 rounded" />
+          <div className="space-y-1">
+            <Skeleton className="h-7 w-64" />
+            <Skeleton className="h-4 w-96" />
+          </div>
         </div>
         <Card>
           <CardHeader>
@@ -68,10 +74,16 @@ export default function EditDeviceGroupClient() {
 
   if (error || !groupId) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Edit Device Group</h1>
-          <p className="text-muted-foreground mt-2">Unable to load device group</p>
+      <div className="w-full space-y-6 mb-8">
+        <Button variant="outline" onClick={() => router.push('/device-groups')}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Device Groups
+        </Button>
+        <div className="flex items-center space-x-3">
+          <Users className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Edit Device Group</h1>
+            <p className="text-sm text-muted-foreground mt-1">Unable to load device group</p>
+          </div>
         </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -83,10 +95,16 @@ export default function EditDeviceGroupClient() {
 
   if (!group) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Edit Device Group</h1>
-          <p className="text-muted-foreground mt-2">Group not found</p>
+      <div className="w-full space-y-6 mb-8">
+        <Button variant="outline" onClick={() => router.push('/device-groups')}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Device Groups
+        </Button>
+        <div className="flex items-center space-x-3">
+          <Users className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Edit Device Group</h1>
+            <p className="text-sm text-muted-foreground mt-1">Group not found</p>
+          </div>
         </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -97,21 +115,20 @@ export default function EditDeviceGroupClient() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Edit Device Group</h1>
-        <p className="text-muted-foreground mt-2">
-          Modify the configuration for &quot;{group.name}&quot;
-        </p>
-      </div>
+    <div className="w-full space-y-6 mb-8">
+      <Button variant="outline" onClick={() => router.push(`/device-groups/details?groupId=${group.id}`)}>
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Group Details
+      </Button>
 
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          Changes to filter criteria will automatically update group membership. Devices will be
-          dynamically added or removed based on the new filters.
-        </AlertDescription>
-      </Alert>
+      <div className="flex items-center space-x-3">
+        <Users className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-2xl font-headline font-semibold">Edit Device Group</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Modify the configuration for &quot;{group.name}&quot;
+          </p>
+        </div>
+      </div>
 
       <DeviceGroupForm mode="edit" existingGroup={group} />
     </div>

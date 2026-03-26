@@ -11,10 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { SectionHeader } from '@/components/shared/FormComponents';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Trash2, AlertCircle, Info } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, Filter } from 'lucide-react';
 import {
   FilterOperation,
   type DeviceFilterableField,
@@ -109,22 +110,13 @@ export function FilterExpressionBuilder({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Filter Criteria</CardTitle>
-        <CardDescription>
-          Define dynamic membership rules. All filters are combined with AND logic.
-        </CardDescription>
-      </CardHeader>
+      <SectionHeader
+        icon={Filter}
+        title="Filter Criteria"
+        description="Define dynamic membership rules. All filters are combined with AND logic."
+      />
       <CardContent className="space-y-4">
-        {criteria.length === 0 ? (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              No filters defined. This group will match all devices. Add filters to narrow down
-              membership.
-            </AlertDescription>
-          </Alert>
-        ) : (
+        {criteria.length > 0 && (
           <>
             <div className="space-y-3">
               {criteria.map((filter, index) => (

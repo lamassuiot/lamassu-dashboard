@@ -1,9 +1,11 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Info, Filter, ArrowDown } from 'lucide-react';
+import { SectionHeader } from '@/components/shared/FormComponents';
+import { cn } from '@/lib/utils';
 import type { DeviceGroupFilterOption } from '@/types/device-group';
 import { formatFilterCriteria, normalizeFilterCriteria } from '@/lib/device-groups-utils';
 
@@ -20,17 +22,16 @@ export function FilterCriteriaDisplay({ criteria, inheritedCriteria, className }
   const hasDirectCriteria = normalizedCriteria.length > 0;
   const hasInheritedCriteria = normalizedInheritedCriteria.length > 0;
   
+  const descriptionParts: string[] = [];
+  if (hasDirectCriteria) descriptionParts.push(`${normalizedCriteria.length} direct filter${normalizedCriteria.length !== 1 ? 's' : ''}`);
+  if (hasInheritedCriteria) descriptionParts.push(`${normalizedInheritedCriteria.length} inherited filter${normalizedInheritedCriteria.length !== 1 ? 's' : ''}`);
+  const description = descriptionParts.length > 0 ? `${descriptionParts.join(' • ')} combined with AND logic` : 'Dynamic membership rules';
+
   if (!hasDirectCriteria && !hasInheritedCriteria) {
     return (
-      <Card className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filter Criteria
-          </CardTitle>
-          <CardDescription>Dynamic membership rules</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Card className={cn('overflow-hidden rounded-xl shadow-sm', className)}>
+        <SectionHeader icon={Filter} title="Filter Criteria" description="Dynamic membership rules" />
+        <CardContent className="p-6">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
@@ -43,24 +44,9 @@ export function FilterCriteriaDisplay({ criteria, inheritedCriteria, className }
   }
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Filter className="h-5 w-5" />
-          Filter Criteria
-        </CardTitle>
-        <CardDescription>
-          {hasDirectCriteria && (
-            <span>{normalizedCriteria.length} direct filter{normalizedCriteria.length !== 1 ? 's' : ''}</span>
-          )}
-          {hasDirectCriteria && hasInheritedCriteria && <span> • </span>}
-          {hasInheritedCriteria && (
-            <span>{normalizedInheritedCriteria.length} inherited filter{normalizedInheritedCriteria.length !== 1 ? 's' : ''}</span>
-          )}
-          {' '}combined with AND logic
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Card className={cn('overflow-hidden rounded-xl shadow-sm', className)}>
+      <SectionHeader icon={Filter} title="Filter Criteria" description={description} />
+      <CardContent className="p-6 space-y-4">
         {/* Direct Criteria */}
         {hasDirectCriteria && (
           <div className="space-y-2">

@@ -94,7 +94,7 @@ export function CompactGroupStats({ groupId, className }: CompactGroupStatsProps
   return (
     <TooltipProvider>
       <div className={className}>
-        <div className="flex items-center gap-4 p-3 border rounded-lg bg-card">
+        <div className="flex items-center gap-4">
           {/* Device Count */}
           <div className="flex items-center gap-2">
             <div className="p-2 bg-primary/10 rounded-md">

@@ -7,11 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { sileo } from '@/lib/toast';
-import { AlertCircle, Save, X, Users, Loader2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Save, X, Users, Loader2 } from 'lucide-react';
+import { SectionHeader } from '@/components/shared/FormComponents';
 import {
   createDeviceGroup,
   updateDeviceGroup,
@@ -197,12 +197,11 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Basic Information */}
       <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-          <CardDescription>
-            Define the group name, description, and parent hierarchy
-          </CardDescription>
-        </CardHeader>
+        <SectionHeader
+          icon={Users}
+          title="Basic Information"
+          description="Define the group name, description, and parent hierarchy"
+        />
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">
@@ -258,10 +257,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
       {/* Preview Card */}
       {mode === 'edit' && existingGroup && (
         <Card>
-          <CardHeader>
-            <CardTitle>Device Count</CardTitle>
-            <CardDescription>Current devices matching this group</CardDescription>
-          </CardHeader>
+          <SectionHeader icon={Users} title="Device Count" description="Current devices matching this group" />
           <CardContent>
             {isLoadingPreview ? (
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -304,35 +300,34 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
         </Alert>
       )}
 
+      {mode === 'create' && criteria.length === 0 && (
+        <Alert variant="warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No filters defined. This group will match all devices. Add filters to narrow down membership.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Form Actions */}
-      <div className="flex items-center justify-between gap-4 pt-4 border-t">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline">
-            {mode === 'create' ? 'Creating New Group' : 'Editing Existing Group'}
-          </Badge>
-          {mode === 'edit' && existingGroup && (
-            <Badge variant="secondary">ID: {existingGroup.id}</Badge>
+      <div className="flex justify-end gap-3 pt-4">
+        <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
+          <X className="mr-2 h-4 w-4" />
+          Cancel
+        </Button>
+        <Button type="submit" size="lg" disabled={isSubmitting || (mode === 'create' && criteria.length === 0)}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-5 w-5" />
+              {mode === 'create' ? 'Create Group' : 'Save Changes'}
+            </>
           )}
-        </div>
-        <div className="flex gap-3">
-          <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
-            <X className="mr-2 h-4 w-4" />
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                {mode === 'create' ? 'Create Group' : 'Save Changes'}
-              </>
-            )}
-          </Button>
-        </div>
+        </Button>
       </div>
     </form>
   );
