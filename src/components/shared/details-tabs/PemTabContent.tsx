@@ -78,7 +78,7 @@ const PemBlock: React.FC<PemBlockProps> = ({
     title={title}
     icon={Icon}
     badge={badge}
-    contentClassName="p-0"
+    contentClassName="p-0 pl-2"
     actions={
       <div className="flex shrink-0 items-center gap-1.5">
         <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={onCopy} disabled={!pem}>
@@ -175,7 +175,7 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
               {chainCount} cert{chainCount !== 1 ? 's' : ''}
             </Badge>
           ) : undefined}
-          contentClassName="p-0"
+          contentClassName="p-0 pl-2"
           actions={
             <div className="flex items-center gap-1.5">
               <Button

@@ -26,6 +26,6 @@ export const DetailSectionCard: React.FC<DetailSectionCardProps> = ({
 }) => (
   <Card className={cn('overflow-hidden rounded-xl shadow-sm', className)}>
     <SectionHeader icon={icon} title={title} description={description} action={action} />
-    <CardContent className={cn('p-6', contentClassName)}>{children}</CardContent>
+    <CardContent className={contentClassName || undefined}>{children}</CardContent>
   </Card>
 );

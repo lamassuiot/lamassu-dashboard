@@ -55,7 +55,7 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
         <div className="p-6 space-y-6">
           {/* Main version card */}
           <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
-            <CardContent className="p-4">
+            <CardContent>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -82,7 +82,7 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Build Information */}
             <Card className="h-fit">
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="space-y-4">
                 <div className="flex items-center gap-2 pb-2">
                   <Shield className="h-4 w-4 text-primary" />
                   <h4 className="font-medium">Build Details</h4>
@@ -114,7 +114,7 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
 
             {/* Source Information */}
             <Card className="h-fit">
-              <CardContent className="p-4 space-y-4">
+              <CardContent className="space-y-4">
                 <div className="flex items-center gap-2 pb-2">
                   <GitBranch className="h-4 w-4 text-primary" />
                   <h4 className="font-medium">Source Control</h4>
@@ -140,7 +140,7 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
 
           {/* Build timestamp */}
           <Card className="bg-muted/30">
-            <CardContent className="p-4">
+            <CardContent>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-muted-foreground/10 rounded-lg flex items-center justify-center">
                   <Clock className="h-4 w-4 text-muted-foreground" />

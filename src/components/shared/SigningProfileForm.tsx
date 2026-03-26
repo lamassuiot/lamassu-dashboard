@@ -184,7 +184,7 @@ const FormSection = ({
           </CardTitle>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </CardHeader>
-        <CardContent className="space-y-6 p-6">{children}</CardContent>
+        <CardContent className="space-y-6">{children}</CardContent>
       </Card>
     );
   }

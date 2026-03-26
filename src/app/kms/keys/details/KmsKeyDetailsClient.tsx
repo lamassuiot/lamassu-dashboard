@@ -918,7 +918,7 @@ export default function KmsKeyDetailsClient() {
                     </CardTitle>
                     <CardDescription>Core naming and classification data for this key.</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-6">
+                  <CardContent>
                     <div className="divide-y">
                       <div className="py-3 first:pt-0">
                         <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Primary Name</Label>
@@ -1001,7 +1001,7 @@ export default function KmsKeyDetailsClient() {
                     )}
                     </div>
                   </CardHeader>
-                  <CardContent className="p-6">
+                  <CardContent>
                     {isEditingAliases ? (
                       <div className="space-y-4">
                       <div className="flex gap-2">
@@ -1084,7 +1084,7 @@ export default function KmsKeyDetailsClient() {
                     </CardTitle>
                     <CardDescription>Algorithm, strength, access mode, and engine placement.</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-6">
+                  <CardContent>
                     <div className="divide-y">
                       <div className="py-3 first:pt-0">
                         <div className="flex items-center justify-between gap-3">
@@ -1153,7 +1153,7 @@ export default function KmsKeyDetailsClient() {
                       </CardTitle>
                       <CardDescription>Resources currently bound to this key.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-0">
+                    <CardContent>
                       {isLoadingBoundCertificates ? (
                         <div className="flex items-center justify-center px-6 py-8 text-sm text-muted-foreground">
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1240,7 +1240,7 @@ export default function KmsKeyDetailsClient() {
                       </CardTitle>
                       <CardDescription>Create a signature using the selected key, algorithm, and payload format.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4 p-6">
+                    <CardContent className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="signAlgorithm">Algorithm</Label>
@@ -1306,7 +1306,7 @@ export default function KmsKeyDetailsClient() {
                       </CardTitle>
                       <CardDescription>Validate a signature against the original payload with the selected algorithm.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4 p-6">
+                    <CardContent className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="verifyAlgorithm">Algorithm</Label>
@@ -1406,7 +1406,7 @@ export default function KmsKeyDetailsClient() {
                   </CardTitle>
                   <CardDescription>Choose the signing algorithm that will be used to produce the certificate request.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent>
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="csrSignAlgorithm">Signature Algorithm</Label>
@@ -1432,7 +1432,7 @@ export default function KmsKeyDetailsClient() {
                   </CardTitle>
                   <CardDescription>Define the subject identity and optional SAN entries for the CSR.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent>
                   <div className="space-y-4">
                     {/* Row 1: CN */}
                     <div className="space-y-1">
@@ -1571,7 +1571,7 @@ export default function KmsKeyDetailsClient() {
                   </CardTitle>
                   <CardDescription>Create and review a PEM-encoded certificate signing request for this key.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent>
                   <div className="space-y-4">
                     <Button onClick={handleGenerateCsr} className="w-full sm:w-auto" disabled={isGeneratingCsr}>
                       {isGeneratingCsr && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -351,7 +351,7 @@ export default function DeviceGroupDetailsClient() {
                   title="Group Information"
                   description="Basic metadata and hierarchy details"
                 />
-                <CardContent className="p-6">
+                <CardContent>
                   <div className="divide-y">
                     <div className="py-3 first:pt-0 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>

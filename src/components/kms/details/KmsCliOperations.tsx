@@ -371,7 +371,7 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
                 {/* Global Algorithm and Input Type Selectors */}
                 <div className="lg:col-span-2 mb-6">
                     <Card>
-                        <CardContent className="pt-6">
+                        <CardContent>
                             <h3 className="text-lg font-semibold mb-4">Signing Configuration</h3>
                             <p className="text-sm text-muted-foreground mb-4">
                                 These settings apply to all CLI operations below (OpenSSL and PKCS11-tool).

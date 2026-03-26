@@ -84,7 +84,7 @@ export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps>
   if (!publicKeyPem) {
     return (
       <Card className="overflow-hidden rounded-xl border-dashed shadow-sm">
-        <CardContent className="flex flex-col items-center justify-center py-12">
+        <CardContent className="flex flex-col items-center justify-center">
           <Key className="h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-lg font-medium text-muted-foreground mb-2">No Public Key Available</p>
           <p className="text-sm text-muted-foreground text-center">
@@ -105,7 +105,7 @@ export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps>
           </CardTitle>
           <CardDescription>Public key metadata and fingerprints</CardDescription>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent>
           {keyFingerprint && (
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">SHA256 Fingerprint</p>
@@ -136,7 +136,7 @@ export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps>
           </CardTitle>
           <CardDescription>Complete PEM-encoded public key data</CardDescription>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent>
           <CodeBlock
             content={publicKeyPem.replace(/\\n/g, '\n')}
             showDownload={true}
