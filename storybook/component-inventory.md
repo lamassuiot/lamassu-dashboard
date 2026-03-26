@@ -56,6 +56,12 @@ This is the curated list of UI building blocks that should be preferred before c
 | Metadata tab body | `src/components/shared/details-tabs/MetadataTabContent.tsx` | Use for JSON metadata view/edit flows |
 | Code viewer | `src/components/shared/CodeBlock.tsx` | Compact read-only code or CLI output blocks |
 
+## Shared form controls
+
+| Purpose | Path | Notes |
+| --- | --- | --- |
+| Card option selector | `src/components/shared/CardSelector.tsx` | Single-select from 2–4 labelled options; used for CA type, profile mode. Props: `value`, `onChange`, `options[]` (value/label/description/icon), `label?`, `columns?`, `disabled?` |
+
 ## Shared selectors and domain-specific builders
 
 | Purpose | Path | Notes |

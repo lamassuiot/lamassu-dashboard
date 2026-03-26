@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { Settings2, BookText, PlusCircle, ArrowLeft } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { CardSelector } from '@/components/shared/CardSelector';
 import type { ApiSigningProfile, CreateSigningProfilePayload } from '@/lib/ca-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
@@ -171,23 +171,6 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
     return null;
   }, [profileMode, selectedProfileId, availableProfiles]);
 
-  const cardClass = (mode: ProfileMode) => cn(
-    "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-    profileMode === mode 
-      ? "border-primary bg-primary/5 shadow-sm" 
-      : "border-border hover:border-primary/50"
-  );
-  
-  const iconWrapperClass = (mode: ProfileMode) => cn(
-    "p-2 rounded-lg",
-    profileMode === mode 
-      ? "bg-primary text-primary-foreground" 
-      : "bg-muted text-muted-foreground"
-  );
-
-  const gridColsClass = [inlineModeEnabled, createModeEnabled].filter(Boolean).length + 1 >= 3 
-    ? 'md:grid-cols-3' 
-    : 'md:grid-cols-2';
 
 
   if (profileMode === 'create' && createModeEnabled) {
@@ -222,24 +205,21 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
     );
   }
 
+  const profileOptions = [
+    { value: 'reuse' as ProfileMode, label: 'Reuse Existing', description: 'Use predefined issuance templates', icon: BookText },
+    ...(inlineModeEnabled ? [{ value: 'inline' as ProfileMode, label: 'Inline Profile', description: 'Define a one-time issuance policy', icon: Settings2 }] : []),
+    ...(createModeEnabled ? [{ value: 'create' as ProfileMode, label: 'Create New', description: 'Create a new reusable profile', icon: PlusCircle }] : []),
+  ];
+
   return (
     <div className="space-y-4">
-      <Label>Profile Mode</Label>
-      <div className={cn("grid grid-cols-1 gap-4", gridColsClass)}>
-        <div className={cardClass('reuse')} role="button" tabIndex={0} onClick={() => onProfileModeChange('reuse')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onProfileModeChange('reuse'); } }}>
-          <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('reuse')}><BookText className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Reuse Existing Profile</h3><p className="text-sm text-muted-foreground">Use predefined issuance templates</p></div></div>
-        </div>
-        {inlineModeEnabled && (
-            <div className={cardClass('inline')} role="button" tabIndex={0} onClick={() => onProfileModeChange('inline')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onProfileModeChange('inline'); } }}>
-              <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('inline')}><Settings2 className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Inline Profile</h3><p className="text-sm text-muted-foreground">Define a one-time issuance policy</p></div></div>
-            </div>
-        )}
-        {createModeEnabled && (
-            <div className={cardClass('create')} role="button" tabIndex={0} onClick={() => onProfileModeChange('create')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onProfileModeChange('create'); } }}>
-              <div className="p-4 flex items-center space-x-3"><div className={iconWrapperClass('create')}><PlusCircle className="h-5 w-5" /></div><div><h3 className="text-base font-semibold">Create New Profile</h3><p className="text-sm text-muted-foreground">Create a new reusable profile</p></div></div>
-            </div>
-        )}
-      </div>
+      <CardSelector
+        label="Profile Mode"
+        value={profileMode}
+        onChange={onProfileModeChange}
+        options={profileOptions}
+        columns={profileOptions.length}
+      />
 
       {profileMode === 'reuse' && (
         <div className="space-y-4">

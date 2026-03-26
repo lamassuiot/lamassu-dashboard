@@ -10,7 +10,7 @@ import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2,
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { fetchCryptoEngines, type ApiKmsKey } from '@/lib/kms-data';
-import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
@@ -21,13 +21,13 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
+import { CardSelector } from '@/components/shared/CardSelector';
 import { KmsKeySelector } from '@/components/shared/KmsKeySelector';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type SimplifiedInlineProfileFormValues, defaultSimplifiedFormValues } from '@/components/shared/SimplifiedInlineProfileForm';
 import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { add, format } from 'date-fns';
 import type { CreateSigningProfilePayload } from '@/lib/ca-data';
@@ -462,87 +462,18 @@ export default function CreateCaExistingKeyPage() {
               />
               <CardContent className="space-y-4">
                 <div className="space-y-4">
-                  <Label>Profile Mode</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card 
-                      className={cn(
-                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-                        caProfileMode === 'none' 
-                          ? "border-primary bg-primary/5 shadow-sm" 
-                          : "border-border hover:border-primary/50"
-                      )}
-                      onClick={() => setCaProfileMode('none')}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center space-x-3">
-                          <div className={cn(
-                            "p-2 rounded-lg",
-                            caProfileMode === 'none' 
-                              ? "bg-primary text-primary-foreground" 
-                              : "bg-muted text-muted-foreground"
-                          )}>
-                            <Settings className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h3 className="text-base font-semibold">No Profile</h3>
-                            <CardDescription className="text-sm">Use default settings</CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                    <Card 
-                      className={cn(
-                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-                        caProfileMode === 'reuse' 
-                          ? "border-primary bg-primary/5 shadow-sm" 
-                          : "border-border hover:border-primary/50"
-                      )}
-                      onClick={() => setCaProfileMode('reuse')}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center space-x-3">
-                          <div className={cn(
-                            "p-2 rounded-lg",
-                            caProfileMode === 'reuse' 
-                              ? "bg-primary text-primary-foreground" 
-                              : "bg-muted text-muted-foreground"
-                          )}>
-                            <BookText className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h3 className="text-base font-semibold">Reuse Profile</h3>
-                            <CardDescription className="text-sm">Select existing profile</CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                    <Card 
-                      className={cn(
-                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-                        caProfileMode === 'inline' 
-                          ? "border-primary bg-primary/5 shadow-sm" 
-                          : "border-border hover:border-primary/50"
-                      )}
-                      onClick={() => setCaProfileMode('inline')}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center space-x-3">
-                          <div className={cn(
-                            "p-2 rounded-lg",
-                            caProfileMode === 'inline' 
-                              ? "bg-primary text-primary-foreground" 
-                              : "bg-muted text-muted-foreground"
-                          )}>
-                            <Settings className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h3 className="text-base font-semibold">Define Inline</h3>
-                            <CardDescription className="text-sm">One-time profile definition</CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                  </div>
+                  <CardSelector
+                    label="Profile Mode"
+                    value={caProfileMode}
+                    onChange={(v) => setCaProfileMode(v as 'none' | 'reuse' | 'inline')}
+                    disabled={isSubmitting}
+                    columns={3}
+                    options={[
+                      { value: 'none', label: 'No Profile', description: 'Use default settings', icon: Settings },
+                      { value: 'reuse', label: 'Reuse Profile', description: 'Select existing profile', icon: BookText },
+                      { value: 'inline', label: 'Define Inline', description: 'One-time profile definition', icon: Settings },
+                    ]}
+                  />
 
                   {caProfileMode === 'reuse' && (
                     <div className="space-y-4 pt-4 border-t">
@@ -603,16 +534,16 @@ export default function CreateCaExistingKeyPage() {
             <Card>
               <SectionHeader icon={Settings} title="CA Settings" />
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="caType">CA Type</Label>
-                  <Select value={caType} onValueChange={handleCaTypeChange} disabled={isSubmitting}>
-                    <SelectTrigger id="caType"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="root">Root CA</SelectItem>
-                      <SelectItem value="intermediate">Intermediate CA</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <CardSelector
+                  label="CA Type"
+                  value={caType}
+                  onChange={handleCaTypeChange}
+                  disabled={isSubmitting}
+                  options={[
+                    { value: 'root', label: 'Root CA', description: 'Self-signed trust anchor. Top of the certificate chain.', icon: Shield },
+                    { value: 'intermediate', label: 'Intermediate CA', description: 'Signed by a parent CA. Issues end-entity certificates.', icon: BookText },
+                  ]}
+                />
                 {caType === 'intermediate' && (
                   <>
                     <div>

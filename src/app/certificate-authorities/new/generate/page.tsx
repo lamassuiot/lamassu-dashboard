@@ -25,6 +25,7 @@ import { ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
+import { CardSelector } from '@/components/shared/CardSelector';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { SimplifiedInlineProfileForm, simplifiedInlineProfileSchema, type SimplifiedInlineProfileFormValues, defaultSimplifiedFormValues } from '@/components/shared/SimplifiedInlineProfileForm';
@@ -516,87 +517,18 @@ export default function CreateCaGeneratePage() {
               />
               <CardContent className="space-y-4">
                 <div className="space-y-4">
-                  <Label>Profile Mode</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card 
-                      className={cn(
-                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-                        caProfileMode === 'none' 
-                          ? "border-primary bg-primary/5 shadow-sm" 
-                          : "border-border hover:border-primary/50"
-                      )}
-                      onClick={() => setCaProfileMode('none')}
-                    >
-                      <CardHeader className="p-4">
-                        <div className="flex items-center space-x-3">
-                          <div className={cn(
-                            "p-2 rounded-lg",
-                            caProfileMode === 'none' 
-                              ? "bg-primary text-primary-foreground" 
-                              : "bg-muted text-muted-foreground"
-                          )}>
-                            <Settings className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h3 className="text-base font-semibold">No Profile</h3>
-                            <CardDescription className="text-xs">Use default settings</CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                    <Card 
-                      className={cn(
-                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-                        caProfileMode === 'reuse' 
-                          ? "border-primary bg-primary/5 shadow-sm" 
-                          : "border-border hover:border-primary/50"
-                      )}
-                      onClick={() => setCaProfileMode('reuse')}
-                    >
-                      <CardHeader className="p-4">
-                        <div className="flex items-center space-x-3">
-                          <div className={cn(
-                            "p-2 rounded-lg",
-                            caProfileMode === 'reuse' 
-                              ? "bg-primary text-primary-foreground" 
-                              : "bg-muted text-muted-foreground"
-                          )}>
-                            <BookText className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h3 className="text-base font-semibold">Reuse Profile</h3>
-                            <CardDescription className="text-xs">Select existing profile</CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                    <Card 
-                      className={cn(
-                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-                        caProfileMode === 'inline' 
-                          ? "border-primary bg-primary/5 shadow-sm" 
-                          : "border-border hover:border-primary/50"
-                      )}
-                      onClick={() => setCaProfileMode('inline')}
-                    >
-                      <CardHeader className="p-4">
-                        <div className="flex items-center space-x-3">
-                          <div className={cn(
-                            "p-2 rounded-lg",
-                            caProfileMode === 'inline' 
-                              ? "bg-primary text-primary-foreground" 
-                              : "bg-muted text-muted-foreground"
-                          )}>
-                            <Settings className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h3 className="text-base font-semibold">Define Inline</h3>
-                            <CardDescription className="text-xs">One-time profile definition</CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                  </div>
+                  <CardSelector
+                    label="Profile Mode"
+                    value={caProfileMode}
+                    onChange={(v) => setCaProfileMode(v as 'none' | 'reuse' | 'inline')}
+                    disabled={isSubmitting}
+                    columns={3}
+                    options={[
+                      { value: 'none', label: 'No Profile', description: 'Use default settings', icon: Settings },
+                      { value: 'reuse', label: 'Reuse Profile', description: 'Select existing profile', icon: BookText },
+                      { value: 'inline', label: 'Define Inline', description: 'One-time profile definition', icon: Settings },
+                    ]}
+                  />
 
                   {caProfileMode === 'reuse' && (
                     <div className="space-y-4 pt-4 border-t">
@@ -657,16 +589,16 @@ export default function CreateCaGeneratePage() {
             <Card>
               <SectionHeader icon={Settings} title="CA Settings" />
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="caType">CA Type</Label>
-                  <Select value={caType} onValueChange={handleCaTypeChange} disabled={isSubmitting}>
-                    <SelectTrigger id="caType"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="root">Root CA</SelectItem>
-                      <SelectItem value="intermediate">Intermediate CA</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <CardSelector
+                  label="CA Type"
+                  value={caType}
+                  onChange={handleCaTypeChange}
+                  disabled={isSubmitting}
+                  options={[
+                    { value: 'root', label: 'Root CA', description: 'Self-signed trust anchor. Top of the certificate chain.', icon: Shield },
+                    { value: 'intermediate', label: 'Intermediate CA', description: 'Signed by a parent CA. Issues end-entity certificates.', icon: BookText },
+                  ]}
+                />
                 {caType === 'intermediate' && (
                   <>
                     <div>
