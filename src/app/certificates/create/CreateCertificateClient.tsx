@@ -110,7 +110,7 @@ export default function CreateCertificateClient() {
         setErrorCAs(null);
         try {
             setIsLoadingProfiles(true);
-        const [cas, engines, profilesResp] = await Promise.all([
+            const [cas, engines, profilesResp] = await Promise.all([
                 fetchAndProcessCAs(user.access_token),
                 fetchCryptoEngines(user.access_token),
                 fetchSigningProfiles(user.access_token),
@@ -118,12 +118,12 @@ export default function CreateCertificateClient() {
             setAllCAs(cas);
             setAllCryptoEngines(engines);
             setAllProfiles(profilesResp.list ?? []);
-            setIsLoadingProfiles(false);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Failed to load data.";
             setErrorCAs(message);
         } finally {
             setIsLoadingCAs(false);
+            setIsLoadingProfiles(false);
         }
     }, [user?.access_token]);
 
@@ -164,6 +164,7 @@ export default function CreateCertificateClient() {
         if (!selectedCa) return "Please select a Signing CA.";
         if (!commonName.trim()) return "Common Name is required.";
         if (keyMode === 'reuse' && !kmsKeyIdentifier.trim()) return "Please provide a KMS Key Identifier.";
+        if (profileMode === 'reuse' && !profileId.trim()) return "Please select a signing profile.";
         return null;
     };
 

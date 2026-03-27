@@ -824,9 +824,9 @@ export async function createCertificate(payload: CreateCertificatePayload, acces
         },
         body: JSON.stringify(payload),
     });
-    const result = await response.json();
     if (!response.ok) {
-        throw new Error(result.err || result.message || `Failed to create certificate. Status: ${response.status}`);
+        const errBody = await response.json().catch(() => null);
+        throw new Error(errBody?.err || errBody?.message || `Failed to create certificate. Status: ${response.status}`);
     }
-    return result;
+    return response.json();
 }
