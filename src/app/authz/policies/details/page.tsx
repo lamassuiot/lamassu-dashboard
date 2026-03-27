@@ -18,6 +18,7 @@ import {
   FileJson,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Zap,
   GitBranch,
   CheckCircle2,
@@ -79,164 +80,159 @@ const getActionClassName = (action: string): string => {
   return '';
 };
 
-// ─── EntityTypePill ──────────────────────────────────────────────────────────
-
-function EntityTypePill({ schema, entity, size = 'sm' }: { schema: string; entity: string; size?: 'sm' | 'md' }) {
-  const textSize = size === 'md' ? 'text-sm' : 'text-xs';
-  const schemaDisplay = schema || '""';
-  const entityDisplay = entity || '""';
-  return (
-    <span className={`inline-flex items-center gap-1.5 font-mono ${textSize} bg-muted border rounded px-2 py-0.5`}>
-      <span className="text-muted-foreground">Schema:</span>
-      <span className="font-semibold text-foreground">{schemaDisplay}</span>
-      <span className="text-muted-foreground/40">/</span>
-      <span className="text-muted-foreground">Entity:</span>
-      <span className="font-semibold text-foreground">{entityDisplay}</span>
-    </span>
-  );
-}
-
 // ─── ActionBadge ─────────────────────────────────────────────────────────────
 
 function ActionBadge({ action }: { action: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-mono font-medium ${getActionClassName(action)}`}
+      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-mono font-medium ${getActionClassName(action)}`}
     >
       {action === '*' ? '* (all)' : action}
     </span>
   );
 }
 
-// ─── RelationNode ─────────────────────────────────────────────────────────────
+// ─── EntitySlug ──────────────────────────────────────────────────────────────
 
-function RelationNode({ relation, depth = 0 }: { relation: RelationRule; depth?: number }) {
+function EntitySlug({ schema, entity }: { schema: string; entity: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 font-mono text-xs">
+      <span className="text-muted-foreground">{schema || '""'}</span>
+      <span className="text-muted-foreground/40">/</span>
+      <span className="font-semibold text-foreground">{entity || '""'}</span>
+    </span>
+  );
+}
+
+// ─── RelationRow ─────────────────────────────────────────────────────────────
+
+function RelationRow({ relation, depth = 0 }: { relation: RelationRule; depth?: number }) {
   const { schema, entity } = getRelationEntityDisplay(relation);
   const hasNested = relation.relations && relation.relations.length > 0;
 
   return (
-    <div className={depth > 0 ? 'ml-6 border-l-2 border-muted pl-4 pt-3' : ''}>
-      {/* Header row: via [name] → entity */}
-      <div className="flex items-center flex-wrap gap-2 text-sm">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">via</span>
-        <code className="rounded bg-primary/10 text-primary px-2 py-0.5 text-xs font-mono font-semibold">
-          {relation.via}
-        </code>
-        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <EntityTypePill schema={schema} entity={entity} />
+    <div style={{ paddingLeft: depth * 20 }}>
+      <div className="flex items-start gap-3 py-1.5 text-xs">
+        {depth > 0 && <span className="text-muted-foreground/40 shrink-0 select-none mt-0.5">└─</span>}
+        <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
+          <span className="uppercase tracking-wide font-medium text-[10px]">via</span>
+          <code className="rounded bg-primary/10 text-primary px-1.5 py-0.5 font-mono font-semibold text-[11px]">
+            {relation.via}
+          </code>
+          <ArrowRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+          <EntitySlug schema={schema} entity={entity} />
+        </div>
+        {relation.actions && relation.actions.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {relation.actions.map((action, i) => (
+              <ActionBadge key={i} action={action} />
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Granted actions */}
-      {relation.actions && relation.actions.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-1">
-          <span className="text-xs text-muted-foreground mr-0.5">grants:</span>
-          {relation.actions.map((action, i) => (
-            <ActionBadge key={i} action={action} />
-          ))}
-        </div>
-      )}
-
-      {/* Nested relations */}
-      {hasNested && (
-        <div className="mt-2 space-y-3">
-          {relation.relations!.map((nested, i) => (
-            <RelationNode key={i} relation={nested} depth={depth + 1} />
-          ))}
-        </div>
-      )}
+      {hasNested && relation.relations!.map((nested, i) => (
+        <RelationRow key={i} relation={nested} depth={depth + 1} />
+      ))}
     </div>
   );
 }
 
-// ─── RuleCard ─────────────────────────────────────────────────────────────────
+// ─── RuleRow ─────────────────────────────────────────────────────────────────
 
-function RuleCard({ rule, index }: { rule: any; index: number }) {
+function RuleRow({ rule, index }: { rule: any; index: number }) {
+  const [expanded, setExpanded] = useState(true);
   const { schema, entity } = splitEntityDisplay(rule);
   const namespace: string | undefined = rule.namespace || undefined;
   const actionCount = rule.actions?.length || 0;
   const directGrantCount = rule.directGrants?.length || 0;
   const relationCount = rule.relations?.length || 0;
 
-  const parts: string[] = [];
-  if (actionCount > 0) parts.push(`${actionCount} ${actionCount === 1 ? 'action' : 'actions'}`);
-  if (directGrantCount > 0) parts.push(`${directGrantCount} direct ${directGrantCount === 1 ? 'grant' : 'grants'}`);
-  if (relationCount > 0) parts.push(`${relationCount} relation ${relationCount === 1 ? 'path' : 'paths'}`);
+  const summary: string[] = [];
+  if (actionCount > 0) summary.push(`${actionCount} ${actionCount === 1 ? 'action' : 'actions'}`);
+  if (directGrantCount > 0) summary.push(`${directGrantCount} grant${directGrantCount > 1 ? 's' : ''}`);
+  if (relationCount > 0) summary.push(`${relationCount} relation${relationCount > 1 ? 's' : ''}`);
 
   return (
-    <Card className="overflow-hidden">
-      {/* Rule header */}
-      <div className="flex items-center gap-3 bg-muted/40 border-b px-4 py-3">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-bold">
+    <div className="border-b last:border-b-0">
+      {/* Rule header row */}
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors group"
+        onClick={() => setExpanded((v) => !v)}
+        type="button"
+      >
+        <ChevronRight
+          className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
+        />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground ring-1 ring-border">
           {index + 1}
         </span>
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
+        <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
           {namespace && (
-            <Badge variant="outline" className="font-mono text-xs text-muted-foreground">
+            <Badge variant="outline" className="font-mono text-[10px] py-0 px-1.5 h-4 text-muted-foreground">
               {namespace}
             </Badge>
           )}
-          <EntityTypePill schema={schema} entity={entity} size="md" />
-          <span className="text-xs text-muted-foreground">{parts.join(' · ')}</span>
+          <EntitySlug schema={schema} entity={entity} />
         </div>
-      </div>
+        <span className="text-[11px] text-muted-foreground shrink-0 ml-auto pl-3">{summary.join(' · ')}</span>
+      </button>
 
-      <CardContent className="p-0 divide-y">
-        {/* ── Direct Actions ─────────────────────────────────────────────── */}
-        <div className="px-4 py-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-sm font-medium">Direct Actions</span>
-            <span className="text-xs text-muted-foreground">
-              — what the principal can do on any&nbsp;
-              <code className="text-xs font-mono">{entity || '*'}</code>
-            </span>
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="px-10 pb-4 space-y-3">
+
+          {/* Direct Actions */}
+          <div className="flex items-start gap-2">
+            <div className="flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[110px]">
+              <Zap className="h-3 w-3 text-muted-foreground" />
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Actions</span>
+            </div>
+            {actionCount === 0 ? (
+              <span className="text-xs text-muted-foreground/60 italic">none</span>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {rule.actions.map((action: string, i: number) => (
+                  <ActionBadge key={i} action={action} />
+                ))}
+              </div>
+            )}
           </div>
-          {actionCount === 0 ? (
-            <p className="text-xs text-muted-foreground pl-5">No direct actions defined</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5 pl-5">
-              {rule.actions.map((action: string, i: number) => (
-                <ActionBadge key={i} action={action} />
-              ))}
+
+          {/* Direct Grants */}
+          {directGrantCount > 0 && (
+            <div className="flex items-start gap-2">
+              <div className="flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[110px]">
+                <CheckCircle2 className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Grants</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {rule.directGrants.map((grant: string, i: number) => (
+                  <Badge key={i} variant="secondary" className="font-mono text-[11px] py-0 px-1.5 h-5">
+                    {grant}
+                  </Badge>
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Relations */}
+          {relationCount > 0 && (
+            <div className="flex items-start gap-2">
+              <div className="flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[110px]">
+                <GitBranch className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Relations</span>
+              </div>
+              <div className="space-y-0.5">
+                {rule.relations.map((relation: RelationRule, i: number) => (
+                  <RelationRow key={i} relation={relation} />
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
-
-        {/* ── Direct Grants ──────────────────────────────────────────────── */}
-        {directGrantCount > 0 && (
-          <div className="px-4 py-4">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span className="text-sm font-medium">Direct Grants</span>
-              <span className="text-xs text-muted-foreground">— explicitly granted entity references</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pl-5">
-              {rule.directGrants.map((grant: string, i: number) => (
-                <Badge key={i} variant="secondary" className="font-mono text-xs">
-                  {grant}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Relation Paths ─────────────────────────────────────────────── */}
-        {relationCount > 0 && (
-          <div className="px-4 py-4">
-            <div className="flex items-center gap-2 mb-4">
-              <GitBranch className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span className="text-sm font-medium">Permission via Relations</span>
-              <span className="text-xs text-muted-foreground">— access inherited through entity relationships</span>
-            </div>
-            <div className="space-y-4 pl-5">
-              {rule.relations.map((relation: RelationRule, i: number) => (
-                <RelationNode key={i} relation={relation} />
-              ))}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
@@ -480,44 +476,38 @@ function PolicyDetailsContent() {
           {/* Overview Tab */}
           <TabsContent value="overview" className="mt-0 space-y-5">
             {/* Policy Rules */}
-            <Card className="overflow-hidden rounded-xl shadow-sm">
-              <CardHeader className="border-b py-4">
-                <CardTitle className="flex items-center text-lg">
-                  <Shield className="mr-3 h-5 w-5 text-primary" />
-                  Policy Rules
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'} — each rule defines what a principal
-                  can do on a given entity type, and what access is inherited through relationships.
-                </CardDescription>
-              </CardHeader>
+            <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+              {/* List header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Policy Rules</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'}
+                </span>
+              </div>
 
               {policy.rules.length === 0 ? (
-                <CardContent className="p-12">
-                  <div className="text-center space-y-3">
-                    <div className="flex justify-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                        <Shield className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                    </div>
-                    <div>
-                      <p className="font-medium">No rules defined</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        This policy has no rules configured
-                      </p>
+                <div className="p-12 text-center space-y-3">
+                  <div className="flex justify-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                      <Shield className="h-6 w-6 text-muted-foreground" />
                     </div>
                   </div>
-                </CardContent>
+                  <div>
+                    <p className="font-medium">No rules defined</p>
+                    <p className="text-sm text-muted-foreground mt-1">This policy has no rules configured</p>
+                  </div>
+                </div>
               ) : (
-                <CardContent className="p-5">
-                  <div className="space-y-4">
-                    {policy.rules.map((rule, index) => (
-                      <RuleCard key={index} rule={rule} index={index} />
-                    ))}
-                  </div>
-                </CardContent>
+                <div>
+                  {policy.rules.map((rule, index) => (
+                    <RuleRow key={index} rule={rule} index={index} />
+                  ))}
+                </div>
               )}
-            </Card>
+            </div>
           </TabsContent>
 
           {/* Raw JSON Tab */}

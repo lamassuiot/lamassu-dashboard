@@ -134,6 +134,16 @@ export async function getPolicyStats(id: string): Promise<PolicyStats> {
   return handleApiError(response, `Failed to get policy stats for ${id}`);
 }
 
+export async function searchPolicies(query: string): Promise<{ policies: Policy[]; count: number }> {
+  const url = new URL(`${get_AUTHZ_API_BASE_URL()}/policies/search`);
+  url.searchParams.set('query', query);
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: getAuthzHeaders(),
+  });
+  return handleApiError(response, 'Failed to search policies');
+}
+
 // ===========================
 // Principal API Endpoints
 // ===========================
