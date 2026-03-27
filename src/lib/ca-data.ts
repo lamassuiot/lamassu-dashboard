@@ -325,14 +325,10 @@ export interface CreateCaPayload {
     organization_unit?: string;
     common_name: string;
   };
-  key_metadata: {
-    // For new key generation
-    type?: string;
-    bits?: number;
-    // For existing key reuse
-    key_id?: string;
-  };
-  ca_expiration: { type: string; duration?: string; time?: string };
+  key_metadata:
+    | { type: string; bits: number; key_id?: never }
+    | { key_id: string; type?: never; bits?: never };
+  ca_expiration: { type: "Duration" | "Date"; duration?: string; time?: string };
   ca_type: "MANAGED";
   // Optional: Profile for the CA's own certificate
   ca_issuance_profile_id?: string;
@@ -770,17 +766,27 @@ export async function deleteSigningProfile(profileId: string, accessToken: strin
 
 // --- Create Certificate (server-side key generation or reuse) ---
 
-export interface CreateCertificateKeySpec {
-    // Generate mode: set type + bits, optionally engine_id
-    type?: string;
-    bits?: number;
+/** Generate a new key pair server-side. */
+export interface GenerateCertificateKeySpec {
+    type: string;
+    bits: number;
     engine_id?: string;
-    // Reuse mode: set key_identifier (KeyID, Alias, or PKCS11URI)
-    key_identifier?: string;
+    key_identifier?: never;
 }
 
+/** Reuse an existing KMS key (by KeyID, Alias, or PKCS#11 URI). */
+export interface ReuseCertificateKeySpec {
+    key_identifier: string;
+    type?: never;
+    bits?: never;
+    engine_id?: never;
+}
+
+/** Discriminated union: generate a new key or reference an existing one. */
+export type CreateCertificateKeySpec = GenerateCertificateKeySpec | ReuseCertificateKeySpec;
+
 export interface CreateCertificateIssuanceProfile {
-    validity: { type: string; duration?: string; time?: string };
+    validity: { type: "Duration" | "Date"; duration?: string; time?: string };
     sign_as_ca: boolean;
     honor_key_usage: boolean;
     key_usage: string[];

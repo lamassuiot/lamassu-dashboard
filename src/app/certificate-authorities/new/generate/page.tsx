@@ -306,7 +306,7 @@ export default function CreateCaGeneratePage() {
     setIsParentCaModalOpen(false);
   };
 
-  const formatExpirationForApi = (config: ExpirationConfig): { type: string; duration?: string; time?: string } => {
+  const formatExpirationForApi = (config: ExpirationConfig): { type: "Duration" | "Date"; duration?: string; time?: string } => {
     if (config.type === "Duration") {
       return { type: "Duration", duration: config.durationValue };
     }
