@@ -32,6 +32,16 @@ export const get_ALERTS_API_BASE_URL = () => `${getApiBaseUrl()}/alerts/v1`;
 export const get_VA_CORE_API_BASE_URL = () => `${getApiBaseUrl()}/va`;
 export const get_VA_API_BASE_URL = () => `${get_VA_CORE_API_BASE_URL()}/v1`;
 
+export const get_AUDIT_LOGS_API_BASE_URL = (): string => {
+    if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_AUDIT_API) {
+        return (window as any).lamassuConfig.LAMASSU_AUDIT_API;
+    }
+    if (process.env.NEXT_PUBLIC_AUDIT_API_BASE_URL) {
+        return process.env.NEXT_PUBLIC_AUDIT_API_BASE_URL;
+    }
+    return 'http://localhost:9090';
+};
+
 // These endpoints now use the potentially overridden base URL
 export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/est`;
 

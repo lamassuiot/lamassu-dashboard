@@ -29,7 +29,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, History } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -87,6 +87,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'integrations': "Platform Integrations",
   'crypto-engines': "Crypto Engines",
   'alerts': "Alerts",
+  'audit-logs': "Audit Logs",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
 };
@@ -133,6 +134,10 @@ const navigationConfig: NavGroup[] = [
   {
     label: 'NOTIFICATIONS',
     items: [{ href: '/alerts', label: 'Alerts', icon: Info }],
+  },
+  {
+    label: 'AUDITING',
+    items: [{ href: '/audit-logs', label: 'Audit Logs', icon: History }],
   },
   {
     label: 'TOOLS',

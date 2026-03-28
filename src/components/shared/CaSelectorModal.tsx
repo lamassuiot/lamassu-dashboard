@@ -5,15 +5,17 @@ import React, { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, AlertTriangle, Search } from "lucide-react";
+import { Loader2, AlertTriangle, Search, List, Network } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CA } from '@/lib/ca-data';
 import { SelectableCaTreeItem } from './SelectableCaTreeItem';
+import { CaSelectorHierarchyView } from './CaSelectorHierarchyView';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MultiSelectDropdown } from './MultiSelectDropdown';
 import { filterCaList, type CaStatusFilter } from '@/lib/ca-utils';
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const STATUS_OPTIONS: { value: CaStatusFilter; label: string }[] = [
     { value: 'active', label: 'Active' },
@@ -54,6 +56,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
 }) => {
   const [filterText, setFilterText] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<CaStatusFilter[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'hierarchy'>('list');
 
   const filteredCAs = useMemo(() => {
     return filterCaList(availableCAs, {
@@ -74,8 +77,8 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
           children
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end py-2">
-                <div className="flex-grow space-y-1.5">
+            <div className="flex flex-wrap gap-3 items-end py-2">
+                <div className="flex-grow space-y-1.5 min-w-0">
                     <Label htmlFor="modal-ca-filter">Search</Label>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -88,7 +91,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
                         />
                     </div>
                 </div>
-                 <div className="space-y-1.5">
+                <div className="space-y-1.5 w-40">
                     <Label htmlFor="modal-status-filter">Status</Label>
                     <MultiSelectDropdown
                         id="modal-status-filter"
@@ -99,6 +102,23 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
                         buttonText="All Statuses"
                         className="h-9 min-h-9"
                     />
+                </div>
+                <div className="space-y-1.5 shrink-0">
+                    <Label>View</Label>
+                    <ToggleGroup
+                        type="single"
+                        value={viewMode}
+                        onValueChange={(v) => { if (v) setViewMode(v as 'list' | 'hierarchy'); }}
+                        variant="outline"
+                        className="h-9"
+                    >
+                        <ToggleGroupItem value="list" className="h-9 px-2.5" title="List view">
+                            <List className="h-4 w-4" />
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="hierarchy" className="h-9 px-2.5" title="Hierarchy view">
+                            <Network className="h-4 w-4" />
+                        </ToggleGroupItem>
+                    </ToggleGroup>
                 </div>
             </div>
 
@@ -118,20 +138,31 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
               </Alert>
             )}
             {!isLoadingCAs && !isAuthLoading && !errorCAs && filteredCAs.length > 0 && (
-              <ScrollArea className="h-72 my-4 border rounded-md">
-                <ul className="space-y-0.5 p-2">
-                  {filteredCAs.map((ca) => (
-                    <SelectableCaTreeItem
-                      key={ca.id}
-                      ca={ca}
-                      level={0}
-                      onSelect={onCaSelected}
-                      currentSingleSelectedCaId={currentSelectedCaId}
-                      allCryptoEngines={allCryptoEngines}
-                    />
-                  ))}
-                </ul>
-              </ScrollArea>
+              viewMode === 'list' ? (
+                <ScrollArea className="h-72 my-4 border rounded-md">
+                  <ul className="space-y-0.5 p-2">
+                    {filteredCAs.map((ca) => (
+                      <SelectableCaTreeItem
+                        key={ca.id}
+                        ca={ca}
+                        level={0}
+                        onSelect={onCaSelected}
+                        currentSingleSelectedCaId={currentSelectedCaId}
+                        allCryptoEngines={allCryptoEngines}
+                      />
+                    ))}
+                  </ul>
+                </ScrollArea>
+              ) : (
+                <div className="h-72 my-4 border rounded-md overflow-hidden bg-muted/5">
+                  <CaSelectorHierarchyView
+                    cas={filteredCAs}
+                    onSelect={onCaSelected}
+                    currentSelectedCaId={currentSelectedCaId}
+                    allCryptoEngines={allCryptoEngines}
+                  />
+                </div>
+              )
             )}
             {!isLoadingCAs && !isAuthLoading && !errorCAs && filteredCAs.length === 0 && (
               <p className="text-muted-foreground text-center my-4 p-4 border rounded-md bg-muted/20">

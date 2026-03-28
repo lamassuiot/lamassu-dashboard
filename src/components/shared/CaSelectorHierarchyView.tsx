@@ -1,12 +1,11 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Node,
   Edge,
-  Controls,
   Background,
   BackgroundVariant,
   useNodesState,
@@ -17,46 +16,44 @@ import {
   useNodesInitialized,
   useReactFlow,
   MarkerType,
-  Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import {
-  Landmark,
-  KeyRound,
-} from 'lucide-react';
+import { Landmark, KeyRound } from 'lucide-react';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
-import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
+import { CryptoEngineViewer } from './CryptoEngineViewer';
 
-const NODE_WIDTH = 264;
-const NODE_HEIGHT = 76;
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 68;
+const TREE_GAP = 60;
 
 const elk = new ELK();
 
-interface HierarchyNodeData extends Record<string, unknown> {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface SelectorNodeData extends Record<string, unknown> {
   ca: CA;
-  isCollapsed: boolean;
-  hasChildren: boolean;
-  childCount: number;
-  onToggle: (id: string) => void;
-  onNavigate: (ca: CA) => void;
-  allCryptoEngines: ApiCryptoEngine[];
+  isSelected: boolean;
+  onSelect: (ca: CA) => void;
+  allCryptoEngines?: ApiCryptoEngine[];
 }
 
-// ─── Status helpers ──────────────────────────────────────────────────────────
+// ─── Status helpers ───────────────────────────────────────────────────────────
 
 type StatusVariant = 'active' | 'expired' | 'revoked';
 
 const STATUS_ACCENT: Record<StatusVariant, string> = {
-  active:  '#10b981',
+  active: '#10b981',
   expired: '#f97316',
   revoked: '#ef4444',
 };
 
 const STATUS_LABEL: Record<StatusVariant, string> = {
-  active:  'Active',
+  active: 'Active',
   expired: 'Expired',
   revoked: 'Revoked',
 };
@@ -74,33 +71,30 @@ const getExpiryLabel = (ca: CA): string => {
   return `Exp. ${formatDistanceToNowStrict(expiryDate)}`;
 };
 
-const formatKeyAlgorithm = (raw: string): string => {
-  // "RSA (2048 bit)" → "RSA-2048", "EC (P-256)" → "EC P-256"
-  return raw
+const formatKeyAlgorithm = (raw: string): string =>
+  raw
     .replace(/\s*\(\s*/g, ' ')
     .replace(/\s*bit\s*\)/gi, '')
     .replace(/\s*\)\s*/g, '')
     .trim();
-};
 
+// ─── Node component ───────────────────────────────────────────────────────────
 
-// ─── Custom Node ─────────────────────────────────────────────────────────────
-
-const HierarchyNode: React.FC<{ data: HierarchyNodeData }> = ({ data }) => {
-  const { ca, onNavigate, allCryptoEngines } = data;
+const SelectorNode: React.FC<{ data: SelectorNodeData }> = ({ data }) => {
+  const { ca, isSelected, onSelect, allCryptoEngines } = data;
   const variant = getStatusVariant(ca);
   const accent = STATUS_ACCENT[variant];
   const expiryLabel = getExpiryLabel(ca);
   const keyLabel = ca.keyAlgorithm ? formatKeyAlgorithm(ca.keyAlgorithm) : null;
   const isRoot = !ca.issuer || ca.issuer === 'Self-signed' || ca.issuer === ca.id;
 
-  let EngineIcon: React.ReactNode = <Landmark className="h-3.5 w-3.5" />;
+  let EngineIcon: React.ReactNode = <Landmark className="h-3 w-3" />;
   if (ca.kmsKeyId) {
-    const engine = allCryptoEngines.find((e) => e.id === ca.kmsKeyId);
+    const engine = allCryptoEngines?.find((e) => e.id === ca.kmsKeyId);
     if (engine) {
-      EngineIcon = <CryptoEngineViewer engine={engine} iconOnly className="h-3.5 w-3.5 flex-shrink-0" />;
+      EngineIcon = <CryptoEngineViewer engine={engine} iconOnly className="h-3 w-3 flex-shrink-0" />;
     } else {
-      EngineIcon = <KeyRound className="h-3.5 w-3.5" />;
+      EngineIcon = <KeyRound className="h-3 w-3" />;
     }
   }
 
@@ -112,52 +106,52 @@ const HierarchyNode: React.FC<{ data: HierarchyNodeData }> = ({ data }) => {
       <Handle
         type="target"
         position={Position.Top}
-        style={{ background: accent, border: 'none', width: 6, height: 6, opacity: 0.5 }}
+        style={{ background: accent, border: 'none', width: 5, height: 5, opacity: 0.5 }}
       />
 
       <div
         style={{
-          borderRadius: 8,
-          border: '1px solid hsl(var(--border))',
-          boxShadow: `inset 0 3px 0 ${accent}`,
+          borderRadius: 7,
+          border: isSelected ? `2px solid ${accent}` : '1px solid hsl(var(--border))',
+          boxShadow: isSelected
+            ? `inset 0 3px 0 ${accent}, 0 0 0 3px ${accent}22`
+            : `inset 0 3px 0 ${accent}`,
           overflow: 'hidden',
           cursor: 'pointer',
+          background: isSelected ? `${accent}08` : 'transparent',
         }}
-        onClick={() => onNavigate(ca)}
+        onClick={() => onSelect(ca)}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && onNavigate(ca)}
+        onKeyDown={(e) => e.key === 'Enter' && onSelect(ca)}
       >
-        {/* ── Body ── */}
+        {/* Body */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
-            padding: '10px 10px 8px 10px',
-            background: 'hsl(var(--card))',
+            gap: 8,
+            padding: '8px 9px 6px 9px',
+            background: isSelected ? `${accent}06` : 'hsl(var(--card))',
           }}
         >
-          {/* Monogram avatar */}
           <div style={{ flexShrink: 0, color: 'hsl(var(--muted-foreground))' }}>
             {EngineIcon}
           </div>
 
-          {/* Name */}
           <p
             className="flex-1 min-w-0 truncate leading-tight"
-            style={{ fontSize: 13, fontWeight: 600, color: 'hsl(var(--foreground))' }}
+            style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--foreground))' }}
             title={ca.name}
           >
             {ca.name}
           </p>
 
-          {/* Status word — plain, no pill */}
           <span
             style={{
               flexShrink: 0,
-              fontSize: 10,
-              fontWeight: 600,
+              fontSize: 9,
+              fontWeight: 700,
               color: accent,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
@@ -167,23 +161,20 @@ const HierarchyNode: React.FC<{ data: HierarchyNodeData }> = ({ data }) => {
           </span>
         </div>
 
-        {/* ── Footer strip ── */}
+        {/* Footer */}
         <div
-          className="nodrag nopan"
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 5,
-            padding: '5px 10px',
+            gap: 4,
+            padding: '4px 9px',
             borderTop: '1px solid hsl(var(--border))',
-            background: 'hsl(var(--muted) / 0.4)',
+            background: isSelected ? `${accent}08` : 'hsl(var(--muted) / 0.4)',
           }}
-          onClick={(e) => e.stopPropagation()}
         >
-          {/* Expiry — flex-1 so it takes leftover space */}
           <span
             className="flex-1 min-w-0 truncate"
-            style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}
+            style={{ fontSize: 9, color: 'hsl(var(--muted-foreground))' }}
             title={expiryLabel}
           >
             {expiryLabel}
@@ -193,10 +184,10 @@ const HierarchyNode: React.FC<{ data: HierarchyNodeData }> = ({ data }) => {
             <span
               style={{
                 flexShrink: 0,
-                fontSize: 10,
+                fontSize: 9,
                 fontFamily: 'monospace',
-                padding: '1px 5px',
-                borderRadius: 4,
+                padding: '1px 4px',
+                borderRadius: 3,
                 background: 'hsl(var(--background))',
                 color: 'hsl(var(--muted-foreground))',
                 border: '1px solid hsl(var(--border))',
@@ -210,9 +201,9 @@ const HierarchyNode: React.FC<{ data: HierarchyNodeData }> = ({ data }) => {
             <span
               style={{
                 flexShrink: 0,
-                fontSize: 10,
-                padding: '1px 5px',
-                borderRadius: 4,
+                fontSize: 9,
+                padding: '1px 4px',
+                borderRadius: 3,
                 background: 'hsl(var(--background))',
                 color: 'hsl(var(--muted-foreground))',
                 border: '1px solid hsl(var(--border))',
@@ -221,24 +212,21 @@ const HierarchyNode: React.FC<{ data: HierarchyNodeData }> = ({ data }) => {
               Root
             </span>
           )}
-
         </div>
       </div>
 
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ background: accent, border: 'none', width: 6, height: 6, opacity: 0.5 }}
+        style={{ background: accent, border: 'none', width: 5, height: 5, opacity: 0.5 }}
       />
     </div>
   );
 };
 
-const nodeTypes = { hierarchyNode: HierarchyNode };
+const nodeTypes = { selectorNode: SelectorNode };
 
-// ─── ELK layout ──────────────────────────────────────────────────────────────
-
-const TREE_GAP = 80;
+// ─── ELK layout ───────────────────────────────────────────────────────────────
 
 const elkLayoutSubtree = async (nodes: Node[], edges: Edge[]): Promise<Node[]> => {
   if (nodes.length === 0) return nodes;
@@ -250,8 +238,8 @@ const elkLayoutSubtree = async (nodes: Node[], edges: Edge[]): Promise<Node[]> =
       layoutOptions: {
         'elk.algorithm': 'layered',
         'elk.direction': 'DOWN',
-        'elk.spacing.nodeNode': '24',
-        'elk.layered.spacing.nodeNodeBetweenLayers': '56',
+        'elk.spacing.nodeNode': '20',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '44',
         'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
         'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
       },
@@ -274,7 +262,6 @@ const getLayoutedElements = async (
 ): Promise<{ nodes: Node[]; edges: Edge[] }> => {
   if (nodes.length === 0) return { nodes, edges };
 
-  // Collect the subtree node IDs reachable from each root
   const getSubtreeIds = (rootId: string): Set<string> => {
     const ids = new Set<string>();
     const queue = [rootId];
@@ -287,7 +274,6 @@ const getLayoutedElements = async (
     return ids;
   };
 
-  // Layout each subtree independently, then place side-by-side
   let xOffset = 0;
   const allPositioned: Node[] = [];
 
@@ -295,148 +281,111 @@ const getLayoutedElements = async (
     const ids = getSubtreeIds(rootId);
     const subtreeNodes = nodes.filter((n) => ids.has(n.id));
     const subtreeEdges = edges.filter((e) => ids.has(e.source) && ids.has(e.target));
-
     const positioned = await elkLayoutSubtree(subtreeNodes, subtreeEdges);
-
-    // Shift X by accumulated offset; Y stays as ELK computed (roots all at Y≈0)
     const width = Math.max(...positioned.map((n) => n.position.x + NODE_WIDTH), 0);
-    positioned.forEach((n) => allPositioned.push({ ...n, position: { x: n.position.x + xOffset, y: n.position.y } }));
+    positioned.forEach((n) =>
+      allPositioned.push({ ...n, position: { x: n.position.x + xOffset, y: n.position.y } }),
+    );
     xOffset += width + TREE_GAP;
   }
 
   return { nodes: allPositioned, edges };
 };
 
-// ─── Build ReactFlow elements from CA tree ───────────────────────────────────
+// ─── Build elements ───────────────────────────────────────────────────────────
 
 const buildElements = (
   cas: CA[],
-  collapsedIds: Set<string>,
-  callbacks: {
-    onToggle: (id: string) => void;
-    onNavigate: (ca: CA) => void;
-  },
-  allCryptoEngines: ApiCryptoEngine[],
+  onSelect: (ca: CA) => void,
+  currentSelectedCaId?: string | null,
+  allCryptoEngines?: ApiCryptoEngine[],
 ): { nodes: Node[]; edges: Edge[] } => {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
   const traverse = (ca: CA, parentId: string | null) => {
-    const children = ca.children ?? [];
-    const isCollapsed = collapsedIds.has(ca.id);
-
     nodes.push({
       id: ca.id,
-      type: 'hierarchyNode',
+      type: 'selectorNode',
       position: { x: 0, y: 0 },
       data: {
         ca,
-        isCollapsed,
-        hasChildren: children.length > 0,
-        childCount: countDescendants(ca),
-        onToggle: callbacks.onToggle,
-        onNavigate: callbacks.onNavigate,
+        isSelected: ca.id === currentSelectedCaId,
+        onSelect,
         allCryptoEngines,
-      } satisfies HierarchyNodeData,
+      } satisfies SelectorNodeData,
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
     });
 
     if (parentId) {
+      const variant: StatusVariant =
+        ca.status === 'revoked' ? 'revoked' : isPast(parseISO(ca.expires)) ? 'expired' : 'active';
       edges.push({
         id: `${parentId}→${ca.id}`,
         source: parentId,
         target: ca.id,
         type: 'smoothstep',
-        style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.5, opacity: 0.5 },
+        style: { stroke: 'hsl(var(--border))', strokeWidth: 1.5 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: 'hsl(var(--primary))',
-          width: 8,
-          height: 8,
+          color: 'hsl(var(--border))',
+          width: 7,
+          height: 7,
         },
       });
     }
 
-    if (!isCollapsed) {
-      for (const child of children) {
-        traverse(child, ca.id);
-      }
+    for (const child of ca.children ?? []) {
+      traverse(child, ca.id);
     }
   };
 
-  for (const root of cas) {
-    traverse(root, null);
-  }
-
+  for (const root of cas) traverse(root, null);
   return { nodes, edges };
 };
 
-const countDescendants = (ca: CA): number => {
-  if (!ca.children?.length) return 0;
-  return ca.children.reduce((sum, c) => sum + 1 + countDescendants(c), 0);
-};
+// ─── Inner component ──────────────────────────────────────────────────────────
 
-// ─── Inner component (needs ReactFlow context) ───────────────────────────────
-
-const HierarchyViewInner: React.FC<{
+const Inner: React.FC<{
   cas: CA[];
-  router: ReturnType<typeof import('next/navigation').useRouter>;
-  allCryptoEngines: ApiCryptoEngine[];
-}> = ({ cas, router, allCryptoEngines }) => {
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<HierarchyNodeData>>([]);
+  onSelect: (ca: CA) => void;
+  currentSelectedCaId?: string | null;
+  allCryptoEngines?: ApiCryptoEngine[];
+}> = ({ cas, onSelect, currentSelectedCaId, allCryptoEngines }) => {
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<SelectorNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const nodesInitialized = useNodesInitialized();
   const { fitView } = useReactFlow();
   const layoutVersionRef = useRef(0);
   const pendingFitRef = useRef(false);
 
-  const handleToggle = useCallback((id: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const stableOnSelect = useCallback(onSelect, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleNavigate = useCallback(
-    (ca: CA) => {
-      router.push(`/certificate-authorities/details?caId=${ca.id}`);
-    },
-    [router],
-  );
-
-  // Recompute layout whenever CA data or collapsed state changes
   useEffect(() => {
-    const { nodes: rawNodes, edges: rawEdges } = buildElements(
+    const { nodes: raw, edges: rawEdges } = buildElements(
       cas,
-      collapsedIds,
-      { onToggle: handleToggle, onNavigate: handleNavigate },
+      stableOnSelect,
+      currentSelectedCaId,
       allCryptoEngines,
     );
-
+    const rootIds = cas.map((ca) => ca.id);
     const version = ++layoutVersionRef.current;
     pendingFitRef.current = true;
 
-    const rootIds = cas.map((ca) => ca.id);
-    getLayoutedElements(rawNodes, rawEdges, rootIds).then(({ nodes: ln, edges: le }) => {
-      if (layoutVersionRef.current !== version) return; // stale
-      setNodes(ln as Node<HierarchyNodeData>[]);
+    getLayoutedElements(raw, rawEdges, rootIds).then(({ nodes: ln, edges: le }) => {
+      if (layoutVersionRef.current !== version) return;
+      setNodes(ln as Node<SelectorNodeData>[]);
       setEdges(le);
     });
-  }, [cas, collapsedIds, handleToggle, handleNavigate, allCryptoEngines, setNodes, setEdges]);
+  }, [cas, currentSelectedCaId, stableOnSelect, allCryptoEngines, setNodes, setEdges]);
 
-  // Fit view once nodes are measured after a layout change
   useEffect(() => {
     if (nodesInitialized && nodes.length > 0 && pendingFitRef.current) {
       pendingFitRef.current = false;
-      fitView({ padding: 0.12, duration: 250 });
+      fitView({ padding: 0.1, duration: 200 });
     }
   }, [nodesInitialized, nodes.length, fitView]);
-
-  const totalCAs = nodes.length;
 
   return (
     <ReactFlow
@@ -446,47 +395,33 @@ const HierarchyViewInner: React.FC<{
       onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes}
       fitView
-      fitViewOptions={{ padding: 0.12 }}
+      fitViewOptions={{ padding: 0.1 }}
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable={false}
       proOptions={{ hideAttribution: true }}
-      minZoom={0.1}
+      minZoom={0.2}
       maxZoom={2}
     >
-      <Controls showInteractive={false} className="!shadow-none !border !border-border !rounded-lg !overflow-hidden" />
-      <Background variant={BackgroundVariant.Dots} gap={18} size={1} className="opacity-25" />
-      <Panel position="top-right" className="flex items-center gap-1.5 text-xs text-muted-foreground bg-card/90 px-2.5 py-1.5 rounded-lg border border-border/60 backdrop-blur-sm shadow-sm">
-        <Landmark className="h-3 w-3" />
-        <span>{totalCAs} {totalCAs === 1 ? 'CA' : 'CAs'}</span>
-      </Panel>
+      <Background variant={BackgroundVariant.Dots} gap={16} size={1} className="opacity-20" />
     </ReactFlow>
   );
 };
 
 // ─── Public component ─────────────────────────────────────────────────────────
 
-interface CaHierarchyViewProps {
+interface CaSelectorHierarchyViewProps {
   cas: CA[];
-  router: ReturnType<typeof import('next/navigation').useRouter>;
-  allCAs: CA[];
-  allCryptoEngines: ApiCryptoEngine[];
+  onSelect: (ca: CA) => void;
+  currentSelectedCaId?: string | null;
+  allCryptoEngines?: ApiCryptoEngine[];
 }
 
-export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, allCryptoEngines }) => {
-  if (cas.length === 0) {
-    return (
-      <p className="text-muted-foreground text-center p-4">
-        No Certification Authorities to display in hierarchy view.
-      </p>
-    );
-  }
-
+export const CaSelectorHierarchyView: React.FC<CaSelectorHierarchyViewProps> = (props) => {
+  if (props.cas.length === 0) return null;
   return (
-    <div className="w-full h-[calc(100vh-200px)] border border-border rounded-xl overflow-hidden bg-muted/5">
-      <ReactFlowProvider>
-        <HierarchyViewInner cas={cas} router={router} allCryptoEngines={allCryptoEngines} />
-      </ReactFlowProvider>
-    </div>
+    <ReactFlowProvider>
+      <Inner {...props} />
+    </ReactFlowProvider>
   );
 };
