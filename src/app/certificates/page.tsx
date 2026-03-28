@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { CertificateList } from '@/components/CertificateList';
 import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import type { CertificateData } from '@/types/certificate';
-import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X, Upload } from 'lucide-react';
+import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X, Upload, KeyRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -263,6 +263,9 @@ export default function CertificatesPage() {
             </Button>
             <Button onClick={() => router.push('/certificates/import')} variant="secondary">
                 <Upload className="mr-2 h-4 w-4" /> Import Certificate
+            </Button>
+            <Button onClick={() => router.push('/certificates/create')} variant="secondary">
+                <KeyRound className="mr-2 h-4 w-4" /> Create KeyPair &amp; Certificate
             </Button>
             <Button onClick={() => handleOpenCaSelector('issue')} variant="default">
                 <PlusCircle className="mr-2 h-4 w-4" /> Issue Certificate

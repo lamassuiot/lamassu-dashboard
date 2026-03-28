@@ -32,19 +32,19 @@ export interface ApiIssuedCertificateItem {
   subject_key_id: string;
   authority_key_id: string;
   metadata: Record<string, any>;
-  status: string;                
-  certificate: string;           
-  key_metadata: ApiKeyMetadata;  
-  subject: ApiDistinguishedName; 
-  issuer: ApiDistinguishedName;  
-  valid_from: string;            
-  issuer_metadata: ApiIssuerMetadata; 
-  valid_to: string;              
-  revocation_timestamp?: string; 
-  revocation_reason?: string;   
-  type?: string;                  
-  engine_id?: string;             
-  is_ca: boolean;                
+  status: string;
+  certificate: string;
+  key_metadata: ApiKeyMetadata;
+  subject: ApiDistinguishedName;
+  issuer: ApiDistinguishedName;
+  valid_from: string;
+  issuer_metadata: ApiIssuerMetadata;
+  valid_to: string;
+  revocation_timestamp?: string;
+  revocation_reason?: string;
+  type?: string;
+  engine_id?: string;
+  is_ca: boolean;
 }
 
 export interface ApiIssuedCertificateListResponse {
@@ -72,7 +72,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
       pemData = "Error: Could not decode PEM data.";
     }
   }
-  
+
   const subjectDNParts: string[] = [];
   if (apiCert.subject.common_name) subjectDNParts.push(`CN=${apiCert.subject.common_name}`);
   if (apiCert.subject.organization) subjectDNParts.push(`O=${apiCert.subject.organization}`);
@@ -87,14 +87,14 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
   if (apiCert.issuer.organization) issuerDNParts.push(`O=${apiCert.issuer.organization}`);
   if (apiCert.issuer.organization_unit) issuerDNParts.push(`OU=${apiCert.issuer.organization_unit}`);
   const fullIssuer = issuerDNParts.join(', ');
-  
+
   // Parse the PEM to extract additional details like OCSP URLs
   const parsedDetails = await parseCertificatePemDetails(pemData);
 
   return {
-    id: apiCert.serial_number, 
+    id: apiCert.serial_number,
     fileName: `${subjectDisplay.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'certificate'}.pem`,
-    subject: fullSubject || subjectDisplay, 
+    subject: fullSubject || subjectDisplay,
     issuer: fullIssuer || issuerDisplay,
     serialNumber: apiCert.serial_number,
     validFrom: apiCert.valid_from,
@@ -118,21 +118,39 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
   };
 }
 
+export async function fetchIssuedCertificate(serialNumber: string, accessToken: string): Promise<CertificateData> {
+  const apiSerial = serialNumber.replace(/:/g, '');
+  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${encodeURIComponent(apiSerial)}`, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    let errorMessage = `Failed to fetch certificate. HTTP error ${response.status}`;
+    try {
+      const errorJson = await response.json();
+      if (errorJson?.err) errorMessage = `Failed to fetch certificate: ${errorJson.err}`;
+      else if (errorJson?.message) errorMessage = `Failed to fetch certificate: ${errorJson.message}`;
+    } catch { /* ignore */ }
+    throw new Error(errorMessage);
+  }
+  const apiCert: ApiIssuedCertificateItem = await response.json();
+  return transformApiIssuedCertificateToLocal(apiCert);
+}
+
 interface FetchIssuedCertificatesParams {
   accessToken: string;
   apiQueryString?: string;
-  forCaId?: string; 
+  forCaId?: string;
 }
 
 export async function fetchIssuedCertificates(
   params: FetchIssuedCertificatesParams
 ): Promise<{ certificates: CertificateData[]; nextToken: string | null }> {
   const { accessToken, apiQueryString, forCaId } = params;
-  
+
   const baseUrl = forCaId
     ? `${get_CA_API_BASE_URL()}/cas/${forCaId}/certificates`
     : `${get_CA_API_BASE_URL()}/certificates`;
-  
+
   const finalQueryString = apiQueryString || 'sort_by=valid_from&sort_mode=desc&page_size=10';
 
   const response = await fetch(`${baseUrl}?${finalQueryString}`, {
@@ -192,9 +210,9 @@ export async function updateCertificateStatus({
   if (status === 'REVOKED' && reason) {
     body.revocation_reason = reason;
   }
-  
+
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
-  
+
   const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
     method: 'PUT',
     headers: {
@@ -212,7 +230,7 @@ export async function updateCertificateStatus({
     } catch (e) {
       console.error("Failed to parse error response as JSON for certificate status update:", e);
     }
-    
+
     const actionText = status === 'REVOKED' ? 'revoke' : 're-activate';
     throw new Error(`Failed to ${actionText} certificate: ${errorBody} (Status: ${response.status})`);
   }
@@ -277,22 +295,22 @@ export async function importCertificate(payload: ImportCertificateBody, accessTo
 }
 
 export async function deleteCertificate(serialNumber: string, accessToken: string): Promise<void> {
-    const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
-    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
-        method: 'DELETE',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-        },
-    });
+  const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
+  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
 
-    if (!response.ok) {
-        let errorBody = 'Request failed.';
-        try {
-            const errJson = await response.json();
-            errorBody = errJson.err || errJson.message || errorBody;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for certificate deletion:", e);
-        }
-        throw new Error(`Failed to delete certificate: ${errorBody} (Status: ${response.status})`);
+  if (!response.ok) {
+    let errorBody = 'Request failed.';
+    try {
+      const errJson = await response.json();
+      errorBody = errJson.err || errJson.message || errorBody;
+    } catch (e) {
+      console.error("Failed to parse error response as JSON for certificate deletion:", e);
     }
+    throw new Error(`Failed to delete certificate: ${errorBody} (Status: ${response.status})`);
+  }
 }

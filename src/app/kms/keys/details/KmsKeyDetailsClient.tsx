@@ -13,7 +13,7 @@ import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -475,11 +475,13 @@ export default function KmsKeyDetailsClient() {
         const uniqueSerials = [...new Set(boundCertificateResources.map(resource => resource.resource_id))];
         const certificateResults = await Promise.all(
           uniqueSerials.map(async (serialNumber) => {
-            const { certificates } = await fetchIssuedCertificates({
-              accessToken: user.access_token,
-              apiQueryString: `serial_number=${encodeURIComponent(serialNumber)}&page_size=1`,
+            return fetchIssuedCertificate(serialNumber, user.access_token).catch((err: unknown) => {
+              // Treat 404 (certificate no longer exists) as absent rather than an error.
+              // All other failures (auth, network, 5xx) are re-thrown so the outer
+              // catch can surface them via setBoundCertificatesError.
+              if (err instanceof Error && /HTTP error 404/.test(err.message)) return null;
+              throw err;
             });
-            return certificates[0] || null;
           })
         );
 

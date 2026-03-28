@@ -325,14 +325,10 @@ export interface CreateCaPayload {
     organization_unit?: string;
     common_name: string;
   };
-  key_metadata: {
-    // For new key generation
-    type?: string;
-    bits?: number;
-    // For existing key reuse
-    key_id?: string;
-  };
-  ca_expiration: { type: string; duration?: string; time?: string };
+  key_metadata:
+    | { type: string; bits: number; key_id?: never }
+    | { key_id: string; type?: never; bits?: never };
+  ca_expiration: { type: "Duration" | "Date"; duration?: string; time?: string };
   ca_type: "MANAGED";
   // Optional: Profile for the CA's own certificate
   ca_issuance_profile_id?: string;
@@ -766,4 +762,77 @@ export async function deleteSigningProfile(profileId: string, accessToken: strin
         }
         throw new Error(errorMessage);
     }
+}
+
+// --- Create Certificate (server-side key generation or reuse) ---
+
+/** Generate a new key pair server-side. */
+export interface GenerateCertificateKeySpec {
+    type: string;
+    bits: number;
+    engine_id?: string;
+    key_identifier?: never;
+}
+
+/** Reuse an existing KMS key (by KeyID, Alias, or PKCS#11 URI). */
+export interface ReuseCertificateKeySpec {
+    key_identifier: string;
+    type?: never;
+    bits?: never;
+    engine_id?: never;
+}
+
+/** Discriminated union: generate a new key or reference an existing one. */
+export type CreateCertificateKeySpec = GenerateCertificateKeySpec | ReuseCertificateKeySpec;
+
+export interface CreateCertificateIssuanceProfile {
+    validity: { type: "Duration" | "Date"; duration?: string; time?: string };
+    sign_as_ca: boolean;
+    honor_key_usage: boolean;
+    key_usage: string[];
+    honor_extended_key_usages: boolean;
+    extended_key_usages: string[];
+    honor_subject?: boolean;
+    honor_extensions?: boolean;
+    crypto_enforcement?: {
+        enabled: boolean;
+        allow_rsa_keys: boolean;
+        allow_ecdsa_keys: boolean;
+        allowed_rsa_key_sizes?: number[];
+        allowed_ecdsa_key_sizes?: number[];
+    };
+}
+
+export interface CreateCertificatePayload {
+    ca_id: string;
+    key_spec: CreateCertificateKeySpec;
+    subject: {
+        common_name: string;
+        organization?: string;
+        organization_unit?: string;
+        country?: string;
+        state?: string;
+        locality?: string;
+    };
+    // At most one of issuance_profile_id or issuance_profile should be set.
+    // If neither is set, the CA's default profile is used.
+    issuance_profile_id?: string;
+    issuance_profile?: CreateCertificateIssuanceProfile;
+    metadata?: Record<string, any>;
+}
+
+export async function createCertificate(payload: CreateCertificatePayload, accessToken: string): Promise<any> {
+    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+        const errBody = await response.json().catch(() => null);
+        throw new Error(errBody?.err || errBody?.message || `Failed to create certificate. Status: ${response.status}`);
+    }
+    return response.json();
 }
