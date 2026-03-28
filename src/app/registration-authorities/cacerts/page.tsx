@@ -191,7 +191,7 @@ export default function EstCaCertsPage() {
                             
                             <TabsContent value="pem" className="mt-4">
                                 <Card>
-                                    <CardContent className="space-y-3 pt-6">
+                                    <CardContent className="space-y-3">
                                         <Alert>
                                             <Info className="h-4 w-4" />
                                             <AlertDescription>Obtain CACerts using cURL</AlertDescription>
@@ -204,7 +204,7 @@ export default function EstCaCertsPage() {
 
                             <TabsContent value="pkcs7" className="mt-4">
                                 <Card>
-                                    <CardContent className="space-y-3 pt-6">
+                                    <CardContent className="space-y-3">
                                         <Alert>
                                             <Info className="h-4 w-4" />
                                             <AlertDescription>Obtain CACerts using cURL</AlertDescription>

@@ -354,7 +354,7 @@ export default function CreateKmsKeyPage() {
           </p>
         </div>
         <Card className="mx-auto max-w-4xl overflow-hidden rounded-xl shadow-sm">
-          <CardContent className="p-0">
+        <CardContent className='p-0'>
             <div className="divide-y">
               {creationModes.map((mode) => {
                 const isDisabled = !!mode.badge;

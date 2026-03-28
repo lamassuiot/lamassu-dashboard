@@ -68,7 +68,7 @@ export default function CreateCaHubPage() {
         <p className="text-muted-foreground mt-2">Select how you want to create or import your Certification Authority.</p>
       </div>
       <Card className="mx-auto max-w-4xl overflow-hidden rounded-xl shadow-sm">
-        <CardContent className="p-0">
+        <CardContent className='p-0'>
           <div className="divide-y">
             {creationModes.map((mode) => {
               const icon = React.isValidElement(mode.icon)

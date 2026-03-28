@@ -140,7 +140,7 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
           }
         />
 
-        <CardContent className="flex flex-1 flex-col gap-6 p-6">
+        <CardContent className="flex flex-1 flex-col gap-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <SummaryItem label="Validity" value={validityLabel} />
             <SummaryItem label="Signs" value={certificateScope} />

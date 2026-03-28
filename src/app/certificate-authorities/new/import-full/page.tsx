@@ -221,7 +221,7 @@ export default function CreateCaImportFullPage() {
       <form onSubmit={handleSubmit} className="space-y-8">
             <Card className={DETAIL_CARD_CLASSNAME}>
               <SectionHeader icon={Settings} title="Import Settings" />
-              <CardContent className="space-y-4 p-6">
+              <CardContent className="space-y-4">
                   <div>
                     <Label htmlFor="caId">New Certification Authority ID (generated)</Label>
                     <Input id="caId" value={caId} readOnly className="mt-1 bg-muted/50" />
@@ -279,7 +279,7 @@ export default function CreateCaImportFullPage() {
             
             <Card className={DETAIL_CARD_CLASSNAME}>
               <SectionHeader icon={FileText} title="Certification Authority Details" />
-              <CardContent className="space-y-4 p-6">
+              <CardContent className="space-y-4">
                  <div>
                    <Label htmlFor="importedCaCertPem">Certification Authority Certificate (PEM)</Label>
                     <Textarea 

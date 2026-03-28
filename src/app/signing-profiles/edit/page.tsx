@@ -323,7 +323,7 @@ export default function EditSigningProfilePage() {
               <SigningProfileForm form={form} sectionAsCards />
             ) : (
               <Card className="overflow-hidden rounded-xl shadow-sm">
-                <CardContent className="p-6">
+                <CardContent>
                   <p className="text-center text-muted-foreground">No profile data to display.</p>
                 </CardContent>
               </Card>

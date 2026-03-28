@@ -31,7 +31,7 @@ export function FilterCriteriaDisplay({ criteria, inheritedCriteria, className }
     return (
       <Card className={cn('overflow-hidden rounded-xl shadow-sm', className)}>
         <SectionHeader icon={Filter} title="Filter Criteria" description="Dynamic membership rules" />
-        <CardContent className="p-6">
+        <CardContent>
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
@@ -46,7 +46,7 @@ export function FilterCriteriaDisplay({ criteria, inheritedCriteria, className }
   return (
     <Card className={cn('overflow-hidden rounded-xl shadow-sm', className)}>
       <SectionHeader icon={Filter} title="Filter Criteria" description={description} />
-      <CardContent className="p-6 space-y-4">
+      <CardContent className="space-y-4">
         {/* Direct Criteria */}
         {hasDirectCriteria && (
           <div className="space-y-2">
