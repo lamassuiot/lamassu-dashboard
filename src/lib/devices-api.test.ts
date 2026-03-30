@@ -12,7 +12,6 @@ import {
   type DeviceStats,
 } from './devices-api'
 
-const MOCK_TOKEN = 'test-access-token'
 const DEV_API_BASE = 'https://api.test.lamassu.io/devmanager/v1'
 
 describe('devices-api', () => {
@@ -48,7 +47,7 @@ describe('devices-api', () => {
       )
 
       const params = new URLSearchParams({ limit: '10' })
-      const result = await fetchDevices(MOCK_TOKEN, params)
+      const result = await fetchDevices(params)
 
       expect(result).toEqual(mockResponse)
       expect(result.list).toHaveLength(1)
@@ -68,7 +67,7 @@ describe('devices-api', () => {
       )
 
       const params = new URLSearchParams()
-      const result = await fetchDevices(MOCK_TOKEN, params)
+      const result = await fetchDevices(params)
 
       expect(result.next).toBe('next-page-token')
     })
@@ -84,7 +83,7 @@ describe('devices-api', () => {
       )
 
       const params = new URLSearchParams()
-      await expect(fetchDevices(MOCK_TOKEN, params)).rejects.toThrow(
+      await expect(fetchDevices(params)).rejects.toThrow(
         'Failed to fetch devices'
       )
     })
@@ -113,7 +112,7 @@ describe('devices-api', () => {
         })
       )
 
-      const result = await fetchDeviceById(deviceId, MOCK_TOKEN)
+      const result = await fetchDeviceById(deviceId)
 
       expect(result).toEqual(mockDevice)
       expect(result.id).toBe(deviceId)
@@ -129,7 +128,7 @@ describe('devices-api', () => {
         })
       )
 
-      await expect(fetchDeviceById(deviceId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchDeviceById(deviceId)).rejects.toThrow(
         'Failed to fetch device details'
       )
     })
@@ -146,7 +145,7 @@ describe('devices-api', () => {
       )
 
       await expect(
-        decommissionDevice(deviceId, MOCK_TOKEN)
+        decommissionDevice(deviceId)
       ).resolves.toBeUndefined()
     })
 
@@ -160,7 +159,7 @@ describe('devices-api', () => {
         })
       )
 
-      await expect(decommissionDevice(deviceId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(decommissionDevice(deviceId)).rejects.toThrow(
         'Failed to decommission device'
       )
     })
@@ -183,7 +182,7 @@ describe('devices-api', () => {
         })
       )
 
-      await expect(registerDevice(payload, MOCK_TOKEN)).resolves.toBeUndefined()
+      await expect(registerDevice(payload)).resolves.toBeUndefined()
     })
 
     it('should send correct payload', async () => {
@@ -196,7 +195,7 @@ describe('devices-api', () => {
         })
       )
 
-      await registerDevice(payload, MOCK_TOKEN)
+      await registerDevice(payload)
 
       expect(capturedBody).toEqual(payload)
     })
@@ -211,7 +210,7 @@ describe('devices-api', () => {
         })
       )
 
-      await expect(registerDevice(payload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(registerDevice(payload)).rejects.toThrow(
         'Failed to register device'
       )
     })
@@ -238,7 +237,7 @@ describe('devices-api', () => {
         })
       )
 
-      const result = await fetchDeviceStats(MOCK_TOKEN)
+      const result = await fetchDeviceStats()
 
       expect(result).toEqual(mockStats)
       expect(result.total).toBe(100)
@@ -252,7 +251,7 @@ describe('devices-api', () => {
         })
       )
 
-      await expect(fetchDeviceStats(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchDeviceStats()).rejects.toThrow(
         'Failed to fetch device stats'
       )
     })

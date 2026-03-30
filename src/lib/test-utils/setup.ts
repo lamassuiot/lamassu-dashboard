@@ -1,4 +1,4 @@
-import { beforeAll, afterEach, afterAll, vi } from 'vitest'
+import { beforeAll, beforeEach, afterEach, afterAll } from 'vitest'
 import { server } from './msw-server'
 import '@testing-library/jest-dom/vitest'
 
@@ -11,12 +11,24 @@ afterAll(() => server.close())
 global.window = global.window || ({} as any);
 (window as any).lamassuConfig = {
   LAMASSU_API: 'https://api.test.lamassu.io',
+  LAMASSU_AUTH_AUTHORITY: 'https://auth.test.lamassu.io',
+  LAMASSU_AUTH_CLIENT_ID: 'test-client-id',
   OIDC_AUTHORITY: 'https://auth.test.lamassu.io',
   OIDC_CLIENT_ID: 'test-client-id',
   CUSTOM_FOOTER_ENABLED: false,
   DEVELOPER_MENU_ENABLED: false,
   AVAILABLE_CONNECTORS: [],
 }
+
+beforeEach(() => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.clear()
+    window.localStorage.setItem(
+      'oidc.user:https://auth.test.lamassu.io:test-client-id',
+      JSON.stringify({ access_token: 'test-access-token' }),
+    )
+  }
+})
 
 // Mock crypto.subtle for Web Crypto API
 if (!global.crypto) {

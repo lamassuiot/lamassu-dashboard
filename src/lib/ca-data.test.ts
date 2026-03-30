@@ -33,7 +33,6 @@ import {
   type CreateSigningProfilePayload,
 } from './ca-data'
 
-const MOCK_TOKEN = 'test-access-token'
 const CA_API_BASE = 'https://api.test.lamassu.io/ca/v1'
 
 type CaStats = Awaited<ReturnType<typeof fetchCaStats>>
@@ -270,7 +269,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(createCa(payload, MOCK_TOKEN)).resolves.toBeUndefined()
+      await expect(createCa(payload)).resolves.toBeUndefined()
     })
 
     it('should send correct payload', async () => {
@@ -283,7 +282,7 @@ describe('ca-data', () => {
         })
       )
 
-      await createCa(payload, MOCK_TOKEN)
+      await createCa(payload)
 
       expect(capturedBody).toEqual(payload)
     })
@@ -298,7 +297,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(createCa(payload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(createCa(payload)).rejects.toThrow(
         'Failed to create CA'
       )
     })
@@ -314,7 +313,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(importCa(payload, MOCK_TOKEN)).resolves.toBeUndefined()
+      await expect(importCa(payload)).resolves.toBeUndefined()
     })
 
     it('should handle import error', async () => {
@@ -327,7 +326,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(importCa(payload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(importCa(payload)).rejects.toThrow(
         'Failed to import CA'
       )
     })
@@ -347,7 +346,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        updateCaMetadata(caId, patchOps, MOCK_TOKEN)
+        updateCaMetadata(caId, patchOps)
       ).resolves.toBeUndefined()
     })
 
@@ -359,7 +358,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        updateCaMetadata(caId, patchOps, MOCK_TOKEN)
+        updateCaMetadata(caId, patchOps)
       ).rejects.toThrow('Failed to update CA metadata')
     })
   })
@@ -380,7 +379,7 @@ describe('ca-data', () => {
         })
       )
 
-      const result = await fetchCaStats(caId, MOCK_TOKEN)
+      const result = await fetchCaStats(caId)
 
       expect(result).toEqual(mockStats)
       expect(result.ACTIVE).toBe(80)
@@ -393,7 +392,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(fetchCaStats(caId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchCaStats(caId)).rejects.toThrow(
         'Failed to fetch CA statistics'
       )
     })
@@ -410,7 +409,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        updateCaStatus(caId, 'ACTIVE', undefined, MOCK_TOKEN)
+        updateCaStatus(caId, 'ACTIVE', undefined)
       ).resolves.toBeUndefined()
     })
 
@@ -424,7 +423,7 @@ describe('ca-data', () => {
         })
       )
 
-      await updateCaStatus(caId, 'REVOKED', 'keyCompromise', MOCK_TOKEN)
+      await updateCaStatus(caId, 'REVOKED', 'keyCompromise')
 
       expect(capturedBody).toEqual({ status: 'REVOKED', revocation_reason: 'keyCompromise' })
     })
@@ -437,7 +436,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        updateCaStatus(caId, 'ACTIVE', undefined, MOCK_TOKEN)
+        updateCaStatus(caId, 'ACTIVE', undefined)
       ).rejects.toThrow('Status update failed')
     })
   })
@@ -453,7 +452,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(revokeCa(caId, reason, MOCK_TOKEN)).resolves.toBeUndefined()
+      await expect(revokeCa(caId, reason)).resolves.toBeUndefined()
     })
 
     it('should send revocation reason', async () => {
@@ -466,7 +465,7 @@ describe('ca-data', () => {
         })
       )
 
-      await revokeCa(caId, reason, MOCK_TOKEN)
+      await revokeCa(caId, reason)
 
       expect(capturedBody).toEqual({ status: 'REVOKED', revocation_reason: reason })
     })
@@ -482,7 +481,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(deleteCa(caId, MOCK_TOKEN)).resolves.toBeUndefined()
+      await expect(deleteCa(caId)).resolves.toBeUndefined()
     })
 
     it('should handle deletion error', async () => {
@@ -495,7 +494,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(deleteCa(caId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(deleteCa(caId)).rejects.toThrow(
         'Deletion failed'
       )
     })
@@ -519,7 +518,7 @@ describe('ca-data', () => {
         })
       )
 
-      const result = await signCertificate(caId, payload, MOCK_TOKEN)
+      const result = await signCertificate(caId, payload)
 
       expect(result).toEqual(mockResponse)
       expect(result.certificate).toBeDefined()
@@ -532,7 +531,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(signCertificate(caId, payload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(signCertificate(caId, payload)).rejects.toThrow(
         'Invalid CSR'
       )
     })
@@ -550,7 +549,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        updateCaDefaultProfileId(caId, profileId, MOCK_TOKEN)
+        updateCaDefaultProfileId(caId, profileId)
       ).resolves.toBeUndefined()
     })
 
@@ -564,7 +563,7 @@ describe('ca-data', () => {
         })
       )
 
-      await updateCaDefaultProfileId(caId, profileId, MOCK_TOKEN)
+      await updateCaDefaultProfileId(caId, profileId)
 
       expect(capturedBody).toEqual({ profile_id: profileId })
     })
@@ -579,7 +578,7 @@ describe('ca-data', () => {
         })
       )
 
-      await updateCaDefaultProfileId(caId, null, MOCK_TOKEN)
+      await updateCaDefaultProfileId(caId, null)
 
       expect(capturedBody).toEqual({ profile_id: null })
     })
@@ -598,7 +597,7 @@ describe('ca-data', () => {
         })
       )
 
-      const result = await fetchCaStatsSummary(MOCK_TOKEN)
+      const result = await fetchCaStatsSummary()
 
       expect(result).toEqual(mockSummary)
       expect(result.cas.total).toBe(50)
@@ -611,7 +610,7 @@ describe('ca-data', () => {
         })
       )
 
-      await expect(fetchCaStatsSummary(MOCK_TOKEN)).rejects.toThrow()
+      await expect(fetchCaStatsSummary()).rejects.toThrow()
     })
   })
 
@@ -625,7 +624,7 @@ describe('ca-data', () => {
         })
       )
 
-      const result = await fetchDevManagerStats(MOCK_TOKEN)
+      const result = await fetchDevManagerStats()
 
       expect(result).toEqual(mockStats)
       expect(result.total).toBe(1000)
@@ -656,7 +655,7 @@ describe('ca-data', () => {
         })
       )
 
-      const result = await fetchSigningProfiles(MOCK_TOKEN)
+      const result = await fetchSigningProfiles()
 
       expect(result.list).toHaveLength(2)
       expect(result.next).toBeNull()
@@ -673,7 +672,7 @@ describe('ca-data', () => {
       )
 
       const params = new URLSearchParams({ page: '2', limit: '20' })
-      await fetchSigningProfiles(MOCK_TOKEN, params)
+      await fetchSigningProfiles(params)
 
       expect(capturedUrl?.searchParams.get('page')).toBe('2')
       expect(capturedUrl?.searchParams.get('limit')).toBe('20')
@@ -692,7 +691,7 @@ describe('ca-data', () => {
         })
       )
 
-      const result = await createSigningProfile(payload, MOCK_TOKEN)
+      const result = await createSigningProfile(payload)
 
       expect(result).toEqual(mockResponse)
       expect(result.id).toBe('profile-123')
@@ -709,7 +708,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        createSigningProfile(payload, MOCK_TOKEN)
+        createSigningProfile(payload)
       ).rejects.toThrow('Profile creation failed')
     })
   })
@@ -726,7 +725,7 @@ describe('ca-data', () => {
         })
       )
 
-      const result = await fetchSigningProfileById(profileId, MOCK_TOKEN)
+      const result = await fetchSigningProfileById(profileId)
 
       expect(result).toEqual(mockProfile)
       expect(result.id).toBe(profileId)
@@ -743,7 +742,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        fetchSigningProfileById(profileId, MOCK_TOKEN)
+        fetchSigningProfileById(profileId)
       ).rejects.toThrow('Failed to fetch profile')
     })
   })
@@ -763,7 +762,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        updateSigningProfile(profileId, payload, MOCK_TOKEN)
+        updateSigningProfile(profileId, payload)
       ).resolves.toBeUndefined()
     })
 
@@ -778,7 +777,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        updateSigningProfile(profileId, payload, MOCK_TOKEN)
+        updateSigningProfile(profileId, payload)
       ).rejects.toThrow('Profile update failed')
     })
   })
@@ -794,7 +793,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        deleteSigningProfile(profileId, MOCK_TOKEN)
+        deleteSigningProfile(profileId)
       ).resolves.toBeUndefined()
     })
 
@@ -809,7 +808,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        deleteSigningProfile(profileId, MOCK_TOKEN)
+        deleteSigningProfile(profileId)
       ).rejects.toThrow('Profile deletion failed')
     })
 
@@ -821,7 +820,7 @@ describe('ca-data', () => {
       )
 
       await expect(
-        deleteSigningProfile(profileId, MOCK_TOKEN)
+        deleteSigningProfile(profileId)
       ).rejects.toThrow('Failed to delete signing profile')
     })
   })
@@ -1071,7 +1070,7 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(createCa(payload, MOCK_TOKEN)).rejects.toThrow('Failed to create CA')
+      await expect(createCa(payload)).rejects.toThrow('Failed to create CA')
     })
 
     it('should handle importCa with non-JSON error response', async () => {
@@ -1083,7 +1082,7 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(importCa(payload, MOCK_TOKEN)).rejects.toThrow('Failed to import CA')
+      await expect(importCa(payload)).rejects.toThrow('Failed to import CA')
     })
 
     it('should handle updateCaMetadata with non-JSON error response', async () => {
@@ -1099,7 +1098,7 @@ XQGdcNTVHA==
       )
 
       await expect(
-        updateCaMetadata(caId, patchOps, MOCK_TOKEN)
+        updateCaMetadata(caId, patchOps)
       ).rejects.toThrow('Failed to update CA metadata')
     })
 
@@ -1112,7 +1111,7 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(fetchCaStats(caId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchCaStats(caId)).rejects.toThrow(
         'Failed to fetch CA statistics'
       )
     })
@@ -1127,7 +1126,7 @@ XQGdcNTVHA==
       )
 
       await expect(
-        updateCaStatus(caId, 'ACTIVE', undefined, MOCK_TOKEN)
+        updateCaStatus(caId, 'ACTIVE', undefined)
       ).rejects.toThrow('Failed to update CA status')
     })
 
@@ -1140,7 +1139,7 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(revokeCa(caId, 'keyCompromise', MOCK_TOKEN)).rejects.toThrow(
+      await expect(revokeCa(caId, 'keyCompromise')).rejects.toThrow(
         'Failed to revoke CA'
       )
     })
@@ -1154,7 +1153,7 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(deleteCa(caId, MOCK_TOKEN)).rejects.toThrow('Failed to delete CA')
+      await expect(deleteCa(caId)).rejects.toThrow('Failed to delete CA')
     })
 
     it('should handle updateCaDefaultProfileId with non-JSON error response', async () => {
@@ -1168,7 +1167,7 @@ XQGdcNTVHA==
       )
 
       await expect(
-        updateCaDefaultProfileId(caId, profileId, MOCK_TOKEN)
+        updateCaDefaultProfileId(caId, profileId)
       ).rejects.toThrow('Failed to update issuance profile')
     })
 
@@ -1181,7 +1180,7 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(createSigningProfile(payload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(createSigningProfile(payload)).rejects.toThrow(
         'Failed to create signing profile'
       )
     })
@@ -1196,7 +1195,7 @@ XQGdcNTVHA==
       )
 
       await expect(
-        fetchSigningProfileById(profileId, MOCK_TOKEN)
+        fetchSigningProfileById(profileId)
       ).rejects.toThrow('Failed to fetch signing profile')
     })
 
@@ -1213,7 +1212,7 @@ XQGdcNTVHA==
       )
 
       await expect(
-        updateSigningProfile(profileId, payload, MOCK_TOKEN)
+        updateSigningProfile(profileId, payload)
       ).rejects.toThrow('Failed to update signing profile')
     })
   })
@@ -1278,7 +1277,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result).toHaveLength(1) // Only root CA at top level
       expect(result[0].id).toBe('ca-1')
@@ -1309,7 +1308,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result).toHaveLength(1)
       expect(result[0].children).toHaveLength(1)
@@ -1325,7 +1324,7 @@ XQGdcNTVHA==
         })
       )
 
-      await fetchAndProcessCAs(MOCK_TOKEN)
+      await fetchAndProcessCAs()
 
       expect(capturedUrl?.searchParams.get('page_size')).toBe('100')
     })
@@ -1340,7 +1339,7 @@ XQGdcNTVHA==
         })
       )
 
-      await fetchAndProcessCAs(MOCK_TOKEN, 'status=ACTIVE&page_size=50')
+      await fetchAndProcessCAs('status=ACTIVE&page_size=50')
 
       expect(capturedUrl?.searchParams.get('status')).toBe('ACTIVE')
       expect(capturedUrl?.searchParams.get('page_size')).toBe('50')
@@ -1353,7 +1352,7 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(fetchAndProcessCAs(MOCK_TOKEN)).rejects.toThrow('Internal error')
+      await expect(fetchAndProcessCAs()).rejects.toThrow('Internal error')
     })
 
     it('should handle fetch error with non-JSON response', async () => {
@@ -1363,7 +1362,7 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(fetchAndProcessCAs(MOCK_TOKEN)).rejects.toThrow('HTTP error 500')
+      await expect(fetchAndProcessCAs()).rejects.toThrow('HTTP error 500')
     })
 
     it('should handle expired certificates', async () => {
@@ -1381,7 +1380,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].status).toBe('expired')
     })
@@ -1401,7 +1400,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].status).toBe('revoked')
     })
@@ -1418,7 +1417,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].defaultIssuanceLifetime).toBe('365d')
     })
@@ -1435,7 +1434,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].defaultIssuanceLifetime).toBe('Indefinite')
     })
@@ -1452,7 +1451,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].defaultIssuanceLifetime).toBe('2025-12-31T23:59:59Z')
     })
@@ -1469,7 +1468,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].defaultIssuanceLifetime).toBe('Indefinite')
     })
@@ -1490,7 +1489,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       // Orphan should become a root
       expect(result).toHaveLength(1)
@@ -1526,7 +1525,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].name).toBe('A CA')
       expect(result[1].name).toBe('Z CA')
@@ -1547,7 +1546,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].name).toBe('ca-1') // Falls back to ID
     })
@@ -1567,7 +1566,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].issuer).toBe('Self-signed')
     })
@@ -1587,7 +1586,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].status).toBe('expired')
     })
@@ -1607,7 +1606,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].status).toBe('unknown')
     })
@@ -1624,7 +1623,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].defaultIssuanceLifetime).toBe('Not Specified')
     })
@@ -1640,7 +1639,7 @@ XQGdcNTVHA==
         })
       )
 
-      const result = await fetchAndProcessCAs(MOCK_TOKEN)
+      const result = await fetchAndProcessCAs()
 
       expect(result[0].pemData).toBeDefined()
     })

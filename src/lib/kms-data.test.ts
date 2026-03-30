@@ -19,7 +19,6 @@ import {
 } from './kms-data'
 import { ApiCryptoEngine } from '@/types/crypto-engine'
 
-const MOCK_TOKEN = 'test-access-token'
 const KMS_API_BASE = 'https://api.test.lamassu.io/kms/v1'
 
 describe('kms-data', () => {
@@ -56,7 +55,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await fetchCryptoEngines(MOCK_TOKEN)
+      const result = await fetchCryptoEngines()
 
       expect(result).toBeDefined()
       expect(result).toHaveLength(1)
@@ -71,7 +70,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await fetchCryptoEngines(MOCK_TOKEN)
+      const result = await fetchCryptoEngines()
 
       expect(result).toEqual([])
     })
@@ -86,7 +85,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(fetchCryptoEngines(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchCryptoEngines()).rejects.toThrow(
         'Engine service unavailable'
       )
     })
@@ -101,7 +100,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(fetchCryptoEngines(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchCryptoEngines()).rejects.toThrow(
         'Unauthorized access'
       )
     })
@@ -113,7 +112,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(fetchCryptoEngines(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchCryptoEngines()).rejects.toThrow(
         'Failed to fetch crypto engines. HTTP error 500'
       )
     })
@@ -128,7 +127,7 @@ describe('kms-data', () => {
       )
 
       const params = new URLSearchParams()
-      const result = await fetchKmsKeys(MOCK_TOKEN, params)
+      const result = await fetchKmsKeys(params)
 
       expect(result).toBeDefined()
       expect(result.list).toHaveLength(1)
@@ -146,7 +145,7 @@ describe('kms-data', () => {
       )
 
       const params = new URLSearchParams({ engine_id: 'engine-1', limit: '50' })
-      await fetchKmsKeys(MOCK_TOKEN, params)
+      await fetchKmsKeys(params)
 
       expect(capturedUrl?.searchParams.get('engine_id')).toBe('engine-1')
       expect(capturedUrl?.searchParams.get('limit')).toBe('50')
@@ -159,7 +158,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await fetchKmsKeys(MOCK_TOKEN, new URLSearchParams())
+      const result = await fetchKmsKeys(new URLSearchParams())
 
       expect(result.next).toBe('next-token')
     })
@@ -174,7 +173,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(fetchKmsKeys(MOCK_TOKEN, new URLSearchParams())).rejects.toThrow(
+      await expect(fetchKmsKeys(new URLSearchParams())).rejects.toThrow(
         'Query parameter invalid'
       )
     })
@@ -190,7 +189,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await fetchKmsKey(keyId, MOCK_TOKEN)
+      const result = await fetchKmsKey(keyId)
 
       expect(result).toBeDefined()
       expect(result.key_id).toBe(keyId)
@@ -208,7 +207,7 @@ describe('kms-data', () => {
         })
       )
 
-      await fetchKmsKey(specialKeyId, MOCK_TOKEN)
+      await fetchKmsKey(specialKeyId)
 
       expect(capturedUrl?.pathname).toContain(encodeURIComponent(specialKeyId))
     })
@@ -223,7 +222,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(fetchKmsKey(keyId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchKmsKey(keyId)).rejects.toThrow(
         'Key not found'
       )
     })
@@ -246,7 +245,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await createKmsKey(payload, MOCK_TOKEN)
+      const result = await createKmsKey(payload)
 
       expect(result).toBeDefined()
       expect(result.key_id).toBe('key-123')
@@ -262,7 +261,7 @@ describe('kms-data', () => {
         })
       )
 
-      await createKmsKey(payload, MOCK_TOKEN)
+      await createKmsKey(payload)
 
       expect(capturedBody).toEqual(payload)
     })
@@ -281,7 +280,7 @@ describe('kms-data', () => {
           })
         )
 
-        await createKmsKey({ ...payload, algorithm }, MOCK_TOKEN)
+        await createKmsKey({ ...payload, algorithm })
         expect(capturedAlgorithm).toBe(algorithm)
       }
     })
@@ -296,7 +295,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(createKmsKey(payload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(createKmsKey(payload)).rejects.toThrow(
         'Engine not available'
       )
     })
@@ -318,7 +317,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await importKmsKey(payload, MOCK_TOKEN)
+      const result = await importKmsKey(payload)
 
       expect(result).toBeDefined()
       expect(result.key_id).toBe('key-123')
@@ -334,7 +333,7 @@ describe('kms-data', () => {
         })
       )
 
-      await importKmsKey(payload, MOCK_TOKEN)
+      await importKmsKey(payload)
 
       expect(capturedBody).toEqual(payload)
     })
@@ -349,7 +348,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(importKmsKey(payload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(importKmsKey(payload)).rejects.toThrow(
         'Invalid PEM format'
       )
     })
@@ -365,7 +364,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(deleteKmsKey(keyId, MOCK_TOKEN)).resolves.toBeUndefined()
+      await expect(deleteKmsKey(keyId)).resolves.toBeUndefined()
     })
 
     it('should handle delete error', async () => {
@@ -378,7 +377,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(deleteKmsKey(keyId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(deleteKmsKey(keyId)).rejects.toThrow(
         'Key is in use by CA'
       )
     })
@@ -393,7 +392,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(deleteKmsKey(keyId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(deleteKmsKey(keyId)).rejects.toThrow(
         'Key not found'
       )
     })
@@ -412,7 +411,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await fetchKmsKey(keyWithAliases.key_id, MOCK_TOKEN)
+      const result = await fetchKmsKey(keyWithAliases.key_id)
 
       expect(result.aliases).toHaveLength(3)
       expect(result.aliases).toContain('primary')
@@ -437,7 +436,7 @@ describe('kms-data', () => {
         size: 2048,
       }
 
-      const result = await createKmsKey(payload, MOCK_TOKEN)
+      const result = await createKmsKey(payload)
 
       expect(result.has_private_key).toBe(false)
     })
@@ -461,7 +460,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await signWithKmsKey(keyId, signPayload, MOCK_TOKEN)
+      const result = await signWithKmsKey(keyId, signPayload)
 
       expect(result).toBeDefined()
       expect(result.signature).toBe('c2lnbmF0dXJl')
@@ -477,7 +476,7 @@ describe('kms-data', () => {
         })
       )
 
-      await signWithKmsKey(keyId, signPayload, MOCK_TOKEN)
+      await signWithKmsKey(keyId, signPayload)
 
       expect(capturedBody).toEqual(signPayload)
     })
@@ -492,7 +491,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(signWithKmsKey(keyId, signPayload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(signWithKmsKey(keyId, signPayload)).rejects.toThrow(
         'Key not found'
       )
     })
@@ -507,7 +506,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(signWithKmsKey(keyId, signPayload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(signWithKmsKey(keyId, signPayload)).rejects.toThrow(
         'Invalid algorithm'
       )
     })
@@ -519,7 +518,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(signWithKmsKey(keyId, signPayload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(signWithKmsKey(keyId, signPayload)).rejects.toThrow(
         'Signing failed with status 500'
       )
     })
@@ -540,7 +539,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)
+      const result = await verifyWithKmsKey(keyId, verifyPayload)
 
       expect(result).toBeDefined()
       expect(result.valid).toBe(true)
@@ -553,7 +552,7 @@ describe('kms-data', () => {
         })
       )
 
-      const result = await verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)
+      const result = await verifyWithKmsKey(keyId, verifyPayload)
 
       expect(result.valid).toBe(false)
     })
@@ -568,7 +567,7 @@ describe('kms-data', () => {
         })
       )
 
-      await verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)
+      await verifyWithKmsKey(keyId, verifyPayload)
 
       expect(capturedBody).toEqual(verifyPayload)
     })
@@ -583,7 +582,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(verifyWithKmsKey(keyId, verifyPayload)).rejects.toThrow(
         'Invalid signature format'
       )
     })
@@ -598,7 +597,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(verifyWithKmsKey(keyId, verifyPayload)).rejects.toThrow(
         'Key does not support verification'
       )
     })
@@ -610,7 +609,7 @@ describe('kms-data', () => {
         })
       )
 
-      await expect(verifyWithKmsKey(keyId, verifyPayload, MOCK_TOKEN)).rejects.toThrow(
+      await expect(verifyWithKmsKey(keyId, verifyPayload)).rejects.toThrow(
         'Verification failed with status 500'
       )
     })
@@ -632,7 +631,7 @@ describe('kms-data', () => {
       )
 
       await expect(
-        updateKeyAliases(keyId, patches, MOCK_TOKEN)
+        updateKeyAliases(keyId, patches)
       ).resolves.toBeUndefined()
     })
 
@@ -646,7 +645,7 @@ describe('kms-data', () => {
         })
       )
 
-      await updateKeyAliases(keyId, patches, MOCK_TOKEN)
+      await updateKeyAliases(keyId, patches)
 
       expect(capturedBody.key_id).toBe(keyId)
       expect(capturedBody.patches).toEqual(patches)
@@ -663,7 +662,7 @@ describe('kms-data', () => {
       )
 
       await expect(
-        updateKeyAliases(keyId, patches, MOCK_TOKEN)
+        updateKeyAliases(keyId, patches)
       ).rejects.toThrow('Alias already exists')
     })
 
@@ -675,7 +674,7 @@ describe('kms-data', () => {
       )
 
       await expect(
-        updateKeyAliases(keyId, patches, MOCK_TOKEN)
+        updateKeyAliases(keyId, patches)
       ).rejects.toThrow('Failed to update key aliases')
     })
   })
@@ -692,7 +691,7 @@ describe('kms-data', () => {
       )
 
       await expect(
-        updateKeyTags(keyId, tags, MOCK_TOKEN)
+        updateKeyTags(keyId, tags)
       ).resolves.toBeUndefined()
     })
 
@@ -706,7 +705,7 @@ describe('kms-data', () => {
         })
       )
 
-      await updateKeyTags(keyId, tags, MOCK_TOKEN)
+      await updateKeyTags(keyId, tags)
 
       expect(capturedBody.tags).toEqual(tags)
     })
@@ -721,7 +720,7 @@ describe('kms-data', () => {
         })
       )
 
-      await updateKeyTags(keyId, [], MOCK_TOKEN)
+      await updateKeyTags(keyId, [])
 
       expect(capturedBody.tags).toEqual([])
     })
@@ -737,7 +736,7 @@ describe('kms-data', () => {
       )
 
       await expect(
-        updateKeyTags(keyId, tags, MOCK_TOKEN)
+        updateKeyTags(keyId, tags)
       ).rejects.toThrow('Invalid tag format')
     })
 
@@ -752,7 +751,7 @@ describe('kms-data', () => {
       )
 
       await expect(
-        updateKeyTags(keyId, tags, MOCK_TOKEN)
+        updateKeyTags(keyId, tags)
       ).rejects.toThrow('Tag limit exceeded')
     })
 
@@ -764,7 +763,7 @@ describe('kms-data', () => {
       )
 
       await expect(
-        updateKeyTags(keyId, tags, MOCK_TOKEN)
+        updateKeyTags(keyId, tags)
       ).rejects.toThrow('Failed to update key tags')
     })
   })
