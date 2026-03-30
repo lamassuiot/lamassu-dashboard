@@ -15,7 +15,6 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { Loader2 } from 'lucide-react';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';

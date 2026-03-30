@@ -9,7 +9,6 @@ import { SummaryStatsCard } from '@/components/home/SummaryStatsCard';
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, fetchCaStatsSummary } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';

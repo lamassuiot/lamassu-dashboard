@@ -9,7 +9,6 @@ import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Search as
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { SelectableCertificateItem } from './SelectableCertificateItem';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';

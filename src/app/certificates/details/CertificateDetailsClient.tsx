@@ -14,7 +14,6 @@ import type { CA } from '@/lib/ca-data';
 import { fetchIssuedCertificates, updateCertificateStatus, updateCertificateMetadata, deleteCertificate, type PatchOperation } from '@/lib/issued-certificate-data';
 import { fetchAndProcessCAs, findCaById, parseCertificatePemDetails } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { RevocationModal } from '@/components/shared/RevocationModal';
 import { AkiCaSelectorModal } from '@/components/shared/AkiCaSelectorModal';

@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
-import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import {
   createSigningProfile,

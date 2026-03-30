@@ -21,7 +21,6 @@ import { CodeBlock } from './CodeBlock';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
-import { useAuth } from '@/contexts/AuthContext';
 import { Switch } from '@/components/ui/switch';
 import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem } from "@/lib-crypto";
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';

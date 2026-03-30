@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
 import { requireAccessToken } from '@/lib/auth-session';
 import {
   get_KMS_API_BASE_URL,

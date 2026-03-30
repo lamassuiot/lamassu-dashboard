@@ -14,7 +14,6 @@ import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfile
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';

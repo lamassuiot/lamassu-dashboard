@@ -18,7 +18,6 @@ import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem, type CsrSan } from "@/lib-crypto";
-import { useAuth } from '@/contexts/AuthContext';
 import { parseCsr, type DecodedCsrInfo } from '@/lib-crypto';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';

@@ -4,7 +4,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { CryptoEngineViewer } from './CryptoEngineViewer';
-import { useAuth } from '@/contexts/AuthContext';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';

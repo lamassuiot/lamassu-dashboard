@@ -13,7 +13,6 @@ import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface AkiCaSelectorModalProps {
   isOpen: boolean;

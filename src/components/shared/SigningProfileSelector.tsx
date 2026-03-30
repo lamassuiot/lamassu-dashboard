@@ -12,7 +12,6 @@ import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { Settings2, BookText, PlusCircle, ArrowLeft } from 'lucide-react';
 import { CardSelector } from '@/components/shared/CardSelector';
 import type { ApiSigningProfile, CreateSigningProfilePayload } from '@/lib/ca-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

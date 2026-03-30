@@ -14,7 +14,6 @@ import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs, updateCaMetadata, fetchCaStats, revokeCa, deleteCa, parseCertificatePemDetails, updateCaStatus, reissueCa } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { RevocationModal } from '@/components/shared/RevocationModal';
 import { DeleteCaModal } from '@/components/shared/DeleteCaModal';

@@ -14,7 +14,6 @@ import { AlertTriangle, Loader2, Save, Trash2, CheckCircle, XCircle, Settings2, 
 import { sileo } from '@/lib/toast';
 import type { ApiRaItem, RaCreationPayload } from '@/lib/dms-api';
 import { createOrUpdateRa } from '@/lib/dms-api';
-import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO } from 'date-fns';
 import { findCaById, fetchAndProcessCAs, updateCaMetadata, type CA, type PatchOperation } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';

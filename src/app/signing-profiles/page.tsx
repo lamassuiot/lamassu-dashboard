@@ -7,7 +7,6 @@ import { ScrollTextIcon, PlusCircle, Loader2, RefreshCw, AlertTriangle, Search, 
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn, getCookie, setCookie } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
 import { fetchSigningProfiles, deleteSigningProfile, type ApiSigningProfile } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { sileo } from '@/lib/toast';

@@ -10,7 +10,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Scale } from "lucide-react";
 import { sileo } from '@/lib/toast';
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle as AlertTitleUI } from "@/components/ui/alert";
 import { Loader2, AlertTriangle } from 'lucide-react';
 import {

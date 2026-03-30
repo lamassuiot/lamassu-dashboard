@@ -7,7 +7,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Blocks, PlusCircle, Loader2, AlertTriangle, Settings, Eye, RefreshCw, MoreVertical, Trash2 } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';

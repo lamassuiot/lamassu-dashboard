@@ -14,7 +14,6 @@ import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { CertificateData } from '@/types/certificate';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';

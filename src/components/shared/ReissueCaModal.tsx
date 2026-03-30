@@ -18,7 +18,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, BookText, Settings2, Info, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
-import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { differenceInSeconds, parseISO, isFuture, add } from 'date-fns';
 import { fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';

@@ -29,7 +29,6 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { fetchKmsKeys, type ApiKmsKey } from '@/lib/kms-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
-import { useAuth } from '@/contexts/AuthContext';
 import { isPast, parseISO } from 'date-fns';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { toPng } from 'html-to-image';

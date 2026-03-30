@@ -15,7 +15,6 @@ import { format as formatDate } from 'date-fns';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/contexts/AuthContext';
 import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';

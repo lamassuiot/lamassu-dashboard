@@ -12,7 +12,6 @@ import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { useAuth } from '@/contexts/AuthContext';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
 interface CAsUsingProfileModalProps {

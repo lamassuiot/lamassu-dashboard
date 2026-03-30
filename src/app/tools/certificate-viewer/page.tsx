@@ -24,7 +24,6 @@ import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import { format as formatDate, parseISO, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
-import { useAuth } from '@/contexts/AuthContext';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 

@@ -11,7 +11,6 @@ import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, CornerDownRight, Arr
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { SelectableCertificateItem } from './SelectableCertificateItem';
 import { CaVisualizerCard } from '../CaVisualizerCard';
 import type { CA } from '@/lib/ca-data';

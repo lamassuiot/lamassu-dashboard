@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Shield, Loader2, AlertTriangle as AlertTriangleIcon, FileText, Download, RefreshCw, Eye, EyeOff } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
-import { useAuth } from '@/contexts/AuthContext';
 import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { DurationInput } from '@/components/shared/DurationInput';

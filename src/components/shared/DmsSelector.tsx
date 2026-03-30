@@ -9,7 +9,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
 import { fetchAllRegistrationAuthorities, type ApiRaItem } from '@/lib/dms-api';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 
