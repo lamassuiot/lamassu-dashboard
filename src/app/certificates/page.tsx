@@ -7,8 +7,6 @@ import { CertificateList } from '@/components/CertificateList';
 import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import type { CertificateData } from '@/types/certificate';
 import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X, Upload, KeyRound } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { requireAccessToken } from '@/lib/auth-session';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Badge } from '@/components/ui/badge';
@@ -134,7 +132,6 @@ export default function CertificatesPage() {
     // Fetch CAs
     if (allCAs.length === 0) { 
       try {
-        requireAccessToken();
         const fetchedCAs = await fetchAndProcessCAs();
         setAllCAs(fetchedCAs);
       } catch (err: any) {

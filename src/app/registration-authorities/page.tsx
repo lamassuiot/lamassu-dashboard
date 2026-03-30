@@ -32,7 +32,6 @@ import {
   List,
   Clock,
 } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn, getCookie, setCookie } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
@@ -66,17 +65,6 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
-
-
-const _DetailRow: React.FC<{ icon: React.ElementType, label: string, value: React.ReactNode }> = ({ icon: Icon, label, value }) => (
-    <div className="flex items-start space-x-2 py-1">
-      <Icon className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-      <div>
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <div className="text-sm text-foreground">{value}</div>
-      </div>
-    </div>
-);
 
 // Add SortConfig type
 export type SortableColumn = 'name' | 'creation_ts';

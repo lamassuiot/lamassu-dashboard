@@ -14,7 +14,6 @@ import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronR
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
 import { DmsSelector } from '@/components/shared/DmsSelector';
@@ -47,17 +46,6 @@ interface SortConfig {
   column: SortableColumn;
   direction: SortDirection;
 }
-
-const _statusSortOrder: Record<DeviceStatus, number> = {
-  'ACTIVE': 0,
-  'EXPIRING_SOON': 1,
-  'RENEWAL_PENDING': 2,
-  'NO_IDENTITY': 3,
-  'EXPIRED': 4,
-  'REVOKED': 5,
-  'DECOMMISSIONED': 6,
-};
-
 
 export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
   let badgeClass = "";

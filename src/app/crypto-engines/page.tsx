@@ -2,11 +2,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { requireAccessToken } from '@/lib/auth-session';
 import { cn } from '@/lib/utils';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine, ApiKeyTypeDetail } from '@/types/crypto-engine';
@@ -163,7 +161,6 @@ export default function CryptoEnginesPage() {
     setErrorEngines(null);
 
     try {
-      requireAccessToken();
       const data = await fetchCryptoEngines();
       setEngines(data);
     } catch (err: any) {
