@@ -27,7 +27,6 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   onOpenChange,
   onDeviceRegistered,
 }) => {
-  const { user, isAuthenticated } = useAuth();
 
   // Core state
   const [deviceId, setDeviceId] = useState('');
@@ -61,14 +60,14 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   // Fetch full RA details when an RA is selected via DmsSelector
   useEffect(() => {
     const fetchSelectedRa = async () => {
-      if (!selectedRaId || !isAuthenticated() || !user?.access_token) {
+      if (!selectedRaId ) {
         setSelectedRa(null);
         return;
       }
 
       setIsLoadingRa(true);
       try {
-        const ra = await fetchRaById(selectedRaId, user.access_token);
+        const ra = await fetchRaById(selectedRaId);
         setSelectedRa(ra);
         
         // Update device profile from RA settings
@@ -97,7 +96,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
       setIconColor('#888888');
       setIconBgColor('#e0e0e0');
     }
-  }, [selectedRaId, isAuthenticated, user?.access_token]);
+  }, [selectedRaId]);
 
   const handleDmsChange = (value: string | null) => {
     setSelectedRaId(value);
@@ -111,11 +110,6 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
       });
       return;
     }
-    if (!user?.access_token) {
-      sileo.error({ title: "Authentication Error", description: "Not authenticated." });
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       const payload = {
@@ -127,7 +121,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
         metadata: {},
       };
 
-      await registerDevice(payload, user.access_token);
+      await registerDevice(payload);
 
       sileo.success({
         title: "Device Registered",

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,14 +16,13 @@ import { DeviceGroupsList } from '@/components/device-groups/DeviceGroupsList';
 import { buildDeviceGroupTree } from '@/lib/device-groups-utils';
 
 export default function DeviceGroupsPage() {
-  const { user } = useAuth();
   const [groups, setGroups] = useState<DeviceGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchAllGroups = async () => {
-    if (!user?.access_token) return;
+  const fetchAllGroups = useCallback(async () => {
+    
 
     try {
       setIsLoading(true);
@@ -34,7 +33,7 @@ export default function DeviceGroupsPage() {
       
       // Fetch all groups by following pagination
       do {
-        const response = await getDeviceGroups(user.access_token, {
+        const response = await getDeviceGroups({
           pageSize: 100,
           bookmark,
           sortBy: 'name',
@@ -56,24 +55,19 @@ export default function DeviceGroupsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const handleRefresh = () => {
     fetchAllGroups();
   };
 
   useEffect(() => {
-    if (user?.access_token) {
-      fetchAllGroups();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.access_token]);
+    fetchAllGroups();
+  }, [fetchAllGroups]);
 
   const handleDelete = async (groupId: string) => {
-    if (!user?.access_token) return;
-
     try {
-      await deleteDeviceGroup(user.access_token, groupId);
+      await deleteDeviceGroup(groupId);
       
       // Update UI after successful deletion
       setGroups(prev => prev.filter(g => g.id !== groupId));

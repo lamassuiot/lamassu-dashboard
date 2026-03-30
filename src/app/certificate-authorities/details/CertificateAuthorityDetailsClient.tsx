@@ -61,7 +61,6 @@ const buildCaPathToRoot = (targetCaId: string | undefined, allCAs: CA[]): CA[] =
 export default function CertificateAuthorityDetailsClient() {
   const searchParams = useSearchParams();
   const routerHook = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const caIdFromUrl = searchParams.get('caId');
 
   const [allCertificateAuthoritiesData, setAllCertificateAuthoritiesData] = useState<CA[]>([]);
@@ -106,20 +105,12 @@ export default function CertificateAuthorityDetailsClient() {
   }, [caDetails, allCryptoEngines]);
 
   const loadInitialData = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-        if (!authLoading) {
-            setErrorCAs("User not authenticated.");
-            setErrorEngines("User not authenticated.");
-        }
-        setIsLoadingCAs(false);
-        setIsLoadingEngines(false);
-        return;
-    }
+    
 
     setIsLoadingCAs(true);
     setErrorCAs(null);
     try {
-        const fetchedCAs = await fetchAndProcessCAs(user.access_token);
+        const fetchedCAs = await fetchAndProcessCAs();
         setAllCertificateAuthoritiesData(fetchedCAs);
     } catch (err: any) {
         setErrorCAs(err.message || 'Failed to load CA data.');
@@ -130,20 +121,20 @@ export default function CertificateAuthorityDetailsClient() {
     setIsLoadingEngines(true);
     setErrorEngines(null);
     try {
-        const enginesData = await fetchCryptoEngines(user.access_token);
+        const enginesData = await fetchCryptoEngines();
         setAllCryptoEngines(enginesData);
     } catch (err: any) {
         setErrorEngines(err.message || 'Failed to load Crypto Engines.');
     } finally {
         setIsLoadingEngines(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading]);
+  }, []);
 
-  const loadCaStats = useCallback(async (caId: string, accessToken: string) => {
+  const loadCaStats = useCallback(async (caId: string) => {
     setIsLoadingStats(true);
     setErrorStats(null);
     try {
-      const data = await fetchCaStats(caId, accessToken);
+      const data = await fetchCaStats(caId);
       setCaStats(data);
     } catch (err: any) {
       setErrorStats(err.message);
@@ -154,8 +145,8 @@ export default function CertificateAuthorityDetailsClient() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading) loadInitialData();
-  }, [authLoading, loadInitialData]);
+    loadInitialData();
+  }, [loadInitialData]);
 
   useEffect(() => {
     const processCaDetails = async () => {
@@ -179,16 +170,14 @@ export default function CertificateAuthorityDetailsClient() {
           setCaPathToRoot(path);
           const chainPem = path.slice().reverse().map(p => p.pemData).filter(Boolean).join('');
           setFullChainPemString(chainPem);
-          if (isAuthenticated() && user?.access_token) {
-              loadCaStats(foundCa.id, user.access_token);
-          }
+          loadCaStats(foundCa.id);
   
       } else {
         setErrorCAs(`Certification Authority with ID "${caIdFromUrl}" not found.`);
       }
     };
     processCaDetails();
-  }, [caIdFromUrl, allCertificateAuthoritiesData, isLoadingCAs, isAuthenticated, user?.access_token, loadCaStats]);
+  }, [caIdFromUrl, allCertificateAuthoritiesData, isLoadingCAs, loadCaStats]);
 
   const handleCARevocation = () => {
     if (caDetails) {
@@ -198,7 +187,7 @@ export default function CertificateAuthorityDetailsClient() {
   };
 
   const handleConfirmCARevocation = async (reason: string) => {
-    if (!caToRevoke || !user?.access_token) {
+    if (!caToRevoke ) {
         sileo.error({ title: "Error", description: "Cannot revoke CA. Details or authentication missing." });
         return;
     }
@@ -207,7 +196,7 @@ export default function CertificateAuthorityDetailsClient() {
     setIsRevocationModalOpen(false); // Close modal immediately
 
     try {
-        await revokeCa(caToRevoke.id, reason, user.access_token);
+        await revokeCa(caToRevoke.id, reason);
         // Success
         setCaDetails(prev => prev ? { ...prev, status: 'revoked' } : null);
         sileo.success({
@@ -228,13 +217,13 @@ export default function CertificateAuthorityDetailsClient() {
   };
   
   const handleReactivateCA = async () => {
-    if (!caDetails || !user?.access_token) {
+    if (!caDetails ) {
         sileo.error({ title: "Error", description: "Cannot reactivate CA. Details or authentication missing." });
         return;
     }
 
     try {
-        await updateCaStatus(caDetails.id, 'ACTIVE', undefined, user.access_token);
+        await updateCaStatus(caDetails.id, 'ACTIVE', undefined);
         
         setCaDetails(prev => prev ? { ...prev, status: 'active' } : null);
         sileo.success({
@@ -257,7 +246,7 @@ export default function CertificateAuthorityDetailsClient() {
   };
 
   const handleConfirmDeleteCA = async () => {
-    if (!caToDelete || !user?.access_token) {
+    if (!caToDelete ) {
         sileo.error({ title: "Error", description: "Cannot delete CA. Details or authentication missing." });
         return;
     }
@@ -266,7 +255,7 @@ export default function CertificateAuthorityDetailsClient() {
     setIsDeleteModalOpen(false); // Close modal immediately
 
     try {
-        await deleteCa(caToDelete.id, user.access_token);
+        await deleteCa(caToDelete.id);
         sileo.success({
             title: "Certification Authority Deleted",
             description: `Certification Authority "${caToDelete.name}" has been permanently deleted.`
@@ -292,7 +281,7 @@ export default function CertificateAuthorityDetailsClient() {
   };
 
   const handleConfirmReissueCA = async (payload: { profile_id?: string; profile?: any }) => {
-    if (!caToReissue || !user?.access_token) {
+    if (!caToReissue ) {
       sileo.error({ title: "Error", description: "Cannot reissue CA. Details or authentication missing." });
       return;
     }
@@ -301,7 +290,7 @@ export default function CertificateAuthorityDetailsClient() {
     setIsReissueModalOpen(false); // Close modal immediately
 
     try {
-      await reissueCa(caToReissue.id, payload, user.access_token);
+      await reissueCa(caToReissue.id, payload);
       sileo.success({
         title: "Certification Authority Reissued",
         description: `Certification Authority "${caToReissue.name}" has been successfully reissued.`
@@ -320,13 +309,10 @@ export default function CertificateAuthorityDetailsClient() {
   };
 
   const handleUpdateCaMetadata = async (id: string, patchOperations: PatchOperation[]) => {
-    if (!user?.access_token) {
-        throw new Error("User not authenticated.");
-    }
-    await updateCaMetadata(id, patchOperations, user.access_token);
+    await updateCaMetadata(id, patchOperations);
   };
 
-  if (authLoading || isLoadingCAs || isLoadingEngines) {
+  if (isLoadingCAs || isLoadingEngines) {
     return (
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <Loader2 className="h-12 w-12 text-primary animate-spin" />

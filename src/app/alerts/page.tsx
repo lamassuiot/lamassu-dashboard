@@ -54,7 +54,6 @@ const getEventCategory = (event: AlertEvent): EventCategoryFilter => {
 };
 
 export default function AlertsPage() {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [allSubscriptions, setAllSubscriptions] = useState<ApiSubscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,15 +85,10 @@ export default function AlertsPage() {
 
 
   const performUnsubscribe = async (subscriptionId: string) => {
-    if (!user?.access_token) {
-        sileo.error({ title: 'Authentication Error', description: 'You must be logged in to unsubscribe.' });
-        return;
-    }
-    
     setIsDeleting(true);
 
     try {
-        await unsubscribeFromAlert(subscriptionId, user.access_token);
+        await unsubscribeFromAlert(subscriptionId);
         
         sileo.success({ title: 'Success', description: 'You have been unsubscribed from the alert.' });
         
@@ -192,18 +186,14 @@ export default function AlertsPage() {
 
 
   const loadAlertsData = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-        if (!authLoading) setError("User not authenticated.");
-        setIsLoading(false);
-        return;
-    }
+    
 
     setIsLoading(true);
     setError(null);
     try {
       const [apiEvents, apiSubscriptions] = await Promise.all([
-        fetchLatestAlerts(user.access_token),
-        fetchSystemSubscriptions(user.access_token),
+        fetchLatestAlerts(),
+        fetchSystemSubscriptions(),
       ]);
       
       setAllSubscriptions(apiSubscriptions);
@@ -250,13 +240,11 @@ export default function AlertsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, isAuthenticated, authLoading]);
+  }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-        loadAlertsData();
-    }
-  }, [loadAlertsData, authLoading]);
+    loadAlertsData();
+  }, [loadAlertsData]);
 
   const handleSort = (column: SortableAlertColumn) => {
     setSortConfig(currentConfig => ({
@@ -335,15 +323,6 @@ export default function AlertsPage() {
     setCurrentPage(1);
   }, [filterText, showWithSubscriptionsOnly, sortConfig, pageSize, eventCategoryFilter]);
 
-
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2 text-muted-foreground">Authenticating...</p>
-      </div>
-    );
-  }
 
   return (
     <>

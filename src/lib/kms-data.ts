@@ -1,6 +1,7 @@
 // KMS (Key Management Service) API functions
 import { ApiCryptoEngine } from "@/types/crypto-engine";
 import { get_KMS_API_BASE_URL } from "./api-domains";
+import { requireAccessToken } from "./auth-session";
 
 // --- KMS Key Types and Interfaces ---
 
@@ -43,7 +44,8 @@ export interface ImportKmsKeyPayload {
 
 
 // --- KMS Key API Functions ---
-export async function fetchCryptoEngines(accessToken: string): Promise<ApiCryptoEngine[]> {
+export async function fetchCryptoEngines(): Promise<ApiCryptoEngine[]> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/engines`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -66,7 +68,8 @@ export async function fetchCryptoEngines(accessToken: string): Promise<ApiCrypto
     return enginesData;
 }
 
-export async function fetchKmsKeys(accessToken: string, params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
+export async function fetchKmsKeys(params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
+    const accessToken = requireAccessToken();
     const url = new URL(`${get_KMS_API_BASE_URL()}/keys`);
     params.forEach((value, key) => url.searchParams.append(key, value));
     
@@ -87,7 +90,8 @@ export async function fetchKmsKeys(accessToken: string, params: URLSearchParams)
     return response.json();
 }
 
-export async function fetchKmsKey(keyId: string, accessToken: string): Promise<ApiKmsKey> {
+export async function fetchKmsKey(keyId: string): Promise<ApiKmsKey> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -105,7 +109,8 @@ export async function fetchKmsKey(keyId: string, accessToken: string): Promise<A
     return response.json();
 }
 
-export async function signWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<any> {
+export async function signWithKmsKey(keyId: string, payload: any): Promise<any> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/sign`, {
         method: 'POST',
         headers: {
@@ -121,7 +126,8 @@ export async function signWithKmsKey(keyId: string, payload: any, accessToken: s
     return result;
 }
 
-export async function verifyWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<{ valid: boolean }> {
+export async function verifyWithKmsKey(keyId: string, payload: any): Promise<{ valid: boolean }> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/verify`, {
         method: 'POST',
         headers: {
@@ -146,7 +152,8 @@ export async function verifyWithKmsKey(keyId: string, payload: any, accessToken:
     return response.json();
 }
 
-export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: string): Promise<ApiKmsKey> {
+export async function createKmsKey(payload: CreateKmsKeyPayload): Promise<void> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys`, {
         method: 'POST',
         headers: {
@@ -166,10 +173,10 @@ export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: st
         }
         throw new Error(errorMessage);
     }
-    return response.json();
 }
 
-export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: string): Promise<ApiKmsKey> {
+export async function importKmsKey(payload: ImportKmsKeyPayload): Promise<void> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/import`, {
         method: 'POST',
         headers: {
@@ -189,10 +196,10 @@ export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: st
         }
         throw new Error(errorMessage);
     }
-    return response.json();
 }
 
-export async function deleteKmsKey(keyId: string, accessToken: string): Promise<void> {
+export async function deleteKmsKey(keyId: string): Promise<void> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -217,7 +224,8 @@ export interface PatchOperation {
     value?: any; // Value for add or replace operations (omit for remove)
 }
 
-export async function updateKeyAliases(keyId: string, patches: PatchOperation[], accessToken: string): Promise<void> {
+export async function updateKeyAliases(keyId: string, patches: PatchOperation[]): Promise<void> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/alias`, {
         method: 'PUT',
         headers: {
@@ -239,7 +247,8 @@ export async function updateKeyAliases(keyId: string, patches: PatchOperation[],
     }
 }
 
-export async function updateKeyTags(keyId: string, tags: string[], accessToken: string): Promise<void> {
+export async function updateKeyTags(keyId: string, tags: string[]): Promise<void> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/tags`, {
         method: 'PUT',
         headers: {
@@ -261,7 +270,8 @@ export async function updateKeyTags(keyId: string, tags: string[], accessToken: 
     }
 }
 
-export async function updateKeyMetadata(keyId: string, patchOperations: PatchOperation[], accessToken: string): Promise<void> {
+export async function updateKeyMetadata(keyId: string, patchOperations: PatchOperation[]): Promise<void> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/metadata`, {
         method: 'PUT',
         headers: {

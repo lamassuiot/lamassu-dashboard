@@ -39,19 +39,17 @@ const STATUS_LABELS: Record<keyof DeviceGroupStats['status_distribution'], strin
 };
 
 export function CompactGroupStats({ groupId, className }: CompactGroupStatsProps) {
-  const { user } = useAuth();
   const [stats, setStats] = useState<DeviceGroupStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchStats = async () => {
-      if (!user?.access_token) return;
-
+      
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getDeviceGroupStats(user.access_token, groupId);
+        const data = await getDeviceGroupStats(groupId);
         setStats(data);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch statistics';
@@ -62,7 +60,7 @@ export function CompactGroupStats({ groupId, className }: CompactGroupStatsProps
     };
 
     fetchStats();
-  }, [groupId, user?.access_token]);
+  }, [groupId]);
 
   if (isLoading) {
     return (

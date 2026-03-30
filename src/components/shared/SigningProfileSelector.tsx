@@ -91,8 +91,6 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
   createModeEnabled = true,
   onProfileCreated,
 }) => {
-    
-  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<SigningProfileFormValues>({
@@ -106,12 +104,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
       event.preventDefault();
       event.stopPropagation();
     }
-    
-    if (!user?.access_token) {
-        sileo.error({ title: "Error", description: "Authentication token is missing." });
-        return;
-    }
-    
+
     setIsSubmitting(true);
 
     let validityPayload: { type: "Duration" | "Date"; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
@@ -153,7 +146,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
     }
 
     try {
-        const newProfile = await createSigningProfile(payload, user.access_token);
+        const newProfile = await createSigningProfile(payload);
         sileo.success({ title: "Profile Created", description: `Issuance Profile "${data.profileName}" has been successfully created.` });
         onProfileCreated?.(newProfile); // Callback to parent
     } catch (error: any) {

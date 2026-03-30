@@ -78,7 +78,6 @@ const calculateExpirationDate = (durationStr: string): Date => {
 
 export default function CreateCaGeneratePage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -134,21 +133,15 @@ export default function CreateCaGeneratePage() {
   }, []);
 
   const loadDependencies = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading) {
-        setErrorDependencies("User not authenticated. Cannot load dependencies.");
-      }
-      setIsLoadingDependencies(false);
-      return;
-    }
+    
 
     setIsLoadingDependencies(true);
     setErrorDependencies(null);
     try {
       const [fetchedCAs, enginesData, profilesResponse] = await Promise.all([
-        fetchAndProcessCAs(user.access_token),
-        fetchCryptoEngines(user.access_token),
-        fetchSigningProfiles(user.access_token),
+        fetchAndProcessCAs(),
+        fetchCryptoEngines(),
+        fetchSigningProfiles(),
       ]);
       setAvailableParentCAs(fetchedCAs);
       setAllCryptoEngines(enginesData);
@@ -171,13 +164,11 @@ export default function CreateCaGeneratePage() {
     } finally {
       setIsLoadingDependencies(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading]);
+  }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-      loadDependencies();
-    }
-  }, [loadDependencies, authLoading]);
+    loadDependencies();
+  }, [loadDependencies]);
 
   // Validate CA profile when selected in reuse mode
   useEffect(() => {
@@ -434,7 +425,7 @@ export default function CreateCaGeneratePage() {
     }
 
     try {
-      await createCa(payload, user!.access_token!);
+      await createCa(payload);
 
       sileo.success({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.` });
       router.push('/certificate-authorities');
@@ -480,7 +471,7 @@ export default function CreateCaGeneratePage() {
                   <CryptoEngineSelector
                     value={cryptoEngineId}
                     onValueChange={setCryptoEngineId}
-                    disabled={authLoading || isSubmitting}
+                    disabled={isSubmitting}
                     className="mt-1"
                   />
                 </div>
@@ -609,9 +600,9 @@ export default function CreateCaGeneratePage() {
                         onClick={() => setIsParentCaModalOpen(true)}
                         className="w-full justify-start text-left font-normal mt-1"
                         id="parentCa"
-                        disabled={isLoadingDependencies || authLoading || isSubmitting}
+                        disabled={isLoadingDependencies || isSubmitting}
                       >
-                        {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
+                        {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
                       </Button>
                       {selectedParentCa && (
                         <div className="mt-2">
@@ -742,7 +733,6 @@ export default function CreateCaGeneratePage() {
         loadCAsAction={loadDependencies}
         onCaSelected={handleParentCaSelectFromModal}
         currentSelectedCaId={selectedParentCa?.id}
-        isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
       />
     </div>

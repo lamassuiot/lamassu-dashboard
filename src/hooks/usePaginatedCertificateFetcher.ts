@@ -23,7 +23,6 @@ interface UsePaginatedCertificateFetcherParams {
 }
 
 export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = '10' }: UsePaginatedCertificateFetcherParams = {}) {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [isClientMounted, setIsClientMounted] = useState(false);
   useEffect(() => { setIsClientMounted(true); }, []);
@@ -79,11 +78,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   // This is now the ONLY data fetching effect.
   // It handles both initial load, pagination changes, and filter changes.
   useEffect(() => {
-    if (!isClientMounted || authLoading || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && isAuthenticated() && isClientMounted) {
-        setError("User not authenticated.");
-      }
-      if (!authLoading) setIsLoading(false);
+    if (!isClientMounted ) {
       return;
     }
     
@@ -150,7 +145,6 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
             filtersToApply.forEach(f => apiParams.append('filter', f));
             
             const fetchWithQuery = (queryString: string) => fetchIssuedCertificates({
-                accessToken: user.access_token,
                 forCaId: caIdFilter ?? undefined,
                 apiQueryString: queryString,
             });
@@ -197,7 +191,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   // which in turn triggers this effect to run exactly once with the correct state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isClientMounted, authLoading, isAuthenticated, user?.access_token,
+    isClientMounted,
     currentPageIndex, bookmarkStack,
   ]);
 

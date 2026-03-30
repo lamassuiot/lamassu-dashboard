@@ -79,7 +79,6 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     presentation = 'dialog',
     className,
 }) => {
-    const { user } = useAuth();
     const isMobile = useIsMobile();
     const resolvedPresentation = presentation === 'inline' && isMobile ? 'dialog' : presentation;
     
@@ -117,15 +116,15 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
     // Fetch dependencies when modal opens
     useEffect(() => {
-        if (!isOpen || !user?.access_token) return;
+        if (!isOpen ) return;
 
         const loadDependencies = async () => {
             setIsLoadingDependencies(true);
             setErrorDependencies(null);
             try {
                 const [casData, enginesData] = await Promise.all([
-                    fetchAndProcessCAs(user.access_token),
-                    fetchCryptoEngines(user.access_token)
+                    fetchAndProcessCAs(),
+                    fetchCryptoEngines()
                 ]);
                 setAvailableCAs(casData);
                 setAllCryptoEngines(enginesData);
@@ -137,7 +136,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
         };
 
         loadDependencies();
-    }, [isOpen, user?.access_token]);
+    }, [isOpen]);
     
 
     useEffect(() => {
@@ -233,7 +232,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
         } else if (step === 2) { // --> Define Props
             setStep(3);
         } else if (step === 3) { // --> Issue Bootstrap Cert
-             if (!bootstrapSigner || !user?.access_token) {
+             if (!bootstrapSigner ) {
                 sileo.error({ title: "Bootstrap Signer Required", description: "You must select a CA to sign the bootstrap certificate." });
                 return;
             }
@@ -267,7 +266,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 };
                 
                 // Call signing API
-                const result = await signCertificate(bootstrapSigner.id, payload, user.access_token);
+                const result = await signCertificate(bootstrapSigner.id, payload);
                 const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
                 
                 setBootstrapCertificate(issuedPem);

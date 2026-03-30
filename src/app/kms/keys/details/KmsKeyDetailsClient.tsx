@@ -3,7 +3,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,14 +12,13 @@ import { sileo } from '@/lib/toast';
 import { KmsPublicKeyPemTabContent } from '@/components/kms/details/KmsPublicKeyPemTabContent';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
+import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useAuth } from '@/contexts/AuthContext';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, updateKeyMetadata, type PatchOperation } from '@/lib/kms-data';
@@ -94,7 +92,6 @@ export default function KmsKeyDetailsClient() {
   const monacoTheme = useMonacoTheme();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const keyId = searchParams.get('keyId');
 
   const [keyDetails, setKeyDetails] = useState<KmsKeyDetailed | null>(null);
@@ -211,7 +208,7 @@ export default function KmsKeyDetailsClient() {
   };
 
   const handleSaveAliases = async () => {
-    if (!keyDetails || !user?.access_token) return;
+    if (!keyDetails ) return;
 
     setIsSavingAliases(true);
     try {
@@ -245,7 +242,7 @@ export default function KmsKeyDetailsClient() {
         return;
       }
 
-      await updateKeyAliases(keyDetails.id, patches, user.access_token);
+      await updateKeyAliases(keyDetails.id, patches);
       
       // Update original aliases to match current state
       setOriginalAliases([...keyAliases]);
@@ -274,7 +271,7 @@ export default function KmsKeyDetailsClient() {
 
   // --- Tags Management Handlers ---
   const handleSaveTags = async () => {
-    if (!keyDetails || !user?.access_token) return;
+    if (!keyDetails ) return;
 
     setIsSavingTags(true);
     try {
@@ -286,7 +283,7 @@ export default function KmsKeyDetailsClient() {
         return;
       }
 
-      await updateKeyTags(keyDetails.id, keyTags, user.access_token);
+      await updateKeyTags(keyDetails.id, keyTags);
       
       // Update original tags to match current state
       setOriginalTags([...keyTags]);
@@ -316,11 +313,7 @@ export default function KmsKeyDetailsClient() {
   };
 
   const handleUpdateMetadata = async (itemId: string, patchOperations: PatchOperation[]) => {
-    if (!user?.access_token) {
-      throw new Error('Authentication token is missing.');
-    }
-
-    await updateKeyMetadata(itemId, patchOperations, user.access_token);
+    await updateKeyMetadata(itemId, patchOperations);
     await fetchKeyData();
   };
 
@@ -340,21 +333,13 @@ export default function KmsKeyDetailsClient() {
       return;
     }
 
-    if (authLoading || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()) {
-        setError("User not authenticated. Please log in.");
-      }
-      setIsLoading(false);
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
 
     try {
       const [apiKey, allEnginesData] = await Promise.all([
-        fetchKmsKey(keyId, user.access_token),
-        fetchCryptoEngines(user.access_token)
+        fetchKmsKey(keyId),
+        fetchCryptoEngines()
       ]);
 
       setAllCryptoEngines(allEnginesData);
@@ -448,7 +433,7 @@ export default function KmsKeyDetailsClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [keyId, authLoading, isAuthenticated, user?.access_token]);
+  }, [keyId]);
 
   useEffect(() => {
     fetchKeyData();
@@ -461,7 +446,7 @@ export default function KmsKeyDetailsClient() {
 
   useEffect(() => {
     const loadBoundCertificates = async () => {
-      if (!user?.access_token || boundCertificateResources.length === 0) {
+      if (boundCertificateResources.length === 0) {
         setBoundCertificates([]);
         setBoundCertificatesError(null);
         setIsLoadingBoundCertificates(false);
@@ -475,13 +460,10 @@ export default function KmsKeyDetailsClient() {
         const uniqueSerials = [...new Set(boundCertificateResources.map(resource => resource.resource_id))];
         const certificateResults = await Promise.all(
           uniqueSerials.map(async (serialNumber) => {
-            return fetchIssuedCertificate(serialNumber, user.access_token).catch((err: unknown) => {
-              // Treat 404 (certificate no longer exists) as absent rather than an error.
-              // All other failures (auth, network, 5xx) are re-thrown so the outer
-              // catch can surface them via setBoundCertificatesError.
-              if (err instanceof Error && /HTTP error 404/.test(err.message)) return null;
-              throw err;
+            const { certificates } = await fetchIssuedCertificates({
+              apiQueryString: `serial_number=${encodeURIComponent(serialNumber)}&page_size=1`,
             });
+            return certificates[0] || null;
           })
         );
 
@@ -495,15 +477,15 @@ export default function KmsKeyDetailsClient() {
     };
 
     loadBoundCertificates();
-  }, [boundCertificateResources, user?.access_token]);
+  }, [boundCertificateResources]);
 
   const handleSign = async () => {
     if (!payloadToSign) {
       sileo.error({ title: "Sign Error", description: "Payload to sign cannot be empty." });
       return;
     }
-    if (!keyId || !user?.access_token) {
-      sileo.error({ title: "Sign Error", description: "Key ID or user authentication is missing." });
+    if (!keyId ) {
+      sileo.error({ title: "Sign Error", description: "Key ID or active session is missing." });
       return;
     }
 
@@ -534,7 +516,7 @@ export default function KmsKeyDetailsClient() {
         message_type: signMessageType.toLowerCase(),
       };
 
-      const result = await signWithKmsKey(keyId, payload, user.access_token);
+      const result = await signWithKmsKey(keyId, payload);
 
       if (!result.signature) {
         throw new Error("Signature not found in the API response.");
@@ -557,8 +539,8 @@ export default function KmsKeyDetailsClient() {
       sileo.error({ title: "Verify Error", description: "Unsigned payload and signature cannot be empty." });
       return;
     }
-    if (!keyId || !user?.access_token) {
-      sileo.error({ title: "Verify Error", description: "Key ID or user authentication is missing." });
+    if (!keyId ) {
+      sileo.error({ title: "Verify Error", description: "Key ID or active session is missing." });
       return;
     }
 
@@ -592,7 +574,7 @@ export default function KmsKeyDetailsClient() {
         signature: signatureToVerify,
       };
 
-      const result = await verifyWithKmsKey(keyId, payload, user.access_token);
+      const result = await verifyWithKmsKey(keyId, payload);
 
       setVerificationResult({
         valid: result.valid,
@@ -615,8 +597,8 @@ export default function KmsKeyDetailsClient() {
       sileo.error({ title: "CSR Generation Error", description: "Common Name (CN) is required." });
       return;
     }
-    if (!keyDetails?.publicKeyPem || !keyDetails.id || !user?.access_token) {
-      sileo.error({ title: "CSR Generation Error", description: "Key details or authentication are missing." });
+    if (!keyDetails?.publicKeyPem || !keyDetails.id ) {
+      sileo.error({ title: "CSR Generation Error", description: "Key details or active session are missing." });
       return;
     }
     if (!csrSignAlgorithm) {
@@ -644,7 +626,6 @@ export default function KmsKeyDetailsClient() {
           const result = await signWithKmsKey(
             keyDetails.id,
             { algorithm: MLDSA_ALGORITHMS.has(csrSignAlgorithm) ? `${csrSignAlgorithm}_PURE` : csrSignAlgorithm, message: tbsBase64, message_type: 'raw' },
-            user.access_token!,
           );
           return result.signature;
         },
@@ -690,7 +671,7 @@ export default function KmsKeyDetailsClient() {
   }, [keyDetails]);
 
 
-  if (isLoading || authLoading) {
+  if (isLoading) {
     return (
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <Loader2 className="h-12 w-12 text-primary animate-spin" />

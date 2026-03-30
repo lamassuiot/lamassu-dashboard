@@ -48,7 +48,7 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-const statusSortOrder: Record<DeviceStatus, number> = {
+const _statusSortOrder: Record<DeviceStatus, number> = {
   'ACTIVE': 0,
   'EXPIRING_SOON': 1,
   'RENEWAL_PENDING': 2,
@@ -113,7 +113,6 @@ type SortDirection = 'asc' | 'desc';
 export default function DevicesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [devices, setDevices] = useState<DeviceData[]>([]);
   const [isLoadingApi, setIsLoadingApi] = useState(true);
@@ -183,15 +182,7 @@ export default function DevicesPage() {
   }, [searchTerm]);
 
   const fetchData = useCallback(async (bookmarkToFetch: string | null) => {
-    if (authLoading || !isAuthenticated() || !user?.access_token) {
-        if (!authLoading && !isAuthenticated()) {
-            setApiError("User not authenticated.");
-        }
-        setIsLoadingApi(false);
-        setDevices([]);
-        setNextTokenFromApi(null);
-        return;
-    }
+    
     
     setIsLoadingApi(true);
     setApiError(null);
@@ -223,7 +214,7 @@ export default function DevicesPage() {
         if (statusFilter !== 'ALL') filtersToApply.push(`status[equal]${statusFilter}`);
         filtersToApply.forEach(f => params.append('filter', f));
 
-        const data = await fetchDevices(user.access_token!, params);
+        const data = await fetchDevices(params);
         const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
             id: apiDevice.id,
             displayId: apiDevice.id,
@@ -247,7 +238,7 @@ export default function DevicesPage() {
         setIsLoadingApi(false);
         if (isInitialLoad.current) isInitialLoad.current = false;
     }
-  }, [authLoading, isAuthenticated, user, sortConfig, pageSize, dmsOwnerFilter, debouncedSearchTerm, searchField, statusFilter]);
+  }, [debouncedSearchTerm, dmsOwnerFilter, pageSize, searchField, sortConfig, statusFilter]);
 
   // Effect for filter changes
   useEffect(() => {
@@ -262,7 +253,7 @@ export default function DevicesPage() {
     if (bookmarkStack[currentPageIndex] !== undefined) {
         fetchData(bookmarkStack[currentPageIndex]);
     }
-  }, [currentPageIndex, bookmarkStack, fetchData]);
+  }, [bookmarkStack, currentPageIndex, fetchData]);
 
 
   const requestSort = (column: SortableColumn) => {
@@ -328,18 +319,13 @@ export default function DevicesPage() {
   };
 
   const handleOpenEnrollModal = async (device: DeviceData) => {
-    if (!user?.access_token) {
-        sileo.error({ title: 'Authentication Error', description: 'You must be logged in.' });
-        return;
-    }
-
     setDeviceForEnrollModal(device);
     setRaForEnrollModal(null); // Clear previous RA data
     setIsEnrollModalOpen(true);
 
     // Fetch RA details after opening the modal to show loading state inside
     try {
-        const raData = await fetchRaById(device.deviceGroup, user.access_token);
+        const raData = await fetchRaById(device.deviceGroup);
         setRaForEnrollModal(raData);
     } catch (err: any) {
         sileo.error({ title: 'Error Fetching RA Details', description: err.message });
@@ -379,15 +365,6 @@ export default function DevicesPage() {
     setCurrentPageIndex(prevIndex);
   };
 
-  if (authLoading && !sortedDevices.length) {
-    return (
-      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Authenticating...</p>
-      </div>
-    );
-  }
-
   const hasActiveFilters = debouncedSearchTerm || statusFilter !== 'ALL' || dmsOwnerFilter;
 
   return (
@@ -424,14 +401,14 @@ export default function DevicesPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10"
-              disabled={isLoadingApi || authLoading}
+              disabled={isLoadingApi}
             />
           </div>
         </div>
 
         <div className="space-y-1">
           <Label htmlFor="searchFieldSelect">Search In</Label>
-          <Select value={searchField} onValueChange={(value: 'id' | 'tags') => setSearchField(value)} disabled={isLoadingApi || authLoading}>
+          <Select value={searchField} onValueChange={(value: 'id' | 'tags') => setSearchField(value)} disabled={isLoadingApi}>
             <SelectTrigger id="searchFieldSelect">
               <SelectValue />
             </SelectTrigger>
@@ -447,13 +424,13 @@ export default function DevicesPage() {
           <DmsSelector
             value={dmsOwnerFilter}
             onChange={handleDmsOwnerChange}
-            disabled={isLoadingApi || authLoading}
+            disabled={isLoadingApi}
           />
         </div>
         
         <div className="space-y-1">
           <Label htmlFor="statusFilter">Status</Label>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as DeviceStatus | 'ALL')} disabled={isLoadingApi || authLoading}>
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as DeviceStatus | 'ALL')} disabled={isLoadingApi}>
             <SelectTrigger id="statusFilter">
               <SelectValue />
             </SelectTrigger>
@@ -616,7 +593,7 @@ export default function DevicesPage() {
                 <Select
                   value={pageSize}
                   onValueChange={(value) => setPageSize(value)}
-                  disabled={isLoadingApi || authLoading}
+                  disabled={isLoadingApi}
                 >
                   <SelectTrigger id="pageSizeSelectBottom" className="w-[80px]">
                     <SelectValue placeholder="Page size" />

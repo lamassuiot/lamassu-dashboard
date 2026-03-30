@@ -47,8 +47,6 @@ export default function EditSigningProfilePage() {
   const searchParams = useSearchParams();
   const profileId = searchParams.get('id');
   const isEditMode = !!profileId;
-
-  const { user } = useAuth();
   
   const [profileData, setProfileData] = useState<ApiSigningProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(isEditMode);
@@ -60,14 +58,14 @@ export default function EditSigningProfilePage() {
   });
   
   const fetchProfile = useCallback(async () => {
-    if (!profileId || !user?.access_token) {
-        if (isEditMode) setErrorProfile('Profile ID or user token is missing.');
+    if (!profileId ) {
+        if (isEditMode) setErrorProfile('Profile ID or active session is missing.');
         setIsLoadingProfile(false);
         return;
     }
     setIsLoadingProfile(true);
     try {
-        const data = await fetchSigningProfileById(profileId, user.access_token);
+        const data = await fetchSigningProfileById(profileId);
         setProfileData(data);
         form.reset(mapApiProfileToFormValues(data)); // Reset form with fetched data
         setErrorProfile(null);
@@ -76,15 +74,15 @@ export default function EditSigningProfilePage() {
     } finally {
         setIsLoadingProfile(false);
     }
-  }, [profileId, user?.access_token, isEditMode, form]);
+  }, [profileId, isEditMode, form]);
 
   useEffect(() => {
-    if (isEditMode && user?.access_token) {
+    if (isEditMode ) {
         fetchProfile();
     } else if (!isEditMode) {
         setErrorProfile("No Profile ID was provided. This page is for editing existing profiles.");
     }
-  }, [user?.access_token, fetchProfile, isEditMode]);
+  }, [fetchProfile, isEditMode]);
   
 
   const mapApiProfileToFormValues = (profile: ApiSigningProfile): SigningProfileFormValues => {
@@ -132,8 +130,8 @@ export default function EditSigningProfilePage() {
   };
 
   async function handleSubmit(data: SigningProfileFormValues) {
-    if (!user?.access_token || !profileId) {
-        sileo.error({ title: "Error", description: "Authentication token or Profile ID is missing." });
+    if (!profileId) {
+        sileo.error({ title: "Error", description: "Active session or Profile ID is missing." });
         return;
     }
 
@@ -178,7 +176,7 @@ export default function EditSigningProfilePage() {
     }
 
     try {
-        await updateSigningProfile(profileId, payload, user.access_token);
+        await updateSigningProfile(profileId, payload);
         sileo.success({ title: "Profile Updated", description: `Issuance Profile "${data.profileName}" has been successfully updated.` });
         router.push('/signing-profiles');
     } catch (error: any) {

@@ -84,7 +84,6 @@ interface ValidationAuthorityTabProps {
 
 export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [config, setConfig] = useState<VAConfig | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -104,7 +103,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
   const [showHttpWarning, setShowHttpWarning] = useState(false);
 
   const fetchCurrentVaConfig = useCallback(async () => {
-    if (!ca.subjectKeyId || !isAuthenticated() || !user?.access_token) {
+    if (!ca.subjectKeyId ) {
       setConfig(null);
       setSelectedCertificateSignerDisplay(null);
       setLatestCrl(null);
@@ -117,7 +116,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
     setLatestCrl(null);
 
     try {
-      const data = await fetchVaConfig(ca.subjectKeyId, user.access_token);
+      const data = await fetchVaConfig(ca.subjectKeyId);
 
       if (data === null) {
         setConfig(getDefaultVAConfig(ca.id));
@@ -141,7 +140,6 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
       if (newConfig.subjectKeyIDSigner) {
         const signerSki = newConfig.subjectKeyIDSigner;
         const { certificates } = await fetchIssuedCertificates({
-          accessToken: user.access_token,
           apiQueryString: `filter=subject_key_id[equal]${signerSki}&page_size=1`
         });
         if (certificates.length > 0) {
@@ -161,13 +159,11 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
     } finally {
       setIsLoadingConfig(false);
     }
-  }, [ca, isAuthenticated, user?.access_token]);
+  }, [ca]);
 
   useEffect(() => {
-    if (!authLoading) {
-      fetchCurrentVaConfig();
-    }
-  }, [authLoading, fetchCurrentVaConfig]);
+    fetchCurrentVaConfig();
+  }, [fetchCurrentVaConfig]);
 
   // Init CRL URL when CA changes
   useEffect(() => {
@@ -206,8 +202,8 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
   };
 
   const handleSaveConfig = async () => {
-    if (!config || !ca.subjectKeyId || !user?.access_token) {
-      sileo.error({ title: "Save Error", description: "Missing required data: CA Subject Key ID or authentication token." });
+    if (!config || !ca.subjectKeyId ) {
+      sileo.error({ title: "Save Error", description: "Missing required data: CA Subject Key ID or active session." });
       return;
     }
 
@@ -220,7 +216,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
         regenerate_on_revoke: config.regenerateOnRevoke,
       };
 
-      await updateVaConfig(ca.subjectKeyId, payload, user.access_token);
+      await updateVaConfig(ca.subjectKeyId, payload);
 
       sileo.success({
         title: "Success!",
@@ -237,13 +233,13 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
   };
 
   const handleDownloadCrl = async () => {
-    if (!ca.subjectKeyId || !user?.access_token) {
-      sileo.error({ title: "Download Error", description: "Cannot download CRL. Missing CA info or authentication." });
+    if (!ca.subjectKeyId ) {
+      sileo.error({ title: "Download Error", description: "Cannot download CRL. Missing CA info or active session." });
       return;
     }
     setIsDownloadingCrl(true);
     try {
-      const crlData = await downloadCrl(ca.subjectKeyId, user.access_token);
+      const crlData = await downloadCrl(ca.subjectKeyId);
       downloadFile(crlData, `${ca.subjectKeyId}.crl`, 'application/pkix-crl');
       sileo.success({ title: "Success", description: "CRL download has started." });
     } catch (e: any) {
@@ -317,7 +313,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
     }
   };
 
-  if (authLoading || isLoadingConfig) {
+  if (isLoadingConfig) {
     return (
       <div className="flex items-center justify-center rounded-xl border bg-muted/30 p-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -397,11 +393,10 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                   variant="outline"
                   onClick={() => setIsCertificateSignerModalOpen(true)}
                   className="w-full md:w-2/3 lg:w-1/2 justify-start text-left font-normal"
-                  disabled={authLoading || isSubmitting}
+                  disabled={isSubmitting}
                 >
-                  {authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> :
-                    selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}...`
-                      : "Select CRL Signer Certificate..."}
+                  {selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}...`
+                    : "Select CRL Signer Certificate..."}
                 </Button>
                 {selectedCertificateSignerDisplay && (
                   <div className="mt-2 p-2 border rounded-md bg-muted/30 max-w-md">

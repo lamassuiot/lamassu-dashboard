@@ -32,7 +32,6 @@ interface CaSelectorModalProps {
   loadCAsAction: () => void;
   onCaSelected: (ca: CA) => void;
   currentSelectedCaId?: string | null;
-  isAuthLoading: boolean;
   children?: React.ReactNode;
   allCryptoEngines?: ApiCryptoEngine[];
 }
@@ -48,7 +47,6 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
   loadCAsAction,
   onCaSelected,
   currentSelectedCaId,
-  isAuthLoading,
   children,
   allCryptoEngines,
 }) => {
@@ -102,13 +100,13 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
                 </div>
             </div>
 
-            {(isLoadingCAs || isAuthLoading) && (
+            {isLoadingCAs && (
               <div className="flex items-center justify-center h-72">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">{isAuthLoading ? "Authenticating..." : "Loading Certification Authorities..."}</p>
+                <p className="ml-2">Loading Certification Authorities...</p>
               </div>
             )}
-            {errorCAs && !isLoadingCAs && !isAuthLoading && (
+            {errorCAs && !isLoadingCAs && (
               <Alert variant="destructive" className="my-4">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Error Loading Certification Authorities</AlertTitle>
@@ -117,7 +115,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
                 </AlertDescription>
               </Alert>
             )}
-            {!isLoadingCAs && !isAuthLoading && !errorCAs && filteredCAs.length > 0 && (
+            {!isLoadingCAs && !errorCAs && filteredCAs.length > 0 && (
               <ScrollArea className="h-72 my-4 border rounded-md">
                 <ul className="space-y-0.5 p-2">
                   {filteredCAs.map((ca) => (
@@ -133,7 +131,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
                 </ul>
               </ScrollArea>
             )}
-            {!isLoadingCAs && !isAuthLoading && !errorCAs && filteredCAs.length === 0 && (
+            {!isLoadingCAs && !errorCAs && filteredCAs.length === 0 && (
               <p className="text-muted-foreground text-center my-4 p-4 border rounded-md bg-muted/20">
                 {filterText || selectedStatuses.length > 0 ? "No CAs match your search." : "No Certification Authorities available to select."}
               </p>

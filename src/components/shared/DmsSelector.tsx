@@ -43,7 +43,6 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
   placeholder,
   loadOnMount = false,
 }) => {
-  const { user, isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [dmsOptions, setDmsOptions] = useState<DmsOption[]>([]);
@@ -54,16 +53,13 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
   const displayPlaceholder = placeholder || defaultPlaceholder;
 
   const loadDmsOptions = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-      setLoadError('Not authenticated');
-      return;
-    }
+    
 
     setIsLoading(true);
     setLoadError(null);
 
     try {
-      const ras: ApiRaItem[] = await fetchAllRegistrationAuthorities(user.access_token);
+      const ras: ApiRaItem[] = await fetchAllRegistrationAuthorities();
       
       const options: DmsOption[] = ras.map((ra) => {
         const profile = ra.settings.enrollment_settings.device_provisioning_profile;
@@ -86,7 +82,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.access_token]);
+  }, []);
 
   // Load on mount if requested
   useEffect(() => {

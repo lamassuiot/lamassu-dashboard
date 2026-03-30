@@ -1,24 +1,24 @@
 'use client';
 
 import { get_EST_API_BASE_URL } from './api-domains';
+import { getStoredAccessToken } from './auth-session';
 
 /**
  * Fetches CA certificates from the EST endpoint for a given RA.
  * @param raId The ID of the Registration Authority.
  * @param format The desired format ('pkcs7-mime' or 'x-pem-file').
- * @param accessToken Optional access token for authenticated requests (like PEM).
  * @returns The certificate data as an ArrayBuffer or string.
  */
 export async function fetchEstCaCerts(
     raId: string,
     format: 'pkcs7-mime' | 'x-pem-file',
-    accessToken?: string
 ): Promise<{ data: ArrayBuffer | string, contentType: string }> {
     const url = `${get_EST_API_BASE_URL()}/${raId}/cacerts`;
 
     const headers: HeadersInit = {
         'Accept': `application/${format}`,
     };
+    const accessToken = getStoredAccessToken();
     if (accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`;
     }

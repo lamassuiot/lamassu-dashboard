@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, PlusCircle, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
+import { ArrowLeft, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -33,7 +33,6 @@ const templateMetadata = [
 
 export default function CreateSigningProfilePage() {
   const router = useRouter();
-  const { user } = useAuth();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [view, setView] = useState<'template' | 'form'>('template');
@@ -46,11 +45,6 @@ export default function CreateSigningProfilePage() {
   });
 
   async function handleSubmit(data: SigningProfileFormValues) {
-    if (!user?.access_token) {
-        sileo.error({ title: "Error", description: "Authentication token is missing." });
-        return;
-    }
-
     setIsSubmitting(true);
 
     let validityPayload: { type: 'Duration' | 'Date'; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
@@ -92,7 +86,7 @@ export default function CreateSigningProfilePage() {
     }
 
     try {
-        await createSigningProfile(payload, user.access_token);
+        await createSigningProfile(payload);
         sileo.success({ title: "Profile Created", description: `Issuance Profile "${data.profileName}" has been successfully created.` });
         router.push('/signing-profiles');
     } catch (error: any) {

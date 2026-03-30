@@ -5,7 +5,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap } from 'lucide-react';
@@ -60,7 +59,6 @@ export default function DeviceDetailsClient() {
   const searchParams = useSearchParams(); 
   const routerHook = useRouter();
   const deviceId = searchParams.get('deviceId'); 
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
@@ -127,11 +125,10 @@ export default function DeviceDetailsClient() {
   }, []);
   
   const fetchIntegrationData = useCallback(async (dmsOwnerId: string) => {
-    if (!user?.access_token) return;
-    try {
+        try {
         const [discovered, raDetails] = await Promise.all([
-            discoverIntegrations(user.access_token),
-            fetchRaById(dmsOwnerId, user.access_token)
+            discoverIntegrations(),
+            fetchRaById(dmsOwnerId)
         ]);
         
         const integrationsForRa = discovered.filter(int => int.raId === dmsOwnerId);
@@ -151,7 +148,7 @@ export default function DeviceDetailsClient() {
         setActiveIntegration(null);
         setRaForIntegration(null);
     }
-  }, [user?.access_token]);
+  }, []);
 
   const fetchDeviceDetails = useCallback(async () => {
       if (!deviceId) {
@@ -159,17 +156,11 @@ export default function DeviceDetailsClient() {
         setIsLoadingDevice(false);
         return;
       }
-      if (authLoading || !isAuthenticated() || !user?.access_token) {
-        if (!authLoading && !isAuthenticated()){
-             setErrorDevice("User not authenticated.");
-        }
-        setIsLoadingDevice(false);
-        return;
-      }
+      
       setIsLoadingDevice(true);
       setErrorDevice(null);
       try {
-        const data = await fetchDeviceById(deviceId, user.access_token);
+        const data = await fetchDeviceById(deviceId);
         setDevice(data);
         
         if (data.identity?.versions) {
@@ -194,7 +185,7 @@ export default function DeviceDetailsClient() {
       } finally {
         setIsLoadingDevice(false);
       }
-    }, [deviceId, user?.access_token, authLoading, isAuthenticated, fetchCertificateHistoryData, fetchIntegrationData]);
+    }, [deviceId, fetchCertificateHistoryData, fetchIntegrationData]);
 
 
   useEffect(() => {
@@ -234,7 +225,7 @@ export default function DeviceDetailsClient() {
 
   // Effect for History Tab Pagination (remains independent)
    useEffect(() => {
-    if (fullCertificateIdentityList.length === 0 || !user?.access_token) {
+    if (fullCertificateIdentityList.length === 0 ) {
         if(fullCertificateIdentityList.length === 0) {
             setCertificateHistory([]); 
         }
@@ -258,7 +249,6 @@ export default function DeviceDetailsClient() {
         try {
             const certPromises = pageIdentities.map(async ({ version, serialNumber }) => {
                 const { certificates } = await fetchIssuedCertificates({
-                    accessToken: user.access_token!,
                     apiQueryString: `filter=serial_number[equal_ignorecase]${serialNumber}&page_size=1`
                 });
                 const certData = certificates[0];
@@ -295,12 +285,12 @@ export default function DeviceDetailsClient() {
 
     fetchPageData();
 
-  }, [fullCertificateIdentityList, historyCurrentPage, historyPageSize, user?.access_token, device?.identity]);
+  }, [fullCertificateIdentityList, historyCurrentPage, historyPageSize, device?.identity]);
 
 
   // New, combined useEffect for Timeline processing and on-demand fetching
   useEffect(() => {
-    if (!device || allRawEvents.length === 0 || !user?.access_token) {
+    if (!device || allRawEvents.length === 0 ) {
         setTimelineEvents([]);
         return;
     }
@@ -331,7 +321,6 @@ export default function DeviceDetailsClient() {
             try {
                 const certPromises = serialsToFetch.map(serialNumber => 
                     fetchIssuedCertificates({
-                        accessToken: user.access_token!,
                         apiQueryString: `filter=serial_number[equal_ignorecase]${serialNumber}&page_size=1`
                     }).then(result => result.certificates[0])
                 );
@@ -406,7 +395,7 @@ export default function DeviceDetailsClient() {
     };
 
     processAndFetchForTimeline();
-}, [device, allRawEvents, timelineDisplayCount, user?.access_token, timelineFetchedCerts]);
+}, [device, allRawEvents, timelineDisplayCount, timelineFetchedCerts]);
   
   
   const handleOpenRevokeModal = (certInfo: CertificateHistoryEntry) => {
@@ -415,7 +404,7 @@ export default function DeviceDetailsClient() {
   };
 
   const handleConfirmRevocation = async (reason: string) => {
-    if (!certToRevoke || !user?.access_token) {
+    if (!certToRevoke ) {
         sileo.error({ title: "Error", description: "Cannot revoke. Missing data or authentication." });
         return;
     }
@@ -428,7 +417,6 @@ export default function DeviceDetailsClient() {
         serialNumber: certToRevoke.serialNumber,
         status: 'REVOKED',
         reason: reason,
-        accessToken: user.access_token,
       });
       
       const updatedEntry = { ...certToRevoke, apiStatus: 'REVOKED', revocationReason: reason, revocationTimestamp: new Date().toISOString() };
@@ -454,16 +442,10 @@ export default function DeviceDetailsClient() {
   };
 
   const handleReactivateCertificate = async (certToReactivate: CertificateHistoryEntry) => {
-    if (!user?.access_token) {
-      sileo.error({ title: "Error", description: "Authentication token not found." });
-      return;
-    }
-
     try {
       await updateCertificateStatus({
         serialNumber: certToReactivate.serialNumber,
         status: 'ACTIVE',
-        accessToken: user.access_token,
       });
 
       const updatedEntry = { ...certToReactivate, apiStatus: 'ACTIVE', revocationReason: undefined, revocationTimestamp: undefined };
@@ -490,7 +472,7 @@ export default function DeviceDetailsClient() {
   };
 
   const handleAssignIdentityConfirm = async (certificateSerialNumber: string) => {
-    if (!deviceId || !user?.access_token) {
+    if (!deviceId ) {
         sileo.error({
             title: "Error",
             description: "Cannot assign identity. Device ID or authentication is missing."
@@ -499,7 +481,7 @@ export default function DeviceDetailsClient() {
     }
     setIsAssigning(true);
     try {
-        await bindIdentityToDevice(deviceId, certificateSerialNumber, user.access_token);
+        await bindIdentityToDevice(deviceId, certificateSerialNumber);
 
         sileo.success({
             title: "Success!",
@@ -519,7 +501,7 @@ export default function DeviceDetailsClient() {
   };
 
   const handleDecommissionConfirm = async () => {
-    if (!deviceId || !user?.access_token) {
+    if (!deviceId ) {
         sileo.error({
             title: "Error",
             description: "Cannot decommission device. Device ID or authentication is missing."
@@ -528,7 +510,7 @@ export default function DeviceDetailsClient() {
     }
     setIsDecommissioning(true);
     try {
-        await decommissionDevice(deviceId, user.access_token);
+        await decommissionDevice(deviceId);
         sileo.success({
             title: "Success!",
             description: "Device has been successfully decommissioned."
@@ -546,7 +528,7 @@ export default function DeviceDetailsClient() {
   };
 
   const handleDeleteConfirm = async () => {
-    if (!deviceId || !user?.access_token) {
+    if (!deviceId ) {
         sileo.error({
             title: "Error",
             description: "Cannot delete device. Device ID or authentication is missing."
@@ -555,7 +537,7 @@ export default function DeviceDetailsClient() {
     }
     setIsDeleting(true);
     try {
-        await deleteDevice(deviceId, user.access_token);
+        await deleteDevice(deviceId);
         sileo.success({
             title: "Success!",
             description: "Device has been permanently deleted."
@@ -573,7 +555,7 @@ export default function DeviceDetailsClient() {
   };
   
   const handleForceUpdateConfirm = async (configKey: string, actions: string[]) => {
-    if (!device?.dms_owner || !deviceId || !user?.access_token || !activeIntegration) {
+    if (!device?.dms_owner || !deviceId  || !activeIntegration) {
         sileo.error({ title: "Error", description: "Missing data required for force update." });
         return;
     }
@@ -584,7 +566,7 @@ export default function DeviceDetailsClient() {
             path: `/${configKey.replace(/\//g, '~1')}`,
             value: { actions }
         };
-        await updateDeviceMetadata(deviceId, [patch], user.access_token);
+        await updateDeviceMetadata(deviceId, [patch]);
         
         sileo.success({ title: "Success", description: "A forced certificate update has been triggered for the device." });
         setIsForceUpdateModalOpen(false);
@@ -597,10 +579,7 @@ export default function DeviceDetailsClient() {
   };
 
   const handleUpdateDeviceMetadata = async (id: string, patchOperations: PatchOperation[]) => {
-    if (!user?.access_token) {
-      throw new Error("User not authenticated.");
-    }
-    await updateDeviceMetadata(id, patchOperations, user.access_token);
+    await updateDeviceMetadata(id, patchOperations);
   };
 
   const handleLoadMoreTimeline = () => {
@@ -609,7 +588,7 @@ export default function DeviceDetailsClient() {
 
   const totalHistoryPages = Math.ceil(fullCertificateIdentityList.length / historyPageSize);
 
-  if (isLoadingDevice || authLoading) {
+  if (isLoadingDevice) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />

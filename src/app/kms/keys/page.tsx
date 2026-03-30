@@ -39,7 +39,6 @@ interface KmsKey {
 
 export default function KmsKeysPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [keys, setKeys] = useState<KmsKey[]>([]);
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
@@ -85,13 +84,7 @@ export default function KmsKeysPage() {
 
 
   const loadData = useCallback(async (bookmark: string | null) => {
-    if (authLoading || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()) {
-        setError("User not authenticated. Please log in.");
-      }
-      setIsLoading(false);
-      return;
-    }
+    
 
     setIsLoading(true);
     setError(null);
@@ -99,7 +92,7 @@ export default function KmsKeysPage() {
     try {
       const enginesData = allCryptoEngines.length > 0
         ? allCryptoEngines
-        : await fetchCryptoEngines(user.access_token);
+        : await fetchCryptoEngines();
 
       setAllCryptoEngines(enginesData);
 
@@ -120,7 +113,7 @@ export default function KmsKeysPage() {
         }
       });
 
-      const keysResponse = await fetchKmsKeys(user.access_token, params);
+      const keysResponse = await fetchKmsKeys(params);
 
       const transformedKeys: KmsKey[] = (keysResponse.list || []).map((apiKey) => {
         return {
@@ -148,7 +141,7 @@ export default function KmsKeysPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, authLoading, isAuthenticated, allCryptoEngines, pageSize, debouncedAliasSearchTerm, debouncedMetadataFilters]);
+  }, [allCryptoEngines, debouncedAliasSearchTerm, debouncedMetadataFilters, pageSize]);
 
   useEffect(() => {
     // Reset pagination when page size changes
@@ -169,11 +162,9 @@ export default function KmsKeysPage() {
   }, [debouncedMetadataFilters]);
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated()) {
-      loadData(bookmarkStack[currentPageIndex]);
-    }
+    loadData(bookmarkStack[currentPageIndex]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, isAuthenticated, currentPageIndex, bookmarkStack]);
+  }, [currentPageIndex, bookmarkStack]);
 
   const handleRefresh = () => {
     loadData(bookmarkStack[currentPageIndex]);
@@ -208,7 +199,7 @@ export default function KmsKeysPage() {
   };
 
   const handleDeleteKey = async () => {
-    if (!keyToDelete || !user?.access_token) {
+    if (!keyToDelete) {
       setIsDeleteDialogOpen(false);
       setKeyToDelete(null);
       return;
@@ -216,7 +207,7 @@ export default function KmsKeysPage() {
 
     setIsDeleting(true);
     try {
-      await deleteKmsKey(keyToDelete.id, user.access_token);
+      await deleteKmsKey(keyToDelete.id);
 
       // Remove from local state after successful deletion
       setKeys(prevKeys => prevKeys.filter(k => k.id !== keyToDelete.id));
@@ -241,11 +232,11 @@ export default function KmsKeysPage() {
     router.push(`/kms/keys/details?keyId=${keyIdValue}`);
   };
 
-  if (authLoading || (isLoading && keys.length === 0)) {
+  if (isLoading && keys.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">{authLoading ? "Authenticating..." : "Loading KMS Keys..."}</p>
+        <p className="text-lg text-muted-foreground">Loading KMS Keys...</p>
       </div>
     );
   }
@@ -554,7 +545,7 @@ export default function KmsKeysPage() {
               <Select
                 value={pageSize}
                 onValueChange={(value) => { setPageSize(value); }}
-                disabled={isLoading || authLoading}
+                disabled={isLoading}
               >
                 <SelectTrigger id="pageSizeSelectKmsList" className="w-[80px]">
                   <SelectValue placeholder="Page size" />

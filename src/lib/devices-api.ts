@@ -1,6 +1,7 @@
 
 // src/lib/devices-api.ts
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
+import { requireAccessToken } from './auth-session';
 
 // Interfaces based on usage in components
 export interface ApiDeviceIdentity {
@@ -51,7 +52,8 @@ export interface PatchOperation {
 }
 
 
-export async function fetchDevices(accessToken: string, params: URLSearchParams): Promise<ApiResponse> {
+export async function fetchDevices(params: URLSearchParams): Promise<ApiResponse> {
+    const accessToken = requireAccessToken();
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices?${params.toString()}`;
     const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -59,7 +61,8 @@ export async function fetchDevices(accessToken: string, params: URLSearchParams)
     return handleApiError(response, 'Failed to fetch devices');
 }
 
-export async function fetchDeviceById(deviceId: string, accessToken: string): Promise<ApiDevice> {
+export async function fetchDeviceById(deviceId: string): Promise<ApiDevice> {
+    const accessToken = requireAccessToken();
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}`;
     const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -67,7 +70,8 @@ export async function fetchDeviceById(deviceId: string, accessToken: string): Pr
     return handleApiError(response, 'Failed to fetch device details');
 }
 
-export async function decommissionDevice(deviceId: string, accessToken: string): Promise<void> {
+export async function decommissionDevice(deviceId: string): Promise<void> {
+    const accessToken = requireAccessToken();
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/decommission`;
     const response = await fetch(url, {
         method: 'DELETE',
@@ -78,7 +82,8 @@ export async function decommissionDevice(deviceId: string, accessToken: string):
     }
 }
 
-export async function registerDevice(payload: any, accessToken: string): Promise<void> {
+export async function registerDevice(payload: any): Promise<void> {
+    const accessToken = requireAccessToken();
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices`;
     const response = await fetch(url, {
         method: 'POST',
@@ -93,14 +98,16 @@ export async function registerDevice(payload: any, accessToken: string): Promise
     }
 }
 
-export async function fetchDeviceStats(accessToken: string): Promise<DeviceStats> {
+export async function fetchDeviceStats(): Promise<DeviceStats> {
+  const accessToken = requireAccessToken();
   const response = await fetch(`${get_DEV_MANAGER_API_BASE_URL()}/stats`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
   return handleApiError(response, 'Failed to fetch device stats');
 }
 
-export async function updateDeviceMetadata(deviceId: string, patchOperations: PatchOperation[], accessToken: string): Promise<void> {
+export async function updateDeviceMetadata(deviceId: string, patchOperations: PatchOperation[]): Promise<void> {
+  const accessToken = requireAccessToken();
   const response = await fetch(`${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/metadata`, {
     method: 'PUT',
     headers: {
@@ -115,7 +122,8 @@ export async function updateDeviceMetadata(deviceId: string, patchOperations: Pa
   }
 }
 
-export async function deleteDevice(deviceId: string, accessToken: string): Promise<void> {
+export async function deleteDevice(deviceId: string): Promise<void> {
+    const accessToken = requireAccessToken();
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}`;
     const response = await fetch(url, {
         method: 'DELETE',

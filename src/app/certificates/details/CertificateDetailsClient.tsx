@@ -64,7 +64,6 @@ const buildCertificateChainPem = (
 export default function CertificateDetailsClient() { // Renamed component
   const searchParams = useSearchParams(); // Changed from useParams
   const routerHook = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { mode: identifierMode } = useIdentifierDisplay();
   const certificateId = searchParams.get('certificateId'); // Get certificateId from query params
 
@@ -128,13 +127,7 @@ export default function CertificateDetailsClient() { // Renamed component
       setIsLoadingCert(false);
       return;
     }
-    if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()){
-            setErrorCert("User not authenticated.");
-      }
-      setIsLoadingCert(false);
-      return;
-    }
+    
     setIsLoadingCert(true);
     setErrorCert(null);
     try {
@@ -142,7 +135,6 @@ export default function CertificateDetailsClient() { // Renamed component
       // The API expects the serial number with hyphens instead of colons.
       const apiFormattedSerialNumber = certificateId.replace(/:/g, '');
       const { certificates: certList } = await fetchIssuedCertificates({ 
-          accessToken: user.access_token, 
           apiQueryString: `filter=serial_number[equal_ignorecase]${apiFormattedSerialNumber}&page_size=1`
       });
       const foundCert = certList.length > 0 ? certList[0] : null;
@@ -163,23 +155,17 @@ export default function CertificateDetailsClient() { // Renamed component
     } finally {
       setIsLoadingCert(false);
     }
-  }, [certificateId, user?.access_token, isAuthenticated, authLoading]);
+  }, [certificateId]);
 
   useEffect(() => {
     const loadDependencies = async () => {
-        if (!isAuthenticated() || !user?.access_token) {
-            if (!authLoading && !isAuthenticated()){
-                setErrorDependencies("User not authenticated for dependencies.");
-            }
-            setIsLoadingDependencies(false);
-            return;
-        }
+        
         setIsLoadingDependencies(true);
         setErrorDependencies(null);
         try {
             const [fetchedCAs, enginesData] = await Promise.all([
-                fetchAndProcessCAs(user.access_token),
-                fetchCryptoEngines(user.access_token),
+                fetchAndProcessCAs(),
+                fetchCryptoEngines(),
             ]);
             setAllCAs(fetchedCAs);
             setAllCryptoEngines(enginesData);
@@ -190,17 +176,15 @@ export default function CertificateDetailsClient() { // Renamed component
         }
     };
     
-    if (!authLoading) {
-        loadCertificate();
+    loadCertificate();
         loadDependencies();
-    }
 
-  }, [certificateId, user?.access_token, isAuthenticated, authLoading, loadCertificate]);
+  }, [certificateId, loadCertificate]);
 
   // Effect to check if the certificate can be deleted
   useEffect(() => {
     const checkDeletionCriteria = async () => {
-        if (!certificateDetails || !user?.access_token || allCAs.length === 0) {
+        if (!certificateDetails  || allCAs.length === 0) {
             setCanDelete(false);
             if(certificateDetails && allCAs.length > 0) setIsCheckingUsage(false);
             return;
@@ -216,7 +200,7 @@ export default function CertificateDetailsClient() { // Renamed component
         let certIsInUse = true; // Assume it's in use until proven otherwise
         if (commonName) {
             try {
-                await fetchDeviceById(commonName, user.access_token);
+                await fetchDeviceById(commonName);
                 // If this succeeds, the device exists, so cert is in use.
                 certIsInUse = true;
             } catch (error: any) {
@@ -242,7 +226,7 @@ export default function CertificateDetailsClient() { // Renamed component
     if (!isLoadingCert && !isLoadingDependencies) {
         checkDeletionCriteria();
     }
-  }, [certificateDetails, allCAs, user?.access_token, isLoadingCert, isLoadingDependencies]);
+  }, [certificateDetails, allCAs, isLoadingCert, isLoadingDependencies]);
 
 
   const handleOpenRevokeModal = () => {
@@ -253,7 +237,7 @@ export default function CertificateDetailsClient() { // Renamed component
   };
 
   const handleConfirmRevocation = async (reason: string) => {
-    if (!certificateToRevoke || !user?.access_token) {
+    if (!certificateToRevoke ) {
       sileo.error({
         title: "Error",
         description: "Cannot revoke certificate. Missing details or authentication."
@@ -269,7 +253,6 @@ export default function CertificateDetailsClient() { // Renamed component
         serialNumber: certificateToRevoke.serialNumber,
         status: 'REVOKED',
         reason: reason,
-        accessToken: user.access_token,
       });
 
       setCertificateDetails(prev => prev ? {...prev, apiStatus: 'REVOKED', revocationReason: reason} : null);
@@ -290,7 +273,7 @@ export default function CertificateDetailsClient() { // Renamed component
   };
 
   const handleReactivate = async () => {
-    if (!certificateDetails || !user?.access_token) {
+    if (!certificateDetails ) {
       sileo.error({ title: "Error", description: "Cannot reactivate certificate. Missing details or authentication." });
       return;
     }
@@ -299,7 +282,6 @@ export default function CertificateDetailsClient() { // Renamed component
        await updateCertificateStatus({
         serialNumber: certificateDetails.serialNumber,
         status: 'ACTIVE',
-        accessToken: user.access_token,
       });
 
       setCertificateDetails(prev => prev ? {...prev, apiStatus: 'ACTIVE', revocationReason: undefined} : null);
@@ -322,20 +304,17 @@ export default function CertificateDetailsClient() { // Renamed component
   };
   
   const handleUpdateCertMetadata = async (serialNumber: string, patchOperations: PatchOperation[]) => {
-    if (!user?.access_token) {
-        throw new Error("User not authenticated.");
-    }
-    await updateCertificateMetadata(serialNumber, patchOperations, user.access_token);
+    await updateCertificateMetadata(serialNumber, patchOperations);
   };
 
   const handleConfirmDelete = async () => {
-    if (!certificateDetails || !user?.access_token) {
+    if (!certificateDetails ) {
         sileo.error({ title: "Error", description: "Certificate details or authentication missing." });
         return;
     }
     setIsDeleting(true);
     try {
-        await deleteCertificate(certificateDetails.serialNumber, user.access_token);
+        await deleteCertificate(certificateDetails.serialNumber);
         sileo.success({ title: "Certificate Deleted", description: "The certificate has been permanently removed." });
         setIsDeleteModalOpen(false);
         routerHook.push('/certificates');
@@ -346,13 +325,12 @@ export default function CertificateDetailsClient() { // Renamed component
   };
 
 
-  if (authLoading || isLoadingCert || isLoadingDependencies) {
+  if (isLoadingCert || isLoadingDependencies) {
     return (
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <Loader2 className="h-12 w-12 text-primary animate-spin" />
         <p className="text-muted-foreground">
-          {authLoading ? "Authenticating..." : 
-           isLoadingCert ? "Loading certificate details..." : 
+          {isLoadingCert ? "Loading certificate details..." : 
            "Loading CA data..."}
         </p>
       </div>

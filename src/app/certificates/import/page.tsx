@@ -38,7 +38,6 @@ const ALLOWED_EXTENSIONS = ['.pem', '.crt', '.cer'];
 export default function ImportCertificatePage() {
   const monacoTheme = useMonacoTheme();
   const router = useRouter();
-  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -169,14 +168,6 @@ export default function ImportCertificatePage() {
       return;
     }
 
-    if (!user?.access_token) {
-      sileo.error({
-        title: 'Authentication Error',
-        description: 'Please log in to import certificates'
-      });
-      return;
-    }
-
     // Validate metadata JSON
     if (!validateMetadata(metadataJson)) {
       sileo.error({
@@ -200,7 +191,7 @@ export default function ImportCertificatePage() {
         certificate: base64Certificate,
       };
 
-      await importCertificate(payload, user.access_token);
+      await importCertificate(payload);
 
       sileo.success({
         title: 'Certificate Imported',

@@ -3,7 +3,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { DeviceStatusChartCard } from '@/components/home/DeviceStatusChartCard';
 import { CaExpiryTimeline } from '@/components/home/CaExpiryTimeline';
 import { SummaryStatsCard } from '@/components/home/SummaryStatsCard';
@@ -45,8 +44,6 @@ interface SummaryStats {
 }
 
 export default function HomePage() {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const searchParams = useSearchParams();
 
   // State for timeline
   const [allCAs, setAllCAs] = useState<CA[]>([]);
@@ -61,7 +58,7 @@ export default function HomePage() {
     devices: null,
   });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
-  const [errorStats, setErrorStats] = useState<string | null>(null);
+  const [_errorStats, setErrorStats] = useState<string | null>(null);
 
   // Engines are needed by both
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
@@ -69,17 +66,7 @@ export default function HomePage() {
   const [errorEngines, setErrorEngines] = useState<string | null>(null);
 
   const loadInitialData = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading) {
-        setErrorCAs("User not authenticated.");
-        setErrorEngines("User not authenticated.");
-        setErrorStats("User not authenticated.");
-      }
-      setIsLoadingCAs(false);
-      setIsLoadingEngines(false);
-      setIsLoadingStats(false);
-      return;
-    }
+    
 
     setIsLoadingCAs(true);
     setIsLoadingEngines(true);
@@ -96,11 +83,11 @@ export default function HomePage() {
         dmsStats,
         devManagerStats,
       ] = await Promise.all([
-        fetchAndProcessCAs(user.access_token),
-        fetchCryptoEngines(user.access_token),
-        fetchCaStatsSummary(user.access_token),
-        fetchDmsStats(user.access_token),
-        fetchDeviceStats(user.access_token),
+        fetchAndProcessCAs(),
+        fetchCryptoEngines(),
+        fetchCaStatsSummary(),
+        fetchDmsStats(),
+        fetchDeviceStats(),
       ]);
 
       // Process CAs for timeline
@@ -134,17 +121,15 @@ export default function HomePage() {
       setIsLoadingEngines(false);
       setIsLoadingStats(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading]);
+  }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-      loadInitialData();
-    }
-  }, [loadInitialData, authLoading]);
+    loadInitialData();
+  }, [loadInitialData]);
 
   const anyTimelineError = errorCAs || errorEngines;
-  const anyTimelineLoading = isLoadingCAs || isLoadingEngines || authLoading;
-  const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats || authLoading;
+  const anyTimelineLoading = isLoadingCAs || isLoadingEngines;
+  const isReloading = isLoadingCAs || isLoadingEngines || isLoadingStats;
 
 
   return (
@@ -193,7 +178,7 @@ export default function HomePage() {
         </div>
       </div>
       <div>
-        <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats || authLoading} />
+        <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats} />
       </div>
     </div>
   );

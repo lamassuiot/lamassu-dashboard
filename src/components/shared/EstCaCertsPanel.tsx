@@ -10,7 +10,6 @@ import { CodeBlock } from '@/components/shared/CodeBlock';
 import { fetchEstCaCerts } from '@/lib/est-api';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
 import { AlertTriangle, FileText, Loader2 } from 'lucide-react';
 
 interface ApiRaItem {
@@ -31,7 +30,6 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
   ra,
   className,
 }) => {
-  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pkcs7Certs, setPkcs7Certs] = useState('');
@@ -47,7 +45,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
       try {
         const [pkcs7Result, pemResult] = await Promise.all([
           fetchEstCaCerts(ra.id, 'pkcs7-mime'),
-          fetchEstCaCerts(ra.id, 'x-pem-file', user?.access_token),
+          fetchEstCaCerts(ra.id, 'x-pem-file'),
         ]);
 
         const pkcs7Buffer = pkcs7Result.data as ArrayBuffer;
@@ -62,7 +60,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
     };
 
     fetchData();
-  }, [isOpen, ra?.id, user?.access_token]);
+  }, [isOpen, ra?.id]);
 
   const curlPem = useMemo(() => {
     if (!ra?.id) return '';

@@ -38,7 +38,6 @@ export default function EstCaCertsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const raId = searchParams.get('raId');
-    const { user, isLoading: authLoading, isAuthenticated } = useAuth();
     
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -70,12 +69,12 @@ export default function EstCaCertsPage() {
     }, []);
 
     const fetchData = useCallback(async () => {
-        if (!raId || authLoading || !isAuthenticated() || !user?.access_token) {
-            if (!authLoading && !isAuthenticated()) setError("User not authenticated.");
-            if (!raId) setError("Registration Authority ID is missing from URL.");
+        if (!raId) {
+            setError("Registration Authority ID is missing from URL.");
             setIsLoading(false);
             return;
         }
+        
         
         setIsLoading(true);
         setError(null);
@@ -88,7 +87,7 @@ export default function EstCaCertsPage() {
             setPkcs7Certs(pkcs7Base64);
 
             // Fetch PEM
-            const pemResult = await fetchEstCaCerts(raId, 'x-pem-file', user.access_token);
+            const pemResult = await fetchEstCaCerts(raId, 'x-pem-file');
             const pemText = pemResult.data as string;
             setPemCerts(pemText);
 
@@ -102,7 +101,7 @@ export default function EstCaCertsPage() {
             setIsLoading(false);
         }
 
-    }, [raId, authLoading, isAuthenticated, user?.access_token, parseCertificates]);
+    }, [raId, parseCertificates]);
 
     useEffect(() => {
         fetchData();
@@ -111,7 +110,7 @@ export default function EstCaCertsPage() {
     const curlPkcs7 = `curl ${get_EST_API_BASE_URL()}/${raId}/cacerts \\ \n  -H "Accept: application/pkcs7-mime"`;
     const curlPem = `curl ${get_EST_API_BASE_URL()}/${raId}/cacerts \\ \n  -H "Accept: application/x-pem-file"`;
 
-    if (isLoading || authLoading) {
+    if (isLoading) {
         return (
             <div className="flex flex-col items-center justify-center flex-1 p-8">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />

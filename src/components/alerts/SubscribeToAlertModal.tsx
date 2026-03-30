@@ -235,7 +235,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
   const handleBack = () => setStep(s => s - 1);
 
   const handleSubmit = async () => {
-    if (!eventType || !user?.access_token) {
+    if (!eventType ) {
         sileo.error({ title: "Error", description: "Event type or authentication is missing." });
         return;
     }
@@ -276,9 +276,9 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
         };
 
         if (isEditMode && subscriptionToEdit) {
-            await updateSubscription(subscriptionToEdit.id, payload, user.access_token);
+            await updateSubscription(subscriptionToEdit.id, payload);
         } else {
-            await subscribeToAlert(payload, user.access_token);
+            await subscribeToAlert(payload);
         }
         
         onSuccess();

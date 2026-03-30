@@ -40,7 +40,6 @@ const creationModes = [
 
 export default function CreateKmsKeyPage() {
   const router = useRouter();
-  const { user } = useAuth();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
   // New Key Pair mode fields
@@ -95,11 +94,6 @@ export default function CreateKmsKeyPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!user?.access_token) {
-        sileo.error({ title: "Authentication Error", description: "You must be logged in to create a key." });
-        return;
-    }
-
     setIsSubmitting(true);
 
     if (selectedMode === 'newKeyPair') {
@@ -130,7 +124,7 @@ export default function CreateKmsKeyPage() {
                 size: size,
             };
             
-            await createKmsKey(payload, user.access_token);
+            await createKmsKey(payload);
 
             sileo.success({
                 title: "Key Pair Created",

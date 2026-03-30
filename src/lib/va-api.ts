@@ -2,6 +2,7 @@
 
 // src/lib/va-api.ts
 import { get_VA_API_BASE_URL, get_VA_CORE_API_BASE_URL, handleApiError } from './api-domains';
+import { requireAccessToken } from './auth-session';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib-crypto';
 
 export type { OcspResponseDetails };
@@ -46,7 +47,8 @@ export interface VaUpdatePayload {
  * Returns null if the configuration is not found (404).
  * Throws an error for other failures.
  */
-export async function fetchVaConfig(ski: string, accessToken: string): Promise<VaApiResponse | null> {
+export async function fetchVaConfig(ski: string): Promise<VaApiResponse | null> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_VA_API_BASE_URL()}/roles/${ski}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -62,7 +64,8 @@ export async function fetchVaConfig(ski: string, accessToken: string): Promise<V
 /**
  * Creates or updates the VA configuration for a given CA Subject Key ID (SKI).
  */
-export async function updateVaConfig(ski: string, payload: VaUpdatePayload, accessToken: string): Promise<void> {
+export async function updateVaConfig(ski: string, payload: VaUpdatePayload): Promise<void> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_VA_API_BASE_URL()}/roles/${ski}`, {
         method: 'PUT',
         headers: {
@@ -83,7 +86,8 @@ export async function updateVaConfig(ski: string, payload: VaUpdatePayload, acce
  * Downloads the latest CRL for a given CA Subject Key ID (SKI).
  * Returns the CRL data as an ArrayBuffer.
  */
-export async function downloadCrl(ski: string, accessToken: string): Promise<ArrayBuffer> {
+export async function downloadCrl(ski: string): Promise<ArrayBuffer> {
+    const accessToken = requireAccessToken();
     const response = await fetch(`${get_VA_CORE_API_BASE_URL()}/crl/${ski}`, {
         headers: {
             'Authorization': `Bearer ${accessToken}`,

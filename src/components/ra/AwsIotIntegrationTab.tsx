@@ -84,7 +84,6 @@ const getDefaultFormValues = (ra: ApiRaItem, configKey: string): AwsIntegrationF
 };
 
 export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, configKey, onUpdate }) => {
-  const { user } = useAuth();
   
   const [enrollmentCa, setEnrollmentCa] = useState<CA | null>(null);
   const [isLoadingCa, setIsLoadingCa] = useState(false);
@@ -146,12 +145,12 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
   }, [currentPolicies, LmsRemediationPolicyName]);
 
   const loadCaData = useCallback(async () => {
-    if (!user?.access_token || !ra?.settings.enrollment_settings.enrollment_ca) return;
+    if (!ra?.settings.enrollment_settings.enrollment_ca) return;
 
     setIsLoadingCa(true);
     setErrorCa(null);
     try {
-        const allCAs = await fetchAndProcessCAs(user.access_token);
+        const allCAs = await fetchAndProcessCAs();
         const foundCa = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
         setEnrollmentCa(foundCa || null);
         if (!foundCa) {
@@ -162,7 +161,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
     } finally {
         setIsLoadingCa(false);
     }
-  }, [user?.access_token, ra]);
+  }, [ra]);
 
   useEffect(() => {
     loadCaData();
@@ -170,11 +169,6 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
 
   
   const onSubmit = async (data: AwsIntegrationFormValues) => {
-    if (!user?.access_token) {
-        sileo.error({ title: 'Authentication Error' });
-        return;
-    }
-
     const updatedRaPayload: RaCreationPayload = JSON.parse(JSON.stringify({
         id: ra.id, name: ra.name, metadata: ra.metadata, settings: ra.settings,
     }));
@@ -186,7 +180,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
     }
 
     try {
-        await createOrUpdateRa(updatedRaPayload, user.access_token, true, ra.id);
+        await createOrUpdateRa(updatedRaPayload, true, ra.id);
         sileo.success({ title: "Success", description: "AWS IoT integration settings saved." });
         onUpdate();
     } catch (e: any) {
@@ -195,7 +189,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
   };
 
   const handleSyncCa = async (isRetry = false) => {
-    if (!user?.access_token || !enrollmentCa) {
+    if (!enrollmentCa) {
         sileo.error({ title: 'Error', description: 'Enrollment CA not found or user not authenticated.' });
         return;
     }
@@ -218,7 +212,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
             patchOperations.push({ op: 'add', path: awsConfigPointer, value: registrationPayload});
         }
         
-        await updateCaMetadata(enrollmentCa.id, patchOperations, user.access_token);
+        await updateCaMetadata(enrollmentCa.id, patchOperations);
         
         sileo.success({ title: "Success", description: "CA synchronization request has been sent." });
         loadCaData();

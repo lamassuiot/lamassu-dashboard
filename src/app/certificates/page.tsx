@@ -8,6 +8,7 @@ import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import type { CertificateData } from '@/types/certificate';
 import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X, Upload, KeyRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { requireAccessToken } from '@/lib/auth-session';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Badge } from '@/components/ui/badge';
@@ -68,7 +69,6 @@ const CertificatesPageSkeleton = () => (
 
 export default function CertificatesPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [isClientMounted, setIsClientMounted] = useState(false);
   useEffect(() => { setIsClientMounted(true); }, []);
@@ -122,15 +122,7 @@ export default function CertificatesPage() {
   const [errorCryptoEngines, setErrorCryptoEngines] = useState<string | null>(null);
 
   const loadPageDependencies = useCallback(async () => {
-    if (!isClientMounted || authLoading || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && isAuthenticated() && isClientMounted) {
-        setErrorCAs("User not authenticated. Please log in.");
-        setErrorCryptoEngines("User not authenticated. Please log in.");
-        setAllCAs([]);
-        setAllCryptoEngines([]);
-      }
-      setIsLoadingCAs(false);
-      setIsLoadingCryptoEngines(false);
+    if (!isClientMounted ) {
       return;
     }
     
@@ -142,7 +134,8 @@ export default function CertificatesPage() {
     // Fetch CAs
     if (allCAs.length === 0) { 
       try {
-        const fetchedCAs = await fetchAndProcessCAs(user.access_token);
+        requireAccessToken();
+        const fetchedCAs = await fetchAndProcessCAs();
         setAllCAs(fetchedCAs);
       } catch (err: any) {
         setErrorCAs(err.message || 'Failed to load CA list for linking.');
@@ -156,7 +149,7 @@ export default function CertificatesPage() {
     // Fetch Crypto Engines
     if (allCryptoEngines.length === 0) {
         try {
-            const enginesData = await fetchCryptoEngines(user.access_token);
+            const enginesData = await fetchCryptoEngines();
             setAllCryptoEngines(enginesData);
         } catch (err: any) {
             setErrorCryptoEngines(err.message || 'Failed to load Crypto Engines.');
@@ -166,7 +159,7 @@ export default function CertificatesPage() {
     } else {
         setIsLoadingCryptoEngines(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading, allCAs.length, allCryptoEngines.length, isClientMounted]);
+  }, [allCAs.length, allCryptoEngines.length, isClientMounted]);
   
   useEffect(() => {
     loadPageDependencies();
@@ -215,17 +208,15 @@ export default function CertificatesPage() {
     return <CertificatesPageSkeleton />;
   }
   
-  const loadingText = authLoading 
-      ? "Authenticating..." 
-      : isLoadingApi 
-          ? "Loading Certificates..." 
-          : isLoadingCAs
-              ? "Loading CA Data..."
-              : isLoadingCryptoEngines 
-                  ? "Loading Crypto Engines..."
-                  : "Loading...";
+  const loadingText = isLoadingApi
+      ? "Loading Certificates..." 
+      : isLoadingCAs
+          ? "Loading CA Data..."
+          : isLoadingCryptoEngines 
+              ? "Loading Crypto Engines..."
+              : "Loading...";
 
-  if (authLoading || (isLoadingApi && certificates.length === 0) || (isLoadingCAs && allCAs.length === 0)) {
+  if ((isLoadingApi && certificates.length === 0) || (isLoadingCAs && allCAs.length === 0)) {
     return (
         <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
             <Loader2Icon className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -286,7 +277,7 @@ export default function CertificatesPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-9"
-              disabled={isLoadingApi || authLoading}
+              disabled={isLoadingApi}
             />
           </div>
         </div>
@@ -297,7 +288,7 @@ export default function CertificatesPage() {
           <Select
             value={searchField}
             onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)}
-            disabled={isLoadingApi || authLoading}
+            disabled={isLoadingApi}
           >
             <SelectTrigger id="certSearchFieldSelect" className="h-9">
               <SelectValue />
@@ -318,7 +309,7 @@ export default function CertificatesPage() {
               variant="outline"
               className="h-9 w-full justify-start truncate pr-10 text-left font-normal"
               onClick={() => handleOpenCaSelector('filter')}
-              disabled={isLoadingApi || authLoading || isLoadingCAs}
+              disabled={isLoadingApi || isLoadingCAs}
             >
               <span className="truncate">{selectedCaForFilter ? selectedCaForFilter.name : 'All Issuers'}</span>
             </Button>
@@ -339,7 +330,7 @@ export default function CertificatesPage() {
         {/* Status */}
         <div className="min-w-0 space-y-1.5">
           <Label htmlFor="certStatusFilterSelect">Status</Label>
-          <div className={cn((isLoadingApi || authLoading) && "pointer-events-none opacity-50")}>
+          <div className={cn(isLoadingApi && "pointer-events-none opacity-50")}>
             <MultiSelectDropdown
               id="certStatusFilterSelect"
               options={statusOptions}
@@ -359,7 +350,7 @@ export default function CertificatesPage() {
             id="certMetadataSearchInput"
             value={metadataFilters}
             onChange={setMetadataFilters}
-            disabled={isLoadingApi || authLoading}
+            disabled={isLoadingApi}
             placeholder="e.g., $.key > value"
           />
         </div>
@@ -465,7 +456,6 @@ export default function CertificatesPage() {
             sortConfig={sortConfig}
             requestSort={requestSort}
             isLoading={isLoadingApi && certificates.length > 0}
-            accessToken={user?.access_token}
             columnVisibility={columnVisibility}
             onColumnToggle={handleColumnToggle}
           />
@@ -487,7 +477,7 @@ export default function CertificatesPage() {
               <Select
                 value={pageSize}
                 onValueChange={(value) => { setPageSize(value); }}
-                disabled={isLoadingApi || authLoading || isLoadingCAs}
+                disabled={isLoadingApi || isLoadingCAs}
               >
                 <SelectTrigger id="pageSizeSelectCertList" className="w-[80px]">
                   <SelectValue placeholder="Page size" />
@@ -525,8 +515,7 @@ export default function CertificatesPage() {
         errorCAs={errorCAs} 
         loadCAsAction={loadPageDependencies} 
         onCaSelected={caSelectorMode === 'issue' ? handleCaSelectedForIssuance : handleCaSelectedForFilter}
-        isAuthLoading={authLoading} 
-        allCryptoEngines={allCryptoEngines} 
+        allCryptoEngines={allCryptoEngines}
       />
     </div>
   );

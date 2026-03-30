@@ -44,7 +44,6 @@ const renderLegend = (props: any) => {
 
 
 export function DeviceStatusChartCard() {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [chartData, setChartData] = useState<ChartData[] | null>(null);
   const [totalDevices, setTotalDevices] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,16 +51,12 @@ export function DeviceStatusChartCard() {
 
   useEffect(() => {
     const getDeviceStats = async () => {
-      if (!isAuthenticated() || !user?.access_token) {
-        if (!authLoading) setError("User not authenticated.");
-        setIsLoading(false);
-        return;
-      }
+      
 
       setIsLoading(true);
       setError(null);
       try {
-        const data = await fetchDeviceStats(user.access_token);
+        const data = await fetchDeviceStats();
         
         setTotalDevices(data.total);
 
@@ -85,10 +80,8 @@ export function DeviceStatusChartCard() {
       }
     };
     
-    if(!authLoading) {
-      getDeviceStats();
-    }
-  }, [user, isAuthenticated, authLoading]);
+    getDeviceStats();
+  }, []);
 
 
   const RADIAN = Math.PI / 180;
@@ -140,7 +133,7 @@ export function DeviceStatusChartCard() {
         <CardDescription className="text-primary-foreground/80">A summary of all managed devices by their current status.</CardDescription>
       </CardHeader>
       <CardContent className="flex-1">
-        {isLoading || authLoading ? (
+        {isLoading ? (
           <div className="h-[320px] flex flex-col items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary-foreground/80" />
             <p className="mt-2 text-sm text-primary-foreground/70">Loading chart data...</p>

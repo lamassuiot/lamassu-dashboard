@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Search, RefreshCw, FilePlus2, ChevronLeft, ChevronRight, AlertCircle as AlertCircleIcon, FileX2 } from 'lucide-react';
 import { CertificateList } from '@/components/CertificateList';
@@ -24,7 +23,6 @@ interface IssuedCertificatesTabProps {
 
 export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ caId, caIsActive, allCAs }) => {
     const routerHook = useRouter();
-    const { user, isLoading: authLoading } = useAuth();
 
     const {
         certificates,
@@ -76,12 +74,12 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-9 h-9"
-                        disabled={isLoading || authLoading}
+                        disabled={isLoading}
                     />
                 </div>
 
                 {/* Search field selector */}
-                <Select value={searchField} onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)} disabled={isLoading || authLoading}>
+                <Select value={searchField} onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)} disabled={isLoading}>
                     <SelectTrigger className="w-[148px] h-9 shrink-0">
                         <SelectValue />
                     </SelectTrigger>
@@ -92,7 +90,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                 </Select>
 
                 {/* Status filter */}
-                <div className={cn("w-[180px] shrink-0", (isLoading || authLoading) && "pointer-events-none opacity-50")}>
+                <div className={cn("w-[180px] shrink-0", isLoading && "pointer-events-none opacity-50")}>
                     <MultiSelectDropdown
                         id="issued-certs-status-filter"
                         options={statusOptions}
@@ -150,7 +148,6 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                         sortConfig={sortConfig}
                         requestSort={requestSort}
                         isLoading={isLoading}
-                        accessToken={user?.access_token}
                         showIssuerColumn={false}
                     />
                     <div className="flex justify-between items-center mt-4 pt-4 border-t">

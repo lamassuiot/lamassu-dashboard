@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -39,7 +38,6 @@ import {
   RefreshCw,
   Info,
   Users,
-  Filter,
   Settings,
   Copy,
   Check,
@@ -56,7 +54,6 @@ import { SectionHeader } from '@/components/shared/FormComponents';
 export default function DeviceGroupDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
   const groupId = searchParams.get('groupId');
 
   const [group, setGroup] = useState<DeviceGroup | null>(null);
@@ -66,12 +63,11 @@ export default function DeviceGroupDetailsClient() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
-
   const tabFromQuery = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<string>(tabFromQuery || 'members');
 
   const fetchGroupData = useCallback(async () => {
-    if (!user?.access_token || !groupId) {
+    if (!groupId) {
       setIsLoading(false);
       setError('Missing group ID');
       return;
@@ -80,12 +76,12 @@ export default function DeviceGroupDetailsClient() {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await getDeviceGroupByID(user.access_token, groupId);
+      const data = await getDeviceGroupByID(groupId);
       setGroup(data);
 
       if (data.parent_id) {
         try {
-          const parent = await getDeviceGroupByID(user.access_token, data.parent_id);
+          const parent = await getDeviceGroupByID(data.parent_id);
           setParentGroup(parent);
         } catch (err) {
           console.error('Failed to fetch parent group:', err);
@@ -100,18 +96,18 @@ export default function DeviceGroupDetailsClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [groupId, user?.access_token]);
+  }, [groupId]);
 
   useEffect(() => {
     fetchGroupData();
   }, [fetchGroupData]);
 
   const handleDelete = async () => {
-    if (!user?.access_token || !group) return;
+    if (!group) return;
 
     try {
       setIsDeleting(true);
-      await deleteDeviceGroup(user.access_token, group.id);
+      await deleteDeviceGroup(group.id);
       sileo.success({
         title: 'Success',
         description: `Device group "${group.name}" deleted successfully`,

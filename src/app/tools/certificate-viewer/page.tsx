@@ -166,7 +166,6 @@ type StatusFilter = ZlintResult['status'] | 'all';
 const statusFilterOrder: StatusFilter[] = ['all', 'fatal', 'error', 'warn', 'info', 'pass'];
 
 export default function CertificateViewerPage() {
-  const { user } = useAuth();
 
   // --- Common State ---
   const [pem, setPem] = useState('');
@@ -307,7 +306,7 @@ export default function CertificateViewerPage() {
   };
 
   const handleOpenOcspModal = async () => {
-    if (!parsedDetails || !user?.access_token) {
+    if (!parsedDetails ) {
         sileo.error({ title: "Cannot perform OCSP Check", description: "Certificate details are missing or you are not logged in." });
         return;
     }
@@ -318,7 +317,7 @@ export default function CertificateViewerPage() {
         
         // 1. Try to find issuer locally via AKI
         if (parsedDetails.authorityKeyId) {
-            const issuerCAs = await fetchAndProcessCAs(user.access_token, `filter=subject_key_id[equal]${parsedDetails.authorityKeyId}`);
+            const issuerCAs = await fetchAndProcessCAs(`filter=subject_key_id[equal]${parsedDetails.authorityKeyId}`);
             foundIssuer = issuerCAs?.[0] || null;
         }
 

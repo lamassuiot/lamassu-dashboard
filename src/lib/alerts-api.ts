@@ -3,6 +3,7 @@
 'use client'; // This can be a client-side library function
 
 import { get_ALERTS_API_BASE_URL } from './api-domains';
+import { requireAccessToken } from './auth-session';
 
 export interface ApiAlertEventData {
     specversion: string;
@@ -62,7 +63,8 @@ export interface SubscriptionPayload {
 }
 
 
-export async function fetchLatestAlerts(accessToken: string): Promise<ApiAlertEvent[]> {
+export async function fetchLatestAlerts(): Promise<ApiAlertEvent[]> {
+  const accessToken = requireAccessToken();
   const response = await fetch(`${get_ALERTS_API_BASE_URL()}/events/latest`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -87,7 +89,8 @@ export async function fetchLatestAlerts(accessToken: string): Promise<ApiAlertEv
   return data;
 }
 
-export async function fetchSystemSubscriptions(accessToken: string): Promise<ApiSubscription[]> {
+export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
+  const accessToken = requireAccessToken();
   const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -112,7 +115,8 @@ export async function fetchSystemSubscriptions(accessToken: string): Promise<Api
   return data;
 }
 
-export async function subscribeToAlert(payload: SubscriptionPayload, accessToken: string): Promise<void> {
+export async function subscribeToAlert(payload: SubscriptionPayload): Promise<void> {
+  const accessToken = requireAccessToken();
   const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscribe`, {
     method: 'POST',
     headers: {
@@ -135,7 +139,8 @@ export async function subscribeToAlert(payload: SubscriptionPayload, accessToken
   }
 }
 
-export async function updateSubscription(subscriptionId: string, payload: SubscriptionPayload, accessToken: string): Promise<void> {
+export async function updateSubscription(subscriptionId: string, payload: SubscriptionPayload): Promise<void> {
+  const accessToken = requireAccessToken();
   const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions/${subscriptionId}`, {
     method: 'PUT',
     headers: {
@@ -158,7 +163,8 @@ export async function updateSubscription(subscriptionId: string, payload: Subscr
   }
 }
 
-export async function unsubscribeFromAlert(subscriptionId: string, accessToken: string): Promise<void> {
+export async function unsubscribeFromAlert(subscriptionId: string): Promise<void> {
+  const accessToken = requireAccessToken();
   const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/unsubscribe/${subscriptionId}`, {
     method: 'POST',
     headers: {

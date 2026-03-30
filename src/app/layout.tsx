@@ -10,8 +10,7 @@ import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams }
-  from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   SidebarProvider,
   Sidebar,
@@ -29,7 +28,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck} from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -223,8 +222,67 @@ const CustomFooter = () => {
   );
 };
 
+const UnauthenticatedLayoutContent = () => {
+  const { login } = useAuth();
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background text-foreground w-full">
+      <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header px-4 py-2 text-header-foreground sticky top-0 z-30 md:px-6">
+        <div className="flex items-center gap-4 h-full">
+          <div className="secondary-logo-container">
+            <div
+              className="secondary-logo h-full w-auto aspect-[200/60]"
+              data-ai-hint="logo"
+              role="img"
+              aria-label="Secondary Logo"
+            />
+            <Separator orientation="vertical" className="h-full bg-header-foreground/30" />
+          </div>
+          <Image
+            src={LogoFullWhite}
+            height={60}
+            width={280}
+            alt="LamassuIoT Logo"
+            className="hidden md:block h-full w-auto"
+          />
+          <Image
+            src={LogoBlue}
+            height={60}
+            width={60}
+            alt="LamassuIoT Logo"
+            className="block md:hidden h-full w-auto invert brightness-0"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button variant="ghost" size="sm" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
+            <LogIn className="mr-0 sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">Login</span>
+          </Button>
+        </div>
+      </header>
+
+      <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+        <Image
+          src={LogoBlue}
+          height={75}
+          width={75}
+          alt="LamassuIoT Logo"
+          className="lamassu-logo-theme-filter"
+        />
+        <h1 className="text-3xl font-bold mt-3 mb-3">Welcome to LamassuIoT</h1>
+        <p className="text-lg text-muted-foreground mb-8 max-w-md">
+          Securely manage your X.509 certificates and IoT device identities. Please log in to access the system.
+        </p>
+        <Button onClick={login} size="lg" className="px-8 py-6 text-lg">
+          <LogIn className="mr-2 h-5 w-5" /> Login with Lamassu Identity
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
-  const { isAuthenticated, user, login, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -243,7 +301,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
     !pathname.startsWith('/devices/details') &&
     !pathname.startsWith('/device-groups/details');
   let userRoles: string[] = [];
-  if (isAuthenticated() && user?.access_token) {
+  if (user?.access_token) {
     try {
       const decodedToken = jwtDecode<DecodedAccessToken>(user.access_token);
       if (decodedToken.realm_access && Array.isArray(decodedToken.realm_access.roles)) {
@@ -269,9 +327,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       <div className="flex flex-col h-screen bg-background text-foreground w-full">
         <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header text-header-foreground px-4 md:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4 h-full py-2">
-            {isAuthenticated() && (
-              <SidebarTrigger className="md:hidden text-header-foreground hover:bg-header/80 hover:text-header-foreground" />
-            )}
+            <SidebarTrigger className="md:hidden text-header-foreground hover:bg-header/80 hover:text-header-foreground" />
             <div className="secondary-logo-container">
               <div
                 className="secondary-logo h-full w-auto aspect-[200/60]"
@@ -297,196 +353,166 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
             />
           </div>
           <div className="flex items-center gap-4">
-            {isAuthenticated() ? (
-              <>
-                <ThemeToggle />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center gap-2 p-1 h-auto text-header-foreground hover:bg-header/80 hover:text-header-foreground">
-                      <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
-                      <div className='flex items-center justify-center bg-header-foreground/20 rounded-full h-8 w-8'>
-                        <User className="h-5 w-5 text-header-foreground" />
-                      </div>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">My Account</p>
-                        <p className="text-xs leading-none text-muted-foreground">
-                          {user?.profile.email}
-                        </p>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <div className="px-2 py-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="identifier-display-mode" className="text-sm cursor-pointer">
-                          ID Separators
-                        </Label>
-                        <Switch
-                          id="identifier-display-mode"
-                          checked={identifierMode === 'with-separators'}
-                          onCheckedChange={toggleIdentifierMode}
-                        />
-                      </div>
-                    </div>
-                    <div className="px-2 py-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="display-time-mode" className="text-sm cursor-pointer">
-                          Display Time
-                        </Label>
-                        <Switch
-                          id="display-time-mode"
-                          checked={displayTime}
-                          onCheckedChange={toggleDisplayTime}
-                        />
-                      </div>
-                    </div>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
-                      <User className="mr-2 h-4 w-4" />
-                      <span>Profile / Token Claims</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setIsVersionModalOpen(true)}>
-                      <GitCommit className="mr-2 h-4 w-4" />
-                      <span>Version Info</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setIsStatusModalOpen(true)}>
-                      <Info className="mr-2 h-4 w-4" />
-                      <span>Backend Services</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={handleRunWizard}>
-                      <PlaySquare className="mr-2 h-4 w-4" />
-                      <span>Run Setup Wizard</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={logout}>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Logout</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                <ThemeToggle />
-                <Button variant="ghost" size="sm" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
-                  <LogIn className="mr-0 sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">Login</span>
+            <ThemeToggle />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2 p-1 h-auto text-header-foreground hover:bg-header/80 hover:text-header-foreground">
+                  <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
+                  <div className='flex items-center justify-center bg-header-foreground/20 rounded-full h-8 w-8'>
+                    <User className="h-5 w-5 text-header-foreground" />
+                  </div>
                 </Button>
-              </div>
-            )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">My Account</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user?.profile.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="identifier-display-mode" className="text-sm cursor-pointer">
+                      ID Separators
+                    </Label>
+                    <Switch
+                      id="identifier-display-mode"
+                      checked={identifierMode === 'with-separators'}
+                      onCheckedChange={toggleIdentifierMode}
+                    />
+                  </div>
+                </div>
+                <div className="px-2 py-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="display-time-mode" className="text-sm cursor-pointer">
+                      Display Time
+                    </Label>
+                    <Switch
+                      id="display-time-mode"
+                      checked={displayTime}
+                      onCheckedChange={toggleDisplayTime}
+                    />
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile / Token Claims</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsVersionModalOpen(true)}>
+                  <GitCommit className="mr-2 h-4 w-4" />
+                  <span>Version Info</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsStatusModalOpen(true)}>
+                  <Info className="mr-2 h-4 w-4" />
+                  <span>Backend Services</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleRunWizard}>
+                  <PlaySquare className="mr-2 h-4 w-4" />
+                  <span>Run Setup Wizard</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
-        {isAuthenticated() ? (
-          isWizardMode ? (
-            <div className="flex-1 overflow-y-auto">
-              {children}
-            </div>
-          ) : (
-            <div className="flex flex-1 overflow-hidden">
-              <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
-                <SidebarHeader className="p-4">
-                  <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                    <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
-                      <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
-                    </div>
-                    <Image
-                      src={LogoFullBlue}
-                      height={30}
-                      width={140}
-                      alt="LamassuIoT Logo"
-                      className="group-data-[collapsible=icon]:hidden dark:hidden"
-                    />
-                    <Image
-                      src={LogoFullWhite}
-                      height={30}
-                      width={140}
-                      alt="LamassuIoT Logo"
-                      className="group-data-[collapsible=icon]:hidden hidden dark:block"
-                    />
-                    <Image
-                      src={LogoBlue}
-                      height={30}
-                      width={30}
-                      alt="LamassuIoT Logo"
-                      className="hidden group-data-[collapsible=icon]:block"
-                    />
-                  </div>
-                </SidebarHeader>
-                <SidebarContent className="p-2">
-                  <SidebarMenu>
-                    {navigationConfig.map((group, groupIndex) => {
-                      if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
-                        return null;
-                      }
-
-                      const filteredItems = group.items.filter(item =>
-                        !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
-                      );
-
-                      if (filteredItems.length === 0) {
-                        return null;
-                      }
-
-                      return (
-                        <React.Fragment key={group.label || `group-${groupIndex}`}>
-                          {group.label && (
-                            <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
-                              {group.label}
-                            </SidebarGroupLabel>
-                          )}
-                          {filteredItems.map(item => (
-                            <SidebarMenuItem key={item.href}>
-                              <SidebarMenuButton
-                                asChild
-                                isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
-                                tooltip={{ children: item.label, side: 'right', align: 'center' }}
-                              >
-                                <Link href={item.href} className="flex items-center w-full justify-start">
-                                  <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
-                                  <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
-                        </React.Fragment>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarContent>
-                <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
-                  <CustomSidebarToggle />
-                  <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-
-                  </div>
-                </SidebarFooter>
-              </Sidebar>
-
-              <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
-                {showGlobalBreadcrumbs && breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
-                {children}
-                <CustomFooter />
-              </SidebarInset>
-            </div>
-          )
+        {isWizardMode ? (
+          <div className="flex-1 overflow-y-auto">
+            {children}
+          </div>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
-            <Image
-              src={LogoBlue}
-              height={75}
-              width={75}
-              alt="LamassuIoT Logo"
-              className="lamassu-logo-theme-filter"
-            />
-            <h1 className="text-3xl font-bold mt-3 mb-3">Welcome to LamassuIoT</h1>
-            <p className="text-lg text-muted-foreground mb-8 max-w-md">
-              Securely manage your X.509 certificates and IoT device identities. Please log in to access the system.
-            </p>
-            <Button onClick={login} size="lg" className="px-8 py-6 text-lg">
-              <LogIn className="mr-2 h-5 w-5" /> Login with Lamassu Identity
-            </Button>
+          <div className="flex flex-1 overflow-hidden">
+            <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
+              <SidebarHeader className="p-4">
+                <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+                  <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
+                    <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
+                  </div>
+                  <Image
+                    src={LogoFullBlue}
+                    height={30}
+                    width={140}
+                    alt="LamassuIoT Logo"
+                    className="group-data-[collapsible=icon]:hidden dark:hidden"
+                  />
+                  <Image
+                    src={LogoFullWhite}
+                    height={30}
+                    width={140}
+                    alt="LamassuIoT Logo"
+                    className="group-data-[collapsible=icon]:hidden hidden dark:block"
+                  />
+                  <Image
+                    src={LogoBlue}
+                    height={30}
+                    width={30}
+                    alt="LamassuIoT Logo"
+                    className="hidden group-data-[collapsible=icon]:block"
+                  />
+                </div>
+              </SidebarHeader>
+              <SidebarContent className="p-2">
+                <SidebarMenu>
+                  {navigationConfig.map((group, groupIndex) => {
+                    if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                      return null;
+                    }
+
+                    const filteredItems = group.items.filter(item =>
+                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
+                    );
+
+                    if (filteredItems.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <React.Fragment key={group.label || `group-${groupIndex}`}>
+                        {group.label && (
+                          <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
+                            {group.label}
+                          </SidebarGroupLabel>
+                        )}
+                        {filteredItems.map(item => (
+                          <SidebarMenuItem key={item.href}>
+                            <SidebarMenuButton
+                              asChild
+                              isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
+                              tooltip={{ children: item.label, side: 'right', align: 'center' }}
+                            >
+                              <Link href={item.href} className="flex items-center w-full justify-start">
+                                <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
+                                <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarContent>
+              <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
+                <CustomSidebarToggle />
+                <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+
+                </div>
+              </SidebarFooter>
+            </Sidebar>
+
+            <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
+              {showGlobalBreadcrumbs && breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
+              {children}
+              <CustomFooter />
+            </SidebarInset>
           </div>
         )}
       </div>
@@ -535,16 +561,19 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
 
 
 const InnerLayout = ({ children }: { children: React.ReactNode }) => {
-  const { isLoading: authIsLoading, user } = useAuth();
+  const { isLoading: authIsLoading, isLoggedIn, user } = useAuth();
   const [clientMounted, setClientMounted] = React.useState(false);
   const pathname = usePathname();
+  const authenticatedAppKey = isLoggedIn
+    ? `${user?.profile.iss ?? 'unknown'}:${user?.profile.sub ?? 'unknown'}`
+    : 'anonymous';
 
   // State to determine if the wizard should be shown
   const [isWizardMode, setIsWizardMode] = useState(false);
   const [isCheckingSystem, setIsCheckingSystem] = useState(true);
 
   const checkSystemStatus = useCallback(async () => {
-    if (!user?.access_token) {
+    if (!isLoggedIn) {
       setIsCheckingSystem(false);
       return;
     }
@@ -574,7 +603,7 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     }
 
     try {
-      const stats = await fetchCaStatsSummary(user.access_token);
+      const stats = await fetchCaStatsSummary();
       if (stats.cas.total === 0) {
         setIsWizardMode(true);
       } else {
@@ -588,18 +617,18 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setIsCheckingSystem(false);
     }
-  }, [user?.access_token, pathname]);
+  }, [isLoggedIn, pathname]);
 
   useEffect(() => {
     setClientMounted(true);
-    if (!authIsLoading && user) {
+    if (!authIsLoading && isLoggedIn) {
       checkSystemStatus();
-    } else if (!authIsLoading && !user) {
+    } else if (!authIsLoading && !isLoggedIn) {
       // If not authenticated, not in wizard mode and not checking
       setIsWizardMode(false);
       setIsCheckingSystem(false);
     }
-  }, [authIsLoading, user, checkSystemStatus]);
+  }, [authenticatedAppKey, authIsLoading, checkSystemStatus, isLoggedIn]);
 
 
   const isCallbackPage =
@@ -619,11 +648,15 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     return <LoadingState />;
   }
 
-  if (isWizardMode) {
-    return <MainLayoutContent isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
+  if (!isLoggedIn) {
+    return <UnauthenticatedLayoutContent />;
   }
 
-  return <MainLayoutContent>{children}</MainLayoutContent>;
+  if (isWizardMode) {
+    return <MainLayoutContent key={`${authenticatedAppKey}:wizard`} isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
+  }
+
+  return <MainLayoutContent key={authenticatedAppKey}>{children}</MainLayoutContent>;
 };
 
 

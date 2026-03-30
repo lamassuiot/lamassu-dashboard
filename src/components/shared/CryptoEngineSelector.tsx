@@ -19,24 +19,17 @@ interface CryptoEngineSelectorProps {
 }
 
 export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ value, onValueChange, disabled, className }) => {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [engines, setEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingEngines, setIsLoadingEngines] = useState(true);
   const [errorEngines, setErrorEngines] = useState<string | null>(null);
 
   const fetchEngines = useCallback(async () => {
-    if (authLoading || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()) {
-        setErrorEngines("User not authenticated.");
-      }
-      setIsLoadingEngines(false);
-      return;
-    }
+    
 
     setIsLoadingEngines(true);
     setErrorEngines(null);
     try {
-      const data = await fetchCryptoEngines(user.access_token);
+      const data = await fetchCryptoEngines();
       setEngines(data);
       // If there's a default engine and no value is set, select the default
       if (!value && data.length > 0) {
@@ -53,7 +46,7 @@ export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ valu
       setIsLoadingEngines(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.access_token, isAuthenticated, authLoading]); // Removed onValueChange, value from deps to avoid loops
+  }, []); // Removed onValueChange, value from deps to avoid loops
 
   useEffect(() => {
     fetchEngines();
@@ -62,7 +55,7 @@ export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ valu
   const selectedEngine = engines.find(e => e.id === value);
   const validEngines = engines.filter(e => e.id && e.id.trim() !== '');
 
-  if (isLoadingEngines || authLoading) {
+  if (isLoadingEngines) {
     return (
       <div className={cn("flex items-center space-x-2 p-2 h-10 border rounded-md bg-muted/50 text-sm text-muted-foreground", className)}>
         <Loader2 className="h-5 w-5 animate-spin" />

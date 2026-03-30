@@ -34,7 +34,6 @@ interface DecodedImportedCertInfo {
 
 export default function CreateCaImportPublicPage() {
   const router = useRouter();
-  const { user } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -69,12 +68,6 @@ export default function CreateCaImportPublicPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
-
-    if (!user?.access_token) {
-        sileo.error({ title: "Authentication Error", description: "You must be logged in to import a CA." });
-        setIsSubmitting(false);
-        return;
-    }
     if (!importedCaCertPem.trim()) {
       sileo.error({ title: "Validation Error", description: "Certificate PEM is required." });
       setIsSubmitting(false);
@@ -94,7 +87,7 @@ export default function CreateCaImportPublicPage() {
     };
     
     try {
-        await importCa(payload, user.access_token);
+        await importCa(payload);
         sileo.success({
             title: "Public Certification Authority Import Successful",
             description: `Public Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`

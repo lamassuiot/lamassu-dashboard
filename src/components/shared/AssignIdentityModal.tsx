@@ -61,7 +61,6 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
   deviceRaId,
   isAssigning,
 }) => {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const router = useRouter();
 
   // View state
@@ -105,7 +104,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
   }, [isOpen]);
 
   const loadCertificates = useCallback(async (bookmarkToFetch: string | null) => {
-    if (!isOpen || authLoading || !isAuthenticated() || !user?.access_token) return;
+    if (!isOpen ) return;
 
     setIsLoadingCerts(true);
     setErrorCerts(null);
@@ -122,7 +121,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
 
         if (bookmarkToFetch) params.append('bookmark', bookmarkToFetch);
 
-        const result = await fetchIssuedCertificates({ accessToken: user.access_token, apiQueryString: params.toString() });
+        const result = await fetchIssuedCertificates({ apiQueryString: params.toString() });
         setEligibleCerts(result.certificates.filter(cert => !cert.rawApiData?.is_ca));
         setCertNextToken(result.nextToken);
     } catch (err: any) {
@@ -130,18 +129,18 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
     } finally {
         setIsLoadingCerts(false);
     }
-  }, [isOpen, authLoading, isAuthenticated, user?.access_token, deviceId]);
+  }, [isOpen, deviceId]);
 
   // Effect to fetch all necessary CA data ONCE if it's not already loaded.
   const loadCaDependencies = useCallback(async () => {
-    if (!isOpen || authLoading || !isAuthenticated() || !user?.access_token || allAvailableCAs.length > 0) return;
+    if (!isOpen  || allAvailableCAs.length > 0) return;
     
     setIsLoadingCAs(true);
     setErrorCAs(null);
     try {
         const [cas, engines] = await Promise.all([
-            fetchAndProcessCAs(user.access_token),
-            fetchCryptoEngines(user.access_token)
+            fetchAndProcessCAs(),
+            fetchCryptoEngines()
         ]);
         
         const flatCaList = flattenCaTree(cas);
@@ -153,18 +152,18 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
     } finally {
         setIsLoadingCAs(false);
     }
-  }, [isOpen, authLoading, isAuthenticated, user?.access_token, allAvailableCAs.length]);
+  }, [isOpen, allAvailableCAs.length]);
   
   // This effect runs whenever the view changes to 'issue' and processes the already-loaded CA data.
   const processCaLists = useCallback(async () => {
-    if (view !== 'issue' || allAvailableCAs.length === 0 || !user?.access_token) return;
+    if (view !== 'issue' || allAvailableCAs.length === 0 ) return;
 
     let recommendedIds: string[] = [];
     let defaultCa: CA | null = null;
     
     if (deviceRaId) {
         try {
-            const raDetails = await fetchRaById(deviceRaId, user.access_token);
+            const raDetails = await fetchRaById(deviceRaId);
             const enrollCaId = raDetails.settings.enrollment_settings.enrollment_ca;
             const validCaIds = raDetails.settings.enrollment_settings.est_rfc7030_settings?.client_certificate_settings?.validation_cas || [];
             
@@ -186,7 +185,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
     setOtherCAs(others);
     setSelectedCA(defaultCa);
 
-  }, [view, allAvailableCAs, deviceRaId, user?.access_token]);
+  }, [view, allAvailableCAs, deviceRaId]);
   
   useEffect(() => {
     if (isOpen && view === 'select') {

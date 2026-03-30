@@ -41,7 +41,6 @@ const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
 export default function SigningProfilesPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [profiles, setProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,11 +106,7 @@ export default function SigningProfilesPage() {
 
 
   const fetchProfiles = useCallback(async (bookmarkToFetch: string | null) => {
-    if (!isAuthenticated() || !user?.access_token) {
-        if (!authLoading) setError("User not authenticated.");
-        setIsLoading(false);
-        return;
-    }
+    
     setIsLoading(true);
     setError(null);
     try {
@@ -132,7 +127,7 @@ export default function SigningProfilesPage() {
         params.append('filter', `name[contains_ignorecase]${debouncedSearchTerm.trim()}`);
       }
 
-      const data = await fetchSigningProfiles(user.access_token, params);
+      const data = await fetchSigningProfiles(params);
       setProfiles(data.list || []);
       setNextTokenFromApi(data.next || null);
 
@@ -142,13 +137,13 @@ export default function SigningProfilesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user?.access_token, authLoading, pageSize, debouncedSearchTerm, sortConfig]);
+  }, [debouncedSearchTerm, pageSize, sortConfig]);
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated()) {
-        fetchProfiles(bookmarkStack[currentPageIndex]);
+    if (isClientMounted ) {
+      fetchProfiles(bookmarkStack[currentPageIndex]);
     }
-  }, [fetchProfiles, authLoading, isAuthenticated, currentPageIndex, bookmarkStack]);
+  }, [bookmarkStack, currentPageIndex, fetchProfiles, isClientMounted]);
 
   const handleNextPage = () => {
     if (isLoading || !nextTokenFromApi) return;
@@ -187,14 +182,14 @@ export default function SigningProfilesPage() {
   };
   
   const handleConfirmDelete = async () => {
-    if (!profileToDelete || !user?.access_token) {
+    if (!profileToDelete) {
       sileo.error({ title: "Error", description: "No profile selected or user not authenticated." });
       return;
     }
     
     setIsDeleting(true);
     try {
-      await deleteSigningProfile(profileToDelete.id, user.access_token);
+      await deleteSigningProfile(profileToDelete.id);
       sileo.success({ title: "Success", description: `Profile "${profileToDelete.name}" has been deleted.` });
       setProfileToDelete(null); // Close the dialog
       handleRefresh(); // Refresh the list
@@ -217,11 +212,11 @@ export default function SigningProfilesPage() {
   const pageSizeOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
 
 
-  if (!isClientMounted || authLoading || (isLoading && profiles.length === 0)) {
+  if (!isClientMounted || (isLoading && profiles.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">{authLoading ? "Authenticating..." : "Loading Issuance Profiles..."}</p>
+        <p className="text-lg text-muted-foreground">Loading Issuance Profiles...</p>
       </div>
     );
   }
@@ -325,7 +320,7 @@ export default function SigningProfilesPage() {
           <div className="flex justify-between items-center mt-4">
               <div className="flex items-center space-x-2">
                 <Label htmlFor="pageSizeSelectProfileList" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-                <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading || authLoading}>
+                <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading}>
                   <SelectTrigger id="pageSizeSelectProfileList" className="w-[80px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {pageSizeOptions.map(size => (

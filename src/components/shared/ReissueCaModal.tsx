@@ -45,7 +45,6 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
   caExpirationDate,
   isReissuing,
 }) => {
-  const { user } = useAuth();
   const [profileMode, setProfileMode] = useState<ProfileMode>('inline');
   
   // Profile selector state
@@ -107,18 +106,17 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
 
   // Load profiles when modal opens
   useEffect(() => {
-    if (isOpen && user?.access_token) {
+    if (isOpen ) {
       loadProfiles();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, user?.access_token]);
+  }, [isOpen]);
 
   const loadProfiles = async () => {
-    if (!user?.access_token) return;
-    
+        
     setIsLoadingProfiles(true);
     try {
-      const result = await fetchSigningProfiles(user.access_token);
+      const result = await fetchSigningProfiles();
       setAvailableProfiles(result.list || []);
     } catch (error: any) {
       console.error('Failed to load profiles:', error);
