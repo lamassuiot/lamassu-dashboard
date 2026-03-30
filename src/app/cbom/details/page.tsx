@@ -7,7 +7,7 @@ import { fetchCBOM, deleteCBOM, CBOMItem, runComplianceCheck, type QuantumSafeCo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode } from 'lucide-react';
+import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode, Info, Boxes } from 'lucide-react';
 import {
   GraphCanvas,
   Sphere,
@@ -57,6 +57,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
 import chiperInfo from '../../../../chiper_info.json';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 type CipherStrength = 'recommended' | 'secure' | 'weak' | 'insecure' | 'unknown';
 
@@ -75,6 +77,35 @@ const cipherStrengthBadge: Record<CipherStrength, { label: string; className: st
   insecure:    { label: 'Insecure',    className: 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30' },
   unknown:     { label: 'Unknown',     className: 'bg-muted text-muted-foreground border border-border' },
 };
+
+const networkDetailSectionClass = 'rounded-md border border-border/60 bg-muted/20 p-2.5';
+const networkDetailChipClass = 'rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-foreground';
+
+function NetworkDetailSection({
+  title,
+  meta,
+  children,
+}: {
+  title: string;
+  meta?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={networkDetailSectionClass}>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </p>
+        {meta ? (
+          <span className="text-[10px] font-medium text-muted-foreground">
+            {meta}
+          </span>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
 
 type CBOMAsset = CBOMAssetDetail;
 
@@ -240,6 +271,68 @@ const extractProperty = (
   name: string,
 ): string | undefined => properties?.find((property) => property.name === name)?.value;
 
+const normalizeStringList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const values = value
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        return entry.trim();
+      }
+
+      if (!entry || typeof entry !== 'object') {
+        return '';
+      }
+
+      const record = entry as Record<string, unknown>;
+      const candidate =
+        record.name ??
+        record.value ??
+        record.id ??
+        record.algorithm ??
+        record.scheme;
+
+      return typeof candidate === 'string' ? candidate.trim() : '';
+    })
+    .filter(Boolean);
+
+  return Array.from(new Set(values));
+};
+
+const parseStringList = (raw: string | undefined): string[] => {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    return normalizeStringList(JSON.parse(raw));
+  } catch {
+    return raw.trim() ? [raw.trim()] : [];
+  }
+};
+
+const getPropertyStringList = (
+  properties: Array<{ name?: string; value?: string }> | undefined,
+  names: string[],
+): string[] =>
+  Array.from(
+    new Set(
+      names.flatMap((name) => parseStringList(extractProperty(properties, name))),
+    ),
+  );
+
+const getProtocolStringList = (
+  protocolProperties: Record<string, unknown> | undefined,
+  names: string[],
+): string[] =>
+  Array.from(
+    new Set(
+      names.flatMap((name) => normalizeStringList(protocolProperties?.[name])),
+    ),
+  );
+
 const buildDetailsModel = (projectId: string, data: any): CBOMDetailsData => {
   const details = (data || {}) as CBOMDetailsData;
   const properties = details?.bom?.metadata?.properties;
@@ -295,6 +388,7 @@ function CBOMDetailsContent() {
     primitive: [],
     location: [],
   });
+  const [activeTab, setActiveTab] = useState<'overview' | 'assets'>('overview');
   const [assetViewMode, setAssetViewMode] = useState<AssetViewMode>('table');
   const [selectedNetworkNode, setSelectedNetworkNode] = useState<GraphNode | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<CBOMAsset | null>(null);
@@ -535,29 +629,37 @@ function CBOMDetailsContent() {
     protocols.forEach((proto: any) => {
       const ref: string = proto['bom-ref'];
       const props: Array<{ name: string; value: string }> = proto.properties ?? [];
+      const protocolProperties = proto.cryptoProperties?.protocolProperties as Record<string, unknown> | undefined;
 
-      const snisRaw = props.find((p: any) => p.name === 'live-cbom:tls.sni')?.value ?? '[]';
-      let snis: string[] = [];
-      try { snis = JSON.parse(snisRaw); } catch { /* ignore */ }
+      const snis = getPropertyStringList(props, ['live-cbom:tls.sni']);
       const sniLabel = snis[0] ?? ref;
 
-      const version: string = proto.cryptoProperties?.protocolProperties?.version ?? '';
+      const version: string = typeof protocolProperties?.version === 'string' ? protocolProperties.version : '';
       const negotiated =
         props.find((p: any) => p.name === 'live-cbom:tls.negotiatedCipherSuite')?.value ?? '';
 
-      const supportedVersionsRaw = props.find((p: any) => p.name === 'live-cbom:tls.client.supportedVersions')?.value ?? '[]';
-      let supportedVersions: string[] = [];
-      try { supportedVersions = JSON.parse(supportedVersionsRaw); } catch { /* ignore */ }
+      const supportedVersions = getPropertyStringList(props, ['live-cbom:tls.client.supportedVersions']);
 
       const serverSelectedVersion = props.find((p: any) => p.name === 'live-cbom:tls.server.selectedVersion')?.value ?? '';
 
-      const keyExchangeGroupsRaw = props.find((p: any) => p.name === 'live-cbom:tls.keyExchangeGroups')?.value ?? '[]';
-      let keyExchangeGroups: string[] = [];
-      try { keyExchangeGroups = JSON.parse(keyExchangeGroupsRaw); } catch { /* ignore */ }
+      const keyExchangeGroups = getPropertyStringList(props, ['live-cbom:tls.keyExchangeGroups']);
 
-      const cipherSuites: string[] = (proto.cryptoProperties?.protocolProperties?.cipherSuites ?? []).map(
-        (cs: any) => cs.name as string,
-      ).filter(Boolean);
+      const cipherSuites = getProtocolStringList(protocolProperties, ['cipherSuites']);
+      const signatureAlgorithms = Array.from(
+        new Set([
+          ...getPropertyStringList(props, [
+            'live-cbom:tls.signatureAlgorithms',
+            'live-cbom:tls.client.signatureAlgorithms',
+            'live-cbom:tls.server.signatureAlgorithms',
+          ]),
+          ...getProtocolStringList(protocolProperties, [
+            'signatureAlgorithms',
+            'supportedSignatureAlgorithms',
+            'signatureSchemes',
+            'supportedSignatureSchemes',
+          ]),
+        ]),
+      );
 
       nodes.push({
         id: ref,
@@ -572,6 +674,7 @@ function CBOMDetailsContent() {
           serverSelectedVersion,
           keyExchangeGroups,
           cipherSuites,
+          signatureAlgorithms,
         },
       });
 
@@ -686,6 +789,36 @@ function CBOMDetailsContent() {
     };
   }, [detailsData, complianceFindingsMap, complianceResult]);
 
+  const cbomTypeLabel = isRealtimeCBOM ? 'Realtime capture' : 'Repository scan';
+  const accentBarClass = isRealtimeCBOM
+    ? 'bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500'
+    : 'bg-gradient-to-r from-cyan-500 via-blue-500 to-emerald-500';
+  const cbomTypePillClass = isRealtimeCBOM
+    ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
+    : 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300';
+  const heroSummaryCards = [
+    {
+      label: 'Total assets',
+      value: totalAssets.toString(),
+      hint: totalAssets === 1 ? 'Cryptographic component' : 'Cryptographic components',
+    },
+    {
+      label: 'Unique names',
+      value: uniqueAssetTypesCount.toString(),
+      hint: 'Distinct tracked assets',
+    },
+    {
+      label: 'Findings',
+      value: totalFindings.toString(),
+      hint: totalFindings === 1 ? 'Detected occurrence' : 'Detected occurrences',
+    },
+    {
+      label: 'OID coverage',
+      value: `${Math.round(oidCoverage)}%`,
+      hint: `${assetsWithOid}/${assets.length || 0} assets with OID`,
+    },
+  ];
+
   if (!isAuthenticated()) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -755,250 +888,336 @@ function CBOMDetailsContent() {
   }
 
   return (
-    <div className="w-full px-6 py-4 space-y-4">
-      {/* Page header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href="/cbom">
-            <Button variant="ghost" size="sm" className="shrink-0">
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Back
+    <div className="w-full space-y-5">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className={cn('h-1 w-full', accentBarClass)} />
+        <div className="p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Shield className="h-6 w-6" />
+              </div>
+              <div className="min-w-0 space-y-2">
+                <div>
+                  <h1 className="truncate text-2xl font-semibold tracking-tight" title={detailsData?.projectIdentifier || cbom.projectIdentifier}>
+                    {detailsData?.projectIdentifier || cbom.projectIdentifier}
+                  </h1>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Inspect cryptographic assets, dependencies, network exposure, and compliance results for this CBOM.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold', cbomTypePillClass)}>
+                    <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+                    {cbomTypeLabel.toUpperCase()}
+                  </div>
+                  <Badge variant="secondary" className="text-xs">CycloneDX</Badge>
+                  {detailsData?.gitUrl && (
+                    <Badge variant="outline" className="max-w-[320px] truncate font-mono text-xs">
+                      {detailsData.gitUrl}
+                    </Badge>
+                  )}
+                  {detailsData?.branch && (
+                    <Badge variant="outline" className="text-xs">
+                      branch: {detailsData.branch}
+                    </Badge>
+                  )}
+                  {detailsData?.commit && (
+                    <Badge variant="outline" className="font-mono text-xs">
+                      commit: {typeof detailsData.commit === 'string' ? detailsData.commit.slice(0, 8) : detailsData.commit}
+                    </Badge>
+                  )}
+                  {detailsData?.createdAt && (
+                    <Badge variant="outline" className="text-xs">
+                      scanned
+                      <DateDisplay date={detailsData.createdAt} formatString="dd/MM/yyyy HH:mm" showRelative={false} className="ml-1" />
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-4 xl:min-w-[500px]">
+              {heroSummaryCards.map((item, index) => (
+                <div key={item.label} className={cn('px-1 sm:px-4', index > 0 && 'sm:border-l')}>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
+                  <p className="text-xs text-muted-foreground">{item.hint}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={handleDownload}>
+              <Download className="mr-2 h-4 w-4" />
+              Download
             </Button>
-          </Link>
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold truncate">{detailsData?.projectIdentifier || cbom.projectIdentifier}</h1>
-            <div className="flex flex-wrap items-center gap-1.5 mt-1">
-              {detailsData?.gitUrl && (
-                <Badge variant="secondary" className="font-mono text-xs max-w-[300px] truncate">
-                  git: {detailsData.gitUrl}
-                </Badge>
-              )}
-              {detailsData?.branch && (
-                <Badge variant="secondary" className="text-xs">
-                  branch: {detailsData.branch}
-                </Badge>
-              )}
-              {detailsData?.commit && (
-                <Badge variant="secondary" className="font-mono text-xs">
-                  commit: {typeof detailsData.commit === 'string' ? detailsData.commit.slice(0, 8) : detailsData.commit}
-                </Badge>
-              )}
-              {detailsData?.createdAt && (
-                <Badge variant="outline" className="text-xs">
-                  Scanned: <DateDisplay date={detailsData.createdAt} formatString="dd/MM/yyyy HH:mm" showRelative={false} className="ml-1" />
-                </Badge>
-              )}
-            </div>
+            <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
           </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            Download
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
         </div>
       </div>
 
-      {/* Compact stats banner */}
-      <div className="flex flex-wrap gap-0 rounded-lg border bg-card overflow-hidden">
-        {/* Left: numeric stats */}
-        <div className="flex flex-wrap items-center gap-6 px-5 py-4 flex-1 min-w-0">
-          <div className="flex items-center justify-center border-r pr-6">
-            <StatGauge
-              percentage={oidCoverage}
-              label="OID Coverage"
-              color="hsl(var(--chart-5))"
-              valueText={`${Math.round(oidCoverage)}%`}
-              secondaryText={`${assetsWithOid}/${assets.length || 0}`}
-              className="flex flex-col items-center gap-1 text-center"
-            />
-          </div>
-          <div className="flex flex-wrap gap-8">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Total assets</p>
-              <p className="text-3xl font-semibold">{totalAssets}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Unique types</p>
-              <p className="text-3xl font-semibold">{uniqueAssetTypesCount}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Findings</p>
-              <p className="text-3xl font-semibold">{totalFindings}</p>
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Package</p>
-              <p className="text-sm font-medium break-all">{detailsData?.projectIdentifier || cbom.projectIdentifier}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Format</p>
-              <p className="text-sm font-medium">CycloneDX</p>
-            </div>
-          </div>
-        </div>
-        {/* Right: bubble chart */}
-        {assets.length > 0 && (
-          <div className="border-l px-4 py-3 flex flex-col justify-center min-w-[260px] w-[340px] shrink-0">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Asset Distribution</p>
-            <CBOMBubbleChart assets={assets} height={160} />
-          </div>
-        )}
-      </div>
-
-      {/* Compliance section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Shield className="h-4 w-4" />
-                Compliance Analysis
-                {complianceResult && (
-                  <span
-                    className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                      complianceResult.globalComplianceStatus
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                    }`}
-                  >
-                    {complianceResult.globalComplianceStatus ? 'Compliant' : 'Non-Compliant'}
-                  </span>
-                )}
-              </CardTitle>
-              {complianceResult ? (
-                <CardDescription>
-                  {complianceResult.complianceServiceName}&nbsp;&mdash;&nbsp;Policy:{' '}
-                  <span className="font-medium">{complianceResult.policyName}</span>
-                </CardDescription>
-              ) : (
-                <CardDescription>Check cryptographic assets against a compliance policy</CardDescription>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                className="h-8 w-44 text-sm"
-                value={compliancePolicyId}
-                onChange={(e) => setCompliancePolicyId(e.target.value)}
-                placeholder="Policy ID"
-              />
-              <Button
-                size="sm"
-                onClick={handleCheckCompliance}
-                disabled={isCheckingCompliance || !compliancePolicyId || !detailsData?.bom}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'assets')} className="w-full">
+        <div className="border-b">
+          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+            {[
+              { value: 'overview', icon: Info, label: 'Overview' },
+              { value: 'assets', icon: Boxes, label: 'Assets' },
+            ].map(({ value, icon: Icon, label }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="relative h-10 gap-2 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
               >
-                {isCheckingCompliance ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                    Checking...
-                  </>
-                ) : (
-                  <>
-                    <Shield className="h-3.5 w-3.5 mr-1.5" />
-                    Check
-                  </>
-                )}
-              </Button>
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+
+        <div className="mt-6 pb-2">
+          <TabsContent value="overview" className="mt-0">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+              <div className="space-y-6">
+                <Card className="overflow-hidden rounded-xl shadow-sm">
+                  <CardHeader className="border-b py-4">
+                    <CardTitle className="flex items-center text-lg">
+                      <Info className="mr-3 h-5 w-5 text-primary" />
+                      Project Snapshot
+                    </CardTitle>
+                    <CardDescription>Core source and scan metadata for this CBOM.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="divide-y">
+                      <div className="py-3 first:pt-0">
+                        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Package</Label>
+                        <p className="mt-2 break-all text-sm font-medium">{detailsData?.projectIdentifier || cbom.projectIdentifier}</p>
+                      </div>
+                      <div className="py-3">
+                        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Source</Label>
+                        <p className="mt-2 break-all font-mono text-xs">{detailsData?.gitUrl || 'Not available'}</p>
+                      </div>
+                      <div className="grid gap-0 sm:grid-cols-3">
+                        <div className="py-3 sm:pr-4">
+                          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Branch</Label>
+                          <p className="mt-2 text-sm font-medium">{detailsData?.branch || '—'}</p>
+                        </div>
+                        <div className="py-3 sm:border-l sm:px-4">
+                          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Commit</Label>
+                          <p className="mt-2 font-mono text-xs">{typeof detailsData?.commit === 'string' ? detailsData.commit : '—'}</p>
+                        </div>
+                        <div className="py-3 sm:border-l sm:pl-4">
+                          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Captured</Label>
+                          <div className="mt-2 text-sm font-medium">
+                            {detailsData?.createdAt ? (
+                              <DateDisplay date={detailsData.createdAt} formatString="dd/MM/yyyy HH:mm" showRelative={false} />
+                            ) : (
+                              '—'
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="overflow-hidden rounded-xl shadow-sm">
+                  <CardHeader className="border-b py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Shield className="h-5 w-5 text-primary" />
+                          Compliance Analysis
+                          {complianceResult && (
+                            <span
+                              className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                complianceResult.globalComplianceStatus
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              }`}
+                            >
+                              {complianceResult.globalComplianceStatus ? 'Compliant' : 'Non-Compliant'}
+                            </span>
+                          )}
+                        </CardTitle>
+                        {complianceResult ? (
+                          <CardDescription>
+                            {complianceResult.complianceServiceName} · Policy <span className="font-medium">{complianceResult.policyName}</span>
+                          </CardDescription>
+                        ) : (
+                          <CardDescription>Check cryptographic assets against a compliance policy.</CardDescription>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          className="h-9 w-44 text-sm"
+                          value={compliancePolicyId}
+                          onChange={(e) => setCompliancePolicyId(e.target.value)}
+                          placeholder="Policy ID"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleCheckCompliance}
+                          disabled={isCheckingCompliance || !compliancePolicyId || !detailsData?.bom}
+                        >
+                          {isCheckingCompliance ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              Checking...
+                            </>
+                          ) : (
+                            <>
+                              <Shield className="mr-1.5 h-3.5 w-3.5" />
+                              Check
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {complianceResult ? (
+                      <>
+                        <div className="flex flex-wrap gap-3">
+                          {complianceResult.complianceLevels.map((level) => {
+                            const count = Array.from(complianceFindingsMap.values()).filter((id) => id === level.id).length;
+                            return (
+                              <div
+                                key={level.id}
+                                className="flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5"
+                                style={{ borderColor: `${level.colorHex}88` }}
+                              >
+                                <span
+                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                  style={{ background: level.colorHex }}
+                                />
+                                <div>
+                                  <p className="text-sm font-medium leading-none">{level.label}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {count} asset{count !== 1 ? 's' : ''}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {!complianceResult.globalComplianceStatus && (
+                          <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2.5 dark:border-yellow-800 dark:bg-yellow-900/20">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
+                            <p className="text-xs text-yellow-800 dark:text-yellow-300">
+                              This project contains asymmetric cryptographic algorithms that are not quantum-safe. Review the highlighted assets in the table and dependency graph below.
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-dashed bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
+                        Run a compliance check to compare this CBOM against a policy.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-6">
+                <Card className="overflow-hidden rounded-xl shadow-sm">
+                  <CardHeader className="border-b py-4">
+                    <CardTitle className="flex items-center text-lg">
+                      <Boxes className="mr-3 h-5 w-5 text-primary" />
+                      Distribution & Coverage
+                    </CardTitle>
+                    <CardDescription>Quick visual signals for asset spread and identifier completeness.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="flex justify-center rounded-lg border bg-muted/10 px-4 py-4">
+                      <StatGauge
+                        percentage={oidCoverage}
+                        label="OID Coverage"
+                        color="hsl(var(--chart-5))"
+                        valueText={`${Math.round(oidCoverage)}%`}
+                        secondaryText={`${assetsWithOid}/${assets.length || 0}`}
+                        className="flex flex-col items-center gap-1 text-center"
+                      />
+                    </div>
+                    {assets.length > 0 ? (
+                      <div className="rounded-lg border bg-background px-3 py-4">
+                        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Asset distribution</p>
+                        <CBOMBubbleChart assets={assets} height={180} />
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
+                        No cryptographic assets available for charting.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        {complianceResult && (
-          <CardContent className="pt-0">
-            <div className="flex flex-wrap gap-3">
-              {complianceResult.complianceLevels.map((level) => {
-                const count = Array.from(complianceFindingsMap.values()).filter((id) => id === level.id).length;
-                return (
-                  <div
-                    key={level.id}
-                    className="flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5"
-                    style={{ borderColor: `${level.colorHex}88` }}
-                  >
-                    <span
-                      className="h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ background: level.colorHex }}
-                    />
-                    <div>
-                      <p className="text-sm font-medium leading-none">{level.label}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {count} asset{count !== 1 ? 's' : ''}
-                      </p>
+          </TabsContent>
+
+          <TabsContent value="assets" className="mt-0">
+            <Card className="overflow-hidden rounded-xl shadow-sm">
+              <CardHeader className="border-b py-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center text-lg">
+                      <Boxes className="mr-3 h-5 w-5 text-primary" />
+                      Cryptographic Assets
+                    </CardTitle>
+                    <CardDescription>
+                      {Object.values(selectedFilters).some((f) => f.length > 0)
+                        ? `${filteredAssets.length} of ${totalAssets} assets currently visible`
+                        : `${totalAssets} assets available in this CBOM`}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {assetViewMode === 'table' && (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="group-by-ref"
+                          checked={groupByRef}
+                          onCheckedChange={setGroupByRef}
+                        />
+                        <Label htmlFor="group-by-ref" className="cursor-pointer select-none text-xs">
+                          Group by ref
+                        </Label>
+                      </div>
+                    )}
+                    <div className="flex items-center rounded-md border p-0.5 bg-muted/40">
+                      <Button
+                        variant={assetViewMode === 'table' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 rounded-sm px-3 text-xs"
+                        onClick={() => setAssetViewMode('table')}
+                      >
+                        Table
+                      </Button>
+                      <Button
+                        variant={(isRealtimeCBOM ? assetViewMode === 'network-graph' : assetViewMode === 'file-tree') ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 rounded-sm px-3 text-xs"
+                        onClick={() => setAssetViewMode(isRealtimeCBOM ? 'network-graph' : 'file-tree')}
+                      >
+                        {isRealtimeCBOM ? 'Network Graph' : 'File Tree'}
+                      </Button>
+                      <Button
+                        variant={assetViewMode === 'graph' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 rounded-sm px-3 text-xs"
+                        onClick={() => setAssetViewMode('graph')}
+                      >
+                        Dependency Graph
+                      </Button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-            {!complianceResult.globalComplianceStatus && (
-              <div className="mt-3 flex items-start gap-2 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 px-3 py-2.5">
-                <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-yellow-800 dark:text-yellow-300">
-                  This project contains asymmetric cryptographic algorithms that are not quantum-safe. Review the highlighted assets in the table and dependency graph below.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        )}
-      </Card>
-
-      {/* Assets section */}
-      <div>
-        <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-          <div>
-            <h2 className="text-lg font-semibold">Cryptographic Assets</h2>
-            <p className="text-sm text-muted-foreground">
-              {Object.values(selectedFilters).some((f) => f.length > 0)
-                ? `${filteredAssets.length} of ${totalAssets} assets (filtered)`
-                : `${totalAssets} assets found`}
-            </p>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {assetViewMode === 'table' && (
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="group-by-ref"
-                  checked={groupByRef}
-                  onCheckedChange={setGroupByRef}
-                />
-                <Label htmlFor="group-by-ref" className="text-xs cursor-pointer select-none">
-                  Group by ref
-                </Label>
-              </div>
-            )}
-            <div className="flex items-center rounded-md border p-0.5 bg-muted/40">
-              <Button
-                variant={assetViewMode === 'table' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 px-3 text-xs rounded-sm"
-                onClick={() => setAssetViewMode('table')}
-              >
-                Table
-              </Button>
-              <Button
-                variant={(isRealtimeCBOM ? assetViewMode === 'network-graph' : assetViewMode === 'file-tree') ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 px-3 text-xs rounded-sm"
-                onClick={() => setAssetViewMode(isRealtimeCBOM ? 'network-graph' : 'file-tree')}
-              >
-                {isRealtimeCBOM ? (
-                  'Network Graph'
-                ) : (
-                  'File Tree'
-                )}
-              </Button>
-              <Button
-                variant={assetViewMode === 'graph' ? 'secondary' : 'ghost'}
-                size="sm"
-                className="h-7 px-3 text-xs rounded-sm"
-                onClick={() => setAssetViewMode('graph')}
-              >
-                Dependency Graph
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
           {assets.length === 0 ? (
             <p className="text-sm text-muted-foreground">No cryptographic assets found in this CBOM.</p>
           ) : assetViewMode === 'graph' ? (
@@ -1122,35 +1341,30 @@ function CBOMDetailsContent() {
                         ✕
                       </button>
                     </div>
-                    <div className="p-3 space-y-3">
+                    <div className="p-3 space-y-2.5">
                       {(selectedNetworkNode.data?.snis as string[] | undefined)?.length ? (
-                        <div>
-                          <p className="text-muted-foreground font-medium mb-1">SNI</p>
+                        <NetworkDetailSection
+                          title="SNI"
+                          meta={`${(selectedNetworkNode.data.snis as string[]).length} host${(selectedNetworkNode.data.snis as string[]).length === 1 ? '' : 's'}`}
+                        >
                           <div className="flex flex-wrap gap-1">
                             {(selectedNetworkNode.data.snis as string[]).map((s: string) => (
-                              <span key={s} className="rounded-full bg-muted px-2 py-0.5 font-mono">{s}</span>
+                              <span key={s} className={networkDetailChipClass}>{s}</span>
                             ))}
                           </div>
-                        </div>
+                        </NetworkDetailSection>
                       ) : null}
 
                       {selectedNetworkNode.data?.tlsVersion && (
-                        <div>
-                          <p className="text-muted-foreground font-medium mb-1">TLS Version</p>
-                          <span className="rounded-full border border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2 py-0.5">
+                        <NetworkDetailSection title="TLS Version">
+                          <span className={`${networkDetailChipClass} border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400`}>
                             TLS {selectedNetworkNode.data.tlsVersion as string}
                           </span>
-                        </div>
+                        </NetworkDetailSection>
                       )}
 
                       {selectedNetworkNode.data?.negotiatedCipherSuite && (
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <p className="text-muted-foreground font-medium">Negotiated Cipher Suite</p>
-                            <span className="rounded-full bg-purple-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide leading-none">
-                              Active
-                            </span>
-                          </div>
+                        <NetworkDetailSection title="Negotiated Cipher Suite" meta="Active">
                           {(() => {
                             const cs = selectedNetworkNode.data.negotiatedCipherSuite as string;
                             const strength = getCipherStrength(cs);
@@ -1168,25 +1382,40 @@ function CBOMDetailsContent() {
                               </div>
                             );
                           })()}
-                        </div>
+                        </NetworkDetailSection>
                       )}
 
                       {(selectedNetworkNode.data?.keyExchangeGroups as string[] | undefined)?.length ? (
-                        <div>
-                          <p className="text-muted-foreground font-medium mb-1">Key Exchange Groups</p>
+                        <NetworkDetailSection
+                          title="Key Exchange Groups"
+                          meta={`${(selectedNetworkNode.data.keyExchangeGroups as string[]).length} group${(selectedNetworkNode.data.keyExchangeGroups as string[]).length === 1 ? '' : 's'}`}
+                        >
                           <div className="flex flex-wrap gap-1">
                             {(selectedNetworkNode.data.keyExchangeGroups as string[]).map((g: string) => (
-                              <span key={g} className="rounded-full bg-muted px-2 py-0.5 font-mono">{g}</span>
+                              <span key={g} className={networkDetailChipClass}>{g}</span>
                             ))}
                           </div>
-                        </div>
+                        </NetworkDetailSection>
+                      ) : null}
+
+                      {(selectedNetworkNode.data?.signatureAlgorithms as string[] | undefined)?.length ? (
+                        <NetworkDetailSection
+                          title="Signature Algorithms"
+                          meta={`${(selectedNetworkNode.data.signatureAlgorithms as string[]).length} algorithm${(selectedNetworkNode.data.signatureAlgorithms as string[]).length === 1 ? '' : 's'}`}
+                        >
+                          <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
+                            {(selectedNetworkNode.data.signatureAlgorithms as string[]).map((algorithm: string) => (
+                              <span key={algorithm} className={networkDetailChipClass}>{algorithm}</span>
+                            ))}
+                          </div>
+                        </NetworkDetailSection>
                       ) : null}
 
                       {(selectedNetworkNode.data?.cipherSuites as string[] | undefined)?.length ? (
-                        <div>
-                          <p className="text-muted-foreground font-medium mb-1.5">
-                            Cipher Suites ({(selectedNetworkNode.data.cipherSuites as string[]).length})
-                          </p>
+                        <NetworkDetailSection
+                          title="Cipher Suites"
+                          meta={`${(selectedNetworkNode.data.cipherSuites as string[]).length} suite${(selectedNetworkNode.data.cipherSuites as string[]).length === 1 ? '' : 's'}`}
+                        >
                           {(() => {
                             const suites = selectedNetworkNode.data.cipherSuites as string[];
                             const counts = suites.reduce<Record<CipherStrength, number>>(
@@ -1231,7 +1460,7 @@ function CBOMDetailsContent() {
                               );
                             })}
                           </div>
-                        </div>
+                        </NetworkDetailSection>
                       ) : null}
                     </div>
                   </div>
@@ -1460,8 +1689,12 @@ function CBOMDetailsContent() {
               </Table>
             </div>
           )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </div>
-      </div>
+      </Tabs>
 
       <CBOMAssetDetailDialog
         asset={selectedAsset}
@@ -1506,4 +1739,3 @@ export default function CBOMDetailsPage() {
     </Suspense>
   );
 }
-

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -398,6 +398,38 @@ export default function CBOMPage() {
     }
   };
 
+  const totalAssetsAcrossFiltered = filteredCboms.reduce(
+    (sum, item) => sum + (getCryptographicAssetCount(item) ?? 0),
+    0,
+  );
+  const totalFindingsAcrossFiltered = filteredCboms.reduce(
+    (sum, item) => sum + (getTotalFindings(item) ?? 0),
+    0,
+  );
+  const realtimeCount = recentCboms.filter((item) => getCBOMType(item) === 'realtime').length;
+  const summaryCards = [
+    {
+      label: 'Visible scans',
+      value: filteredCboms.length.toString(),
+      hint: cbomTypeFilter === 'all' ? 'Across all CBOM types' : `Filtered by ${cbomTypeFilter}`,
+    },
+    {
+      label: 'Tracked assets',
+      value: totalAssetsAcrossFiltered.toString(),
+      hint: 'Cryptographic assets in view',
+    },
+    {
+      label: 'Findings',
+      value: totalFindingsAcrossFiltered.toString(),
+      hint: 'Detected occurrences',
+    },
+    {
+      label: 'Live capture',
+      value: realtimeCount.toString(),
+      hint: realtimeCount === 1 ? 'Realtime CBOM scan' : 'Realtime CBOM scans',
+    },
+  ];
+
   if (!isAuthenticated()) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -425,442 +457,490 @@ export default function CBOMPage() {
 
   return (
     <div className="w-full space-y-5">
-
-      {/* ── Page header ─────────────────────────────────────────────── */}
-      <div className="flex items-end justify-between gap-4 pb-4 border-b">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">CBOM Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Explore cryptography usage in software with Cryptography Bills of Materials
-          </p>
-        </div>
-      </div>
-
-      {/* ── Generate + Upload ────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row rounded-lg border bg-card overflow-hidden">
-        {/* left: generate */}
-        <div className="flex flex-col gap-4 flex-1 min-w-0 p-5">
-          <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-sm font-semibold">Generate a new CBOM</span>
-            <span className="text-xs text-muted-foreground hidden sm:inline">— scan a public Git or package URL</span>
-          </div>
-
-          <div className="flex gap-2">
-            <Input
-              placeholder="https://github.com/org/repo.git"
-              value={scanUrl}
-              onChange={(event) => setScanUrl(event.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !isScanning) handleScanRepository(); }}
-              className="h-9 flex-1 text-sm"
-            />
-            <Button
-              className="h-9 shrink-0 px-4 text-sm"
-              disabled={isScanning}
-              onClick={handleScanRepository}
-            >
-              {isScanning ? (
-                <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Scanning</>
-              ) : (
-                <><Search className="mr-1.5 h-3.5 w-3.5" />Scan</>
-              )}
-            </Button>
-          </div>
-
-          <div>
-            <button
-              type="button"
-              onClick={() => setAdvancedOptions((v) => !v)}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors select-none"
-            >
-              <span className={cn(
-                'inline-flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold transition-colors shrink-0',
-                advancedOptions ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40',
-              )}>
-                {advancedOptions ? '✓' : ''}
-              </span>
-              Advanced options
-            </button>
-
-            {advancedOptions && (
-              <Tabs defaultValue="scan" className="mt-3 w-full">
-                <TabsList className="h-8">
-                  <TabsTrigger value="scan" className="text-xs px-3">Scan</TabsTrigger>
-                  <TabsTrigger value="auth" className="text-xs px-3">Authentication</TabsTrigger>
-                </TabsList>
-                <TabsContent value="scan" className="mt-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label htmlFor="adv-branch" className="text-xs text-muted-foreground">Branch</Label>
-                      <Input id="adv-branch" placeholder="main" value={advBranch} onChange={(e) => setAdvBranch(e.target.value)} className="h-8 text-xs" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="adv-subfolder" className="text-xs text-muted-foreground">Subfolder</Label>
-                      <Input id="adv-subfolder" placeholder="src/" value={advSubfolder} onChange={(e) => setAdvSubfolder(e.target.value)} className="h-8 text-xs" />
-                    </div>
-                  </div>
-                </TabsContent>
-                <TabsContent value="auth" className="mt-3 space-y-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="adv-username" className="text-xs text-muted-foreground">Username</Label>
-                    <Input id="adv-username" placeholder="username" value={advUsername} onChange={(e) => setAdvUsername(e.target.value)} className="h-8 text-xs" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="adv-password" className="text-xs text-muted-foreground">Password / Personal Access Token</Label>
-                    <div className="relative">
-                      <Input
-                        id="adv-password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="••••••"
-                        value={advPassword}
-                        onChange={(e) => setAdvPassword(e.target.value)}
-                        className="h-8 text-xs pr-8"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground hover:text-foreground"
-                        tabIndex={-1}
-                      >
-                        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            )}
-          </div>
-
-          {(isScanning || scanStatus || scanGitUrl || scanDetections > 0 || scanError) && (
-            <div className={cn(
-              'rounded-md border px-3 py-2.5 text-xs space-y-1',
-              scanError
-                ? 'border-destructive/40 bg-destructive/5'
-                : scanFinished
-                  ? 'border-blue-400/40 bg-blue-50/50 dark:bg-blue-950/20'
-                  : 'border-border/50 bg-muted/20',
-            )}>
-              <div className="flex items-center gap-1.5">
-                {isScanning && !scanError && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
-                {scanFinished && !scanError && <Check className="h-3 w-3 text-blue-500 shrink-0" />}
-                <span className={cn('font-medium', scanError ? 'text-destructive' : scanFinished ? 'text-blue-600 dark:text-blue-400' : 'text-foreground')}>
-                  {scanStatus || 'Waiting…'}
-                </span>
-                {scanError && <span className="text-destructive ml-1">— {scanError}</span>}
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="h-1 w-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500" />
+        <div className="p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ClipboardList className="h-6 w-6" />
               </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-muted-foreground">
-                {scanGitUrl && <span className="truncate max-w-xs"><span className="text-foreground/60">Repo:</span> {scanGitUrl}</span>}
-                {scanBranch && <span><span className="text-foreground/60">Branch:</span> {scanBranch}</span>}
-                {scanRevisionHash && <span><span className="text-foreground/60">Rev:</span> {scanRevisionHash.slice(0, 10)}</span>}
-                {scanDetections > 0 && <span><span className="text-foreground/60">Detections:</span> {scanDetections}</span>}
-                {scanFileCount !== null && scanFileCount > 0 && <span><span className="text-foreground/60">Files:</span> {scanFileCount.toLocaleString()}</span>}
-                {scanLineCount !== null && scanLineCount > 0 && <span><span className="text-foreground/60">Lines:</span> {scanLineCount.toLocaleString()}</span>}
-                {scanDuration !== null && scanDuration > 0 && (
-                  <span><span className="text-foreground/60">Duration:</span> {scanDuration >= 1000 ? `${(scanDuration / 1000).toFixed(1)}s` : `${scanDuration}ms`}</span>
-                )}
+              <div className="min-w-0 space-y-2">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">CBOM Dashboard</h1>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Explore repository scans, live capture sessions, and cryptographic findings in one place.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    {recentCboms.length} stored scan{recentCboms.length === 1 ? '' : 's'}
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    {cbomTypeFilter === 'all' ? 'Showing all types' : `Filtered: ${cbomTypeFilter}`}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    JSON upload + remote scan
+                  </Badge>
+                </div>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Vertical divider (desktop) / horizontal (mobile) */}
-        <div className="w-px bg-border hidden lg:block self-stretch" />
-        <div className="h-px bg-border block lg:hidden" />
-
-        {/* right: upload */}
-        <div className="flex flex-col gap-3 p-5 lg:w-72 shrink-0 bg-muted/10">
-          <div className="flex items-center gap-2">
-            <FileUp className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-sm font-semibold">Upload a CBOM</span>
-          </div>
-          <p className="text-xs text-muted-foreground -mt-1">Drop an existing CBOM JSON to store and visualize it.</p>
-          <label
-            htmlFor="cbom-upload"
-            className={cn(
-              'flex flex-1 min-h-32 cursor-pointer flex-col items-center justify-center gap-2.5 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-all duration-150',
-              isDragOver
-                ? 'border-primary bg-primary/8 scale-[1.01]'
-                : 'border-border/60 bg-background/50 hover:border-primary/60 hover:bg-primary/5',
-              isUploading && 'pointer-events-none opacity-50',
-            )}
-            onDragOver={(event) => { event.preventDefault(); setIsDragOver(true); }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={(event) => {
-              event.preventDefault();
-              setIsDragOver(false);
-              handleUploadFile(event.dataTransfer.files?.[0]);
-            }}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <span className="text-xs text-muted-foreground">Uploading…</span>
-              </>
-            ) : (
-              <>
-                <div className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-xl transition-colors',
-                  isDragOver ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
-                )}>
-                  <FileUp className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">{isDragOver ? 'Release to upload' : 'Drop file here'}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">or <span className="text-primary underline underline-offset-2">browse</span></p>
-                </div>
-                <p className="text-[10px] text-muted-foreground/60">.json files only</p>
-              </>
-            )}
-          </label>
-          <input
-            id="cbom-upload"
-            type="file"
-            accept=".json,application/json"
-            className="hidden"
-            disabled={isUploading}
-            onChange={(event) => handleUploadFile(event.target.files?.[0])}
-          />
-        </div>
-      </div>
-
-      {/* ── Recent Scans ─────────────────────────────────────────── */}
-      <div className="space-y-3">
-        {/* toolbar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-semibold">Recent Scans</h2>
-            {!isLoadingTable && recentCboms.length > 0 && (
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
-                {recentCboms.length}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {(recentCboms.length > 0 || isLoadingTable) && (
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="tableLimitSelect" className="text-xs text-muted-foreground whitespace-nowrap">Show</Label>
-                <Select value={String(tableLimit)} onValueChange={(v) => setTableLimit(Number(v))} disabled={isLoadingTable}>
-                  <SelectTrigger id="tableLimitSelect" className="h-7 w-[64px] text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {recentCboms.length > 0 && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground mr-1">Type:</span>
-                <Button
-                  variant={cbomTypeFilter === 'all' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => setCbomTypeFilter('all')}
+            <div className="grid gap-4 sm:grid-cols-4 xl:min-w-[480px]">
+              {summaryCards.map((item, index) => (
+                <div
+                  key={item.label}
+                  className={cn('px-1 sm:px-4', index > 0 && 'sm:border-l')}
                 >
-                  All
-                </Button>
-                {CBOM_TYPES.map((type) => (
-                  <Button
-                    key={type}
-                    variant={cbomTypeFilter === type ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="h-6 px-2 text-xs"
-                    onClick={() => setCbomTypeFilter(type)}
-                  >
-                    {type}
-                  </Button>
-                ))}
-              </div>
-            )}
-            {recentCboms.length > 0 && (
-              <ColumnSelector columns={columns} onColumnToggle={handleColumnToggle} align="end" />
-            )}
-            <Button onClick={loadRecentScans} variant="outline" size="sm" disabled={isLoadingTable} className="h-7 text-xs px-2.5">
-              <RefreshCw className={cn('h-3 w-3', isLoadingTable && 'animate-spin')} />
-              <span className="ml-1.5">Refresh</span>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
+                  <p className="text-xs text-muted-foreground">{item.hint}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end">
+            <Button onClick={loadRecentScans} variant="outline" size="sm" disabled={isLoadingTable} className="px-2.5">
+              <RefreshCw className={cn('h-4 w-4', isLoadingTable && 'animate-spin')} />
             </Button>
           </div>
         </div>
-
-        {tableError && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error Loading CBOMs</AlertTitle>
-            <AlertDescription>{tableError}</AlertDescription>
-          </Alert>
-        )}
-
-        {isLoadingTable && recentCboms.length === 0 && (
-          <div className="flex items-center justify-center py-10 border rounded-lg bg-card">
-            <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" />
-            <span className="text-sm text-muted-foreground">Loading CBOMs…</span>
-          </div>
-        )}
-
-        {!tableError && recentCboms.length > 0 && (
-          <div className={cn(
-            'overflow-x-auto transition-opacity duration-300',
-            isLoadingTable && 'opacity-50 pointer-events-none',
-          )}>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {columnVisibility.project && (
-                    <TableHead className="text-xs font-medium w-[300px]">Project / Repository</TableHead>
-                  )}
-                  {columnVisibility.cbomType && (
-                    <TableHead className="text-xs font-medium w-32">CBOM Type</TableHead>
-                  )}
-                  {columnVisibility.date && (
-                    <TableHead className="text-xs font-medium w-40">Date of Scan</TableHead>
-                  )}
-                  {columnVisibility.assets && (
-                    <TableHead className="text-xs font-medium text-right w-28">Total Assets</TableHead>
-                  )}
-                  {columnVisibility.findings && (
-                    <TableHead className="text-xs font-medium text-right w-28">Findings</TableHead>
-                  )}
-                  {columnVisibility.action && (
-                    <TableHead className="text-xs font-medium text-right w-24">Actions</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCboms.map((item, index) => {
-                  const assetCount = getCryptographicAssetCount(item);
-                  const findingsCount = getTotalFindings(item);
-                  const scanDate = item.createdAt ?? item.timestamp;
-                  const cbomType = getCBOMType(item);
-                  return (
-                    <TableRow key={`${item.projectIdentifier}-${index}`} className="group">
-                      {columnVisibility.project && (
-                        <TableCell className="py-2.5">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <Link
-                              href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}
-                              className="truncate text-sm hover:underline font-medium"
-                              title={item.projectIdentifier}
-                            >
-                              {item.projectIdentifier}
-                            </Link>
-                            <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-60 transition-opacity" />
-                          </div>
-                        </TableCell>
-                      )}
-                      {columnVisibility.cbomType && (
-                        <TableCell className="py-2.5 w-32">
-                          <Badge
-                            variant="outline"
-                            className={
-                              cbomType === 'gitrepo'
-                                ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs'
-                                : cbomType === 'filesystem'
-                                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs'
-                                  : 'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs'
-                            }
-                          >
-                            {cbomType}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {columnVisibility.date && (
-                        <TableCell className="py-2.5 w-40">
-                          {scanDate ? (
-                            <DateDisplay
-                              date={scanDate}
-                              formatString="dd/MM/yyyy HH:mm"
-                              className="text-xs"
-                              relativeClassName="text-xs"
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      )}
-                      {columnVisibility.assets && (
-                        <TableCell className="py-2.5 text-right w-28 tabular-nums">
-                          {assetCount !== undefined ? (
-                            <span className="text-sm font-medium">{assetCount}</span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      )}
-                      {columnVisibility.findings && (
-                        <TableCell className="py-2.5 text-right w-28 tabular-nums">
-                          {findingsCount !== undefined ? (
-                            <span className="text-sm font-medium">{findingsCount}</span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      )}
-                      {columnVisibility.action && (
-                        <TableCell className="py-2.5 text-right w-24">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                                <span className="sr-only">CBOM Actions</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  {assetCount !== undefined
-                                    ? `View ${assetCount} asset${assetCount !== 1 ? 's' : ''}`
-                                    : 'View Assets'}
-                                  <ArrowRight className="ml-auto h-3 w-3" />
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  const dataStr = JSON.stringify(item.data || item, null, 2);
-                                  const blob = new Blob([dataStr], { type: 'application/json' });
-                                  const url = URL.createObjectURL(blob);
-                                  const a = document.createElement('a');
-                                  a.href = url;
-                                  a.download = `cbom-${item.projectIdentifier}.json`;
-                                  a.click();
-                                  URL.revokeObjectURL(url);
-                                }}
-                              >
-                                <Download className="mr-2 h-4 w-4" /> Download JSON
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-
-        {!tableError && !isLoadingTable && filteredCboms.length === 0 && recentCboms.length > 0 && (
-          <div className="flex flex-col items-center justify-center py-8 border rounded-lg border-dashed bg-muted/10 text-center">
-            <ClipboardList className="h-8 w-8 text-muted-foreground/40 mb-2" />
-            <p className="text-sm font-medium text-muted-foreground">No {cbomTypeFilter} scans found</p>
-            <p className="text-xs text-muted-foreground/60 mt-0.5">Try a different type filter.</p>
-          </div>
-        )}
-
-        {!tableError && !isLoadingTable && recentCboms.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 border rounded-lg border-dashed bg-muted/10 text-center">
-            <ClipboardList className="h-8 w-8 text-muted-foreground/40 mb-2" />
-            <p className="text-sm font-medium text-muted-foreground">No CBOMs yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-0.5">Scan or upload a repository above to get started.</p>
-          </div>
-        )}
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_320px]">
+        <Card className="overflow-hidden rounded-xl shadow-sm">
+          <CardHeader className="border-b py-4">
+            <CardTitle className="flex items-center text-lg">
+              <Search className="mr-3 h-5 w-5 text-primary" />
+              Generate A New CBOM
+            </CardTitle>
+            <CardDescription>Scan a public or authenticated Git repository and persist the resulting CBOM.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Input
+                placeholder="https://github.com/org/repo.git"
+                value={scanUrl}
+                onChange={(event) => setScanUrl(event.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !isScanning) handleScanRepository(); }}
+                className="h-10 flex-1 text-sm"
+              />
+              <Button
+                className="h-10 shrink-0 px-4 text-sm"
+                disabled={isScanning}
+                onClick={handleScanRepository}
+              >
+                {isScanning ? (
+                  <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Scanning</>
+                ) : (
+                  <><Search className="mr-1.5 h-4 w-4" />Scan Repository</>
+                )}
+              </Button>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => setAdvancedOptions((v) => !v)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span className={cn(
+                  'inline-flex h-3.5 w-3.5 items-center justify-center rounded border text-[9px] font-bold transition-colors shrink-0',
+                  advancedOptions ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40',
+                )}>
+                  {advancedOptions ? '✓' : ''}
+                </span>
+                Advanced options
+              </button>
+
+              {advancedOptions && (
+                <Tabs defaultValue="scan" className="mt-4 w-full">
+                  <div className="border-b">
+                    <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+                      {[
+                        { value: 'scan', label: 'Scan Settings' },
+                        { value: 'auth', label: 'Authentication' },
+                      ].map(({ value, label }) => (
+                        <TabsTrigger
+                          key={value}
+                          value={value}
+                          className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                        >
+                          {label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </div>
+                  <TabsContent value="scan" className="mt-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="adv-branch" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Branch</Label>
+                        <Input id="adv-branch" placeholder="main" value={advBranch} onChange={(e) => setAdvBranch(e.target.value)} className="h-9 text-sm" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="adv-subfolder" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Subfolder</Label>
+                        <Input id="adv-subfolder" placeholder="src/" value={advSubfolder} onChange={(e) => setAdvSubfolder(e.target.value)} className="h-9 text-sm" />
+                      </div>
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="auth" className="mt-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="adv-username" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Username</Label>
+                      <Input id="adv-username" placeholder="username" value={advUsername} onChange={(e) => setAdvUsername(e.target.value)} className="h-9 text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="adv-password" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Password Or Personal Access Token</Label>
+                      <div className="relative">
+                        <Input
+                          id="adv-password"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="••••••"
+                          value={advPassword}
+                          onChange={(e) => setAdvPassword(e.target.value)}
+                          className="h-9 pr-8 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          className="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground hover:text-foreground"
+                          tabIndex={-1}
+                        >
+                          {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              )}
+            </div>
+
+            {(isScanning || scanStatus || scanGitUrl || scanDetections > 0 || scanError) && (
+              <div className={cn(
+                'rounded-lg border px-4 py-3 text-xs',
+                scanError
+                  ? 'border-destructive/40 bg-destructive/5'
+                  : scanFinished
+                    ? 'border-blue-400/40 bg-blue-50/50 dark:bg-blue-950/20'
+                    : 'border-border/60 bg-muted/20',
+              )}>
+                <div className="flex items-center gap-1.5">
+                  {isScanning && !scanError && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
+                  {scanFinished && !scanError && <Check className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                  <span className={cn('font-medium', scanError ? 'text-destructive' : scanFinished ? 'text-blue-600 dark:text-blue-400' : 'text-foreground')}>
+                    {scanStatus || 'Waiting…'}
+                  </span>
+                  {scanError && <span className="ml-1 text-destructive">{scanError}</span>}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                  {scanGitUrl && <span className="truncate max-w-xs"><span className="text-foreground/60">Repo:</span> {scanGitUrl}</span>}
+                  {scanBranch && <span><span className="text-foreground/60">Branch:</span> {scanBranch}</span>}
+                  {scanRevisionHash && <span><span className="text-foreground/60">Rev:</span> {scanRevisionHash.slice(0, 10)}</span>}
+                  {scanDetections > 0 && <span><span className="text-foreground/60">Detections:</span> {scanDetections}</span>}
+                  {scanFileCount !== null && scanFileCount > 0 && <span><span className="text-foreground/60">Files:</span> {scanFileCount.toLocaleString()}</span>}
+                  {scanLineCount !== null && scanLineCount > 0 && <span><span className="text-foreground/60">Lines:</span> {scanLineCount.toLocaleString()}</span>}
+                  {scanDuration !== null && scanDuration > 0 && (
+                    <span><span className="text-foreground/60">Duration:</span> {scanDuration >= 1000 ? `${(scanDuration / 1000).toFixed(1)}s` : `${scanDuration}ms`}</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden rounded-xl shadow-sm">
+          <CardHeader className="border-b py-4">
+            <CardTitle className="flex items-center text-lg">
+              <FileUp className="mr-3 h-5 w-5 text-primary" />
+              Upload A CBOM
+            </CardTitle>
+            <CardDescription>Import an existing CBOM JSON file and add it to the dashboard.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label
+              htmlFor="cbom-upload"
+              className={cn(
+                'flex min-h-56 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all duration-150',
+                isDragOver
+                  ? 'border-primary bg-primary/8 scale-[1.01]'
+                  : 'border-border/60 bg-muted/10 hover:border-primary/60 hover:bg-primary/5',
+                isUploading && 'pointer-events-none opacity-50',
+              )}
+              onDragOver={(event) => { event.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setIsDragOver(false);
+                handleUploadFile(event.dataTransfer.files?.[0]);
+              }}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Uploading…</span>
+                </>
+              ) : (
+                <>
+                  <div className={cn(
+                    'flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
+                    isDragOver ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
+                  )}>
+                    <FileUp className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{isDragOver ? 'Release to upload' : 'Drop file here'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">or <span className="text-primary underline underline-offset-2">browse</span></p>
+                  </div>
+                  <p className="max-w-[220px] text-xs text-muted-foreground">
+                    Supports `.json` CBOM files that can be stored and opened from the dashboard.
+                  </p>
+                </>
+              )}
+            </label>
+            <input
+              id="cbom-upload"
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              disabled={isUploading}
+              onChange={(event) => handleUploadFile(event.target.files?.[0])}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="overflow-hidden rounded-xl shadow-sm">
+        <CardHeader className="border-b py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <CardTitle className="flex items-center text-lg">
+                <ClipboardList className="mr-3 h-5 w-5 text-primary" />
+                Recent Scans
+              </CardTitle>
+              <CardDescription>Review stored CBOMs, filter by type, and jump directly into a scan report.</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {(recentCboms.length > 0 || isLoadingTable) && (
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="tableLimitSelect" className="text-xs text-muted-foreground whitespace-nowrap">Show</Label>
+                  <Select value={String(tableLimit)} onValueChange={(v) => setTableLimit(Number(v))} disabled={isLoadingTable}>
+                    <SelectTrigger id="tableLimitSelect" className="h-8 w-[72px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {recentCboms.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <span className="mr-1 text-xs text-muted-foreground">Type:</span>
+                  <Button
+                    variant={cbomTypeFilter === 'all' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => setCbomTypeFilter('all')}
+                  >
+                    All
+                  </Button>
+                  {CBOM_TYPES.map((type) => (
+                    <Button
+                      key={type}
+                      variant={cbomTypeFilter === type ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-7 px-2.5 text-xs"
+                      onClick={() => setCbomTypeFilter(type)}
+                    >
+                      {type}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              {recentCboms.length > 0 && (
+                <ColumnSelector columns={columns} onColumnToggle={handleColumnToggle} align="end" />
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {tableError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error Loading CBOMs</AlertTitle>
+              <AlertDescription>{tableError}</AlertDescription>
+            </Alert>
+          )}
+
+          {isLoadingTable && recentCboms.length === 0 && (
+            <div className="flex items-center justify-center rounded-lg border bg-muted/10 py-10">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Loading CBOMs…</span>
+            </div>
+          )}
+
+          {!tableError && recentCboms.length > 0 && (
+            <div className={cn(
+              'overflow-x-auto rounded-lg border transition-opacity duration-300',
+              isLoadingTable && 'pointer-events-none opacity-50',
+            )}>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {columnVisibility.project && (
+                      <TableHead className="w-[300px] text-xs font-medium">Project / Repository</TableHead>
+                    )}
+                    {columnVisibility.cbomType && (
+                      <TableHead className="w-32 text-xs font-medium">CBOM Type</TableHead>
+                    )}
+                    {columnVisibility.date && (
+                      <TableHead className="w-40 text-xs font-medium">Date of Scan</TableHead>
+                    )}
+                    {columnVisibility.assets && (
+                      <TableHead className="w-28 text-right text-xs font-medium">Total Assets</TableHead>
+                    )}
+                    {columnVisibility.findings && (
+                      <TableHead className="w-28 text-right text-xs font-medium">Findings</TableHead>
+                    )}
+                    {columnVisibility.action && (
+                      <TableHead className="w-24 text-right text-xs font-medium">Actions</TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCboms.map((item, index) => {
+                    const assetCount = getCryptographicAssetCount(item);
+                    const findingsCount = getTotalFindings(item);
+                    const scanDate = item.createdAt ?? item.timestamp;
+                    const cbomType = getCBOMType(item);
+                    return (
+                      <TableRow key={`${item.projectIdentifier}-${index}`} className="group">
+                        {columnVisibility.project && (
+                          <TableCell className="py-3">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <Link
+                                href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}
+                                className="truncate text-sm font-medium hover:underline"
+                                title={item.projectIdentifier}
+                              >
+                                {item.projectIdentifier}
+                              </Link>
+                              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60" />
+                            </div>
+                          </TableCell>
+                        )}
+                        {columnVisibility.cbomType && (
+                          <TableCell className="w-32 py-3">
+                            <Badge
+                              variant="outline"
+                              className={
+                                cbomType === 'gitrepo'
+                                  ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs'
+                                  : cbomType === 'filesystem'
+                                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs'
+                                    : 'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs'
+                              }
+                            >
+                              {cbomType}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {columnVisibility.date && (
+                          <TableCell className="w-40 py-3">
+                            {scanDate ? (
+                              <DateDisplay
+                                date={scanDate}
+                                formatString="dd/MM/yyyy HH:mm"
+                                className="text-xs"
+                                relativeClassName="text-xs"
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {columnVisibility.assets && (
+                          <TableCell className="w-28 py-3 text-right tabular-nums">
+                            {assetCount !== undefined ? (
+                              <span className="text-sm font-medium">{assetCount}</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {columnVisibility.findings && (
+                          <TableCell className="w-28 py-3 text-right tabular-nums">
+                            {findingsCount !== undefined ? (
+                              <span className="text-sm font-medium">{findingsCount}</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {columnVisibility.action && (
+                          <TableCell className="w-24 py-3 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                  <span className="sr-only">CBOM Actions</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    {assetCount !== undefined
+                                      ? `View ${assetCount} asset${assetCount !== 1 ? 's' : ''}`
+                                      : 'View Assets'}
+                                    <ArrowRight className="ml-auto h-3 w-3" />
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const dataStr = JSON.stringify(item.data || item, null, 2);
+                                    const blob = new Blob([dataStr], { type: 'application/json' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `cbom-${item.projectIdentifier}.json`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                  }}
+                                >
+                                  <Download className="mr-2 h-4 w-4" /> Download JSON
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {!tableError && !isLoadingTable && filteredCboms.length === 0 && recentCboms.length > 0 && (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 py-8 text-center">
+              <ClipboardList className="mb-2 h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground">No {cbomTypeFilter} scans found</p>
+              <p className="mt-0.5 text-xs text-muted-foreground/60">Try a different type filter.</p>
+            </div>
+          )}
+
+          {!tableError && !isLoadingTable && recentCboms.length === 0 && (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 py-12 text-center">
+              <ClipboardList className="mb-2 h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground">No CBOMs yet</p>
+              <p className="mt-0.5 text-xs text-muted-foreground/60">Scan or upload a repository above to get started.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
