@@ -33,6 +33,7 @@ import { updateCertificateStatus, deleteCertificate, fetchIssuedCertificates } f
 import { templateDefaults, type SigningProfileFormValues } from '../shared/SigningProfileForm';
 import { checkOcspStatus } from '@/lib/va-api';
 import { ReadyToPki } from './ReadyToPki';
+import { CLIENT_AUTH_EXTENDED_KEY_USAGES, CLIENT_AUTH_KEY_USAGES, DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 
 
 // Log Entry Type
@@ -159,9 +160,9 @@ export const InitializationWizard: React.FC = () => {
                 validity: { type: "Duration", duration: "1h" },
                 sign_as_ca: false,
                 honor_key_usage: false,
-                key_usage: ["DigitalSignature"],
+                key_usage: [...CLIENT_AUTH_KEY_USAGES],
                 honor_extended_key_usages: false,
-                extended_key_usages: ["ClientAuth"],
+                extended_key_usages: [...CLIENT_AUTH_EXTENDED_KEY_USAGES],
                 honor_subject: true,
                 honor_extensions: true,
                 crypto_enforcement: { enabled: false, allow_rsa_keys: true, allow_ecdsa_keys: true },
@@ -459,9 +460,9 @@ export const InitializationWizard: React.FC = () => {
                 validity: { type: "Duration", duration: "5y" },
                 sign_as_ca: false,
                 honor_key_usage: false,
-                key_usage: templateData.keyUsages || ["DigitalSignature", "KeyEncipherment"],
+                key_usage: templateData.keyUsages || [...TLS_KEY_USAGES],
                 honor_extended_key_usages: false,
-                extended_key_usages: templateData.extendedKeyUsages || ["ClientAuth", "ServerAuth"],
+                extended_key_usages: templateData.extendedKeyUsages || [...DEVICE_AUTH_EXTENDED_KEY_USAGES],
                 honor_subject: true,
                 honor_extensions: true,
                 crypto_enforcement: {

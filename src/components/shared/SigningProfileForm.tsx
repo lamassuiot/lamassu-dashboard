@@ -15,19 +15,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
 import { SwitchFormField } from '@/components/shared/FormComponents';
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
+import {
+  CA_KEY_USAGES,
+  CODE_SIGNING_EXTENDED_KEY_USAGES,
+  CODE_SIGNING_KEY_USAGES,
+  DEVICE_AUTH_EXTENDED_KEY_USAGES,
+  SERVER_AUTH_EXTENDED_KEY_USAGES,
+  TLS_KEY_USAGES,
+  extendedKeyUsageOptions,
+  keyUsageOptions,
+} from '@/lib/certificate-usage-options';
 
 const rsaKeyStrengths = ["2048", "3072", "4096"] as const;
 const ecdsaCurves = ["P-256", "P-384", "P-521"] as const;
-
-const keyUsageOptions = [
-  "DigitalSignature", "ContentCommitment", "KeyEncipherment", "DataEncipherment",
-  "KeyAgreement", "CertSign", "CRLSign", "EncipherOnly", "DecipherOnly"
-] as const;
-
-const extendedKeyUsageOptions = [
-  "ServerAuth", "ClientAuth", "CodeSigning", "EmailProtection",
-  "TimeStamping", "OCSPSigning", "Any"
-] as const;
 
 export const signingProfileSchema = z.object({
   profileName: z.string().min(3, "Profile name must be at least 3 characters long."),
@@ -103,8 +103,8 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
     description: 'For authenticating IoT devices. Includes client and server authentication.',
     validity: { type: 'Duration', durationValue: '5y' },
     cryptoEnforcement: { ...defaultFormValues.cryptoEnforcement, enabled: true },
-    keyUsages: ['DigitalSignature', 'KeyEncipherment'],
-    extendedKeyUsages: ['ClientAuth', 'ServerAuth'],
+    keyUsages: [...TLS_KEY_USAGES],
+    extendedKeyUsages: [...DEVICE_AUTH_EXTENDED_KEY_USAGES],
     honorKeyUsage: false,
     honorExtendedKeyUsages: false,
     honorExtensions: true,
@@ -114,8 +114,8 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
     description: 'For signing application code and executables.',
     validity: { type: 'Duration', durationValue: '3y' },
     cryptoEnforcement: { ...defaultFormValues.cryptoEnforcement, allowedEcdsaCurves: [], enabled: true }, // Often RSA
-    keyUsages: ['DigitalSignature', 'ContentCommitment'],
-    extendedKeyUsages: ['CodeSigning'],
+    keyUsages: [...CODE_SIGNING_KEY_USAGES],
+    extendedKeyUsages: [...CODE_SIGNING_EXTENDED_KEY_USAGES],
     honorKeyUsage: false,
     honorExtendedKeyUsages: false,
     honorExtensions: true,
@@ -125,8 +125,8 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
     description: 'For standard TLS web server certificates (HTTPS).',
     validity: { type: 'Duration', durationValue: '1y' },
     cryptoEnforcement: { ...defaultFormValues.cryptoEnforcement, enabled: true },
-    keyUsages: ['DigitalSignature', 'KeyEncipherment'],
-    extendedKeyUsages: ['ServerAuth'],
+    keyUsages: [...TLS_KEY_USAGES],
+    extendedKeyUsages: [...SERVER_AUTH_EXTENDED_KEY_USAGES],
     honorKeyUsage: false,
     honorExtendedKeyUsages: false,
     honorExtensions: true,
@@ -137,7 +137,7 @@ export const templateDefaults: Record<string, Partial<SigningProfileFormValues>>
     validity: { type: 'Duration', durationValue: '5y' },
     signAsCa: true,
     cryptoEnforcement: { ...defaultFormValues.cryptoEnforcement, enabled: true },
-    keyUsages: ['CertSign', 'CRLSign'],
+    keyUsages: [...CA_KEY_USAGES],
     extendedKeyUsages: [],
     honorKeyUsage: false,
     honorExtendedKeyUsages: false,

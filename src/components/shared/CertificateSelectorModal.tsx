@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,12 +9,16 @@ import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Search as
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
+import type { CA } from '@/lib/ca-data';
 import { SelectableCertificateItem } from './SelectableCertificateItem';
+import { MultiSelectDropdown } from './MultiSelectDropdown';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
-import type { ApiStatusFilterValue } from '@/app/certificates/page'; // Import shared type
+import type { ApiStatusFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
+import { EKU_OPTIONS, KEY_USAGE_OPTIONS } from '@/lib/form-options';
+import type { KeyUsageOption } from '@/lib/certificate-usage-options';
 
 // Define API_STATUS_VALUES locally if not exportable or if preferred for modal's independence
 const MODAL_API_STATUS_VALUES = {
@@ -31,6 +35,29 @@ interface CertificateSelectorModalProps {
   description: string;
   onCertificateSelected: (certificate: CertificateData) => void;
   currentSelectedCertificateId?: string | null;
+  limitToCAs?: CA[];
+  requiredKeyUsages?: readonly KeyUsageOption[];
+}
+
+function flattenCaOptions(cas: CA[]): CA[] {
+  const options: CA[] = [];
+  const seen = new Set<string>();
+
+  const visit = (entries: CA[]) => {
+    entries.forEach((ca) => {
+      if (!seen.has(ca.id)) {
+        seen.add(ca.id);
+        options.push(ca);
+      }
+
+      if (ca.children && ca.children.length > 0) {
+        visit(ca.children);
+      }
+    });
+  };
+
+  visit(cas);
+  return options;
 }
 
 export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> = ({
@@ -40,6 +67,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   description,
   onCertificateSelected,
   currentSelectedCertificateId,
+  limitToCAs,
+  requiredKeyUsages = [],
 }) => {
   const [availableCerts, setAvailableCerts] = useState<CertificateData[]>([]);
   const [isLoadingCerts, setIsLoadingCerts] = useState(false);
@@ -56,6 +85,15 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>('commonName');
   const [statusFilter, setStatusFilter] = useState<ApiStatusFilterValue>('ALL');
+  const [selectedKeyUsages, setSelectedKeyUsages] = useState<string[]>([]);
+  const [selectedExtendedKeyUsages, setSelectedExtendedKeyUsages] = useState<string[]>([]);
+  const effectiveSelectedKeyUsages = useMemo(
+    () => Array.from(new Set([...requiredKeyUsages, ...selectedKeyUsages])),
+    [requiredKeyUsages, selectedKeyUsages],
+  );
+  const hasCaRestriction = limitToCAs !== undefined;
+  const caOptions = useMemo(() => flattenCaOptions(limitToCAs ?? []), [limitToCAs]);
+  const [selectedCaId, setSelectedCaId] = useState<string | null>(null);
 
 
   // Debounce search term
@@ -66,17 +104,38 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
+  useEffect(() => {
+    if (!hasCaRestriction || caOptions.length === 0) {
+      setSelectedCaId(null);
+      return;
+    }
+
+    setSelectedCaId((currentSelected) => (
+      currentSelected && caOptions.some((ca) => ca.id === currentSelected)
+        ? currentSelected
+        : caOptions[0].id
+    ));
+  }, [hasCaRestriction, caOptions]);
+
   // Reset pagination when filters or page size change, or when modal opens
   useEffect(() => {
     if (isOpen) { // Only reset if modal is opening or filters change while open
       setCurrentPageIndex(0);
       setBookmarkStack([null]);
     }
-  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, isOpen]);
+  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, selectedCaId, effectiveSelectedKeyUsages, selectedExtendedKeyUsages, isOpen]);
 
 
   const loadCertificates = useCallback(async (bookmarkToFetch: string | null) => {
     
+
+    if (hasCaRestriction && (!selectedCaId || caOptions.length === 0)) {
+      setAvailableCerts([]);
+      setNextTokenFromApi(null);
+      setErrorCerts(null);
+      setIsLoadingCerts(false);
+      return;
+    }
 
     setIsLoadingCerts(true);
     setErrorCerts(null);
@@ -98,6 +157,12 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
           filtersToApply.push(`serial_number[contains_ignorecase]${debouncedSearchTerm.trim()}`);
         }
       }
+      effectiveSelectedKeyUsages.forEach((usage) => {
+        filtersToApply.push(`extensions.key_usage[contains]${usage}`);
+      });
+      selectedExtendedKeyUsages.forEach((usage) => {
+        filtersToApply.push(`extensions.extended_key_usage[contains]${usage}`);
+      });
       filtersToApply.forEach(f => params.append('filter', f));
       // Attempt to filter for non-CA certs if API supports it.
       // params.append('filter', 'is_ca[equal]false'); 
@@ -174,7 +239,31 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
         </DialogHeader>
 
         {/* Filter Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 pb-1 px-1 items-end">
+        <div className={cn(
+          "grid grid-cols-1 gap-2 pt-2 pb-1 px-1 items-end",
+          hasCaRestriction ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3",
+        )}>
+            {hasCaRestriction && (
+                <div className="col-span-1">
+                    <Label htmlFor="certSelectorCaFilter" className="text-xs">Certification Authority</Label>
+                    <Select
+                        value={selectedCaId ?? undefined}
+                        onValueChange={setSelectedCaId}
+                        disabled={isLoadingCerts || authLoading || caOptions.length <= 1}
+                    >
+                        <SelectTrigger id="certSelectorCaFilter" className="w-full h-9 text-sm">
+                            <SelectValue placeholder={caOptions.length === 0 ? "No CAs available" : "Select a CA"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {caOptions.map((ca) => (
+                                <SelectItem key={ca.id} value={ca.id}>
+                                    {ca.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
             <div className="relative col-span-1 sm:col-span-1">
                 <Label htmlFor="certSelectorSearchTerm" className="text-xs">Search</Label>
                 <SearchIcon className="absolute left-2.5 top-[calc(50%+4px)] -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -210,6 +299,37 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                         {statusOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                     </SelectContent>
                 </Select>
+            </div>
+        </div>
+        <div className={cn(
+          "grid grid-cols-1 gap-2 pb-1 px-1",
+          hasCaRestriction ? "sm:grid-cols-2" : "lg:grid-cols-2",
+        )}>
+            <div className="space-y-1">
+                <Label htmlFor="certSelectorKeyUsageFilter" className="text-xs">Key Usage</Label>
+                <MultiSelectDropdown
+                    id="certSelectorKeyUsageFilter"
+                    options={KEY_USAGE_OPTIONS.map(({ id, label }) => ({ value: id, label }))}
+                    allOptionValues={KEY_USAGE_OPTIONS.map(({ id }) => id)}
+                    selectedValues={effectiveSelectedKeyUsages}
+                    onChange={(nextSelectedValues) => setSelectedKeyUsages(
+                      nextSelectedValues.filter((value) => !requiredKeyUsages.includes(value as KeyUsageOption))
+                    )}
+                    buttonText="All Key Usages"
+                    className="h-9 min-h-9 text-sm"
+                />
+            </div>
+            <div className="space-y-1">
+                <Label htmlFor="certSelectorExtendedKeyUsageFilter" className="text-xs">Extended Key Usage</Label>
+                <MultiSelectDropdown
+                    id="certSelectorExtendedKeyUsageFilter"
+                    options={EKU_OPTIONS.map(({ id, label }) => ({ value: id, label }))}
+                    allOptionValues={EKU_OPTIONS.map(({ id }) => id)}
+                    selectedValues={selectedExtendedKeyUsages}
+                    onChange={setSelectedExtendedKeyUsages}
+                    buttonText="All Extended Key Usages"
+                    className="h-9 min-h-9 text-sm"
+                />
             </div>
         </div>
 
@@ -249,7 +369,11 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
             {!isLoadingCerts && !errorCerts && availableCerts.length === 0 && (
             <div className="flex-grow flex items-center justify-center h-full">
                 <p className="text-muted-foreground text-center my-4 p-4 border rounded-md bg-muted/20">
-                    No non-CA certificates found matching your criteria.
+                    {hasCaRestriction && caOptions.length === 0
+                      ? "No Certification Authorities are available for this selector."
+                      : hasCaRestriction
+                        ? "No non-CA certificates found for the selected CA matching your criteria."
+                        : "No non-CA certificates found matching your criteria."}
                 </p>
             </div>
             )}

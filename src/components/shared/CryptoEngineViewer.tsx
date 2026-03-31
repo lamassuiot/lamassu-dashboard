@@ -69,7 +69,7 @@ export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, 
       <div
         className={cn(
           "relative flex-shrink-0",
-          plainIcon ? "h-7 w-7 p-0" : "h-9 w-9 rounded-lg border border-border/60 bg-muted/60 p-1.5"
+          plainIcon ? "h-7 w-7 p-0" : "h-9 w-9 p-1.5"
         )}
       >
         {iconNode}

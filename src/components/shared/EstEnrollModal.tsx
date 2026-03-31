@@ -27,6 +27,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Badge } from '../ui/badge';
 import { Stepper } from './Stepper';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 
 // Re-defining RA type here to avoid complex imports, but ideally this would be shared
 interface ApiRaItem {
@@ -257,7 +258,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                 const payload = {
                     csr: window.btoa(signedCsrPem),
                     profile: {
-                        key_usage: ["DigitalSignature", "KeyEncipherment"],
+                        key_usage: [...TLS_KEY_USAGES],
                         honor_subject: true,
                         honor_extensions: false,
                         validity: { type: "Duration", duration: bootstrapValidity }

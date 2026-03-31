@@ -24,6 +24,7 @@ import { fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KEY_USAGE_OPTIONS, EKU_OPTIONS } from '@/lib/form-options';
+import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 
 type ProfileMode = 'reuse' | 'inline';
 
@@ -100,8 +101,8 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
     durationValue: calculateDurationFromExpiration(),
     dateValue: getCaExpirationDate()
   });
-  const [keyUsages, setKeyUsages] = useState<string[]>(['DigitalSignature', 'KeyEncipherment']);
-  const [extendedKeyUsages, setExtendedKeyUsages] = useState<string[]>(['ServerAuth', 'ClientAuth']);
+  const [keyUsages, setKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
+  const [extendedKeyUsages, setExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([...DEVICE_AUTH_EXTENDED_KEY_USAGES]);
 
   // Load profiles when modal opens
   useEffect(() => {

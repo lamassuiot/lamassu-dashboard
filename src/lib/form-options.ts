@@ -1,4 +1,6 @@
 
+import { formatCertificateUsageLabel } from '@/lib/utils';
+import { extendedKeyUsageOptions, keyUsageOptions } from '@/lib/certificate-usage-options';
 
 // --- Key Specs ---
 export const KEY_TYPE_OPTIONS = [
@@ -21,23 +23,12 @@ export const ECDSA_CURVE_OPTIONS = [
 
 
 // --- Key Usages ---
-export const KEY_USAGE_OPTIONS = [
-    { id: "DigitalSignature", label: "Digital Signature" },
-    { id: "ContentCommitment", label: "Content Commitment" },
-    { id: "KeyEncipherment", label: "Key Encipherment" },
-    { id: "DataEncipherment", label: "Data Encipherment" },
-    { id: "KeyAgreement", label: "Key Agreement" },
-    { id: "CertSign", label: "Certificate Signing" },
-    { id: "CRLSign", label: "CRL Signing" },
-    { id: "EncipherOnly", label: "Encipher Only" },
-    { id: "DecipherOnly", label: "Decipher Only" },
-] as const;
+export const KEY_USAGE_OPTIONS = keyUsageOptions.map((id) => ({
+  id,
+  label: formatCertificateUsageLabel(id),
+})) as readonly { id: typeof keyUsageOptions[number]; label: string }[];
 
-export const EKU_OPTIONS = [
-    { id: "ServerAuth", label: "Server Authentication" },
-    { id: "ClientAuth", label: "Client Authentication" },
-    { id: "CodeSigning", label: "Code Signing" },
-    { id: "EmailProtection", label: "Email Protection" },
-    { id: "TimeStamping", label: "Time Stamping" },
-    { id: "OcspSigning", label: "OCSP Signing" },
-] as const;
+export const EKU_OPTIONS = extendedKeyUsageOptions.map((id) => ({
+  id,
+  label: formatCertificateUsageLabel(id),
+})) as readonly { id: typeof extendedKeyUsageOptions[number]; label: string }[];

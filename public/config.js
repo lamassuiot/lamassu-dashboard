@@ -18,8 +18,9 @@ window.lamassuConfig = {
     // The base URL for all backend API services (CA, DMS, DevManager, etc.).
     // This should be the root of your API gateway or load balancer.
     // Example: "https://api.yourdomain.com"    
-    LAMASSU_API: "https://lab.lamassu.io/api",
+    // LAMASSU_API: "https://lab.lamassu.io/api",
     // LAMASSU_API: "https://localhost:8443/api",
+    LAMASSU_API: "http://localhost:8080/api",
 
     // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.
     // If not provided, these endpoints will be based on the LAMASSU_API value.

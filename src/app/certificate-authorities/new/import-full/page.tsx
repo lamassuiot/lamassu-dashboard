@@ -23,6 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import { importCa, type ImportCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { SectionHeader } from '@/components/shared/FormComponents';
+import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -58,8 +59,8 @@ export default function CreateCaImportFullPage() {
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(true);
   
   // Inline profile state
-  const [keyUsages, setKeyUsages] = useState<string[]>(['DigitalSignature', 'KeyEncipherment']);
-  const [extendedKeyUsages, setExtendedKeyUsages] = useState<string[]>(['ClientAuth', 'ServerAuth']);
+  const [keyUsages, setKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
+  const [extendedKeyUsages, setExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([...DEVICE_AUTH_EXTENDED_KEY_USAGES]);
   const [validity, setValidity] = useState<{ type: 'Duration' | 'Date' | 'Indefinite'; durationValue?: string; dateValue?: Date }>({ type: 'Duration', durationValue: '1y' });
   const [honorSubject, setHonorSubject] = useState<boolean>(true);
   
