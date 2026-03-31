@@ -13,6 +13,14 @@ export interface ApiDeviceIdentity {
   events?: Record<string, { type: string; description: string }>;
 }
 
+export interface ApiDeviceEventItem {
+  timestampStr: string;
+  type: string;
+  description: string;
+  data?: any;
+  source: string;
+}
+
 export interface ApiDevice {
   id: string;
   tags: string[];
@@ -51,6 +59,12 @@ export interface PatchOperation {
   value?: any;
 }
 
+export interface PaginatedDeviceEventsResponse {
+  events: ApiDeviceEventItem[];
+  next: string | null;
+  hasMore: boolean;
+}
+
 
 export async function fetchDevices(params: URLSearchParams): Promise<ApiResponse> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices?${params.toString()}`;
@@ -64,7 +78,46 @@ export async function fetchDeviceById(deviceId: string): Promise<ApiDevice> {
     return handleApiError(response, 'Failed to fetch device details');
 }
 
-export async function decommissionDevice(deviceId: string): Promise<void> {
+export async function fetchDeviceEventsPaginated({
+  deviceId,
+  accessToken,
+  limit = 5,
+  bookmark,
+}: {
+  deviceId: string;
+  accessToken: string;
+  limit?: number;
+  bookmark?: string;
+}): Promise<PaginatedDeviceEventsResponse> {
+  const params = new URLSearchParams();
+  if (limit) params.set('page_size', limit.toString());
+  if (bookmark) params.set('bookmark', bookmark);
+
+  const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events${params.toString() ? `?${params.toString()}` : ''}`;
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+
+  const data = await handleApiError(response, `Failed to fetch events for device ${deviceId}`);
+
+  const events = Array.isArray(data.list)
+    ? data.list.map((event: any) => ({
+        timestampStr: event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || new Date().toISOString(),
+        type: event.type || event.event_type || 'EVENT',
+        description: event.description || event.event_descriptions || '',
+        data: event.structured_fields ?? event.data,
+        source: event.source || 'device',
+      }))
+    : [];
+
+  return {
+    events,
+    next: data.next || null,
+    hasMore: !!data.next,
+  };
+}
+
+export async function decommissionDevice(deviceId: string, accessToken: string): Promise<void> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/decommission`;
     const response = await apiFetch(url, {
         method: 'DELETE',

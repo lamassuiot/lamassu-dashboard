@@ -27,7 +27,8 @@ import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
+import { useAuth } from '@/contexts/AuthContext';
+import { fetchDeviceById, fetchDeviceEventsPaginated, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, type ApiDeviceEventItem, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
@@ -88,10 +89,13 @@ const getCertSubjectCommonName = (subject: string): string => {
   return cnMatch ? cnMatch[1] : subject;
 };
 
-export default function DeviceDetailsClient() { 
-  const searchParams = useSearchParams(); 
+const TIMELINE_EVENTS_PAGE_SIZE = 5;
+
+export default function DeviceDetailsClient() {
+  const searchParams = useSearchParams();
   const routerHook = useRouter();
-  const deviceId = searchParams.get('deviceId'); 
+  const deviceId = searchParams.get('deviceId');
+  const { user } = useAuth();
 
   const [device, setDevice] = useState<ApiDevice | null>(null);
   const [isLoadingDevice, setIsLoadingDevice] = useState(true);
@@ -107,11 +111,16 @@ export default function DeviceDetailsClient() {
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
 
   // Timeline Tab State
-  const [allRawEvents, setAllRawEvents] = useState<any[]>([]);
+  const [allRawEvents, setAllRawEvents] = useState<ApiDeviceEventItem[]>([]);
+  const [timelineRawEvents, setTimelineRawEvents] = useState<ApiDeviceEventItem[]>([]);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEventDisplayData[]>([]);
-  const [timelineDisplayCount, setTimelineDisplayCount] = useState(5);
+  const [timelineDisplayCount, setTimelineDisplayCount] = useState(TIMELINE_EVENTS_PAGE_SIZE);
   const [timelineFetchedCerts, setTimelineFetchedCerts] = useState<Map<string, CertificateHistoryEntry>>(new Map());
   const [isTimelineLoading, setIsTimelineLoading] = useState(false);
+  const [timelineNextBookmark, setTimelineNextBookmark] = useState<string | null>(null);
+  const [hasMoreTimelineEvents, setHasMoreTimelineEvents] = useState(false);
+  const [isLoadingMoreTimelineEvents, setIsLoadingMoreTimelineEvents] = useState(false);
+
 
   // State for revocation modal
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
@@ -240,22 +249,96 @@ export default function DeviceDetailsClient() {
   }, [searchParams, routerHook]);
 
 
-  // Effect to process raw events once when device data is available
+  // Fetch all device events for processing.
   useEffect(() => {
-    if (!device) return;
-
-    const combinedRawEvents: { timestampStr: string; type: string; description: string; source: 'device' | 'identity' }[] = [];
-    Object.entries(device.events || {}).forEach(([ts, event]) => {
-      combinedRawEvents.push({ timestampStr: ts, ...(event as any), source: 'device' });
-    });
-    if (device.identity?.events) {
-      Object.entries(device.identity.events).forEach(([ts, event]) => {
-        combinedRawEvents.push({ timestampStr: ts, ...(event as any), source: 'identity' });
-      });
+    if (!deviceId || !user?.access_token) {
+      setAllRawEvents([]);
+      return;
     }
-    combinedRawEvents.sort((a, b) => parseISO(b.timestampStr).getTime() - parseISO(a.timestampStr).getTime());
-    setAllRawEvents(combinedRawEvents);
-  }, [device]);
+
+    let isCancelled = false;
+
+    const fetchAllEvents = async () => {
+      try {
+        const events: ApiDeviceEventItem[] = [];
+        let nextBookmark: string | undefined;
+
+        do {
+          const result = await fetchDeviceEventsPaginated({
+            deviceId,
+            accessToken: user.access_token,
+            limit: 100,
+            bookmark: nextBookmark,
+          });
+
+          if (isCancelled) return;
+
+          events.push(...result.events);
+          nextBookmark = result.next ?? undefined;
+          if (!result.hasMore) break;
+        } while (nextBookmark);
+
+        setAllRawEvents(
+          events.sort((a, b) => parseISO(b.timestampStr).getTime() - parseISO(a.timestampStr).getTime())
+        );
+      } catch (err) {
+        if (isCancelled) return;
+        setAllRawEvents([]);
+      }
+    };
+
+    fetchAllEvents();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [deviceId, user?.access_token]);
+
+  // Fetch timeline events paginated (latest 5 when entering the device).
+  useEffect(() => {
+    if (!device || !deviceId || !user?.access_token) {
+      setTimelineRawEvents([]);
+      setTimelineNextBookmark(null);
+      setHasMoreTimelineEvents(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchInitialTimelineEvents = async () => {
+      setIsTimelineLoading(true);
+      setTimelineDisplayCount(TIMELINE_EVENTS_PAGE_SIZE);
+
+      try {
+        const result = await fetchDeviceEventsPaginated({
+          deviceId,
+          accessToken: user.access_token,
+          limit: TIMELINE_EVENTS_PAGE_SIZE,
+        });
+
+        if (isCancelled) return;
+
+        setTimelineRawEvents(result.events);
+        setTimelineNextBookmark(result.next);
+        setHasMoreTimelineEvents(result.hasMore);
+      } catch (err) {
+        if (isCancelled) return;
+        setTimelineRawEvents([]);
+        setTimelineNextBookmark(null);
+        setHasMoreTimelineEvents(false);
+      } finally {
+        if (!isCancelled) {
+          setIsTimelineLoading(false);
+        }
+      }
+    };
+
+    fetchInitialTimelineEvents();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [device, deviceId, user?.access_token]);
 
 
   // Effect for History Tab Pagination (remains independent)
@@ -325,7 +408,7 @@ export default function DeviceDetailsClient() {
 
   // New, combined useEffect for Timeline processing and on-demand fetching
   useEffect(() => {
-    if (!device || allRawEvents.length === 0 ) {
+    if (!device || timelineRawEvents.length === 0 || !user?.access_token) {
         setTimelineEvents([]);
         return;
     }
@@ -333,7 +416,7 @@ export default function DeviceDetailsClient() {
     const processAndFetchForTimeline = async () => {
         setIsTimelineLoading(true);
 
-        const visibleRawEvents = allRawEvents.slice(0, timelineDisplayCount);
+      const visibleRawEvents = timelineRawEvents;
         const neededSerials = new Set<string>();
 
         visibleRawEvents.forEach(rawEvent => {
@@ -416,11 +499,7 @@ export default function DeviceDetailsClient() {
                 }
             }
 
-            if (rawEvent.type === 'STATUS-UPDATED' && rawEvent.description) {
-                title = rawEvent.description;
-            }
-
-            const prevTimestamp = index < allRawEvents.length - 1 ? parseISO(allRawEvents[index + 1].timestampStr) : null;
+            const prevTimestamp = index < timelineRawEvents.length - 1 ? parseISO(timelineRawEvents[index + 1].timestampStr) : null;
             
             return { id: rawEvent.timestampStr, timestamp, eventType: eventType, title, details: detailsNode, certificate: certificateInfo, relativeTime: formatDistanceToNowStrict(timestamp) + ' ago', secondaryRelativeTime: prevTimestamp ? formatDistanceStrict(timestamp, prevTimestamp) + ' later' : undefined };
         });
@@ -430,7 +509,7 @@ export default function DeviceDetailsClient() {
     };
 
     processAndFetchForTimeline();
-}, [device, allRawEvents, timelineDisplayCount, timelineFetchedCerts]);
+  }, [device, timelineRawEvents, user?.access_token, timelineFetchedCerts]);
   
   
   const handleOpenRevokeModal = (certInfo: CertificateHistoryEntry) => {
@@ -617,9 +696,32 @@ export default function DeviceDetailsClient() {
     await updateDeviceMetadata(id, patchOperations);
   };
 
-  const handleLoadMoreTimeline = () => {
-    setTimelineDisplayCount(prev => prev + 5);
-  };
+  const handleLoadMoreTimeline = useCallback(async () => {
+    if (!deviceId || !user?.access_token || isLoadingMoreTimelineEvents) return;
+    if (!timelineNextBookmark) return;
+
+    setIsLoadingMoreTimelineEvents(true);
+    try {
+      const result = await fetchDeviceEventsPaginated({
+        deviceId,
+        accessToken: user.access_token,
+        limit: TIMELINE_EVENTS_PAGE_SIZE,
+        bookmark: timelineNextBookmark,
+      });
+
+      setTimelineRawEvents(prev => [...prev, ...result.events]);
+      setTimelineDisplayCount(prev => prev + result.events.length);
+      setTimelineNextBookmark(result.next);
+      setHasMoreTimelineEvents(result.hasMore);
+    } catch (err: any) {
+      sileo.error({
+        title: 'Failed to load more timeline events',
+        description: err?.message || 'Please try again.',
+      });
+    } finally {
+      setIsLoadingMoreTimelineEvents(false);
+    }
+  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark]);
 
   const totalHistoryPages = Math.ceil(fullCertificateIdentityList.length / historyPageSize);
 
@@ -853,10 +955,10 @@ export default function DeviceDetailsClient() {
                   />
                 ))}
               </ul>
-              {allRawEvents.length > timelineDisplayCount && (
-                <div className="flex justify-center mt-2">
-                  <Button onClick={handleLoadMoreTimeline} variant="secondary" disabled={isTimelineLoading}>
-                    {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {hasMoreTimelineEvents && (
+                <div className="flex justify-center mt-4">
+                  <Button onClick={handleLoadMoreTimeline} variant="outline" size="sm" disabled={isTimelineLoading || isLoadingMoreTimelineEvents}>
+                    {isLoadingMoreTimelineEvents ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Load more events
                   </Button>
                 </div>
