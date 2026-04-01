@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +28,7 @@ import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceM
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchDeviceById, fetchDeviceEventsPaginated, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, type ApiDeviceEventItem, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
+import { fetchDeviceById, fetchDeviceEventsPaginated, subscribeToDeviceEventsSSE, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, type ApiDeviceEventItem, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
@@ -89,7 +89,20 @@ const getCertSubjectCommonName = (subject: string): string => {
   return cnMatch ? cnMatch[1] : subject;
 };
 
-const TIMELINE_EVENTS_PAGE_SIZE = 5;
+const TIMELINE_EVENTS_PAGE_SIZE = 10;
+const TIMELINE_MODE_STORAGE_KEY = 'lamassu-timeline-mode';
+const TIMELINE_PAGE_SIZE_STORAGE_KEY = 'lamassu-timeline-page-size';
+const TIMELINE_POLLING_INTERVAL_STORAGE_KEY = 'lamassu-timeline-polling-interval';
+type TimelineMode = 'paginated' | 'polling' | 'realtime';
+
+const POLLING_INTERVAL_OPTIONS = [
+  { label: '5s', value: 5 },
+  { label: '10s', value: 10 },
+  { label: '30s', value: 30 },
+  { label: '60s', value: 60 },
+];
+
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 export default function DeviceDetailsClient() {
   const searchParams = useSearchParams();
@@ -121,6 +134,37 @@ export default function DeviceDetailsClient() {
   const [hasMoreTimelineEvents, setHasMoreTimelineEvents] = useState(false);
   const [isLoadingMoreTimelineEvents, setIsLoadingMoreTimelineEvents] = useState(false);
 
+  // Timeline mode: paginated (default), polling, or realtime (SSE)
+  const [timelineMode, setTimelineMode] = useState<TimelineMode>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(TIMELINE_MODE_STORAGE_KEY);
+      if (stored === 'realtime' || stored === 'paginated' || stored === 'polling') return stored;
+    }
+    return 'paginated';
+  });
+  const [timelinePageSize, setTimelinePageSize] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = Number(localStorage.getItem(TIMELINE_PAGE_SIZE_STORAGE_KEY));
+      if (PAGE_SIZE_OPTIONS.includes(stored)) return stored;
+    }
+    return TIMELINE_EVENTS_PAGE_SIZE;
+  });
+  const [pollingInterval, setPollingInterval] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = Number(localStorage.getItem(TIMELINE_POLLING_INTERVAL_STORAGE_KEY));
+      if (POLLING_INTERVAL_OPTIONS.some(o => o.value === stored)) return stored;
+    }
+    return 10;
+  });
+  const [timelineCurrentPage, setTimelineCurrentPage] = useState(1);
+  const [timelineBookmarks, setTimelineBookmarks] = useState<string[]>(['']);
+  const [isSseConnected, setIsSseConnected] = useState(false);
+  const sseControllerRef = useRef<AbortController | null>(null);
+  const sseEventBufferRef = useRef<ApiDeviceEventItem[]>([]);
+  const sseFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const accessTokenRef = useRef(user?.access_token);
+  accessTokenRef.current = user?.access_token;
 
   // State for revocation modal
   const [isRevocationModalOpen, setIsRevocationModalOpen] = useState(false);
@@ -249,6 +293,32 @@ export default function DeviceDetailsClient() {
   }, [searchParams, routerHook]);
 
 
+  // Persist timeline mode preference and reload on change
+  const handleTimelineModeChange = useCallback((mode: TimelineMode) => {
+    setTimelineMode(mode);
+    localStorage.setItem(TIMELINE_MODE_STORAGE_KEY, mode);
+    // Reset pagination state on mode change
+    setTimelineCurrentPage(1);
+    setTimelineBookmarks(['']);
+    setTimelineRawEvents([]);
+    setTimelineEvents([]);
+    setTimelineNextBookmark(null);
+    setHasMoreTimelineEvents(false);
+  }, []);
+
+  const handleTimelinePageSizeChange = useCallback((size: number) => {
+    setTimelinePageSize(size);
+    localStorage.setItem(TIMELINE_PAGE_SIZE_STORAGE_KEY, String(size));
+    setTimelineCurrentPage(1);
+    setTimelineBookmarks(['']);
+    setTimelineNextBookmark(null);
+  }, []);
+
+  const handlePollingIntervalChange = useCallback((interval: number) => {
+    setPollingInterval(interval);
+    localStorage.setItem(TIMELINE_POLLING_INTERVAL_STORAGE_KEY, String(interval));
+  }, []);
+
   // Fetch all device events for processing.
   useEffect(() => {
     if (!deviceId || !user?.access_token) {
@@ -294,7 +364,33 @@ export default function DeviceDetailsClient() {
     };
   }, [deviceId, user?.access_token]);
 
-  // Fetch timeline events paginated (latest 5 when entering the device).
+  // Fetch timeline events paginated — runs for paginated & polling modes.
+  const fetchTimelinePage = useCallback(async (bookmark?: string) => {
+    if (!deviceId || !user?.access_token) return;
+
+    setIsTimelineLoading(true);
+    try {
+      const result = await fetchDeviceEventsPaginated({
+        deviceId,
+        accessToken: user.access_token,
+        limit: timelinePageSize,
+        bookmark: bookmark || undefined,
+      });
+
+      setTimelineRawEvents(result.events);
+      setTimelineDisplayCount(result.events.length);
+      setTimelineNextBookmark(result.next);
+      setHasMoreTimelineEvents(result.hasMore);
+    } catch (err) {
+      setTimelineRawEvents([]);
+      setTimelineNextBookmark(null);
+      setHasMoreTimelineEvents(false);
+    } finally {
+      setIsTimelineLoading(false);
+    }
+  }, [deviceId, user?.access_token, timelinePageSize]);
+
+  // Load timeline for paginated/polling when deps change
   useEffect(() => {
     if (!device || !deviceId || !user?.access_token) {
       setTimelineRawEvents([]);
@@ -303,43 +399,148 @@ export default function DeviceDetailsClient() {
       return;
     }
 
-    let isCancelled = false;
+    if (timelineMode === 'realtime') return; // SSE handles its own data
 
-    const fetchInitialTimelineEvents = async () => {
+    const currentBookmark = timelineBookmarks[timelineCurrentPage - 1] || '';
+    fetchTimelinePage(currentBookmark);
+  }, [device, deviceId, user?.access_token, timelineMode, timelineCurrentPage, timelinePageSize, timelineBookmarks, fetchTimelinePage]);
+
+  // Polling effect
+  useEffect(() => {
+    if (pollingTimerRef.current) {
+      clearInterval(pollingTimerRef.current);
+      pollingTimerRef.current = null;
+    }
+
+    if (timelineMode !== 'polling' || !device || !deviceId || !user?.access_token) return;
+
+    pollingTimerRef.current = setInterval(() => {
+      const currentBookmark = timelineBookmarks[timelineCurrentPage - 1] || '';
+      fetchTimelinePage(currentBookmark);
+    }, pollingInterval * 1000);
+
+    return () => {
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+        pollingTimerRef.current = null;
+      }
+    };
+  }, [timelineMode, pollingInterval, device, deviceId, user?.access_token, timelineCurrentPage, timelineBookmarks, fetchTimelinePage]);
+
+  const handleTimelineNextPage = useCallback(() => {
+    if (!timelineNextBookmark) return;
+    setTimelineBookmarks(prev => {
+      const base = prev.slice(0, timelineCurrentPage);
+      return [...base, timelineNextBookmark];
+    });
+    setTimelineCurrentPage(p => p + 1);
+  }, [timelineNextBookmark, timelineCurrentPage]);
+
+  const handleTimelinePrevPage = useCallback(() => {
+    setTimelineCurrentPage(p => Math.max(1, p - 1));
+  }, []);
+
+  // SSE real-time event stream — first loads initial page, then streams new events
+  useEffect(() => {
+    // Clean up any previous SSE connection
+    if (sseControllerRef.current) {
+      sseControllerRef.current.abort();
+      sseControllerRef.current = null;
+    }
+    if (sseFlushTimerRef.current) {
+      clearInterval(sseFlushTimerRef.current);
+      sseFlushTimerRef.current = null;
+    }
+    sseEventBufferRef.current = [];
+    setIsSseConnected(false);
+
+    if (timelineMode !== 'realtime' || !deviceId || !accessTokenRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const initRealtime = async () => {
+      // 1. Load initial page of events (most recent)
       setIsTimelineLoading(true);
-      setTimelineDisplayCount(TIMELINE_EVENTS_PAGE_SIZE);
-
       try {
+        const token = accessTokenRef.current;
+        if (!token) return;
+
         const result = await fetchDeviceEventsPaginated({
           deviceId,
-          accessToken: user.access_token,
+          accessToken: token,
           limit: TIMELINE_EVENTS_PAGE_SIZE,
         });
 
-        if (isCancelled) return;
+        if (cancelled) return;
 
         setTimelineRawEvents(result.events);
+        setTimelineDisplayCount(result.events.length);
         setTimelineNextBookmark(result.next);
         setHasMoreTimelineEvents(result.hasMore);
-      } catch (err) {
-        if (isCancelled) return;
+      } catch {
+        if (cancelled) return;
         setTimelineRawEvents([]);
         setTimelineNextBookmark(null);
         setHasMoreTimelineEvents(false);
       } finally {
-        if (!isCancelled) {
-          setIsTimelineLoading(false);
-        }
+        if (!cancelled) setIsTimelineLoading(false);
       }
+
+      if (cancelled) return;
+
+      // 2. Start SSE stream for new events (prepended to the list)
+      sseFlushTimerRef.current = setInterval(() => {
+        const batch = sseEventBufferRef.current;
+        if (batch.length === 0) return;
+        sseEventBufferRef.current = [];
+
+        setTimelineRawEvents(prev => {
+          const merged = [...batch, ...prev];
+          merged.sort((a, b) => new Date(b.timestampStr).getTime() - new Date(a.timestampStr).getTime());
+          return merged;
+        });
+        setTimelineDisplayCount(prev => prev + batch.length);
+        setAllRawEvents(prev => {
+          const merged = [...batch, ...prev];
+          merged.sort((a, b) => new Date(b.timestampStr).getTime() - new Date(a.timestampStr).getTime());
+          return merged;
+        });
+      }, 500);
+
+      const controller = subscribeToDeviceEventsSSE({
+        deviceId,
+        getAccessToken: () => accessTokenRef.current,
+        onEvent: (event) => {
+          sseEventBufferRef.current.push(event);
+        },
+        onConnectionChange: (connected) => {
+          setIsSseConnected(connected);
+        },
+      });
+
+      sseControllerRef.current = controller;
     };
 
-    fetchInitialTimelineEvents();
+    initRealtime();
 
     return () => {
-      isCancelled = true;
+      cancelled = true;
+      if (sseControllerRef.current) {
+        sseControllerRef.current.abort();
+        sseControllerRef.current = null;
+      }
+      if (sseFlushTimerRef.current) {
+        clearInterval(sseFlushTimerRef.current);
+        sseFlushTimerRef.current = null;
+      }
+      sseEventBufferRef.current = [];
+      setIsSseConnected(false);
     };
-  }, [device, deviceId, user?.access_token]);
-
+  // Only restart SSE when mode or device changes. Token is read from accessTokenRef.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timelineMode, deviceId]);
 
   // Effect for History Tab Pagination (remains independent)
    useEffect(() => {
@@ -942,7 +1143,74 @@ export default function DeviceDetailsClient() {
           </TabsContent>
 
         <TabsContent value="timeline" className="mt-0">
-          {timelineEvents.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground whitespace-nowrap">Mode:</Label>
+              <Select value={timelineMode} onValueChange={(v) => handleTimelineModeChange(v as TimelineMode)}>
+                <SelectTrigger className="w-[150px] h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paginated">Paginated</SelectItem>
+                  <SelectItem value="polling">Polling</SelectItem>
+                  <SelectItem value="realtime">Real-time (SSE)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(timelineMode === 'paginated' || timelineMode === 'polling') && (
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
+                <Select value={String(timelinePageSize)} onValueChange={(v) => handleTimelinePageSizeChange(Number(v))}>
+                  <SelectTrigger className="w-[80px] h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map(s => (
+                      <SelectItem key={s} value={String(s)}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {timelineMode === 'polling' && (
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-muted-foreground whitespace-nowrap">Interval:</Label>
+                <Select value={String(pollingInterval)} onValueChange={(v) => handlePollingIntervalChange(Number(v))}>
+                  <SelectTrigger className="w-[80px] h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {POLLING_INTERVAL_OPTIONS.map(o => (
+                      <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {timelineMode === 'realtime' && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className={cn("inline-block h-2 w-2 rounded-full", isSseConnected ? "bg-green-500 animate-pulse" : "bg-destructive")} />
+                {isSseConnected ? 'Connected' : 'Disconnected'}
+              </div>
+            )}
+
+            {timelineMode === 'polling' && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <RefreshCw className={cn("h-3 w-3", isTimelineLoading && "animate-spin")} />
+                Auto-refreshing every {pollingInterval}s
+              </div>
+            )}
+          </div>
+
+          {isTimelineLoading && timelineEvents.length === 0 ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="ml-2 text-muted-foreground">Loading events...</p>
+            </div>
+          ) : timelineEvents.length > 0 ? (
             <>
               <ul className="space-y-0">
                 {timelineEvents.map((event, index) => (
@@ -955,7 +1223,24 @@ export default function DeviceDetailsClient() {
                   />
                 ))}
               </ul>
-              {hasMoreTimelineEvents && (
+
+              {/* Paginated / Polling: page navigation */}
+              {(timelineMode === 'paginated' || timelineMode === 'polling') && (
+                <div className="flex justify-between items-center mt-4">
+                  <span className="text-sm text-muted-foreground">Page {timelineCurrentPage}</span>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={handleTimelinePrevPage} disabled={timelineCurrentPage === 1} variant="outline" size="sm">
+                      <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+                    </Button>
+                    <Button onClick={handleTimelineNextPage} disabled={!timelineNextBookmark} variant="outline" size="sm">
+                      Next <ChevronRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Real-time: load more (older events) */}
+              {timelineMode === 'realtime' && hasMoreTimelineEvents && (
                 <div className="flex justify-center mt-4">
                   <Button onClick={handleLoadMoreTimeline} variant="outline" size="sm" disabled={isTimelineLoading || isLoadingMoreTimelineEvents}>
                     {isLoadingMoreTimelineEvents ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

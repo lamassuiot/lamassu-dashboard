@@ -169,3 +169,146 @@ export async function deleteDevice(deviceId: string): Promise<void> {
         await handleApiError(response, 'Failed to delete device');
     }
 }
+
+/**
+ * Subscribe to real-time device events via SSE (Server-Sent Events).
+ * Uses `Accept: text/event-stream` to open a streaming connection.
+ * Auto-reconnects silently on stream drops with exponential backoff.
+ * Only reports disconnected after a grace period so brief reconnects don't flicker the UI.
+ * Returns an AbortController so the caller can close the stream.
+ */
+export function subscribeToDeviceEventsSSE({
+  deviceId,
+  getAccessToken,
+  onEvent,
+  onConnectionChange,
+  disconnectGraceMs = 3000,
+}: {
+  deviceId: string;
+  getAccessToken: () => string | undefined;
+  onEvent: (event: ApiDeviceEventItem) => void;
+  onConnectionChange?: (connected: boolean) => void;
+  disconnectGraceMs?: number;
+}): AbortController {
+  const controller = new AbortController();
+  const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events`;
+  let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let isConnected = false;
+
+  const setConnected = (connected: boolean) => {
+    if (connected) {
+      // Clear any pending disconnect notification
+      if (disconnectTimer) {
+        clearTimeout(disconnectTimer);
+        disconnectTimer = null;
+      }
+      if (!isConnected) {
+        isConnected = true;
+        onConnectionChange?.(true);
+      }
+    } else {
+      // Delay disconnected notification to absorb brief reconnects
+      if (isConnected && !disconnectTimer) {
+        disconnectTimer = setTimeout(() => {
+          disconnectTimer = null;
+          if (!controller.signal.aborted) {
+            isConnected = false;
+            onConnectionChange?.(false);
+          }
+        }, disconnectGraceMs);
+      }
+    }
+  };
+
+  const connect = (retryDelay = 1000) => {
+    if (controller.signal.aborted) return;
+
+    (async () => {
+      try {
+        const token = getAccessToken();
+        if (!token) {
+          // No valid token — retry after delay
+          const nextDelay = Math.min(retryDelay * 1.5, 10000);
+          setTimeout(() => connect(nextDelay), retryDelay);
+          return;
+        }
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'text/event-stream',
+          },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`SSE connection failed: ${response.status} ${response.statusText}`);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No readable stream from SSE response');
+
+        setConnected(true);
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue;
+
+            if (trimmed.startsWith('data:')) {
+              const jsonStr = trimmed.slice(5).trim();
+              if (!jsonStr) continue;
+              try {
+                const raw = JSON.parse(jsonStr);
+                const event: ApiDeviceEventItem = {
+                  timestampStr: raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || new Date().toISOString(),
+                  type: raw.type || raw.event_type || 'EVENT',
+                  description: raw.description || raw.event_descriptions || '',
+                  data: raw.structured_fields ?? raw.data,
+                  source: raw.source || 'device',
+                };
+                onEvent(event);
+              } catch {
+                // skip malformed JSON lines
+              }
+            }
+          }
+        }
+
+        // Stream ended gracefully — reconnect immediately.
+        // Many servers close the stream after each batch/event and expect the client to reconnect.
+        // This is normal behavior, not a disconnection.
+        if (!controller.signal.aborted) {
+          connect(1000);
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setConnected(false);
+        // Reconnect with backoff (max 10s)
+        const nextDelay = Math.min(retryDelay * 1.5, 10000);
+        setTimeout(() => connect(nextDelay), retryDelay);
+      }
+    })();
+  };
+
+  // Clean up grace timer on abort
+  controller.signal.addEventListener('abort', () => {
+    if (disconnectTimer) {
+      clearTimeout(disconnectTimer);
+      disconnectTimer = null;
+    }
+  });
+
+  connect();
+  return controller;
+}
