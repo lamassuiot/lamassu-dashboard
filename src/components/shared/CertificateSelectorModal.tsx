@@ -5,27 +5,18 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Search as SearchIcon } from "lucide-react";
+import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CA } from '@/lib/ca-data';
 import { SelectableCertificateItem } from './SelectableCertificateItem';
-import { MultiSelectDropdown } from './MultiSelectDropdown';
-import { Label } from '../ui/label';
-import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '@/lib/utils';
-import type { ApiStatusFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
-import { EKU_OPTIONS, KEY_USAGE_OPTIONS } from '@/lib/form-options';
-import type { KeyUsageOption } from '@/lib/certificate-usage-options';
-
-// Define API_STATUS_VALUES locally if not exportable or if preferred for modal's independence
-const MODAL_API_STATUS_VALUES = {
-  ACTIVE: 'ACTIVE',
-  EXPIRED: 'EXPIRED',
-  REVOKED: 'REVOKED',
-} as const;
+import { type ApiCertificateStatusValue, type CertificateDateFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
+import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
+import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
+import { Label } from '../ui/label';
 
 
 interface CertificateSelectorModalProps {
@@ -84,9 +75,16 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>('commonName');
-  const [statusFilter, setStatusFilter] = useState<ApiStatusFilterValue>('ALL');
-  const [selectedKeyUsages, setSelectedKeyUsages] = useState<string[]>([]);
-  const [selectedExtendedKeyUsages, setSelectedExtendedKeyUsages] = useState<string[]>([]);
+  const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([]);
+  const [certificateTypeFilter, setCertificateTypeFilter] = useState('');
+  const [subjectKeyIdFilter, setSubjectKeyIdFilter] = useState('');
+  const [engineIdFilter, setEngineIdFilter] = useState('');
+  const [selectedKeyUsages, setSelectedKeyUsages] = useState<KeyUsageOption[]>([]);
+  const [selectedExtendedKeyUsages, setSelectedExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([]);
+  const [revocationReasonFilters, setRevocationReasonFilters] = useState<string[]>([]);
+  const [validFromFilter, setValidFromFilter] = useState<CertificateDateFilterValue>(defaultDateFilterValue);
+  const [validToFilter, setValidToFilter] = useState<CertificateDateFilterValue>(defaultDateFilterValue);
+  const [revocationTimestampFilter, setRevocationTimestampFilter] = useState<CertificateDateFilterValue>(defaultDateFilterValue);
   const effectiveSelectedKeyUsages = useMemo(
     () => Array.from(new Set([...requiredKeyUsages, ...selectedKeyUsages])),
     [requiredKeyUsages, selectedKeyUsages],
@@ -123,7 +121,23 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
       setCurrentPageIndex(0);
       setBookmarkStack([null]);
     }
-  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, selectedCaId, effectiveSelectedKeyUsages, selectedExtendedKeyUsages, isOpen]);
+  }, [
+    pageSize,
+    debouncedSearchTerm,
+    searchField,
+    statusFilters,
+    certificateTypeFilter,
+    subjectKeyIdFilter,
+    engineIdFilter,
+    selectedCaId,
+    effectiveSelectedKeyUsages,
+    selectedExtendedKeyUsages,
+    revocationReasonFilters,
+    validFromFilter,
+    validToFilter,
+    revocationTimestampFilter,
+    isOpen,
+  ]);
 
 
   const loadCertificates = useCallback(async (bookmarkToFetch: string | null) => {
@@ -147,21 +161,46 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
       if (bookmarkToFetch) params.append('bookmark', bookmarkToFetch);
       
       const filtersToApply: string[] = [];
-      if (statusFilter !== 'ALL') {
-        filtersToApply.push(`status[equal]${statusFilter}`);
+      if (statusFilters.length === 1) {
+        filtersToApply.push(`status[eq]=${statusFilters[0]}`);
+      } else if (statusFilters.length > 1) {
+        filtersToApply.push(`status[in]=${statusFilters.join(',')}`);
       }
       if (debouncedSearchTerm.trim() !== '') {
         if (searchField === 'commonName') {
-          filtersToApply.push(`subject.common_name[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+          filtersToApply.push(`subject.common_name[ct_ic]=${debouncedSearchTerm.trim()}`);
         } else if (searchField === 'serialNumber') {
-          filtersToApply.push(`serial_number[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+          filtersToApply.push(`serial_number[ct_ic]=${debouncedSearchTerm.trim()}`);
         }
       }
+      if (certificateTypeFilter.trim() !== '') {
+        filtersToApply.push(`type[eq]=${certificateTypeFilter.trim()}`);
+      }
+      if (subjectKeyIdFilter.trim() !== '') {
+        filtersToApply.push(`subject_key_id[ct_ic]=${subjectKeyIdFilter.trim()}`);
+      }
+      if (engineIdFilter.trim() !== '') {
+        filtersToApply.push(`engine_id[ct_ic]=${engineIdFilter.trim()}`);
+      }
+      if (revocationReasonFilters.length === 1) {
+        filtersToApply.push(`revocation_reason[eq]=${revocationReasonFilters[0]}`);
+      } else if (revocationReasonFilters.length > 1) {
+        filtersToApply.push(`revocation_reason[in]=${revocationReasonFilters.join(',')}`);
+      }
+      if (validFromFilter.date) {
+        filtersToApply.push(`valid_from[${validFromFilter.operator}]=${validFromFilter.date.toISOString().slice(0, 10)}`);
+      }
+      if (validToFilter.date) {
+        filtersToApply.push(`valid_to[${validToFilter.operator}]=${validToFilter.date.toISOString().slice(0, 10)}`);
+      }
+      if (revocationTimestampFilter.date) {
+        filtersToApply.push(`revocation_timestamp[${revocationTimestampFilter.operator}]=${revocationTimestampFilter.date.toISOString().slice(0, 10)}`);
+      }
       effectiveSelectedKeyUsages.forEach((usage) => {
-        filtersToApply.push(`extensions.key_usage[contains]${usage}`);
+        filtersToApply.push(`extensions.key_usage[ct]=${usage}`);
       });
       selectedExtendedKeyUsages.forEach((usage) => {
-        filtersToApply.push(`extensions.extended_key_usage[contains]${usage}`);
+        filtersToApply.push(`extensions.extended_key_usage[ct]=${usage}`);
       });
       filtersToApply.forEach(f => params.append('filter', f));
       // Attempt to filter for non-CA certs if API supports it.
@@ -186,7 +225,24 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     } finally {
       setIsLoadingCerts(false);
     }
-  }, [pageSize, debouncedSearchTerm, searchField, statusFilter]);
+  }, [
+    pageSize,
+    debouncedSearchTerm,
+    searchField,
+    statusFilters,
+    certificateTypeFilter,
+    subjectKeyIdFilter,
+    engineIdFilter,
+    effectiveSelectedKeyUsages,
+    selectedExtendedKeyUsages,
+    revocationReasonFilters,
+    validFromFilter,
+    validToFilter,
+    revocationTimestampFilter,
+    hasCaRestriction,
+    selectedCaId,
+    caOptions.length,
+  ]);
 
   useEffect(() => {
     if (isOpen ) {
@@ -221,15 +277,6 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     if (isLoadingCerts || currentPageIndex === 0) return;
     setCurrentPageIndex(prevIndex => prevIndex - 1);
   };
-  
-  const statusOptions = [
-    { label: 'All Statuses', value: 'ALL' },
-    { label: 'Active', value: MODAL_API_STATUS_VALUES.ACTIVE },
-    { label: 'Expired', value: MODAL_API_STATUS_VALUES.EXPIRED },
-    { label: 'Revoked', value: MODAL_API_STATUS_VALUES.REVOKED },
-  ];
-
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-3xl max-h-[90vh] flex flex-col">
@@ -238,13 +285,9 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        {/* Filter Controls */}
-        <div className={cn(
-          "grid grid-cols-1 gap-2 pt-2 pb-1 px-1 items-end",
-          hasCaRestriction ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3",
-        )}>
+        <div className="space-y-3 px-1 pb-1 pt-2">
             {hasCaRestriction && (
-                <div className="col-span-1">
+                <div className="max-w-sm">
                     <Label htmlFor="certSelectorCaFilter" className="text-xs">Certification Authority</Label>
                     <Select
                         value={selectedCaId ?? undefined}
@@ -264,75 +307,44 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                     </Select>
                 </div>
             )}
-            <div className="relative col-span-1 sm:col-span-1">
-                <Label htmlFor="certSelectorSearchTerm" className="text-xs">Search</Label>
-                <SearchIcon className="absolute left-2.5 top-[calc(50%+4px)] -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                    id="certSelectorSearchTerm"
-                    type="text"
-                    placeholder="Enter search term..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 h-9 text-sm"
-                    disabled={isLoadingCerts}
-                />
-            </div>
-            <div className="col-span-1 sm:col-span-1">
-                <Label htmlFor="certSelectorSearchField" className="text-xs">In Field</Label>
-                <Select value={searchField} onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)} disabled={isLoadingCerts}>
-                    <SelectTrigger id="certSelectorSearchField" className="w-full h-9 text-sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="commonName">Common Name</SelectItem>
-                        <SelectItem value="serialNumber">Serial Number</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="col-span-1 sm:col-span-1">
-                <Label htmlFor="certSelectorStatusFilter" className="text-xs">Status</Label>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ApiStatusFilterValue)} disabled={isLoadingCerts}>
-                    <SelectTrigger id="certSelectorStatusFilter" className="w-full h-9 text-sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {statusOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-            </div>
+            <CertificateFilterBar
+              searchTerm={searchTerm}
+              onSearchTermChange={setSearchTerm}
+              searchField={searchField}
+              onSearchFieldChange={setSearchField}
+              statusFilters={statusFilters}
+              onStatusFiltersChange={setStatusFilters}
+              certificateTypeFilter={certificateTypeFilter}
+              onCertificateTypeFilterChange={setCertificateTypeFilter}
+              subjectKeyIdFilter={subjectKeyIdFilter}
+              onSubjectKeyIdFilterChange={setSubjectKeyIdFilter}
+              engineIdFilter={engineIdFilter}
+              onEngineIdFilterChange={setEngineIdFilter}
+              keyUsageFilters={effectiveSelectedKeyUsages}
+              onKeyUsageFiltersChange={(nextValues) => setSelectedKeyUsages(
+                nextValues.filter((value) => !requiredKeyUsages.includes(value))
+              )}
+              extendedKeyUsageFilters={selectedExtendedKeyUsages}
+              onExtendedKeyUsageFiltersChange={setSelectedExtendedKeyUsages}
+              revocationReasonFilters={revocationReasonFilters}
+              onRevocationReasonFiltersChange={setRevocationReasonFilters}
+              validFromFilter={validFromFilter}
+              onValidFromFilterChange={setValidFromFilter}
+              validToFilter={validToFilter}
+              onValidToFilterChange={setValidToFilter}
+              revocationTimestampFilter={revocationTimestampFilter}
+              onRevocationTimestampFilterChange={setRevocationTimestampFilter}
+              disabled={isLoadingCerts}
+              basicFieldsClassName="grid-cols-1 gap-2 sm:grid-cols-[minmax(220px,1.4fr)_180px]"
+              advancedFieldsClassName="grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+              idPrefix="cert-selector-filter"
+              defaultAdvancedOpen={
+                effectiveSelectedKeyUsages.length > 0 ||
+                selectedExtendedKeyUsages.length > 0 ||
+                revocationReasonFilters.length > 0
+              }
+            />
         </div>
-        <div className={cn(
-          "grid grid-cols-1 gap-2 pb-1 px-1",
-          hasCaRestriction ? "sm:grid-cols-2" : "lg:grid-cols-2",
-        )}>
-            <div className="space-y-1">
-                <Label htmlFor="certSelectorKeyUsageFilter" className="text-xs">Key Usage</Label>
-                <MultiSelectDropdown
-                    id="certSelectorKeyUsageFilter"
-                    options={KEY_USAGE_OPTIONS.map(({ id, label }) => ({ value: id, label }))}
-                    allOptionValues={KEY_USAGE_OPTIONS.map(({ id }) => id)}
-                    selectedValues={effectiveSelectedKeyUsages}
-                    onChange={(nextSelectedValues) => setSelectedKeyUsages(
-                      nextSelectedValues.filter((value) => !requiredKeyUsages.includes(value as KeyUsageOption))
-                    )}
-                    buttonText="All Key Usages"
-                    className="h-9 min-h-9 text-sm"
-                />
-            </div>
-            <div className="space-y-1">
-                <Label htmlFor="certSelectorExtendedKeyUsageFilter" className="text-xs">Extended Key Usage</Label>
-                <MultiSelectDropdown
-                    id="certSelectorExtendedKeyUsageFilter"
-                    options={EKU_OPTIONS.map(({ id, label }) => ({ value: id, label }))}
-                    allOptionValues={EKU_OPTIONS.map(({ id }) => id)}
-                    selectedValues={selectedExtendedKeyUsages}
-                    onChange={setSelectedExtendedKeyUsages}
-                    buttonText="All Extended Key Usages"
-                    className="h-9 min-h-9 text-sm"
-                />
-            </div>
-        </div>
-
 
         <div className="flex-grow overflow-hidden flex flex-col min-h-[200px]"> {/* Added min-h */}
             {isLoadingCerts && !errorCerts && (

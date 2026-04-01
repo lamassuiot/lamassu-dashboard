@@ -6,6 +6,7 @@ import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import type { CertSortConfig, SortDirection, SortableCertColumn } from '@/app/certificates/page';
 import type { MetadataFilter } from '@/components/shared/MetadataFilterManager';
+import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
 
 const _API_STATUS_VALUES_FOR_FILTER = {
   ALL: 'ALL',
@@ -15,6 +16,14 @@ const _API_STATUS_VALUES_FOR_FILTER = {
 } as const;
 export type ApiStatusFilterValue = typeof _API_STATUS_VALUES_FOR_FILTER[keyof typeof _API_STATUS_VALUES_FOR_FILTER];
 export type ApiCertificateStatusValue = Exclude<ApiStatusFilterValue, 'ALL'>;
+export type CertificateBooleanFilterValue = 'ALL' | 'true' | 'false';
+export type CertificateDateFilterOperator = 'af' | 'bf' | 'eq';
+export interface CertificateDateFilterValue {
+  operator: CertificateDateFilterOperator;
+  date?: Date;
+}
+
+const DEFAULT_CERTIFICATE_DATE_OPERATOR: CertificateDateFilterOperator = 'af';
 
 interface UsePaginatedCertificateFetcherParams {
   caId?: string | null;
@@ -42,6 +51,16 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>('commonName');
   const [statusFilter, setStatusFilter] = useState<ApiStatusFilterValue>('ALL');
   const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([]);
+  const [certificateTypeFilter, setCertificateTypeFilter] = useState('');
+  const [subjectKeyIdFilter, setSubjectKeyIdFilter] = useState('');
+  const [engineIdFilter, setEngineIdFilter] = useState('');
+  const [keyUsageFilters, setKeyUsageFilters] = useState<KeyUsageOption[]>([]);
+  const [extendedKeyUsageFilters, setExtendedKeyUsageFilters] = useState<ExtendedKeyUsageOption[]>([]);
+  const [revocationReasonFilters, setRevocationReasonFilters] = useState<string[]>([]);
+  const [isCaFilter, setIsCaFilter] = useState<CertificateBooleanFilterValue>('ALL');
+  const [validFromFilter, setValidFromFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
+  const [validToFilter, setValidToFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
+  const [revocationTimestampFilter, setRevocationTimestampFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
   const [caIdFilter, setCaIdFilter] = useState<string | null>(caId);
   const [sortConfig, setSortConfig] = useState<CertSortConfig | null>({ column: 'validFrom', direction: 'desc' });
   const [metadataFilters, setMetadataFilters] = useState<MetadataFilter[]>([]);
@@ -125,20 +144,52 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
                   : [];
 
             if (effectiveStatusFilters.length === 1) {
-                filtersToApply.push(`status[equal]${effectiveStatusFilters[0]}`);
+                filtersToApply.push(`status[eq]=${effectiveStatusFilters[0]}`);
             } else if (effectiveStatusFilters.length > 1) {
-                filtersToApply.push(`status[in]${effectiveStatusFilters.join(',')}`);
+                filtersToApply.push(`status[in]=${effectiveStatusFilters.join(',')}`);
             }
             if (debouncedSearchTerm.trim() !== '') {
                 if (searchField === 'commonName') {
-                    filtersToApply.push(`subject.common_name[contains]${debouncedSearchTerm.trim()}`);
+                    filtersToApply.push(`subject.common_name[ct_ic]=${debouncedSearchTerm.trim()}`);
                 } else if (searchField === 'serialNumber') {
-                    filtersToApply.push(`serial_number[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+                    filtersToApply.push(`serial_number[ct_ic]=${debouncedSearchTerm.trim()}`);
                 }
             }
+            if (certificateTypeFilter.trim() !== '') {
+                filtersToApply.push(`type[eq]=${certificateTypeFilter.trim()}`);
+            }
+            if (subjectKeyIdFilter.trim() !== '') {
+                filtersToApply.push(`subject_key_id[ct_ic]=${subjectKeyIdFilter.trim()}`);
+            }
+            if (engineIdFilter.trim() !== '') {
+                filtersToApply.push(`engine_id[ct_ic]=${engineIdFilter.trim()}`);
+            }
+            if (revocationReasonFilters.length === 1) {
+                filtersToApply.push(`revocation_reason[eq]=${revocationReasonFilters[0]}`);
+            } else if (revocationReasonFilters.length > 1) {
+                filtersToApply.push(`revocation_reason[in]=${revocationReasonFilters.join(',')}`);
+            }
+            if (isCaFilter !== 'ALL') {
+                filtersToApply.push(`is_ca[eq]=${isCaFilter}`);
+            }
+            if (validFromFilter.date) {
+                filtersToApply.push(`valid_from[${validFromFilter.operator}]=${format(validFromFilter.date, 'yyyy-MM-dd')}`);
+            }
+            if (validToFilter.date) {
+                filtersToApply.push(`valid_to[${validToFilter.operator}]=${format(validToFilter.date, 'yyyy-MM-dd')}`);
+            }
+            if (revocationTimestampFilter.date) {
+                filtersToApply.push(`revocation_timestamp[${revocationTimestampFilter.operator}]=${format(revocationTimestampFilter.date, 'yyyy-MM-dd')}`);
+            }
+            keyUsageFilters.forEach((usage) => {
+                filtersToApply.push(`extensions.key_usage[ct]=${usage}`);
+            });
+            extendedKeyUsageFilters.forEach((usage) => {
+                filtersToApply.push(`extensions.extended_key_usage[ct]=${usage}`);
+            });
             debouncedMetadataFilters.forEach(item => {
                 if (item.filter.trim() !== '') {
-                    filtersToApply.push(`metadata[jsonpath]${encodeURIComponent(item.filter.trim())}`);
+                    filtersToApply.push(`metadata[jsonpath]=${item.filter.trim()}`);
                 }
             });
             filtersToApply.forEach(f => apiParams.append('filter', f));
@@ -202,7 +253,26 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
         setCurrentPageIndex(0);
         setBookmarkStack([null]);
     }
-  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, statusFilters, sortConfig, caIdFilter, debouncedMetadataFilters]);
+  }, [
+    pageSize,
+    debouncedSearchTerm,
+    searchField,
+    statusFilter,
+    statusFilters,
+    certificateTypeFilter,
+    subjectKeyIdFilter,
+    engineIdFilter,
+    keyUsageFilters,
+    extendedKeyUsageFilters,
+    revocationReasonFilters,
+    isCaFilter,
+    validFromFilter,
+    validToFilter,
+    revocationTimestampFilter,
+    sortConfig,
+    caIdFilter,
+    debouncedMetadataFilters,
+  ]);
 
 
   const handleNextPage = () => {
@@ -252,6 +322,16 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     searchField, setSearchField,
     statusFilter, setStatusFilter,
     statusFilters, setStatusFilters,
+    certificateTypeFilter, setCertificateTypeFilter,
+    subjectKeyIdFilter, setSubjectKeyIdFilter,
+    engineIdFilter, setEngineIdFilter,
+    keyUsageFilters, setKeyUsageFilters,
+    extendedKeyUsageFilters, setExtendedKeyUsageFilters,
+    revocationReasonFilters, setRevocationReasonFilters,
+    isCaFilter, setIsCaFilter,
+    validFromFilter, setValidFromFilter,
+    validToFilter, setValidToFilter,
+    revocationTimestampFilter, setRevocationTimestampFilter,
     caIdFilter, setCaIdFilter,
     metadataFilters, setMetadataFilters,
     debouncedMetadataFilters,

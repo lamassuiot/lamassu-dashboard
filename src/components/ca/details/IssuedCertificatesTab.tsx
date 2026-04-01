@@ -4,16 +4,15 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Search, RefreshCw, FilePlus2, ChevronLeft, ChevronRight, AlertCircle as AlertCircleIcon, FileX2 } from 'lucide-react';
+import { Loader2, RefreshCw, FilePlus2, ChevronLeft, ChevronRight, AlertCircle as AlertCircleIcon, FileX2 } from 'lucide-react';
 import { CertificateList } from '@/components/CertificateList';
 import type { CA } from '@/lib/ca-data';
-import { usePaginatedCertificateFetcher, type ApiCertificateStatusValue } from '@/hooks/usePaginatedCertificateFetcher';
-import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
+import { usePaginatedCertificateFetcher } from '@/hooks/usePaginatedCertificateFetcher';
+import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 
 interface IssuedCertificatesTabProps {
     caId: string;
@@ -32,6 +31,17 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
         searchTerm, setSearchTerm,
         searchField, setSearchField,
         statusFilters, setStatusFilters,
+        certificateTypeFilter, setCertificateTypeFilter,
+        subjectKeyIdFilter, setSubjectKeyIdFilter,
+        engineIdFilter, setEngineIdFilter,
+        keyUsageFilters, setKeyUsageFilters,
+        extendedKeyUsageFilters, setExtendedKeyUsageFilters,
+        revocationReasonFilters, setRevocationReasonFilters,
+        isCaFilter, setIsCaFilter,
+        validFromFilter, setValidFromFilter,
+        validToFilter, setValidToFilter,
+        revocationTimestampFilter, setRevocationTimestampFilter,
+        metadataFilters, setMetadataFilters,
         sortConfig, requestSort,
         currentPageIndex,
         nextTokenFromApi,
@@ -48,82 +58,63 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
         }
     };
 
-    const statusOptions = [
-        { label: 'Active', value: 'ACTIVE' },
-        { label: 'Expired', value: 'EXPIRED' },
-        { label: 'Revoked', value: 'REVOKED' },
-    ];
-    const statusOptionValueSet = new Set(statusOptions.map((opt) => opt.value as ApiCertificateStatusValue));
-    const handleStatusFilterChange = (selected: string[]) => {
-        const validSelected = selected.filter(
-            (value): value is ApiCertificateStatusValue => statusOptionValueSet.has(value as ApiCertificateStatusValue)
-        );
-        setStatusFilters(validSelected);
-    };
-
     return (
         <div className="space-y-4">
-            {/* ── Toolbar ── */}
-            <div className="flex items-center gap-2">
-                {/* Search input */}
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <Input
-                        type="text"
-                        placeholder="Search by Common Name or Serial…"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 h-9"
-                        disabled={isLoading}
-                    />
-                </div>
-
-                {/* Search field selector */}
-                <Select value={searchField} onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)} disabled={isLoading}>
-                    <SelectTrigger className="w-[148px] h-9 shrink-0">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="commonName">Common Name</SelectItem>
-                        <SelectItem value="serialNumber">Serial Number</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                {/* Status filter */}
-                <div className={cn("w-[180px] shrink-0", isLoading && "pointer-events-none opacity-50")}>
-                    <MultiSelectDropdown
-                        id="issued-certs-status-filter"
-                        options={statusOptions}
-                        allOptionValues={statusOptions.map(opt => opt.value)}
-                        selectedValues={statusFilters}
-                        onChange={handleStatusFilterChange}
-                        buttonText="All Statuses"
-                        className="h-9 min-h-9"
-                    />
-                </div>
-
-                {/* Refresh */}
-                <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 shrink-0"
-                    onClick={refresh}
-                    disabled={isLoading}
-                    title="Refresh"
-                >
-                    <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-                </Button>
-
-                {/* Issue New */}
-                <Button
-                    size="sm"
-                    className="h-9 shrink-0"
-                    onClick={handleIssueNewCertificate}
-                    disabled={!caIsActive}
-                >
-                    <FilePlus2 className="mr-2 h-4 w-4" /> Issue New
-                </Button>
-            </div>
+            <CertificateFilterBar
+                searchTerm={searchTerm}
+                onSearchTermChange={setSearchTerm}
+                searchField={searchField}
+                onSearchFieldChange={setSearchField}
+                statusFilters={statusFilters}
+                onStatusFiltersChange={setStatusFilters}
+                certificateTypeFilter={certificateTypeFilter}
+                onCertificateTypeFilterChange={setCertificateTypeFilter}
+                subjectKeyIdFilter={subjectKeyIdFilter}
+                onSubjectKeyIdFilterChange={setSubjectKeyIdFilter}
+                engineIdFilter={engineIdFilter}
+                onEngineIdFilterChange={setEngineIdFilter}
+                keyUsageFilters={keyUsageFilters}
+                onKeyUsageFiltersChange={setKeyUsageFilters}
+                extendedKeyUsageFilters={extendedKeyUsageFilters}
+                onExtendedKeyUsageFiltersChange={setExtendedKeyUsageFilters}
+                revocationReasonFilters={revocationReasonFilters}
+                onRevocationReasonFiltersChange={setRevocationReasonFilters}
+                isCaFilter={isCaFilter}
+                onIsCaFilterChange={setIsCaFilter}
+                validFromFilter={validFromFilter}
+                onValidFromFilterChange={setValidFromFilter}
+                validToFilter={validToFilter}
+                onValidToFilterChange={setValidToFilter}
+                revocationTimestampFilter={revocationTimestampFilter}
+                onRevocationTimestampFilterChange={setRevocationTimestampFilter}
+                metadataFilters={metadataFilters}
+                onMetadataFiltersChange={setMetadataFilters}
+                disabled={isLoading}
+                actions={
+                    <>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={refresh}
+                            disabled={isLoading}
+                            title="Refresh"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            size="sm"
+                            className="h-9 shrink-0"
+                            onClick={handleIssueNewCertificate}
+                            disabled={!caIsActive}
+                        >
+                            <FilePlus2 className="mr-2 h-4 w-4" /> Issue New
+                        </Button>
+                    </>
+                }
+                basicFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_180px]"
+                advancedFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
+            />
 
             {isLoading && certificates.length === 0 ? (
                 <div className="flex items-center justify-center p-6">

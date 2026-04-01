@@ -7,10 +7,9 @@ import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, Loader2, RefreshCw, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { KeyRound, PlusCircle, MoreVertical, Eye, FileSignature, PenTool, Trash2, AlertTriangle, Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,9 +18,10 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey } from '@/lib/kms-data';
 import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
-import { MetadataFilterManager, type MetadataFilter } from '@/components/shared/MetadataFilterManager';
+import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { KMSFilterBar } from '@/components/shared/filters/KMSFilterBar';
 
 interface KmsKey {
   id: string;
@@ -47,7 +47,6 @@ export default function KmsKeysPage() {
   const [keyToDelete, setKeyToDelete] = useState<KmsKey | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [focusedField, setFocusedField] = useState<'alias' | 'metadata' | null>(null);
 
   // Pagination State
   const [pageSize, setPageSize] = useState('10');
@@ -269,87 +268,13 @@ export default function KmsKeysPage() {
         </Alert>
       )}
 
-      {/* Filter Section */}
-      <div 
-        className="grid grid-cols-1 md:grid-cols-[var(--col1)_var(--col2)] gap-4 items-end transition-grid duration-500 ease-in-out"
-        style={{
-          '--col1': focusedField === 'alias' ? '2fr' : '1fr',
-          '--col2': focusedField === 'metadata' ? '2fr' : '1fr',
-        } as React.CSSProperties}
-      >
-        <div className="space-y-1">
-          <Label htmlFor="aliasSearchInput">Filter by Name, ID or Alias</Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-            <Input
-              id="aliasSearchInput"
-              type="text"
-              placeholder="Search by key alias..."
-              value={aliasSearchTerm}
-              onChange={(e) => setAliasSearchTerm(e.target.value)}
-              onFocus={() => setFocusedField('alias')}
-              onBlur={() => setFocusedField(null)}
-              className="w-full pl-10"
-              disabled={isLoading}
-            />
-            {aliasSearchTerm && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                onClick={() => setAliasSearchTerm('')}
-                disabled={isLoading}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="metadataSearchInput">Filter by Metadata (JSONPath)</Label>
-          <MetadataFilterManager
-            id="metadataSearchInput"
-            value={metadataFilters}
-            onChange={setMetadataFilters}
-            disabled={isLoading}
-            onFocusChange={(focused) => setFocusedField(focused ? 'metadata' : null)}
-          />
-        </div>
-      </div>
-
-      {/* Active Filters Indicator */}
-      {(debouncedAliasSearchTerm || debouncedMetadataFilters.length > 0) && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-          <span>Active filters:</span>
-          {debouncedAliasSearchTerm && (
-            <Badge variant="secondary" className="text-xs">
-              Alias contains "{debouncedAliasSearchTerm}"
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setAliasSearchTerm('')}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </Badge>
-          )}
-          {metadataFilters.length > 0 && metadataFilters.map((item) => (
-            <Badge key={item.filter} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
-              Metadata: {item.name || item.filter}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setMetadataFilters(prev => prev.filter(f => f.filter !== item.filter))}
-                title={item.name ? `Filter: ${item.filter}` : undefined}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </Badge>
-          ))}
-        </div>
-      )}
+      <KMSFilterBar
+        searchTerm={aliasSearchTerm}
+        onSearchTermChange={setAliasSearchTerm}
+        metadataFilters={metadataFilters}
+        onMetadataFiltersChange={setMetadataFilters}
+        disabled={isLoading}
+      />
 
       {!isLoading && !error && keys.length === 0 ? (
         <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
