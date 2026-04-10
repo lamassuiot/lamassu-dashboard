@@ -51,6 +51,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 
 const resolveProjectIdentifier = (cbomData: unknown): string => {
   if (!cbomData || typeof cbomData !== 'object') {
@@ -148,6 +155,8 @@ export default function CBOMPage() {
   };
 
   const [scanUrl, setScanUrl] = useState('');
+  const [isScanDrawerOpen, setIsScanDrawerOpen] = useState(false);
+  const [isUploadDrawerOpen, setIsUploadDrawerOpen] = useState(false);
   const [advancedOptions, setAdvancedOptions] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanFinished, setScanFinished] = useState(false);
@@ -386,6 +395,7 @@ export default function CBOMPage() {
         description: `Stored CBOM for ${projectIdentifier}`,
       });
 
+      setIsUploadDrawerOpen(false);
       loadRecentScans();
     } catch (error) {
       toast({
@@ -397,38 +407,6 @@ export default function CBOMPage() {
       setIsUploading(false);
     }
   };
-
-  const totalAssetsAcrossFiltered = filteredCboms.reduce(
-    (sum, item) => sum + (getCryptographicAssetCount(item) ?? 0),
-    0,
-  );
-  const totalFindingsAcrossFiltered = filteredCboms.reduce(
-    (sum, item) => sum + (getTotalFindings(item) ?? 0),
-    0,
-  );
-  const realtimeCount = recentCboms.filter((item) => getCBOMType(item) === 'realtime').length;
-  const summaryCards = [
-    {
-      label: 'Visible scans',
-      value: filteredCboms.length.toString(),
-      hint: cbomTypeFilter === 'all' ? 'Across all CBOM types' : `Filtered by ${cbomTypeFilter}`,
-    },
-    {
-      label: 'Tracked assets',
-      value: totalAssetsAcrossFiltered.toString(),
-      hint: 'Cryptographic assets in view',
-    },
-    {
-      label: 'Findings',
-      value: totalFindingsAcrossFiltered.toString(),
-      hint: 'Detected occurrences',
-    },
-    {
-      label: 'Live capture',
-      value: realtimeCount.toString(),
-      hint: realtimeCount === 1 ? 'Realtime CBOM scan' : 'Realtime CBOM scans',
-    },
-  ];
 
   if (!isAuthenticated()) {
     return (
@@ -456,67 +434,99 @@ export default function CBOMPage() {
   }
 
   return (
-    <div className="w-full space-y-5">
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className="h-1 w-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500" />
-        <div className="p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <ClipboardList className="h-6 w-6" />
-              </div>
-              <div className="min-w-0 space-y-2">
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">CBOM Dashboard</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Explore repository scans, live capture sessions, and cryptographic findings in one place.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {recentCboms.length} stored scan{recentCboms.length === 1 ? '' : 's'}
-                  </Badge>
-                  <Badge variant="secondary" className="text-xs">
-                    {cbomTypeFilter === 'all' ? 'Showing all types' : `Filtered: ${cbomTypeFilter}`}
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    JSON upload + remote scan
-                  </Badge>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-4 xl:min-w-[480px]">
-              {summaryCards.map((item, index) => (
-                <div
-                  key={item.label}
-                  className={cn('px-1 sm:px-4', index > 0 && 'sm:border-l')}
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                  <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
-                  <p className="text-xs text-muted-foreground">{item.hint}</p>
-                </div>
-              ))}
-            </div>
+    <div className="w-full space-y-6 pb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-3">
+          <ClipboardList className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">CBOM Dashboard</h1>
+            <p className="text-sm text-muted-foreground">
+              Explore repository scans, live capture sessions, and cryptographic findings in one place.
+            </p>
           </div>
-          <div className="mt-5 flex justify-end">
-            <Button onClick={loadRecentScans} variant="outline" size="sm" disabled={isLoadingTable} className="px-2.5">
-              <RefreshCw className={cn('h-4 w-4', isLoadingTable && 'animate-spin')} />
-            </Button>
-          </div>
+        </div>
+        <div className="flex items-center space-x-2 self-start sm:self-center">
+          <Button onClick={loadRecentScans} variant="secondary" disabled={isLoadingTable}>
+            <RefreshCw className={cn('mr-2 h-4 w-4', isLoadingTable && 'animate-spin')} />
+            Refresh List
+          </Button>
+          <Button onClick={() => setIsUploadDrawerOpen(true)} variant="secondary">
+            <FileUp className="mr-2 h-4 w-4" />
+            Upload CBOM
+          </Button>
+          <Button onClick={() => setIsScanDrawerOpen(true)}>
+            <Search className="mr-2 h-4 w-4" />
+            Scan CBOM
+          </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_320px]">
-        <Card className="overflow-hidden rounded-xl shadow-sm">
-          <CardHeader className="border-b py-4">
-            <CardTitle className="flex items-center text-lg">
-              <Search className="mr-3 h-5 w-5 text-primary" />
-              Generate A New CBOM
-            </CardTitle>
-            <CardDescription>Scan a public or authenticated Git repository and persist the resulting CBOM.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
+      <Drawer open={isUploadDrawerOpen} onOpenChange={setIsUploadDrawerOpen}>
+        <DrawerContent className="max-h-[90vh] overflow-y-auto">
+          <DrawerHeader>
+            <DrawerTitle>Upload CBOM</DrawerTitle>
+            <DrawerDescription>Import an existing CBOM JSON file and add it to the dashboard.</DrawerDescription>
+          </DrawerHeader>
+          <div className="px-4 pb-6">
+            <label
+              htmlFor="cbom-upload"
+              className={cn(
+                'flex min-h-56 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all duration-150',
+                isDragOver
+                  ? 'border-primary bg-primary/8 scale-[1.01]'
+                  : 'border-border/60 bg-muted/10 hover:border-primary/60 hover:bg-primary/5',
+                isUploading && 'pointer-events-none opacity-50',
+              )}
+              onDragOver={(event) => { event.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setIsDragOver(false);
+                handleUploadFile(event.dataTransfer.files?.[0]);
+              }}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Uploading...</span>
+                </>
+              ) : (
+                <>
+                  <div className={cn(
+                    'flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
+                    isDragOver ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
+                  )}>
+                    <FileUp className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{isDragOver ? 'Release to upload' : 'Drop file here'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">or <span className="text-primary underline underline-offset-2">browse</span></p>
+                  </div>
+                  <p className="max-w-[220px] text-xs text-muted-foreground">
+                    Supports `.json` CBOM files that can be stored and opened from the dashboard.
+                  </p>
+                </>
+              )}
+            </label>
+            <input
+              id="cbom-upload"
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              disabled={isUploading}
+              onChange={(event) => handleUploadFile(event.target.files?.[0])}
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      <Drawer open={isScanDrawerOpen} onOpenChange={setIsScanDrawerOpen}>
+        <DrawerContent className="max-h-[90vh] overflow-y-auto">
+          <DrawerHeader>
+            <DrawerTitle>Scan CBOM</DrawerTitle>
+            <DrawerDescription>Scan a public or authenticated Git repository and persist the resulting CBOM.</DrawerDescription>
+          </DrawerHeader>
+          <div className="space-y-5 px-4 pb-6">
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input
                 placeholder="https://github.com/org/repo.git"
@@ -627,7 +637,7 @@ export default function CBOMPage() {
                   {isScanning && !scanError && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
                   {scanFinished && !scanError && <Check className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
                   <span className={cn('font-medium', scanError ? 'text-destructive' : scanFinished ? 'text-blue-600 dark:text-blue-400' : 'text-foreground')}>
-                    {scanStatus || 'Waiting…'}
+                    {scanStatus || 'Waiting...'}
                   </span>
                   {scanError && <span className="ml-1 text-destructive">{scanError}</span>}
                 </div>
@@ -644,168 +654,98 @@ export default function CBOMPage() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </DrawerContent>
+      </Drawer>
 
-        <Card className="overflow-hidden rounded-xl shadow-sm">
-          <CardHeader className="border-b py-4">
-            <CardTitle className="flex items-center text-lg">
-              <FileUp className="mr-3 h-5 w-5 text-primary" />
-              Upload A CBOM
-            </CardTitle>
-            <CardDescription>Import an existing CBOM JSON file and add it to the dashboard.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <label
-              htmlFor="cbom-upload"
-              className={cn(
-                'flex min-h-56 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-all duration-150',
-                isDragOver
-                  ? 'border-primary bg-primary/8 scale-[1.01]'
-                  : 'border-border/60 bg-muted/10 hover:border-primary/60 hover:bg-primary/5',
-                isUploading && 'pointer-events-none opacity-50',
-              )}
-              onDragOver={(event) => { event.preventDefault(); setIsDragOver(true); }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={(event) => {
-                event.preventDefault();
-                setIsDragOver(false);
-                handleUploadFile(event.dataTransfer.files?.[0]);
-              }}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Uploading…</span>
-                </>
-              ) : (
-                <>
-                  <div className={cn(
-                    'flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
-                    isDragOver ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
-                  )}>
-                    <FileUp className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{isDragOver ? 'Release to upload' : 'Drop file here'}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">or <span className="text-primary underline underline-offset-2">browse</span></p>
-                  </div>
-                  <p className="max-w-[220px] text-xs text-muted-foreground">
-                    Supports `.json` CBOM files that can be stored and opened from the dashboard.
-                  </p>
-                </>
-              )}
-            </label>
-            <input
-              id="cbom-upload"
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              disabled={isUploading}
-              onChange={(event) => handleUploadFile(event.target.files?.[0])}
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="overflow-hidden rounded-xl shadow-sm">
-        <CardHeader className="border-b py-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <CardTitle className="flex items-center text-lg">
-                <ClipboardList className="mr-3 h-5 w-5 text-primary" />
-                Recent Scans
-              </CardTitle>
-              <CardDescription>Review stored CBOMs, filter by type, and jump directly into a scan report.</CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {(recentCboms.length > 0 || isLoadingTable) && (
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="tableLimitSelect" className="text-xs text-muted-foreground whitespace-nowrap">Show</Label>
-                  <Select value={String(tableLimit)} onValueChange={(v) => setTableLimit(Number(v))} disabled={isLoadingTable}>
-                    <SelectTrigger id="tableLimitSelect" className="h-8 w-[72px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {recentCboms.length > 0 && (
-                <div className="flex items-center gap-1">
-                  <span className="mr-1 text-xs text-muted-foreground">Type:</span>
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+            {(recentCboms.length > 0 || isLoadingTable) && (
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="tableLimitSelect" className="text-xs text-muted-foreground whitespace-nowrap">Show</Label>
+                <Select value={String(tableLimit)} onValueChange={(v) => setTableLimit(Number(v))} disabled={isLoadingTable}>
+                  <SelectTrigger id="tableLimitSelect" className="h-8 w-[72px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {recentCboms.length > 0 && (
+              <div className="flex items-center gap-1">
+                <span className="mr-1 text-xs text-muted-foreground">Type:</span>
+                <Button
+                  variant={cbomTypeFilter === 'all' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setCbomTypeFilter('all')}
+                >
+                  All
+                </Button>
+                {CBOM_TYPES.map((type) => (
                   <Button
-                    variant={cbomTypeFilter === 'all' ? 'secondary' : 'ghost'}
+                    key={type}
+                    variant={cbomTypeFilter === type ? 'secondary' : 'ghost'}
                     size="sm"
                     className="h-7 px-2.5 text-xs"
-                    onClick={() => setCbomTypeFilter('all')}
+                    onClick={() => setCbomTypeFilter(type)}
                   >
-                    All
+                    {type}
                   </Button>
-                  {CBOM_TYPES.map((type) => (
-                    <Button
-                      key={type}
-                      variant={cbomTypeFilter === type ? 'secondary' : 'ghost'}
-                      size="sm"
-                      className="h-7 px-2.5 text-xs"
-                      onClick={() => setCbomTypeFilter(type)}
-                    >
-                      {type}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              {recentCboms.length > 0 && (
-                <ColumnSelector columns={columns} onColumnToggle={handleColumnToggle} align="end" />
-              )}
-            </div>
+                ))}
+              </div>
+            )}
+        </div>
+
+        {tableError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error Loading CBOMs</AlertTitle>
+            <AlertDescription>{tableError}</AlertDescription>
+          </Alert>
+        )}
+
+        {isLoadingTable && recentCboms.length === 0 && (
+          <div className="flex items-center justify-center rounded-lg border bg-muted/10 py-10">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Loading CBOMs...</span>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {tableError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error Loading CBOMs</AlertTitle>
-              <AlertDescription>{tableError}</AlertDescription>
-            </Alert>
-          )}
+        )}
 
-          {isLoadingTable && recentCboms.length === 0 && (
-            <div className="flex items-center justify-center rounded-lg border bg-muted/10 py-10">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
-              <span className="text-sm text-muted-foreground">Loading CBOMs…</span>
+        {!tableError && recentCboms.length > 0 && (
+          <>
+            <div className="flex justify-end">
+              <ColumnSelector columns={columns} onColumnToggle={handleColumnToggle} align="end" />
             </div>
-          )}
-
-          {!tableError && recentCboms.length > 0 && (
             <div className={cn(
-              'overflow-x-auto rounded-lg border transition-opacity duration-300',
+              'overflow-x-auto transition-opacity duration-300',
               isLoadingTable && 'pointer-events-none opacity-50',
             )}>
               <Table>
                 <TableHeader>
                   <TableRow>
                     {columnVisibility.project && (
-                      <TableHead className="w-[300px] text-xs font-medium">Project / Repository</TableHead>
+                      <TableHead className="w-[300px]">Project / Repository</TableHead>
                     )}
                     {columnVisibility.cbomType && (
-                      <TableHead className="w-32 text-xs font-medium">CBOM Type</TableHead>
+                      <TableHead className="w-32">CBOM Type</TableHead>
                     )}
                     {columnVisibility.date && (
-                      <TableHead className="w-40 text-xs font-medium">Date of Scan</TableHead>
+                      <TableHead className="w-40">Date of Scan</TableHead>
                     )}
                     {columnVisibility.assets && (
-                      <TableHead className="w-28 text-right text-xs font-medium">Total Assets</TableHead>
+                      <TableHead className="w-28 text-right">Total Assets</TableHead>
                     )}
                     {columnVisibility.findings && (
-                      <TableHead className="w-28 text-right text-xs font-medium">Findings</TableHead>
+                      <TableHead className="w-28 text-right">Findings</TableHead>
                     )}
                     {columnVisibility.action && (
-                      <TableHead className="w-24 text-right text-xs font-medium">Actions</TableHead>
+                      <TableHead className="w-24 text-right">Actions</TableHead>
                     )}
                   </TableRow>
                 </TableHeader>
@@ -818,7 +758,7 @@ export default function CBOMPage() {
                     return (
                       <TableRow key={`${item.projectIdentifier}-${index}`} className="group">
                         {columnVisibility.project && (
-                          <TableCell className="py-3">
+                          <TableCell>
                             <div className="flex min-w-0 items-center gap-1.5">
                               <Link
                                 href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}
@@ -832,7 +772,7 @@ export default function CBOMPage() {
                           </TableCell>
                         )}
                         {columnVisibility.cbomType && (
-                          <TableCell className="w-32 py-3">
+                          <TableCell className="w-32">
                             <Badge
                               variant="outline"
                               className={
@@ -848,7 +788,7 @@ export default function CBOMPage() {
                           </TableCell>
                         )}
                         {columnVisibility.date && (
-                          <TableCell className="w-40 py-3">
+                          <TableCell className="w-40">
                             {scanDate ? (
                               <DateDisplay
                                 date={scanDate}
@@ -857,30 +797,30 @@ export default function CBOMPage() {
                                 relativeClassName="text-xs"
                               />
                             ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
+                              <span className="text-xs text-muted-foreground">-</span>
                             )}
                           </TableCell>
                         )}
                         {columnVisibility.assets && (
-                          <TableCell className="w-28 py-3 text-right tabular-nums">
+                          <TableCell className="w-28 text-right tabular-nums">
                             {assetCount !== undefined ? (
                               <span className="text-sm font-medium">{assetCount}</span>
                             ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
+                              <span className="text-xs text-muted-foreground">-</span>
                             )}
                           </TableCell>
                         )}
                         {columnVisibility.findings && (
-                          <TableCell className="w-28 py-3 text-right tabular-nums">
+                          <TableCell className="w-28 text-right tabular-nums">
                             {findingsCount !== undefined ? (
                               <span className="text-sm font-medium">{findingsCount}</span>
                             ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
+                              <span className="text-xs text-muted-foreground">-</span>
                             )}
                           </TableCell>
                         )}
                         {columnVisibility.action && (
-                          <TableCell className="w-24 py-3 text-right">
+                          <TableCell className="w-24 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -922,25 +862,25 @@ export default function CBOMPage() {
                 </TableBody>
               </Table>
             </div>
-          )}
+          </>
+        )}
 
-          {!tableError && !isLoadingTable && filteredCboms.length === 0 && recentCboms.length > 0 && (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 py-8 text-center">
-              <ClipboardList className="mb-2 h-8 w-8 text-muted-foreground/40" />
-              <p className="text-sm font-medium text-muted-foreground">No {cbomTypeFilter} scans found</p>
-              <p className="mt-0.5 text-xs text-muted-foreground/60">Try a different type filter.</p>
-            </div>
-          )}
+        {!tableError && !isLoadingTable && filteredCboms.length === 0 && recentCboms.length > 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 py-8 text-center">
+            <ClipboardList className="mb-2 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium text-muted-foreground">No {cbomTypeFilter} scans found</p>
+            <p className="mt-0.5 text-xs text-muted-foreground/60">Try a different type filter.</p>
+          </div>
+        )}
 
-          {!tableError && !isLoadingTable && recentCboms.length === 0 && (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 py-12 text-center">
-              <ClipboardList className="mb-2 h-8 w-8 text-muted-foreground/40" />
-              <p className="text-sm font-medium text-muted-foreground">No CBOMs yet</p>
-              <p className="mt-0.5 text-xs text-muted-foreground/60">Scan or upload a repository above to get started.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {!tableError && !isLoadingTable && recentCboms.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 py-12 text-center">
+            <ClipboardList className="mb-2 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm font-medium text-muted-foreground">No CBOMs yet</p>
+            <p className="mt-0.5 text-xs text-muted-foreground/60">Use Upload CBOM or Scan CBOM to add your first scan.</p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

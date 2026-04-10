@@ -19,7 +19,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -1053,12 +1053,16 @@ function CBOMDetailsContent() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Input
-                          className="h-9 w-44 text-sm"
-                          value={compliancePolicyId}
-                          onChange={(e) => setCompliancePolicyId(e.target.value)}
-                          placeholder="Policy ID"
-                        />
+                        <Select value={compliancePolicyId} onValueChange={setCompliancePolicyId}>
+                          <SelectTrigger className="h-9 w-44 text-sm">
+                            <SelectValue placeholder="Policy ID" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="quantum_safe">quantum_safe</SelectItem>
+                            <SelectItem value="pqc">pqc</SelectItem>
+                            <SelectItem value="eccg_v2">eccg_v2</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <Button
                           size="sm"
                           onClick={handleCheckCompliance}
@@ -1526,24 +1530,25 @@ function CBOMDetailsContent() {
                 </div>
               )}
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {groupByRef && <TableHead className="w-8" />}
-                    <TableHead>Cryptographic asset</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Primitive</TableHead>
-                    {groupByRef ? (
-                      <TableHead className="text-right">Occurrences</TableHead>
-                    ) : (
-                      <TableHead>Location</TableHead>
-                    )}
-                    <TableHead>Compliance</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupByRef
-                    ? groupedAssets.map((asset, index) => {
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {groupByRef && <TableHead className="w-8" />}
+                      <TableHead>Cryptographic asset</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Primitive</TableHead>
+                      {groupByRef ? (
+                        <TableHead className="text-right">Occurrences</TableHead>
+                      ) : (
+                        <TableHead>Location</TableHead>
+                      )}
+                      <TableHead>Compliance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupByRef
+                      ? groupedAssets.map((asset, index) => {
                         const typeLabel = capitalizeFirstLetter(asset.cryptoProperties?.assetType || asset.type || '-');
                         const allOccurrences = (asset as any)._allOccurrences as NonNullable<CBOMAsset['evidence']>['occurrences'];
                         const occurrenceCount = allOccurrences?.length ?? 0;
@@ -1555,31 +1560,120 @@ function CBOMDetailsContent() {
                           ? complianceResult?.complianceLevels.find((l) => l.id === levelId)
                           : undefined;
 
-                        return (
-                          <React.Fragment key={rowKey}>
+                          return (
+                            <React.Fragment key={rowKey}>
+                              <TableRow
+                                className="cursor-pointer"
+                                onClick={() =>
+                                  setExpandedRefs((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(rowKey)) next.delete(rowKey);
+                                    else next.add(rowKey);
+                                    return next;
+                                  })
+                                }
+                              >
+                                <TableCell className="w-8 pr-0">
+                                  {isExpanded
+                                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                    : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                                </TableCell>
+                                <TableCell className="font-medium">{asset.name || '-'}</TableCell>
+                                <TableCell>{typeLabel}</TableCell>
+                                <TableCell>{asset.cryptoProperties?.algorithmProperties?.primitive || '-'}</TableCell>
+                                <TableCell className="text-right">
+                                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
+                                    {occurrenceCount}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  {!complianceResult || !level ? (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border"
+                                      style={{ borderColor: `${level.colorHex}88`, color: level.colorHex, background: `${level.colorHex}18` }}
+                                    >
+                                      {level.label}
+                                    </span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                              {isExpanded && (
+                                <TableRow key={`${rowKey}-occurrences`}>
+                                  <TableCell />
+                                  <TableCell colSpan={5} className="py-0 pb-2">
+                                    <div className="rounded-md border bg-muted/30 text-xs">
+                                      <table className="w-full">
+                                        <thead>
+                                          <tr className="border-b">
+                                            <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Location</th>
+                                            <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-16">Line</th>
+                                            <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-16">Offset</th>
+                                            <th className="text-left px-3 py-1.5 font-medium text-muted-foreground w-32">Context</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {(allOccurrences ?? []).map((occ, i) => (
+                                            <tr key={i} className="border-b last:border-0">
+                                              <td className="px-3 py-1.5 font-mono text-primary">
+                                                <span className="inline-flex items-center gap-1">
+                                                  {occ?.location || '—'}
+                                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                                </span>
+                                              </td>
+                                              <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                                                {occ?.line ?? '—'}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                                                {occ?.offset ?? '—'}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-muted-foreground">
+                                                {occ?.additionalContext || '—'}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      : filteredAssets.map((asset, index) => {
+                        const typeLabel = capitalizeFirstLetter(asset.cryptoProperties?.assetType || asset.type || '-');
+                        const firstOccurrence = asset.evidence?.occurrences?.[0];
+                        const location = firstOccurrence?.location || '-';
+                        const line = firstOccurrence?.line;
+                        const bomRef = asset['bom-ref'];
+                        const levelId = bomRef ? complianceFindingsMap.get(bomRef) : undefined;
+                        const level = levelId !== undefined
+                          ? complianceResult?.complianceLevels.find((l) => l.id === levelId)
+                          : undefined;
+
+                          return (
                             <TableRow
+                              key={`${asset['bom-ref'] || asset.name || 'asset'}-${index}`}
                               className="cursor-pointer"
-                              onClick={() =>
-                                setExpandedRefs((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(rowKey)) next.delete(rowKey);
-                                  else next.add(rowKey);
-                                  return next;
-                                })
-                              }
+                              onClick={() => {
+                                setSelectedAsset(asset);
+                                setAssetDetailOpen(true);
+                              }}
                             >
-                              <TableCell className="w-8 pr-0">
-                                {isExpanded
-                                  ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                                  : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                              </TableCell>
                               <TableCell className="font-medium">{asset.name || '-'}</TableCell>
                               <TableCell>{typeLabel}</TableCell>
                               <TableCell>{asset.cryptoProperties?.algorithmProperties?.primitive || '-'}</TableCell>
-                              <TableCell className="text-right">
-                                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
-                                  {occurrenceCount}
-                                </span>
+                              <TableCell>
+                                {location !== '-' ? (
+                                  <span className="inline-flex items-center gap-1 text-primary">
+                                    {line ? `${location}:${line}` : location}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </span>
+                                ) : (
+                                  '-'
+                                )}
                               </TableCell>
                               <TableCell>
                                 {!complianceResult || !level ? (
@@ -1594,99 +1688,11 @@ function CBOMDetailsContent() {
                                 )}
                               </TableCell>
                             </TableRow>
-                            {isExpanded && (
-                              <TableRow key={`${rowKey}-occurrences`}>
-                                <TableCell />
-                                <TableCell colSpan={5} className="py-0 pb-2">
-                                  <div className="rounded-md border bg-muted/30 text-xs">
-                                    <table className="w-full">
-                                      <thead>
-                                        <tr className="border-b">
-                                          <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Location</th>
-                                          <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-16">Line</th>
-                                          <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-16">Offset</th>
-                                          <th className="text-left px-3 py-1.5 font-medium text-muted-foreground w-32">Context</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {(allOccurrences ?? []).map((occ, i) => (
-                                          <tr key={i} className="border-b last:border-0">
-                                            <td className="px-3 py-1.5 font-mono text-primary">
-                                              <span className="inline-flex items-center gap-1">
-                                                {occ?.location || '—'}
-                                                <ExternalLink className="h-3 w-3 shrink-0" />
-                                              </span>
-                                            </td>
-                                            <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                                              {occ?.line ?? '—'}
-                                            </td>
-                                            <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                                              {occ?.offset ?? '—'}
-                                            </td>
-                                            <td className="px-3 py-1.5 text-muted-foreground">
-                                              {occ?.additionalContext || '—'}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </React.Fragment>
-                        );
-                      })
-                    : filteredAssets.map((asset, index) => {
-                        const typeLabel = capitalizeFirstLetter(asset.cryptoProperties?.assetType || asset.type || '-');
-                        const firstOccurrence = asset.evidence?.occurrences?.[0];
-                        const location = firstOccurrence?.location || '-';
-                        const line = firstOccurrence?.line;
-                        const bomRef = asset['bom-ref'];
-                        const levelId = bomRef ? complianceFindingsMap.get(bomRef) : undefined;
-                        const level = levelId !== undefined
-                          ? complianceResult?.complianceLevels.find((l) => l.id === levelId)
-                          : undefined;
-
-                        return (
-                          <TableRow
-                            key={`${asset['bom-ref'] || asset.name || 'asset'}-${index}`}
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setSelectedAsset(asset);
-                              setAssetDetailOpen(true);
-                            }}
-                          >
-                            <TableCell className="font-medium">{asset.name || '-'}</TableCell>
-                            <TableCell>{typeLabel}</TableCell>
-                            <TableCell>{asset.cryptoProperties?.algorithmProperties?.primitive || '-'}</TableCell>
-                            <TableCell>
-                              {location !== '-' ? (
-                                <span className="inline-flex items-center gap-1 text-primary">
-                                  {line ? `${location}:${line}` : location}
-                                  <ExternalLink className="h-3 w-3" />
-                                </span>
-                              ) : (
-                                '-'
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {!complianceResult || !level ? (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              ) : (
-                                <span
-                                  className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border"
-                                  style={{ borderColor: `${level.colorHex}88`, color: level.colorHex, background: `${level.colorHex}18` }}
-                                >
-                                  {level.label}
-                                </span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                </TableBody>
-              </Table>
+                          );
+                        })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
                 </div>
