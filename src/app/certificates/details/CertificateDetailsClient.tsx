@@ -308,7 +308,7 @@ export default function CertificateDetailsClient() { // Renamed component
 
   const handleConfirmDelete = async () => {
     if (!certificateDetails ) {
-        sileo.error({ title: "Error", description: "Certificate details or authentication missing." });
+        sileo.error({ title: "Error", description: "Certificate details missing." });
         return;
     }
     setIsDeleting(true);

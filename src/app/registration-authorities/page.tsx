@@ -304,7 +304,7 @@ export default function RegistrationAuthoritiesPage() {
 
   const handleDeleteRa = async () => {
     if (!raToDelete) {
-      sileo.error({ title: "Error", description: "RA details or authentication missing." });
+      sileo.error({ title: "Error", description: "RA details missing." });
       return;
     }
     setIsDeleting(true);
