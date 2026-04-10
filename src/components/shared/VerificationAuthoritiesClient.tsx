@@ -14,7 +14,6 @@ import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { CertificateData } from '@/types/certificate';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -54,7 +53,6 @@ const downloadFile = (data: ArrayBuffer, filename: string, mimeType: string) => 
 export function VerificationAuthoritiesClient() { // Renamed component
   const searchParams = useSearchParams();
   const caIdFromUrl = searchParams.get('caId');
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [selectedCaForConfig, setSelectedCaForConfig] = useState<CA | null>(null);
   const [config, setConfig] = useState<VAConfig | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,8 +65,6 @@ export function VerificationAuthoritiesClient() { // Renamed component
   const [errorCAs, setErrorCAs] = useState<string | null>(null);
 
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
-  const [isLoadingEngines, setIsLoadingEngines] = useState(false);
-  const [errorEngines, setErrorEngines] = useState<string | null>(null);
 
   const [selectedCertificateSignerDisplay, setSelectedCertificateSignerDisplay] = useState<CertificateData | null>(null);
 
@@ -80,20 +76,10 @@ export function VerificationAuthoritiesClient() { // Renamed component
 
 
   const loadData = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading) {
-        setErrorCAs("User not authenticated. Cannot load CAs.");
-        setErrorEngines("User not authenticated. Cannot load Crypto Engines.");
-      }
-      setIsLoadingCAs(false);
-      setIsLoadingEngines(false);
-      return;
-    }
-
     setIsLoadingCAs(true);
     setErrorCAs(null);
     try {
-      const fetchedCAs = await fetchAndProcessCAs(user.access_token);
+      const fetchedCAs = await fetchAndProcessCAs();
       setAvailableCAs(fetchedCAs);
     } catch (err: any) {
       let errorMessage = 'Failed to load available CAs.';
@@ -106,27 +92,21 @@ export function VerificationAuthoritiesClient() { // Renamed component
       setIsLoadingCAs(false);
     }
 
-    setIsLoadingEngines(true);
-    setErrorEngines(null);
     try {
-      const enginesData = await fetchCryptoEngines(user.access_token);
+      const enginesData = await fetchCryptoEngines();
       setAllCryptoEngines(enginesData);
     } catch (err: any) {
-      setErrorEngines(err.message || 'Failed to load Crypto Engines.');
+      console.error("Failed to fetch crypto engines:", err);
       setAllCryptoEngines([]);
-    } finally {
-      setIsLoadingEngines(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading]);
+  }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-      loadData();
-    }
-  }, [loadData, authLoading]);
+    loadData();
+  }, [loadData]);
 
   const fetchCurrentVaConfig = useCallback(async () => {
-    if (!selectedCaForConfig?.subjectKeyId || !isAuthenticated() || !user?.access_token) {
+    if (!selectedCaForConfig?.subjectKeyId ) {
       setConfig(null);
       setSelectedCertificateSignerDisplay(null);
       setLatestCrl(null);
@@ -139,7 +119,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
     setLatestCrl(null);
 
     try {
-      const data = await fetchVaConfig(selectedCaForConfig.subjectKeyId, user.access_token);
+      const data = await fetchVaConfig(selectedCaForConfig.subjectKeyId);
 
       if (data === null) { // Not Found (404) case
         setConfig(getDefaultVAConfig(selectedCaForConfig.id));
@@ -163,7 +143,6 @@ export function VerificationAuthoritiesClient() { // Renamed component
       if (newConfig.subjectKeyIDSigner) {
         const signerSki = newConfig.subjectKeyIDSigner;
         const { certificates } = await fetchIssuedCertificates({
-          accessToken: user.access_token,
           apiQueryString: `filter=subject_key_id[equal]${signerSki}&page_size=1`
         });
         if (certificates.length > 0) {
@@ -184,7 +163,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
     } finally {
       setIsLoadingConfig(false);
     }
-  }, [selectedCaForConfig, isAuthenticated, user?.access_token]);
+  }, [selectedCaForConfig]);
 
   useEffect(() => {
     if (selectedCaForConfig) {
@@ -232,8 +211,8 @@ export function VerificationAuthoritiesClient() { // Renamed component
   };
 
   const handleSaveConfig = async () => {
-    if (!config || !selectedCaForConfig || !selectedCaForConfig.subjectKeyId || !user?.access_token) {
-      sileo.error({ title: "Save Error", description: "Missing required data: CA, Subject Key ID, or authentication token." });
+    if (!config || !selectedCaForConfig || !selectedCaForConfig.subjectKeyId ) {
+      sileo.error({ title: "Save Error", description: "Missing required data: CA, Subject Key ID, or active session." });
       return;
     }
 
@@ -246,7 +225,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
         regenerate_on_revoke: config.regenerateOnRevoke,
       };
 
-      await updateVaConfig(selectedCaForConfig.subjectKeyId, payload, user.access_token);
+      await updateVaConfig(selectedCaForConfig.subjectKeyId, payload);
 
       sileo.success({
         title: "Success!",
@@ -264,13 +243,13 @@ export function VerificationAuthoritiesClient() { // Renamed component
   };
 
   const handleDownloadCrl = async () => {
-    if (!selectedCaForConfig?.subjectKeyId || !user?.access_token) {
-      sileo.error({ title: "Download Error", description: "Cannot download CRL. Missing CA info or authentication." });
+    if (!selectedCaForConfig?.subjectKeyId ) {
+      sileo.error({ title: "Download Error", description: "Cannot download CRL. Missing CA info or active session." });
       return;
     }
     setIsDownloadingCrl(true);
     try {
-      const crlData = await downloadCrl(selectedCaForConfig.subjectKeyId, user.access_token);
+      const crlData = await downloadCrl(selectedCaForConfig.subjectKeyId);
       downloadFile(crlData, `${selectedCaForConfig.subjectKeyId}.crl`, 'application/pkix-crl');
       sileo.success({ title: "Success", description: "CRL download has started." });
     } catch (e: any) {
@@ -388,9 +367,9 @@ export function VerificationAuthoritiesClient() { // Renamed component
                 variant="outline"
                 onClick={() => setIsCaSelectModalOpen(true)}
                 className="w-full justify-start text-left font-normal md:w-2/3 lg:w-1/2"
-                disabled={isLoadingCAs || authLoading}
+                disabled={isLoadingCAs}
               >
-                {isLoadingCAs || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedCaForConfig ? `${selectedCaForConfig.name} (${selectedCaForConfig.id})` : "Click to Select a CA...")}
+                {isLoadingCAs ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (selectedCaForConfig ? `${selectedCaForConfig.name} (${selectedCaForConfig.id})` : "Click to Select a CA...")}
               </Button>
             </div>
 
@@ -411,7 +390,6 @@ export function VerificationAuthoritiesClient() { // Renamed component
             loadCAsAction={loadData}
             onCaSelected={handleCaSelectedForConfiguration}
             currentSelectedCaId={selectedCaForConfig?.id}
-            isAuthLoading={authLoading}
             allCryptoEngines={allCryptoEngines}
           />
 
@@ -474,11 +452,10 @@ export function VerificationAuthoritiesClient() { // Renamed component
                     variant="outline"
                     onClick={() => setIsCertificateSignerModalOpen(true)}
                     className="w-full md:w-2/3 lg:w-1/2 justify-start text-left font-normal"
-                    disabled={authLoading || isSubmitting}
+                    disabled={isSubmitting}
                   >
-                    {authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> :
-                      selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}...`
-                        : "Select CRL Signer Certificate..."}
+                    {selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}...`
+                      : "Select CRL Signer Certificate..."}
                   </Button>
                   {selectedCertificateSignerDisplay && (
                     <div className="mt-2 p-2 border rounded-md bg-muted/30 max-w-md">
@@ -581,7 +558,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
             </div>
           )}
 
-          {!selectedCaForConfig && !isLoadingCAs && !authLoading && (
+          {!selectedCaForConfig && !isLoadingCAs && (
             <div className="mt-6 rounded-xl border-2 border-dashed border-border bg-muted/20 p-8 text-center">
               <h3 className="text-lg font-semibold text-muted-foreground">Select a CA</h3>
               <p className="text-sm text-muted-foreground">Choose a Certificate Authority from the selector above to view or edit its VA settings.</p>

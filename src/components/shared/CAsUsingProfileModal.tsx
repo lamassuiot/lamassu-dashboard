@@ -12,7 +12,6 @@ import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { useAuth } from '@/contexts/AuthContext';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 
 interface CAsUsingProfileModalProps {
@@ -48,7 +47,6 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
   onUsageLoaded,
 }) => {
   const router = useRouter();
-  const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
   
   const [cas, setCas] = useState<CA[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +55,7 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
 
 
   const fetchCAs = useCallback(async () => {
-    if (!profileId || !isOpen || !isAuthenticated() || !user?.access_token) {
+    if (!profileId || !isOpen ) {
       return;
     }
     setIsLoading(true);
@@ -66,8 +64,8 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
 
     try {
       const [casData, enginesData] = await Promise.all([
-        fetchAndProcessCAs(user.access_token, `filter=profile_id[equal]${profileId}`),
-        fetchCryptoEngines(user.access_token) // Fetch engines for the visualizer cards
+        fetchAndProcessCAs(`filter=profile_id[equal]${profileId}`),
+        fetchCryptoEngines() // Fetch engines for the visualizer cards
       ]);
       const flatCas = flattenCaTree(casData);
       setCas(flatCas);
@@ -78,7 +76,7 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [profileId, isOpen, isAuthenticated, user?.access_token, onUsageLoaded]);
+  }, [profileId, isOpen, onUsageLoaded]);
 
   useEffect(() => {
     fetchCAs();
@@ -100,10 +98,10 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
         </DialogHeader>
         
         <div className="min-h-[20rem] my-4">
-          {(isLoading || isAuthLoading) ? (
+          {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-2">{isAuthLoading ? "Authenticating..." : "Searching for CAs..."}</p>
+              <p className="ml-2">Searching for CAs...</p>
             </div>
           ) : error ? (
             <Alert variant="destructive">

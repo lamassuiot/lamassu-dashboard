@@ -14,7 +14,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2, Tag } from "lucide-react";
 import { sileo } from '@/lib/toast';
-import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { createKmsKey, importKmsKey } from '@/lib/kms-data';
@@ -56,7 +55,6 @@ const creationModes = [
 export default function CreateKmsKeyPage() {
   const monacoTheme = useMonacoTheme();
   const router = useRouter();
-  const { user } = useAuth();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
   // New Key Pair mode fields
@@ -87,13 +85,8 @@ export default function CreateKmsKeyPage() {
   // Load crypto engines on component mount
   useEffect(() => {
     const loadCryptoEngines = async () => {
-      if (!user?.access_token) {
-        setIsLoadingEngines(false);
-        return;
-      }
-
       try {
-        const engines = await fetchCryptoEngines(user.access_token);
+        const engines = await fetchCryptoEngines();
         setCryptoEngines(engines);
         
         // Set default engine if available
@@ -110,10 +103,8 @@ export default function CreateKmsKeyPage() {
       }
     };
 
-    if (user?.access_token) {
-      loadCryptoEngines();
-    }
-  }, [user?.access_token, cryptoEngineId]);
+    loadCryptoEngines();
+  }, [cryptoEngineId]);
 
   // Get supported key types from selected crypto engine
   const selectedEngine = cryptoEngines.find(engine => engine.id === cryptoEngineId);
@@ -193,11 +184,6 @@ export default function CreateKmsKeyPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!user?.access_token) {
-        sileo.error({ title: "Authentication Error", description: "You must be logged in to create a key." });
-        return;
-    }
-
     setIsSubmitting(true);
 
     if (selectedMode === 'newKeyPair') {
@@ -254,7 +240,7 @@ export default function CreateKmsKeyPage() {
                 ...(parsedMetadata && Object.keys(parsedMetadata).length > 0 && { metadata: parsedMetadata }),
             };
             
-            await createKmsKey(payload, user.access_token);
+            await createKmsKey(payload);
 
             sileo.success({
                 title: "Key Pair Created",
@@ -309,7 +295,7 @@ export default function CreateKmsKeyPage() {
           ...(parsedMetadata && Object.keys(parsedMetadata).length > 0 && { metadata: parsedMetadata }),
         };
         
-        await importKmsKey(payload, user.access_token);
+        await importKmsKey(payload);
 
         sileo.success({
           title: "Key Pair Imported",

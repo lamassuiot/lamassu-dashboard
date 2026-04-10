@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   ClipboardCheck,
@@ -24,7 +24,6 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  Shield,
   ListChecks,
   Server,
   Search,
@@ -33,9 +32,7 @@ import {
   List,
   Clock,
 } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { format, parseISO } from 'date-fns';
 import { cn, getCookie, setCookie } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs } from '@/lib/ca-data';
@@ -69,17 +66,6 @@ import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 
-
-const DetailRow: React.FC<{ icon: React.ElementType, label: string, value: React.ReactNode }> = ({ icon: Icon, label, value }) => (
-    <div className="flex items-start space-x-2 py-1">
-      <Icon className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-      <div>
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <div className="text-sm text-foreground">{value}</div>
-      </div>
-    </div>
-);
-
 // Add SortConfig type
 export type SortableColumn = 'name' | 'creation_ts';
 export type SortDirection = 'asc' | 'desc';
@@ -95,7 +81,6 @@ type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | null;
 
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [ras, setRas] = useState<ApiRaItem[]>([]);
   const [allCAs, setAllCAs] = useState<CA[]>([]);
@@ -169,12 +154,6 @@ export default function RegistrationAuthoritiesPage() {
   }, [searchTerm]);
 
   const fetchData = useCallback(async (bookmarkToFetch: string | null) => {
-    if (!isAuthenticated() || !user?.access_token) {
-        if (!authLoading) setError("User not authenticated.");
-        setIsLoading(false);
-        return;
-    }
-
     setIsLoading(true);
     setError(null);
     try {
@@ -195,15 +174,15 @@ export default function RegistrationAuthoritiesPage() {
         if (bookmarkToFetch) {
             params.append('bookmark', bookmarkToFetch);
         }
-        
+
         if (debouncedSearchTerm.trim()) {
             params.append('filter', `name[contains_ignorecase]${debouncedSearchTerm.trim()}`);
         }
 
         const [raData, caData, cryptoEnginesData] = await Promise.all([
-            fetchRegistrationAuthorities(user.access_token, params),
-            allCAs.length === 0 ? fetchAndProcessCAs(user.access_token) : Promise.resolve(null),
-            allCryptoEngines.length === 0 ? fetchCryptoEngines(user.access_token) : Promise.resolve(null),
+            fetchRegistrationAuthorities(params),
+            allCAs.length === 0 ? fetchAndProcessCAs() : Promise.resolve(null),
+            allCryptoEngines.length === 0 ? fetchCryptoEngines() : Promise.resolve(null),
         ]);
 
         setRas(raData.list || []);
@@ -222,7 +201,7 @@ export default function RegistrationAuthoritiesPage() {
     } finally {
         setIsLoading(false);
     }
-  }, [user, isAuthenticated, authLoading, pageSize, allCAs.length, debouncedSearchTerm, sortConfig]);
+  }, [allCAs.length, allCryptoEngines.length, debouncedSearchTerm, pageSize, sortConfig]);
 
 
   // Reset pagination when page size or filter changes
@@ -233,10 +212,10 @@ export default function RegistrationAuthoritiesPage() {
 
   useEffect(() => {
     // Gate fetching until the component is mounted and auth is resolved
-    if (isClientMounted && !authLoading && isAuthenticated()) {
+    if (isClientMounted ) {
       fetchData(bookmarkStack[currentPageIndex]);
     }
-  }, [isClientMounted, authLoading, isAuthenticated, bookmarkStack, currentPageIndex, fetchData]);
+  }, [bookmarkStack, currentPageIndex, fetchData, isClientMounted]);
 
   const filteredRas = useMemo(() => {
     if (!caFilterId) {
@@ -320,20 +299,17 @@ export default function RegistrationAuthoritiesPage() {
   };
 
   const handleUpdateRaMetadata = async (raId: string, metadata: object) => {
-    if (!user?.access_token) {
-        throw new Error("User not authenticated.");
-    }
-    await updateRaMetadata(raId, metadata, user.access_token);
+    await updateRaMetadata(raId, metadata);
   };
 
   const handleDeleteRa = async () => {
-    if (!raToDelete || !user?.access_token) {
-      sileo.error({ title: "Error", description: "RA details or authentication missing." });
+    if (!raToDelete) {
+      sileo.error({ title: "Error", description: "RA details missing." });
       return;
     }
     setIsDeleting(true);
     try {
-      await deleteRa(raToDelete.id, user.access_token);
+      await deleteRa(raToDelete.id);
       sileo.success({
         title: "Registration Authority Deleted",
         description: `RA "${raToDelete.name}" has been deleted.`
@@ -350,13 +326,11 @@ export default function RegistrationAuthoritiesPage() {
     }
   };
 
-  if (!isClientMounted || authLoading || (isLoading && ras.length === 0)) {
+  if (!isClientMounted || (isLoading && ras.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">
-          {authLoading ? "Authenticating..." : "Loading Registration Authorities..."}
-        </p>
+        <p className="text-lg text-muted-foreground">Loading Registration Authorities...</p>
       </div>
     );
   }
@@ -396,7 +370,7 @@ export default function RegistrationAuthoritiesPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
-              disabled={isLoading || authLoading}
+              disabled={isLoading}
             />
           </div>
         </div>
@@ -408,7 +382,7 @@ export default function RegistrationAuthoritiesPage() {
                 variant="outline"
                 className="w-full justify-start text-left font-normal"
                 onClick={() => setIsCaSelectorOpen(true)}
-                disabled={isLoading || authLoading}
+                disabled={isLoading}
             >
                 {selectedCaForFilter ? selectedCaForFilter.name : 'All Issuers & Validators'}
             </Button>
@@ -657,7 +631,7 @@ export default function RegistrationAuthoritiesPage() {
           <div className="mt-4 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Label htmlFor="pageSizeSelectRaList" className="whitespace-nowrap text-sm text-muted-foreground">Page Size:</Label>
-              <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading || authLoading}>
+              <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading}>
                 <SelectTrigger id="pageSizeSelectRaList" className="w-[80px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -692,9 +666,8 @@ export default function RegistrationAuthoritiesPage() {
         loadCAsAction={handleRefresh}
         onCaSelected={(ca) => { setCaFilterId(ca.id); setIsCaSelectorOpen(false); }}
         currentSelectedCaId={caFilterId}
-        isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
-    />
+      />
       <MetadataViewerModal
         isOpen={isMetadataModalOpen}
         onOpenChange={setIsMetadataModalOpen}

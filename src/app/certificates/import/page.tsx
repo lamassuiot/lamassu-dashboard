@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, Loader2, AlertCircle, CheckCircle, ArrowLeft, FileText } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
 import { parseCertificatePemDetails } from '@/lib/ca-data';
@@ -38,7 +37,6 @@ const ALLOWED_EXTENSIONS = ['.pem', '.crt', '.cer'];
 export default function ImportCertificatePage() {
   const monacoTheme = useMonacoTheme();
   const router = useRouter();
-  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -169,14 +167,6 @@ export default function ImportCertificatePage() {
       return;
     }
 
-    if (!user?.access_token) {
-      sileo.error({
-        title: 'Authentication Error',
-        description: 'Please log in to import certificates'
-      });
-      return;
-    }
-
     // Validate metadata JSON
     if (!validateMetadata(metadataJson)) {
       sileo.error({
@@ -200,7 +190,7 @@ export default function ImportCertificatePage() {
         certificate: base64Certificate,
       };
 
-      await importCertificate(payload, user.access_token);
+      await importCertificate(payload);
 
       sileo.success({
         title: 'Certificate Imported',

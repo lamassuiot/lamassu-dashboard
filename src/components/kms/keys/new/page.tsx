@@ -13,7 +13,6 @@ import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/comp
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
-import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { createKmsKey } from '@/lib/kms-data';
 
@@ -40,7 +39,6 @@ const creationModes = [
 
 export default function CreateKmsKeyPage() {
   const router = useRouter();
-  const { user } = useAuth();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
 
   // New Key Pair mode fields
@@ -95,11 +93,6 @@ export default function CreateKmsKeyPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!user?.access_token) {
-        sileo.error({ title: "Authentication Error", description: "You must be logged in to create a key." });
-        return;
-    }
-
     setIsSubmitting(true);
 
     if (selectedMode === 'newKeyPair') {
@@ -130,7 +123,7 @@ export default function CreateKmsKeyPage() {
                 size: size,
             };
             
-            await createKmsKey(payload, user.access_token);
+            await createKmsKey(payload);
 
             sileo.success({
                 title: "Key Pair Created",

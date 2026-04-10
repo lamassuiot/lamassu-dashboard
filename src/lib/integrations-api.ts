@@ -16,8 +16,8 @@ export interface DiscoveredIntegration {
   config: any; // The value from the metadata
 }
 
-export async function discoverIntegrations(accessToken: string): Promise<DiscoveredIntegration[]> {
-  const allRAs = await fetchAllRegistrationAuthorities(accessToken);
+export async function discoverIntegrations(): Promise<DiscoveredIntegration[]> {
+  const allRAs = await fetchAllRegistrationAuthorities();
   const integrations: DiscoveredIntegration[] = [];
 
   for (const ra of allRAs) {

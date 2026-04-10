@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,7 +17,6 @@ interface KmsKeySelectorProps {
   value?: string; // Selected key ID (pkcs11_uri)
   onValueChange: (keyId: string, keyData: ApiKmsKey) => void;
   allCryptoEngines: ApiCryptoEngine[];
-  accessToken: string;
   disabled?: boolean;
   className?: string;
   filterEngineId?: string; // Optional: filter keys by engine ID
@@ -28,7 +27,6 @@ export function KmsKeySelector({
   value,
   onValueChange,
   allCryptoEngines,
-  accessToken,
   disabled = false,
   className,
   filterEngineId,
@@ -43,7 +41,7 @@ export function KmsKeySelector({
   const selectedKey = keys.find(k => k.pkcs11_uri === value);
   const selectedEngine = selectedKey ? allCryptoEngines.find(e => e.id === selectedKey.engine_id) : null;
 
-  const loadKeys = async () => {
+  const loadKeys = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -53,7 +51,7 @@ export function KmsKeySelector({
         params.append('engine_id', filterEngineId);
       }
 
-      const response = await fetchKmsKeys(accessToken, params);
+      const response = await fetchKmsKeys(params);
       let filteredKeys = response.list || [];
       
       if (requirePrivateKey) {
@@ -67,13 +65,13 @@ export function KmsKeySelector({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filterEngineId, requirePrivateKey]);
 
   useEffect(() => {
-    if (isModalOpen && accessToken) {
+    if (isModalOpen) {
       loadKeys();
     }
-  }, [isModalOpen, accessToken, filterEngineId, requirePrivateKey]);
+  }, [isModalOpen, loadKeys]);
 
   const handleSelectKey = (key: ApiKmsKey) => {
     onValueChange(key.pkcs11_uri, key);

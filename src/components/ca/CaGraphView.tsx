@@ -29,7 +29,6 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { fetchKmsKeys, type ApiKmsKey } from '@/lib/kms-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
-import { useAuth } from '@/contexts/AuthContext';
 import { isPast, parseISO } from 'date-fns';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { toPng } from 'html-to-image';
@@ -613,7 +612,6 @@ function useLayoutNodes() {
 }
 
 const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, router }) => {
-  const { user } = useAuth();
   const [kmsKeys, setKmsKeys] = useState<ApiKmsKey[]>([]);
   const [isLoadingKeys, setIsLoadingKeys] = useState(true);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>([]);
@@ -631,14 +629,9 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
   // Fetch KMS keys on mount
   useEffect(() => {
     const loadKmsKeys = async () => {
-      if (!user?.access_token) {
-        setIsLoadingKeys(false);
-        return;
-      }
-
       try {
         const params = new URLSearchParams();
-        const keysData = await fetchKmsKeys(user.access_token, params);
+        const keysData = await fetchKmsKeys(params);
         setKmsKeys(keysData.list);
       } catch (error) {
         console.error('Error fetching KMS keys:', error);
@@ -649,7 +642,7 @@ const CaGraphViewInner: React.FC<CaGraphViewProps> = ({ cas, allCryptoEngines, r
     };
 
     loadKmsKeys();
-  }, [user?.access_token]);
+  }, []);
 
   // Create a map for quick lookup
   const kmsKeysMap = useMemo(() => {
@@ -1377,4 +1370,3 @@ export const CaGraphView: React.FC<CaGraphViewProps> = (props) => {
     </ReactFlowProvider>
   );
 };
-

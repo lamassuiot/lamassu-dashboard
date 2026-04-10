@@ -10,7 +10,6 @@ import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import dynamic from 'next/dynamic';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Input } from '@/components/ui/input';
@@ -76,7 +75,6 @@ const TYPE_OPTIONS: { value: CaTypeFilter, label: string; icon: React.ElementTyp
 
 export default function CertificateAuthoritiesPage() {
   const router = useRouter(); 
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [cas, setCas] = useState<CA[]>([]);
   const [isLoadingCas, setIsLoadingCas] = useState(true);
   const [errorCas, setErrorCas] = useState<string | null>(null);
@@ -93,22 +91,14 @@ export default function CertificateAuthoritiesPage() {
   const [errorCryptoEngines, setErrorCryptoEngines] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()){
-           setErrorCas("User not authenticated. Please log in.");
-           setErrorCryptoEngines("User not authenticated. Please log in.");
-           setIsLoadingCas(false);
-           setIsLoadingCryptoEngines(false);
-      }
-      return;
-    }
+    
     setIsLoadingCas(true);
     setErrorCas(null);
     setIsLoadingCryptoEngines(true);
     setErrorCryptoEngines(null);
 
     try {
-      const fetchedCAs = await fetchAndProcessCAs(user.access_token);
+      const fetchedCAs = await fetchAndProcessCAs();
       setCas(fetchedCAs);
     } catch (err: any) {
       setErrorCas(err.message || 'Failed to load Certification Authorities.');
@@ -118,7 +108,7 @@ export default function CertificateAuthoritiesPage() {
     }
 
     try {
-      const enginesData = await fetchCryptoEngines(user.access_token);
+      const enginesData = await fetchCryptoEngines();
       setAllCryptoEngines(enginesData);
     } catch (err: any) {
       setErrorCryptoEngines(err.message || 'Failed to load Crypto Engines.');
@@ -127,13 +117,11 @@ export default function CertificateAuthoritiesPage() {
       setIsLoadingCryptoEngines(false);
     }
 
-  }, [user?.access_token, isAuthenticated, authLoading]);
+  }, []);
 
   useEffect(() => {
-    if (!authLoading) { 
-        loadData();
-    }
-  }, [loadData, authLoading]);
+    loadData();
+  }, [loadData]);
 
   const filteredCAs = useMemo(() => {
     return filterCaList(cas, {
@@ -154,10 +142,9 @@ export default function CertificateAuthoritiesPage() {
     }
   };
   
-  if (authLoading || (isLoadingCas && cas.length === 0) || (isLoadingCryptoEngines && viewMode === 'list')) {
-    let loadingText = "Authenticating...";
-    if (!authLoading && isLoadingCas) loadingText = "Loading Certification Authorities...";
-    else if (!authLoading && isLoadingCryptoEngines && viewMode === 'list') loadingText = "Loading Crypto Engines for List View...";
+  if ((isLoadingCas && cas.length === 0) || (isLoadingCryptoEngines && viewMode === 'list')) {
+    let loadingText = "Loading Certification Authorities...";
+    if (isLoadingCryptoEngines && viewMode === 'list') loadingText = "Loading Crypto Engines for List View...";
     
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">

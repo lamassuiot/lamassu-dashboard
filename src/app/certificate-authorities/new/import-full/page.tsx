@@ -16,7 +16,6 @@ import { format as formatDate } from 'date-fns';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
@@ -41,7 +40,6 @@ const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 
 export default function CreateCaImportFullPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [caId, setCaId] = useState('');
@@ -85,26 +83,22 @@ export default function CreateCaImportFullPage() {
   // Load signing profiles
   useEffect(() => {
     const loadProfiles = async () => {
-      if (user?.access_token) {
-        setIsLoadingProfiles(true);
-        try {
-          const profilesResponse = await fetchSigningProfiles(user.access_token);
-          setAvailableProfiles(profilesResponse.list);
-          if (profilesResponse.list.length > 0) {
-            setSelectedProfileId(profilesResponse.list[0].id);
-          }
-        } catch (error) {
-          console.error('Failed to load signing profiles:', error);
-        } finally {
-          setIsLoadingProfiles(false);
+      setIsLoadingProfiles(true);
+      try {
+        const profilesResponse = await fetchSigningProfiles();
+        setAvailableProfiles(profilesResponse.list);
+        if (profilesResponse.list.length > 0) {
+          setSelectedProfileId(profilesResponse.list[0].id);
         }
+      } catch (error) {
+        console.error('Failed to load signing profiles:', error);
+      } finally {
+        setIsLoadingProfiles(false);
       }
     };
-    
-    if (!authLoading) {
-      loadProfiles();
-    }
-  }, [user?.access_token, authLoading]);
+
+    loadProfiles();
+  }, []);
 
   const handleKeyUsageChange = (usage: string, checked: boolean) => {
     setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
@@ -154,12 +148,6 @@ export default function CreateCaImportFullPage() {
       setIsSubmitting(false);
       return;
     }
-    if (!user?.access_token) {
-      sileo.error({ title: "Authentication Error", description: "User not authenticated." });
-      setIsSubmitting(false);
-      return;
-    }
-    
     if (importedPrivateKeyPem.includes('ENCRYPTED PRIVATE KEY')) {
       sileo.error({ title: "Unsupported Key", description: "Encrypted private keys are not supported. Please provide an unencrypted private key in PKCS#8 format." });
       setIsSubmitting(false);
@@ -180,7 +168,7 @@ export default function CreateCaImportFullPage() {
     };
     
     try {
-        await importCa(payload, user.access_token);
+        await importCa(payload);
         sileo.success({
             title: "Certification Authority Import Successful",
             description: `Certification Authority "${decodedImportedCertInfo?.subject || 'imported certificate'}" has been imported.`
@@ -231,7 +219,6 @@ export default function CreateCaImportFullPage() {
                     <CryptoEngineSelector
                         value={cryptoEngineId}
                         onValueChange={setCryptoEngineId}
-                        disabled={authLoading}
                         className="mt-1"
                     />
                     <p className="text-xs text-muted-foreground mt-1">Select the KMS engine where the imported private key will be stored.</p>

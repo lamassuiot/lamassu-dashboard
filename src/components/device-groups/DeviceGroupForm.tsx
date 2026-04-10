@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,7 +41,6 @@ interface DeviceGroupFormProps {
 
 export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
   const router = useRouter();
-  const { user } = useAuth();
 
   const [name, setName] = useState(existingGroup?.name || '');
   const [description, setDescription] = useState(existingGroup?.description || '');
@@ -92,7 +90,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
   // Load preview count when criteria changes
   useEffect(() => {
     const loadPreview = async () => {
-      if (!user?.access_token || criteria.length === 0) {
+      if (criteria.length === 0) {
         setPreviewCount(null);
         return;
       }
@@ -104,7 +102,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
       try {
         if (mode === 'edit' && existingGroup) {
           // Get current device count
-          const devices = await getDevicesByGroup(user.access_token, existingGroup.id, {
+          const devices = await getDevicesByGroup(existingGroup.id, {
             pageSize: 1,
           });
           // Note: This shows current count, not preview of changes
@@ -123,7 +121,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
 
     const timeoutId = setTimeout(loadPreview, 500); // Debounce
     return () => clearTimeout(timeoutId);
-  }, [criteria, user?.access_token, mode, existingGroup]);
+  }, [criteria, mode, existingGroup]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,14 +130,6 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
       sileo.error({
         title: 'Validation Error',
         description: 'Please fix the errors in the form'
-      });
-      return;
-    }
-
-    if (!user?.access_token) {
-      sileo.error({
-        title: 'Authentication Error',
-        description: 'You must be logged in to save changes'
       });
       return;
     }
@@ -156,7 +146,7 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
       };
 
       if (mode === 'create') {
-        const newGroup = await createDeviceGroup(user.access_token, body);
+        const newGroup = await createDeviceGroup(body);
         sileo.success({
           title: 'Success',
           description: `Device group "${newGroup.name}" created successfully`
@@ -164,7 +154,6 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
         router.push(`/device-groups/details?groupId=${newGroup.id}`);
       } else if (existingGroup) {
         const updatedGroup = await updateDeviceGroup(
-          user.access_token,
           existingGroup.id,
           body
         );

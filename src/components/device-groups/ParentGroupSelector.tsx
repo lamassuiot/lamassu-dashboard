@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import {
   Select,
   SelectContent,
@@ -29,19 +28,17 @@ export function ParentGroupSelector({
   excludeGroupId,
   error,
 }: ParentGroupSelectorProps) {
-  const { user } = useAuth();
   const [groups, setGroups] = useState<DeviceGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchGroups = async () => {
-      if (!user?.access_token) return;
-
+      
       try {
         setIsLoading(true);
         setLoadError(null);
-        const response = await getDeviceGroups(user.access_token, {
+        const response = await getDeviceGroups({
           pageSize: 100,
           sortBy: 'name',
           sortMode: 'asc',
@@ -62,7 +59,7 @@ export function ParentGroupSelector({
     };
 
     fetchGroups();
-  }, [user?.access_token, excludeGroupId]);
+  }, [excludeGroupId]);
 
   if (isLoading) {
     return (

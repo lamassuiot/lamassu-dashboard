@@ -12,7 +12,6 @@ import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { Settings2, BookText, PlusCircle, ArrowLeft } from 'lucide-react';
 import { CardSelector } from '@/components/shared/CardSelector';
 import type { ApiSigningProfile, CreateSigningProfilePayload } from '@/lib/ca-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -91,8 +90,6 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
   createModeEnabled = true,
   onProfileCreated,
 }) => {
-    
-  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<SigningProfileFormValues>({
@@ -106,12 +103,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
       event.preventDefault();
       event.stopPropagation();
     }
-    
-    if (!user?.access_token) {
-        sileo.error({ title: "Error", description: "Authentication token is missing." });
-        return;
-    }
-    
+
     setIsSubmitting(true);
 
     let validityPayload: { type: "Duration" | "Date"; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
@@ -153,7 +145,7 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
     }
 
     try {
-        const newProfile = await createSigningProfile(payload, user.access_token);
+        const newProfile = await createSigningProfile(payload);
         sileo.success({ title: "Profile Created", description: `Issuance Profile "${data.profileName}" has been successfully created.` });
         onProfileCreated?.(newProfile); // Callback to parent
     } catch (error: any) {

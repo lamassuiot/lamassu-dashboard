@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -151,23 +150,18 @@ const EngineRow: React.FC<{ engine: ApiCryptoEngine }> = ({ engine }) => {
 };
 
 export default function CryptoEnginesPage() {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [engines, setEngines] = useState<ApiCryptoEngine[]>([]);
   const [isLoadingEngines, setIsLoadingEngines] = useState(true);
   const [errorEngines, setErrorEngines] = useState<string | null>(null);
 
   const fetchEngines = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading) setErrorEngines("User not authenticated. Please log in.");
-      setIsLoadingEngines(false);
-      return;
-    }
+    
 
     setIsLoadingEngines(true);
     setErrorEngines(null);
 
     try {
-      const data = await fetchCryptoEngines(user.access_token);
+      const data = await fetchCryptoEngines();
       setEngines(data);
     } catch (err: any) {
       setErrorEngines(err.message || 'An unknown error occurred.');
@@ -175,21 +169,21 @@ export default function CryptoEnginesPage() {
     } finally {
       setIsLoadingEngines(false);
     }
-  }, [authLoading, isAuthenticated, user?.access_token]);
+  }, []);
 
   useEffect(() => {
-    if (!authLoading) fetchEngines();
-  }, [authLoading, fetchEngines]);
+    fetchEngines();
+  }, [fetchEngines]);
 
   const defaultEnginesCount = engines.filter((engine) => engine.default).length;
   const highSecurityCount = engines.filter((engine) => engine.security_level >= 3).length;
 
-  if (authLoading || isLoadingEngines) {
+  if (isLoadingEngines) {
     return (
       <div className="flex min-h-[280px] items-center justify-center">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <span>{authLoading ? 'Authenticating...' : 'Loading crypto engines...'}</span>
+          <span>Loading crypto engines...</span>
         </div>
       </div>
     );

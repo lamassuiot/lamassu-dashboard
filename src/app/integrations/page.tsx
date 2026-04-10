@@ -7,7 +7,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Blocks, PlusCircle, Loader2, AlertTriangle, Settings, Eye, RefreshCw, MoreVertical, Trash2 } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
@@ -45,7 +44,6 @@ export const IntegrationIcon: React.FC<{ type: DiscoveredIntegration['type'] }> 
 
 export default function IntegrationsPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const [integrations, setIntegrations] = useState<DiscoveredIntegration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,29 +53,23 @@ export default function IntegrationsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const loadIntegrations = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-        if (!authLoading) setError("User not authenticated.");
-        setIsLoading(false);
-        return;
-    }
+    
 
     setIsLoading(true);
     setError(null);
     try {
-        const discovered = await discoverIntegrations(user.access_token);
+        const discovered = await discoverIntegrations();
         setIntegrations(discovered);
     } catch (err: any) {
         setError(err.message || 'An unknown error occurred while discovering integrations.');
     } finally {
         setIsLoading(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading]);
+  }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-      loadIntegrations();
-    }
-  }, [authLoading, loadIntegrations]);
+    loadIntegrations();
+  }, [loadIntegrations]);
 
   const handleCreateNewIntegration = () => {
     router.push('/integrations/new');
@@ -92,13 +84,13 @@ export default function IntegrationsPage() {
   };
 
   const handleDeleteIntegration = async () => {
-    if (!integrationToDelete || !user?.access_token) {
+    if (!integrationToDelete) {
       sileo.error({ title: "Error", description: "No integration selected or user not authenticated." });
       return;
     }
     setIsDeleting(true);
     try {
-      await deleteRaIntegration(integrationToDelete.raId, integrationToDelete.configKey, user.access_token);
+      await deleteRaIntegration(integrationToDelete.raId, integrationToDelete.configKey);
       sileo.success({ title: "Success", description: "Integration has been deleted." });
       setIntegrationToDelete(null); // Close the dialog
       loadIntegrations(); // Refresh the list
@@ -117,7 +109,7 @@ export default function IntegrationsPage() {
       return configKey;
   };
 
-  if (isLoading || authLoading) {
+  if (isLoading) {
     return (
         <div className="flex flex-col items-center justify-center flex-1 p-8">
             <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />

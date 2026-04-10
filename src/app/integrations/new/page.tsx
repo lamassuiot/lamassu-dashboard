@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, PlusCircle, Loader2, Network } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
 import { useConfig } from '@/contexts/ConfigContext';
 import { sileo } from '@/lib/toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -16,7 +15,6 @@ import { DmsSelector } from '@/components/shared/DmsSelector';
 
 export default function CreateIntegrationPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { config } = useConfig();
 
   const [connectors, setConnectors] = useState<string[]>([]);
@@ -46,7 +44,7 @@ export default function CreateIntegrationPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedRaId || !selectedConnectorId || !user?.access_token) {
+    if (!selectedRaId || !selectedConnectorId ) {
       sileo.error({ title: "Validation Error", description: "Please select a Registration Authority and a Connector." });
       return;
     }
@@ -55,7 +53,7 @@ export default function CreateIntegrationPage() {
 
     try {
       // Fetch the full RA data to check existing metadata
-      const selectedRa = await fetchRaById(selectedRaId, user.access_token);
+      const selectedRa = await fetchRaById(selectedRaId);
 
       // The key for the new integration in the metadata
       const newIntegrationKey = `lamassu.io/iot/${selectedConnectorId}`;
@@ -74,7 +72,7 @@ export default function CreateIntegrationPage() {
         [newIntegrationKey]: {}, 
       };
 
-      await updateRaMetadata(selectedRaId, updatedMetadata, user.access_token);
+      await updateRaMetadata(selectedRaId, updatedMetadata);
 
       sileo.success({
         title: "Integration Registered",
@@ -114,7 +112,7 @@ export default function CreateIntegrationPage() {
                   <DmsSelector
                     value={selectedRaId}
                     onChange={handleDmsChange}
-                    disabled={isSubmitting || authLoading}
+                    disabled={isSubmitting}
                     showAllOption={false}
                     placeholder="Select an RA to add an integration to..."
                   />

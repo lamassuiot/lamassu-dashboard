@@ -18,7 +18,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, BookText, Settings2, Info, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ExpirationInput, type ExpirationConfig } from './ExpirationInput';
-import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { differenceInSeconds, parseISO, isFuture, add } from 'date-fns';
 import { fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
@@ -45,7 +44,6 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
   caExpirationDate,
   isReissuing,
 }) => {
-  const { user } = useAuth();
   const [profileMode, setProfileMode] = useState<ProfileMode>('inline');
   
   // Profile selector state
@@ -107,18 +105,17 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
 
   // Load profiles when modal opens
   useEffect(() => {
-    if (isOpen && user?.access_token) {
+    if (isOpen ) {
       loadProfiles();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, user?.access_token]);
+  }, [isOpen]);
 
   const loadProfiles = async () => {
-    if (!user?.access_token) return;
-    
+        
     setIsLoadingProfiles(true);
     try {
-      const result = await fetchSigningProfiles(user.access_token);
+      const result = await fetchSigningProfiles();
       setAvailableProfiles(result.list || []);
     } catch (error: any) {
       console.error('Failed to load profiles:', error);

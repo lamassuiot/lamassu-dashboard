@@ -15,7 +15,6 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { Loader2 } from 'lucide-react';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
@@ -103,7 +102,6 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
   onAkiClick,
   onUpdateSuccess,
 }) => {
-  const { user } = useAuth();
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileMode, setProfileMode] = useState<ProfileMode>('reuse');
@@ -115,30 +113,28 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
 
   useEffect(() => {
     const loadProfiles = async () => {
-      if (user?.access_token) {
-        setIsLoadingProfiles(true);
-        try {
-          const profilesResponse = await fetchSigningProfiles(user.access_token);
-          setAvailableProfiles(profilesResponse.list);
-        } catch {
-          sileo.error({ title: "Error", description: "Could not load issuance profiles." });
-        } finally {
-          setIsLoadingProfiles(false);
-        }
+      setIsLoadingProfiles(true);
+      try {
+        const profilesResponse = await fetchSigningProfiles();
+        setAvailableProfiles(profilesResponse.list);
+      } catch {
+        sileo.error({ title: "Error", description: "Could not load issuance profiles." });
+      } finally {
+        setIsLoadingProfiles(false);
       }
     };
     if (itemType === 'ca') {
       loadProfiles();
       setSelectedProfileId((item as CA).defaultProfileId || null);
     }
-  }, [item, itemType, isEditingProfile, user?.access_token]);
+  }, [item, itemType, isEditingProfile]);
 
   const handleSaveProfile = async () => {
-    if (itemType !== 'ca' || !user?.access_token) return;
+    if (itemType !== 'ca' ) return;
     const caDetails = item as CA;
     setIsSubmitting(true);
     try {
-      await updateCaDefaultProfileId(caDetails.id, selectedProfileId, user.access_token);
+      await updateCaDefaultProfileId(caDetails.id, selectedProfileId);
       sileo.success({ title: "Success", description: "Default issuance profile updated." });
       onUpdateSuccess?.();
       setIsEditingProfile(false);

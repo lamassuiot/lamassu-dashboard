@@ -35,7 +35,6 @@ interface CertificateListProps {
   sortConfig: CertSortConfig | null;
   requestSort: (column: SortableCertColumn) => void;
   isLoading?: boolean;
-  accessToken?: string | null;
   showIssuerColumn?: boolean;
   columnVisibility?: Partial<Record<'commonName' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'revocationTime', boolean>>;
   onColumnToggle?: (columnId: string) => void;
@@ -64,7 +63,6 @@ export function CertificateList({
   sortConfig,
   requestSort,
   isLoading,
-  accessToken,
   showIssuerColumn = true,
   columnVisibility: providedColumnVisibility,
 }: CertificateListProps) {
@@ -113,11 +111,6 @@ export function CertificateList({
       sileo.error({ title: "Error", description: "No certificate selected for revocation." });
       return;
     }
-    if (!accessToken) {
-      sileo.error({ title: "Error", description: "Authentication token not found." });
-      return;
-    }
-
     setIsRevoking(true);
 
     try {
@@ -125,7 +118,6 @@ export function CertificateList({
         serialNumber: certificateToRevoke.serialNumber,
         status: 'REVOKED',
         reason: reason,
-        accessToken: accessToken,
       });
 
       onCertificateUpdated({
@@ -152,8 +144,8 @@ export function CertificateList({
   };
 
   const handleReactivateCertificate = async (certificate: CertificateData) => {
-    if (!certificate || !accessToken) {
-      sileo.error({ title: "Error", description: "Cannot reactivate certificate. Missing details or authentication." });
+    if (!certificate) {
+      sileo.error({ title: "Error", description: "Cannot reactivate certificate. Missing certificate details." });
       return;
     }
 
@@ -161,7 +153,6 @@ export function CertificateList({
       await updateCertificateStatus({
         serialNumber: certificate.serialNumber,
         status: 'ACTIVE',
-        accessToken: accessToken,
       });
 
       onCertificateUpdated({ ...certificate, apiStatus: 'ACTIVE', revocationReason: undefined });

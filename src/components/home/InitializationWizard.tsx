@@ -23,7 +23,6 @@ import {
   fetchCaStatsSummary,
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
@@ -52,7 +51,6 @@ interface ValidationError {
 
 export const InitializationWizard: React.FC = () => {
     const router = useRouter();
-    const { user } = useAuth();
 
     const [currentStep, setCurrentStep] = useState(1);
     const totalSteps = 5;
@@ -76,16 +74,15 @@ export const InitializationWizard: React.FC = () => {
     }, [testLogs]);
 
     const checkFinalStepStatus = useCallback(async () => {
-        if (!user?.access_token) return;
-        try {
+                try {
             // Check for default profile
             const profileParams = new URLSearchParams();
             profileParams.append('filter', 'name[equal]Default Profile');
-            const profiles = await fetchSigningProfiles(user.access_token, profileParams);
+            const profiles = await fetchSigningProfiles(profileParams);
             setDefaultProfileExists(profiles.list.length > 0);
 
             // Check for existing CAs
-            const stats = await fetchCaStatsSummary(user.access_token);
+            const stats = await fetchCaStatsSummary();
             setCaCount(stats.cas.total);
 
         } catch (e) {
@@ -93,25 +90,23 @@ export const InitializationWizard: React.FC = () => {
             setDefaultProfileExists(false); // Assume it doesn't exist on error
             setCaCount(0); // Assume no CAs on error
         }
-    }, [user?.access_token]);
+    }, []);
 
 
     useEffect(() => {
         const loadEngines = async () => {
-            if (user?.access_token) {
-                try {
-                    const engines = await fetchCryptoEngines(user.access_token);
-                    setAvailableEngines(engines);
-                } catch (e) {
-                    console.error("Failed to load crypto engines for test", e);
-                }
+            try {
+                const engines = await fetchCryptoEngines();
+                setAvailableEngines(engines);
+            } catch (e) {
+                console.error("Failed to load crypto engines for test", e);
             }
         };
         loadEngines();
         if (currentStep === 5) {
             checkFinalStepStatus();
         }
-    }, [user, currentStep, checkFinalStepStatus]);
+    }, [currentStep, checkFinalStepStatus]);
 
 
     const addLog = (message: string, status: 'info' | 'success' | 'error', details?: string) => {
@@ -119,7 +114,7 @@ export const InitializationWizard: React.FC = () => {
     };
 
     const handleRunTest = async () => {
-        if (!user?.access_token || availableEngines.length === 0) {
+        if (availableEngines.length === 0) {
             const errorMsg = "Cannot run test: User not authenticated or no crypto engines available.";
             addLog(errorMsg, 'error');
             setTestError(errorMsg);
@@ -170,7 +165,7 @@ export const InitializationWizard: React.FC = () => {
                 honor_subject: true,
                 honor_extensions: true,
                 crypto_enforcement: { enabled: false, allow_rsa_keys: true, allow_ecdsa_keys: true },
-            }, user.access_token);
+            });
             
             testProfileId = newProfile.id;
             addLog("Dummy profile created successfully.", 'success', `Profile ID: ${testProfileId}`);
@@ -191,14 +186,14 @@ export const InitializationWizard: React.FC = () => {
                     key_metadata: { type: "ECDSA", bits: 256 },
                     ca_expiration: { type: "Duration", duration: "24h" },
                     ca_type: "MANAGED",
-                }, user.access_token);
+                });
                 addLog("Dummy CA created successfully.", 'success', `CA ID: ${testCaId}`);
                 createdCa = true;
                 
                 // --- Step 2a: Verify CA cert ---
                 addLog(`2a. Verifying dummy CA certificate...`, 'info');
                 try {
-                    const createdCaList = await fetchAndProcessCAs(user.access_token, `filter=id[equal]${testCaId}`);
+                    const createdCaList = await fetchAndProcessCAs(`filter=id[equal]${testCaId}`);
                     if (createdCaList.length > 0 && createdCaList[0].pemData) {
                         const caCert = createdCaList[0];
                         testCaCertSerialNumber = caCert.serialNumber; // Store the CA's own certificate serial
@@ -229,16 +224,15 @@ export const InitializationWizard: React.FC = () => {
                 const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
                 const signedCsrPem = await buildSelfSignedCsr({ subject: { commonName: testCertName }, keyPair });
 
-                const result = await signCertificate(testCaId, { csr: window.btoa(signedCsrPem), profile_id: testProfileId }, user.access_token);
+                const result = await signCertificate(testCaId, { csr: window.btoa(signedCsrPem), profile_id: testProfileId });
                 issuedCertSerialNumber = result.serial_number;
                 addLog("Test certificate issued successfully.", 'success', `Serial Number: ${issuedCertSerialNumber}`);
 
                 // --- Step 3a: Perform CRL and OCSP checks ---
                 addLog(`3a. Checking validation endpoints for test certificate...`, 'info');
                 try {
-                    const createdCaList = await fetchAndProcessCAs(user.access_token, `filter=id[equal]${testCaId}`);
+                    const createdCaList = await fetchAndProcessCAs(`filter=id[equal]${testCaId}`);
                     const { certificates } = await fetchIssuedCertificates({
-                        accessToken: user.access_token,
                         apiQueryString: `filter=serial_number[equal_ignorecase]${issuedCertSerialNumber}&page_size=1`
                     });
                     const issuedCertDetails = certificates[0];
@@ -329,7 +323,7 @@ export const InitializationWizard: React.FC = () => {
                         server_keygen_settings: { enabled: false },
                         ca_distribution_settings: { include_enrollment_ca: true, include_system_ca: true, managed_cas: [] }
                     }
-                }, user.access_token, false);
+                }, false);
                 addLog("Dummy RA created successfully.", 'success', `RA ID: ${testRaId}`);
                 createdRa = true;
             } catch (e: any) {
@@ -346,7 +340,7 @@ export const InitializationWizard: React.FC = () => {
                 await registerDevice({
                     id: testDeviceId, dms_id: testRaId, tags: ["test-device"],
                     icon: "Cpu", icon_color: "#888888-#e0e0e0", metadata: {},
-                }, user.access_token);
+                });
                 addLog("Dummy Device registered successfully.", 'success', `Device ID: ${testDeviceId}`);
                 createdDevice = true;
             } catch (e: any) {
@@ -369,11 +363,11 @@ export const InitializationWizard: React.FC = () => {
         if (createdDevice) {
             try {
                 addLog(`- Decommissioning Device "${testDeviceId}"...`, 'info');
-                await decommissionDevice(testDeviceId, user.access_token);
+                await decommissionDevice(testDeviceId);
                 addLog("Device decommissioned.", 'success');
 
                 addLog(`- Deleting Device "${testDeviceId}"...`, 'info');
-                await deleteDevice(testDeviceId, user.access_token);
+                await deleteDevice(testDeviceId);
                 addLog("Device deleted.", 'success');
             } catch (e: any) { addLog(`Device cleanup failed: ${e.message}`, 'error'); }
         }
@@ -381,7 +375,7 @@ export const InitializationWizard: React.FC = () => {
         if (createdRa) {
             try {
                 addLog(`- Deleting RA "${testRaId}"...`, 'info');
-                await deleteRa(testRaId, user.access_token);
+                await deleteRa(testRaId);
                 addLog("RA deleted.", 'success');
             } catch (e: any) { addLog(`RA cleanup failed: ${e.message}`, 'error'); }
         }
@@ -389,7 +383,7 @@ export const InitializationWizard: React.FC = () => {
         if (issuedCertSerialNumber) {
              try {
                 addLog(`- Revoking test certificate "${issuedCertSerialNumber}"...`, 'info');
-                await updateCertificateStatus({ serialNumber: issuedCertSerialNumber, status: 'REVOKED', reason: 'Unspecified', accessToken: user.access_token });
+                await updateCertificateStatus({ serialNumber: issuedCertSerialNumber, status: 'REVOKED', reason: 'Unspecified' });
                 addLog("Test certificate revoked successfully.", 'success');
             } catch (e: any) { addLog(`Certificate revocation failed: ${e.message}`, 'error'); }
         }
@@ -397,11 +391,11 @@ export const InitializationWizard: React.FC = () => {
         if (createdCa) {
             try {
                 addLog(`- Revoking CA "${testCaId}"...`, 'info');
-                await revokeCa(testCaId, "Unspecified", user.access_token);
+                await revokeCa(testCaId, "Unspecified");
                 addLog("CA revoked successfully.", 'success');
                 
                 addLog(`- Permanently deleting CA "${testCaId}"...`, 'info');
-                await deleteCa(testCaId, user.access_token);
+                await deleteCa(testCaId);
                 addLog("CA deleted successfully.", 'success');
             } catch (e: any) { addLog(`CA cleanup failed: ${e.message}`, 'error'); }
         }
@@ -409,7 +403,7 @@ export const InitializationWizard: React.FC = () => {
         if (issuedCertSerialNumber) {
              try {
                 addLog(`- Deleting test certificate "${issuedCertSerialNumber}"...`, 'info');
-                await deleteCertificate(issuedCertSerialNumber, user.access_token);
+                await deleteCertificate(issuedCertSerialNumber);
                 addLog("Test certificate deleted successfully.", 'success');
             } catch (e: any) { addLog(`Certificate deletion cleanup failed: ${e.message}`, 'error'); }
         }
@@ -417,7 +411,7 @@ export const InitializationWizard: React.FC = () => {
         if (testCaCertSerialNumber) {
              try {
                 addLog(`- Deleting test CA certificate "${testCaCertSerialNumber}"...`, 'info');
-                await deleteCertificate(testCaCertSerialNumber, user.access_token);
+                await deleteCertificate(testCaCertSerialNumber);
                 addLog("Test CA certificate deleted successfully.", 'success');
             } catch (e: any) { addLog(`CA Certificate deletion cleanup failed: ${e.message}`, 'error'); }
         }
@@ -425,7 +419,7 @@ export const InitializationWizard: React.FC = () => {
         if (testProfileId) {
             try {
                 addLog(`- Deleting dummy profile "${testProfileName}"...`, 'info');
-                await deleteSigningProfile(testProfileId, user.access_token);
+                await deleteSigningProfile(testProfileId);
                 addLog("Dummy profile deleted successfully.", 'success');
             } catch (e: any) { addLog(`Profile cleanup failed: ${e.message}`, 'error'); }
         }
@@ -456,11 +450,6 @@ export const InitializationWizard: React.FC = () => {
     const handleBack = () => setCurrentStep(prev => (prev > 1 ? prev - 1 : 1));
 
     const handleCreateDefaultProfile = async () => {
-        if (!user?.access_token) {
-            sileo.error({ title: "Authentication Error" });
-            return;
-        }
-
         setIsCreatingProfile(true);
         try {
             const templateData: Partial<SigningProfileFormValues> = templateDefaults['device-auth'] || {};
@@ -484,7 +473,7 @@ export const InitializationWizard: React.FC = () => {
                 },
             };
             
-            await createSigningProfile(payload, user.access_token);
+            await createSigningProfile(payload);
             sileo.success({ title: "Success!", description: "Default Issuance Profile created." });
             checkFinalStepStatus(); // Re-check to update the button state
         } catch (e: any) {
@@ -727,6 +716,3 @@ const CompletedActionItem: React.FC<{ title: string; description: string; icon: 
 );
 
     
-
-
-

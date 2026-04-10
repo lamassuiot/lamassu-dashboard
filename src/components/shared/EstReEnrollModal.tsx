@@ -9,14 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Info, RefreshCw as RefreshCwIcon, Search, AlertTriangle, Loader2, HelpCircle, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription as AlertDescUI, AlertTitle } from '../ui/alert';
 import { CodeBlock } from './CodeBlock';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { Switch } from '@/components/ui/switch';
-import { useAuth } from '@/contexts/AuthContext';
 import { ApiDevice, fetchDevices } from '@/lib/devices-api';
 import { Badge } from '@/components/ui/badge';
 import { getLucideIconByName } from './DeviceIconSelectorModal';
@@ -85,7 +83,6 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
     presentation = 'dialog',
     className,
 }) => {
-    const { user } = useAuth();
     
     const [step, setStep] = useState(1);
     
@@ -123,7 +120,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
     const currentKeySpecOptions = keygenType === 'RSA' ? RSA_KEY_SIZE_OPTIONS : ECDSA_CURVE_OPTIONS;
 
     const handleSearch = async () => {
-        if (!deviceId.trim() || !ra?.id || !user?.access_token) {
+        if (!deviceId.trim() || !ra?.id ) {
             setSearchError("Please enter a Device ID.");
             return;
         }
@@ -136,7 +133,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
             params.append('filter', `id[equal]${deviceId.trim()}`);
             params.append('filter', `dms_owner[equal]${ra.id}`); // Important: scope to the RA
 
-            const result = await fetchDevices(user.access_token, params);
+            const result = await fetchDevices(params);
             if (result.list && result.list.length > 0) {
                 setFoundDevice(result.list[0]);
             } else {

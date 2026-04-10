@@ -4,7 +4,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Loader2, RefreshCw, AlertTriangle, CheckSquare } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
@@ -14,18 +13,16 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '../ui/badge';
 
 export const CryptoEngineSummary: React.FC = () => {
-    const { user } = useAuth();
     const [engines, setEngines] = useState<ApiCryptoEngine[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const fetchEngines = useCallback(async () => {
-        if (!user?.access_token) return;
-
+        
         setIsLoading(true);
         setError(null);
         try {
-            const data = await fetchCryptoEngines(user.access_token);
+            const data = await fetchCryptoEngines();
             setEngines(data);
         } catch (err: any) {
             setError(err.message || 'An unknown error occurred.');
@@ -33,7 +30,7 @@ export const CryptoEngineSummary: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [user?.access_token]);
+    }, []);
 
     useEffect(() => {
         fetchEngines();

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +21,6 @@ import {
   AlertCircle, 
   Loader2, 
   Search, 
-  RefreshCw, 
   ChevronLeft, 
   ChevronRight, 
   ChevronsUpDown,
@@ -44,7 +42,6 @@ import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal
 import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
-import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 interface GroupMembersListProps {
   groupId: string;
@@ -105,7 +102,6 @@ const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string;
 };
 
 export function GroupMembersList({ groupId, className }: GroupMembersListProps) {
-  const { user } = useAuth();
   const router = useRouter();
   
   const [devices, setDevices] = useState<ApiDevice[]>([]);
@@ -126,30 +122,15 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
   const [deviceForEnrollModal, setDeviceForEnrollModal] = useState<ApiDevice | null>(null);
 
   // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+  const [columnVisibility] = useState<Record<string, boolean>>({
     id: true,
     status: true,
     createdAt: true,
     tags: true,
   });
 
-  const columns: ColumnConfig[] = [
-    { id: 'id', label: 'Device ID', visible: columnVisibility.id, disabled: true },
-    { id: 'status', label: 'Status', visible: columnVisibility.status },
-    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
-    { id: 'tags', label: 'Tags', visible: columnVisibility.tags },
-  ];
-
-  const handleColumnToggle = (columnId: string) => {
-    setColumnVisibility((prev) => ({
-      ...prev,
-      [columnId]: !prev[columnId],
-    }));
-  };
-
   const fetchDevices = useCallback(async (bookmark?: string, pageIndex?: number) => {
-    if (!user?.access_token) return;
-
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -169,7 +150,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
         filtersToApply.push(`status[equal]${statusFilter}`);
       }
 
-      const response = await getDevicesByGroup(user.access_token, groupId, {
+      const response = await getDevicesByGroup(groupId, {
         pageSize: Number.parseInt(pageSize),
         bookmark: bookmark || undefined,
         sortBy: apiSortColumn as any,
@@ -189,7 +170,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
     } finally {
       setIsLoading(false);
     }
-  }, [user?.access_token, groupId, pageSize, sortConfig, searchTerm, searchField, statusFilter]);
+  }, [groupId, pageSize, sortConfig, searchTerm, searchField, statusFilter]);
 
   const refresh = () => {
     setCurrentPageIndex(0);
@@ -228,17 +209,12 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
   };
 
   const handleOpenEnrollModal = async (device: ApiDevice) => {
-    if (!user?.access_token) {
-      sileo.error({ title: 'Authentication Error', description: 'You must be logged in.' });
-      return;
-    }
-
     setDeviceForEnrollModal(device);
     setRaForEnrollModal(null);
     setIsEnrollModalOpen(true);
 
     try {
-      const raData = await fetchRaById(device.dms_owner, user.access_token);
+      const raData = await fetchRaById(device.dms_owner);
       setRaForEnrollModal(raData);
     } catch (err: any) {
       sileo.error({ title: 'Error Fetching RA Details', description: err.message });

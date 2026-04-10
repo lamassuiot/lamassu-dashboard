@@ -12,7 +12,6 @@ import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfile
 import { fetchCryptoEngines, type ApiKmsKey } from '@/lib/kms-data';
 import { Card, CardContent } from '@/components/ui/card';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { formatISO } from 'date-fns';
@@ -36,7 +35,6 @@ const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
 export default function CreateCaExistingKeyPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -91,21 +89,15 @@ export default function CreateCaExistingKeyPage() {
   }, []);
 
   const loadDependencies = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading) {
-        setErrorDependencies("User not authenticated. Cannot load dependencies.");
-      }
-      setIsLoadingDependencies(false);
-      return;
-    }
+    
 
     setIsLoadingDependencies(true);
     setErrorDependencies(null);
     try {
       const [fetchedCAs, enginesData, profilesResponse] = await Promise.all([
-        fetchAndProcessCAs(user.access_token),
-        fetchCryptoEngines(user.access_token),
-        fetchSigningProfiles(user.access_token),
+        fetchAndProcessCAs(),
+        fetchCryptoEngines(),
+        fetchSigningProfiles(),
       ]);
       setAvailableParentCAs(fetchedCAs);
       setAllCryptoEngines(enginesData);
@@ -128,13 +120,11 @@ export default function CreateCaExistingKeyPage() {
     } finally {
       setIsLoadingDependencies(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading]);
+  }, []);
 
   useEffect(() => {
-    if (!authLoading) {
-      loadDependencies();
-    }
-  }, [loadDependencies, authLoading]);
+    loadDependencies();
+  }, [loadDependencies]);
 
   // Helper to parse duration string (e.g., "5y", "30d") to human-readable format
   const formatDurationToHuman = (durationStr: string): string => {
@@ -391,7 +381,7 @@ export default function CreateCaExistingKeyPage() {
     }
 
     try {
-      await createCa(payload, user!.access_token!);
+      await createCa(payload);
 
       sileo.success({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.` });
       router.push('/certificate-authorities');
@@ -439,8 +429,7 @@ export default function CreateCaExistingKeyPage() {
                     value={selectedKeyId}
                     onValueChange={handleKeySelected}
                     allCryptoEngines={allCryptoEngines}
-                    accessToken={user?.access_token || ''}
-                    disabled={authLoading || isSubmitting || !user?.access_token}
+                    disabled={isSubmitting}
                     requirePrivateKey={true}
                     className="mt-1"
                   />
@@ -554,9 +543,9 @@ export default function CreateCaExistingKeyPage() {
                         onClick={() => setIsParentCaModalOpen(true)}
                         className="w-full justify-start text-left font-normal mt-1"
                         id="parentCa"
-                        disabled={isLoadingDependencies || authLoading || isSubmitting}
+                        disabled={isLoadingDependencies || isSubmitting}
                       >
-                        {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
+                        {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
                       </Button>
                       {selectedParentCa && (
                         <div className="mt-2">
@@ -687,7 +676,6 @@ export default function CreateCaExistingKeyPage() {
         loadCAsAction={loadDependencies}
         onCaSelected={handleParentCaSelectFromModal}
         currentSelectedCaId={selectedParentCa?.id}
-        isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
       />
     </div>

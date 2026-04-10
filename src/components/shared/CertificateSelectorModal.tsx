@@ -9,7 +9,6 @@ import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Search as
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
-import { useAuth } from '@/contexts/AuthContext';
 import { SelectableCertificateItem } from './SelectableCertificateItem';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -42,7 +41,6 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   onCertificateSelected,
   currentSelectedCertificateId,
 }) => {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [availableCerts, setAvailableCerts] = useState<CertificateData[]>([]);
   const [isLoadingCerts, setIsLoadingCerts] = useState(false);
   const [errorCerts, setErrorCerts] = useState<string | null>(null);
@@ -78,13 +76,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
 
   const loadCertificates = useCallback(async (bookmarkToFetch: string | null) => {
-    if (authLoading || !isAuthenticated() || !user?.access_token) {
-      if (!authLoading && !isAuthenticated()) {
-        setErrorCerts("User not authenticated.");
-      }
-      setIsLoadingCerts(false);
-      return;
-    }
+    
 
     setIsLoadingCerts(true);
     setErrorCerts(null);
@@ -111,7 +103,6 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
       // params.append('filter', 'is_ca[equal]false'); 
 
       const result = await fetchIssuedCertificates({
-        accessToken: user.access_token,
         apiQueryString: params.toString(),
       });
       
@@ -130,17 +121,17 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     } finally {
       setIsLoadingCerts(false);
     }
-  }, [user?.access_token, isAuthenticated, authLoading, pageSize, debouncedSearchTerm, searchField, statusFilter]);
+  }, [pageSize, debouncedSearchTerm, searchField, statusFilter]);
 
   useEffect(() => {
-    if (isOpen && !authLoading && isAuthenticated()) {
+    if (isOpen ) {
         // loadCertificates depends on currentPageIndex (via bookmarkStack), 
         // and pagination reset useEffect depends on filters.
         // This effect ensures the call happens after pagination reset or on page change.
         loadCertificates(bookmarkStack[currentPageIndex]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [isOpen, authLoading, isAuthenticated, currentPageIndex, loadCertificates]); 
+  }, [isOpen, currentPageIndex, loadCertificates]); 
 
 
   const handleRefresh = () => {
@@ -194,12 +185,12 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-9 h-9 text-sm"
-                    disabled={isLoadingCerts || authLoading}
+                    disabled={isLoadingCerts}
                 />
             </div>
             <div className="col-span-1 sm:col-span-1">
                 <Label htmlFor="certSelectorSearchField" className="text-xs">In Field</Label>
-                <Select value={searchField} onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)} disabled={isLoadingCerts || authLoading}>
+                <Select value={searchField} onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)} disabled={isLoadingCerts}>
                     <SelectTrigger id="certSelectorSearchField" className="w-full h-9 text-sm">
                         <SelectValue />
                     </SelectTrigger>
@@ -211,7 +202,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
             </div>
             <div className="col-span-1 sm:col-span-1">
                 <Label htmlFor="certSelectorStatusFilter" className="text-xs">Status</Label>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ApiStatusFilterValue)} disabled={isLoadingCerts || authLoading}>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ApiStatusFilterValue)} disabled={isLoadingCerts}>
                     <SelectTrigger id="certSelectorStatusFilter" className="w-full h-9 text-sm">
                         <SelectValue />
                     </SelectTrigger>
@@ -224,13 +215,13 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
 
         <div className="flex-grow overflow-hidden flex flex-col min-h-[200px]"> {/* Added min-h */}
-            {(isLoadingCerts || authLoading) && !errorCerts && (
+            {isLoadingCerts && !errorCerts && (
             <div className="flex-grow flex items-center justify-center h-full">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2">{authLoading ? "Authenticating..." : "Loading certificates..."}</p>
+                <p className="ml-2">Loading certificates...</p>
             </div>
             )}
-            {errorCerts && !isLoadingCerts && !authLoading && (
+            {errorCerts && !isLoadingCerts && (
             <div className="flex-grow flex items-center justify-center h-full">
                 <Alert variant="destructive" className="my-4">
                     <AlertTriangle className="h-4 w-4" />
@@ -241,7 +232,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                 </Alert>
             </div>
             )}
-            {!isLoadingCerts && !authLoading && !errorCerts && availableCerts.length > 0 && (
+            {!isLoadingCerts && !errorCerts && availableCerts.length > 0 && (
             <ScrollArea className="flex-grow my-2 border rounded-md">
                 <ul className="space-y-0.5 p-2">
                 {availableCerts.map((cert) => (
@@ -255,7 +246,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                 </ul>
             </ScrollArea>
             )}
-            {!isLoadingCerts && !authLoading && !errorCerts && availableCerts.length === 0 && (
+            {!isLoadingCerts && !errorCerts && availableCerts.length === 0 && (
             <div className="flex-grow flex items-center justify-center h-full">
                 <p className="text-muted-foreground text-center my-4 p-4 border rounded-md bg-muted/20">
                     No non-CA certificates found matching your criteria.
@@ -265,14 +256,14 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
         </div>
         
         {/* Pagination Controls */}
-        {(!isLoadingCerts && !authLoading && !errorCerts && (availableCerts.length > 0 || nextTokenFromApi || currentPageIndex > 0)) && (
+        {(!isLoadingCerts && !errorCerts && (availableCerts.length > 0 || nextTokenFromApi || currentPageIndex > 0)) && (
           <div className="flex justify-between items-center mt-2 pt-3 border-t">
               <div className="flex items-center space-x-2">
                 <Label htmlFor="pageSizeSelectCertModal" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
                 <Select
                     value={pageSize}
                     onValueChange={(value) => setPageSize(value)}
-                    disabled={isLoadingCerts || authLoading}
+                    disabled={isLoadingCerts}
                 >
                     <SelectTrigger id="pageSizeSelectCertModal" className="w-[80px] h-9">
                     <SelectValue placeholder="Page size" />
@@ -316,4 +307,3 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     </Dialog>
   );
 };
-

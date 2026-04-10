@@ -111,9 +111,9 @@ export default function CreateCertificateClient() {
         setIsLoadingProfiles(true);
         try {
             const [cas, engines, profilesResp] = await Promise.all([
-                fetchAndProcessCAs(user.access_token),
-                fetchCryptoEngines(user.access_token),
-                fetchSigningProfiles(user.access_token),
+                fetchAndProcessCAs(),
+                fetchCryptoEngines(),
+                fetchSigningProfiles(),
             ]);
             setAllCAs(cas);
             setAllCryptoEngines(engines);
@@ -226,7 +226,7 @@ export default function CreateCertificateClient() {
                     const parsed = await parseCertificatePemDetails(pem);
                     if (parsed.subjectKeyId) {
                         const ski = parsed.subjectKeyId.replace(/:/g, '');
-                        const kmsKey = await fetchKmsKey(ski, user!.access_token!).catch(() => null);
+                        const kmsKey = await fetchKmsKey(ski).catch(() => null);
                         if (kmsKey) setIssuedKeyId(kmsKey.key_id);
                     }
                 } catch { /* SKI lookup is best-effort */ }
@@ -384,7 +384,6 @@ export default function CreateCertificateClient() {
                                                     setKmsKeyIdentifier(keyData.pkcs11_uri || _keyId)
                                                 }
                                                 allCryptoEngines={allCryptoEngines}
-                                                accessToken={user?.access_token || ''}
                                                 requirePrivateKey
                                             />
                                         </div>
@@ -744,7 +743,6 @@ export default function CreateCertificateClient() {
                 errorCAs={errorCAs}
                 loadCAsAction={loadPageData}
                 onCaSelected={(ca) => { setSelectedCa(ca); setIsCaSelectorOpen(false); }}
-                isAuthLoading={false}
                 allCryptoEngines={allCryptoEngines}
             />
         </div>

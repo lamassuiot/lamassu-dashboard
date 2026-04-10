@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,7 +14,6 @@ import { DeviceGroupForm } from '@/components/device-groups/DeviceGroupForm';
 export default function EditDeviceGroupClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
   const groupId = searchParams.get('groupId');
 
   const [group, setGroup] = useState<DeviceGroup | null>(null);
@@ -24,7 +22,7 @@ export default function EditDeviceGroupClient() {
 
   useEffect(() => {
     const fetchGroup = async () => {
-      if (!user?.access_token || !groupId) {
+      if (!groupId) {
         setIsLoading(false);
         setError('Missing group ID');
         return;
@@ -33,7 +31,7 @@ export default function EditDeviceGroupClient() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getDeviceGroupByID(user.access_token, groupId);
+        const data = await getDeviceGroupByID(groupId);
         setGroup(data);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch device group';
@@ -44,7 +42,7 @@ export default function EditDeviceGroupClient() {
     };
 
     fetchGroup();
-  }, [groupId, user?.access_token]);
+  }, [groupId]);
 
   if (isLoading) {
     return (

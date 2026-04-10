@@ -1,13 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import {
-  discoverIntegrations,
-  policyBuilder,
-  type DiscoveredIntegration,
-  type IntegrationType,
-} from './integrations-api'
+import { discoverIntegrations, policyBuilder } from './integrations-api'
 import * as dmsApi from './dms-api'
-
-const MOCK_TOKEN = 'test-access-token'
 
 describe('integrations-api', () => {
   describe('discoverIntegrations', () => {
@@ -26,7 +19,7 @@ describe('integrations-api', () => {
 
       vi.spyOn(dmsApi, 'fetchAllRegistrationAuthorities').mockResolvedValue(mockRAs as any)
 
-      const result = await discoverIntegrations(MOCK_TOKEN)
+      const result = await discoverIntegrations()
 
       expect(result).toHaveLength(2)
       expect(result[0]).toEqual({
@@ -62,7 +55,7 @@ describe('integrations-api', () => {
 
       vi.spyOn(dmsApi, 'fetchAllRegistrationAuthorities').mockResolvedValue(mockRAs as any)
 
-      const result = await discoverIntegrations(MOCK_TOKEN)
+      const result = await discoverIntegrations()
 
       expect(result).toHaveLength(1)
       expect(result[0]).toEqual({
@@ -96,7 +89,7 @@ describe('integrations-api', () => {
 
       vi.spyOn(dmsApi, 'fetchAllRegistrationAuthorities').mockResolvedValue(mockRAs as any)
 
-      const result = await discoverIntegrations(MOCK_TOKEN)
+      const result = await discoverIntegrations()
 
       expect(result).toHaveLength(2)
       expect(result[0].raId).toBe('ra-1')
@@ -118,7 +111,7 @@ describe('integrations-api', () => {
 
       vi.spyOn(dmsApi, 'fetchAllRegistrationAuthorities').mockResolvedValue(mockRAs as any)
 
-      const result = await discoverIntegrations(MOCK_TOKEN)
+      const result = await discoverIntegrations()
 
       expect(result).toHaveLength(1)
       expect(result[0].configKey).toBe('lamassu.io/iot/aws.region')
@@ -139,7 +132,7 @@ describe('integrations-api', () => {
 
       vi.spyOn(dmsApi, 'fetchAllRegistrationAuthorities').mockResolvedValue(mockRAs as any)
 
-      const result = await discoverIntegrations(MOCK_TOKEN)
+      const result = await discoverIntegrations()
 
       expect(result).toHaveLength(0)
     })
@@ -147,7 +140,7 @@ describe('integrations-api', () => {
     it('should handle empty RA list', async () => {
       vi.spyOn(dmsApi, 'fetchAllRegistrationAuthorities').mockResolvedValue([])
 
-      const result = await discoverIntegrations(MOCK_TOKEN)
+      const result = await discoverIntegrations()
 
       expect(result).toHaveLength(0)
       expect(result).toEqual([])
@@ -167,7 +160,7 @@ describe('integrations-api', () => {
 
       vi.spyOn(dmsApi, 'fetchAllRegistrationAuthorities').mockResolvedValue(mockRAs as any)
 
-      const result = await discoverIntegrations(MOCK_TOKEN)
+      const result = await discoverIntegrations()
 
       expect(result).toHaveLength(2)
       expect(result[0].id).toBe('ra-1-lamassu.io/iot/aws.region')
@@ -192,7 +185,7 @@ describe('integrations-api', () => {
 
       vi.spyOn(dmsApi, 'fetchAllRegistrationAuthorities').mockResolvedValue(mockRAs as any)
 
-      const result = await discoverIntegrations(MOCK_TOKEN)
+      const result = await discoverIntegrations()
 
       expect(result).toHaveLength(1)
       expect(result[0].config).toEqual({

@@ -18,7 +18,6 @@ import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem, type CsrSan } from "@/lib-crypto";
-import { useAuth } from '@/contexts/AuthContext';
 import { parseCsr, type DecodedCsrInfo } from '@/lib-crypto';
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
@@ -67,7 +66,6 @@ const DETAIL_CARD_CLASSNAME = 'overflow-hidden rounded-xl shadow-sm';
 export default function IssueCertificateFormClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
   const caId = searchParams.get('caId');
   const prefilledCn = searchParams.get('prefill_cn');
   const returnToDevice = searchParams.get('returnToDevice');
@@ -189,14 +187,14 @@ export default function IssueCertificateFormClient() {
   }, []);
   
   useEffect(() => {
-    if (!caId || !user?.access_token) {
+    if (!caId ) {
         setIsLoadingCa(false);
         return;
     }
     const loadIssuerCa = async () => {
         setIsLoadingCa(true);
         try {
-            const allCAs = await fetchAndProcessCAs(user.access_token);
+            const allCAs = await fetchAndProcessCAs();
             const foundCa = findCaById(caId, allCAs);
             if (foundCa) {
                 setIssuerCa(foundCa);
@@ -220,7 +218,7 @@ export default function IssueCertificateFormClient() {
     const loadProfiles = async () => {
         setIsLoadingProfiles(true);
         try {
-            const profiles = await fetchSigningProfiles(user.access_token!);
+            const profiles = await fetchSigningProfiles();
             setSigningProfiles(profiles.list);
         } catch (error: any) {
             sileo.error({
@@ -232,7 +230,7 @@ export default function IssueCertificateFormClient() {
         }
     };
     loadProfiles();
-  }, [caId, user?.access_token]);
+  }, [caId]);
 
   useEffect(() => {
     if (!isLoadingCa && issuerCa) {
@@ -439,7 +437,7 @@ export default function IssueCertificateFormClient() {
         ...buildProfilePayload()
       };
     
-      const result = await signCertificate(caId!, payload, user!.access_token!);
+      const result = await signCertificate(caId!, payload);
       const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
       setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
       setStep(3);
@@ -474,7 +472,7 @@ export default function IssueCertificateFormClient() {
     };
     
     try {
-        const result = await signCertificate(caId!, payload, user!.access_token!);
+        const result = await signCertificate(caId, payload);
         const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
         setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
         setStep(3);

@@ -1,4 +1,5 @@
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
+import { requireAccessToken } from './auth-session';
 import type {
   DeviceGroup,
   CreateDeviceGroupBody,
@@ -12,7 +13,6 @@ import type {
  * Get all device groups with optional filtering and pagination
  */
 export async function getDeviceGroups(
-  accessToken: string,
   params?: {
     pageSize?: number;
     bookmark?: string;
@@ -21,6 +21,7 @@ export async function getDeviceGroups(
     filter?: string;
   }
 ): Promise<GetDeviceGroupsResponse> {
+  const accessToken = requireAccessToken();
   const queryParams = new URLSearchParams();
   
   if (params?.pageSize) queryParams.append('limit', params.pageSize.toString());
@@ -47,9 +48,9 @@ export async function getDeviceGroups(
  * Get a specific device group by ID
  */
 export async function getDeviceGroupByID(
-  accessToken: string,
   id: string
 ): Promise<DeviceGroup> {
+  const accessToken = requireAccessToken();
   const response = await fetch(
     `${get_DEV_MANAGER_API_BASE_URL()}/device-groups/${id}`,
     {
@@ -68,9 +69,9 @@ export async function getDeviceGroupByID(
  * Create a new device group
  */
 export async function createDeviceGroup(
-  accessToken: string,
   body: CreateDeviceGroupBody
 ): Promise<DeviceGroup> {
+  const accessToken = requireAccessToken();
   const response = await fetch(
     `${get_DEV_MANAGER_API_BASE_URL()}/device-groups`,
     {
@@ -90,10 +91,10 @@ export async function createDeviceGroup(
  * Update an existing device group
  */
 export async function updateDeviceGroup(
-  accessToken: string,
   id: string,
   body: UpdateDeviceGroupBody
 ): Promise<DeviceGroup> {
+  const accessToken = requireAccessToken();
   const response = await fetch(
     `${get_DEV_MANAGER_API_BASE_URL()}/device-groups/${id}`,
     {
@@ -113,9 +114,9 @@ export async function updateDeviceGroup(
  * Delete a device group
  */
 export async function deleteDeviceGroup(
-  accessToken: string,
   id: string
 ): Promise<void> {
+  const accessToken = requireAccessToken();
   const response = await fetch(
     `${get_DEV_MANAGER_API_BASE_URL()}/device-groups/${id}`,
     {
@@ -135,7 +136,6 @@ export async function deleteDeviceGroup(
  * Get devices belonging to a group (with hierarchy resolution)
  */
 export async function getDevicesByGroup(
-  accessToken: string,
   groupId: string,
   params?: {
     pageSize?: number;
@@ -145,6 +145,7 @@ export async function getDevicesByGroup(
     filters?: string[];
   }
 ): Promise<GetDevicesByGroupResponse> {
+  const accessToken = requireAccessToken();
   const queryParams = new URLSearchParams();
   
   if (params?.pageSize) queryParams.append('limit', params.pageSize.toString());
@@ -173,9 +174,9 @@ export async function getDevicesByGroup(
  * Get statistics for a device group
  */
 export async function getDeviceGroupStats(
-  accessToken: string,
   groupId: string
 ): Promise<DeviceGroupStats> {
+  const accessToken = requireAccessToken();
   const response = await fetch(
     `${get_DEV_MANAGER_API_BASE_URL()}/device-groups/${groupId}/stats`,
     {

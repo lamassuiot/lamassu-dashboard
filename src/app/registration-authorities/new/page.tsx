@@ -16,7 +16,6 @@ import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningPr
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal'; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,7 +72,6 @@ function hslToHex(h: number, s: number, l: number) {
 export default function CreateOrEditRegistrationAuthorityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const raIdFromQuery = searchParams.get('raId');
   const isEditMode = !!raIdFromQuery;
@@ -149,14 +147,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   }, [enrollmentCa?.defaultProfileId, availableProfiles]);
 
   const loadDependencies = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) return;
-    setIsLoadingDependencies(true);
+        setIsLoadingDependencies(true);
     setErrorDependencies(null);
     try {
         const [cas, enginesData, profilesResponse] = await Promise.all([
-            fetchAndProcessCAs(user.access_token),
-            fetchCryptoEngines(user.access_token),
-            fetchSigningProfiles(user.access_token)
+            fetchAndProcessCAs(),
+            fetchCryptoEngines(),
+            fetchSigningProfiles()
         ]);
         setAvailableCAsForSelection(cas);
         setAllCryptoEngines(enginesData);
@@ -166,26 +163,24 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     } finally {
         setIsLoadingDependencies(false);
     }
-  }, [user?.access_token, isAuthenticated]);
+  }, []);
 
   const fetchRaDetails = useCallback(async () => {
-    if (!raIdFromQuery || !isAuthenticated() || !user?.access_token) return;
+    if (!raIdFromQuery ) return;
     try {
-        const data = await fetchRaById(raIdFromQuery, user.access_token);
+        const data = await fetchRaById(raIdFromQuery);
         setRaData(data);
     } catch (err: any) {
        sileo.error({ title: "Operation Failed", description: err.message });
     }
-  }, [raIdFromQuery, user?.access_token, isAuthenticated]);
+  }, [raIdFromQuery]);
 
   useEffect(() => {
-    if (!authLoading) {
-      loadDependencies();
-      if (isEditMode) {
-        fetchRaDetails();
-      }
+    loadDependencies();
+    if (isEditMode) {
+      fetchRaDetails();
     }
-  }, [authLoading, isEditMode, loadDependencies, fetchRaDetails]);
+  }, [isEditMode, loadDependencies, fetchRaDetails]);
 
   // Effect to populate form once RA data and CA list are available (for edit mode)
   useEffect(() => {
@@ -293,12 +288,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setIsSubmitting(false);
         return;
     }
-    if (!user?.access_token) {
-        sileo.error({ title: "Authentication Error", description: "User not authenticated." });
-        setIsSubmitting(false);
-        return;
-    }
-    
     const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'None': '' };
     const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE' };
     
@@ -381,7 +370,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     };
     
     try {
-        await createOrUpdateRa(payload, user.access_token, isEditMode, raIdFromQuery);
+        await createOrUpdateRa(payload, isEditMode, raIdFromQuery);
         
         sileo.success({ title: "Success!", description: `Registration Authority "${raName}" ${isEditMode ? 'updated' : 'created'} successfully.` });
         if(!isEditMode) {
@@ -618,7 +607,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </div>
               <div>
                 <Label htmlFor="enrollmentCa">Enrollment CA</Label>
-                <Button type="button" variant="outline" onClick={() => setIsEnrollmentCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>{isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}</Button>
+                <Button type="button" variant="outline" onClick={() => setIsEnrollmentCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies}>{isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}</Button>
                 {enrollmentCa && 
                   <div className="mt-2 space-y-3">
                     <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
@@ -927,7 +916,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         errorCAs={errorDependencies} 
         loadCAsAction={loadDependencies} 
         onCaSelected={handleAddValidationCa}
-        isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
       />
       <CaSelectorModal
@@ -940,7 +928,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         errorCAs={errorDependencies}
         loadCAsAction={loadDependencies}
         onCaSelected={handleAddAdditionalValidationCa}
-        isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
       />
       <CaSelectorModal
@@ -953,10 +940,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         errorCAs={errorDependencies}
         loadCAsAction={loadDependencies}
         onCaSelected={handleAddManagedCa}
-        isAuthLoading={authLoading}
         allCryptoEngines={allCryptoEngines}
       />
-      <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setEnrollmentCa(ca); setIsEnrollmentCaModalOpen(false); }} currentSelectedCaId={enrollmentCa?.id} isAuthLoading={authLoading} allCryptoEngines={allCryptoEngines} />
+      <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setEnrollmentCa(ca); setIsEnrollmentCaModalOpen(false); }} currentSelectedCaId={enrollmentCa?.id} allCryptoEngines={allCryptoEngines} />
       <DeviceIconSelectorModal
         isOpen={isDeviceIconModalOpen}
         onOpenChange={setIsDeviceIconModalOpen}

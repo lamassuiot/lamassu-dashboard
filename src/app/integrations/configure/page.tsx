@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, AlertTriangle, ArrowLeft, Settings, BookText } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { AwsIotIntegrationTab } from '@/components/ra/AwsIotIntegrationTab';
 import { fetchRaById, type ApiRaItem, createOrUpdateRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
@@ -16,7 +15,6 @@ import { DetailItem } from '@/components/shared/DetailItem';
 export default function ConfigureIntegrationPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user, isLoading: authLoading, isAuthenticated } = useAuth();
     
     const raId = searchParams.get('raId');
     const configKey = searchParams.get('configKey');
@@ -27,41 +25,38 @@ export default function ConfigureIntegrationPage() {
     const [isMetadataModalOpen, setIsMetadataModalOpen] = useState(false);
     
     const fetchRaDetails = useCallback(async () => {
-        if (!raId || !isAuthenticated() || !user?.access_token) {
-            if (!raId) setError("Registration Authority ID not provided.");
-            if (!isAuthenticated() && !authLoading) setError("User not authenticated.");
+        if (!raId) {
+            setError("Registration Authority ID not provided.");
             setIsLoading(false);
             return;
         }
         
+        
         setIsLoading(true);
         setError(null);
         try {
-            const data = await fetchRaById(raId, user.access_token);
+            const data = await fetchRaById(raId);
             setRaData(data);
         } catch (err: any) {
             setError(err.message);
         } finally {
             setIsLoading(false);
         }
-    }, [raId, user?.access_token, isAuthenticated, authLoading]);
+    }, [raId]);
     
     useEffect(() => {
         fetchRaDetails();
     }, [fetchRaDetails]);
 
     const handleUpdateRaMetadata = async (id: string, metadata: object) => {
-        if (!user?.access_token) {
-            throw new Error("User not authenticated.");
-        }
-        const currentRa = await fetchRaById(id, user.access_token);
+        const currentRa = await fetchRaById(id);
         const payload = {
             name: currentRa.name,
             id: currentRa.id,
             metadata: metadata,
             settings: currentRa.settings
         };
-        await createOrUpdateRa(payload, user.access_token, true, id);
+        await createOrUpdateRa(payload, true, id);
     };
 
     const connectorInstance = useMemo(() => {
@@ -72,7 +67,7 @@ export default function ConfigureIntegrationPage() {
         return configKey; // return the key itself as a fallback
     }, [configKey]);
     
-    if (isLoading || authLoading) {
+    if (isLoading) {
         return (
             <div className="flex flex-col items-center justify-center flex-1 p-8">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />

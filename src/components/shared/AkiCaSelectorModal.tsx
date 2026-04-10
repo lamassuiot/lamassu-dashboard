@@ -13,7 +13,6 @@ import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface AkiCaSelectorModalProps {
   isOpen: boolean;
@@ -29,13 +28,12 @@ export const AkiCaSelectorModal: React.FC<AkiCaSelectorModalProps> = ({
   allCryptoEngines,
 }) => {
   const router = useRouter();
-  const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const [foundCAs, setFoundCAs] = useState<CA[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCAsByAki = useCallback(async () => {
-    if (!aki || !isOpen || !isAuthenticated() || !user?.access_token) {
+    if (!aki || !isOpen ) {
       return;
     }
     setIsLoading(true);
@@ -43,14 +41,14 @@ export const AkiCaSelectorModal: React.FC<AkiCaSelectorModalProps> = ({
     setFoundCAs([]);
     try {
       const queryString = `filter=subject_key_id[equal]${aki}`;
-      const results = await fetchAndProcessCAs(user.access_token, queryString);
+      const results = await fetchAndProcessCAs(queryString);
       setFoundCAs(results);
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred while searching for the issuer Certification Authority.');
     } finally {
       setIsLoading(false);
     }
-  }, [aki, isOpen, isAuthenticated, user?.access_token]);
+  }, [aki, isOpen]);
 
   useEffect(() => {
     fetchCAsByAki();
@@ -72,10 +70,10 @@ export const AkiCaSelectorModal: React.FC<AkiCaSelectorModalProps> = ({
         </DialogHeader>
         
         <div className="min-h-[20rem] my-4">
-          {(isLoading || isAuthLoading) ? (
+          {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-2">{isAuthLoading ? "Authenticating..." : "Searching for Issuer CA..."}</p>
+              <p className="ml-2">Searching for Issuer CA...</p>
             </div>
           ) : error ? (
             <Alert variant="destructive">

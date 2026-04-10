@@ -45,6 +45,8 @@ describe('est-api', () => {
       it('should not send Authorization header when no token provided', async () => {
         let capturedHeaders: Headers | undefined
 
+        window.localStorage.clear()
+
         server.use(
           http.get(`${EST_API_BASE}/${raId}/cacerts`, ({ request }) => {
             capturedHeaders = request.headers
@@ -57,9 +59,8 @@ describe('est-api', () => {
         expect(capturedHeaders?.has('Authorization')).toBe(false)
       })
 
-      it('should send Authorization header when token provided', async () => {
+      it('should send Authorization header when token is in storage', async () => {
         let capturedHeaders: Headers | undefined
-        const token = 'test-token'
 
         server.use(
           http.get(`${EST_API_BASE}/${raId}/cacerts`, ({ request }) => {
@@ -68,9 +69,9 @@ describe('est-api', () => {
           })
         )
 
-        await fetchEstCaCerts(raId, 'pkcs7-mime', token)
+        await fetchEstCaCerts(raId, 'pkcs7-mime')
 
-        expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${token}`)
+        expect(capturedHeaders?.get('Authorization')).toBe('Bearer test-access-token')
       })
     })
 
@@ -114,7 +115,6 @@ GEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yNDEyMDEwMDAwMDBaFw0yNTEy
 
       it('should include authorization for authenticated PEM requests', async () => {
         let capturedHeaders: Headers | undefined
-        const token = 'pem-access-token'
 
         server.use(
           http.get(`${EST_API_BASE}/${raId}/cacerts`, ({ request }) => {
@@ -123,9 +123,9 @@ GEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yNDEyMDEwMDAwMDBaFw0yNTEy
           })
         )
 
-        await fetchEstCaCerts(raId, 'x-pem-file', token)
+        await fetchEstCaCerts(raId, 'x-pem-file')
 
-        expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${token}`)
+        expect(capturedHeaders?.get('Authorization')).toBe('Bearer test-access-token')
       })
     })
 

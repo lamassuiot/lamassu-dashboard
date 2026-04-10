@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
+import { requireAccessToken } from '@/lib/auth-session';
 import {
   get_KMS_API_BASE_URL,
   get_CA_API_BASE_URL,
@@ -39,22 +39,21 @@ export function servicesToCheck()
 };
 
 export const BackendStatusCheck: React.FC = () => {
-    const { user } = useAuth();
     const [statuses, setStatuses] = useState<ServiceStatus[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     
     const fetchStatuses = useCallback(async () => {
-        if (!user?.access_token) return;
-
+        
         setIsLoading(true);
         setStatuses(servicesToCheck().map(s => ({ ...s, status: 'loading' })));
 
         const statusPromises = servicesToCheck().map(async (service): Promise<ServiceStatus> => {
             try {
+                const accessToken = requireAccessToken();
                 const healthCheckUrl = `${service.url.substring(0, service.url.lastIndexOf('/'))}/health`;
                 
                 const response = await fetch(healthCheckUrl, {
-                    headers: { 'Authorization': `Bearer ${user.access_token}` },
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
                 });
                 
                 if (!response.ok) {
@@ -89,7 +88,7 @@ export const BackendStatusCheck: React.FC = () => {
         const results = await Promise.all(statusPromises);
         setStatuses(results);
         setIsLoading(false);
-    }, [user?.access_token]);
+    }, []);
     
     useEffect(() => {
         fetchStatuses();
