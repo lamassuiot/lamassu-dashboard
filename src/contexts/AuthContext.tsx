@@ -201,9 +201,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         clearLocalSession();
       }
     };
-    const onAccessTokenExpired = () => {
+    const onAccessTokenExpired = async () => {
       console.warn("AuthContext: Access token expired. Checking whether silent renew already recovered the session.");
-      void recoverSessionAfterExpiry();
+      await recoverSessionAfterExpiry();
     }
 
     userManagerInstance.events.addUserLoaded(onUserLoaded);
@@ -263,8 +263,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   // If auth is enabled (or still loading), provide the real OIDC context.
+  // Memoized to prevent a new object reference on every render, which would
+  // cause all consumers of this context to re-render unnecessarily.
+  const contextValue = useMemo(
+    () => ({ user, isLoading, isLoggedIn, login, logout, userManager: userManagerInstance }),
+    [user, isLoading, isLoggedIn, login, logout, userManagerInstance]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, isLoggedIn, login, logout, userManager: userManagerInstance }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,7 +5,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
-import { useAuth } from '@/contexts/AuthContext';
 import { requireAccessToken } from '@/lib/auth-session';
 import {
   get_KMS_API_BASE_URL,

@@ -219,7 +219,6 @@ export default function CreateCaImportFullPage() {
                     <CryptoEngineSelector
                         value={cryptoEngineId}
                         onValueChange={setCryptoEngineId}
-                        disabled={false}
                         className="mt-1"
                     />
                     <p className="text-xs text-muted-foreground mt-1">Select the KMS engine where the imported private key will be stored.</p>

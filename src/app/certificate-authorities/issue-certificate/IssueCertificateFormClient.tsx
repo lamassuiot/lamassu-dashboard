@@ -472,7 +472,7 @@ export default function IssueCertificateFormClient() {
     };
     
     try {
-        const result = await signCertificate(caId!, payload);
+        const result = await signCertificate(caId, payload);
         const issuedPem = result.certificate ? window.atob(result.certificate) : 'Error: Certificate not found in response.';
         setIssuedCertificate({ pem: issuedPem, serial: result.serial_number });
         setStep(3);

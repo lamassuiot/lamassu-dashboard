@@ -187,7 +187,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmCARevocation = async (reason: string) => {
     if (!caToRevoke ) {
-        sileo.error({ title: "Error", description: "Cannot revoke CA. Details or authentication missing." });
+        sileo.error({ title: "Error", description: "Cannot revoke CA. Details missing." });
         return;
     }
 
@@ -217,7 +217,7 @@ export default function CertificateAuthorityDetailsClient() {
   
   const handleReactivateCA = async () => {
     if (!caDetails ) {
-        sileo.error({ title: "Error", description: "Cannot reactivate CA. Details or authentication missing." });
+        sileo.error({ title: "Error", description: "Cannot reactivate CA. Details missing." });
         return;
     }
 
@@ -246,7 +246,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmDeleteCA = async () => {
     if (!caToDelete ) {
-        sileo.error({ title: "Error", description: "Cannot delete CA. Details or authentication missing." });
+        sileo.error({ title: "Error", description: "Cannot delete CA. Details missing." });
         return;
     }
 
@@ -281,7 +281,7 @@ export default function CertificateAuthorityDetailsClient() {
 
   const handleConfirmReissueCA = async (payload: { profile_id?: string; profile?: any }) => {
     if (!caToReissue ) {
-      sileo.error({ title: "Error", description: "Cannot reissue CA. Details or authentication missing." });
+      sileo.error({ title: "Error", description: "Cannot reissue CA. Details missing." });
       return;
     }
 

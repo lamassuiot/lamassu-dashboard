@@ -15,7 +15,6 @@ import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { Switch } from '@/components/ui/switch';
-import { useAuth } from '@/contexts/AuthContext';
 import { ApiDevice, fetchDevices } from '@/lib/devices-api';
 import { Badge } from '@/components/ui/badge';
 import { getLucideIconByName } from './DeviceIconSelectorModal';

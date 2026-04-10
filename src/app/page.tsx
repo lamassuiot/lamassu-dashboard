@@ -57,7 +57,7 @@ export default function HomePage() {
     devices: null,
   });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
-  const [_errorStats, setErrorStats] = useState<string | null>(null);
+  const [, setErrorStats] = useState<string | null>(null);
 
   // Engines are needed by both
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);

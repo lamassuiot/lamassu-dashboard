@@ -122,7 +122,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
   const [deviceForEnrollModal, setDeviceForEnrollModal] = useState<ApiDevice | null>(null);
 
   // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+  const [columnVisibility] = useState<Record<string, boolean>>({
     id: true,
     status: true,
     createdAt: true,
@@ -151,7 +151,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
       }
 
       const response = await getDevicesByGroup(groupId, {
-        pageSize: parseInt(pageSize),
+        pageSize: Number.parseInt(pageSize),
         bookmark: bookmark || undefined,
         sortBy: apiSortColumn as any,
         sortMode: sortConfig.direction as any,

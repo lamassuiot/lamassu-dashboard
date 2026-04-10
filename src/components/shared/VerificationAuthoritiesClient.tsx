@@ -96,6 +96,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
       const enginesData = await fetchCryptoEngines();
       setAllCryptoEngines(enginesData);
     } catch (err: any) {
+      console.error("Failed to fetch crypto engines:", err);
       setAllCryptoEngines([]);
     }
   }, []);
