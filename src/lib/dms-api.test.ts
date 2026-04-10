@@ -69,7 +69,7 @@ describe('dms-api', () => {
         })
       )
 
-      const result = await fetchRegistrationAuthorities(MOCK_TOKEN)
+      const result = await fetchRegistrationAuthorities()
 
       expect(result).toBeDefined()
       expect(result.list).toHaveLength(1)
@@ -86,7 +86,7 @@ describe('dms-api', () => {
         })
       )
 
-      await fetchRegistrationAuthorities(MOCK_TOKEN)
+      await fetchRegistrationAuthorities()
 
       expect(capturedUrl?.searchParams.get('page_size')).toBe('9')
     })
@@ -102,7 +102,7 @@ describe('dms-api', () => {
       )
 
       const params = new URLSearchParams({ page_size: '25', sort_by: 'name' })
-      await fetchRegistrationAuthorities(MOCK_TOKEN, params)
+      await fetchRegistrationAuthorities(params)
 
       expect(capturedUrl?.searchParams.get('page_size')).toBe('25')
       expect(capturedUrl?.searchParams.get('sort_by')).toBe('name')
@@ -120,7 +120,7 @@ describe('dms-api', () => {
         })
       )
 
-      const result = await fetchRegistrationAuthorities(MOCK_TOKEN)
+      const result = await fetchRegistrationAuthorities()
 
       expect(result.next).toBe('next-page-token')
     })
@@ -135,7 +135,7 @@ describe('dms-api', () => {
         })
       )
 
-      await expect(fetchRegistrationAuthorities(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchRegistrationAuthorities()).rejects.toThrow(
         'Failed to fetch RAs'
       )
     })
@@ -150,7 +150,7 @@ describe('dms-api', () => {
         })
       )
 
-      await fetchRegistrationAuthorities(MOCK_TOKEN)
+      await fetchRegistrationAuthorities()
 
       expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
     })
@@ -166,7 +166,7 @@ describe('dms-api', () => {
         })
       )
 
-      const result = await fetchRaById(raId, MOCK_TOKEN)
+      const result = await fetchRaById(raId)
 
       expect(result).toBeDefined()
       expect(result.id).toBe(raId)
@@ -183,7 +183,7 @@ describe('dms-api', () => {
         })
       )
 
-      await expect(fetchRaById(raId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchRaById(raId)).rejects.toThrow(
         'Failed to fetch RA'
       )
     })
@@ -205,7 +205,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        createOrUpdateRa(payload, MOCK_TOKEN, false)
+        createOrUpdateRa(payload, false)
       ).resolves.toBeUndefined()
     })
 
@@ -219,7 +219,7 @@ describe('dms-api', () => {
         })
       )
 
-      await createOrUpdateRa(payload, MOCK_TOKEN, false)
+      await createOrUpdateRa(payload, false)
 
       expect(capturedBody).toEqual(payload)
     })
@@ -234,7 +234,7 @@ describe('dms-api', () => {
         })
       )
 
-      await expect(createOrUpdateRa(payload, MOCK_TOKEN, false)).rejects.toThrow(
+      await expect(createOrUpdateRa(payload, false)).rejects.toThrow(
         'RA creation failed'
       )
     })
@@ -259,7 +259,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        createOrUpdateRa(updatePayload, MOCK_TOKEN, true, raId)
+        createOrUpdateRa(updatePayload, true, raId)
       ).resolves.toBeUndefined()
     })
 
@@ -273,7 +273,7 @@ describe('dms-api', () => {
         })
       )
 
-      await createOrUpdateRa(updatePayload, MOCK_TOKEN, true, raId)
+      await createOrUpdateRa(updatePayload, true, raId)
 
       expect(capturedBody).toEqual(updatePayload)
     })
@@ -289,7 +289,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        createOrUpdateRa(updatePayload, MOCK_TOKEN, true, raId)
+        createOrUpdateRa(updatePayload, true, raId)
       ).rejects.toThrow('RA update failed')
     })
   })
@@ -305,7 +305,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        deleteRa(raId, MOCK_TOKEN)
+        deleteRa(raId)
       ).resolves.toBeUndefined()
     })
 
@@ -319,7 +319,7 @@ describe('dms-api', () => {
         })
       )
 
-      await expect(deleteRa(raId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(deleteRa(raId)).rejects.toThrow(
         'Failed to delete RA'
       )
     })
@@ -334,7 +334,7 @@ describe('dms-api', () => {
         })
       )
 
-      await expect(deleteRa(raId, MOCK_TOKEN)).rejects.toThrow(
+      await expect(deleteRa(raId)).rejects.toThrow(
         'Failed to delete RA'
       )
     })
@@ -366,7 +366,7 @@ describe('dms-api', () => {
         })
       )
 
-      const result = await fetchRaById(raWithEstAuth.id, MOCK_TOKEN)
+      const result = await fetchRaById(raWithEstAuth.id)
 
       expect(result.settings.enrollment_settings.est_rfc7030_settings).toBeDefined()
       expect(result.settings.enrollment_settings.est_rfc7030_settings?.auth_mode).toBe(
@@ -412,7 +412,7 @@ describe('dms-api', () => {
         settings: raWithWebhook.settings,
       }
 
-      const result = await createOrUpdateRa(payload, MOCK_TOKEN, false)
+      const result = await createOrUpdateRa(payload, false)
 
       expect(result).toBeUndefined() // createOrUpdateRa returns void
     })
@@ -432,7 +432,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        createOrUpdateRa(payload, MOCK_TOKEN, false)
+        createOrUpdateRa(payload, false)
       ).rejects.toThrow('Failed to create RA')
     })
 
@@ -454,7 +454,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        createOrUpdateRa(payload, MOCK_TOKEN, true, 'ra-123')
+        createOrUpdateRa(payload, true, 'ra-123')
       ).rejects.toThrow('RA update failed')
     })
 
@@ -473,7 +473,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        createOrUpdateRa(payload, MOCK_TOKEN, true, 'ra-123')
+        createOrUpdateRa(payload, true, 'ra-123')
       ).rejects.toThrow('Failed to update RA')
     })
   })
@@ -506,7 +506,7 @@ describe('dms-api', () => {
         })
       )
 
-      const result = await fetchAllRegistrationAuthorities(MOCK_TOKEN)
+      const result = await fetchAllRegistrationAuthorities()
 
       expect(result).toHaveLength(3)
       expect(callCount).toBe(3)
@@ -523,7 +523,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        bindIdentityToDevice('device-1', 'serial-123', MOCK_TOKEN)
+        bindIdentityToDevice('device-1', 'serial-123')
       ).resolves.toBeUndefined()
     })
 
@@ -538,7 +538,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        bindIdentityToDevice('device-1', 'serial-123', MOCK_TOKEN)
+        bindIdentityToDevice('device-1', 'serial-123')
       ).rejects.toThrow('Failed to assign identity')
     })
 
@@ -549,7 +549,7 @@ describe('dms-api', () => {
         })
       )
 
-      const result = await fetchDmsStats(MOCK_TOKEN)
+      const result = await fetchDmsStats()
       expect(result.total).toBe(42)
     })
 
@@ -564,7 +564,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        updateRaMetadata('ra-123', { updated: true }, MOCK_TOKEN)
+        updateRaMetadata('ra-123', { updated: true })
       ).resolves.toBeUndefined()
     })
 
@@ -584,7 +584,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        deleteRaIntegration('ra-123', 'integration1', MOCK_TOKEN)
+        deleteRaIntegration('ra-123', 'integration1')
       ).resolves.toBeUndefined()
     })
 
@@ -596,7 +596,7 @@ describe('dms-api', () => {
       )
 
       await expect(
-        deleteRaIntegration('ra-123', 'nonexistent', MOCK_TOKEN)
+        deleteRaIntegration('ra-123', 'nonexistent')
       ).rejects.toThrow('Integration key not found')
     })
   })

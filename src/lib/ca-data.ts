@@ -221,7 +221,6 @@ function buildCaHierarchy(flatCaList: Omit<CA, 'children'>[]): CA[] {
 
 
 // Function to fetch, transform, and build hierarchy
-export async function fetchAndProcessCAs(): Promise<CA[]>;
 export async function fetchAndProcessCAs(apiQueryString?: string): Promise<CA[]> {
     const accessToken = requireAccessToken();
     let allCAs: ApiCaItem[] = [];
