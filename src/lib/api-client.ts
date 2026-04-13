@@ -4,17 +4,9 @@ import { getStoredAccessToken, isAuthEnabled } from './auth-session';
 
 interface ApiFetchOptions extends RequestInit {
   auth?: boolean;
-  accessToken?: string | null;
 }
 
-const resolveAccessTokenForRequest = (
-  auth: boolean,
-  accessTokenOverride?: string | null,
-): string | null => {
-  if (accessTokenOverride !== undefined) {
-    return accessTokenOverride || null;
-  }
-
+const resolveAccessTokenForRequest = (auth: boolean): string | null => {
   if (!auth) {
     return null;
   }
@@ -35,10 +27,14 @@ const resolveAccessTokenForRequest = (
 export const createApiHeaders = (
   headers?: HeadersInit,
   auth = true,
-  accessTokenOverride?: string | null,
 ): Headers => {
   const resolvedHeaders = new Headers(headers);
-  const accessToken = resolveAccessTokenForRequest(auth, accessTokenOverride);
+
+  if (!auth) {
+    return resolvedHeaders;
+  }
+
+  const accessToken = resolveAccessTokenForRequest(auth);
 
   if (accessToken) {
     resolvedHeaders.set('Authorization', `Bearer ${accessToken}`);
@@ -51,9 +47,9 @@ export const createApiHeaders = (
 
 export const apiFetch = async (
   input: RequestInfo | URL,
-  { auth = true, accessToken, headers, ...init }: ApiFetchOptions = {},
+  { auth = true, headers, ...init }: ApiFetchOptions = {},
 ): Promise<Response> =>
   fetch(input, {
     ...init,
-    headers: createApiHeaders(headers, auth, accessToken),
+    headers: createApiHeaders(headers, auth),
   });

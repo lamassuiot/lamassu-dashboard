@@ -802,8 +802,9 @@ export async function createCertificate(payload: CreateCertificatePayload, acces
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
         },
-        accessToken,
+        auth: false,
         body: JSON.stringify(payload),
     });
     if (!response.ok) {

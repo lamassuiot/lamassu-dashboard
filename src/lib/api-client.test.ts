@@ -40,6 +40,12 @@ describe('api-client', () => {
     expect(headers.has('Authorization')).toBe(false)
   })
 
+  it('preserves an explicitly provided Authorization header when auth handling is disabled', () => {
+    const headers = createApiHeaders({ Authorization: 'Bearer manual-token' }, false)
+
+    expect(headers.get('Authorization')).toBe('Bearer manual-token')
+  })
+
   it('removes an explicitly provided Authorization header when auth resolves to no token', async () => {
     window.localStorage.clear()
     ;(window as any).lamassuConfig = {
@@ -61,13 +67,5 @@ describe('api-client', () => {
     expect(requestHeaders.has('Authorization')).toBe(false)
 
     fetchSpy.mockRestore()
-  })
-
-  it('omits the Authorization header when an explicit null token is provided', () => {
-    window.localStorage.clear()
-
-    const headers = createApiHeaders(undefined, true, null)
-
-    expect(headers.has('Authorization')).toBe(false)
   })
 })

@@ -19,8 +19,13 @@ export async function fetchEstCaCerts(
     const headers: HeadersInit = {
         'Accept': `application/${format}`,
     };
+    const accessToken = getStoredAccessToken();
 
-    const response = await apiFetch(url, { headers });
+    if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    const response = await apiFetch(url, { auth: false, headers });
 
     if (!response.ok) {
         // Can't use handleApiError because it expects JSON, and this endpoint might not return it on error.
