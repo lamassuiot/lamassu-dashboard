@@ -182,7 +182,7 @@ export default function SigningProfilesPage() {
   
   const handleConfirmDelete = async () => {
     if (!profileToDelete) {
-      sileo.error({ title: "Error", description: "No profile selected or user not authenticated." });
+      sileo.error({ title: "Error", description: "No profile selected." });
       return;
     }
     

@@ -189,7 +189,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
 
   const handleSyncCa = async (isRetry = false) => {
     if (!enrollmentCa) {
-        sileo.error({ title: 'Error', description: 'Enrollment CA not found or user not authenticated.' });
+        sileo.error({ title: 'Error', description: 'Enrollment CA not found.' });
         return;
     }
     setIsSyncing(true);
