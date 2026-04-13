@@ -85,7 +85,7 @@ export default function IntegrationsPage() {
 
   const handleDeleteIntegration = async () => {
     if (!integrationToDelete) {
-      sileo.error({ title: "Error", description: "No integration selected or user not authenticated." });
+      sileo.error({ title: "Error", description: "No integration selected." });
       return;
     }
     setIsDeleting(true);

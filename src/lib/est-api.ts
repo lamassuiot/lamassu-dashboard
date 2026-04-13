@@ -1,6 +1,7 @@
 'use client';
 
 import { get_EST_API_BASE_URL } from './api-domains';
+import { apiFetch } from './api-client';
 import { getStoredAccessToken } from './auth-session';
 
 /**
@@ -19,11 +20,12 @@ export async function fetchEstCaCerts(
         'Accept': `application/${format}`,
     };
     const accessToken = getStoredAccessToken();
+
     if (accessToken) {
         headers['Authorization'] = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(url, { headers });
+    const response = await apiFetch(url, { auth: false, headers });
 
     if (!response.ok) {
         // Can't use handleApiError because it expects JSON, and this endpoint might not return it on error.
@@ -37,7 +39,7 @@ export async function fetchEstCaCerts(
         }
         throw new Error(errorMessage);
     }
-    
+
     const contentType = response.headers.get('content-type') || `application/${format}`;
 
     if (format === 'pkcs7-mime') {

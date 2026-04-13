@@ -231,43 +231,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const isLoggedIn = !!user && !user.expired;
 
-  // If auth is disabled, provide the mock context.
-  if (authMode === 'disabled') {
-    const mockUser = new User({
-      id_token: 'mock_id_token',
-      access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiYXBwLWFkbWluIiwib2ZmbGluZV9hY2Nlc3MiXX0sIm5hbWUiOiJEZXYgVXNlciJ9.mockSignature',
-      scope: 'openid profile email',
-      token_type: 'Bearer',
-      profile: {
-        sub: 'mock-user-id',
-        name: 'Dev User',
-        email: 'dev@lamassu.io',
-        iss: 'mock-issuer',
-        aud: 'mock-client',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-      } as UserProfile,
-      expires_at: Math.floor(Date.now() / 1000) + 3600,
-      session_state: 'mock-session-state',
-    });
-
-    const value: AuthContextType = {
-      user: mockUser,
-      isLoading: false,
-      isLoggedIn: true,
-      login: async () => console.warn('Auth disabled: login action suppressed.'),
-      logout: async () => console.warn('Auth disabled: logout action suppressed.'),
-      userManager: null,
-    };
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-  }
-
-  // If auth is enabled (or still loading), provide the real OIDC context.
-  // Memoized to prevent a new object reference on every render, which would
-  // cause all consumers of this context to re-render unnecessarily.
+  // Keep hook order stable across auth mode changes by always computing the
+  // provider value before deciding what it contains.
   const contextValue = useMemo(
-    () => ({ user, isLoading, isLoggedIn, login, logout, userManager: userManagerInstance }),
-    [user, isLoading, isLoggedIn, login, logout, userManagerInstance]
+    () => {
+      if (authMode === 'disabled') {
+        const mockUser = new User({
+          id_token: 'mock_id_token',
+          access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiYXBwLWFkbWluIiwib2ZmbGluZV9hY2Nlc3MiXX0sIm5hbWUiOiJEZXYgVXNlciJ9.mockSignature',
+          scope: 'openid profile email',
+          token_type: 'Bearer',
+          profile: {
+            sub: 'mock-user-id',
+            name: 'Dev User',
+            email: 'dev@lamassu.io',
+            iss: 'mock-issuer',
+            aud: 'mock-client',
+            exp: Math.floor(Date.now() / 1000) + 3600,
+            iat: Math.floor(Date.now() / 1000),
+          } as UserProfile,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          session_state: 'mock-session-state',
+        });
+
+        return {
+          user: mockUser,
+          isLoading: false,
+          isLoggedIn: true,
+          login: async () => console.warn('Auth disabled: login action suppressed.'),
+          logout: async () => console.warn('Auth disabled: logout action suppressed.'),
+          userManager: null,
+        };
+      }
+
+      return { user, isLoading, isLoggedIn, login, logout, userManager: userManagerInstance };
+    },
+    [authMode, user, isLoading, isLoggedIn, login, logout, userManagerInstance]
   );
 
   return (

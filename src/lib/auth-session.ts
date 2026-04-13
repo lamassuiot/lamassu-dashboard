@@ -1,5 +1,13 @@
 'use client';
 
+export const isAuthEnabled = (): boolean => {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  return (window as any).lamassuConfig?.LAMASSU_AUTH_ENABLED !== false;
+};
+
 export const getStoredAccessToken = (): string | null => {
   if (typeof window === 'undefined') {
     return null;
@@ -23,14 +31,4 @@ export const getStoredAccessToken = (): string | null => {
   } catch {
     return null;
   }
-};
-
-export const requireAccessToken = (): string => {
-  const resolvedAccessToken = getStoredAccessToken();
-
-  if (!resolvedAccessToken) {
-    throw new Error('User not authenticated.');
-  }
-
-  return resolvedAccessToken;
 };

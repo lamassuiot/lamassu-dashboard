@@ -115,7 +115,7 @@ export const InitializationWizard: React.FC = () => {
 
     const handleRunTest = async () => {
         if (availableEngines.length === 0) {
-            const errorMsg = "Cannot run test: User not authenticated or no crypto engines available.";
+            const errorMsg = "Cannot run test: no crypto engines available.";
             addLog(errorMsg, 'error');
             setTestError(errorMsg);
             return;
