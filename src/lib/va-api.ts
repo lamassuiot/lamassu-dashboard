@@ -2,7 +2,7 @@
 
 // src/lib/va-api.ts
 import { get_VA_API_BASE_URL, get_VA_CORE_API_BASE_URL, handleApiError } from './api-domains';
-import { requireAccessToken } from './auth-session';
+import { apiFetch } from './api-client';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib-crypto';
 
 export type { OcspResponseDetails };
@@ -48,10 +48,7 @@ export interface VaUpdatePayload {
  * Throws an error for other failures.
  */
 export async function fetchVaConfig(ski: string): Promise<VaApiResponse | null> {
-    const accessToken = requireAccessToken();
-    const response = await fetch(`${get_VA_API_BASE_URL()}/roles/${ski}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(`${get_VA_API_BASE_URL()}/roles/${ski}`);
 
     if (response.status === 404) {
         return null; // Not found, which is a valid state (means not configured yet)
@@ -65,12 +62,10 @@ export async function fetchVaConfig(ski: string): Promise<VaApiResponse | null> 
  * Creates or updates the VA configuration for a given CA Subject Key ID (SKI).
  */
 export async function updateVaConfig(ski: string, payload: VaUpdatePayload): Promise<void> {
-    const accessToken = requireAccessToken();
-    const response = await fetch(`${get_VA_API_BASE_URL()}/roles/${ski}`, {
+    const response = await apiFetch(`${get_VA_API_BASE_URL()}/roles/${ski}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify(payload),
     });
@@ -87,10 +82,8 @@ export async function updateVaConfig(ski: string, payload: VaUpdatePayload): Pro
  * Returns the CRL data as an ArrayBuffer.
  */
 export async function downloadCrl(ski: string): Promise<ArrayBuffer> {
-    const accessToken = requireAccessToken();
-    const response = await fetch(`${get_VA_CORE_API_BASE_URL()}/crl/${ski}`, {
+    const response = await apiFetch(`${get_VA_CORE_API_BASE_URL()}/crl/${ski}`, {
         headers: {
-            'Authorization': `Bearer ${accessToken}`,
             'Accept': 'application/pkix-crl',
         },
     });

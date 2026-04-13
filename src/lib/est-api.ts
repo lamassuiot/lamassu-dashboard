@@ -1,7 +1,7 @@
 'use client';
 
 import { get_EST_API_BASE_URL } from './api-domains';
-import { getStoredAccessToken } from './auth-session';
+import { apiFetch } from './api-client';
 
 /**
  * Fetches CA certificates from the EST endpoint for a given RA.
@@ -18,12 +18,8 @@ export async function fetchEstCaCerts(
     const headers: HeadersInit = {
         'Accept': `application/${format}`,
     };
-    const accessToken = getStoredAccessToken();
-    if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-    }
 
-    const response = await fetch(url, { headers });
+    const response = await apiFetch(url, { auth: 'optional', headers });
 
     if (!response.ok) {
         // Can't use handleApiError because it expects JSON, and this endpoint might not return it on error.

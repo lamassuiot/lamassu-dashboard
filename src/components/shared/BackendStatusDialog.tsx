@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, CheckCircle, XCircle, RefreshCw } from "lucide-react";
-import { requireAccessToken } from '@/lib/auth-session';
+import { apiFetch } from '@/lib/api-client';
 import {
   get_KMS_API_BASE_URL,
   get_CA_API_BASE_URL,
@@ -54,12 +54,9 @@ export const BackendStatusDialog: React.FC<BackendStatusDialogProps> = ({ isOpen
 
         const statusPromises = servicesToCheck.map(async (service): Promise<ServiceStatus> => {
             try {
-                const accessToken = requireAccessToken();
                 const healthCheckUrl = `${service.url.substring(0, service.url.lastIndexOf('/'))}/health`;
                 
-                const response = await fetch(healthCheckUrl, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` },
-                });
+                const response = await apiFetch(healthCheckUrl);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status} - ${response.statusText}`);

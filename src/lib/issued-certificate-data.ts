@@ -1,7 +1,7 @@
 
 import type { CertificateData } from '@/types/certificate';
 import { get_CA_API_BASE_URL } from './api-domains';
-import { requireAccessToken } from './auth-session';
+import { apiFetch } from './api-client';
 import { parseCertificatePemDetails } from './ca-data';
 
 
@@ -120,11 +120,8 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
 }
 
 export async function fetchIssuedCertificate(serialNumber: string): Promise<CertificateData> {
-  const accessToken = requireAccessToken();
   const apiSerial = serialNumber.replace(/:/g, '');
-  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${encodeURIComponent(apiSerial)}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-  });
+  const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${encodeURIComponent(apiSerial)}`);
   if (!response.ok) {
     let errorMessage = `Failed to fetch certificate. HTTP error ${response.status}`;
     try {
@@ -146,7 +143,6 @@ interface FetchIssuedCertificatesParams {
 export async function fetchIssuedCertificates(
   params: FetchIssuedCertificatesParams
 ): Promise<{ certificates: CertificateData[]; nextToken: string | null }> {
-  const accessToken = requireAccessToken();
   const { apiQueryString, forCaId } = params;
 
   const baseUrl = forCaId
@@ -155,11 +151,7 @@ export async function fetchIssuedCertificates(
 
   const finalQueryString = apiQueryString || 'sort_by=valid_from&sort_mode=desc&page_size=10';
 
-  const response = await fetch(`${baseUrl}?${finalQueryString}`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
+  const response = await apiFetch(`${baseUrl}?${finalQueryString}`);
 
   if (!response.ok) {
     let errorJson;
@@ -206,7 +198,6 @@ export async function updateCertificateStatus({
   status,
   reason,
 }: UpdateStatusParams): Promise<void> {
-  const accessToken = requireAccessToken();
   const body: { status: 'ACTIVE' | 'REVOKED', revocation_reason?: string } = { status };
   if (status === 'REVOKED' && reason) {
     body.revocation_reason = reason;
@@ -214,11 +205,10 @@ export async function updateCertificateStatus({
 
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
 
-  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
+  const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
   });
@@ -244,13 +234,11 @@ export interface PatchOperation {
 }
 
 export async function updateCertificateMetadata(serialNumber: string, patchOperations: PatchOperation[]): Promise<void> {
-  const accessToken = requireAccessToken();
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
-  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
+  const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify({ patches: patchOperations }),
   });
@@ -275,12 +263,10 @@ export interface ImportCertificateBody {
 }
 
 export async function importCertificate(payload: ImportCertificateBody): Promise<void> {
-  const accessToken = requireAccessToken();
-  const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/import`, {
+  const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/import`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
   });
@@ -298,13 +284,9 @@ export async function importCertificate(payload: ImportCertificateBody): Promise
 }
 
 export async function deleteCertificate(serialNumber: string): Promise<void> {
-    const accessToken = requireAccessToken();
     const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
-    const response = await fetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
+    const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
         method: 'DELETE',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-        },
     });
 
   if (!response.ok) {

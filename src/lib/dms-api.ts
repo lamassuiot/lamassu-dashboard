@@ -2,7 +2,7 @@
 // src/lib/dms-api.ts
 
 import { get_DMS_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
-import { requireAccessToken } from './auth-session';
+import { apiFetch } from './api-client';
 
 // --- Interfaces ---
 
@@ -87,7 +87,6 @@ export interface RaCreationPayload {
 // --- API Functions ---
 
 export async function fetchRegistrationAuthorities(params?: URLSearchParams): Promise<ApiRaListResponse> {
-    const accessToken = requireAccessToken();
     const url = new URL(`${get_DMS_MANAGER_API_BASE_URL()}/dms`);
     if (params) {
         params.forEach((value, key) => url.searchParams.append(key, value));
@@ -96,9 +95,7 @@ export async function fetchRegistrationAuthorities(params?: URLSearchParams): Pr
         url.searchParams.set('page_size', '9');
     }
     
-    const response = await fetch(url.toString(), {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(url.toString());
     return handleApiError(response, 'Failed to fetch RAs');
 }
 
@@ -127,10 +124,7 @@ export async function fetchAllRegistrationAuthorities(): Promise<ApiRaItem[]> {
 }
 
 export async function fetchRaById(raId: string): Promise<ApiRaItem> {
-    const accessToken = requireAccessToken();
-    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`);
     return handleApiError(response, 'Failed to fetch RA details');
 }
 
@@ -139,15 +133,14 @@ export async function createOrUpdateRa(
     isEditMode: boolean,
     raId?: string | null,
 ): Promise<void> {
-    const accessToken = requireAccessToken();
     const url = isEditMode
         ? `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`
         : `${get_DMS_MANAGER_API_BASE_URL()}/dms`;
     const method = isEditMode ? 'PUT' : 'POST';
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
 
@@ -167,12 +160,10 @@ export async function createOrUpdateRa(
 
 
 export async function bindIdentityToDevice(deviceId: string, certificateSerialNumber: string): Promise<void> {
-    const accessToken = requireAccessToken();
-    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/bind-identity`, {
+    const response = await apiFetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/bind-identity`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
             device_id: deviceId,
@@ -186,10 +177,7 @@ export async function bindIdentityToDevice(deviceId: string, certificateSerialNu
 
 
 export async function fetchDmsStats(): Promise<{ total: number }> {
-    const accessToken = requireAccessToken();
-    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/stats`, { 
-        headers: { 'Authorization': `Bearer ${accessToken}` } 
-    });
+    const response = await apiFetch(`${get_DMS_MANAGER_API_BASE_URL()}/stats`);
     return handleApiError(response, 'Failed to fetch RA stats');
 }
 
@@ -233,11 +221,9 @@ export async function deleteRaIntegration(raId: string, integrationKey: string):
 }
 
 export async function deleteRa(raId: string): Promise<void> {
-    const accessToken = requireAccessToken();
     const url = `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`;
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
         await handleApiError(response, 'Failed to delete RA');

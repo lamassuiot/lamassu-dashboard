@@ -3,7 +3,7 @@
 'use client'; // This can be a client-side library function
 
 import { get_ALERTS_API_BASE_URL } from './api-domains';
-import { requireAccessToken } from './auth-session';
+import { apiFetch } from './api-client';
 
 export interface ApiAlertEventData {
     specversion: string;
@@ -64,12 +64,7 @@ export interface SubscriptionPayload {
 
 
 export async function fetchLatestAlerts(): Promise<ApiAlertEvent[]> {
-  const accessToken = requireAccessToken();
-  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/events/latest`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
+  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/events/latest`);
 
   if (!response.ok) {
     let errorJson;
@@ -90,12 +85,7 @@ export async function fetchLatestAlerts(): Promise<ApiAlertEvent[]> {
 }
 
 export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
-  const accessToken = requireAccessToken();
-  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
+  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions`);
 
   if (!response.ok) {
     let errorJson;
@@ -116,12 +106,10 @@ export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
 }
 
 export async function subscribeToAlert(payload: SubscriptionPayload): Promise<void> {
-  const accessToken = requireAccessToken();
-  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscribe`, {
+  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscribe`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
   });
@@ -140,12 +128,10 @@ export async function subscribeToAlert(payload: SubscriptionPayload): Promise<vo
 }
 
 export async function updateSubscription(subscriptionId: string, payload: SubscriptionPayload): Promise<void> {
-  const accessToken = requireAccessToken();
-  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions/${subscriptionId}`, {
+  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions/${subscriptionId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
   });
@@ -164,12 +150,8 @@ export async function updateSubscription(subscriptionId: string, payload: Subscr
 }
 
 export async function unsubscribeFromAlert(subscriptionId: string): Promise<void> {
-  const accessToken = requireAccessToken();
-  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/unsubscribe/${subscriptionId}`, {
+  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/unsubscribe/${subscriptionId}`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
   });
 
   if (!response.ok) {

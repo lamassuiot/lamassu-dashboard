@@ -19,13 +19,13 @@ describe('auth-session', () => {
     expect(() => requireAccessToken()).toThrow('User not authenticated.')
   })
 
-  it('does not throw when authentication is disabled and no token is stored', () => {
+  it('still throws when authentication is disabled and no token is stored', () => {
     window.localStorage.clear();
     (window as any).lamassuConfig = {
       ...originalConfig,
       LAMASSU_AUTH_ENABLED: false,
     }
 
-    expect(requireAccessToken()).toBe('')
+    expect(() => requireAccessToken()).toThrow('User not authenticated.')
   })
 })
