@@ -32,13 +32,3 @@ export const getStoredAccessToken = (): string | null => {
     return null;
   }
 };
-
-export const requireAccessToken = (): string => {
-  const resolvedAccessToken = getStoredAccessToken();
-
-  if (!resolvedAccessToken) {
-    throw new Error('User not authenticated.');
-  }
-
-  return resolvedAccessToken;
-};

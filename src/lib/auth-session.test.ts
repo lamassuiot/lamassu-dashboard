@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { requireAccessToken } from './auth-session'
+import { getStoredAccessToken, isAuthEnabled } from './auth-session'
 
 describe('auth-session', () => {
   const originalConfig = (window as any).lamassuConfig
@@ -9,23 +9,28 @@ describe('auth-session', () => {
     (window as any).lamassuConfig = originalConfig
   })
 
-  it('returns the stored access token when authentication is enabled', () => {
-    expect(requireAccessToken()).toBe('test-access-token')
+  it('treats authentication as enabled by default', () => {
+    expect(isAuthEnabled()).toBe(true)
   })
 
-  it('throws when authentication is enabled and no token is stored', () => {
+  it('returns the stored access token when authentication is enabled', () => {
+    expect(getStoredAccessToken()).toBe('test-access-token')
+  })
+
+  it('returns null when authentication is enabled and no token is stored', () => {
     window.localStorage.clear()
 
-    expect(() => requireAccessToken()).toThrow('User not authenticated.')
+    expect(getStoredAccessToken()).toBeNull()
   })
 
-  it('still throws when authentication is disabled and no token is stored', () => {
+  it('reports authentication as disabled when configured off', () => {
     window.localStorage.clear();
     (window as any).lamassuConfig = {
       ...originalConfig,
       LAMASSU_AUTH_ENABLED: false,
     }
 
-    expect(() => requireAccessToken()).toThrow('User not authenticated.')
+    expect(isAuthEnabled()).toBe(false)
+    expect(getStoredAccessToken()).toBeNull()
   })
 })

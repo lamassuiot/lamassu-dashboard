@@ -2,23 +2,21 @@
 
 import { getStoredAccessToken, isAuthEnabled } from './auth-session';
 
-export type ApiFetchAuthMode = 'required' | 'optional' | 'none';
-
 interface ApiFetchOptions extends RequestInit {
-  auth?: ApiFetchAuthMode;
+  auth?: boolean;
   accessToken?: string | null;
 }
 
 const resolveAccessTokenForRequest = (
-  auth: ApiFetchAuthMode,
+  auth: boolean,
   accessTokenOverride?: string | null,
 ): string | null => {
-  if (auth === 'none') {
-    return null;
-  }
-
   if (accessTokenOverride !== undefined) {
     return accessTokenOverride || null;
+  }
+
+  if (!auth) {
+    return null;
   }
 
   if (!isAuthEnabled()) {
@@ -27,7 +25,7 @@ const resolveAccessTokenForRequest = (
 
   const accessToken = getStoredAccessToken();
 
-  if (!accessToken && auth === 'required') {
+  if (!accessToken) {
     throw new Error('User not authenticated.');
   }
 
@@ -36,7 +34,7 @@ const resolveAccessTokenForRequest = (
 
 export const createApiHeaders = (
   headers?: HeadersInit,
-  auth: ApiFetchAuthMode = 'required',
+  auth = true,
   accessTokenOverride?: string | null,
 ): Headers => {
   const resolvedHeaders = new Headers(headers);
@@ -53,7 +51,7 @@ export const createApiHeaders = (
 
 export const apiFetch = async (
   input: RequestInfo | URL,
-  { auth = 'required', accessToken, headers, ...init }: ApiFetchOptions = {},
+  { auth = true, accessToken, headers, ...init }: ApiFetchOptions = {},
 ): Promise<Response> =>
   fetch(input, {
     ...init,

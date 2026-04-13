@@ -10,7 +10,7 @@ describe('api-client', () => {
   })
 
   it('includes the Authorization header for required auth when a token is available', () => {
-    const headers = createApiHeaders(undefined, 'required')
+    const headers = createApiHeaders()
 
     expect(headers.get('Authorization')).toBe('Bearer test-access-token')
   })
@@ -22,24 +22,22 @@ describe('api-client', () => {
       LAMASSU_AUTH_ENABLED: false,
     }
 
-    const headers = createApiHeaders({ 'Content-Type': 'application/json' }, 'required')
+    const headers = createApiHeaders({ 'Content-Type': 'application/json' })
 
     expect(headers.get('Content-Type')).toBe('application/json')
     expect(headers.has('Authorization')).toBe(false)
   })
 
-  it('omits the Authorization header for optional auth when no token is available', () => {
+  it('throws for auth-enabled requests when auth is enabled and no token is available', () => {
     window.localStorage.clear()
 
-    const headers = createApiHeaders(undefined, 'optional')
-
-    expect(headers.has('Authorization')).toBe(false)
+    expect(() => createApiHeaders()).toThrow('User not authenticated.')
   })
 
-  it('throws for required auth when auth is enabled and no token is available', () => {
-    window.localStorage.clear()
+  it('omits the Authorization header when auth is disabled for a request', () => {
+    const headers = createApiHeaders(undefined, false)
 
-    expect(() => createApiHeaders(undefined, 'required')).toThrow('User not authenticated.')
+    expect(headers.has('Authorization')).toBe(false)
   })
 
   it('removes an explicitly provided Authorization header when auth resolves to no token', async () => {
@@ -63,5 +61,13 @@ describe('api-client', () => {
     expect(requestHeaders.has('Authorization')).toBe(false)
 
     fetchSpy.mockRestore()
+  })
+
+  it('omits the Authorization header when an explicit null token is provided', () => {
+    window.localStorage.clear()
+
+    const headers = createApiHeaders(undefined, true, null)
+
+    expect(headers.has('Authorization')).toBe(false)
   })
 })
