@@ -77,7 +77,7 @@ export interface ApiRaCmpSettings {
     enrollment_ca: string;
     auth_mode: string;
     client_certificate_settings?: ApiRaCmpClientCertSettings;
-    protection_ca?: string;
+    protection_certificate?: string;
 }
 export interface ApiRaEnrollmentSettings {
     registration_mode: string;
