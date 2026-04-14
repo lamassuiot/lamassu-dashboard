@@ -12,7 +12,9 @@ import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/comp
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import type { CA } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
+import type { CertificateData } from '@/types/certificate';
 import { SettingsCard } from './SettingsCard';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface CMPEnrollmentSettingsCardProps {
   cmpEnrollmentCa: CA | null;
@@ -31,9 +33,10 @@ interface CMPEnrollmentSettingsCardProps {
   setCmpAllowExpiredAuth: (v: boolean) => void;
   cmpChainValidationLevel: number;
   setCmpChainValidationLevel: (v: number) => void;
-  cmpProtectionCa: CA | null;
-  onSelectCmpProtectionCa: () => void;
-  onClearCmpProtectionCa: () => void;
+  cmpProtectionCertificate: CertificateData | null;
+  cmpProtectionCertificateId?: string | null;
+  onSelectCmpProtectionCertificate: () => void;
+  onClearCmpProtectionCertificate: () => void;
 }
 
 export function CMPEnrollmentSettingsCard({
@@ -53,9 +56,10 @@ export function CMPEnrollmentSettingsCard({
   setCmpAllowExpiredAuth,
   cmpChainValidationLevel,
   setCmpChainValidationLevel,
-  cmpProtectionCa,
-  onSelectCmpProtectionCa,
-  onClearCmpProtectionCa,
+  cmpProtectionCertificate,
+  cmpProtectionCertificateId,
+  onSelectCmpProtectionCertificate,
+  onClearCmpProtectionCertificate,
 }: CMPEnrollmentSettingsCardProps) {
   return (
     <SettingsCard
@@ -72,19 +76,33 @@ export function CMPEnrollmentSettingsCard({
       </div>
 
       <div>
-        <Label>Protection CA</Label>
-        <p className="text-xs text-muted-foreground mb-1">CA whose key signs CMP response messages. Leave empty to send responses unprotected.</p>
+        <Label>Protection Certificate</Label>
+        <p className="text-xs text-muted-foreground mb-1">Certificate used to sign CMP response messages. Leave empty to send responses unprotected.</p>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onSelectCmpProtectionCa} className="flex-1 justify-start text-left font-normal" disabled={isLoadingDependencies || authLoading}>
-            {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : cmpProtectionCa ? cmpProtectionCa.name : "Select Protection CA..."}
+          <Button type="button" variant="outline" onClick={onSelectCmpProtectionCertificate} className="flex-1 justify-start text-left font-normal" disabled={isLoadingDependencies || authLoading}>
+            {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : cmpProtectionCertificate ? cmpProtectionCertificate.subject : cmpProtectionCertificateId ? `Selected certificate ${cmpProtectionCertificateId}` : "Select Protection Certificate..."}
           </Button>
-          {cmpProtectionCa && (
-            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-destructive" onClick={onClearCmpProtectionCa}>
+          {(cmpProtectionCertificate || cmpProtectionCertificateId) && (
+            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-destructive" onClick={onClearCmpProtectionCertificate}>
               <X className="h-4 w-4" />
             </Button>
           )}
         </div>
-        {cmpProtectionCa && <div className="mt-2"><CaVisualizerCard ca={cmpProtectionCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} /></div>}
+        {(cmpProtectionCertificate || cmpProtectionCertificateId) && (
+          <div className="mt-2 rounded-md border bg-muted/20 p-3">
+            <p className="text-sm font-medium text-foreground truncate" title={cmpProtectionCertificate?.subject || cmpProtectionCertificateId || undefined}>
+              {cmpProtectionCertificate?.subject || 'Protection certificate selected'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              SN: <IdentifierDisplay value={cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || 'Unknown'} className="text-xs" />
+            </p>
+            {cmpProtectionCertificate?.issuer && (
+              <p className="text-xs text-muted-foreground truncate" title={cmpProtectionCertificate.issuer}>
+                Issuer: {cmpProtectionCertificate.issuer}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

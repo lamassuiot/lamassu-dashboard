@@ -287,6 +287,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     selectedCa,
     selectedCaId,
     caOptions.length,
+    includeCaCertificates,
   ]);
 
   useEffect(() => {
