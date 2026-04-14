@@ -16,6 +16,7 @@ import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningPr
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal'; 
+import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -28,6 +29,8 @@ import { ESTReEnrollmentSettingsCard } from '@/components/ra/ESTReEnrollmentSett
 import { ESTServerKeyGenCard } from '@/components/ra/ESTServerKeyGenCard';
 import { ESTCaDistributionCard } from '@/components/ra/ESTCaDistributionCard';
 import { CMPEnrollmentSettingsCard } from '@/components/ra/CMPEnrollmentSettingsCard';
+import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
+import type { CertificateData } from '@/types/certificate';
 
 
 const serverKeygenRsaBits = [ { value: '2048', label: '2048 bit' }, { value: '3072', label: '3072 bit' }, { value: '4096', label: '4096 bit' }];
@@ -42,6 +45,12 @@ function hslToHex(h: number, s: number, l: number) {
     return Math.round(255 * color).toString(16).padStart(2, '0');
   };
   return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+function resolveSelectedCas(caIds: string[] | null | undefined, availableCAs: CA[]): CA[] {
+  return (caIds ?? [])
+    .map((id) => findCaById(id, availableCAs))
+    .filter(Boolean) as CA[];
 }
 
 export default function CreateOrEditRegistrationAuthorityPage() {
@@ -89,7 +98,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [cmpValidationCAs, setCmpValidationCAs] = useState<CA[]>([]);
   const [cmpChainValidationLevel, setCmpChainValidationLevel] = useState(0);
   const [cmpAllowExpiredAuth, setCmpAllowExpiredAuth] = useState(false);
-  const [cmpProtectionCa, setCmpProtectionCa] = useState<CA | null>(null);
+  const [cmpProtectionCertificate, setCmpProtectionCertificate] = useState<CertificateData | null>(null);
+  const [cmpProtectionCertificateId, setCmpProtectionCertificateId] = useState<string | null>(null);
 
 
   const [revokeOnReEnroll, setRevokeOnReEnroll] = useState(true);
@@ -116,7 +126,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [isManagedCaModalOpen, setIsManagedCaModalOpen] = useState(false);
   const [isCmpValidationCaModalOpen, setIsCmpValidationCaModalOpen] = useState(false);
   const [isCmpEnrollmentCaModalOpen, setIsCmpEnrollmentCaModalOpen] = useState(false);
-  const [isCmpProtectionCaModalOpen, setIsCmpProtectionCaModalOpen] = useState(false);
+  const [isCmpProtectionCertificateModalOpen, setIsCmpProtectionCertificateModalOpen] = useState(false);
   const [availableCAsForSelection, setAvailableCAsForSelection] = useState<CA[]>([]);
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
@@ -173,20 +183,47 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   // Effect to populate form once RA data and CA list are available (for edit mode)
   useEffect(() => {
     if (isEditMode && raData && availableCAsForSelection.length > 0) {
+        let isCancelled = false;
+
+        const hydrateProtectionCertificate = async (certificateId?: string) => {
+            setCmpProtectionCertificateId(certificateId || null);
+            if (!certificateId) {
+                setCmpProtectionCertificate(null);
+                return;
+            }
+
+            try {
+                const certificate = await fetchIssuedCertificate(certificateId);
+                if (!isCancelled) {
+                    setCmpProtectionCertificate(certificate);
+                }
+            } catch (err: any) {
+                if (!isCancelled) {
+                    setCmpProtectionCertificate(null);
+                    sileo.error({ title: "Protection Certificate Unavailable", description: err.message || "Failed to load the selected protection certificate." });
+                }
+            }
+        };
+
         const { settings } = raData;
         setRaName(raData.name);
         setRaId(raData.id);
         
         const { enrollment_settings, reenrollment_settings, server_keygen_settings, ca_distribution_settings } = settings;
         setRegistrationMode(enrollment_settings.registration_mode);
-        setProtocol(enrollment_settings.protocol === 'EST_RFC7030' ? 'EST' : enrollment_settings.protocol === 'CMP_RFC4210' ? 'CMP' : 'None');
+        const currentProtocol = enrollment_settings.protocol === 'EST_RFC7030'
+          ? 'EST'
+          : enrollment_settings.protocol === 'CMP_RFC4210'
+            ? 'CMP'
+            : 'None';
+        setProtocol(currentProtocol);
         setIssuanceProfileId(enrollment_settings.issuance_profile_id || null);
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
         setAllowOverrideEnrollment(enrollment_settings.enable_replaceable_enrollment);
         setVerifyCsrSignature(enrollment_settings.verify_csr_signature ?? true); // Default to true if not set
 
         const authSettings = enrollment_settings.est_rfc7030_settings;
-        if (authSettings) {
+        if (authSettings && currentProtocol === 'EST') {
             const authModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth' };
             const currentAuthMode = authModeMap[authSettings.auth_mode] || 'Client Certificate';
             setAuthMode(currentAuthMode);
@@ -194,7 +231,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             if (currentAuthMode === 'Client Certificate' && authSettings.client_certificate_settings) {
                 setChainValidationLevel(authSettings.client_certificate_settings.chain_level_validation);
                 setAllowExpiredAuth(authSettings.client_certificate_settings.allow_expired);
-                setValidationCAs(authSettings.client_certificate_settings.validation_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
+                setValidationCAs(resolveSelectedCas(authSettings.client_certificate_settings.validation_cas, availableCAsForSelection));
             } else if (currentAuthMode === 'External Webhook' && authSettings.external_webhook_settings) {
                 const webhookSettings = authSettings.external_webhook_settings;
                 setWebhookName(webhookSettings.name || '');
@@ -222,12 +259,14 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             setCmpConfirmationMode(cmpSettings.confirmation_mode || '');
             setCmpConfirmationTimeout(cmpSettings.confirmation_timeout || '30s');
             setCmpEnrollmentCa(findCaById(cmpSettings.enrollment_ca, availableCAsForSelection));
-            setCmpProtectionCa(findCaById(cmpSettings.protection_ca, availableCAsForSelection));
+            void hydrateProtectionCertificate(cmpSettings.protection_certificate);
             if (cmpSettings.client_certificate_settings) {
                 setCmpChainValidationLevel(cmpSettings.client_certificate_settings.chain_level_validation);
                 setCmpAllowExpiredAuth(cmpSettings.client_certificate_settings.allow_expired);
-                setCmpValidationCAs((cmpSettings.client_certificate_settings.validation_cas ?? []).map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
+                setCmpValidationCAs(resolveSelectedCas(cmpSettings.client_certificate_settings.validation_cas, availableCAsForSelection));
             }
+        } else {
+            void hydrateProtectionCertificate(undefined);
         }
 
         const { device_provisioning_profile } = enrollment_settings;
@@ -242,7 +281,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setAllowedRenewalDelta(reenrollment_settings.reenrollment_delta);
         setPreventiveRenewalDelta(reenrollment_settings.preventive_delta);
         setCriticalRenewalDelta(reenrollment_settings.critical_delta);
-        setAdditionalValidationCAs(reenrollment_settings.additional_validation_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
+        setAdditionalValidationCAs(resolveSelectedCas(reenrollment_settings.additional_validation_cas, availableCAsForSelection));
 
         setEnableKeyGeneration(server_keygen_settings.enabled);
         if (server_keygen_settings.enabled && server_keygen_settings.key) {
@@ -255,7 +294,11 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         setIncludeEnrollmentCA(ca_distribution_settings.include_enrollment_ca);
         setIncludeDownstreamCA(ca_distribution_settings.include_system_ca);
-        setManagedCAs(ca_distribution_settings.managed_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
+        setManagedCAs(resolveSelectedCas(ca_distribution_settings.managed_cas, availableCAsForSelection));
+
+        return () => {
+            isCancelled = true;
+        };
     }
   }, [isEditMode, raData, availableCAsForSelection]);
   
@@ -365,7 +408,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 chain_level_validation: cmpChainValidationLevel,
                 allow_expired: cmpAllowExpiredAuth,
               },
-              protection_ca: cmpProtectionCa?.id || '',
+              protection_certificate: cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '',
             },
           }),
           device_provisioning_profile: {
@@ -779,9 +822,10 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     setCmpAllowExpiredAuth={setCmpAllowExpiredAuth}
                     cmpChainValidationLevel={cmpChainValidationLevel}
                     setCmpChainValidationLevel={setCmpChainValidationLevel}
-                    cmpProtectionCa={cmpProtectionCa}
-                    onSelectCmpProtectionCa={() => setIsCmpProtectionCaModalOpen(true)}
-                    onClearCmpProtectionCa={() => setCmpProtectionCa(null)}
+                    cmpProtectionCertificate={cmpProtectionCertificate}
+                    cmpProtectionCertificateId={cmpProtectionCertificateId}
+                    onSelectCmpProtectionCertificate={() => setIsCmpProtectionCertificateModalOpen(true)}
+                    onClearCmpProtectionCertificate={() => { setCmpProtectionCertificate(null); setCmpProtectionCertificateId(null); }}
                   />
 
                 </>)}{/* end CMP sections */}
@@ -836,7 +880,19 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       />
       <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setEnrollmentCa(ca); setIsEnrollmentCaModalOpen(false); }} currentSelectedCaId={enrollmentCa?.id} allCryptoEngines={allCryptoEngines} />
       <CaSelectorModal isOpen={isCmpEnrollmentCaModalOpen} onOpenChange={setIsCmpEnrollmentCaModalOpen} title="Select CMP Enrollment CA" description="Choose the CA that will issue certificates for CMP traffic." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setCmpEnrollmentCa(ca); setIsCmpEnrollmentCaModalOpen(false); }} currentSelectedCaId={cmpEnrollmentCa?.id} allCryptoEngines={allCryptoEngines} />
-      <CaSelectorModal isOpen={isCmpProtectionCaModalOpen} onOpenChange={setIsCmpProtectionCaModalOpen} title="Select CMP Protection CA" description="Choose the CA whose key will sign CMP response messages." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setCmpProtectionCa(ca); setIsCmpProtectionCaModalOpen(false); }} currentSelectedCaId={cmpProtectionCa?.id} allCryptoEngines={allCryptoEngines} />
+      <CertificateSelectorModal
+        isOpen={isCmpProtectionCertificateModalOpen}
+        onOpenChange={setIsCmpProtectionCertificateModalOpen}
+        title="Select CMP Protection Certificate"
+        description="Choose the certificate that will sign CMP response messages."
+        includeCaCertificates={true}
+        onCertificateSelected={(certificate) => {
+          setCmpProtectionCertificate(certificate);
+          setCmpProtectionCertificateId(certificate.serialNumber);
+          setIsCmpProtectionCertificateModalOpen(false);
+        }}
+        currentSelectedCertificateId={cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId}
+      />
       <CaSelectorModal
         isOpen={isCmpValidationCaModalOpen}
         onOpenChange={setIsCmpValidationCaModalOpen}
