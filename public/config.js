@@ -20,7 +20,7 @@ window.lamassuConfig = {
     // Example: "https://api.yourdomain.com"    
     // LAMASSU_API: "https://lab.lamassu.io/api",
     // LAMASSU_API: "https://localhost:8443/api",
-    LAMASSU_AUTHZ_API: "http://localhost:8888/api",
+    LAMASSU_AUTHZ_API: "http://localhost:8080/api/authz",
     LAMASSU_API: "http://localhost:8080/api",
 
     // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.
