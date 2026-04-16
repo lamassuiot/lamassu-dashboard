@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -22,6 +21,7 @@ import { ColumnSelector } from '@/components/ui/column-selector';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DEFAULT_CERTIFICATE_COLUMN_VISIBILITY, type CertificateColumnVisibility } from '@/components/shared/CertificateTable';
 
 export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime';
 export type SortDirection = 'asc' | 'desc';
@@ -68,10 +68,9 @@ const CertificatesPageSkeleton = () => (
   </div>
 );
 
-
 export default function CertificatesPage() {
   const router = useRouter();
-  
+
   const [isClientMounted, setIsClientMounted] = useState(false);
   useEffect(() => { setIsClientMounted(true); }, []);
 
@@ -90,26 +89,16 @@ export default function CertificatesPage() {
     refresh: refreshCertificates,
     onCertificateUpdated
   } = usePaginatedCertificateFetcher();
-  
+
   const [selectedCertificate, setSelectedCertificate] = useState<CertificateData | null>(null);
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const [caSelectorMode, setCaSelectorMode] = useState<'issue' | 'filter'>('filter');
-  // Column visibility (lifted from CertificateList so ColumnSelector can live in the filter bar)
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
-    commonName: true,
-    certificateAuthority: true,
-    serialNumber: true,
-    issuer: true,
-    validFrom: true,
-    expires: true,
-    status: true,
-    revocationTime: true,
-  });
+  const [columnVisibility, setColumnVisibility] = useState<CertificateColumnVisibility>(DEFAULT_CERTIFICATE_COLUMN_VISIBILITY);
+
   const handleColumnToggle = (columnId: string) => {
-    setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
+    setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId as keyof CertificateColumnVisibility] }));
   };
 
-  // CA and Engine data is still fetched here as it's a page-level concern
   const [allCAs, setAllCAs] = useState<CA[]>([]);
   const [isLoadingCAs, setIsLoadingCAs] = useState(true);
   const [errorCAs, setErrorCAs] = useState<string | null>(null);
@@ -119,17 +108,16 @@ export default function CertificatesPage() {
   const [errorCryptoEngines, setErrorCryptoEngines] = useState<string | null>(null);
 
   const loadPageDependencies = useCallback(async () => {
-    if (!isClientMounted ) {
+    if (!isClientMounted) {
       return;
     }
-    
-    if(allCAs.length === 0) setIsLoadingCAs(true);
-    if(allCryptoEngines.length === 0) setIsLoadingCryptoEngines(true);
+
+    if (allCAs.length === 0) setIsLoadingCAs(true);
+    if (allCryptoEngines.length === 0) setIsLoadingCryptoEngines(true);
     setErrorCAs(null);
     setErrorCryptoEngines(null);
 
-    // Fetch CAs
-    if (allCAs.length === 0) { 
+    if (allCAs.length === 0) {
       try {
         const fetchedCAs = await fetchAndProcessCAs();
         setAllCAs(fetchedCAs);
@@ -139,28 +127,27 @@ export default function CertificatesPage() {
         setIsLoadingCAs(false);
       }
     } else {
-        setIsLoadingCAs(false);
+      setIsLoadingCAs(false);
     }
 
-    // Fetch Crypto Engines
     if (allCryptoEngines.length === 0) {
-        try {
-            const enginesData = await fetchCryptoEngines();
-            setAllCryptoEngines(enginesData);
-        } catch (err: any) {
-            setErrorCryptoEngines(err.message || 'Failed to load Crypto Engines.');
-        } finally {
-            setIsLoadingCryptoEngines(false);
-        }
-    } else {
+      try {
+        const enginesData = await fetchCryptoEngines();
+        setAllCryptoEngines(enginesData);
+      } catch (err: any) {
+        setErrorCryptoEngines(err.message || 'Failed to load Crypto Engines.');
+      } finally {
         setIsLoadingCryptoEngines(false);
+      }
+    } else {
+      setIsLoadingCryptoEngines(false);
     }
   }, [allCAs.length, allCryptoEngines.length, isClientMounted]);
-  
+
   useEffect(() => {
     loadPageDependencies();
   }, [loadPageDependencies]);
-  
+
   const handleOpenCaSelector = (mode: 'issue' | 'filter') => {
     setCaSelectorMode(mode);
     setIsCaSelectorOpen(true);
@@ -190,11 +177,11 @@ export default function CertificatesPage() {
       prev?.serialNumber === certificate.serialNumber ? null : certificate
     );
   };
-  
+
   const handleCaSelectedForFilter = (ca: CA) => {
     setCaIdFilter(ca.id);
     setIsCaSelectorOpen(false);
-  }
+  };
 
   const selectedCaForFilter = useMemo(() => {
     if (!caIdFilter) return null;
@@ -204,24 +191,24 @@ export default function CertificatesPage() {
   if (!isClientMounted) {
     return <CertificatesPageSkeleton />;
   }
-  
+
   const loadingText = isLoadingApi
-      ? "Loading Certificates..." 
-      : isLoadingCAs
-          ? "Loading CA Data..."
-          : isLoadingCryptoEngines 
-              ? "Loading Crypto Engines..."
-              : "Loading...";
+    ? "Loading Certificates..."
+    : isLoadingCAs
+      ? "Loading CA Data..."
+      : isLoadingCryptoEngines
+        ? "Loading Crypto Engines..."
+        : "Loading...";
 
   if ((isLoadingApi && certificates.length === 0) || (isLoadingCAs && allCAs.length === 0)) {
     return (
-        <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-            <Loader2Icon className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg text-muted-foreground">{loadingText}</p>
-        </div>
+      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
+        <Loader2Icon className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">{loadingText}</p>
+      </div>
     );
   }
-  
+
   return (
     <MasterDetailLayout
       isDetailOpen={!!selectedCertificate}
@@ -279,12 +266,12 @@ export default function CertificatesPage() {
             <ColumnSelector
               columns={[
                 { id: 'commonName',     label: 'Common Name',      visible: columnVisibility.commonName,     disabled: true },
-                { id: 'certificateAuthority', label: 'CA',         visible: columnVisibility.certificateAuthority },
                 { id: 'serialNumber',   label: 'Serial Number',    visible: columnVisibility.serialNumber },
                 { id: 'issuer',         label: 'CA Issuer',        visible: columnVisibility.issuer },
                 { id: 'validFrom',      label: 'Valid From',       visible: columnVisibility.validFrom },
                 { id: 'expires',        label: 'Expires',          visible: columnVisibility.expires },
                 { id: 'status',         label: 'Status',           visible: columnVisibility.status },
+                { id: 'hasPrivateKey',  label: 'Private Key',      visible: columnVisibility.hasPrivateKey },
                 { id: 'revocationTime', label: 'Revocation Time',  visible: columnVisibility.revocationTime },
               ]}
               onColumnToggle={handleColumnToggle}
@@ -340,7 +327,7 @@ export default function CertificatesPage() {
           )}
         </>
       )}
-      
+
       {!(apiError || errorCAs || errorCryptoEngines) && (certificates.length > 0 || isLoadingApi) && (
         <CertificatePaginationControls
           className="mt-4"
@@ -357,17 +344,17 @@ export default function CertificatesPage() {
         />
       )}
 
-      <CaSelectorModal 
-        isOpen={isCaSelectorOpen} 
-        onOpenChange={setIsCaSelectorOpen} 
+      <CaSelectorModal
+        isOpen={isCaSelectorOpen}
+        onOpenChange={setIsCaSelectorOpen}
         title={caSelectorMode === 'issue' ? "Select an Issuer" : "Filter by CA Issuer"}
-        description={caSelectorMode === 'issue' 
-            ? "Choose the Certification Authority that will issue the new certificate." 
-            : "Choose a Certification Authority to filter the certificate list."}
-        availableCAs={allCAs} 
-        isLoadingCAs={isLoadingCAs} 
-        errorCAs={errorCAs} 
-        loadCAsAction={loadPageDependencies} 
+        description={caSelectorMode === 'issue'
+          ? "Choose the Certification Authority that will issue the new certificate."
+          : "Choose a Certification Authority to filter the certificate list."}
+        availableCAs={allCAs}
+        isLoadingCAs={isLoadingCAs}
+        errorCAs={errorCAs}
+        loadCAsAction={loadPageDependencies}
         onCaSelected={caSelectorMode === 'issue' ? handleCaSelectedForIssuance : handleCaSelectedForFilter}
         useSheet={caSelectorMode === 'issue'}
         allCryptoEngines={allCryptoEngines}

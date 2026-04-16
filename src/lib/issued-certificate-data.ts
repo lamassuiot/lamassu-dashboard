@@ -46,6 +46,7 @@ export interface ApiIssuedCertificateItem {
   type?: string;
   engine_id?: string;
   is_ca: boolean;
+  has_private_key?: boolean;
 }
 
 export interface ApiIssuedCertificateListResponse {
@@ -98,6 +99,7 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
     subject: fullSubject || subjectDisplay,
     issuer: fullIssuer || issuerDisplay,
     serialNumber: apiCert.serial_number,
+    hasPrivateKey: apiCert.has_private_key,
     validFrom: apiCert.valid_from,
     validTo: apiCert.valid_to,
     pemData: pemData,

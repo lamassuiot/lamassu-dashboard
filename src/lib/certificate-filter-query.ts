@@ -16,6 +16,7 @@ export interface CertificateQueryFilters {
   searchTerm: string;
   searchField: 'commonName' | 'serialNumber';
   statusFilters?: readonly string[];
+  hasPrivateKeyOnly?: boolean;
   subjectKeyIdFilter?: string;
   engineIdFilter?: string;
   revocationReasonFilters?: readonly string[];
@@ -40,6 +41,7 @@ export function appendCertificateQueryFilters(
     searchTerm,
     searchField,
     statusFilters = [],
+    hasPrivateKeyOnly = false,
     subjectKeyIdFilter = '',
     engineIdFilter = '',
     revocationReasonFilters = [],
@@ -58,6 +60,10 @@ export function appendCertificateQueryFilters(
     (value) => `status[equal]${value}`,
     (values) => `status[in]${values.join(',')}`
   );
+
+  if (hasPrivateKeyOnly) {
+    params.append('filter', 'has_private_key[equal]true');
+  }
 
   const trimmedSearchTerm = searchTerm.trim();
   if (trimmedSearchTerm !== '') {

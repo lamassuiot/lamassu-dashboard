@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -24,7 +23,6 @@ import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { getDisplayDateFormat } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
-
 
 interface CertificateSelectorModalProps {
   isOpen: boolean;
@@ -141,16 +139,15 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   const [isLoadingCerts, setIsLoadingCerts] = useState(false);
   const [errorCerts, setErrorCerts] = useState<string | null>(null);
 
-  // Pagination State
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<string>('10');
 
-  // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>('commonName');
   const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([]);
+  const [hasPrivateKeyOnly, setHasPrivateKeyOnly] = useState(false);
   const [subjectKeyIdFilter, setSubjectKeyIdFilter] = useState('');
   const [engineIdFilter, setEngineIdFilter] = useState('');
   const [selectedKeyUsages, setSelectedKeyUsages] = useState<KeyUsageOption[]>([]);
@@ -184,9 +181,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     ));
   }, [hasCaRestriction, caOptions]);
 
-  // Reset pagination when filters or page size change, or when modal opens
   useEffect(() => {
-    if (isOpen) { // Only reset if modal is opening or filters change while open
+    if (isOpen) {
       setCurrentPageIndex(0);
       setBookmarkStack([null]);
     }
@@ -195,6 +191,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     searchTerm,
     searchField,
     statusFilters,
+    hasPrivateKeyOnly,
     subjectKeyIdFilter,
     engineIdFilter,
     selectedCaId,
@@ -207,10 +204,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     isOpen,
   ]);
 
-
   const loadCertificates = useCallback(async (bookmarkToFetch: string | null) => {
-    
-
     if (hasCaRestriction && (!selectedCaId || caOptions.length === 0)) {
       setAvailableCerts([]);
       setNextTokenFromApi(null);
@@ -221,16 +215,19 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
     setIsLoadingCerts(true);
     setErrorCerts(null);
+
     try {
       const params = new URLSearchParams();
       params.append('sort_by', 'valid_from');
       params.append('sort_mode', 'desc');
       params.append('page_size', pageSize);
       if (bookmarkToFetch) params.append('bookmark', bookmarkToFetch);
+
       appendCertificateQueryFilters(params, {
         searchTerm,
         searchField,
         statusFilters,
+        hasPrivateKeyOnly,
         subjectKeyIdFilter,
         engineIdFilter,
         revocationReasonFilters,
@@ -240,29 +237,59 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
         keyUsageFilters: effectiveSelectedKeyUsages,
         extendedKeyUsageFilters: selectedExtendedKeyUsages,
       });
-      const result = await fetchIssuedCertificates({
+
+      const fetchWithQuery = (queryString: string) => fetchIssuedCertificates({
         forCaId: selectedCaId ?? undefined,
-        apiQueryString: params.toString(),
+        apiQueryString: queryString,
       });
 
-      let certificates = includeCaCertificates
-        ? result.certificates
-        : result.certificates.filter(cert => !cert.rawApiData?.is_ca);
-
-      if (includeCaCertificates && selectedCa && !bookmarkToFetch) {
-        const caCertificate = caToCertificateData(selectedCa);
-        const caCertificateSerial = normalizeSerialNumber(caCertificate.serialNumber);
-        const hasCaCertificate = certificates.some((cert) => (
-          normalizeSerialNumber(cert.serialNumber) === caCertificateSerial
-        ));
-        if (!hasCaCertificate) {
-          certificates = [caCertificate, ...certificates];
+      let result: { certificates: CertificateData[]; nextToken: string | null };
+      try {
+        result = await fetchWithQuery(params.toString());
+      } catch (initialError) {
+        if (statusFilters.length <= 1 && !hasPrivateKeyOnly) {
+          throw initialError;
         }
+
+        const fallbackParams = new URLSearchParams(params);
+        const filtersWithoutUnsupported = fallbackParams
+          .getAll('filter')
+          .filter(
+            (filter) =>
+              !filter.startsWith('status[') &&
+              !filter.startsWith('has_private_key[')
+          );
+        fallbackParams.delete('filter');
+        filtersWithoutUnsupported.forEach((filter) => fallbackParams.append('filter', filter));
+
+        const fallbackResult = await fetchWithQuery(fallbackParams.toString());
+        result = {
+          ...fallbackResult,
+          certificates: fallbackResult.certificates.filter((cert) => {
+            if (hasPrivateKeyOnly && !cert.hasPrivateKey) {
+              return false;
+            }
+
+            if (statusFilters.length === 0) {
+              return true;
+            }
+
+            const certStatus = cert.apiStatus?.toUpperCase();
+            return !!certStatus && statusFilters.includes(certStatus as ApiCertificateStatusValue);
+          }),
+        };
       }
 
-      setAvailableCerts(certificates);
-      setNextTokenFromApi(result.nextToken);
+      const filteredCertificates = includeCaCertificates
+        ? result.certificates
+        : result.certificates.filter((cert) => !cert.rawApiData?.is_ca);
 
+      setAvailableCerts(
+        hasPrivateKeyOnly
+          ? filteredCertificates.filter((cert) => cert.hasPrivateKey)
+          : filteredCertificates
+      );
+      setNextTokenFromApi(result.nextToken);
     } catch (err: any) {
       setErrorCerts(err.message || 'Failed to load certificates.');
       setAvailableCerts([]);
@@ -271,39 +298,35 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
       setIsLoadingCerts(false);
     }
   }, [
+    caOptions.length,
+    effectiveSelectedKeyUsages,
+    engineIdFilter,
+    hasCaRestriction,
+    hasPrivateKeyOnly,
+    includeCaCertificates,
     pageSize,
-    searchTerm,
+    revocationReasonFilters,
+    revocationTimestampFilter,
     searchField,
+    searchTerm,
+    selectedCaId,
+    selectedExtendedKeyUsages,
     statusFilters,
     subjectKeyIdFilter,
-    engineIdFilter,
-    effectiveSelectedKeyUsages,
-    selectedExtendedKeyUsages,
-    revocationReasonFilters,
     validFromFilter,
     validToFilter,
-    revocationTimestampFilter,
-    hasCaRestriction,
-    includeCaCertificates,
-    selectedCa,
-    selectedCaId,
-    caOptions.length,
   ]);
 
   useEffect(() => {
-    if (isOpen ) {
-        // loadCertificates depends on currentPageIndex (via bookmarkStack), 
-        // and pagination reset useEffect depends on filters.
-        // This effect ensures the call happens after pagination reset or on page change.
-        loadCertificates(bookmarkStack[currentPageIndex]);
+    if (isOpen) {
+      loadCertificates(bookmarkStack[currentPageIndex]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [isOpen, currentPageIndex, loadCertificates]); 
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, currentPageIndex, loadCertificates]);
 
   const handleRefresh = () => {
     if (currentPageIndex < bookmarkStack.length) {
-        loadCertificates(bookmarkStack[currentPageIndex]);
+      loadCertificates(bookmarkStack[currentPageIndex]);
     }
   };
 
@@ -311,17 +334,17 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     if (isLoadingCerts) return;
     const potentialNextPageIndex = currentPageIndex + 1;
     if (potentialNextPageIndex < bookmarkStack.length) {
-        setCurrentPageIndex(potentialNextPageIndex);
+      setCurrentPageIndex(potentialNextPageIndex);
     } else if (nextTokenFromApi) {
-        const newStack = [...bookmarkStack, nextTokenFromApi];
-        setBookmarkStack(newStack);
-        setCurrentPageIndex(newStack.length -1);
+      const newStack = [...bookmarkStack, nextTokenFromApi];
+      setBookmarkStack(newStack);
+      setCurrentPageIndex(newStack.length - 1);
     }
   };
 
   const handlePreviousPage = () => {
     if (isLoadingCerts || currentPageIndex === 0) return;
-    setCurrentPageIndex(prevIndex => prevIndex - 1);
+    setCurrentPageIndex((prevIndex) => prevIndex - 1);
   };
 
   const filterBarProps = useMemo(() => ({
@@ -331,6 +354,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     onSearchFieldChange: setSearchField,
     statusFilters,
     onStatusFiltersChange: setStatusFilters,
+    hasPrivateKeyOnly,
+    onHasPrivateKeyOnlyChange: setHasPrivateKeyOnly,
     subjectKeyIdFilter,
     onSubjectKeyIdFilterChange: setSubjectKeyIdFilter,
     engineIdFilter,
@@ -352,6 +377,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   }), [
     effectiveSelectedKeyUsages,
     engineIdFilter,
+    hasPrivateKeyOnly,
     requiredKeyUsages,
     revocationReasonFilters,
     revocationTimestampFilter,
@@ -402,6 +428,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
               advancedFieldsClassName="grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4"
               idPrefix="cert-selector-filter"
               defaultAdvancedOpen={
+                hasPrivateKeyOnly ||
                 effectiveSelectedKeyUsages.length > 0 ||
                 selectedExtendedKeyUsages.length > 0 ||
                 revocationReasonFilters.length > 0

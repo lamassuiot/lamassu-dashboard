@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 
 import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import {
   type ApiCertificateStatusValue,
   type CertificateBooleanFilterValue,
@@ -13,6 +14,7 @@ import {
 import { EKU_OPTIONS, KEY_USAGE_OPTIONS } from '@/lib/form-options';
 import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
 import { revocationReasons } from '@/lib/revocation-reasons';
+import { cn } from '@/lib/utils';
 
 import { GenericFilterBar, type GenericFilterField, type GenericDateFilterValue } from './GenericFilterBar';
 import {
@@ -35,6 +37,8 @@ interface CertificateFilterBarProps {
   onClearCaFilter?: () => void;
   statusFilters: ApiCertificateStatusValue[];
   onStatusFiltersChange: (value: ApiCertificateStatusValue[]) => void;
+  hasPrivateKeyOnly?: boolean;
+  onHasPrivateKeyOnlyChange?: (value: boolean) => void;
   subjectKeyIdFilter?: string;
   onSubjectKeyIdFilterChange?: (value: string) => void;
   engineIdFilter?: string;
@@ -71,6 +75,7 @@ interface CertificateFilterValues {
   searchField: 'commonName' | 'serialNumber';
   caIdFilter: string | null;
   statusFilters: ApiCertificateStatusValue[];
+  hasPrivateKeyOnly: boolean;
   subjectKeyIdFilter: string;
   engineIdFilter: string;
   keyUsageFilters: KeyUsageOption[];
@@ -111,6 +116,8 @@ export function CertificateFilterBar({
   onClearCaFilter,
   statusFilters,
   onStatusFiltersChange,
+  hasPrivateKeyOnly = false,
+  onHasPrivateKeyOnlyChange,
   subjectKeyIdFilter = '',
   onSubjectKeyIdFilterChange,
   engineIdFilter = '',
@@ -146,6 +153,7 @@ export function CertificateFilterBar({
     searchField,
     caIdFilter,
     statusFilters,
+    hasPrivateKeyOnly,
     subjectKeyIdFilter,
     engineIdFilter,
     keyUsageFilters,
@@ -160,6 +168,7 @@ export function CertificateFilterBar({
     caIdFilter,
     engineIdFilter,
     extendedKeyUsageFilters,
+    hasPrivateKeyOnly,
     isCaFilter,
     keyUsageFilters,
     metadataFilters,
@@ -249,6 +258,43 @@ export function CertificateFilterBar({
       options: certificateStatusOptions,
       buttonText: 'All Statuses',
     }),
+    ...(onHasPrivateKeyOnlyChange
+      ? [{
+          key: 'hasPrivateKeyOnly',
+          label: 'Private Key',
+          type: 'custom',
+          visibility: 'advanced',
+          isActive: (value) => Boolean(value),
+          getClearValue: () => false,
+          getActiveBadges: (value, _currentValues, helpers) => {
+            if (!value) return [];
+            return [
+              {
+                key: 'private-key',
+                label: 'Private Key: Available',
+                onRemove: () => helpers.clearField('hasPrivateKeyOnly'),
+              },
+            ];
+          },
+          renderControl: ({ value, onValueChange, disabled: fieldDisabled, id }) => (
+            <div
+              className={cn(
+                'flex h-9 items-center justify-between gap-3 rounded-md border bg-background px-3',
+                fieldDisabled && 'pointer-events-none opacity-50'
+              )}
+            >
+              <span className="min-w-0 truncate text-sm text-muted-foreground">Available only</span>
+              <Switch
+                id={id}
+                className="shrink-0"
+                checked={Boolean(value)}
+                onCheckedChange={onValueChange}
+                disabled={fieldDisabled}
+              />
+            </div>
+          ),
+        } satisfies GenericFilterField<CertificateFilterValues>]
+      : []),
     ...(onIsCaFilterChange
       ? [{
           key: 'isCaFilter',
@@ -354,6 +400,7 @@ export function CertificateFilterBar({
     onClearCaFilter,
     onEngineIdFilterChange,
     onExtendedKeyUsageFiltersChange,
+    onHasPrivateKeyOnlyChange,
     onIsCaFilterChange,
     onKeyUsageFiltersChange,
     onMetadataFiltersChange,
@@ -387,6 +434,9 @@ export function CertificateFilterBar({
             break;
           case 'statusFilters':
             onStatusFiltersChange((Array.isArray(value) ? value : []) as ApiCertificateStatusValue[]);
+            break;
+          case 'hasPrivateKeyOnly':
+            onHasPrivateKeyOnlyChange?.(Boolean(value));
             break;
           case 'subjectKeyIdFilter':
             onSubjectKeyIdFilterChange?.(String(value ?? ''));
@@ -429,6 +479,7 @@ export function CertificateFilterBar({
         onSearchTermChange('');
         onClearCaFilter?.();
         onStatusFiltersChange([]);
+        onHasPrivateKeyOnlyChange?.(false);
         onSubjectKeyIdFilterChange?.('');
         onEngineIdFilterChange?.('');
         onKeyUsageFiltersChange?.([]);

@@ -5,6 +5,7 @@ export interface CertificateData {
   subject: string; // Common Name or fallback
   issuer: string; // Issuer Common Name or fallback
   serialNumber: string;
+  hasPrivateKey?: boolean;
   validFrom: string; // ISO date string
   validTo: string; // ISO date string
   pemData: string;
