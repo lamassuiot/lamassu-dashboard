@@ -1,10 +1,11 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo } from 'react';
 
-import { MetadataFilterManager, type MetadataFilter } from '@/components/shared/MetadataFilterManager';
+import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 
 import { GenericFilterBar, type GenericFilterField } from './GenericFilterBar';
+import { createMetadataField, createSearchTextField } from './filter-field-helpers';
 
 interface KMSFilterBarProps {
   searchTerm: string;
@@ -26,60 +27,27 @@ export function KMSFilterBar({
   onMetadataFiltersChange,
   disabled = false,
 }: KMSFilterBarProps) {
-  const values: KMSFilterValues = {
+  const values = useMemo<KMSFilterValues>(() => ({
     searchTerm,
     metadataFilters,
-  };
+  }), [metadataFilters, searchTerm]);
 
-  const fields: GenericFilterField<KMSFilterValues>[] = [
-    {
+  const fields = useMemo<GenericFilterField<KMSFilterValues>[]>(() => [
+    createSearchTextField<KMSFilterValues>({
       key: 'searchTerm',
       label: 'Filter by Name, ID or Alias',
-      type: 'text',
       placeholder: 'Search by key alias...',
-      getActiveBadges: (value, _currentValues, helpers) => {
-        const currentSearchTerm = typeof value === 'string' ? value.trim() : '';
-        if (!currentSearchTerm) return [];
-
-        return [
-          {
-            key: 'kms-search',
-            label: `Name, ID or Alias contains "${currentSearchTerm}"`,
-            onRemove: () => helpers.clearField('searchTerm'),
-          },
-        ];
-      },
-    },
-    {
+      badgeKey: 'kms-search',
+    }),
+    createMetadataField<KMSFilterValues>({
       key: 'metadataFilters',
       label: 'Filter by Metadata (JSONPath)',
-      type: 'custom',
-      visibility: 'advanced',
-      renderControl: ({ id }) => (
-        <MetadataFilterManager
-          id={id}
-          value={metadataFilters}
-          onChange={onMetadataFiltersChange}
-          disabled={disabled}
-        />
-      ),
-      getActiveBadges: (value, _currentValues, helpers) => {
-        const filters = Array.isArray(value) ? (value as MetadataFilter[]) : [];
-        return filters.map((item) => ({
-          key: `kms-metadata-${item.filter}`,
-          label: `Metadata: ${item.name || item.filter}`,
-          title: item.name ? `Filter: ${item.filter}` : undefined,
-          className: item.name ? '' : 'font-mono',
-          onRemove: () =>
-            helpers.setValue(
-              'metadataFilters',
-              filters.filter((entry) => entry.filter !== item.filter)
-            ),
-        }));
-      },
-      getClearValue: () => [],
-    },
-  ];
+      value: metadataFilters,
+      onChange: onMetadataFiltersChange,
+      disabled,
+      badgeKeyPrefix: 'kms-metadata',
+    }),
+  ], [disabled, metadataFilters, onMetadataFiltersChange]);
 
   return (
     <GenericFilterBar<KMSFilterValues>

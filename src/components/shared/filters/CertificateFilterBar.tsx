@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { X } from 'lucide-react';
 
-import { MetadataFilterManager, type MetadataFilter } from '@/components/shared/MetadataFilterManager';
+import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import { Button } from '@/components/ui/button';
 import {
   type ApiCertificateStatusValue,
@@ -15,6 +15,14 @@ import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-u
 import { revocationReasons } from '@/lib/revocation-reasons';
 
 import { GenericFilterBar, type GenericFilterField, type GenericDateFilterValue } from './GenericFilterBar';
+import {
+  createDateField,
+  createEnumField,
+  createMetadataField,
+  createMultiEnumField,
+  createSearchTextField,
+  createTextField,
+} from './filter-field-helpers';
 
 interface CertificateFilterBarProps {
   searchTerm: string;
@@ -164,36 +172,27 @@ export function CertificateFilterBar({
   ]);
 
   const fields = useMemo<GenericFilterField<CertificateFilterValues>[]>(() => [
-    {
+    createSearchTextField<CertificateFilterValues>({
       key: 'searchTerm',
       label: 'Search',
-      type: 'text',
+      placeholder: 'Search certificates...',
+      badgeKey: 'search-term',
+      searchFieldKey: 'searchField',
+      searchFieldLabels: {
+        commonName: 'Common Name',
+        serialNumber: 'Serial Number',
+      },
       changeTiming: 'timed',
       debounceMs: 500,
-      placeholder: 'Search certificates...',
-      getActiveBadges: (value, currentValues, helpers) => {
-        const currentSearchTerm = typeof value === 'string' ? value.trim() : '';
-        if (!currentSearchTerm) return [];
-
-        return [
-          {
-            key: 'search-term',
-            label: `${currentValues.searchField === 'commonName' ? 'Common Name' : 'Serial Number'} contains "${currentSearchTerm}"`,
-            onRemove: () => helpers.clearField('searchTerm'),
-          },
-        ];
-      },
-    },
-    {
+    }),
+    createEnumField<CertificateFilterValues>({
       key: 'searchField',
       label: 'Search In',
-      type: 'enum',
       options: [
         { label: 'Common Name', value: 'commonName' },
         { label: 'Serial Number', value: 'serialNumber' },
       ],
-      isActive: () => false,
-    },
+    }),
     ...(onOpenCaSelector && onClearCaFilter
       ? [{
           key: 'caIdFilter',
@@ -241,15 +240,13 @@ export function CertificateFilterBar({
           getClearValue: () => null,
         } satisfies GenericFilterField<CertificateFilterValues>]
       : []),
-    {
+    createMultiEnumField<CertificateFilterValues>({
       key: 'statusFilters',
       label: 'Status',
-      type: 'multi-enum',
       visibility: 'advanced',
       options: certificateStatusOptions,
-      allOptionValues: certificateStatusOptions.map((option) => option.value),
       buttonText: 'All Statuses',
-    },
+    }),
     ...(onIsCaFilterChange
       ? [{
           key: 'isCaFilter',
@@ -266,125 +263,87 @@ export function CertificateFilterBar({
         } satisfies GenericFilterField<CertificateFilterValues>]
       : []),
     ...(onRevocationReasonFiltersChange
-      ? [{
+      ? [createMultiEnumField<CertificateFilterValues>({
           key: 'revocationReasonFilters',
           label: 'Revocation Reason',
-          type: 'multi-enum',
           visibility: 'advanced',
           options: revocationReasons.map(({ value, label }) => ({ value, label })),
-          allOptionValues: revocationReasons.map(({ value }) => value),
           buttonText: 'All Revocation Reasons',
-        } satisfies GenericFilterField<CertificateFilterValues>]
+        })]
       : []),
     ...(onRevocationTimestampFilterChange
-      ? [{
+      ? [createDateField<CertificateFilterValues>({
           key: 'revocationTimestampFilter',
           label: 'Revocation Time',
-          type: 'date',
           visibility: 'advanced',
-          placeholder: 'Select operator and date',
           dateOperators: [...dateOperatorOptions],
-        } satisfies GenericFilterField<CertificateFilterValues>]
+        })]
       : []),
     ...(onSubjectKeyIdFilterChange
-      ? [{
+      ? [createTextField<CertificateFilterValues>({
           key: 'subjectKeyIdFilter',
           label: 'Subject Key ID',
-          type: 'text',
           changeTiming: 'timed',
           debounceMs: 500,
           visibility: 'advanced',
           placeholder: 'Search subject key ID...',
-        } satisfies GenericFilterField<CertificateFilterValues>]
+        })]
       : []),
     ...(onEngineIdFilterChange
-      ? [{
+      ? [createTextField<CertificateFilterValues>({
           key: 'engineIdFilter',
           label: 'Engine ID',
-          type: 'text',
           changeTiming: 'timed',
           debounceMs: 500,
           visibility: 'advanced',
           placeholder: 'Search engine ID...',
-        } satisfies GenericFilterField<CertificateFilterValues>]
+        })]
       : []),
     ...(onValidFromFilterChange
-      ? [{
+      ? [createDateField<CertificateFilterValues>({
           key: 'validFromFilter',
           label: 'Valid From',
-          type: 'date',
           visibility: 'advanced',
-          placeholder: 'Select operator and date',
           dateOperators: [...dateOperatorOptions],
-        } satisfies GenericFilterField<CertificateFilterValues>]
+        })]
       : []),
     ...(onValidToFilterChange
-      ? [{
+      ? [createDateField<CertificateFilterValues>({
           key: 'validToFilter',
           label: 'Valid To',
-          type: 'date',
           visibility: 'advanced',
-          placeholder: 'Select operator and date',
           dateOperators: [...dateOperatorOptions],
-        } satisfies GenericFilterField<CertificateFilterValues>]
+        })]
       : []),
     ...(onKeyUsageFiltersChange
-      ? [{
+      ? [createMultiEnumField<CertificateFilterValues>({
           key: 'keyUsageFilters',
           label: 'Key Usage',
-          type: 'multi-enum',
           visibility: 'advanced',
           options: KEY_USAGE_OPTIONS.map(({ id, label }) => ({ value: id, label })),
-          allOptionValues: KEY_USAGE_OPTIONS.map(({ id }) => id),
           buttonText: 'All Key Usages',
-        } satisfies GenericFilterField<CertificateFilterValues>]
+        })]
       : []),
     ...(onExtendedKeyUsageFiltersChange
-      ? [{
+      ? [createMultiEnumField<CertificateFilterValues>({
           key: 'extendedKeyUsageFilters',
           label: 'Extended Key Usage',
-          type: 'multi-enum',
           visibility: 'advanced',
           options: EKU_OPTIONS.map(({ id, label }) => ({ value: id, label })),
-          allOptionValues: EKU_OPTIONS.map(({ id }) => id),
           buttonText: 'All Extended Key Usages',
-        } satisfies GenericFilterField<CertificateFilterValues>]
+        })]
       : []),
     ...(onMetadataFiltersChange
-      ? [{
+      ? [createMetadataField<CertificateFilterValues>({
           key: 'metadataFilters',
           label: 'Metadata (JSONPath)',
-          type: 'custom',
-          visibility: 'advanced',
-          renderControl: ({ id }) => (
-            <MetadataFilterManager
-              id={id}
-              value={metadataFilters}
-              onChange={onMetadataFiltersChange}
-              disabled={disabled}
-              placeholder="e.g., $.key > value"
-            />
-          ),
-          getActiveBadges: (value, _currentValues, helpers) => {
-            const filters = Array.isArray(value) ? (value as MetadataFilter[]) : [];
-            return filters.map((item) => ({
-              key: `metadata-${item.filter}`,
-              label: `Metadata: ${item.name || item.filter}`,
-              title: item.name ? `Filter: ${item.filter}` : undefined,
-              className: item.name ? '' : 'font-mono',
-              onRemove: () =>
-                helpers.setValue(
-                  'metadataFilters',
-                  filters.filter((entry) => entry.filter !== item.filter)
-                ),
-            }));
-          },
-          getClearValue: () => [],
-        } satisfies GenericFilterField<CertificateFilterValues>]
+          value: metadataFilters,
+          onChange: onMetadataFiltersChange,
+          disabled,
+        })]
       : []),
   ], [
     disabled,
-    engineIdFilter,
     isLoadingCAs,
     metadataFilters,
     onClearCaFilter,

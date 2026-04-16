@@ -1,10 +1,11 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo } from 'react';
 
 import { DmsSelector } from '@/components/shared/DmsSelector';
 
 import { GenericFilterBar, type GenericFilterField } from './GenericFilterBar';
+import { createEnumField, createMultiEnumField, createSearchTextField } from './filter-field-helpers';
 
 type DeviceStatus =
   | 'ACTIVE'
@@ -57,42 +58,33 @@ export function DeviceFilterBar({
   disabled = false,
   actions,
 }: DeviceFilterBarProps) {
-  const values: DeviceFilterValues = {
+  const values = useMemo<DeviceFilterValues>(() => ({
     searchTerm,
     searchField,
     dmsOwnerFilter,
     statusFilters,
-  };
+  }), [dmsOwnerFilter, searchField, searchTerm, statusFilters]);
 
-  const fields: GenericFilterField<DeviceFilterValues>[] = [
-    {
+  const fields = useMemo<GenericFilterField<DeviceFilterValues>[]>(() => [
+    createSearchTextField<DeviceFilterValues>({
       key: 'searchTerm',
       label: 'Search Term',
-      type: 'text',
       placeholder: 'Filter by ID or Tag...',
-      getActiveBadges: (value, currentValues, helpers) => {
-        const currentSearchTerm = typeof value === 'string' ? value.trim() : '';
-        if (!currentSearchTerm) return [];
-
-        return [
-          {
-            key: 'device-search',
-            label: `${currentValues.searchField === 'id' ? 'Device ID' : 'Tags'} contains "${currentSearchTerm}"`,
-            onRemove: () => helpers.clearField('searchTerm'),
-          },
-        ];
+      badgeKey: 'device-search',
+      searchFieldKey: 'searchField',
+      searchFieldLabels: {
+        id: 'Device ID',
+        tags: 'Tags',
       },
-    },
-    {
+    }),
+    createEnumField<DeviceFilterValues>({
       key: 'searchField',
       label: 'Search In',
-      type: 'enum',
       options: [
         { label: 'Device ID', value: 'id' },
         { label: 'Tags', value: 'tags' },
       ],
-      isActive: () => false,
-    },
+    }),
     {
       key: 'dmsOwnerFilter',
       label: 'Registration Authority',
@@ -117,16 +109,14 @@ export function DeviceFilterBar({
       },
       getClearValue: () => null,
     },
-    {
+    createMultiEnumField<DeviceFilterValues>({
       key: 'statusFilters',
       label: 'Status',
-      type: 'multi-enum',
       visibility: 'advanced',
       options: deviceStatusOptions,
-      allOptionValues: deviceStatusOptions.map((option) => option.value),
       buttonText: 'All Statuses',
-    },
-  ];
+    }),
+  ], [disabled, dmsOwnerFilter, onDmsOwnerFilterChange]);
 
   return (
     <GenericFilterBar<DeviceFilterValues>

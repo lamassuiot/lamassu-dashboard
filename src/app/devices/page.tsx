@@ -23,6 +23,7 @@ import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { DeviceFilterBar } from '@/components/shared/filters/DeviceFilterBar';
+import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -195,15 +196,14 @@ export default function DevicesPage() {
             params.append('bookmark', bookmarkToFetch);
         }
         
-        const filtersToApply: string[] = [];
-        if (dmsOwnerFilter) filtersToApply.push(`dms_owner[equal]${dmsOwnerFilter}`);
-        if (debouncedSearchTerm.trim() !== '') filtersToApply.push(`${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
-        if (statusFilters.length === 1) {
-            filtersToApply.push(`status[equal]${statusFilters[0]}`);
-        } else if (statusFilters.length > 1) {
-            filtersToApply.push(`status[in]${statusFilters.join(',')}`);
-        }
-        filtersToApply.forEach(f => params.append('filter', f));
+        if (dmsOwnerFilter) params.append('filter', `dms_owner[equal]${dmsOwnerFilter}`);
+        if (debouncedSearchTerm.trim() !== '') params.append('filter', `${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+        appendSingleOrMultiFilter(
+          params,
+          statusFilters,
+          (value) => `status[equal]${value}`,
+          (values) => `status[in]${values.join(',')}`
+        );
 
         const data = await fetchDevices(params);
         const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({

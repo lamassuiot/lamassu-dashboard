@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 
 import type { MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
+import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
 
 export interface CertificateQueryDateFilterValue {
   operator: 'af' | 'bf' | 'eq';
@@ -44,11 +45,12 @@ export function appendCertificateQueryFilters(
     metadataFilters = [],
   }: CertificateQueryFilters
 ) {
-  if (statusFilters.length === 1) {
-    params.append('filter', `status[eq]=${statusFilters[0]}`);
-  } else if (statusFilters.length > 1) {
-    params.append('filter', `status[in]=${statusFilters.join(',')}`);
-  }
+  appendSingleOrMultiFilter(
+    params,
+    statusFilters,
+    (value) => `status[eq]=${value}`,
+    (values) => `status[in]=${values.join(',')}`
+  );
 
   const trimmedSearchTerm = searchTerm.trim();
   if (trimmedSearchTerm !== '') {
@@ -69,11 +71,12 @@ export function appendCertificateQueryFilters(
     params.append('filter', `engine_id[ct_ic]=${trimmedEngineId}`);
   }
 
-  if (revocationReasonFilters.length === 1) {
-    params.append('filter', `revocation_reason[eq]=${revocationReasonFilters[0]}`);
-  } else if (revocationReasonFilters.length > 1) {
-    params.append('filter', `revocation_reason[in]=${revocationReasonFilters.join(',')}`);
-  }
+  appendSingleOrMultiFilter(
+    params,
+    revocationReasonFilters,
+    (value) => `revocation_reason[eq]=${value}`,
+    (values) => `revocation_reason[in]=${values.join(',')}`
+  );
 
   if (isCaFilter !== 'ALL') {
     params.append('filter', `is_ca[eq]=${isCaFilter}`);
