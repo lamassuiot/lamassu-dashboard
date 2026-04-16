@@ -27,6 +27,12 @@ export interface CertificateQueryFilters {
   metadataFilters?: readonly MetadataFilter[];
 }
 
+const DATE_OPERATOR_BY_FILTER_VALUE: Record<CertificateQueryDateFilterValue['operator'], 'after' | 'before' | 'equal'> = {
+  af: 'after',
+  bf: 'before',
+  eq: 'equal',
+};
+
 export function appendCertificateQueryFilters(
   params: URLSearchParams,
   {
@@ -48,38 +54,38 @@ export function appendCertificateQueryFilters(
   appendSingleOrMultiFilter(
     params,
     statusFilters,
-    (value) => `status[eq]=${value}`,
-    (values) => `status[in]=${values.join(',')}`
+    (value) => `status[equal]${value}`,
+    (values) => `status[in]${values.join(',')}`
   );
 
   const trimmedSearchTerm = searchTerm.trim();
   if (trimmedSearchTerm !== '') {
     const searchFilter =
       searchField === 'commonName'
-        ? `subject.common_name[ct_ic]=${trimmedSearchTerm}`
-        : `serial_number[ct_ic]=${trimmedSearchTerm}`;
+        ? `subject.common_name[contains_ignorecase]${trimmedSearchTerm}`
+        : `serial_number[contains_ignorecase]${trimmedSearchTerm}`;
     params.append('filter', searchFilter);
   }
 
   const trimmedSubjectKeyId = subjectKeyIdFilter.trim();
   if (trimmedSubjectKeyId !== '') {
-    params.append('filter', `subject_key_id[ct_ic]=${trimmedSubjectKeyId}`);
+    params.append('filter', `subject_key_id[contains_ignorecase]${trimmedSubjectKeyId}`);
   }
 
   const trimmedEngineId = engineIdFilter.trim();
   if (trimmedEngineId !== '') {
-    params.append('filter', `engine_id[ct_ic]=${trimmedEngineId}`);
+    params.append('filter', `engine_id[contains_ignorecase]${trimmedEngineId}`);
   }
 
   appendSingleOrMultiFilter(
     params,
     revocationReasonFilters,
-    (value) => `revocation_reason[eq]=${value}`,
-    (values) => `revocation_reason[in]=${values.join(',')}`
+    (value) => `revocation_reason[equal]${value}`,
+    (values) => `revocation_reason[in]${values.join(',')}`
   );
 
   if (isCaFilter !== 'ALL') {
-    params.append('filter', `is_ca[eq]=${isCaFilter}`);
+    params.append('filter', `is_ca[equal]${isCaFilter}`);
   }
 
   appendDateFilter(params, 'valid_from', validFromFilter);
@@ -87,17 +93,17 @@ export function appendCertificateQueryFilters(
   appendDateFilter(params, 'revocation_timestamp', revocationTimestampFilter);
 
   keyUsageFilters.forEach((usage) => {
-    params.append('filter', `extensions.key_usage[ct]=${usage}`);
+    params.append('filter', `extensions.key_usage[contains]${usage}`);
   });
 
   extendedKeyUsageFilters.forEach((usage) => {
-    params.append('filter', `extensions.extended_key_usage[ct]=${usage}`);
+    params.append('filter', `extensions.extended_key_usage[contains]${usage}`);
   });
 
   metadataFilters.forEach((item) => {
     const trimmedFilter = item.filter.trim();
     if (trimmedFilter !== '') {
-      params.append('filter', `metadata[jsonpath]=${trimmedFilter}`);
+      params.append('filter', `metadata[jsonpath]${trimmedFilter}`);
     }
   });
 }
@@ -111,5 +117,5 @@ function appendDateFilter(
     return;
   }
 
-  params.append('filter', `${field}[${filter.operator}]=${format(filter.date, 'yyyy-MM-dd')}`);
+  params.append('filter', `${field}[${DATE_OPERATOR_BY_FILTER_VALUE[filter.operator]}]${format(filter.date, 'yyyy-MM-dd')}`);
 }

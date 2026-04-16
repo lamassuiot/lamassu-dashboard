@@ -84,7 +84,7 @@ export function CertificatePaginationControls({
       <div className="flex items-center gap-2">
         <Button
           onClick={onPreviousPage}
-          disabled={!canGoPrevious}
+          disabled={isLoading || !canGoPrevious}
           variant="outline"
           size={navigationButtonSize}
         >
@@ -98,7 +98,7 @@ export function CertificatePaginationControls({
         )}
         <Button
           onClick={onNextPage}
-          disabled={!canGoNext}
+          disabled={isLoading || !canGoNext}
           variant="outline"
           size={navigationButtonSize}
         >
