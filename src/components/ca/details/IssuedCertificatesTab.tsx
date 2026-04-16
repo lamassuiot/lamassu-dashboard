@@ -4,15 +4,14 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { sileo } from '@/lib/toast';
-import { cn } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Loader2, RefreshCw, FilePlus2, ChevronLeft, ChevronRight, AlertCircle as AlertCircleIcon, FileX2 } from 'lucide-react';
+import { Loader2, RefreshCw, FilePlus2, AlertCircle as AlertCircleIcon, FileX2 } from 'lucide-react';
 import { CertificateList } from '@/components/CertificateList';
 import type { CA } from '@/lib/ca-data';
 import { usePaginatedCertificateFetcher } from '@/hooks/usePaginatedCertificateFetcher';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
+import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 
 interface IssuedCertificatesTabProps {
     caId: string;
@@ -28,20 +27,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
         isLoading,
         error,
         pageSize, setPageSize,
-        searchTerm, setSearchTerm,
-        searchField, setSearchField,
-        statusFilters, setStatusFilters,
-        certificateTypeFilter, setCertificateTypeFilter,
-        subjectKeyIdFilter, setSubjectKeyIdFilter,
-        engineIdFilter, setEngineIdFilter,
-        keyUsageFilters, setKeyUsageFilters,
-        extendedKeyUsageFilters, setExtendedKeyUsageFilters,
-        revocationReasonFilters, setRevocationReasonFilters,
-        isCaFilter, setIsCaFilter,
-        validFromFilter, setValidFromFilter,
-        validToFilter, setValidToFilter,
-        revocationTimestampFilter, setRevocationTimestampFilter,
-        metadataFilters, setMetadataFilters,
+        filterBarProps,
         sortConfig, requestSort,
         currentPageIndex,
         nextTokenFromApi,
@@ -61,34 +47,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
     return (
         <div className="space-y-4">
             <CertificateFilterBar
-                searchTerm={searchTerm}
-                onSearchTermChange={setSearchTerm}
-                searchField={searchField}
-                onSearchFieldChange={setSearchField}
-                statusFilters={statusFilters}
-                onStatusFiltersChange={setStatusFilters}
-                certificateTypeFilter={certificateTypeFilter}
-                onCertificateTypeFilterChange={setCertificateTypeFilter}
-                subjectKeyIdFilter={subjectKeyIdFilter}
-                onSubjectKeyIdFilterChange={setSubjectKeyIdFilter}
-                engineIdFilter={engineIdFilter}
-                onEngineIdFilterChange={setEngineIdFilter}
-                keyUsageFilters={keyUsageFilters}
-                onKeyUsageFiltersChange={setKeyUsageFilters}
-                extendedKeyUsageFilters={extendedKeyUsageFilters}
-                onExtendedKeyUsageFiltersChange={setExtendedKeyUsageFilters}
-                revocationReasonFilters={revocationReasonFilters}
-                onRevocationReasonFiltersChange={setRevocationReasonFilters}
-                isCaFilter={isCaFilter}
-                onIsCaFilterChange={setIsCaFilter}
-                validFromFilter={validFromFilter}
-                onValidFromFilterChange={setValidFromFilter}
-                validToFilter={validToFilter}
-                onValidToFilterChange={setValidToFilter}
-                revocationTimestampFilter={revocationTimestampFilter}
-                onRevocationTimestampFilterChange={setRevocationTimestampFilter}
-                metadataFilters={metadataFilters}
-                onMetadataFiltersChange={setMetadataFilters}
+                {...filterBarProps}
                 disabled={isLoading}
                 actions={
                     <>
@@ -141,30 +100,22 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                         isLoading={isLoading}
                         showIssuerColumn={false}
                     />
-                    <div className="flex justify-between items-center mt-4 pt-4 border-t">
-                        <div className="flex items-center gap-2">
-                            <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline" size="sm">
-                                <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <span className="text-xs text-muted-foreground px-1">Page {currentPageIndex + 1}</span>
-                            <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline" size="sm">
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">Rows per page</span>
-                            <Select value={pageSize} onValueChange={setPageSize}>
-                                <SelectTrigger className="w-[70px] h-8">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent align="end">
-                                    <SelectItem value="10">10</SelectItem>
-                                    <SelectItem value="25">25</SelectItem>
-                                    <SelectItem value="50">50</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
+                    <CertificatePaginationControls
+                        className="mt-4 border-t pt-4"
+                        pageSize={pageSize}
+                        onPageSizeChange={setPageSize}
+                        pageSizeOptions={['10', '25', '50']}
+                        pageSizeLabel="Rows per page"
+                        pageSizeSelectId="issuedCertificatesPageSize"
+                        isLoading={isLoading}
+                        onPreviousPage={handlePreviousPage}
+                        onNextPage={handleNextPage}
+                        canGoPrevious={!isLoading && currentPageIndex > 0}
+                        canGoNext={!isLoading && Boolean(nextTokenFromApi)}
+                        pageIndicator={`Page ${currentPageIndex + 1}`}
+                        navigationVariant="icon"
+                        compact
+                    />
                 </>
             ) : (
                 <div className="flex flex-col items-center justify-center gap-3 py-12 rounded-xl border-2 border-dashed border-border bg-muted/20">

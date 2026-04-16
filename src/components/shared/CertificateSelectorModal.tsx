@@ -5,18 +5,19 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CA } from '@/lib/ca-data';
 import { SelectableCertificateItem } from './SelectableCertificateItem';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { cn } from '@/lib/utils';
 import { type ApiCertificateStatusValue, type CertificateDateFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
 import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { Label } from '../ui/label';
+import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
+import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 
 
 interface CertificateSelectorModalProps {
@@ -29,6 +30,11 @@ interface CertificateSelectorModalProps {
   limitToCAs?: CA[];
   requiredKeyUsages?: readonly KeyUsageOption[];
 }
+
+const defaultDateFilterValue: CertificateDateFilterValue = {
+  operator: 'af',
+  date: undefined,
+};
 
 function flattenCaOptions(cas: CA[]): CA[] {
   const options: CA[] = [];
@@ -73,10 +79,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>('commonName');
   const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([]);
-  const [certificateTypeFilter, setCertificateTypeFilter] = useState('');
   const [subjectKeyIdFilter, setSubjectKeyIdFilter] = useState('');
   const [engineIdFilter, setEngineIdFilter] = useState('');
   const [selectedKeyUsages, setSelectedKeyUsages] = useState<KeyUsageOption[]>([]);
@@ -92,15 +96,6 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   const hasCaRestriction = limitToCAs !== undefined;
   const caOptions = useMemo(() => flattenCaOptions(limitToCAs ?? []), [limitToCAs]);
   const [selectedCaId, setSelectedCaId] = useState<string | null>(null);
-
-
-  // Debounce search term
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [searchTerm]);
 
   useEffect(() => {
     if (!hasCaRestriction || caOptions.length === 0) {
@@ -123,10 +118,9 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     }
   }, [
     pageSize,
-    debouncedSearchTerm,
+    searchTerm,
     searchField,
     statusFilters,
-    certificateTypeFilter,
     subjectKeyIdFilter,
     engineIdFilter,
     selectedCaId,
@@ -159,50 +153,19 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
       params.append('sort_mode', 'desc');
       params.append('page_size', pageSize);
       if (bookmarkToFetch) params.append('bookmark', bookmarkToFetch);
-      
-      const filtersToApply: string[] = [];
-      if (statusFilters.length === 1) {
-        filtersToApply.push(`status[eq]=${statusFilters[0]}`);
-      } else if (statusFilters.length > 1) {
-        filtersToApply.push(`status[in]=${statusFilters.join(',')}`);
-      }
-      if (debouncedSearchTerm.trim() !== '') {
-        if (searchField === 'commonName') {
-          filtersToApply.push(`subject.common_name[ct_ic]=${debouncedSearchTerm.trim()}`);
-        } else if (searchField === 'serialNumber') {
-          filtersToApply.push(`serial_number[ct_ic]=${debouncedSearchTerm.trim()}`);
-        }
-      }
-      if (certificateTypeFilter.trim() !== '') {
-        filtersToApply.push(`type[eq]=${certificateTypeFilter.trim()}`);
-      }
-      if (subjectKeyIdFilter.trim() !== '') {
-        filtersToApply.push(`subject_key_id[ct_ic]=${subjectKeyIdFilter.trim()}`);
-      }
-      if (engineIdFilter.trim() !== '') {
-        filtersToApply.push(`engine_id[ct_ic]=${engineIdFilter.trim()}`);
-      }
-      if (revocationReasonFilters.length === 1) {
-        filtersToApply.push(`revocation_reason[eq]=${revocationReasonFilters[0]}`);
-      } else if (revocationReasonFilters.length > 1) {
-        filtersToApply.push(`revocation_reason[in]=${revocationReasonFilters.join(',')}`);
-      }
-      if (validFromFilter.date) {
-        filtersToApply.push(`valid_from[${validFromFilter.operator}]=${validFromFilter.date.toISOString().slice(0, 10)}`);
-      }
-      if (validToFilter.date) {
-        filtersToApply.push(`valid_to[${validToFilter.operator}]=${validToFilter.date.toISOString().slice(0, 10)}`);
-      }
-      if (revocationTimestampFilter.date) {
-        filtersToApply.push(`revocation_timestamp[${revocationTimestampFilter.operator}]=${revocationTimestampFilter.date.toISOString().slice(0, 10)}`);
-      }
-      effectiveSelectedKeyUsages.forEach((usage) => {
-        filtersToApply.push(`extensions.key_usage[ct]=${usage}`);
+      appendCertificateQueryFilters(params, {
+        searchTerm,
+        searchField,
+        statusFilters,
+        subjectKeyIdFilter,
+        engineIdFilter,
+        revocationReasonFilters,
+        validFromFilter,
+        validToFilter,
+        revocationTimestampFilter,
+        keyUsageFilters: effectiveSelectedKeyUsages,
+        extendedKeyUsageFilters: selectedExtendedKeyUsages,
       });
-      selectedExtendedKeyUsages.forEach((usage) => {
-        filtersToApply.push(`extensions.extended_key_usage[ct]=${usage}`);
-      });
-      filtersToApply.forEach(f => params.append('filter', f));
       // Attempt to filter for non-CA certs if API supports it.
       // params.append('filter', 'is_ca[equal]false'); 
 
@@ -227,10 +190,9 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     }
   }, [
     pageSize,
-    debouncedSearchTerm,
+    searchTerm,
     searchField,
     statusFilters,
-    certificateTypeFilter,
     subjectKeyIdFilter,
     engineIdFilter,
     effectiveSelectedKeyUsages,
@@ -277,6 +239,47 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     if (isLoadingCerts || currentPageIndex === 0) return;
     setCurrentPageIndex(prevIndex => prevIndex - 1);
   };
+
+  const filterBarProps = useMemo(() => ({
+    searchTerm,
+    onSearchTermChange: setSearchTerm,
+    searchField,
+    onSearchFieldChange: setSearchField,
+    statusFilters,
+    onStatusFiltersChange: setStatusFilters,
+    subjectKeyIdFilter,
+    onSubjectKeyIdFilterChange: setSubjectKeyIdFilter,
+    engineIdFilter,
+    onEngineIdFilterChange: setEngineIdFilter,
+    keyUsageFilters: effectiveSelectedKeyUsages,
+    onKeyUsageFiltersChange: (nextValues: KeyUsageOption[]) => setSelectedKeyUsages(
+      nextValues.filter((value) => !requiredKeyUsages.includes(value))
+    ),
+    extendedKeyUsageFilters: selectedExtendedKeyUsages,
+    onExtendedKeyUsageFiltersChange: setSelectedExtendedKeyUsages,
+    revocationReasonFilters,
+    onRevocationReasonFiltersChange: setRevocationReasonFilters,
+    validFromFilter,
+    onValidFromFilterChange: setValidFromFilter,
+    validToFilter,
+    onValidToFilterChange: setValidToFilter,
+    revocationTimestampFilter,
+    onRevocationTimestampFilterChange: setRevocationTimestampFilter,
+  }), [
+    effectiveSelectedKeyUsages,
+    engineIdFilter,
+    requiredKeyUsages,
+    revocationReasonFilters,
+    revocationTimestampFilter,
+    searchField,
+    searchTerm,
+    selectedExtendedKeyUsages,
+    statusFilters,
+    subjectKeyIdFilter,
+    validFromFilter,
+    validToFilter,
+  ]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-3xl max-h-[90vh] flex flex-col">
@@ -292,7 +295,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                     <Select
                         value={selectedCaId ?? undefined}
                         onValueChange={setSelectedCaId}
-                        disabled={isLoadingCerts || authLoading || caOptions.length <= 1}
+                        disabled={isLoadingCerts || caOptions.length <= 1}
                     >
                         <SelectTrigger id="certSelectorCaFilter" className="w-full h-9 text-sm">
                             <SelectValue placeholder={caOptions.length === 0 ? "No CAs available" : "Select a CA"} />
@@ -308,32 +311,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                 </div>
             )}
             <CertificateFilterBar
-              searchTerm={searchTerm}
-              onSearchTermChange={setSearchTerm}
-              searchField={searchField}
-              onSearchFieldChange={setSearchField}
-              statusFilters={statusFilters}
-              onStatusFiltersChange={setStatusFilters}
-              certificateTypeFilter={certificateTypeFilter}
-              onCertificateTypeFilterChange={setCertificateTypeFilter}
-              subjectKeyIdFilter={subjectKeyIdFilter}
-              onSubjectKeyIdFilterChange={setSubjectKeyIdFilter}
-              engineIdFilter={engineIdFilter}
-              onEngineIdFilterChange={setEngineIdFilter}
-              keyUsageFilters={effectiveSelectedKeyUsages}
-              onKeyUsageFiltersChange={(nextValues) => setSelectedKeyUsages(
-                nextValues.filter((value) => !requiredKeyUsages.includes(value))
-              )}
-              extendedKeyUsageFilters={selectedExtendedKeyUsages}
-              onExtendedKeyUsageFiltersChange={setSelectedExtendedKeyUsages}
-              revocationReasonFilters={revocationReasonFilters}
-              onRevocationReasonFiltersChange={setRevocationReasonFilters}
-              validFromFilter={validFromFilter}
-              onValidFromFilterChange={setValidFromFilter}
-              validToFilter={validToFilter}
-              onValidToFilterChange={setValidToFilter}
-              revocationTimestampFilter={revocationTimestampFilter}
-              onRevocationTimestampFilterChange={setRevocationTimestampFilter}
+              {...filterBarProps}
               disabled={isLoadingCerts}
               basicFieldsClassName="grid-cols-1 gap-2 sm:grid-cols-[minmax(220px,1.4fr)_180px]"
               advancedFieldsClassName="grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
@@ -393,45 +371,21 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
         
         {/* Pagination Controls */}
         {(!isLoadingCerts && !errorCerts && (availableCerts.length > 0 || nextTokenFromApi || currentPageIndex > 0)) && (
-          <div className="flex justify-between items-center mt-2 pt-3 border-t">
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="pageSizeSelectCertModal" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-                <Select
-                    value={pageSize}
-                    onValueChange={(value) => setPageSize(value)}
-                    disabled={isLoadingCerts}
-                >
-                    <SelectTrigger id="pageSizeSelectCertModal" className="w-[80px] h-9">
-                    <SelectValue placeholder="Page size" />
-                    </SelectTrigger>
-                    <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    </SelectContent>
-                </Select>
-                 <Button onClick={handleRefresh} variant="outline" size="icon" className="h-9 w-9" disabled={isLoadingCerts}>
-                    <RefreshCw className={cn("h-4 w-4", isLoadingCerts && "animate-spin")} />
-                    <span className="sr-only">Refresh</span>
-                </Button>
-              </div>
-              <div className="flex items-center space-x-2">
-                  <Button
-                      onClick={handlePreviousPage}
-                      disabled={isLoadingCerts || currentPageIndex === 0}
-                      variant="outline" size="sm"
-                  >
-                      <ChevronLeft className="mr-1 h-4 w-4" /> Previous
-                  </Button>
-                  <Button
-                      onClick={handleNextPage}
-                      disabled={isLoadingCerts || !(currentPageIndex < bookmarkStack.length -1 || nextTokenFromApi)}
-                      variant="outline" size="sm"
-                  >
-                      Next <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-              </div>
-          </div>
+          <CertificatePaginationControls
+            className="mt-2 border-t pt-3"
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={['5', '10', '25']}
+            pageSizeLabel="Page Size:"
+            pageSizeSelectId="pageSizeSelectCertModal"
+            isLoading={isLoadingCerts}
+            onPreviousPage={handlePreviousPage}
+            onNextPage={handleNextPage}
+            canGoPrevious={!isLoadingCerts && currentPageIndex > 0}
+            canGoNext={!isLoadingCerts && (currentPageIndex < bookmarkStack.length - 1 || Boolean(nextTokenFromApi))}
+            onRefresh={handleRefresh}
+            compact
+          />
         )}
 
         <DialogFooter className="mt-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { X } from 'lucide-react';
 
 import { MetadataFilterManager, type MetadataFilter } from '@/components/shared/MetadataFilterManager';
@@ -27,8 +27,6 @@ interface CertificateFilterBarProps {
   onClearCaFilter?: () => void;
   statusFilters: ApiCertificateStatusValue[];
   onStatusFiltersChange: (value: ApiCertificateStatusValue[]) => void;
-  certificateTypeFilter?: string;
-  onCertificateTypeFilterChange?: (value: string) => void;
   subjectKeyIdFilter?: string;
   onSubjectKeyIdFilterChange?: (value: string) => void;
   engineIdFilter?: string;
@@ -64,7 +62,6 @@ interface CertificateFilterValues {
   searchField: 'commonName' | 'serialNumber';
   caIdFilter: string | null;
   statusFilters: ApiCertificateStatusValue[];
-  certificateTypeFilter: string;
   subjectKeyIdFilter: string;
   engineIdFilter: string;
   keyUsageFilters: KeyUsageOption[];
@@ -105,8 +102,6 @@ export function CertificateFilterBar({
   onClearCaFilter,
   statusFilters,
   onStatusFiltersChange,
-  certificateTypeFilter = '',
-  onCertificateTypeFilterChange,
   subjectKeyIdFilter = '',
   onSubjectKeyIdFilterChange,
   engineIdFilter = '',
@@ -136,12 +131,11 @@ export function CertificateFilterBar({
   defaultAdvancedOpen,
   showActiveFilters = true,
 }: CertificateFilterBarProps) {
-  const values: CertificateFilterValues = {
+  const values = useMemo<CertificateFilterValues>(() => ({
     searchTerm,
     searchField,
     caIdFilter,
     statusFilters,
-    certificateTypeFilter,
     subjectKeyIdFilter,
     engineIdFilter,
     keyUsageFilters,
@@ -152,13 +146,30 @@ export function CertificateFilterBar({
     validToFilter,
     revocationTimestampFilter,
     metadataFilters,
-  };
+  }), [
+    caIdFilter,
+    engineIdFilter,
+    extendedKeyUsageFilters,
+    isCaFilter,
+    keyUsageFilters,
+    metadataFilters,
+    revocationReasonFilters,
+    revocationTimestampFilter,
+    searchField,
+    searchTerm,
+    statusFilters,
+    subjectKeyIdFilter,
+    validFromFilter,
+    validToFilter,
+  ]);
 
-  const fields: GenericFilterField<CertificateFilterValues>[] = [
+  const fields = useMemo<GenericFilterField<CertificateFilterValues>[]>(() => [
     {
       key: 'searchTerm',
       label: 'Search',
       type: 'text',
+      changeTiming: 'timed',
+      debounceMs: 500,
       placeholder: 'Search certificates...',
       getActiveBadges: (value, currentValues, helpers) => {
         const currentSearchTerm = typeof value === 'string' ? value.trim() : '';
@@ -239,15 +250,6 @@ export function CertificateFilterBar({
       allOptionValues: certificateStatusOptions.map((option) => option.value),
       buttonText: 'All Statuses',
     },
-    ...(onCertificateTypeFilterChange
-      ? [{
-          key: 'certificateTypeFilter',
-          label: 'Certificate Type',
-          type: 'text',
-          visibility: 'advanced',
-          placeholder: 'Exact type value',
-        } satisfies GenericFilterField<CertificateFilterValues>]
-      : []),
     ...(onIsCaFilterChange
       ? [{
           key: 'isCaFilter',
@@ -289,6 +291,8 @@ export function CertificateFilterBar({
           key: 'subjectKeyIdFilter',
           label: 'Subject Key ID',
           type: 'text',
+          changeTiming: 'timed',
+          debounceMs: 500,
           visibility: 'advanced',
           placeholder: 'Search subject key ID...',
         } satisfies GenericFilterField<CertificateFilterValues>]
@@ -298,6 +302,8 @@ export function CertificateFilterBar({
           key: 'engineIdFilter',
           label: 'Engine ID',
           type: 'text',
+          changeTiming: 'timed',
+          debounceMs: 500,
           visibility: 'advanced',
           placeholder: 'Search engine ID...',
         } satisfies GenericFilterField<CertificateFilterValues>]
@@ -376,7 +382,25 @@ export function CertificateFilterBar({
           getClearValue: () => [],
         } satisfies GenericFilterField<CertificateFilterValues>]
       : []),
-  ];
+  ], [
+    disabled,
+    engineIdFilter,
+    isLoadingCAs,
+    metadataFilters,
+    onClearCaFilter,
+    onEngineIdFilterChange,
+    onExtendedKeyUsageFiltersChange,
+    onIsCaFilterChange,
+    onKeyUsageFiltersChange,
+    onMetadataFiltersChange,
+    onOpenCaSelector,
+    onRevocationReasonFiltersChange,
+    onRevocationTimestampFilterChange,
+    onSubjectKeyIdFilterChange,
+    onValidFromFilterChange,
+    onValidToFilterChange,
+    selectedCaLabel,
+  ]);
 
   return (
     <GenericFilterBar<CertificateFilterValues>
@@ -399,9 +423,6 @@ export function CertificateFilterBar({
             break;
           case 'statusFilters':
             onStatusFiltersChange((Array.isArray(value) ? value : []) as ApiCertificateStatusValue[]);
-            break;
-          case 'certificateTypeFilter':
-            onCertificateTypeFilterChange?.(String(value ?? ''));
             break;
           case 'subjectKeyIdFilter':
             onSubjectKeyIdFilterChange?.(String(value ?? ''));
@@ -443,7 +464,6 @@ export function CertificateFilterBar({
         onSearchTermChange('');
         onClearCaFilter?.();
         onStatusFiltersChange([]);
-        onCertificateTypeFilterChange?.('');
         onSubjectKeyIdFilterChange?.('');
         onEngineIdFilterChange?.('');
         onKeyUsageFiltersChange?.([]);

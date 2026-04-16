@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TimedInput } from '@/components/ui/timed-input';
 import { cn } from '@/lib/utils';
 
 export type GenericFilterValues = object;
@@ -58,6 +59,8 @@ export interface GenericFilterField<TValues extends GenericFilterValues> {
   id?: string;
   className?: string;
   inputClassName?: string;
+  changeTiming?: 'immediate' | 'timed';
+  debounceMs?: number;
   disabled?: boolean;
   options?: GenericFilterOption[];
   dateOperators?: GenericFilterOption[];
@@ -278,15 +281,28 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
         return (
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id={context.id}
-              type="text"
-              value={typeof context.value === 'string' ? context.value : ''}
-              onChange={(event) => context.onValueChange(event.target.value)}
-              placeholder={field.placeholder}
-              className={cn('h-9 pl-9', isActive && 'pr-10', field.inputClassName)}
-              disabled={context.disabled}
-            />
+            {field.changeTiming === 'timed' ? (
+              <TimedInput
+                id={context.id}
+                type="text"
+                value={typeof context.value === 'string' ? context.value : ''}
+                onChange={(nextValue) => context.onValueChange(nextValue)}
+                delay={field.debounceMs}
+                placeholder={field.placeholder}
+                className={cn('h-9 pl-9', isActive && 'pr-10', field.inputClassName)}
+                disabled={context.disabled}
+              />
+            ) : (
+              <Input
+                id={context.id}
+                type="text"
+                value={typeof context.value === 'string' ? context.value : ''}
+                onChange={(event) => context.onValueChange(event.target.value)}
+                placeholder={field.placeholder}
+                className={cn('h-9 pl-9', isActive && 'pr-10', field.inputClassName)}
+                disabled={context.disabled}
+              />
+            )}
             {isActive && (
               <Button
                 variant="ghost"

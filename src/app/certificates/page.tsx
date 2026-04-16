@@ -6,13 +6,11 @@ import { useRouter } from 'next/navigation';
 import { CertificateList } from '@/components/CertificateList';
 import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import type { CertificateData } from '@/types/certificate';
-import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X, Upload, KeyRound } from 'lucide-react';
+import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, PlusCircle, Upload, KeyRound } from 'lucide-react';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -21,6 +19,7 @@ import { usePaginatedCertificateFetcher } from '@/hooks/usePaginatedCertificateF
 import { Skeleton } from '@/components/ui/skeleton';
 import { ColumnSelector } from '@/components/ui/column-selector';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
+import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 
 export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime';
 export type SortDirection = 'asc' | 'desc';
@@ -73,21 +72,8 @@ export default function CertificatesPage() {
     isLoading: isLoadingApi,
     error: apiError,
     pageSize, setPageSize,
-    searchTerm, setSearchTerm,
-    searchField, setSearchField,
-    statusFilters, setStatusFilters,
-    certificateTypeFilter, setCertificateTypeFilter,
-    subjectKeyIdFilter, setSubjectKeyIdFilter,
-    engineIdFilter, setEngineIdFilter,
-    keyUsageFilters, setKeyUsageFilters,
-    extendedKeyUsageFilters, setExtendedKeyUsageFilters,
-    revocationReasonFilters, setRevocationReasonFilters,
-    isCaFilter, setIsCaFilter,
-    validFromFilter, setValidFromFilter,
-    validToFilter, setValidToFilter,
-    revocationTimestampFilter, setRevocationTimestampFilter,
+    filterBarProps,
     caIdFilter, setCaIdFilter,
-    metadataFilters, setMetadataFilters,
     sortConfig, requestSort,
     currentPageIndex,
     nextTokenFromApi,
@@ -251,38 +237,11 @@ export default function CertificatesPage() {
       </div>
 
       <CertificateFilterBar
-        searchTerm={searchTerm}
-        onSearchTermChange={setSearchTerm}
-        searchField={searchField}
-        onSearchFieldChange={setSearchField}
+        {...filterBarProps}
         caIdFilter={caIdFilter}
         selectedCaLabel={selectedCaForFilter?.name}
         onOpenCaSelector={() => handleOpenCaSelector('filter')}
         onClearCaFilter={() => setCaIdFilter(null)}
-        statusFilters={statusFilters}
-        onStatusFiltersChange={setStatusFilters}
-        certificateTypeFilter={certificateTypeFilter}
-        onCertificateTypeFilterChange={setCertificateTypeFilter}
-        subjectKeyIdFilter={subjectKeyIdFilter}
-        onSubjectKeyIdFilterChange={setSubjectKeyIdFilter}
-        engineIdFilter={engineIdFilter}
-        onEngineIdFilterChange={setEngineIdFilter}
-        keyUsageFilters={keyUsageFilters}
-        onKeyUsageFiltersChange={setKeyUsageFilters}
-        extendedKeyUsageFilters={extendedKeyUsageFilters}
-        onExtendedKeyUsageFiltersChange={setExtendedKeyUsageFilters}
-        revocationReasonFilters={revocationReasonFilters}
-        onRevocationReasonFiltersChange={setRevocationReasonFilters}
-        isCaFilter={isCaFilter}
-        onIsCaFilterChange={setIsCaFilter}
-        validFromFilter={validFromFilter}
-        onValidFromFilterChange={setValidFromFilter}
-        validToFilter={validToFilter}
-        onValidToFilterChange={setValidToFilter}
-        revocationTimestampFilter={revocationTimestampFilter}
-        onRevocationTimestampFilterChange={setRevocationTimestampFilter}
-        metadataFilters={metadataFilters}
-        onMetadataFiltersChange={setMetadataFilters}
         disabled={isLoadingApi}
         isLoadingCAs={isLoadingCAs}
         actions={
@@ -340,35 +299,19 @@ export default function CertificatesPage() {
       )}
       
       {!(apiError || errorCAs || errorCryptoEngines) && (certificates.length > 0 || isLoadingApi) && (
-        <div className="flex justify-between items-center mt-4">
-            <div className="flex items-center space-x-2">
-              <Label htmlFor="pageSizeSelectCertList" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-              <Select
-                value={pageSize}
-                onValueChange={(value) => { setPageSize(value); }}
-                disabled={isLoadingApi || isLoadingCAs}
-              >
-                <SelectTrigger id="pageSizeSelectCertList" className="w-[80px]">
-                  <SelectValue placeholder="Page size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-                <Button onClick={handlePreviousPage} disabled={isLoadingApi || currentPageIndex === 0} variant="outline">
-                    <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-                </Button>
-                <Button onClick={handleNextPage} disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)} variant="outline">
-                    Next <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-            </div>
-        </div>
+        <CertificatePaginationControls
+          className="mt-4"
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={['10', '25', '50', '100']}
+          pageSizeLabel="Page Size:"
+          pageSizeSelectId="pageSizeSelectCertList"
+          isLoading={isLoadingApi || isLoadingCAs}
+          onPreviousPage={handlePreviousPage}
+          onNextPage={handleNextPage}
+          canGoPrevious={!isLoadingApi && currentPageIndex > 0}
+          canGoNext={!isLoadingApi && (currentPageIndex < bookmarkStack.length - 1 || Boolean(nextTokenFromApi))}
+        />
       )}
 
       <CertificateDetailsModal certificate={selectedCertificate} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
