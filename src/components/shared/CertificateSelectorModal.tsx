@@ -170,6 +170,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
       // params.append('filter', 'is_ca[equal]false'); 
 
       const result = await fetchIssuedCertificates({
+        forCaId: selectedCaId ?? undefined,
         apiQueryString: params.toString(),
       });
       

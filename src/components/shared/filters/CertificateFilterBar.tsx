@@ -200,10 +200,10 @@ export function CertificateFilterBar({
           type: 'custom',
           visibility: 'advanced',
           disabled: isLoadingCAs,
-          renderControl: ({ value, clearValue }) => (
+          renderControl: ({ value, clearValue, id }) => (
             <div className="relative">
               <Button
-                id="cert-ca-filter-button"
+                id={id}
                 variant="outline"
                 className="h-9 w-full justify-start truncate pr-10 text-left font-normal"
                 onClick={onOpenCaSelector}
