@@ -7,7 +7,7 @@ import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
-import { findCaById, type CA } from '@/lib/ca-data';
+import type { CA } from '@/lib/ca-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { type ApiCertificateStatusValue, type CertificateDateFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
 import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
@@ -16,13 +16,7 @@ import { Label } from '../ui/label';
 import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '../ui/sheet';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { DateDisplay } from '@/components/shared/DateDisplay';
-import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
-import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
-import { getDisplayDateFormat } from '@/lib/config';
-import { cn } from '@/lib/utils';
-import { Badge } from '../ui/badge';
+import { CertificateTable } from './CertificateTable';
 
 interface CertificateSelectorModalProps {
   isOpen: boolean;
@@ -392,7 +386,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full p-0 sm:max-w-4xl lg:max-w-[96rem]">
+      <SheetContent side="right" className="w-full p-0 sm:max-w-3xl lg:max-w-5xl">
         <div className="flex h-full flex-col overflow-hidden bg-background">
           <SheetHeader className="border-b px-6 py-5 text-left">
             <SheetTitle>{title}</SheetTitle>
@@ -456,98 +450,23 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
             )}
             {!isLoadingCerts && !errorCerts && availableCerts.length > 0 && (
               <ScrollArea className="my-2 flex-grow">
-                <div className="min-w-[920px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Common Name</TableHead>
-                        <TableHead className="text-center">CA</TableHead>
-                        <TableHead className="hidden md:table-cell">Serial Number</TableHead>
-                        <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>
-                        <TableHead className="text-center">Valid From</TableHead>
-                        <TableHead className="text-center">Expires</TableHead>
-                        <TableHead className="text-center">Status</TableHead>
-                        <TableHead className="hidden xl:table-cell text-center">Revocation Time</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {availableCerts.map((cert) => {
-                        const issuerCa = cert.issuerCaId ? findCaById(cert.issuerCaId, caOptions) : null;
-                        const issuerDisplayName = issuerCa ? issuerCa.name : getCommonName(cert.issuer);
-                        const selectedIdentifier = normalizeIdentifier(currentSelectedCertificateId);
-                        const isSelected = selectedIdentifier !== '' && [
-                          cert.id,
-                          cert.serialNumber,
-                          cert.rawApiData?.subject_key_id,
-                        ].some((value) => normalizeIdentifier(value) === selectedIdentifier);
-
-                        return (
-                          <TableRow
-                            key={cert.id}
-                            className={cn(isSelected && "bg-primary/5")}
-                          >
-                            <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
-                              <div className="truncate" title={cert.subject}>
-                                {getCommonName(cert.subject)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {cert.rawApiData?.is_ca ? (
-                                <Badge>CA</Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell font-mono text-xs truncate max-w-[120px]">
-                              <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
-                            </TableCell>
-                            <TableCell className="hidden lg:table-cell truncate max-w-[200px]">
-                              <span title={cert.issuer}>{issuerDisplayName}</span>
-                            </TableCell>
-                            <TableCell>
-                              <DateDisplay date={cert.validFrom} className="items-center justify-center" />
-                            </TableCell>
-                            <TableCell>
-                              <DateDisplay date={cert.validTo} highlightExpired className="items-center justify-center" />
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="flex flex-col items-center gap-1">
-                                <ApiStatusBadge status={cert.apiStatus} />
-                                {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationReason && (
-                                  <span className="text-[10px] text-red-600 dark:text-red-400">
-                                    {cert.revocationReason}
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="hidden xl:table-cell text-center">
-                              {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
-                                <DateDisplay
-                                  date={cert.revocationTimestamp}
-                                  formatString={getDisplayDateFormat()}
-                                  showRelative={true}
-                                  className="items-center justify-center"
-                                />
-                              ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                type="button"
-                                variant={isSelected ? "secondary" : "default"}
-                               
-                                onClick={() => onCertificateSelected(cert)}
-                              >
-                                {isSelected ? "Selected" : "Select"}
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                <div className="p-1">
+                  <CertificateTable
+                    certificates={availableCerts}
+                    showIssuerColumn
+                    selectedCertificateId={currentSelectedCertificateId}
+                    onRowClick={onCertificateSelected}
+                    columnVisibility={{
+                      commonName: true,
+                      serialNumber: true,
+                      issuer: true,
+                      validFrom: false,
+                      expires: true,
+                      status: true,
+                      hasPrivateKey: true,
+                      revocationTime: false,
+                    }}
+                  />
                 </div>
               </ScrollArea>
             )}
@@ -561,9 +480,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                   <div className="my-4 w-full rounded-lg border-2 border-dashed border-border bg-muted/20 p-8 text-center">
                     <h3 className="text-lg font-semibold text-muted-foreground">No Issued Certificates Found</h3>
                     <p className="text-sm text-muted-foreground">
-                      {hasCaRestriction
-                        ? "No certificates found for the selected CA matching your criteria."
-                        : "No certificates found matching your criteria."}
+                      There are no certificates to display based on the current filters or none have been issued yet.
                     </p>
                   </div>
                 )}
@@ -592,7 +509,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
             <SheetFooter className="mt-0">
               <SheetClose asChild>
-                <Button type="button" variant="secondary">Cancel</Button>
+                <Button type="button" variant="outline">Cancel</Button>
               </SheetClose>
             </SheetFooter>
           </div>

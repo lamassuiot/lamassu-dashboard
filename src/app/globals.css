@@ -540,7 +540,7 @@
 }
 
 .dark .text-primary {
-  color: var(--primary);
+  color: hsl(212 100% 71%);
 }
 
 /* ── Sileo toasts ───────────────────────────────────────────────────────────

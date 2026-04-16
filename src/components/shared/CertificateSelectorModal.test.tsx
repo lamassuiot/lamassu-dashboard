@@ -59,16 +59,8 @@ vi.mock('@/components/shared/CertificatePaginationControls', () => ({
   CertificatePaginationControls: () => <div>pagination controls</div>,
 }));
 
-vi.mock('@/components/shared/DateDisplay', () => ({
-  DateDisplay: ({ date }: { date: string }) => <span>{date}</span>,
-}));
-
-vi.mock('@/components/shared/IdentifierDisplay', () => ({
-  IdentifierDisplay: ({ value }: { value: string }) => <span>{value}</span>,
-}));
-
-vi.mock('@/components/shared/ApiStatusBadge', () => ({
-  ApiStatusBadge: ({ status }: { status?: string }) => <span>{status ?? 'UNKNOWN'}</span>,
+vi.mock('./CertificateTable', () => ({
+  CertificateTable: () => <div>certificate table</div>,
 }));
 
 function buildCa(id: string, name: string): CA {
