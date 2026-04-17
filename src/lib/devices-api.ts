@@ -14,10 +14,11 @@ export interface ApiDeviceIdentity {
 }
 
 export interface ApiDeviceEventItem {
+  id: string;
   timestampStr: string;
   type: string;
   description: string;
-  data?: any;
+  data?: unknown;
   source: string;
 }
 
@@ -102,6 +103,7 @@ export async function fetchDeviceEventsPaginated({
 
   const events = Array.isArray(data.list)
     ? data.list.map((event: any) => ({
+        id: event.id || `${event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || new Date().toISOString()}:${event.type || event.event_type || 'EVENT'}`,
         timestampStr: event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || new Date().toISOString(),
         type: event.type || event.event_type || 'EVENT',
         description: event.description || event.event_descriptions || '',
@@ -271,6 +273,7 @@ export function subscribeToDeviceEventsSSE({
               try {
                 const raw = JSON.parse(jsonStr);
                 const event: ApiDeviceEventItem = {
+                  id: raw.id || `${raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || new Date().toISOString()}:${raw.type || raw.event_type || 'EVENT'}`,
                   timestampStr: raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || new Date().toISOString(),
                   type: raw.type || raw.event_type || 'EVENT',
                   description: raw.description || raw.event_descriptions || '',
