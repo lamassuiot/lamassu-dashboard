@@ -735,6 +735,12 @@ export default function DeviceDetailsClient() {
                     );
                     description = undefined;
                 }
+            } else if (rawEvent.source.includes('lamassu.io/ctx/source/service/awsiot-connector')) {
+                if (rawEvent.type === 'CONNECTED') {
+                    title = 'Device connected to AWS IoT Core';
+                } else if (rawEvent.type === 'DISCONNECTED') {
+                    title = 'Device disconnected from AWS IoT Core';
+                }
             }
 
             if (description === title) {

@@ -27,17 +27,36 @@ export const getTimelineEventRenderer = (
 ): TimelineEventRendererDefinition => {
   switch (true) {
     case event.source.includes('lamassu.io/ctx/source/service/awsiot-connector'):
+      {
+        const awsVisuals =
+          event.eventType === 'CONNECTED'
+            ? {
+                display: 'AWS Connected',
+                iconClass: 'text-emerald-600 dark:text-emerald-400',
+                lineClass: 'bg-emerald-200 dark:bg-emerald-900/50',
+              }
+            : event.eventType === 'DISCONNECTED'
+              ? {
+                  display: 'AWS Disconnected',
+                  iconClass: 'text-rose-600 dark:text-rose-400',
+                  lineClass: 'bg-rose-200 dark:bg-rose-900/50',
+                }
+              : {
+                  display: 'AWS Event',
+                  iconClass: 'text-sky-600 dark:text-sky-400',
+                  lineClass: 'bg-sky-200 dark:bg-sky-900/50',
+                };
+
       return {
         Component: AwsDeviceEventRenderer,
         Icon: AwsTimelineIcon,
         visuals: {
-          display: 'AWS Event',
-          iconClass: 'text-amber-500 dark:text-amber-300',
-          lineClass: 'bg-amber-200 dark:bg-amber-900/50',
+          ...awsVisuals,
           iconPresentation: 'plain',
           iconContainerClass: 'rounded-md bg-transparent scale-125',
         },
       };
+      }
     default:
       return {
         Component: DefaultDeviceEventRenderer,
