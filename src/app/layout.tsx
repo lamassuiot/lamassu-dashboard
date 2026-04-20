@@ -610,10 +610,10 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               </div>
               <CustomFooter />
             </SidebarInset>
+            <ChatbotDrawerLauncher />
           </div>
         )}
       </div>
-      <ChatbotDrawerLauncher />
 
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
         <DialogContent showCloseButton={false} className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
