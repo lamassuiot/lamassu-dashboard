@@ -1,0 +1,30 @@
+[
+  {
+    "id": "getting-started-md",
+    "title": "Getting Started with Local RAG",
+    "path": "/rag-seed/docs/getting-started.md",
+    "type": "md",
+    "description": "Overview of the bundled SPA seed corpus and how to ingest it locally."
+  },
+  {
+    "id": "rfc5280-txt",
+    "title": "RFC 5280: PKIX Certificate and CRL Profile",
+    "path": "/rag-seed/docs/rfc5280.txt",
+    "type": "txt",
+    "description": "Core PKIX reference covering certificate fields, extensions, CRLs, and path validation."
+  },
+  {
+    "id": "composite-mldsa-draft-txt",
+    "title": "Draft: Composite ML-DSA for X.509 PKI",
+    "path": "/rag-seed/docs/draft-ietf-lamps-pq-composite-sigs-v18.txt",
+    "type": "txt",
+    "description": "Current IETF draft for hybrid post-quantum composite signatures in X.509 and PKIX."
+  },
+  {
+    "id": "nist-cswp-pdf",
+    "title": "NIST Cybersecurity White Paper",
+    "path": "/rag-seed/docs/NIST.CSWP.pdf",
+    "type": "pdf",
+    "description": "Seed PDF for testing local PDF parsing, chunking, and retrieval behavior."
+  }
+]

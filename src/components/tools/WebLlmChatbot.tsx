@@ -71,6 +71,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
+import {
+  ensureSeedIndex,
+  searchSeedIndex,
+  type RagIndexSummary,
+  type RagSearchResult,
+} from '@/lib/local-rag';
 import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
 import { CheckIcon, AlertCircleIcon, BotIcon, CpuIcon, GlobeIcon, SparklesIcon, WandSparklesIcon } from 'lucide-react';
@@ -258,6 +264,35 @@ function formatProgress(report: InitProgressReport | null) {
   return Math.min(100, Math.max(0, value));
 }
 
+function buildRagContext(results: RagSearchResult[]) {
+  return results
+    .slice(0, 4)
+    .map((result, index) => {
+      const excerpt = result.text.length > 900 ? `${result.text.slice(0, 900)}...` : result.text;
+      return [
+        `Source ${index + 1}: ${result.documentTitle}`,
+        `Path: ${result.documentPath}`,
+        excerpt,
+      ].join('\n');
+    })
+    .join('\n\n---\n\n');
+}
+
+function buildRagSources(results: RagSearchResult[]) {
+  const sources = new Map<string, { href: string; title: string }>();
+
+  for (const result of results) {
+    if (!sources.has(result.documentPath)) {
+      sources.set(result.documentPath, {
+        href: result.documentPath,
+        title: result.documentTitle,
+      });
+    }
+  }
+
+  return [...sources.values()];
+}
+
 const AttachmentItem = ({
   attachment,
   onRemove,
@@ -371,6 +406,9 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const [runtimeStats, setRuntimeStats] = useState<string | null>(null);
   const [hasWebGpuSupport, setHasWebGpuSupport] = useState<boolean | null>(null);
   const [quickPromptsOpen, setQuickPromptsOpen] = useState(false);
+  const [ragStatus, setRagStatus] = useState<'idle' | 'indexing' | 'ready' | 'error'>('idle');
+  const [ragSummary, setRagSummary] = useState<RagIndexSummary | null>(null);
+  const [ragError, setRagError] = useState<string | null>(null);
 
   const isPanel = variant === 'panel';
 
@@ -451,15 +489,63 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     setQuickPromptsOpen(false);
   }, []);
 
+  const initializeLocalRag = useCallback(
+    async (showToast = false) => {
+      setRagError(null);
+      setRagStatus('indexing');
+
+      try {
+        const { summary } = await ensureSeedIndex();
+        setRagSummary(summary);
+        setRagStatus('ready');
+
+        if (showToast) {
+          sileo.success({
+            title: summary.retrievalMode === 'semantic' ? 'Semantic local RAG ready' : 'Local RAG ready',
+            description:
+              summary.retrievalMode === 'semantic'
+                ? `${summary.indexedDocumentCount}/${summary.documentCount} documents embedded locally across ${summary.chunkCount} chunks.`
+                : `${summary.indexedDocumentCount}/${summary.documentCount} documents indexed across ${summary.chunkCount} chunks using lexical fallback.`,
+          });
+        }
+
+        return summary;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to index the local seed corpus.';
+        setRagError(message);
+        setRagStatus('error');
+
+        if (showToast) {
+          sileo.error({
+            title: 'Local RAG unavailable',
+            description: message,
+          });
+        }
+
+        throw error;
+      }
+    },
+    [],
+  );
+
   const toggleWebSearch = useCallback(() => {
-    setUseWebSearch((previous) => !previous);
-  }, []);
+    setUseWebSearch((previous) => {
+      const next = !previous;
+
+      if (next) {
+        void initializeLocalRag(true).catch(() => undefined);
+      }
+
+      return next;
+    });
+  }, [initializeLocalRag]);
 
   const streamAssistantReply = useCallback(
     async ({
       assistantKey,
       conversation,
       messageId,
+      ragResults,
       selectedModel,
       selectedModelName,
       startedAt,
@@ -467,6 +553,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       assistantKey: string;
       conversation: ChatMessage[];
       messageId: string;
+      ragResults: RagSearchResult[];
       selectedModel: string;
       selectedModelName: string;
       startedAt: number;
@@ -509,19 +596,37 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         updateMessage(assistantKey, (message) => ({
           ...message,
           reasoning: {
-            content: `Generating a response locally with ${selectedModelName}.`,
+            content:
+              ragResults.length > 0
+                ? `Generating a response locally with ${selectedModelName} using ${ragResults.length} retrieved seed passages.`
+                : `Generating a response locally with ${selectedModelName}.`,
             duration: Math.max(0, Math.round((Date.now() - startedAt) / 1000)),
             isStreaming: true,
           },
         }));
 
+        const latestPrompt = conversation.at(-1)?.versions[0]?.content ?? '';
+        const conversationHistory = conversation.slice(0, -1).map((message) => ({
+          role: message.from,
+          content: message.versions[0]?.content ?? '',
+        }));
+        const ragContext = buildRagContext(ragResults);
+        const currentPrompt = ragContext
+          ? [
+              latestPrompt,
+              '',
+              'Local reference context:',
+              ragContext,
+              '',
+              'Use the local reference context when it is relevant and say if the seed corpus is incomplete.',
+            ].join('\n')
+          : latestPrompt;
+
         const stream = await engine.chat.completions.create({
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
-            ...conversation.map((message) => ({
-              role: message.from,
-              content: message.versions[0]?.content ?? '',
-            })),
+            ...conversationHistory,
+            { role: 'user', content: currentPrompt },
           ],
           stream: true,
           stream_options: { include_usage: true },
@@ -552,7 +657,10 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           ...message,
           status: undefined,
           reasoning: {
-            content: `Response generated locally with ${selectedModelName} on WebGPU.`,
+            content:
+              ragResults.length > 0
+                ? `Response generated locally with ${selectedModelName} on WebGPU using the local seed corpus.`
+                : `Response generated locally with ${selectedModelName} on WebGPU.`,
             duration,
             isStreaming: false,
           },
@@ -617,6 +725,8 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       }
 
       setEngineError(null);
+      setRagError(null);
+      setStatus('submitted');
 
       const userMessage: ChatMessage = {
         from: 'user',
@@ -636,7 +746,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         key: assistantKey,
         status: 'streaming',
         reasoning: {
-          content: 'Preparing the local model.',
+          content: useWebSearch ? 'Searching the local seed corpus.' : 'Preparing the local model.',
           duration: 0,
           isStreaming: true,
         },
@@ -652,23 +762,55 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       setMessages((previous) => [...previous, userMessage, assistantMessage]);
       setText('');
 
+      let ragResults: RagSearchResult[] = [];
+
       if (useWebSearch) {
-        sileo.info({
-          title: 'Search mode enabled',
-          description: 'This panel still answers locally with WebLLM only. Remote retrieval is not wired yet.',
-        });
+        try {
+          setRagStatus('indexing');
+          const ragSearch = await searchSeedIndex(prompt);
+          setRagSummary(ragSearch.summary);
+          setRagStatus('ready');
+          ragResults = ragSearch.results;
+
+          updateMessage(assistantKey, (currentMessage) => ({
+            ...currentMessage,
+            sources: buildRagSources(ragSearch.results),
+            reasoning: {
+              content:
+                ragSearch.results.length > 0
+                  ? `Retrieved ${ragSearch.results.length} matching passages from the local seed corpus using ${ragSearch.summary.retrievalMode === 'semantic' ? 'semantic embeddings' : 'lexical fallback'}.`
+                  : `The local seed corpus is indexed${ragSearch.summary.retrievalMode === 'semantic' ? ' with embeddings' : ''}, but no matching passages were found for this prompt.`,
+              duration: 0,
+              isStreaming: true,
+            },
+          }));
+        } catch (error) {
+          const ragMessage = error instanceof Error ? error.message : 'Local retrieval failed.';
+          setRagError(ragMessage);
+          setRagStatus('error');
+
+          updateMessage(assistantKey, (currentMessage) => ({
+            ...currentMessage,
+            reasoning: {
+              content: 'Local RAG failed, so the model will answer without retrieved seed context.',
+              duration: 0,
+              isStreaming: true,
+            },
+          }));
+        }
       }
 
       void streamAssistantReply({
         assistantKey,
         conversation,
         messageId: assistantVersionId,
+        ragResults,
         selectedModel: model,
         selectedModelName: selectedModelData?.name ?? 'the selected model',
         startedAt: Date.now(),
       });
     },
-    [messages, model, selectedModelData?.name, streamAssistantReply, useWebSearch],
+    [messages, model, selectedModelData?.name, streamAssistantReply, updateMessage, useWebSearch],
   );
 
   const isSubmitDisabled = useMemo(
@@ -703,11 +845,24 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             {useWebSearch && (
               <Badge variant="outline">
                 <GlobeIcon className="mr-1 size-3.5" />
-                Search UI only
+                {ragStatus === 'indexing'
+                  ? 'Indexing local RAG'
+                  : ragStatus === 'ready'
+                    ? `${ragSummary?.retrievalMode === 'semantic' ? 'Semantic' : 'Lexical'} RAG ${ragSummary?.chunkCount ?? 0} chunks`
+                    : ragStatus === 'error'
+                      ? 'Local RAG error'
+                      : 'Local RAG on'}
               </Badge>
             )}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">{selectedModelData?.note}</p>
+          {useWebSearch && ragSummary ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Seed corpus ready with {ragSummary.indexedDocumentCount}/{ragSummary.documentCount} documents indexed via{' '}
+              {ragSummary.retrievalMode === 'semantic' ? 'local embeddings' : 'lexical fallback'}.
+              {ragSummary.skippedDocumentCount > 0 ? ` ${ragSummary.skippedDocumentCount} document(s) were skipped.` : ''}
+            </p>
+          ) : null}
           {progressReport && (
             <div className="mt-3 space-y-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -740,6 +895,16 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
               <AlertCircleIcon className="h-4 w-4" />
               <AlertTitle>Local model error</AlertTitle>
               <AlertDescription>{engineError}</AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        {ragError && useWebSearch && (
+          <div className="border-b px-4 py-3">
+            <Alert variant="destructive">
+              <AlertCircleIcon className="h-4 w-4" />
+              <AlertTitle>Local RAG error</AlertTitle>
+              <AlertDescription>{ragError}</AlertDescription>
             </Alert>
           </div>
         )}
