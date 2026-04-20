@@ -72,6 +72,10 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import {
+  executeChatTools,
+  type ChatToolInvocation,
+} from '@/lib/chat-tools';
+import {
   ensureSeedIndex,
   searchSeedIndex,
   type RagIndexSummary,
@@ -79,7 +83,7 @@ import {
 } from '@/lib/local-rag';
 import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
-import { CheckIcon, AlertCircleIcon, BotIcon, CpuIcon, GlobeIcon, SparklesIcon, WandSparklesIcon } from 'lucide-react';
+import { CheckIcon, AlertCircleIcon, BotIcon, CpuIcon, GlobeIcon, SparklesIcon, WandSparklesIcon, WrenchIcon } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -94,6 +98,7 @@ interface ChatMessage {
   from: 'user' | 'assistant';
   status?: 'streaming' | 'error';
   sources?: { href: string; title: string }[];
+  tools?: ChatToolInvocation[];
   versions: {
     id: string;
     content: string;
@@ -107,11 +112,12 @@ interface ChatMessage {
 
 interface ModelOption {
   chef: string;
-  chefSlug: 'alibaba';
+  chefSlug: 'alibaba' | 'llama' | 'mistral';
   id: string;
   name: string;
   note: string;
-  providers: ('alibaba' | 'huggingface')[];
+  providers: ('alibaba' | 'huggingface' | 'llama' | 'mistral')[];
+  supportsToolCalling?: boolean;
 }
 
 const DEFAULT_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
@@ -156,6 +162,51 @@ const models: ModelOption[] = [
     note: 'Recommended default and supported by the installed WebLLM build',
     providers: ['alibaba', 'huggingface'],
   },
+  {
+    chef: 'Hermes',
+    chefSlug: 'llama',
+    id: 'Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC',
+    name: 'Hermes 2 Pro Llama 3 8B',
+    note: 'Supports native tool calling; heavier download than Qwen',
+    providers: ['llama', 'huggingface'],
+    supportsToolCalling: true,
+  },
+  {
+    chef: 'Hermes',
+    chefSlug: 'llama',
+    id: 'Hermes-2-Pro-Llama-3-8B-q4f32_1-MLC',
+    name: 'Hermes 2 Pro Llama 3 8B q4f32',
+    note: 'Supports native tool calling; highest memory use in this list',
+    providers: ['llama', 'huggingface'],
+    supportsToolCalling: true,
+  },
+  {
+    chef: 'Hermes',
+    chefSlug: 'mistral',
+    id: 'Hermes-2-Pro-Mistral-7B-q4f16_1-MLC',
+    name: 'Hermes 2 Pro Mistral 7B',
+    note: 'Supports native tool calling with a smaller footprint than Hermes Llama 8B',
+    providers: ['mistral', 'huggingface'],
+    supportsToolCalling: true,
+  },
+  {
+    chef: 'Hermes',
+    chefSlug: 'llama',
+    id: 'Hermes-3-Llama-3.1-8B-q4f16_1-MLC',
+    name: 'Hermes 3 Llama 3.1 8B',
+    note: 'Supports native tool calling; best fit if you want Hermes with q4f16',
+    providers: ['llama', 'huggingface'],
+    supportsToolCalling: true,
+  },
+  {
+    chef: 'Hermes',
+    chefSlug: 'llama',
+    id: 'Hermes-3-Llama-3.1-8B-q4f32_1-MLC',
+    name: 'Hermes 3 Llama 3.1 8B q4f32',
+    note: 'Supports native tool calling; best quality and heaviest load',
+    providers: ['llama', 'huggingface'],
+    supportsToolCalling: true,
+  },
 ];
 
 const suggestions = [
@@ -167,7 +218,7 @@ const suggestions = [
   'How should I structure key rotation for a device fleet?',
 ];
 
-const modelGroups = ['Qwen 2.5', 'Qwen 3'];
+const modelGroups = ['Qwen 2.5', 'Qwen 3', 'Hermes'];
 
 let workerInstance: Worker | null = null;
 let webllmModulePromise: Promise<WebLLMModule> | null = null;
@@ -293,6 +344,15 @@ function buildRagSources(results: RagSearchResult[]) {
   return [...sources.values()];
 }
 
+function formatToolPayload(value: unknown) {
+  try {
+    const serialized = JSON.stringify(value, null, 2);
+    return serialized.length > 1200 ? `${serialized.slice(0, 1200)}...` : serialized;
+  } catch (_) {
+    return String(value);
+  }
+}
+
 const AttachmentItem = ({
   attachment,
   onRemove,
@@ -398,6 +458,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [text, setText] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
+  const [useApiTools, setUseApiTools] = useState(false);
   const [status, setStatus] = useState<'submitted' | 'streaming' | 'ready' | 'error'>('ready');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [engineError, setEngineError] = useState<string | null>(null);
@@ -540,11 +601,16 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     });
   }, [initializeLocalRag]);
 
+  const toggleApiTools = useCallback(() => {
+    setUseApiTools((previous) => !previous);
+  }, []);
+
   const streamAssistantReply = useCallback(
     async ({
       assistantKey,
       conversation,
       messageId,
+      toolContext,
       ragResults,
       selectedModel,
       selectedModelName,
@@ -553,6 +619,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       assistantKey: string;
       conversation: ChatMessage[];
       messageId: string;
+      toolContext: string;
       ragResults: RagSearchResult[];
       selectedModel: string;
       selectedModelName: string;
@@ -611,16 +678,29 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           content: message.versions[0]?.content ?? '',
         }));
         const ragContext = buildRagContext(ragResults);
-        const currentPrompt = ragContext
-          ? [
-              latestPrompt,
-              '',
-              'Local reference context:',
-              ragContext,
-              '',
-              'Use the local reference context when it is relevant and say if the seed corpus is incomplete.',
-            ].join('\n')
-          : latestPrompt;
+        const promptSections = [latestPrompt];
+
+        if (toolContext) {
+          promptSections.push(
+            '',
+            'Live PKI API tool results:',
+            toolContext,
+            '',
+            'Use these live tool results when relevant. These tool calls are read-only snapshots from the dashboard APIs.',
+          );
+        }
+
+        if (ragContext) {
+          promptSections.push(
+            '',
+            'Local reference context:',
+            ragContext,
+            '',
+            'Use the local reference context when it is relevant and say if the seed corpus is incomplete.',
+          );
+        }
+
+        const currentPrompt = promptSections.join('\n');
 
         const stream = await engine.chat.completions.create({
           messages: [
@@ -658,9 +738,13 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           status: undefined,
           reasoning: {
             content:
-              ragResults.length > 0
-                ? `Response generated locally with ${selectedModelName} on WebGPU using the local seed corpus.`
-                : `Response generated locally with ${selectedModelName} on WebGPU.`,
+              toolContext && ragResults.length > 0
+                ? `Response generated locally with ${selectedModelName} on WebGPU using live API tools and the local seed corpus.`
+                : toolContext
+                  ? `Response generated locally with ${selectedModelName} on WebGPU using live API tools.`
+                  : ragResults.length > 0
+                    ? `Response generated locally with ${selectedModelName} on WebGPU using the local seed corpus.`
+                    : `Response generated locally with ${selectedModelName} on WebGPU.`,
             duration,
             isStreaming: false,
           },
@@ -763,6 +847,29 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       setText('');
 
       let ragResults: RagSearchResult[] = [];
+      let toolContext = '';
+
+      if (useApiTools) {
+        const toolExecution = await executeChatTools(prompt);
+        toolContext = toolExecution.promptContext;
+
+        if (toolExecution.invocations.length > 0) {
+          updateMessage(assistantKey, (currentMessage) => ({
+            ...currentMessage,
+            tools: toolExecution.invocations,
+            reasoning: {
+              content:
+                toolExecution.invocations.some((invocation) => invocation.status === 'complete')
+                  ? `Executed ${toolExecution.invocations.length} live PKI API tool${toolExecution.invocations.length > 1 ? 's' : ''}.`
+                  : 'Live PKI API tool execution did not return successful data for this prompt.',
+              duration: 0,
+              isStreaming: true,
+            },
+          }));
+        } else {
+          toolContext = 'No live API tool matched this request. Do not claim that you fetched live dashboard data for this answer.';
+        }
+      }
 
       if (useWebSearch) {
         try {
@@ -804,13 +911,14 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         assistantKey,
         conversation,
         messageId: assistantVersionId,
+        toolContext,
         ragResults,
         selectedModel: model,
         selectedModelName: selectedModelData?.name ?? 'the selected model',
         startedAt: Date.now(),
       });
     },
-    [messages, model, selectedModelData?.name, streamAssistantReply, updateMessage, useWebSearch],
+    [messages, model, selectedModelData?.name, streamAssistantReply, updateMessage, useApiTools, useWebSearch],
   );
 
   const isSubmitDisabled = useMemo(
@@ -852,6 +960,18 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                     : ragStatus === 'error'
                       ? 'Local RAG error'
                       : 'Local RAG on'}
+              </Badge>
+            )}
+            {useApiTools && (
+              <Badge variant="outline">
+                <WrenchIcon className="mr-1 size-3.5" />
+                Live API tools
+              </Badge>
+            )}
+            {selectedModelData?.supportsToolCalling && (
+              <Badge variant="outline">
+                <WrenchIcon className="mr-1 size-3.5" />
+                Tool-capable
               </Badge>
             )}
           </div>
@@ -952,6 +1072,45 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                               </Reasoning>
                             ) : null}
 
+                            {message.tools?.length ? (
+                              <div className="mb-3 space-y-2">
+                                {message.tools.map((tool) => (
+                                  <div
+                                    className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+                                    key={tool.id}
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="font-medium text-foreground">{tool.name}</p>
+                                        <p>{tool.description}</p>
+                                      </div>
+                                      <Badge variant={tool.status === 'error' ? 'destructive' : 'outline'}>
+                                        {tool.status}
+                                      </Badge>
+                                    </div>
+                                    <div className="mt-2 grid gap-2">
+                                      <div>
+                                        <p className="font-medium text-foreground">Arguments</p>
+                                        <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words">{formatToolPayload(tool.parameters)}</pre>
+                                      </div>
+                                      {tool.result !== undefined ? (
+                                        <div>
+                                          <p className="font-medium text-foreground">Result</p>
+                                          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words">{formatToolPayload(tool.result)}</pre>
+                                        </div>
+                                      ) : null}
+                                      {tool.error ? (
+                                        <div>
+                                          <p className="font-medium text-destructive">Error</p>
+                                          <p className="mt-1 text-destructive">{tool.error}</p>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+
                             <MessageContent>
                               <MessageResponse>
                                 {version.content || (message.status === 'streaming' ? 'Thinking…' : '')}
@@ -1030,6 +1189,14 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                         </div>
                       </PopoverContent>
                     </Popover>
+                    <PromptInputButton
+                      onClick={toggleApiTools}
+                      type="button"
+                      variant={useApiTools ? 'default' : 'ghost'}
+                    >
+                      <WrenchIcon size={16} />
+                      <span>Tools</span>
+                    </PromptInputButton>
                     <PromptInputButton
                       onClick={toggleWebSearch}
                       type="button"
