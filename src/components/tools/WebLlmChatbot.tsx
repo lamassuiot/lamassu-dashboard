@@ -44,13 +44,7 @@ import {
 import {
   ModelSelector,
   ModelSelectorContent,
-  ModelSelectorEmpty,
-  ModelSelectorGroup,
-  ModelSelectorInput,
-  ModelSelectorItem,
-  ModelSelectorList,
   ModelSelectorLogo,
-  ModelSelectorLogoGroup,
   ModelSelectorName,
   ModelSelectorTrigger,
 } from '@/components/ai-elements/model-selector';
@@ -86,8 +80,10 @@ import { JsonRenderToolResult } from '@/components/tools/JsonRenderToolResult';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
+import { Spinner } from '@/components/ui/spinner';
 import {
   CHAT_TOOL_COUNT,
   createSyntheticToolCall,
@@ -106,9 +102,9 @@ import {
 } from '@/lib/local-rag';
 import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
-import { CheckIcon, AlertCircleIcon, BotIcon, CpuIcon, GlobeIcon, GripHorizontalIcon, SparklesIcon, WandSparklesIcon, WrenchIcon } from 'lucide-react';
+import { AlertCircleIcon, BotIcon, CheckIcon, ChevronDownIcon, CpuIcon, GlobeIcon, GripHorizontalIcon, SearchIcon, SparklesIcon, WandSparklesIcon, WrenchIcon } from 'lucide-react';
 import { nanoid } from 'nanoid';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 
 type WebLLMModule = typeof import('@mlc-ai/web-llm');
 
@@ -141,6 +137,7 @@ interface ModelOption {
   note: string;
   providers: ('alibaba' | 'huggingface' | 'llama' | 'mistral')[];
   supportsToolCalling?: boolean;
+  vram: string;
 }
 
 interface PendingToolSession {
@@ -197,6 +194,7 @@ const models: ModelOption[] = [
     name: 'Qwen2.5 0.5B',
     note: 'Fastest startup, lighter answers',
     providers: ['alibaba', 'huggingface'],
+    vram: '~1 GB VRAM',
   },
   {
     chef: 'Qwen 2.5',
@@ -205,6 +203,7 @@ const models: ModelOption[] = [
     name: 'Qwen2.5 1.5B',
     note: 'Balanced local chat option',
     providers: ['alibaba', 'huggingface'],
+    vram: '~2 GB VRAM',
   },
   {
     chef: 'Qwen 2.5',
@@ -213,6 +212,7 @@ const models: ModelOption[] = [
     name: 'Qwen2.5 3B',
     note: 'Better quality, heavier download',
     providers: ['alibaba', 'huggingface'],
+    vram: '~4 GB VRAM',
   },
   {
     chef: 'Qwen 3',
@@ -221,6 +221,7 @@ const models: ModelOption[] = [
     name: 'Qwen3 1.7B',
     note: 'Recommended default and supported by the installed WebLLM build',
     providers: ['alibaba', 'huggingface'],
+    vram: '~3 GB VRAM',
   },
   {
     chef: 'Hermes',
@@ -230,6 +231,7 @@ const models: ModelOption[] = [
     note: 'Supports native tool calling; heavier download than Qwen',
     providers: ['llama', 'huggingface'],
     supportsToolCalling: true,
+    vram: '~8 GB VRAM',
   },
   {
     chef: 'Hermes',
@@ -239,6 +241,7 @@ const models: ModelOption[] = [
     note: 'Supports native tool calling; highest memory use in this list',
     providers: ['llama', 'huggingface'],
     supportsToolCalling: true,
+    vram: '~12 GB VRAM',
   },
   {
     chef: 'Hermes',
@@ -248,6 +251,7 @@ const models: ModelOption[] = [
     note: 'Recommended for tools; supports native tool calling with the lightest footprint in this list',
     providers: ['mistral', 'huggingface'],
     supportsToolCalling: true,
+    vram: '~7 GB VRAM',
   },
   {
     chef: 'Hermes',
@@ -257,6 +261,7 @@ const models: ModelOption[] = [
     note: 'Supports native tool calling; best fit if you want Hermes with q4f16',
     providers: ['llama', 'huggingface'],
     supportsToolCalling: true,
+    vram: '~8 GB VRAM',
   },
   {
     chef: 'Hermes',
@@ -266,6 +271,7 @@ const models: ModelOption[] = [
     note: 'Supports native tool calling; best quality and heaviest load',
     providers: ['llama', 'huggingface'],
     supportsToolCalling: true,
+    vram: '~12 GB VRAM',
   },
 ];
 
@@ -278,7 +284,43 @@ const suggestions = [
   'How should I structure key rotation for a device fleet?',
 ];
 
-const modelGroups = ['Qwen 2.5', 'Qwen 3', 'Hermes'];
+type ModelFamilyId = 'qwen' | 'llama' | 'mistral';
+
+const modelFamilies: Array<{
+  id: ModelFamilyId;
+  label: string;
+  logoProvider: string;
+}> = [
+  { id: 'qwen', label: 'Qwen', logoProvider: 'qwen' },
+  { id: 'llama', label: 'Llama', logoProvider: 'llama' },
+  { id: 'mistral', label: 'Mistral', logoProvider: 'mistral' },
+];
+
+function getModelFamilyId(modelOption: ModelOption): ModelFamilyId {
+  if (modelOption.id.startsWith('Qwen')) {
+    return 'qwen';
+  }
+
+  if (modelOption.id.includes('Mistral')) {
+    return 'mistral';
+  }
+
+  return 'llama';
+}
+
+function getModelLogoProvider(modelOption: ModelOption) {
+  const familyId = getModelFamilyId(modelOption);
+
+  if (familyId === 'mistral') {
+    return 'mistral';
+  }
+
+  if (familyId === 'llama') {
+    return 'llama';
+  }
+
+  return 'qwen';
+}
 
 let workerInstance: Worker | null = null;
 let webllmModulePromise: Promise<WebLLMModule> | null = null;
@@ -605,37 +647,71 @@ const QuickPromptItem = ({
 const ModelItem = ({
   m,
   isSelected,
+  isLoading,
   onSelect,
 }: {
   m: ModelOption;
   isSelected: boolean;
+  isLoading: boolean;
   onSelect: (id: string) => void;
 }) => {
   const handleSelect = useCallback(() => {
     onSelect(m.id);
   }, [m.id, onSelect]);
+  const detail = [m.note, m.supportsToolCalling ? 'Native tool calling' : null]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <ModelSelectorItem onSelect={handleSelect} value={`${m.name} ${m.note} ${m.id}`}>
-      <ModelSelectorLogo provider={m.chefSlug} />
-      <ModelSelectorName>{m.name}</ModelSelectorName>
-      <ModelSelectorLogoGroup>
-        {m.providers.map((provider) => (
-          <ModelSelectorLogo key={provider} provider={provider} />
-        ))}
-      </ModelSelectorLogoGroup>
-      {isSelected ? (
-        <CheckIcon className="ml-auto size-4" />
-      ) : (
-        <div className="ml-auto size-4" />
+    <Button
+      className={cn(
+        'h-auto w-full items-start justify-between rounded-md px-4 py-3 text-left shadow-none',
+        isSelected ? 'border-primary bg-accent/40 hover:bg-accent/50' : 'hover:bg-accent/40',
       )}
-    </ModelSelectorItem>
+      onClick={handleSelect}
+      type="button"
+      variant="outline"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md border bg-background">
+          <ModelSelectorLogo className="size-4" provider={getModelLogoProvider(m)} />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium text-foreground">{m.name}</span>
+            {m.supportsToolCalling ? (
+              <Badge className="h-5 px-1.5 text-[10px]" variant="secondary">
+                Tools
+              </Badge>
+            ) : null}
+          </div>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{detail}</p>
+          <div className="mt-2">
+            <Badge className="h-5 px-1.5 text-[10px]" variant="outline">
+              {m.vram}
+            </Badge>
+          </div>
+        </div>
+      </div>
+      <div className="ml-3 flex shrink-0 items-center self-center text-muted-foreground">
+        {isLoading ? (
+          <Spinner className="size-4" />
+        ) : isSelected ? (
+          <CheckIcon className="size-4 text-foreground" />
+        ) : (
+          <ChevronDownIcon className="size-4" />
+        )}
+      </div>
+    </Button>
   );
 };
 
 export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   const [model, setModel] = useState(DEFAULT_MODEL_ID);
+  const [loadingModelId, setLoadingModelId] = useState<string | null>(DEFAULT_MODEL_ID);
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+  const [modelSearch, setModelSearch] = useState('');
+  const [selectedModelFamily, setSelectedModelFamily] = useState<ModelFamilyId | null>(null);
   const [text, setText] = useState('');
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [useApiTools, setUseApiTools] = useState(false);
@@ -662,6 +738,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     const storedModel = window.localStorage.getItem(MODEL_STORAGE_KEY);
     if (storedModel && models.some((candidate) => candidate.id === storedModel)) {
       setModel(storedModel);
+      setLoadingModelId(storedModel);
     }
 
     const gpuCapableNavigator = navigator as Navigator & { gpu?: unknown };
@@ -676,6 +753,22 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     () => models.find((candidate) => candidate.id === model) ?? models.at(-1),
     [model],
   );
+  const deferredModelSearch = useDeferredValue(modelSearch);
+  const filteredModels = useMemo(() => {
+    const query = deferredModelSearch.trim().toLowerCase();
+
+    return models.filter((candidate) => {
+      if (selectedModelFamily && getModelFamilyId(candidate) !== selectedModelFamily) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return `${candidate.name} ${candidate.note} ${candidate.vram} ${candidate.id}`.toLowerCase().includes(query);
+    });
+  }, [deferredModelSearch, selectedModelFamily]);
 
   const updateMessage = useCallback(
     (messageKey: string, updater: (message: ChatMessage) => ChatMessage) => {
@@ -700,6 +793,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
 
   useEffect(() => {
     if (hasWebGpuSupport === false) {
+      setLoadingModelId(null);
       return;
     }
 
@@ -707,8 +801,12 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     const shouldPreload = !warmedModelIds.has(model) || activeModelId !== model;
 
     if (!shouldPreload) {
+      setLoadingModelId(null);
+      setProgressReport(null);
       return;
     }
+
+    setLoadingModelId(model);
 
     void ensureEngine(
       model,
@@ -723,12 +821,14 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           return;
         }
 
+        setLoadingModelId((current) => (current === model ? null : current));
         setProgressReport(null);
         await syncEngineDiagnostics(engine);
       })
       .catch((error) => {
         if (!cancelled) {
           setEngineError(withToolModelGuidance(normalizeError(error), selectedModelData));
+          setLoadingModelId((current) => (current === model ? null : current));
           setProgressReport(null);
         }
       });
@@ -753,10 +853,20 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
 
   const handleModelSelect = useCallback((modelId: string) => {
     setModel(modelId);
+    setLoadingModelId(modelId);
     setModelSelectorOpen(false);
     setProgressReport(null);
     setRuntimeStats(null);
     setEngineError(null);
+  }, []);
+
+  const handleModelSelectorOpenChange = useCallback((open: boolean) => {
+    setModelSelectorOpen(open);
+
+    if (!open) {
+      setModelSearch('');
+      setSelectedModelFamily(null);
+    }
   }, []);
 
   const handleTextChange = useCallback(
@@ -1036,6 +1146,14 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         return;
       }
 
+      if (loadingModelId === model) {
+        sileo.info({
+          title: 'Model still loading',
+          description: `${selectedModelData?.name ?? 'The selected model'} is still downloading or initializing locally. Wait for it to finish before sending a message.`,
+        });
+        return;
+      }
+
       setEngineError(null);
       setRagError(null);
       setStatus('submitted');
@@ -1299,6 +1417,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
     [
       messages,
       model,
+      loadingModelId,
       selectedModelData,
       streamAssistantReply,
       syncEngineDiagnostics,
@@ -1478,9 +1597,12 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   }, []);
 
   const isSubmitDisabled = useMemo(
-    () => !text.trim() || status === 'streaming' || status === 'submitted',
-    [status, text],
+    () => !text.trim() || hasWebGpuSupport === false || loadingModelId === model || status === 'streaming' || status === 'submitted',
+    [hasWebGpuSupport, loadingModelId, model, status, text],
   );
+  const isBusyGenerating = status === 'streaming' || status === 'submitted';
+  const isSelectedModelLoading = loadingModelId === model;
+  const isComposerLocked = hasWebGpuSupport === false || isBusyGenerating || isSelectedModelLoading;
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col gap-4', isPanel ? 'h-full' : 'min-h-[720px]')}>
@@ -1500,6 +1622,12 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
               {hasWebGpuSupport ? 'WebGPU ready' : 'WebGPU required'}
             </Badge>
             <Badge variant="outline">{selectedModelData?.name}</Badge>
+            {isSelectedModelLoading && (
+              <Badge variant="outline">
+                <Spinner className="mr-1 size-3.5" />
+                {progressReport ? `${Math.round(formatProgress(progressReport))}% loaded` : 'Loading model'}
+              </Badge>
+            )}
             {gpuVendor && (
               <Badge variant="outline">
                 <CpuIcon className="mr-1 size-3.5" />
@@ -1532,6 +1660,11 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
             )}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">{selectedModelData?.note}</p>
+          {isSelectedModelLoading && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Loading {selectedModelData?.name}. The chat input stays locked until this model is fully downloaded and initialized.
+            </p>
+          )}
           {useApiTools ? (
             <p className="mt-2 text-xs text-muted-foreground">
               The model receives all {CHAT_TOOL_COUNT} live API tools on each prompt and decides whether to call them.
@@ -1780,29 +1913,34 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                 <PromptInputBody>
                   <PromptInputTextarea
                     className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                    disabled={hasWebGpuSupport === false || status === 'streaming' || status === 'submitted'}
+                    disabled={isComposerLocked}
                     onChange={handleTextChange}
-                    placeholder="Ask about PKI, devices, registrations, keys, or anything you want to reason through locally."
+                    placeholder={
+                      isSelectedModelLoading
+                        ? `Loading ${selectedModelData?.name ?? 'the selected model'} locally before chat unlocks...`
+                        : 'Ask about PKI, devices, registrations, keys, or anything you want to reason through locally.'
+                    }
                     value={text}
                   />
                 </PromptInputBody>
                 <PromptInputFooter className="flex-wrap items-center gap-2">
                   <PromptInputTools className="flex-1 flex-wrap">
                     <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger />
+                      <PromptInputActionMenuTrigger disabled={isComposerLocked} />
                       <PromptInputActionMenuContent>
                         <PromptInputActionAddAttachments />
                       </PromptInputActionMenuContent>
                     </PromptInputActionMenu>
                     <SpeechInput
                       className="shrink-0"
+                      disabled={isComposerLocked}
                       onTranscriptionChange={handleTranscriptionChange}
                       size="icon"
                       variant="ghost"
                     />
                     <Popover onOpenChange={setQuickPromptsOpen} open={quickPromptsOpen}>
                       <PopoverTrigger asChild>
-                        <PromptInputButton type="button" variant={quickPromptsOpen ? 'default' : 'ghost'}>
+                        <PromptInputButton disabled={isComposerLocked} type="button" variant={quickPromptsOpen ? 'default' : 'ghost'}>
                           <WandSparklesIcon size={16} />
                           <span>Quick prompts</span>
                         </PromptInputButton>
@@ -1828,6 +1966,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                       </PopoverContent>
                     </Popover>
                     <PromptInputButton
+                      disabled={isComposerLocked}
                       onClick={toggleApiTools}
                       type="button"
                       variant={useApiTools ? 'default' : 'ghost'}
@@ -1836,6 +1975,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                       <span>Tools</span>
                     </PromptInputButton>
                     <PromptInputButton
+                      disabled={isComposerLocked}
                       onClick={toggleWebSearch}
                       type="button"
                       variant={useWebSearch ? 'default' : 'ghost'}
@@ -1843,39 +1983,84 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                       <GlobeIcon size={16} />
                       <span>Search</span>
                     </PromptInputButton>
-                    <ModelSelector
-                      onOpenChange={setModelSelectorOpen}
-                      open={modelSelectorOpen}
-                    >
+                    <ModelSelector onOpenChange={handleModelSelectorOpenChange} open={modelSelectorOpen}>
                       <ModelSelectorTrigger asChild>
-                        <PromptInputButton type="button">
-                          {selectedModelData?.chefSlug ? (
-                            <ModelSelectorLogo provider={selectedModelData.chefSlug} />
+                        <PromptInputButton disabled={isBusyGenerating} type="button">
+                          {selectedModelData ? (
+                            <ModelSelectorLogo provider={getModelLogoProvider(selectedModelData)} />
                           ) : null}
+                          {isSelectedModelLoading ? <Spinner className="size-3.5" /> : null}
                           {selectedModelData?.name ? (
                             <ModelSelectorName>{selectedModelData.name}</ModelSelectorName>
                           ) : null}
                         </PromptInputButton>
                       </ModelSelectorTrigger>
-                      <ModelSelectorContent>
-                        <ModelSelectorInput placeholder="Search models..." />
-                        <ModelSelectorList>
-                          <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-                          {modelGroups.map((group) => (
-                            <ModelSelectorGroup heading={group} key={group}>
-                              {models
-                                .filter((candidate) => candidate.chef === group)
-                                .map((candidate) => (
-                                  <ModelItem
-                                    isSelected={model === candidate.id}
-                                    key={candidate.id}
-                                    m={candidate}
-                                    onSelect={handleModelSelect}
-                                  />
-                                ))}
-                            </ModelSelectorGroup>
-                          ))}
-                        </ModelSelectorList>
+                      <ModelSelectorContent className="gap-0 overflow-hidden p-0 sm:max-w-5xl" title="Model Selection">
+                        <div className="border-b px-6 py-5">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <h2 className="text-xl font-semibold text-foreground">Model Selection</h2>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Choose the local model the chatbot should load and keep ready in this browser.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="border-b px-6 py-4">
+                          <div className="relative">
+                            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              className="h-11 pl-9"
+                              onChange={(event) => setModelSearch(event.target.value)}
+                              placeholder="Search model..."
+                              value={modelSearch}
+                            />
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {modelFamilies.map((family) => {
+                              const isActive = selectedModelFamily === family.id;
+
+                              return (
+                                <Button
+                                  className="h-9 rounded-md px-3"
+                                  key={family.id}
+                                  onClick={() =>
+                                    setSelectedModelFamily((current) =>
+                                      current === family.id ? null : family.id,
+                                    )
+                                  }
+                                  type="button"
+                                  variant={isActive ? 'secondary' : 'outline'}
+                                >
+                                  <ModelSelectorLogo provider={family.logoProvider} />
+                                  <span>{family.label}</span>
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="max-h-[58vh] overflow-y-auto px-6 py-4">
+                          {filteredModels.length === 0 ? (
+                            <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                              No models match that search.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                              {filteredModels.map((candidate) => (
+                                <ModelItem
+                                  isLoading={loadingModelId === candidate.id}
+                                  isSelected={model === candidate.id}
+                                  key={candidate.id}
+                                  m={candidate}
+                                  onSelect={handleModelSelect}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </ModelSelectorContent>
                     </ModelSelector>
                   </PromptInputTools>

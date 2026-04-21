@@ -1,5 +1,4 @@
 import {
-  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -49,9 +48,7 @@ export const ModelSelectorContent = ({
     {...props}
   >
     <DialogTitle className="sr-only">{title}</DialogTitle>
-    <Command className="**:data-[slot=command-input-wrapper]:h-auto">
-      {children}
-    </Command>
+    {children}
   </DialogContent>
 );
 
@@ -177,16 +174,37 @@ export const ModelSelectorLogo = ({
   provider,
   className,
   ...props
-}: ModelSelectorLogoProps) => (
-  <img
-    {...props}
-    alt={`${provider} logo`}
-    className={cn("size-3 dark:invert", className)}
-    height={12}
-    src={`https://models.dev/logos/${provider}.svg`}
-    width={12}
-  />
-);
+}: ModelSelectorLogoProps) => {
+  const localLogos: Record<string, string> = {
+    deepseek: "/assets/ai/deepseek-color.svg",
+    gemma: "/assets/ai/gemma-color.svg",
+    google: "/assets/ai/google-color.svg",
+    llama: "/assets/ai/meta-color.svg",
+    meta: "/assets/ai/meta-color.svg",
+    microsoft: "/assets/ai/microsoft-color.svg",
+    mistral: "/assets/ai/mistral-color.svg",
+    ollama: "/assets/ai/ollama.svg",
+    qwen: "/assets/ai/qwen-color.svg",
+  };
+
+  const src = localLogos[provider] ?? `https://models.dev/logos/${provider}.svg`;
+  const usesLocalLogo = provider in localLogos;
+
+  return (
+    <img
+      {...props}
+      alt={`${provider} logo`}
+      className={cn(
+        "size-4 object-contain",
+        usesLocalLogo ? "" : "dark:invert",
+        className
+      )}
+      height={16}
+      src={src}
+      width={16}
+    />
+  );
+};
 
 export type ModelSelectorLogoGroupProps = ComponentProps<"div">;
 
