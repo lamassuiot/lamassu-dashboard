@@ -1,3 +1,7 @@
+
+
+
+
 LAMPS                                                       M. Ounsworth
 Internet-Draft                                                   J. Gray
 Intended status: Standards Track                                 Entrust
@@ -8,6 +12,7 @@ Expires: 11 October 2026                                         M. Pala
                                                               S. Fluhrer
                                                            Cisco Systems
                                                             9 April 2026
+
 
 Composite Module-Lattice-Based Digital Signature Algorithm (ML-DSA) for
                  use in X.509 Public Key Infrastructure
@@ -42,8 +47,16 @@ About This Document
    Source for this draft and an issue tracker can be found at
    https://github.com/lamps-wg/draft-composite-sigs.
 
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 1]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
 Status of This Memo
 
@@ -94,8 +107,12 @@ Table of Contents
    4.  Serialization . . . . . . . . . . . . . . . . . . . . . . . .  18
      4.1.  SerializePublicKey and DeserializePublicKey . . . . . . .  20
 
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 2]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
      4.2.  SerializePrivateKey and DeserializePrivateKey . . . . . .  23
      4.3.  SerializeSignatureValue and DeserializeSignatureValue . .  24
@@ -138,8 +155,20 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Appendix F.  Contributors and Acknowledgements  . . . . . . . . . 232
    Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . . 233
 
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 3]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
 1.  Introduction
 
@@ -185,8 +214,17 @@ Internet-Draft              Composite ML-DSA                  April 2026
    continuing to interoperate with legacy systems is not directly
    covered in this specification, but is the subject of Section 10.3.
 
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 4]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Certain jurisdictions have recommended that ML-DSA be used
    exclusively within a PQ/T hybrid framework.  The use of a composite
@@ -237,8 +275,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    for easier reading.  In addition, the following terminology is used
    throughout this specification:
 
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 5]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    *ALGORITHM*: The usage of the term "algorithm" within this
    specification generally refers to any function which has a registered
@@ -286,8 +328,15 @@ Internet-Draft              Composite ML-DSA                  April 2026
    and thus can take advantage of existing cryptographic agility
    mechanisms.
 
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 6]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    *RSA*: The Rivest-Shamir-Adleman cryptosystem, used in this
    specification as the Probabilistic Signature Scheme (RSA-PSS) defined
@@ -338,8 +387,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    layer to have any "hybrid-awareness".  This is a property referred to
    as "protocol backwards-compatibility".
 
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 7]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Discussion of the specific choices of algorithm pairings can be found
    in Section 10.1.
@@ -386,8 +439,16 @@ Internet-Draft              Composite ML-DSA                  April 2026
       which generates pk and sk deterministically from a seed.  This
       specification assumes a seed-based keygen for ML-DSA.
 
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 8]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    *  Sign(sk, M) -> s: A signing algorithm which takes as input a
       secret key sk and a message M, and outputs a signature s.  Signing
@@ -438,8 +499,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    it also has some operational drawbacks; namely the performance and
    privacy implications of needing to stream the entire to-be-signed
 
+
+
 Ounsworth, et al.        Expires 11 October 2026                [Page 9]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    message to the signing module or service, which is doubled in the
    context of a composite since the to-be-signed message needs to be
@@ -490,8 +555,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    ctx:  The context bytes, which allows for applications to bind the
       signature to an application context.
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 10]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    PH( M ):  The hash of the message to be signed.
 
@@ -540,8 +609,14 @@ Internet-Draft              Composite ML-DSA                  April 2026
    choose to execute the key generation functions in parallel for better
    key generation performance or architectural modularity.
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 11]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    The following describes how to instantiate a KeyGen() function for a
    given composite algorithm represented by <OID>.
@@ -564,6 +639,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Output:
 
      (pk, sk)   The composite key pair.
+
 
    Key Generation Process:
 
@@ -588,8 +664,15 @@ Internet-Draft              Composite ML-DSA                  April 2026
    DSA.KeyGen_internal(𝜉), which is defined in Algorithm 6 of
    [FIPS.204].  For FIPS-certification implications, see Section 10.2.
 
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 12]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    In order to ensure fresh keys, the key generation functions MUST be
    executed for both component algorithms.  Compliant parties MUST NOT
@@ -640,8 +723,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    example, storing the component keys in separate cryptographic
    modules, or in separate PKCS#8 objects, or in a format that preserves
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 13]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    the ML-DSA expanded key instead of the ML-DSA seed.  The required
    modifications to the key generation process, as well as the signature
@@ -692,8 +779,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
              parameter set, for example "sha256WithRSAEncryption"
              or "Ed25519".
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 14]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
      Prefix  The prefix octet string.
 
@@ -705,9 +796,11 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
      PH      The function used to pre-hash M.
 
+
    Output:
 
      s       The composite signature value.
+
 
    Signature Generation Process:
 
@@ -742,8 +835,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
          s = SerializeSignatureValue(mldsaSig, tradSig)
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 15]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
          return s
 
@@ -794,8 +891,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    See Section 10.5 for a discussion of externalizing the pre-hashing
    step.
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 16]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
 Composite-ML-DSA<OID>.Verify(pk, M, s, ctx) -> true or false
 
@@ -846,8 +947,12 @@ Signature Verification Process:
 
      (mldsaPK, tradPK)       = DeserializePublicKey(pk)
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 17]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
      (mldsaSig, tradSig)  = DeserializeSignatureValue(s)
 
@@ -897,8 +1002,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
    which is similar to Table 2 from [FIPS.204], but with a different
    private key representation.
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 18]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
            +===========+============+=============+===========+
            | Algorithm | Public key | Private key | Signature |
@@ -944,8 +1054,17 @@ Internet-Draft              Composite ML-DSA                  April 2026
       'NamedCurve' parameter set to the OID of the curve, but without
       the 'publicKey' field.
 
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 19]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    *  *EdDSA*: public key and signature MUST be encoded as per Section 3
       of [RFC8032] and the private key is a 32- or 57-byte raw value for
@@ -974,8 +1093,34 @@ Internet-Draft              Composite ML-DSA                  April 2026
    The serialization routine for keys simply concatenates the public
    keys of the component signature algorithms, as defined below:
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 20]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Composite-ML-DSA.SerializePublicKey(mldsaPK, tradPK) -> bytes
 
@@ -1008,8 +1153,30 @@ Internet-Draft              Composite ML-DSA                  April 2026
    DeserializePublicKey(bytes) function for a given composite algorithm
    represented by <OID>.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 21]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Composite-ML-DSA<OID>.DeserializePublicKey(bytes)
                                        -> (mldsaPK, tradPK)
@@ -1057,8 +1224,15 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
         output (mldsaPK, tradPK)
 
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 22]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
 4.2.  SerializePrivateKey and DeserializePrivateKey
 
@@ -1082,6 +1256,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
      bytes      The encoded composite private key.
 
+
    Serialization Process:
 
      1. Combine and output the encoded private key.
@@ -1097,8 +1272,23 @@ Internet-Draft              Composite ML-DSA                  April 2026
    32 bytes for all parameter sets, this function does not need to be
    parameterized.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 23]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Composite-ML-DSA.DeserializePrivateKey(bytes) -> (mldsaSeed, tradSK)
 
@@ -1138,8 +1328,23 @@ Internet-Draft              Composite ML-DSA                  April 2026
    concatenates the fixed-length ML-DSA signature value with the
    signature value from the traditional algorithm, as defined below:
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 24]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Composite-ML-DSA.SerializeSignatureValue(mldsaSig, tradSig) -> bytes
 
@@ -1173,8 +1378,29 @@ Internet-Draft              Composite ML-DSA                  April 2026
    DeserializeSignatureValue(bytes) function for a given composite
    algorithm represented by <OID>.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 25]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Composite-ML-DSA<OID>.DeserializeSignatureValue(bytes)
                                                -> (mldsaSig, tradSig)
@@ -1221,8 +1447,16 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
         output (mldsaSig, tradSig)
 
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 26]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
 5.  Use within X.509 and PKIX
 
@@ -1271,8 +1505,14 @@ Internet-Draft              Composite ML-DSA                  April 2026
    that the keyUsage extension MUST have at least one of the following
    bits set:
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 27]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
      digitalSignature
      nonRepudiation
@@ -1311,8 +1551,24 @@ Internet-Draft              Composite ML-DSA                  April 2026
    for compact definitions of each composite algorithm, leading to a
    smaller overall ASN.1 module.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 28]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    pk-CompositeSignature {OBJECT IDENTIFIER:id}
        PUBLIC-KEY ::= {
@@ -1357,8 +1613,18 @@ Internet-Draft              Composite ML-DSA                  April 2026
    [RFC4211].  The definition of OneAsymmetricKey is copied here for
    convenience:
 
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 29]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
     OneAsymmetricKey ::= SEQUENCE {
           version                   Version,
@@ -1406,8 +1672,15 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Full specifications for the referenced algorithms can be found in
    Appendix B.
 
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 30]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    As the number of algorithms can be daunting, implementers who wish to
    implement only a single composite algorithm should see Section 10.4
@@ -1458,8 +1731,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  Label: COMPSIG-MLDSA44-Ed25519-SHA512
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 31]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
       -  Pre-Hash function (PH): SHA512
 
@@ -1509,8 +1786,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  Label: COMPSIG-MLDSA65-RSA3072-PKCS15-SHA512
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 32]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
       -  Pre-Hash function (PH): SHA512
 
@@ -1560,8 +1842,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  OID: 1.3.6.1.5.5.7.6.45
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 33]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
       -  Label: COMPSIG-MLDSA65-ECDSA-P256-SHA512
 
@@ -1611,8 +1898,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  OID: 1.3.6.1.5.5.7.6.48
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 34]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
       -  Label: COMPSIG-MLDSA65-Ed25519-SHA512
 
@@ -1662,8 +1954,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  Label: COMPSIG-MLDSA87-Ed448-SHAKE256
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 35]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
       -  Pre-Hash function (PH): SHAKE256/64**
 
@@ -1713,8 +2010,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  OID: 1.3.6.1.5.5.7.6.54
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 36]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
       -  Label: COMPSIG-MLDSA87-ECDSA-P521-SHA512
 
@@ -1754,8 +2056,23 @@ Internet-Draft              Composite ML-DSA                  April 2026
    When RSA-PSS is used at the 2048-bit or 3072-bit security level,
    RSASSA-PSS SHALL be instantiated with the following parameters:
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 37]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
                 +=============================+===========+
                 | RSASSA-PSS-params field     | Value     |
@@ -1802,10 +2119,16 @@ Internet-Draft              Composite ML-DSA                  April 2026
            security(5) mechanisms(5) pkix(7) id-mod(0)
            id-mod-composite-mldsa-2025(TBDMOD) }
 
+
    DEFINITIONS IMPLICIT TAGS ::= BEGIN
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 38]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    EXPORTS ALL;
 
@@ -1845,6 +2168,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
             SMIME-CAPS { IDENTIFIED BY id }
          }
 
+
    -- Composite ML-DSA
 
    id-MLDSA44-RSA2048-PSS-SHA256 OBJECT IDENTIFIER ::= {
@@ -1854,13 +2178,19 @@ Internet-Draft              Composite ML-DSA                  April 2026
    pk-MLDSA44-RSA2048-PSS-SHA256 PUBLIC-KEY ::=
      pk-CompositeSignature{ id-MLDSA44-RSA2048-PSS-SHA256}
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 39]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    sa-MLDSA44-RSA2048-PSS-SHA256 SIGNATURE-ALGORITHM ::=
        sa-CompositeSignature{
           id-MLDSA44-RSA2048-PSS-SHA256,
           pk-MLDSA44-RSA2048-PSS-SHA256 }
+
 
    id-MLDSA44-RSA2048-PKCS15-SHA256 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -1874,6 +2204,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA44-RSA2048-PKCS15-SHA256,
           pk-MLDSA44-RSA2048-PKCS15-SHA256 }
 
+
    id-MLDSA44-Ed25519-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
       mechanisms(5) pkix(7) alg(6) 39 }
@@ -1885,6 +2216,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
        sa-CompositeSignature{
           id-MLDSA44-Ed25519-SHA512,
           pk-MLDSA44-Ed25519-SHA512 }
+
 
    id-MLDSA44-ECDSA-P256-SHA256 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -1898,12 +2230,17 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA44-ECDSA-P256-SHA256,
           pk-MLDSA44-ECDSA-P256-SHA256 }
 
+
    id-MLDSA65-RSA3072-PSS-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
       mechanisms(5) pkix(7) alg(6) 41 }
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 40]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    pk-MLDSA65-RSA3072-PSS-SHA512 PUBLIC-KEY ::=
      pk-CompositeSignature{ id-MLDSA65-RSA3072-PSS-SHA512}
@@ -1912,6 +2249,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
        sa-CompositeSignature{
           id-MLDSA65-RSA3072-PSS-SHA512,
           pk-MLDSA65-RSA3072-PSS-SHA512 }
+
 
    id-MLDSA65-RSA3072-PKCS15-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -1925,6 +2263,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA65-RSA3072-PKCS15-SHA512,
           pk-MLDSA65-RSA3072-PKCS15-SHA512 }
 
+
    id-MLDSA65-RSA4096-PSS-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
       mechanisms(5) pkix(7) alg(6) 43 }
@@ -1936,6 +2275,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
        sa-CompositeSignature{
           id-MLDSA65-RSA4096-PSS-SHA512,
           pk-MLDSA65-RSA4096-PSS-SHA512 }
+
 
    id-MLDSA65-RSA4096-PKCS15-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -1949,8 +2289,14 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA65-RSA4096-PKCS15-SHA512,
           pk-MLDSA65-RSA4096-PKCS15-SHA512 }
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 41]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    id-MLDSA65-ECDSA-P256-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -1964,6 +2310,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA65-ECDSA-P256-SHA512,
           pk-MLDSA65-ECDSA-P256-SHA512 }
 
+
    id-MLDSA65-ECDSA-P384-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
       mechanisms(5) pkix(7) alg(6) 46 }
@@ -1975,6 +2322,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
        sa-CompositeSignature{
           id-MLDSA65-ECDSA-P384-SHA512,
           pk-MLDSA65-ECDSA-P384-SHA512 }
+
 
    id-MLDSA65-ECDSA-brainpoolP256r1-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -1988,6 +2336,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA65-ECDSA-brainpoolP256r1-SHA512,
           pk-MLDSA65-ECDSA-brainpoolP256r1-SHA512 }
 
+
    id-MLDSA65-Ed25519-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
       mechanisms(5) pkix(7) alg(6) 48 }
@@ -1998,11 +2347,16 @@ Internet-Draft              Composite ML-DSA                  April 2026
    sa-MLDSA65-Ed25519-SHA512 SIGNATURE-ALGORITHM ::=
        sa-CompositeSignature{
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 42]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
           id-MLDSA65-Ed25519-SHA512,
           pk-MLDSA65-Ed25519-SHA512 }
+
 
    id-MLDSA87-ECDSA-P384-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -2016,6 +2370,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA87-ECDSA-P384-SHA512,
           pk-MLDSA87-ECDSA-P384-SHA512 }
 
+
    id-MLDSA87-ECDSA-brainpoolP384r1-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
       mechanisms(5) pkix(7) alg(6) 50 }
@@ -2027,6 +2382,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
        sa-CompositeSignature{
           id-MLDSA87-ECDSA-brainpoolP384r1-SHA512,
           pk-MLDSA87-ECDSA-brainpoolP384r1-SHA512 }
+
 
    id-MLDSA87-Ed448-SHAKE256 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -2040,14 +2396,19 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA87-Ed448-SHAKE256,
           pk-MLDSA87-Ed448-SHAKE256 }
 
+
    id-MLDSA87-RSA3072-PSS-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
       mechanisms(5) pkix(7) alg(6) 52 }
 
    pk-MLDSA87-RSA3072-PSS-SHA512 PUBLIC-KEY ::=
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 43]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
      pk-CompositeSignature{ id-MLDSA87-RSA3072-PSS-SHA512}
 
@@ -2055,6 +2416,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
        sa-CompositeSignature{
           id-MLDSA87-RSA3072-PSS-SHA512,
           pk-MLDSA87-RSA3072-PSS-SHA512 }
+
 
    id-MLDSA87-RSA4096-PSS-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
@@ -2068,6 +2430,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
           id-MLDSA87-RSA4096-PSS-SHA512,
           pk-MLDSA87-RSA4096-PSS-SHA512 }
 
+
    id-MLDSA87-ECDSA-P521-SHA512 OBJECT IDENTIFIER ::= {
       iso(1) identified-organization(3) dod(6) internet(1) security(5)
       mechanisms(5) pkix(7) alg(6) 54 }
@@ -2079,6 +2442,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
        sa-CompositeSignature{
           id-MLDSA87-ECDSA-P521-SHA512,
           pk-MLDSA87-ECDSA-P521-SHA512 }
+
 
    SignatureAlgorithmSet SIGNATURE-ALGORITHM ::= {
      sa-MLDSA44-RSA2048-PSS-SHA256 |
@@ -2095,8 +2459,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
      sa-MLDSA65-Ed25519-SHA512 |
      sa-MLDSA87-ECDSA-P384-SHA512 |
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 44]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
      sa-MLDSA87-ECDSA-brainpoolP384r1-SHA512 |
      sa-MLDSA87-Ed448-SHAKE256 |
@@ -2146,8 +2514,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
    they should all already be assigned to the values used above in
    Section 6 and Section 7.
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 45]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    *  id-MLDSA44-RSA2048-PSS-SHA256
 
@@ -2197,8 +2570,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  References: This Document
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 46]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    *  id-MLDSA65-RSA4096-PSS-SHA512
 
@@ -2248,8 +2626,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  References: This Document
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 47]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    *  id-MLDSA87-ECDSA-P384-SHA512
 
@@ -2299,8 +2682,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
       -  References: This Document
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 48]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
 9.  Security Considerations
 
@@ -2347,8 +2735,16 @@ Internet-Draft              Composite ML-DSA                  April 2026
    implementation.  More details of obtaining FIPS certification of a
    composite algorithm can be found in Section 10.2.
 
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 49]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
 9.2.  EUF-CMA, SUF-CMA and Non-Separability
 
@@ -2397,8 +2793,14 @@ Internet-Draft              Composite ML-DSA                  April 2026
    *  If ML-DSA is broken, then Composite ML-DSA will only be EUF-CMA
       secure against classical adversaries.
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 50]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    The same properties will hold for X.509 certificates that use
    Composite ML-DSA: a classical adversary cannot forge a Composite ML-
@@ -2446,8 +2848,15 @@ Internet-Draft              Composite ML-DSA                  April 2026
    guarantee that an adversary cannot simply "remove" one of the
    component signatures without evidence left behind.
 
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 51]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Strong Non-Separability (SNS) is the stronger notion that an
    adversary cannot take a hybrid signature and produce a component
@@ -2498,8 +2907,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    an ML-DSA key pair to form a hybrid key pair for use in a hybrid
    algorithm.  Within a hybrid signature context this leads to a class
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 52]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    of attacks referred to as "stripping attacks" discussed in
    Section 9.2 and may also open up risks from further cross-protocol
@@ -2548,8 +2961,14 @@ Internet-Draft              Composite ML-DSA                  April 2026
    policy and removing it from operational environments is, at least in
    principle, straightforward.
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 53]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    In the composite model this is less obvious since a PQ/T hybrid is
    expected to still be considered valid after the traditional component
@@ -2600,8 +3019,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    algorithms since ecdsa-with-SHA256 with secp256r1 is far more common
    than, for example, ecdsa-with-SHA512 with secp256r1.
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 54]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Full specifications for the referenced algorithms can be found in
    Appendix B.
@@ -2652,8 +3075,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    bridging across jurisdictions with non-intersecting cryptographic
    requirements.
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 55]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
 10.3.  Backwards Compatibility
 
@@ -2703,8 +3130,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    id-MLDSA65-ECDSA-P256-SHA512
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 56]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Below is listed a few other recommendations for specific scenarios.
 
@@ -2742,8 +3174,25 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Below is a suggested implementation for splitting the pre-hashing and
    signing between two parties.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 57]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Composite-ML-DSA<OID>.Prehash(M) ->  ph
 
@@ -2761,6 +3210,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    Process:
 
+
    1. Compute the Prehash of the message using the Hash function
        defined by PH
 
@@ -2768,8 +3218,37 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    2. Output ph
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 58]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Composite-ML-DSA<OID>.Sign_ph(sk, ph, ctx) -> s
 
@@ -2782,6 +3261,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
      ctx     The Message context string used in the composite
              signature combiner, which defaults to the empty string.
+
 
    Implicit inputs mapped from <OID>:
 
@@ -2815,8 +3295,16 @@ Internet-Draft              Composite ML-DSA                  April 2026
    specification RECOMMENDS an RSA exponent of 65537, but other values
    are possible.
 
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 59]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Implementations are encouraged to be lenient when parsing the key
    material of the legacy algorithm.  In particilar, the recommendation
@@ -2866,8 +3354,13 @@ Internet-Draft              Composite ML-DSA                  April 2026
               DOI 10.17487/RFC4211, September 2005,
               <https://www.rfc-editor.org/info/rfc4211>.
 
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 60]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    [RFC5280]  Cooper, D., Santesson, S., Farrell, S., Boeyen, S.,
               Housley, R., and W. Polk, "Internet X.509 Public Key
@@ -2918,8 +3411,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
               RFC 8017, DOI 10.17487/RFC8017, November 2016,
               <https://www.rfc-editor.org/info/rfc8017>.
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 61]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    [RFC8032]  Josefsson, S. and I. Liusvaara, "Edwards-Curve Digital
               Signature Algorithm (EdDSA)", RFC 8032,
@@ -2963,8 +3460,19 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
 11.2.  Informative References
 
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 62]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    [ANSSI2024]
               French Cybersecurity Agency (ANSSI), Federal Office for
@@ -3008,8 +3516,19 @@ Internet-Draft              Composite ML-DSA                  April 2026
               2025, <https://datatracker.ietf.org/doc/html/draft-ietf-
               pquip-hybrid-signature-spectrums-07>.
 
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 63]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    [I-D.ietf-pquip-pqc-engineers]
               Banerjee, A., Reddy.K, T., Schoinianakis, D., Hollebeek,
@@ -3060,8 +3579,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
               DOI 10.17487/RFC9794, June 2025,
               <https://www.rfc-editor.org/info/rfc9794>.
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 64]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    [RFC9810]  Brockhaus, H., von Oheimb, D., Ounsworth, M., and J. Gray,
               "Internet X.509 Public Key Infrastructure -- Certificate
@@ -3112,8 +3635,12 @@ Appendix A.  Maximum Key and Signature Sizes
    +-----------------------------------------+------+-------+---------+
    | id-MLDSA44-RSA2048-PKCS15-SHA256        |1582* |1226*  |2676     |
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 65]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    +-----------------------------------------+------+-------+---------+
    | id-MLDSA44-Ed25519-SHA512               |1344  |64     |2484     |
@@ -3156,8 +3683,20 @@ Appendix B.  Component Algorithm Reference
    This section provides references to the full specification of the
    algorithms used in the composite constructions.
 
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 66]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
     +=========================+=========================+=============+
     | Component Signature     | OID                     |Specification|
@@ -3206,8 +3745,14 @@ Internet-Draft              Composite ML-DSA                  April 2026
          Table 5: Component Signature Algorithms used in Composite
                                Constructions
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 67]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
      +==================+=======================+===================+
      | Elliptic CurveID | OID                   | Specification     |
@@ -3256,8 +3801,14 @@ Appendix C.  Component AlgorithmIdentifiers for Public Keys and
    section lists out the full public key and signature
    AlgorithmIdentifiers for each component algorithm.
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 68]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    For newer Algorithms like Ed25519 or ML-DSA the AlgorithmIdentifiers
    are the same for Public Key and Signature.  Older Algorithms have
@@ -3304,8 +3855,16 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    AlgorithmIdentifier of Public Key
 
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 69]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Note that it is suggested here to use id-RSASSA-PSS
    (1.2.840.113549.1.1.10) as the public key OID for RSA-PSS, although
@@ -3352,8 +3911,16 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    AlgorithmIdentifier of Public Key
 
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 70]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ASN.1:
      algorithm AlgorithmIdentifier ::= {
@@ -3404,8 +3971,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    DER:
      30 0D 06 09 2A 86 48 86 F7 0D 01 01 01 05 00
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 71]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    AlgorithmIdentifier of Signature
 
@@ -3446,8 +4017,22 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    AlgorithmIdentifier of Public Key
 
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 72]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ASN.1:
      algorithm AlgorithmIdentifier ::= {
@@ -3491,8 +4076,19 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    AlgorithmIdentifier of Signature
 
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 73]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ASN.1:
      signature AlgorithmIdentifier ::= {
@@ -3533,8 +4129,22 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    AlgorithmIdentifier of Public Key
 
+
+
+
+
+
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 74]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ASN.1:
      algorithm AlgorithmIdentifier ::= {
@@ -3580,8 +4190,17 @@ Internet-Draft              Composite ML-DSA                  April 2026
 
    AlgorithmIdentifier of Signature
 
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 75]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ASN.1:
      signature AlgorithmIdentifier ::= {
@@ -3630,8 +4249,14 @@ Appendix D.  Message Representative Examples
 
    *  Prefix is the fixed constant defined in Section 2.2.
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 76]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    *  Label is the specific signature label for this composite
       algorithm, as defined in Section 6.
@@ -3671,6 +4296,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
    9a3f202f56fadba4cd9e8d654ab9f2e96dc5c795ea176fa20ede8d854c342f90353
    3
 
+
    # Outputs:
    # M' = Prefix || Label || len(ctx) || ctx || PH(M)
 
@@ -3679,8 +4305,14 @@ Internet-Draft              Composite ML-DSA                  April 2026
    000f89ee1fcb7b0a4f7809d1267a029719004c5a5e5ec323a7c3523a20974f9a3f2
    02f56fadba4cd9e8d654ab9f2e96dc5c795ea176fa20ede8d854c342f903533
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 77]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Second is an example of constructing the message representative M'
    for MLDSA65-ECDSA-P256-SHA256 with a context string ctx.
@@ -3710,6 +4342,7 @@ Internet-Draft              Composite ML-DSA                  April 2026
    9a3f202f56fadba4cd9e8d654ab9f2e96dc5c795ea176fa20ede8d854c342f90353
    3
 
+
    # Outputs:
    # M' = Prefix || Label || len(ctx) || ctx || PH(M)
 
@@ -3728,8 +4361,14 @@ Appendix E.  Test Vectors
    cases. m is the ASCII string "The quick brown fox jumps over the lazy
    dog."
 
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 78]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    For all test vectors, a sample signature is provided computer over an
    empty ctx string, and also computed over the ctx string "The
@@ -3780,8 +4419,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    {
    "tcId": "id-ML-DSA-44",
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 79]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    "pk": "EWoNgliCgU7GOoTqJ1BCV4WR/izOHNrm717rEbJ0FfMMH+38K7zEVhsZrm00b
    meyCTBWP8kXrZeL6150vChktTXTgpfnN1hLvZwpgxoHrq2I9MIZZNcai7SHDHjCppBkN
@@ -3832,8 +4475,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    7JUP4bsGpSlTWzgfxskH3gwQM/IJZyWbuaYAtkyQtd7fzoiEUbOnm4Ll3erFom/7A+IG
    lPmV0vD5truxEowki2kgz7yRf6rcP2NV1gHx2NVDKAM1OfBVKYHxId679HZgifamyX8Z
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 80]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    2kYrPw5eJc1Y7XWgut/hTY/mWdujSDBbLq7s3jypw0ra3EAF5tfeghV6N+ALoyt8EXCA
    i67nlf8UMTtWTKl2QGy3rifySEbvWCi8MLKCwGtu1yn6rgp0n0xvTnpQSWwPpWB6qxr/
@@ -3884,8 +4531,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    q/b6tcVy11ZSpZlrT0q1VeP9A8KPEHYciYIiPmS7B3piEwsaLVeU6TrXBD3bdigD5yZm
    l7pewiFtyY/q+TlZHjn3XufH5lSF3Dp/gl1/i0EnjVQ3sHeOronUq1VfqqR38CeV1YMW
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 81]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    pKFHGVRcJ1mxzdbyZGWoNaVdzpOU9PJCd57ZM7cP+a+Hl3tmxHc+B2Sp70bGYJA1/Yyx
    h9kONS3D9D7Y18uQvk6J/dp7bgoXRQTZEG7x6ufKHe1Jc1Uzg8w5QOMsoQKZlRy/af21
@@ -3936,8 +4587,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    hGg0qWLZU9vxa6SPN0dPVybMQ1OGWJPIlFcKv2hbFO/QKkrxUmifrbJPvZXklvpDydrl
    mG9nmDOWR8b5jikHj07g3doCIvAJxWusHKSLD/GmdNUKBG4PP+gnoqTCZv8Xb4l30LR1
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 82]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    LGi9I8vgilSyxyJLPdVj7kcnCz52fCahxNNA48XlER0YHYY/qp3qF+Ik01Y+F3Oro8VJ
    w/7BG4i2trpqnofawx/Mcl5/+t7kGqjpyRB9QSjdP2Crv3HoLa17gi4/X5P68xygpFTg
@@ -3988,8 +4643,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    I3THn+tfeLOLfD1qZmBdT7NfzjihySy3y+zLczWlZcv/RpiHb5TeDBcFxG6V3wmHXjll
    AU4NGaA1piwr7/ySduouWeyuXcbEc+2+QY6OXC/rsGUjMQ8F9deEYw5kS5PEUZW7U9+S
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 83]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    s8hv830BuPaMPGryLKkWuQw7EG+Zt4jdhbOtMMqM4a0kfr0o8GmyKTg7jylVnSu6wWgS
    7EApi2L8NTzIMDhFNdyHduQdwVMdFikjc4jFDVLfGuMOSHy4Tb2Qc5QyiZ0JxKGURF7y
@@ -4040,8 +4699,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Xyz0krEJLTSCsiXdKvGx9tk4xsiSxCahmhG149hg8ZhvW44zUS0d3pCgBRnbtGQor2JA
    o/7wZqagMtgX25kVo7kQ8qkt5O4T01IuZw770wse2yILOkVfFhZJThge4MfA7FHF1FiW
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 84]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Sb3E9mZu+caxYh7DxE9v0OPGCVdGm+Zh3EmgkaFyJqJ0V5Ydl1GsN+s5sr0cG0vvlJ+A
    1UeDRFMS1T33PK2HGDMIRg4L2aGvs6/wxtg1zBzXYtZtiq1lBUG2SFO3ThimXnwzhBCV
@@ -4092,8 +4755,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    2ddBHtSmncv3A8EpUH1/A95BhjqaC5OzvFiC3GuOxVni0EWU76XVUlxhyB6LSwbAr1fo
    CjkUShJl7TTWqO5JvbsvGKHZ4pVvfgNrNa7QIIBFZjbU+ejoaItyQ74TaS8tDpBrNOhH
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 85]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ApRTvc37E2Lky0dG/LmviT19zcgCi28jPWZaRdfhoxIwEDAOBgNVHQ8BAf8EBAMCB4Aw
    CwYJYIZIAWUDBAMSA4IM7gDQhhXV8Z3jFLgm8pwya08Bql2c1PbmSXmHxlueUgC4I//k
@@ -4144,8 +4811,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    /A/NqfRXKsNDnxd/aM9Nd9kbaCV/W5Csfx+eRMspyivHU5TJNnQL06U4sQiVuyOOwqRh
    MRCasjFjlgA0UcnMQbPARlHyT/Z5+YwZ7X49EzMWAOojboD0km/4L3riFkarQh+RBNoz
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 86]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    hs96dC+YA0cqW5G2PnffkZomTkLqx6Gkg9zwP4wzx6RntycK0sZHdAdUnSUhsAnVBrYB
    /CVUM77dr9NJ9ztGwiatZlODC5EW2MhiyA7gJ0PZHKmeE2ZB45MFUG0GPAqbaQszsRQU
@@ -4196,8 +4867,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    1krLyAGs9OV3qHxUzwpPlO04Hh1npn3mZNdZwHHAzLvodFI85sWnlQ0VtAMppFIf2Ot2
    FDnBTf1Yn/Zra1bBWwhDhdaMtnZQrewgXMVRzD0WTVhKGhLDqb+g2co42GuDFukRnz/2
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 87]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Yo4cQLH3TsqicVHr2mPnHS3vVbGUs4GIUyl/ZiQOYNslRFHlG5Q1SZTMIvhZL9IP7llM
    KF+E4FEdUsahCcYYNQGBKJbphdtixqsYrfa0EqG2nBtPpU4hhH3yoUGfy90lW37a6wht
@@ -4248,8 +4923,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    26ZmsZrqFa6S5sgLDB2BjoUPqWIQ4B/S2E7fJfIxfdyzmYvcy2A245Irdlsyv5VQriji
    Kg3c0zlEup9ATugLB18LeNXNq2EA1pKtWap+MsdfLoL1lSIC/69w+NsFc+cuhwmjCbTF
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 88]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    mYNIK4DDvMjNhldBRqM0+IU1mN6yOSGRVPKBYwvIH/K3Ws2/ohdMPESIkw2BOQ9v07C1
    1p537ZTF+Dqg2QfCkoyDyuoxtFf0WyRcT1fcqZQmxfaR+ytxHHThHqzccMph5WKTTi7J
@@ -4300,8 +4979,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    +x8DXJtmKjFbhQX1SMD/aOAf6PyfAZbNDuUrkQanyllt+MzjPgQkmevPlXFR13bxtVng
    82bEySp+ACPIWgEXJKPku5971niQTpmaifiHPei1eTCEUulmzbg49BY2YT5A3dL5Nv/1
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 89]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    mvnG/nPuLwWSWqT2Z6E49X+QkzoWlhn+JJ9LgYQ+2N4EVnCV1qKMgAO3QOwQRm/UQgpj
    Mraey7H0AISuIWlixv2MgeBIhse9MTlQ690IiVPAdjN97v9wgqb7DLJVB+uuDmZoVZ0s
@@ -4352,8 +5035,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    IOt2H1xq6kHu2MY5i2zKcXufMGAZhjV/N5tw9fxAWIPr2hN462+fwskftT1Utyi0iaRq
    Nx8a3JG3nHIQziRJ9WWJiO9zRZUt7RR4zzIiQGRWN1RGscfxSbb0YW1ErvVpXJEhBTv9
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 90]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    V0m4UlrXsDZ4HNU1TtP4vNiud9stFN5lViE5mpYP7PSn4RpSyhnX7LteTRV+784Xihf/
    51gCy1MN9LEDO+FjaKK4n9VqUraUJXWpD07VVincD9DkBGiVzbRIkiQlC3W8jqpMf14a
@@ -4404,8 +5091,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Adhyq5akBlLAskO07kghJzna/a0vuZ06lsLp8R6KmpXMVywZzrYgMuyioKM2Cjt/QGDL
    lDEL+Jjhulj/StL6UNuJ/CCKb4rl8doHYCfUyBdOu4airgyiUUlFoGzzorXG2127P3qq
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 91]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ln53by7xM+Z81McfDuX36KrPJcZlELKu3xxE5W4j6o1/xzcaT4VdE7k/vitdUPaVd2UR
    lQMgBym0N+Qi6hUQSNDSspX+Q6Wyu/APD4EB+1ejjtC3inefUp9XpvQM9Rhk6x4AMW5m
@@ -4456,8 +5147,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    k5YAhVbYQC4w5UorRhi2m8XWu3/tD7CdBGKrRaqT/SCgJRQ/EOI6y3TBX79I6fTVm6np
    /oGyxEfbq7Pd1GzvjiSBqylDnlsV+cKc56KQbIQUsJxIqUEWZcKrsw9ad+4KwM1pewCE
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 92]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    0L+zj0mgiFRh+I2KJWTeGnWtRVw4TCVCN/DrcbsRUjU2G9k2SAx4Kv5VA+57I77FLdxZ
    iXIxhQ/mL8NO4dXw5PFSdc74y2wNvYbiK6oDT8d/tqbHzRhwWBygOrTnmpeV7r4XK4Zi
@@ -4508,8 +5203,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Bi4RiL7eP/QEXCMNTRMllPmbz7zQt74j6z/UOhJYvaNuEOCVJFYn3wNQXPwM56fQMSoC
    h0iHFQrKpjlLD8ryHXyC5SgYkKhVi41YmogtxZPcECx/Ru4JQ82Cdq8szDB7NuhtD4UU
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 93]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    YJBQeiJLjkVxxBJ2zsHJ66m4GrvXRIxSnWsSvxaz81BfY5eBFIClAhHL3tEkqVlQnWS2
    I7JmzyvUMYGsvp6G3r3bz+n9Xw0uLembmMBI/TEE1g22IcW2rwiuB5stjvO8c/LHqBtV
@@ -4560,8 +5259,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    1Uni9LD2ZTOqE2HQ+ZDO9nB56vQklygFFnWa5jQL/7C87ZWP5o2qYdd8FvPFLnJA4kPB
    DP61EHmcpGE8N5iV9kSmOosOVTDE5d0Ef6DoDrxa0PUyQfehn0rzF2U0cf5znutdp/zK
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 94]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    raqazX9Mwm2RfoF9dBUu2zA5RtUdNX7v9dZOYKFb4x/u6hebBo9vtiSnCewkzo95bHYN
    /+zYGZ+uC5uceXjJQgWmlEnVXpbDzbAP8KPYL4kyg2pVKzvj3fb1aMHm1Hjay8q6xNve
@@ -4612,8 +5315,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    2/hwV1+b0rXNGgA4ySUhNmYkPhYvbaqU6jzR4RqaiWXa++HT+9Lf7uM0eGDuvLBnstH2
    1CNHLCm0WgAzq2eczT5iyo6XSc3ZfZQHxn/EI/5V5ef5fC+3qQ/vN5NW9/MC3lIMcIch
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 95]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    UGLdRDzFOhjPqS8HpRZ0lH8ITbbYu6pNO9nq/IXJ9/D78/hXrZx6xwCiYzuF9BzEZJFQ
    idXHIQnsVlRIACvMFlixrMOoMRu2aWPptP1qxrVn4Iy6Fyj2JL1eHSU/NoH8i4RcyFQ+
@@ -4664,8 +5371,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    lFMTrNVi3yUFmEYUR0bLQVJDIscCejajJbrlxqrnqfcXsuC83bFYkB4poLhIRVo8wTlI
    zPKhffNDMm1GtfSxPok0j9Chws0RWXoqEQBhFkmK89moDzHtd7I2b2gePLTPb4xCo7G9
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 96]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ZiKEuSf9Ch/pGFo/SSeFG+43+daHJ+fRWZ+YR5pu7AQw3K6H/UCt/nmZUiT/I5Vo5O8M
    CbaG2qgwqWDGyuFWePb4kUrY22jQGPQP+uvBHWZ0tAn7TSb5Di2ktvWC5gmCoTWPo5Jl
@@ -4716,8 +5427,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    poCGBgo00FDrzdvI7cD4pK3I/ADjgmgTjMU2LA4jKcPSvS28k/6Z70gqBIMPtRl7KDZR
    joVUPN7ovkJv/jGQWxNU1I/Gb2OAbK0aSmtBDwuV+5wiZp4TL9vlA7QKAUo6MLdP5HE+
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 97]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    9r6OS3iDhMMlfcwxqzgDEEHNadsTKitK0B42fZ7ldOccsJnFiAnP5ij3uLH+RnegYT8P
    dDU7HaB1Ve0n4TcDS+nzc/hvGNuNVMKstJTV/V/iqVeNFPl5EA7LzX7vurTQmJdF23hC
@@ -4768,8 +5483,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    5cCAwEAAQ==",
    "x5c": "MIIRuTCCBzCgAwIBAgIUTTHWFAYUq8fnjKZrFARLHi1GsmQwCgYIKwYBBQUH
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 98]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    BiUwRzENMAsGA1UECgwESUVURjEOMAwGA1UECwwFTEFNUFMxJjAkBgNVBAMMHWlkLU1M
    RFNBNDQtUlNBMjA0OC1QU1MtU0hBMjU2MB4XDTI2MDEwNjExMDc1OVoXDTM2MDEwNzEx
@@ -4820,8 +5539,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Er3T5mvIQKXRKEKel7ZgpdQUpw9PbaWUWSWCRuf7fg6HnyOTHXneKP6jcO3cX+4w80u+
    ND0A3wJIn8r8elfkiNQ1MPk00WzN1BGKFhiy/+wQEsmZ1LV6zAyI+QYRY4284PNmu02n
 
+
+
 Ounsworth, et al.        Expires 11 October 2026               [Page 99]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    EeIFPUHyhRLaREEzWnX4DA23/SjQ7uyh9lQ2vRjFlpLFu/H2EOhR4S403N3Ix9c286Ky
    6k7eHNk7XotpDbHy3wMxyAf4XY37KuhPKW5P25igxRkmlu6Z7InxiIO+upALZ5Fl0Nzm
@@ -4872,8 +5595,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    whOLY937CpwXuEzeziPUpLSoo3jUDhY/bGAYrAtnySszxEn1AYp6qVkC46lXKmryw+XA
    gMBAAECggEAWF+Nd3Km6TA27i6x2ZoOEPj5bSt2oyD2y8WK9EQFP8XJK4iYXv+S3EkFp
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 100]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    l576dUtbm9PadK88QfrVvmq/zeJa0batFeZcma4GJSfh3AspkFhaFxZIY6i3zNA8Se1p
    ofjhWcAA1jOCa/V9DkRR78oIKDbEpimjv2elyDeqJd1xinSdY8p6ub3r+MdwhoBrRJqb
@@ -4924,8 +5651,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    eWvA/g6B8hQdLxQkl9Fsg+GXKr6OkBdJEazpcX31Qro7PiYB6k7+kCIaMxaADGMWxekC
    1yvCyqnqZsVW3GzCaTlIx66iM+Vm342e0BGwDSKbQYUlV/uUzk4aEpYzfj2OQbWCTpeu
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 101]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    MzH2uQL4Sb3WAbZKjP5LoFnZv0AOO2oIZY6bFJtooMNub66NSfGtQ4Z1UiPH1m/w/GFD
    ofwfLVXpIIpIqSEauduslSsETx3X4uf8RRVVjCurma95qUiWWEckteewMP+wqZsMqix4
@@ -4976,8 +5707,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    mPooJyxaOZTmyeoFUVjGbyCfwi2mPwvGovQbN4ScBzUWPHvtsV14GY0xnXLq/P7DTa0F
    lqEXmdbaoJ6P4KaNwZWhjgQZavwkcllXuj7X5N",
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 102]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    "sWithContext": "kQvpYphC8wTss2o0eoDbvap5TMqdIPqtUJFHk6PpICE7Du/hrj4
    ytbe1IwPu1FH3uoWLidEFFy8Sn4q3gNlcG+8e4NJ4xWzIJvOmQf39CEM3DGXBApsrEIX
@@ -5028,8 +5763,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    vJ0UOPFZXXmxyhoiLjpGjpLnAzeHp6y01N0dIVl6Dmq2vt8TGyOXy9P4RJ0xkeYHExcj
    s7fL0IzA7PEZdanJ/gKqt0uTo7vwAAAAAAAAAAAAAABQnNEUX0jyU2yi6pT2saBXh1iF
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 103]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    zxGhlEwSH/D0+3QK6vFyACAEbFaRTFbnO3+OXWzS1oJ1VrCt0I34wlGTXiRx+cASLEQh
    PeKXamtVrVgSTWhYyS2Q9msXQoqJeLzfybtaj7SKSI7MOwvWAon2DUCr6XZ8xD+afHEi
@@ -5080,8 +5819,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    1toprvs4ZWYXF9d7wElN/pQcIIjF+NaOq0+yRlSM7it/qqTa4jzehNyKlarqd3AYGzSR
    pFMHbOtEa6fko3VbpmEaJIDy+S/qb8zMcJx+J2pY/BMtgGLScIe1d4cSTftwZav2/RLP
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 104]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    6KC/V8s5rJlYfR0yziNvCL91wUnai12N6AIJAzrDULgDvR7qRWFhC+WP8HzA35QIMIl7
    TAq2VudFyborF0GxDtHri57Yzb4lqhc7cDtmaDMvRZvbADJvUjmJ/jcDnpD1LZppiQcI
@@ -5132,8 +5875,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    w+NsZsoJ/4wxGPMdzvokwq/W9qwxfKc1UmjGukthiS7lRNGU0j9OC3zgOcKUp42NW9Up
    TIRBFF1a+oit6vLb3evRKT7Q5G1Vxs0OcG7ljiPa4IZFdDDPV7kZsbjBkfFPQWonMF1h
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 105]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Fn92zs8gnTx5lV91K4yWc7blcMb7/W1Qv17Jlb3f1ZvA1UhM4a1FVMEW4/aKeEMG48hj
    vDH8+nbv4chTksf2/XNW74PrqXoQ9hyYE2S0EV37DWfAed5M0yPgo0POgrHv7AxVR2jf
@@ -5184,8 +5931,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    i5d17r0UMrZWF96BkM55J2hiaAjEbwg2fERXUDpfQRmDdvqkpsAmjevwceyOze29qPYs
    ciHSBCsghcNlaw3CfIKpfXCyj6DmSlEsQUdt4M7uzrxi0/hsJrjsQKBgQDXsD5wGfwId
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 106]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    KE80oWiJlSVFtnwEn65/rZWO8H0WLtdvjRHK3BlIK7Jz8RrCpvx+uWEJ8cgQlQT8UQ58
    3mWSeFTUjLcs4lL3HMl78WkV6E4+5I6XOQQHX0a+oULn8rQav2Lner7MLYkwIvUx4i7A
@@ -5236,8 +5987,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    twVAvHLifJkfgAaddhx6hy+i13bukiVCKA9pdSRV6Sir8/1qB7waY1evBTW12HHVBaUv
    pTQ8m5KwRquUqWbYUM6mRC4ui0/aoNuUA7nFS1JJKNAB4Ak+DsW0ydq5mw2F0LsqW0n5
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 107]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    IbB9h69lIxzcQ1lwfYMJm2FNjGlBZMHonLMmvYVKFeREGCoXLsu2Kx7AoqL2j5qkoRS1
    2yytqWqCzSZptl1lC64E6t1fgJ8Ol+GH6/DE70GNECUzjSSSc+j8+hyNIuJ4MYMewYrI
@@ -5288,8 +6043,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    57pr3zzdlxTGQWr5ARL8h3Uta6hAg4bahTU9VRqKqgwpanLCsJTUYk8lpfkhixh0Cz57
    38sZySGK4QeCQ7g8xOIBsY2csCOAMnM79ZigE/+tN8ZhVEg/N+OOE60ZaIgNlY0Itrmy
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 108]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    DLewv9QNV/eXX1k9wR5FKsw266o/TfE/y5tGQWCr41QmxMN9zPEYpFAvuxJXyvmssJaC
    dTvSXkb5tcJR++bJ/SSVgYhY0+2/Rn/r34xtdpJ9EkYzYozkJ+uotOAPZ9rn2d2SVN2D
@@ -5340,8 +6099,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    },
    {
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 109]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    "tcId": "id-MLDSA44-Ed25519-SHA512",
    "pk": "FlplaQIgVuYEA04nN9VXyMWK4XDhRhnaGaWO6FqoCtiDr5rL89omEFSIf811X
@@ -5392,8 +6155,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    X5UOze8t3l/MFkmdINGIfSgyasLCHO5mqA9tC8UEQq9nUGSfJjTo7K/jaJwgzwQOLrKf
    YtellNWwcEW/NafiujFq2sfsBvptngZ/5/7ZFwWGMta9HwX4k4sxUGOm52tB0s16h5MM
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 110]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Jg2HNtGRqO+yROGwZWoChUNdlu+G0nux8D9vA8bb1ilueiLOpTLqmVZIPBkDFuCM94V/
    UigXuv7cNOj3oDw26f0XxQMc6vb3G+RVPZLITHZ70wGOiOzo4FRkfBVzeImQEc1OfgQU
@@ -5444,8 +6211,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    A7yYdZG+q3GSebuYfCWfpmkzLAL6LpyebaVDOIA9Ed07PEZTri/d7mbrxpnIx9UUEVez
    B9aO8RvI62egoGx5+FTryR1HA3NV3REMP72tEw6ctGvUsANt1jGpHD7UZE78FQ1NmcEx
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 111]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    qyEd1r2KiURG5DfLIWCrhTkiUJCUdIHJ1gpWnPOZo6yhi5uM1DY4L0Nfq7dzZnNEefnp
    fBGUVgjdDrub6xx/Dtc1AabjOegEebSvx4pHGPHv59A2SqffUYTnp1MCEgOAJ0U43+5/
@@ -5496,8 +6267,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    viKuvlcUBXTte1MSWu2pw/V2HskCGoxsvoyGIP3qRwooxEzPrN7IBLJVOpBj67dzxfoR
    wFIpGBrldINyQVxT9ENgwWnTCzrI+1yZfhTlNnpw7gugImTMm9TVhFOA9kJKT/hPxq3H
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 112]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    yp/WJDYP/qa+O7hL8zob6UBDuCgJToU3B5TXJNl2YGnmUF6TwyWt90l6kgBTqEX7Poao
    FsXUdnAHtVc4BCqMGK+fDYlrZs7PgaQbeCVcUKComEMUvg37D2OByl+kaLUbWTCyv3aj
@@ -5548,8 +6323,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Cp9eMEwSsXYD8gLNi0hTeIQG0Cpe3s2fAngfuok6aUBnv6Zl45sq6IZYxQjei0cJO5bM
    g9ahDpc1Kbr/RoJK2orDlRPL8MVtsk261zg08/YtDTxDi7nBVFKTKfS/T0J0xpHmbmVx
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 113]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    vAYOR9WH39hvVsdmlph+P4FClweo8VIS667g1lfS3ak6ih01pCnlB/wF7ik7ExVV2E5b
    HAM+tzaj8o8EWr95Ob1LNv9AjPuzb7RCsq9A7mTuUV+Zl8yBxC9bpaPXje3pErOHptPU
@@ -5600,8 +6379,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    H+17l+K2/UVgR8EULEN4VFcg4HUwX3iFzgBBVlEHov1xVdmsYvpIu4tj5Aw4ZSMNflUo
    hpB49hukpt2r8mqA0o7xLgFVn3Sf8hYq/SpaxYQZsLH1t92IHQ0Gr5s0wTK8lixnbMoS
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 114]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    6wRsEB65+I8OBSYH6/hJuZ9HJgyUYIKWBdBV6jt1a14nXf3ULsdsFXSV2GcBB9JqdR85
    Doi1I20",
@@ -5652,8 +6435,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    +uA13xw1b00Q65SS5ipid1oFx+ffhOxT66UsjGpmGKfKJu6I72VyRLfZ2IvUdiGxRQna
    Ng2shgzfPPTjCmlLthjzugSFXDxmbA985kLxzVfD2HcFTDfCL6aQV26BywszyBg98DgV
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 115]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    BZ4VzH30iZ5obI+XoqtPoTo2LVyqp81Jzelu1T9sFRmfd5SWWm+7pmvfy7IEmMbK5eBO
    3aPTJHHuytSpPXUFvrIZPpXFDFvuRtVf5TJA9Hu5jglfBt+8ecWLhO0VpTwI0cubfrGi
@@ -5704,8 +6491,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    0YFEW2gIGTm03orjMEcdtAjzOhIQ1xaLiLrc8KNvlkVWtavYdimvNa78gRR7T/pLL619
    wSnEKRhKKPFQZ02Ex5UxxPgVaM02LDC290aqFrCs/pfL9L9fat8BFGNoCGFAn5iU38Yj
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 116]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    dTddMh3z6kC3HOkSMxG/phSRJPuu8f8J1L2+PCcMafE0pf8OWuoEd0uRKzdEoNFXNvZJ
    ta9Qg/oLDeQHiXefLMSdHjCrgp0Tl05+XCOqhKfni945SSW3cPjsMengEWrUPwDas32y
@@ -5756,8 +6547,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    mWl+PnXkXgYDXuqlYRAxUbi6Q/msqzFjKsZVhi+q+hSzOnoa/jPJhntjP6Zrj4yRxPEr
    c2TgkYW8ny0aIz0r+D4glszIG5SJFz3PoiFY12cMkjDBLxg5rBvLAag8yA3LMVqTxeYm
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 117]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    4xmmfo9Z7U83o7XJpei2fwYEGM4VenuBPZ6V72pn8WMhdnUd/aG03nw0UbhGrTEFnMhY
    ax8mL1isKvmWKaw0EQbp0s7GYL2GNAxDoT1xaCrhZh7hcMj6cM6IalIluoja3720q32x
@@ -5808,8 +6603,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    "tcId": "id-MLDSA65-RSA3072-PSS-SHA512",
    "pk": "hDojmxlfrJYNuadjr6Hz5OTFF4YmaeIaCCf1mT6IjaoGPh02ZeDz5cxXmO1XQ
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 118]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    jND9QlI5bYVWTTgBfF5rzNesbl6GFtl9jdf0SBG87u+ueNOxNEZasxlzqfpfK+DcLf3c
    c/yU5pwbIayi7kaQmLzvB/5XfoBPkZtYKS6qnwje8SNj3Y9y39skXxd9thNryCNubH3s
@@ -5860,8 +6659,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    "x5c": "MIIYsjCCCjCgAwIBAgIUFphT4SkhQSFm9j+2IBQwN2SFtYUwCgYIKwYBBQUH
    BikwRzENMAsGA1UECgwESUVURjEOMAwGA1UECwwFTEFNUFMxJjAkBgNVBAMMHWlkLU1M
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 119]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    RFNBNjUtUlNBMzA3Mi1QU1MtU0hBNTEyMB4XDTI2MDEwNjExMDgwMFoXDTM2MDEwNzEx
    MDgwMFowRzENMAsGA1UECgwESUVURjEOMAwGA1UECwwFTEFNUFMxJjAkBgNVBAMMHWlk
@@ -5912,8 +6715,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    mKhquGBclww9hxBkk6kFn0uehiyh8uf0xFT61hWWc2ZaKAuh6S/wBhrSUv83p4PeOcv2
    jq/CySvTSrNaOfUXrbo784tyaVU8aDo7Q7i69uH8gkWM6tQvET+TsUC6qlTFAIttcZo2
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 120]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    3IZ9jI3Jv69aTNewzVnJ/EhQjthu41kXX017NXycOXZ4J+lzmvdzYJQOpCLCSzsCAwEA
    AaMSMBAwDgYDVR0PAQH/BAQDAgeAMAoGCCsGAQUFBwYpA4IObgAUld38iIJfn1AhB72j
@@ -5964,8 +6771,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Q7O6bAwjqigiP5hbUQ6EOVvi8waImPdgj3uAd+qGhzGrkK/7dLo7ZXL6lLvTikcxcuC6
    rfM1hpZf3MN1lkxh8ETN2C0I8AviWBe3rFd2lqQbou8Xl/x4B0/lmBn4cDEhYMOyK44p
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 121]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    z4/LY4jWYu+9dbItuf6Ou8U2eC6sRYxRlFjWnFAqMCeRZD/s6M1W7bWH0FDAF4M3vZgB
    xhMVP4DNeRkkWZwGZz4jH7gVWfp61bMzH2C/y2nP8TkXKaeMwZMKOfgnBJRHninUjiJY
@@ -6016,8 +6827,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    /W+LvRpYQhGhBR3q1gaq3eG/kTmwA0HSgt57hLONbHEWZrtNxRhLqcMZwcDFqkOiPpWd
    p3JAoHBANEOu+ei+6zcSwbzZYmlIm6bqZz+sS7Q60SiKlzXzLKK0ZSIfbbPzs6kxgUzs
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 122]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    M5smZqcY3tbbZb9bSlDbLJElMrR6+jrEMKGThBG1VdOdib9ODN1nU1Ho4MNlOfC4FwZg
    QQcxYxgKldwWIf/ERu1xrrtXtG57+ORPsnZc0816lVuAL9Y9Kbnxs7hWbu8dTyOTRmVP
@@ -6068,8 +6883,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    dyaeckm4pSuNN1prMp4YcV0jPoE9LBa28BPRhgqBAE4F58CA2As09C5NI7BJM2gk7BhV
    rG6xNAoHAT7s/BO/TKT69jU/HuPRG14ra2m59xzXoDL5hvhvM9lzNb0BMSMjkP3hXSO/
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 123]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    GidDtdJLhv9FPqcvxsqZozwFKxkCH/sfcf1oBmZYkcn8HJVqwsMtgmHsUc91FgU6Suts
    NKACOWec5BjBSzxaBL33jz/i8G6Vh2DN0wYFAz4kjLqD0AcvMUC/9J7uRdtlUi+oVKRX
@@ -6120,8 +6939,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    j0AE96i2OLDuNTtTfLSqL5CC6J2vnZk41TW2ahh+dabt+2xqrD57Z0lmsr8CiXM7N47l
    bL0ehML//VJpveaf5SLRh1WDaHUTInzR9iB9sVI7iBZQKE4uh2mflnc3QcTvSWdwf7G+
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 124]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    B+VOUVBFXrNggN27ggCTlaQtm6YB3GJTKoOFY5SmlIdEYitGEPZIBC855uZbXbrW3Hdm
    D8BZj1wg9YArSd1F7U1CVonDsQF1saDrHmcMSLUfpc+GJjD203snzdRCHmvmkHYa08vK
@@ -6172,8 +6995,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    1GFgzPqSGa+skkW0L4WLiegUNTkBq43hTkax+bFcJxp98lvkYB9z8+65udVYzmoNnCQU
    9Jhv4iKZkfK27RxYbf+XpkcoeJ9t67qmBWHsi8cRxoReTbMTqNLXG+JPyoZIv5EAwj2D
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 125]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    HM3AcI72qYmTMU11sX643M4Va6LotqE7f2fwcdwa1Wn1tvfBS/yBNwNetjfk087EmI+N
    ZKFxQO5+z7sbRLx6+pPe/dYYA41ngRTxJoce4hlRY/4cid6PUaUAUNxzXJVKH3/At7af
@@ -6224,8 +7051,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    xGMLMGhCnNTm2NWeesfxhq2NKUU/ti5nyfPAQ7wCBl6gpR+uY+MnobKmPBhd4Ofr5GLO
    ydWHXpu+3HCgEz95IaxE6KG3uQFIhReWCau5oM+UOjxqRo4/az3JRYFHMCpYGp4mMaa9
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 126]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Mn+Wje1Sc7AZqK5K6EK1S7dtVeAA6N533++HbNyn5mL52j+NRN9nbTVjCEYSBB70csBy
    vHEVZcqhLji7HerH0fdxL4dBavzaxvyI5oBjGCVxBZCo+g+aiaKcQnfOQkstWhDC6JPd
@@ -6276,8 +7107,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    fSt1kEKqiO6XOZxciG+Wjdw2aowggGKAoIBgQCOOSzoSFUq3JNHBIvp8RwEnFMojaG1G
    A7tzKnKXUVl35R7tnSr+tr6A9Xnr1qm3HDc4sVv/KYOnerOXpx5ME2qIbU2KPLyjh8YT
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 127]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    bbyauKr3qLzcoCy+goILtbKnQQBVNM/pT9z2F48d090iEfFnMqGy1EKwSd5DpopZWX8Y
    u/9BtkNNxgDtyfQsecT2Xfdm+El3WdhiF/KSJYaY74MqAzUJBQBN1ay5nvMxDM9HNo2T
@@ -6328,8 +7163,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    UMvuewmykg7+L5pbspkBH0BQff8JMJxercLCRRB7LNelLliz6Wz3XQhYHqhbYuosT2r/
    ubJYd19D7YWVFsgMstQUbqjpFQEaFaVAtgcWr6qh5uD7pwM07uIO8bFGWMIRt7fk9M0d
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 128]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    wMFkD/sJegOXOgkfuVUOvmoHejT0D+iJ3hSSoktYrskIsI8Ra2wTPs2diMe4uaIAryYS
    ZhOfQYnpQHHMUwt5+9qUF/Z2Zo8PREkDKVijVBDrEiuPFuimskJ54LC3hPYyPh5v5fSt
@@ -6380,8 +7219,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    qEwiPmcz7g2Zr+XyasRhIedeRlwJNOuylb92O7GiWnfpopReCkZdSltR9fPqHmUBpvQU
    oBsMskNerF6blkfI5Mc5v+JG8qIu9ygHzZPQI/r5DMheS8SzjgXAyKQWRwfY+EE8w95B
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 129]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Q/0SLsrZyXZexD46n1RKdbznWHbY11f31C+AJ9CFgBWRVEIfMdznj31p5LSVnFGpWw/6
    E945A+6AxDqrJPQ6Zb1TUhxbjgnEgMsLY/qSdTtHHyt8nDJ+kTT5KuaQdJPJikGUJjmz
@@ -6432,8 +7275,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    a/iCeEHdnuBSdl9sqhkt9xXV+uO2kYrn901yByDYhVKucR6XulZX67oSqnUEazriPy3G
    LHV0LjNyHmEgN7HFW8oa8oXNGtzQ/8ipC/LThF9pwFcDYerEkNlV69/6n/PbnnEQ9QkH
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 130]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    mgvW7QBIv1IjUD5nLeNSiIIm/u/CDWm6ZE8lVl1gyC02OPYgZuVvbeGTB+K/YPAWOU/S
    CeVaI4I1nkYTOFtEVHxyUfZ5kuy7L/CcmR9V2HzW8EfW4qZ4DrlwFIhYu/g0WRxKAbN3
@@ -6484,8 +7331,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    iq+9Cpgy7LxGsMyEJH6EtjHtmrF9p3wu641mMMZqZKps2CQ02VAto8yS6XFz+IAsna3d
    7zBCvVvtwvu+OWlqSF1Ew0xQRk2ZP13Fr0PdX06loX1C8Pwh/LDC3za2DpX1Ifpj21EX
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 131]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    3HwlAZs2Ifd7xoOwsrU5qT3HZWT3FAoHBALnziE67otV5ju5GKF6mgdbzB/NgXQNgtr3
    F7GYmYE4vCTOiio6sl1Slh/uzV3g+PelW9TxtpBpsc4IKROw3qHmfTUsgvjCAog1i8Fv
@@ -6536,8 +7387,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    mxHuCaPLPJXg+a0wYbo9lJsCl/xFPByR0jrn7uBv8PWGwzEYlRfwru/d8YSDY7Q0g4rr
    YUDzGnv1FzfMtsUZRKbB++hDOYBmyNbbFwywcwW8MFvMM8F0/dyuDwhagp+PSnLeV79y
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 132]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    3pC7ZmoMfjvabxYaVsXgpviaG8NbbgPh3noviLfd1sU0GkuBmAHYIt0WFFJk7RLoCj9o
    IltHgsC4o4Kts168Fdm1yZIgCAbNPXbLHa0kGwRIJRMhX4J6/2Qe3EHr/AOzHNsDzsBB
@@ -6588,8 +7443,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Ekdt07oyeXU/mirwZVI6j3D35Xy+uXj1GpLoRK8B+uw3miVZmTQsgUSill7mqwk6a8WZ
    rmxWMn2Fa/CQVrUMDf8adEhYF0enFDC1Tzz/b/CaMTRk6MsvSFrXDz4wdIKjR8A314Kd
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 133]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Co1RJZfQ5ol3fZOew5Wj9Scxb5Xt+ERA9m/7GWMNpeJpUkXKZUSIyc+x0ifVUmZ+GtuX
    LI+Jvm32rJWTpYK7EXdkbk3Wl9R96vBO4zMnnT+VK0qQWpjRYlZubcMUM4dGJU+FRXC+
@@ -6640,8 +7499,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    BNOvEWKe23DEfJWd/9VMQqVFLZcwPbhBgZMO4EDhdei39TX3D86ncGu3r9DtWKrug0mG
    Ilh7dEdzwc477HjIsOh+7wN0kgHuQsDbMR/bG+x43E6KASxV/FRRE7EbYnc/Kgyrj8HP
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 134]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    z5Yrest/5yfpY+an2CFFcR1Apk8yokNV+Sav4//jXmN1DBIhaaElMSxqoDnY77UiaepJ
    1S1zDShAfZkyiALpxE6nMRXgZ2y2lVeIOaV1+Wtmp7UE8tSSSbBmH9Zll5HrfSIGjG61
@@ -6692,8 +7555,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    vYLEaZ6jD4++rpFeCXGV2BKg/Lvm7MgNKIj6EMZNaeMieW3POowbe2LPgacxvh8MQywL
    go6ruMKSAt6q1jPsBXUiIQDusWs/hkHPEqCqv5IwnN44SiT3ZcAMNO6iRZqXwwzyxTka
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 135]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    sCn53H5AnmUkYLAM0bO22f2rVevL5YezpecczdHWVLanXm9VC2O4/vnhHQj+Ab8o7TFm
    /UFpavx7ocor2yMu8w8ZnI6Kv8jBu3S+UmXpxCj3fOhjZ0L3PFXCup7L7wa4hYAPZ90T
@@ -6744,8 +7611,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    RJfeWTWeTStvEuMB8VvkljPxl3zlEqNKqtQUr0v4V1hQ+IKG9T7MdXahjmi7v8U0RF9K
    HSRQxD7+aUBMN4Oxb0WvLiaC6Bhqcq/JkNaHwFiVurFyV5ex75YpOJkfR42lGZIQ9yUG
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 136]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    MH4qhMjwForzjVqXlUP2Q7piIdX3/TwozP8lodJhCASmQKuIbtosI+evZ/xgjmNkNzIi
    zWq6dAv+RV70bo/2/u92mV4VmH1me/BIBSo4WIQvQJTdfWKz+eoFOYHANR05bBz65tpx
@@ -6796,8 +7667,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    /D8bkJc5yZFWBEmklPUw/KDsH/HRGIVQVJ/Hs0rQPtZeAoAT4bvVzjEMcMQnhGfumhIU
    KZht8FI1bR/LSB9d+tZGTQHNSLeHF8EXEtdGOjZjc3TBN24YJqg6U17UbKm66abK8JvF
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 137]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    qNjq7lTiQC2AXw6tCxWzu5SrYsyViFMZraV1AHYdgmjPM7Vf1OVER3IubxSRg6mYQCZi
    adCMKGzxehxXDpHsdaUTKw7t8oQ9rDRY+ZRua8Iz9Dgt1XP0/jjxNvvexEzuTsjtSw6o
@@ -6848,8 +7723,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    8mESnLUQZe63nmBkyJGrsz3Ji/wgyEXnEecEnD9v9OF0B81gE3HFQ94FK/+HIEs/uUa8
    N19Q2rxMEYD4MPtY5u/js24usRbJzgEn7ph20uqwsdYyo8U3mRSuwG0vVfHpbmCwrfyw
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 138]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    FQXooaf1jr8wSl/lJkud0dJim4NqJkhCVnEe2GSDgO//Ufh1IFVaLMvTmKehxIS+UbCL
    3Y7fX/hiMv+vV1k76tdvfBkTlov34hEdDcqcVAMxAf4cq1kfBUAu7uFYZSW/TJMUqq9G
@@ -6900,8 +7779,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    mZrixU5XZPPsNF3nsWQNwD+ML2uG8MWSMQeE+YsYv1PRUzPyMbV6ju3nR/k0lJlfd/gp
    pAhjXm+MqDV1E6aUNrPLbGcIStCZgc6fCCmjDwFZ+zkQClSHjPE6KHRgif3hNgZJFZZc
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 139]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    NGmFSn0R+UXMEsI3tJTaWLp4VLDog2BCXuQ0KIVeNwvdr8hAzR23EmQQ58VdXBxVXkvP
    SCaroZWuzBbHqeJXnpJ9XD8YgmzPHdHRxPOe/9KrHHV45w2/0IZWozaKNGKU44lJgH63
@@ -6952,8 +7835,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    IxB4T5ixi/U9FTM/IxtXqO7edH+TSUmV93+CmkCGNeb4yoNXUTppQ2s8tsZwhK0JmBzp
    8IKaMPAVn7ORAKVIeM8ToodGCJ/eE2BkkVllw0aYVKfRH5RcwSwje0lNpYunhUsOiDYE
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 140]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Je5DQohV43C92vyEDNHbcSZBDnxV1cHFVeS89IJquhla7MFsep4leekn1cPxiCbM8d0d
    HE857/0qscdXjnDb/QhlajNoo0YpTjiUmAfrfLzc95nbQFlbXoT50PKCE6xzblDC+1Rw
@@ -7004,8 +7891,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    0I9gZtM1RFKaAmNnu672EPmjKZvhSdqpTQgzp5wWM4rEjPgVjpYGhdgcuSKb4gQFoKiH
    yREdl/pR20s7G1+2DIDutfnG+ElMe49dEh9fNJhTuNzuTc2YCUzaKXTURZGTFhb6Goar
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 141]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    eVV5Lz34TO0OrIR7pI4b3qkZma4Hntxoqy7qSFGGmWKabF/V4lwjEHVpEFp5k0j63MnO
    tS3qoiDEWEkswE5yooVvx7p/e0c8gQhckvRtOWMzoCLWMExH3KnrFxQ7bLd2j+Xaz7Y0
@@ -7056,8 +7947,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    6ySlfrc10yRc/JKJoGoYvbct3Vo7mdFULfveaQuIdQhN6fj4zFPh2rFw5KwWYlxH64ov
    Ok/kGXdH9Y+TdzQ5QNtEtOuds00vlp8xE8nF/fhJzTehYnLNs8tuo/u1MGO4pyyIW2wW
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 142]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    lHNSzHpbk/2F2Z9QWdxR08SB8qBxiqdqM3TNPWBPJ4Dv/I+uwdIw3j25w1ZqvM236222
    A1G8Hk02qnpoqJQQbCadWXF4Z04bQnaKEHi/yXVY3fKqvW3SmFb+zSV0v5pmxEO/AtGE
@@ -7108,8 +8003,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    l41z3i/45HWuT7FHtppgwWb7+lysFslj3td1wGJpIQ8lQ7yKSCfSiwMgDdZMJKVQILzh
    ETFJ13f0GK1+Bqe1DTWGeuyZtgcwfNUCOyfUMFhnl8wAAAAAAAAAAAAAAAAAAAAAAAAA
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 143]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ACQ8UGB4jrQgfSkz4qLkGizA++Tb1rs3yzkY3Nk/oH3cWbhaVJoeR3weKL1ffO5sE4zR
    w1DLHZ45gmnaKaN8lavzomrvFj7skYFKIdBrT1ZXCNvGTcQ0y/wWoh0lAWjhmbz3rlSc
@@ -7160,8 +8059,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    1WGSGQD1jvvj7yB7OKaoOQRTcsW38G5Cur3w/CgY6gPGrgDdqRJrYpxjTs0RdCwvngFE
    7/4E2HhLNHMLvpxAQAUnd+SXZXEs0pcKU6xnm+P/qQlktU2JixNvJvMbC6qyIzjUE+EQ
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 144]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    XV4VIlt4GMlw6cqDozu4FT9XMja/hQmpqb+ggUD2mf3vAH9FIOJfihC8+wYV79n0VduL
    kdfb+ZwZfkaWaSuUl07UXdgw7RfIMj8Kfz71clBo/rhOYg47p3iZRYNeGXwWviVZFw3G
@@ -7212,8 +8115,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    dFb6vsyJkimCfQymj1c0J+NiD6p2fLxlo/DwRzZ2CZER1dN0fBrTF0qC36sY7h4UzJYw
    aZdd0RzROwYa4zF9pbRhOsPu4lur4kCp1qNQTK0WNmKa4d9RC+Nm2FVXWvZlwIK0abap
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 145]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    5FfuyCMseizerlSvc49seA/hDfpk1XDGeUYs2987fFNmq+mgSbAP3FOiA8n8zH0jB+ZS
    F9mW+3yT3sK26SKRCFSBDNNXB5IPugMuWBzuH2O15AkZF9GJZhl21s72vpO2GdRYQ++H
@@ -7264,8 +8171,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Ozt4dbX0OuUc6MLLkCNg+VHfrggY5LCQNp34SdvDHDXhAsFeVGJWFBj2NvyY7mn/xcod
    G/AMVSO6I9CYNzJxd7YwcN3kdF5+aw4j0FNnC5LJbq9ql4owWMOdWQ5SyomOWMwpWz3Z
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 146]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    3tbvdOzi4JUazguVrLzopCHsdDNEapPavuA2wm2Dz+vFmB+dnGosN9okpTS0Fjv4OOAJ
    2+Kd7rnF6JxYiQG7mFdbwGu5hFYPxlOjYYkD2mVbv4Qj4HJFU4tgG3j2MVSTmUP4O8tv
@@ -7316,8 +8227,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    VsWrQn9T99X0IPiBenjXJPojGWrbAOcoVWjISb0/6bjLJSx8s9WTI5dZiGYq5WThz+r2
    E8rDuJRveYX+6N2Xx2gD0F+ZoVC+zkiQLdjYnm87NfvB1gfxLRHWzRPetZf2xuz7XL8j
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 147]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    D5QHzfW/zM5n+7SJjKCP",
    "sk": "/GvgYQOsPEtmOPS9dakZ3wH3Cig+xnSaTuvNo0xBsQ0wggknAgEAAoICAQC1h
@@ -7368,8 +8283,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    oMbJJdT8crVlJUu3h5mTtgZ4+VPsnrEAAXAojx1j8gW9QIZRQxAeVF8LbW/kPUAWoc0n
    wWNp5PpVNdqCo5pZRbTjyJcYT/6F5XoaRQ6u+rG+IsHreVQU7DM",
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 148]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    "sk_pkcs8": "MIIJXgIBADAKBggrBgEFBQcGLASCCUv8a+BhA6w8S2Y49L11qRnfAfc
    KKD7GdJpO682jTEGxDTCCCScCAQACggIBALWGLllxleqGGoaIXSHuXiZEOwet1OjuGBM
@@ -7420,8 +8339,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    ABcCiPHWPyBb1AhlFDEB5UXwttb+Q9QBahzSfBY2nk+lU12oKjmllFtOPIlxhP/oXleh
    pFDq76sb4iwet5VBTsMw=",
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 149]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    "s": "ytsOXnfqoclXD0Qcx4LYbq39OVYPKr0W970e6wb99Puj9GlA+AIVTe0wBE46F0
    VDaVOmnMgAAg8eIqYvMlt+dSaMqY6QfhIaxvq/7/9Nl3JICR4hU3F9G/fnoBPuQ+3vRm
@@ -7472,8 +8395,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    ACFnto9RTITMT/g7oW51t9VoSrMW0d2Io8OQHbMeTz01VNmogWV5Bvk6ZAOroFvNCL0J
    gFBus+TwzQ/zAIso4Yb/Y0u89rJ3oVeeWOW5PBdERtCj4nSzYS0fP9rvan9q6/9ilhvL
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 150]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    JvIv43H+Yu4Iz+w548pCx2toWBfSDlIwsmz4IvZTsBhoKiLDut2H+s8AqlLTaaBHX3OR
    HAJvTOYRPo8QYhb8Dg6wdxMIvXSvH7J7jQ+Gs7XCuD1vtTMeuAmcIOilacoSD7ynPVse
@@ -7524,8 +8451,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    loDYZ/Y4fik4yDDJOJwkZCsW1iQjQFeDrYlrPP4hvRju7ee+AylxLsmb7an5gvqTgNUw
    GLL3LGsoqpbEpAkVEOBRb5/q4BBVIvFOFN/1JXtgMKCfirJrbsQ2Lr0m48+ge6EIL0QK
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 151]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    7AjsQvMeaUszXYqbkzVg+ZxyXSKjMSJS0pLyL4Xe5VOoHylzuonZue//5cuBiI6X+jkc
    c46HHI7osVQim3xW3HH5NNP/RDx798Xzl80lCdSVqC+vfNQbPlgNGDH7BTc8ffZvx4Af
@@ -7576,8 +8507,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    uEkShWw2hPICLmS2G/92XpznSYEQV03bkL+Or53kGQSQrct0QaREbBdUe7cPRydjf6j6
    sO4G3aGKB/+3VLnXrFDYzvGqKtFH0aoK21BHPSCSuXyWOeBbxCUjfHIhgOoiq6PeQvUu
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 152]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    OEPTXyZRHrtVngyEgC+nDaAmX5yJMK9UF1APV1v/Nx63kLV3wdzv130FF14/oaoaV5X6
    pJSMVAqVB1U3dkXJUVniJ/G9HnUh9Dq13i7c/QbQhXagogBc3V76c9Dc/ZJRn9FQWvGX
@@ -7628,8 +8563,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    90plk9MJvHsd1/uojfL6mZIlF6KnsRV6qoN7rH5NAu+3cTX5Kjj7TaTN/H3W3oqefsM4
    fbKnXNOuQSDBlDNTla7Z2qorNSalD23R2bMTBEkOe7N6ig/HjtBTi2fv5TQWIlU6pLAP
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 153]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    swAY5yWJta1RdVl9XcysDjlkEVMGjFvBhpDHj4aFrxqHsUdOlq5rGhT81s+StMlVNJbT
    tLQ1zQIeCSjxM+3ys18UbZuaeQEmIJEOfPaAiUJav4Eno5ttyc8e+E8+h37Ha77fa2EP
@@ -7680,8 +8619,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    t8rNfFG2bmnkBJiCRDnz2gIlCWr+BJ6ObbcnPHvhPPod+x2u+32thD7jWu5b+eJ++hSI
    IfIgRCy0mmZTJqRlqLgGq1jG+tVGtJajEjAQMA4GA1UdDwEB/wQEAwIHgDAKBggrBgEF
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 154]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    BQcGLQOCDTYALObsB9H0thTW6P+htMHIwCKEV2cHVOyH4q0ckSESVHRtfH7sGbGJDbR4
    kZB1xYQVWspaPIupeXNEV/io6OyA9fE5cxCNfxmvGQxA/toGtOdQQC4xQT9B67PzTq8U
@@ -7732,8 +8675,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    3lGm47Q+2B2F8AfJnowHqO0rZhAy5wWaHWcTAFE42YAKhsmZfKyfrUbq5NfQMQLyfa25
    BXdY9T9tXFo7InzmVhl55OGH/9GQzMhkYv27vhATY8gqfTTg5zMel3pTX+B9aAobTfHk
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 155]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    NhcXU1BhA3v2yUc03cbD6mZyLVOFJwWhDDEkqBduRyRmymNOdlzRBnyJ0myt6g+/mumN
    VJgYaWmZbvFXPdjoE66Pi06yHbnrBZRCNUDBPdMU3ivpcHbSe/RtwaJRS5NIwF7Crr2u
@@ -7784,8 +8731,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    y7/cdSc0R9tAD+DSIrQcQeCAvk40h0wefXFD3IGk8DyRpIP6+WCVLlutU99KXkEZearg
    z24pPKPK4IDEVkP/FqIqNph1vTsmZpef4xKDCWh7fgMmzPPrE51k/U6UhHKC/PaTmCh5
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 156]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    8+X7oGOyc2c4+i2Li5gWqqOuL4UPasOZiF7plsu3+WDL2oUY5ukX1c8gbf8zYIWYul1o
    vBKM9cAcGTV2CC6YilteS8NFNR63O3MbUXRb87VL4dWsXm+rMY9DNKj5rEeUKIOVsgPI
@@ -7836,8 +8787,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    w0C6q/73K2fC1wyP8C+ogZhNh2aq/UWD/k/bzFqAmusEw02mbUBE3f0IH2vQaSwUkIUr
    scux3ai52H+W0Ub93cVKA4pk9inPM/TdoigJ4OLkDgop6Vs7hFR60ANNnhNIZeKYpCFf
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 157]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    dXC2JRvanGJ3a2b35oFEj6koFui4esJtE8mnRVLgBkKnzAMkcvo5P+qPlvQUgkuyZvIm
    pbxxfxrZV0QXOw0z792ScpbQZ/uWAVGbxejtolS3wbArNv7tqK4Db6rOwy4eab5KarT6
@@ -7888,8 +8843,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    pegFBDlki2/3SgMMc4ml1pRiwT3jAuRD/9eo3EDISWCwM114SGN+G0XuEegYhaGfG0jT
    zJKejUiKiNyo71G+CTnnN+maIxwD4orgy/v0vbIODxhnsU9bYD5+6AtopKSv2G1qpCpa
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 158]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    kAO9mu6BSoJ7nJFU+cpQeIWPNHw1zFQE1f+0AYXc14naYfGl5UemklLKYpIVe6m015Yz
    BFU2xP8OKNNNLRiFl3wV0WQ4raCvK23W98AEyy/9sLbt7aA+gKKz4+kqEdzktNulil2h
@@ -7940,8 +8899,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    3CwJsw9XdI7Nmfjl4q2ZLh4H/qivTz2mba/OeMipu0v93NugmH1zEi4oXoQPcI3nPfv4
    uM31Y1oFnCshCu0MW32i/g/iwXdGld8guzXtxFaG1Sy5mruc/W7UHzcErwAk4v4MwC3h
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 159]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    9aAg3stZWWTZG4jcwBC01UHqvn6hmTiZ7/vOPakQUYlnTH+rQWF2XVLRux4Z1Y2a3ow9
    +MTPQ6M08JPHfjF23l9ifE7hg9WkqtEIeHsXPrc/Y6sayfV0be7SziXANw3chGZtRRWf
@@ -7992,8 +8955,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    I3MAQtNVB6r5+oZk4me/7zj2pEFGJZ0x/q0Fhdl1S0bseGdWNmt6MPfjEz0OjNPCTx34
    xdt5fYnxO4YPVpKrRCHh7Fz63P2OrGsn1dG3u0s4lwDcN3IRmbUUVn9hjn14ao2xA1fL
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 160]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    2ZvRIFOonjLJNNk/5yupfE6wYG3N187JIGaGRR217GlJ6e7CfNoJl8lLn6JgWeWReDA9
    3HYoB4EzTN3FX9p1oArOh0BFZ1fQL/j8KSmA/8aSIqMbhXlQg8W9c+p+mfZBRW/0QvF4
@@ -8044,8 +9011,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    L2vIzwcq9QC+C6cpdnIgUXaHvcxxZbZR/1eJ6I54PBJrEn99uK1Ad50cwgzyXkKSKQp8
    3KAOJ6Gzcycl/qa+JWokEtFkQdvmrEam/wY2FTBLud4NhsbfMqgFaYpnANESk9DBufg9
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 161]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    8HKs932cR5JAj8xYzDpGJsFXgOspE3obcKo/U5Z6jyRJbphyNTQvc3jU591uVW7G2ScK
    IEr1CUlaP8YBkid7rAWCO+dukwX+z86TYQSW5F/mPpKIDoNL/CdPHBWwu1zqeeGznxvZ
@@ -8096,8 +9067,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    7fMsyD6lkE3gWF9a9ZBuPJjzFOCWf45FjVXG3MEzV8foj5liHAMR8Y7dYriYiLkJ/rml
    F5AvdKUYft3rZll/Hs2ko0Iu8MtzpZTH3IVKAwJgyj6jIiyAj/Ywu4vVO1zVRrtbEmfC
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 162]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    l4uF0A3L4IESYTcxnVF0cTZurx0VyZxFzhUVIrq+DVIpaIWfuGBsclyIoJeGLISdletO
    midDQYvsrSMAQf02sgoMAZLBQR9f2GHrP6d0ReaUQONuW7AuPh7FDv1XaoEKUI4/vDKU
@@ -8148,8 +9123,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    OtpZ+9lau8b1/h1r+Z6t/4Omzc1YcPYK9g7npoI1IBKnzHsOZIpCvlTCB34OwtJRAZ05
    DXxA3DKSKNmQ5TV8OOrKQBLQwntvD2qDu0Bq2oEEgKIvoA7FJn/6mjPsLnBXIZOH6sI6
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 163]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    FswQKMjrkdtypfb5FTd1683JI9vMdqNpy1B6sdCFmF9SgmYPrJ2agGfaLiEzDD3PY1XI
    aVp6m83wUYXH6p0Bt6pgNaxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAkRFxodMG
@@ -8200,8 +9179,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Yl+8JEjoGw8A5wUkTE6t0t2tAWDd6riES0fNaga8R9g4x3CrmSDLDJCkTmJyySVj1mQg
    lGWg8tXulj2tMClXPs3Nd1zPn7VcCsYQDQj/PBvfSngMQnJn6M0ke4IZOwKLT48oIEX6
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 164]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    G2EAwV9/E5IYrLI9KMgbpCPR2IjJCENnmbZiP1LzCsJlh11R161TFxGSaEZb3IEgqd/j
    CRfisKfXLVW0331xAQo7uwFwEFfFtIdkQ5XzqR5FNNaZFLZWPuX/Xo2lg29otfwiigpc
@@ -8252,8 +9235,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    bqdVknWcPr3vsxWxUPnxV4r9soNVhbg2M44yIUuzHc/TRtzpqk116DEWvTFyJBNf+qEd
    +52B9kuIrGFLgwRqBUT5y4rh8SfgiGpT/E8zVsUV6lmwI09vcjwdMY2hEKGl+vPRfZ2z
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 165]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    rvG33cXuWWaxin6jqf+UwZH8bnaafqEdBwT8MJ62M3xv7I7Lk55ih2UJsB3Hqmrbu8Rj
    BviuYkm8Pajprevm4yz1aYnVXU3HZXWdejqHDZLMJm74RTRApFT5p5GOG028hjqYjj2k
@@ -8304,8 +9291,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    HZQmwHceqatu7xGMG+K5iSbw9qOmt6+bjLPVpidVdTcdldZ16OocNkswmbvhFNECkVPm
    nkY4bTbyGOpiOPaSp4PJ0w2A2rQUVdEZ8gIl9bdOL3Bev6W2Wx7BX4mPbK909w03lEP4
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 166]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    YPJEztYnCetOcrieCKI8WHXtdb+2hDOfr2G1vaFniuvYDFEjFSPWbrDKUCFssIlIj5hq
    gTpsxaq7jYlMt8lRu+YVRbYTlTZAR/a8GpaoqRpNYKulnSZlVc/EBTOSzd83HXhGXkE8
@@ -8356,8 +9347,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    wcHWydyCO3VRENf5g4qDLbBpFbBN1VENDHQvv7bAfIutbvqBc5Vx4PRbngMwc+ZBzHGB
    Xb96RfqWhyXESE7ldUYor2i2VpmAZLVcB0HYr0ZqVIexmCgQcQ3Yb9XlzKWNofa4DstB
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 167]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Z3eUO8LKJCsvE8/VklGmOAA8NbvGY+Nd9nmqVzBr+9nyrG0VVfFMShQIomB9p4iiMDVO
    neevIdVnt+wLbwDWlb12sH+NolI1yBRXZJS/+RCh5iVcMjxXWnuJT1PZxAudoEWLCOUC
@@ -8408,8 +9403,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    UEsZLCotChBsb0OhWE2n8YR+1/j1+Mqzl2mIyB/VYHMFpjc5Lx7aWnnlc5WgfdoA4tQ6
    dHeVi5pegNUY5TzXxN67VtaIDIHOVO7r5aan0TIJpfsEDYzdljT2ovr6NXgvoVVtrUp5
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 168]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    tvHf9z6Ont4IMCtgCXx+OIil7gIYtpBAX/ic/J8G38xWV66p6WZblRLZ6a8curGRpVzF
    umbJd2eP4UvW2h1BR8TwAY5wOW60n9ml1iYGCErNey7P2BzNO3Ib27DCM0KtxjgkJr7u
@@ -8460,8 +9459,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    2b5HAkcFaDcaZBz/3DV+uPxSOBX9LMHOJC0qwhfk+Zhe451g/riJhaR3WTW0WX7XBiZT
    cfNarD+9ZduOqnkYQr6wLUUdMBTBdjIlHkIdTtGYt/5+o2DONULs3ScHNVZ6g7nK07cF
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 169]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    a/p2xDKvBwPa5v11Fl2AsCzZOPn3KmhZRW82gpct0WB0w3MzCGXF21BZL16dDoiQdZ2h
    mChKorLhqEsniN2wRKI+aUbtwSmR5b8emLHDIo9+MuL3+qKJNSzSVT3LgUvKe8nF1mXQ
@@ -8512,8 +9515,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    u3/4jZ5SEunNMXiBlryvVK40rrRDAXDpsUAm2Nz4aRyqiPfCoxZJJKQBEN4mt9gk8f1S
    jMhrVJmBa0nYVkTexVQzbwggsnjQjH8josJZIxRWSgmMRZJJ2GwQOSAFeTk5IYfYJnMZ
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 170]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    RSbd5Tn04I/47/+N2bVwPxfU6zQf8C/28VNtZu5MhBS6TcUX3FQgHX24QQOHfzYeDlVk
    7rajeErlGRxNbIKHTDhNAHuQdP/riJR3+iPxoEyDZI/6L2pVXwDDPP3AVAOoRsKMFhW+
@@ -8564,8 +9571,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    yhw/h+5lqMEgoRndJBFyCspeQUFKV1PTpKfDzx/8vtJwKoknEYrCJ2LPqlC0dgFUIcFy
    5T9jMGDuVfJoX2L2XwIHw+mhSar3iKUDfFsOrculjZPTocLfghaO7UL+76PdmTuT9ZzA
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 171]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    AHS3odX+w+xn73iagS0Xy326/oySZdsY247Uf1RXBAERWKVolclnA9OpRrY9H1HgyWa0
    5hw1GXDnFivAWSsLO6pqOhc2MFuZ+kpjJY5jQlW1IWecxYWtVhzxdJQlRBZisBLK55/0
@@ -8616,8 +9627,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    XNjBbmfpKYyWOY0JVtSFnnMWFrVYc8XSUJUQWYrASyuef9AFHORG1nqQjZejgqYuZePU
    /E1NQyW2cuFcWIOSok7qAd72cx7OBKm9uVeEJwe68QN92TfHzRX8XlJQ70JDkzyfR/h3
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 172]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    wOUABN8RRyvWotUHEeCY86evvnihvZWAIMULwueMiyzKFBracPZi9IgBf0N5YKfdZJ9P
    +QdRSbCoOp9IuPOKPHx8RZXDFW+XfzfakGL7qmVdao4zK7NYdIwSEgN8TJiirmZ1MryV
@@ -8668,8 +9683,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    q+ikQVReZ2hehhwngV+IhIiPGnA2NZjNOvWhD5ze6r+0LaFCEzCjudQzFoR7vJ4sCwI3
    FBS/pVfTQ+8yclNij+eO57wBlp1CAsMcFEXXNhNeTG738BrlvJHKmD2TwTeQDGjuTVDZ
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 173]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    LN29dqRCB5ByCsPpfJEdI4EVxeoNUGFD3gpId7FN9P2p2IjCLvb8uEuYXqBET+UJke5T
    cru1LQrDAtrWNHmg4hSpTslcz6uvKvAa/1vkHwA2UTqiFAX5N1fe/WZxBo2UrXk5CHl5
@@ -8720,8 +9739,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    512PgF+N9ng8b13ThGqd24xRaMVg4J7M2sZePHfLsURo76MQwyzMI3SuBzan1wQyfxHj
    xcdPGo87gXQBmkWYpbx4lbSufgf2jSfl92YItblKAyN6Dk5aU/VOwb3cp75eM+TS7JpK
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 174]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    X8HIg0bkUj2Oqwymbr1a8JMbk7W7xMU+OcAFRcAj+e7Ju1+TgPGm7IfDKrjLD6DVs9Mw
    Z4fnr5RnoyIVWBQ+vbNGL6EWRjGJc1a7WHBVAbHDrNv1o6Rb6cwnGMv+wBUBh2Gn4a0/
@@ -8772,8 +9795,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    MurzvrygOWjhCaew8PopVJ320XUzOrKYgiF9Qx/FhZR0972atOq52HdODl/WXy2tk2rz
    P1LNHWhy0K59FwiUNubWa3q7ZTZ0saGA9c0e2QbYGAc9MgMKXB9mthuLda7V35EhM/MA
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 175]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    HEZ+8Qk75GYPu3Ef8/nJzEYdJGKliNtaFY+iUZutWLNuMEQcIcuRmBRhFHnI/75akCSq
    I2v6Jxe1n4h/TzNqpsC8shZ7ewsJVNDQ8xucysUPjqVhQ6pNMhyddUSo+ajJm9ZOXHXT
@@ -8824,8 +9851,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    SbjuOCCT2hXlQheWTEDJJMr6ada2nBN8RgnDx8fOH4izvTu7hDS7q4yrIshsdsW7NABO
    wZ+Yp1ra5XWpp05RaGpifgtcMZ8hqga+CvawpA0Lv202CBc00FNT1ZRZL3rR6X/dYKgp
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 176]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    EPhG1PnZuuZT+5UdVTT7fwKqjuJ43JyROFDhQmKV6Kdl2lJYCuCslgSDtBawjVKaNGPp
    jSUVxXaTyj80IyzobIUM9YeNO0w+6C68K4dTiv9+6/0/RCtYwQCl+QS2GWW6EIVI/WBm
@@ -8876,8 +9907,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    jPEoQbBZG4KgCJb4xpIw1QkVt1stCLLf7dmEGugdyTTrCTLWhRHnAM2rteNGje8sTWzD
    eO6jELRaBScZYHaH2gBo1AGYvd0AlJRWaNZiBKiUJZSzjuRDSP7E5pqvELAKuFyAhe9F
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 177]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    A3rwts1B/A+cPkj1uXvRi1TIj4ZX0uEOAzseYafRfWSZbc+i5c7hqcgwFxToHT1Pdxtp
    HGSeVDAFEk4tTYQrBaiDavl1ht7NrlkTAWskfalEF3oku01od35jfqt0wKArGOLILB3/
@@ -8928,8 +9963,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    TUxEU0E4Ny1FQ0RTQS1QMzg0LVNIQTUxMjCCCpIwCgYIKwYBBQUHBjEDggqCAFSd5kO5
    MKc1UyH/YzId6USNcvm2lDBVX5vXMxwyf8qlfZu/exvwEbzVwxX/rNbGa+bxDIWmOHz2
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 178]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    1VxK8KlIb8JIENurCuftK+r9tSs+fwr1+KdNJ7Uz2M83G4dpEdPGqMeQLzQtp1P8zYpt
    hie3cusu+cxclwyl5s9IETpmFlrqaNQo02L1lgKb9rUT+XgtMW9doVJIyTRYj0MxXP9z
@@ -8980,8 +10019,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Gva+PWWdjfMUt3qb/SWSkgXmrN6futjvpUFMvGUggwtX8cztU+BZlKGHraSrtGS7B53Z
    t8V0eeq9jAEY1ENtrWIRESv9rytgn8PctJwX/9Dy1UIcaDOZM668jIZmEg7iRNTt2/TI
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 179]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    IGDxxHWsYkrubxuR5+RrU4G522TZXXosnbNPAXEh2oz7Ejh714UONZ5N9djXF3uSKbS6
    u+yFp32v0j8idAQQBEQ/J8rXLzPcnjBalKq0keXOV1Mu8HsU8wTyz5T7hs8yazK6CAlr
@@ -9032,8 +10075,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    SiA80AIq/vCUrkeR2z+SXUT0OXAvxPUIkO8+7npG8k0tEQ/h/LdvEBXoztow2zM0wQcL
    bxrdzj5Nwu/X/rmTc/hb6ny8iUN2j/RDnPe6V83p+AsRQWhkti9pQyCj3XEqWw0bNwb4
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 180]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    buBbbo36fvE85AvfnaOex69aPLvR8BSnOK0OWSRks4oBZHTqnUeV5CXdNs+RzmJeTc0r
    FLxG/O4c8xCiUXGf6M8568LN6C1hyezwlRlrKWt0J0MO6841h2pcUVAZLQaV7AreaNjA
@@ -9084,8 +10131,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Iy88T1NZY7TvHlSwu8XICRchKz+Q0/UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKEBUW
    GyUrMzBmAjEAy11LBhpuNtI1m7N0tsfMi5i1XdpbmLREGIiNjslLkac98av0aXoTWnFR
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 181]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    rCvNffDoAjEAjGwgyeE+epqorKSPQ9YFTQ2BXxe6mx6vyjZ33M2Qg6RNoYgii93XV5Tq
    PyhuRDyh",
@@ -9136,8 +10187,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    tVJi/EgODZuTFHMd+RaadUXvXslXBn46llhehDUF55jzBu/Nf93sK8WsFw3q1+Jfezws
    pwMwwcRhpXRVqh3iDDMlCNvI5al+VoiydTks9BcaxLzRAe6C2uN1jeyevr+3IRstNBlF
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 182]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    mG+MT8MURZIBxkxZ76IwyKXA25IpeksMxp7XWh9P2OnsL2+/Psmn1HFvj3lrhfRXkdme
    Yf27OPxUIs9sGtHv6L2UuwUOEC80goI1LUqx1XIJvLU5oz/LzybXuT27QNH3aDo4Y4AB
@@ -9188,8 +10243,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    QVyOTEcgISLAKtE1/615y73CiRVLYRUdWvhZtr1fLZP4N7ZBvxe1LFlkXxRRzmyXbfxr
    fppmGOZJZxAw7D+tLUtu14Ie9hbRfpRe37PeUEpc0qPbMjIyAVDNMGEHsisqN85F3ZUt
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 183]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    VOKtYtCLy2c4THWTjvmg3Sp1L1o+Y7SL/iWGtkHFdHFcbAIOViOeuhD5lFx/782/58Gz
    6YqH63yzZXb7pARUip5hEoNl1lzuvu9vwld8LFd5W8zNfyIISmCiVelZucx8nV20JCSE
@@ -9240,8 +10299,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    MXzp9jlQItFP98mtFBRsimY4aSYJDyhBcLMntfAFgPjVdv10jIt4fc9Y/cdM5Y4jahqV
    qJCr3GFiCUdtSrU++X/qpDIsyoJ4YGJwsy99G7CYm84mQklpzD9drNNPEHFVwmKMBYY+
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 184]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    /qGU1GK9cPcEHi9tacxwBNQNKK1VXuN/Gz5Vy3gc+0PVYR9Zj8KSJfiw96zVUccaF1aP
    PVlxIZMhtNVrfRu1gcAMgdyqcdSCq/k0Wv+Jbr+O66xwQHLdeZAxnK42ccJh6fPGZ9jw
@@ -9292,8 +10355,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    qcWVPmWBG07PeGHHPSAqqBSQWGT5ZveQLDDM9tsPuceXp7glXZXem293rBw4dZXyYnrT
    DRYirsLHV2CsyRlBvgLggM0tOvesAAAAAAAAAAAAAAAAAAAAAAAAAAAAGDREZIikwNjB
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 185]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    lAjBGYG/9XVGXuzlXly5LQK8hfAr4JbQcSqNag6o6mkBSrGKBccs22uZGXbf2qpNKDPQ
    CMQDre7UbWxFpo52q2zN8xeQcEUoHbPO2D6wWt5q68jw2TI1/Bs1Y0aCzQu14D7vey2I
@@ -9344,8 +10411,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    SoN7tA5+HHpnr8VF4Fk9S5Bq/ZBnfYlAMPtbjSlVqQt1gScaSKzmzXyqXNjaPSyBbVTi
    DHi1mUEfRU6mAjlusXyoqmCj0wF6FcQriatyje3n6/5uZxvxPiEll42tGVjHQ1KckeYq
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 186]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    YZ1HDFwV5iFamGdNawvTghQ+BYUMrUUYCgIzDUaNWXsEIr1Ts2hQ7GPU5KoAP8MFOS4C
    Mu0jXsWT8tDuH7YUfUCIlRURxQd0YoJFDxv61Ccp+/E5hjihOVjFyFaQlpEWV+l4ASgV
@@ -9396,8 +10467,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    4NYFpkRpnT1HgCzOwJHAhNO+95yVwBALe2YchenVnPIlGw1dr11HyApSygUKr1vNsnUK
    hEoqIw5LrgwukwVJxxrWrw6IeAuch7SbGs7i56bd4AgM3YKMKQJo1x2gs91H7/iJVxnC
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 187]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    6xUrSigGGitn944pxUhxBMbgL/Fdq4i4dyE74vwQEQPDMlD1GRc1MZJuNO0xgNxwYIkS
    L0ZW06rPJU/gcSOXD93FiEFdEKc7n9tlGxGMZlLcWX4K4oqm6hjZYDjSQtAfklkXR/pI
@@ -9448,8 +10523,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    SZTadCjgxBj3p/Du7JeS/YK5fAndf4CD2Z/u8lWKx+sCHfmru4wxPb0mOMNigPFeLEz2
    jlLAggoWXnSRI7YBU8GLeijWMMPcncNVEk6Mcfyuk7qQO3p1Foq797GWsjagqUnS1Fuw
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 188]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    yx7/OYJozPgx+YYvqC/UVRWygOy20MWHvfczPyV2jnPzSYSDmQ4ytb9qb+FZdnc0fjwL
    71KWVHFdCH/FDDmIDem0103D8KicXdpqbe3ZK8T9Gn/KrQjJ+g5XC2lgIFUG3ngGbB6i
@@ -9500,8 +10579,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    dVrYrOvKO7Z2Lv+iofSZeFQPF3H7mRa49Mu4TFMwzN+bsvz5l/7aDCQJq/gjpW0vPb3W
    dk/GugI8WChv54EyHv0tVgcttDSYOQ5vVTxNdhyYWyPPrnA1jstGPn+WEbi9NApithoZ
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 189]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    qXW0M/Gb+3s861kcuXS1wimZ5bTMh868EfRrowwLYnz5seSkW8aedLQKzN/+H1pnIk3M
    kyy0MpI3nf71TWo0AOphMykZOs/i3vP3fhsdwHs/wgw7FL0X9ycQRrUQ3lGQXzipKE80
@@ -9552,8 +10635,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    wyqzNOGcCQ2Tw2zY8c70k9spPsZyePJMIC83q0dYUwKnxbJnwiYtkxqNwXr9wR620cUT
    VcVGpU5wcFElD1wIv9+5lMUWCCXKazus/QMo1Qcf9kil26FPj9cymbgMBiDuY5DFs6ur
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 190]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    QO00hkYoidUByxfFk9oN0zLCzY8S9LuhDtrfgVnDCqhyK8RW9b+MntItscL1Tm6vEZAW
    PFtlHBXpz6Gtj1V2dp7bDpr7Jre2kw8R56hDmOHpVMJWVNleHYvhkD27p8/MiI6toVXy
@@ -9604,8 +10691,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    v0rHz0CQIpWqcHI9h0pv2e5vVdwCTO++hXMzQARvnkzedEt1k6pIAvQMEGmYu1tok+ns
    OLwxJv3aOCD169GTJVmUM/0ydrTfLHI+7RtCYKZwpX0UMp12bXoEX9KelBY2IIf9XV2P
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 191]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    S9Mdm9WbA4YrgUTFA0eDplZW/PjygU/+y7c4Ui775LR6xGxrOvEPSWzRaRD7GrDZCa/i
    lXxhGih13wIpnTc/VKgCTpJbNT0tnGjghsa7QQST6ceTkT54IVPYFC8XpoS5ps20ZIaG
@@ -9656,8 +10747,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    TPUwPgKd+poV/f70Ee+C7deuRq3nio5xMyiJcaP5nvex8OmDEvy0byxHGa3JofvA/oeK
    86HpMi/JGp0nKIWagUEPr+IqjiJLdmawD08VAe8ngehyjY8CflRyPQrMLbBBZkBy/x6f
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 192]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    3JaqJgF+1jEyVh6vzQqhsH0H86o0hdtvCFa3twtvjDi9exvV6u98XUX26OY0ECWywD0s
    o53mKEBD46lajOiYurbas/GEqPay8WtjgZNdyakpSA6Pbf5QFNSyIJWal0yXB1TMtrgE
@@ -9708,8 +10803,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Q34HYvFqHheZOPCuJwAA1ltQhns8E6IUVZPy6Om5cgeSWmk3FfX7xWlh8cgqMfs3GYbs
    B9hZ1PQZDRBY79fX66HpFGHt818TCB1FZDPkogO2+LTzm0JBVpYuV7bbbuS4aCKfpNN9
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 193]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    p6EPegKvFtUYNisHvr0G/4hG77yhwQzHAYxLThRTfJ46i3P99n/YT0bXIDbIDBthyTi/
    9KtUL6i6V87vdbWQfDV93QwAH9ZwFKaZHfdSzNcoW8mYg9X6oXEptCq2XEIO4e52pXUH
@@ -9760,8 +10859,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    IkyU8TtqxBZTkVgDdjEJm9C03s7a4iPcCXIMs0iGJWH9m10dsQtZ5zi5hr6hMkHkf69w
    MOs3QjIjm3JY48eVSc/br12Jqlx8kRh0qBuO5El7lCcm9c1H/YiX+9hoaJiFLv34/e/a
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 194]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    es0UjMX15tHxGFp2GdTQQThieXStj/7T2EzRXEBLPSPVUjI97ky0RUq9amV7qkpGJ0ni
    MDJInj/lYdKdnugOVcc8TxteEz5e1huSlcjZqqJu++6I7EmLwqcmlyB9N6Sf07q+ohtn
@@ -9812,8 +10915,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    8QeXWSIknG/17ntg3Z71ZLxMWx5cBlElyyc14HMtEvca9omiTiIMIr9TJOAHtLkPgLqm
    T+P6WMSXPPbLIyGlv3ebFEEJLFePqnI41MUUDreaNh9jj0xafV3OQAjFXyQuCZ2hgCqY
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 195]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    XyM55JMO+r3IJltTWjHLX37KjuCH3WfP5fwhT1HyyJP4a/afEGDBsdJd+7z0vV+cGSpL
    lQrR7EJGBjPkrhGODU0AlKs/UYikHVn+92sN3ugF2UC39lUf5wJlP8zwFilYqosYIIwv
@@ -9864,8 +10971,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    zS7Vdp8ni3nUA9omXTDLBcNsUIJcngX9BaI+TGvgeTjo3zMbz1S7iyy5mQeTY+OgxDb8
    JjWcMSwAF/qSXc2xeyylABbZC08Mo0p1X704T0TmJ4l4rFeFtDp7FpKFhpPWVbiUZ6Oy
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 196]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    FyFMYxFEbmg31GbbcBFZHNqaolCbTAJap/X3233C2D9bH0KPd+JYmqptZNblzPjoO1XB
    uawTkGwGMW2NYX/sqyG0ZLpH9n4YBq/bAE4LGEZOEUYyNDSqLUwYTgdjs2W5MRf8DtH0
@@ -9916,8 +11027,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    WdI5f3hG9AmPbEoXQS5z/CG0/cdefTp/Z+jvDRm8epx7FUngEbte1l4PYTAn6TQnEWAf
    JPF84Y7ziZwLdBNxcjRmSxJCJo00fsDSkuK78yM6MGFyGSAcmfNWURDMWZCG5rve1ydK
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 197]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    lh8yaZT5qqoMAsiNxLcky22lm/Xic9o/8Dau+tR4v7atZUjiwlesNdPcE4EZjQWrgk3B
    SrWRnJvEhAlY+JHOEFPmqgW2uQmj33cuy1aZY03I+5wzMlSd89Pe4aJQ5aTOMJNjyH91
@@ -9968,8 +11083,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    miOS8np3Jowmci+4/8lrgIvSQIszv1K/powbRNEeN2FAIHcOd3SGW0hv99qxoxFPraJH
    AepsWEIfxbEkbLR9+vRYXJ4L0LEBXrsvkRrGggKIruTZjJYoRqQUOGVSJB5zugiOb6yY
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 198]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    nkUlaoQEtlcA+lrQWj2WFQf9cFTxqtMQgWYxVEE0DHvYB6JCr9pcYwt8qv87DFk+T5Hd
    fNU1lpkbBAlD4PZ1Zx1bojoplwhqRVirQSf6b9ELAKaK5yjDHHTRFWR+bCLnhj/l4eS4
@@ -10020,8 +11139,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    ZIFhiPwBgnHCWWfGx+nMQgoI4nDs3HKpdokGJOlP5gcyPnGvWCpI2wxBs7SRtexk5Qbv
    WqYmmNDKbbuhJw0q/QM/GN46UvupUHLX8s1jj2jb5zfLiApDmBvDq1lBQ9KaSUQbxYqY
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 199]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    gut90bhDYI7Pbhq6TC8Ykb6PxdWkiY0ybc8AiuMDXRRQfhwpMN3Dv9R9ubxHUfQxiAkL
    PpVP2QKG4j2iDpJvx7kHXgbP9lyPR8OI3BHiyUxFZSgY1bwduco/1RuJwmHypgRM1NHC
@@ -10072,8 +11195,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    kaGlDJYtV2SYHptdN10ui9mJJHKZbggPkj/BG6zMzC8dTS/AlYNcjn1W9HSTwcPYZNsY
    of0oyoFU2Cd9u72ZZuAqCbxs+G51CR/7QFW3kiBAXvY/07REQ+OgiKb4BmnTalgRQhRN
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 200]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    vaq0mNn7IqRfV5c+T7px7sF9zQ2js4NOqC27w087t2G/Mf3+okFvNGXfWfilRN814Ih7
    nAqupqcB3agT0b+zHq+BTku0rjAv+pFhJadDiojmQXSg7yfHovw2NtU7jtW3U2tTHXib
@@ -10124,8 +11251,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    YOKRzz4dPbvT2dhwDWwROO04MNxYiLwb8EAKUCgwLcVfFL0JdQsHz6mRXzKmDFFjkZuP
    Z85cHSQs8Ni6iF2XN9a/lT5hKPkcyHLvobyr55pbzptPfyeievEJ3RbWZYR9a5MJJJ4T
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 201]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    BF06jmNo/m9DZ3uTcw5LCej6nTmC45ki4gR9NfcK6G2hCBJx4tZWFb2WyK9mnDTHax+N
    uZukOaB6i2cgUeyNikS9kPvt/6QgxdIbWb/j3pUq5MF8X1B4sI2gkbCcZ7KKtu09TDEg
@@ -10176,8 +11307,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    nlq4uC0hVb7+UD1Nq3+xV+qyiUyd25D1TbfLb4tEPJU5Mh/xCY8SMj+XWhNJ0AuwYvNj
    hG7tcGnXKztTsEbtKXHvRcl+BtGz6mkmx58wHAfI2mYblB8nI2yK0cA7KWT7paq6nunq
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 202]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    lA0OOGujt6ksbArG/MoqUginOdzIyXv4CdDGWWI5GyhxTp5WHKd6mvA6DScFe9fea/PX
    XHQXrVu1uzNexDcCJ3O24VRF1eRe1gxuI+nGaDoMsmysXZ/QnBnEedydm2FrBb3pUKFI
@@ -10228,8 +11363,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    eb/HB9mwV3iQpDRUueX4vORz6aeJAWhhaeKL87GFsDjKTNeNs6GezqR6kM2fibpMvhVE
    9JWCl5lYDjbohkLfxkT1oN/cIJeagk5Vg5xQQJOkCEZWBRewflM4Y2ejACeGduJ/L0rm
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 203]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    sdncM1oAO5q0USn8WT4o9tO2nnTgFTwARD31/3Xv8UpizMhZ/xVa5okBMYh/DKzzF7ei
    fGsF9SdeZ/oZeuDM0VF/NX5hnlZV/ot31+t16To+7gRAgMBAAE=",
@@ -10280,8 +11419,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    /ZzEM4nE5zkCH435sva0aIQL3PfswNvFWxeBjIerwkgfEqOOtNfmqorOQ+kQ+v/HiWwG
    /OpDhPbDhx5Ew+UwSKFy4vQZent6O4PNT0kHEN08PtPgDD0dd+0rgwXyg33+IuMrb+Dg
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 204]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ylAsU6m1BKCBWlH7aBWsQeAbINer9ObMvWA5dV9NtsMSM9w6pHBUUjY6TRwYOQVMig11
    MFrgk209D1xZdhJwX9XZEoBcLx625G9SIkrwkOwhSzAxTAMFB3K1kbSuxsWdWR84gfrj
@@ -10332,8 +11475,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    E7LVMjjsfnX1gbOVgz56HDoUnviBDLUa430DvMqRZjhtLYWn5aoGWtsDHns0zff8HexW
    LveFNHOay+G7UTEd6n1W2/fmDJFD7rW3JGZwH4IRL98IS2ua5wetEnFkLReyapXzdpbG
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 205]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    oTUqwEkwSk0/6Qfm7Rg8V1+IaTziyfhVPCMirwbJznkdDMZxHokj+l4QW/7GZ+CiRIjx
    bje/tvGEtjBzPYOXiK/oHGarI9VjGkb56ylMD62YEX6/cQ1Qq6uueCHX09L0Qh1y+R7i
@@ -10384,8 +11531,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    6onQtlj2J1+Sb3oqtnQ4CVpKj8WMxXyc//FECbE4F96fWzGjQ5WdTF/gfJEBDq7yJjSp
    lW/6hgDcRy3YIOa3hVShKpqcqymZW8KMdbWHXpgx5rQA+KYtcJkw3tOOXmHWOoFHrj6k
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 206]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    rKr0lRW9dWMMrZHhkfgmrNS5gXNv2/U3fYKz2eZAXjQAa6hxArlpvMP+mJiXUU7ryJNs
    c+dYDxb1jRBbMm55W7GsMF3W0nBzhdtMHbpB3VEsTPQ6Z74SE5llz2+9L+51Ic3I9K9t
@@ -10436,8 +11587,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    BsVRBsBShNa8RUfVECi11lJ6sC77Q6lAkOABdmHuBCsrHHaKk1On/MtPWPDp5javAVRz
    UGB1YA+QJ3YuVxyburPnfqAoz7MAISGzn+zXySRT8rcevWtgx4TKlQu27BEG/JIPmkkc
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 207]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    xusxK6HICiUAqMlVc1syl6AWQhD+Z5fZNLMIdh7JJ2zqwrgUwKBwCNBEv734KP5qyyXY
    vy+3pOTtCCh94K18tMnLZ+l4+RVydeH6BurMq50sV5/P/DLV/DxI5bOb4De5fPqjhVF2
@@ -10488,8 +11643,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    //tDMtBlaSeXq8NiJq4Y7HvEZCNiW6I63T0jjNGgkS/7PMg2m2xw4olBx/2s69YoIDGm
    RWsHRi0KC5iY7wLRAl4a8xcWIM0KsMCCjoPzQUTOLvvwY849agUzwulBPTmJniPHXyHO
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 208]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    eyYrqb9skwSBKjmjEnat9N+DN8SMWr8+dgZc8SyGuyeMjpisVdsStj9cxjjuQ4zG1PR/
    ExbOJrGFmjpo6eTj5CFchN4sZjiWK8Iy/MAJWDDcrpYSAWuwwGJ7OVCd7QTJUUymWbsj
@@ -10540,8 +11699,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    ozH6S+xG3Sz0hkYF6JolsqdkBmIUKRDJEiXf7UeGM7ontBmUn40LMLr/0wdo6MTCOd6a
    +t6qI9cH3MyDvPnAyv4lMNYy2btWdTjr5JPDTqVXUBKMz5ID3KjxYQgvOkgo/0cTOg64
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 209]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Hg92BHnSnxRJLd9Oiuq/iqM9uxBSINSYX8Z4zWF70Kz0kn+e2XBMMnuP33ziTlePmL66
    dNddDTzETcQyX3Hvj9p0b/THStnkT+eoGZuj8seDbUqploN6oBBigvlg2XKRUd6UuRwf
@@ -10592,8 +11755,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    zEO5Jnuxw/ymxX1vKRMD+MBBBnP/0AptXiJPq6oWJ4Ix7Edramh7GKC2jtBXc7hn7rbe
    5f43DqfT084Vp9xg3Epl+ksg==",
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 210]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    "sWithContext": "lcjjRDrgq+BirwXrlcioIF2kylNInEs4LO13MpGYMBfVJSJHpgJ
    jdlCvi/Vx8Ywu/bPb8PDDQA7VzU4D+BbQOUpgcRpOY1oFkwICkEF1flyKtSz5gB9W1Uv
@@ -10644,8 +11811,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    fXIup59+xCJiZPPu3s1z3zMnucH40PFwYmp8CXHrXydkpbXfV5VYSgwr1Y6Y0FTR9PqV
    rOG2zPJ+HWQRQjxn28rhXw0nk9I63l1ehlwePmPEvX9oUJx9+gEE6T2MBGq/xEfyD5h3
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 211]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    4V5WTdooLeXpdr9fI3w0Xc9n/XSmjzFbJ3NAfpCpWnrtTlWBLIs78tZDz0+2HhXlc8jV
    PTa4X6gL2DyMB+2JgjqV/h/DEYsdtvvBIuPhEZirC6MLPwKfXjII83fw0rtdJwcfJic7
@@ -10696,8 +11867,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    fpw0LEEgYv3UgGTztMpuXj//ZzYz14iS0kIpvew72mfyLO/jwwqkN8UwWVyr4OkC473Y
    apLJ7wOtjxyTXBwCPhoeQsK9ZTeTarkDWhZgL/5kvMsi5eSwhlsCxZikzkSrfQ2HBObu
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 212]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    owPsqyJKPxgVR+G+9gHAUBR/hRbRYmzkyKc1eQiHXIOwuijz7SqoGwNpV7kUQRnqHIiG
    DBnXZi5Q6lKe1QF/7r90hI+jE7TifBPCRkCzQNB/wU92ZYIz5Cqsuuyo6C3HFTDHn40W
@@ -10748,8 +11923,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    sWEmmVK+PCqgUDidaYL9yc8gdb1g1nsYSpB6dE9FWxQXwj6kFKTNH6tTI++pUy6IRjD5
    X185M/b8KZprSgdFFG0t3Tv61P7/NRQkZaxgTRwZaJIF1s6QCKZ+WJ//YBa/0N6/YS90
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 213]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    V/yxk99hkCf1pzI/Qnt+FLDxn1U+D+vnwiP3638FB4D8xRoE9LddMxnwo1FsRZY/IWIp
    sQBnLvf2n06Zmkjnra9opQ8pvCF0hV8Xtl6HxVMAq6hzlmZKKx4MPrC0boS5ylmpN2Z6
@@ -10800,8 +11979,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Nxfsl+yDa5h0oTE3Db/fEGddVZITwes9mAXaKOc+uqJM25hMPK6/xU2O+nskQ9hrXuNU
    +nRx9r1+MyGEkqxpQZBxvXAAqb1ma0b+bLvlDD/dMaEzs7IbnelLHMGd4H1Vhs31gB6B
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 214]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    ieZeZLk2p+COFreRZ7G13mpxAXSr1dZEtiLciqxwocBfLzmxrxgUddUFdAoCeCRFGHdI
    uizBwI8/i0Ch2ElUbX3Xo4JvVx7ukwJumLHpdG3EWqh1VZDTELMnvHqYaL2TJeRYawZB
@@ -10852,8 +12035,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    AOF99TmBbYLOiflu9nzQuyjQ37xyH8ezNNRVEA2GerX/A8xTqsGrpv9p2chobhu5VKbY
    jzrmycJYaj5dh1/eloaziOI5jvKmJYX/8ZBgS/280log7Ah0aGCs0YDOUtirtZQwoswZ
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 215]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    KsY/j5bg3t8I49c9XYIgI1kY+6543Pl3Zeh5NQT6/JYTcb+DYLefjnUM4GVRMqMOcqMl
    JrGzUmeQsj3pr6wOKjC+bC7mb8zqcAZweShtt7+In/IeDRbQ9EccF7ZUslhai4E9mpdv
@@ -10904,8 +12091,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    E5eAUUvJFkhMH+bpCCY1FzLV0L49QbcibPGuH5rpZVOKI+nd6D4R3Takov64z3KEp1Ei
    w/0O/dVpCUbHBd7BwofFQGkLBduZ1VdPyl37W5M94dlxriwwXdWmE/XgylrlykldoPz6
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 216]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    jujIoQTlcPsvGu5S9H9hsJM0auRfBwt4Myp9GXdGi+m/TVo3ophje1B1bh3Xsu1fFqF4
    L7eIAM+iQA0ZbNdP8C29DCqMr4aNLvp6rkPgOSg3elG3TRl5wh2HJ8O7XkVR4tX+FLDo
@@ -10956,8 +12147,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    dhqZFMILLSSsJqwYsI+lzaq8xc8NDyvQ3RZVRJ4rxcGqYZSO46YfrMlTcVIRdzh3gADl
    qaRJKrhWBrHIgQ9fsyCeav5D1R4Ecwedoom7jziLdamrwdg7ROy4OaH2DOgqhDywH3mJ
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 217]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    YhHrxt3ztJaCbdkcVZHjdwgM+J2cfJj226M1J8LUGGI1L6Gl3YTjCN/q18QHtj92Y8h4
    pUtIofr/1dk4EDgMXhjNDey66rkAAb9Fh6yS8fXlc27siTxAFZ6r09quMDiR1IBXWnwo
@@ -11008,8 +12203,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    DdFlVEnivFwaphlI7jph+syVNxUhF3OHeAAOWppEkquFYGsciBD1+zIJ5q/kPVHgRzB5
    2iibuPOIt1qavB2DtE7Lg5ofYM6CqEPLAfeYliEevG3fO0loJt2RxVkeN3CAz4nZx8mP
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 218]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    bbozUnwtQYYjUvoaXdhOMI3+rXxAe2P3ZjyHilS0ih+v/V2TgQOAxeGM0N7LrquQABv0
    WHrJLx9eVzbuyJPEAVnqvT2q4wOJHUgFdafCj6ua900MkBW0Goa+OLaevLJk4YTSZSHZ
@@ -11060,8 +12259,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    ZxDbOgTTfuaT0U5Ti637X5+IOGW9z39oaJjDbiO9vFQCFG+1c2apETjuD6qJqVa/EQ+v
    q23RcM9KZ54crBV7IaiKwVhEN6W18lYnLUmiQjnTl44xLz8hm8T7ULuNEPT2f1T+LK0b
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 219]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    JNtb2jeVe7eZx8YRdNCeopcvepAWFt+X5YbI9chUFyfkR7Li4fDi3wwlgnpjeXj8hWRq
    csgCPCNAM5cjAn78GjDe87VkRgNyt8hQ35cH9rdFQL2TOPGQ2oe2sdUbJtiuBQX4OHSR
@@ -11112,8 +12315,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    z8pGtZ5z6rKJQTVEGnVkV9LPmLX8WIXh567hivvrRlqqlonPHt70K49rIn/YTg02mZf5
    zXTfiwt/tb6i9i4TCIdxxJzzHdpw+1/4Wu880BmQAsoAVA+pamQGvljQOH+1ooGSvNKr
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 220]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Pp1+KPAm/thyUR67OzIkSZrh6FT7Z4qG+XIIDa6++ZBVkt06qCtx4aXicgezi6eL42cC
    3/hpDgB3R/a4hkCl/wPYGRO2jhmzteZRBlMgjd87tk7Cowl+w8lYcIUZ2cMbA4/B5JxF
@@ -11164,8 +12371,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    s99o7mmdhY3AJttN6HOgJFZ4LKKZntVoI4wI37wcr6bJQHgYZ4vwTQr6PXJG7Ocdmydh
    30+GrAMzoWZdPPjuBZuzAuqCnEh3Eya+Q5Wy6VKaI08+IesJ4TcZLxOqjg",
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 221]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    "sWithContext": "ToOMhY5sKmKiTFLT19i/bD51irQUjIeKGJBBdrvwPXTc7YghCok
    Fb8/dk+A+xfSSzXrGLW1DQDgP1ngRvVvsiqkgIKSmkW0VeOW3xa/C0p/U28Yw8FjSevM
@@ -11216,8 +12427,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    jweaFaO4NKZOj3bDQG4YEkMj133vlBCKWEI38QM0pVpAnEhvbmiGmLU8vcSDSV2KgqXr
    Ldzb+3PRqEQJ0pY+0u3zGRljGriZOdLEVwbLR9Tt0jKTPr0hGIRQOTgCdRWdE8mxZu1o
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 222]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    WraT+yagULb5aVvuIqP8IX5dvopzTvhIWNUwZ9K31HzyyqUMQrwsQxY4hcP/56IH6af1
    u9CjU/QZY+4VJqB0H14HvWyw/2bAeuIZTrMukjljjIiEFfjPvEkDAiMBpIgWZY0vwEfK
@@ -11268,8 +12483,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    qVZGpCeOlXpOwvCjAYYxoDvXmyFceiezXMDdnkJONum452w6ev/4z21u7NdFrNd2TrKa
    NoYMxjPANKnUi8+wCrGjduvwbFuy6oh2YgowPjbjP0vowFtx5lc9A+Hfj7b+kJDFkRhS
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 223]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    vbga6D0fqQfh0SxroFsxo/zv1662a+CBgRBy1C0fYsvoCrhMukA/n6K3N6kKBw6rsGA+
    HRlWcyooHH1LvrNEehp7eS3pTNwCzkaY9qWqZryqlPw1rq1+CHcFA7jvfODCmE1PZQ6/
@@ -11320,8 +12539,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    VC7yPtoiH5lTA24kfFwufMdziYiJvkeucq2kRUPpP2W2fiQHnUp62VhGfpHYgF7yH45P
    rxtQlp8fHZuAEjgtEXaKmyr5H7jMtSqrY3ZX5xV4MW54W3U+vXOu9u5aMOqIrmzw7R+X
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 224]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    OVwYr/tEnmg6MIpcYQqxfDu4zr0FVguHHYxjrbt2s5UgddmoyrIXCA04nG0eUrhT5t/V
    n3trifm0dyj/i1XEqpz5HBDFLZ8cwfQkpzrO7TzKbKrV9NzXVGbLvZ9YEXP70CGUUq8X
@@ -11372,8 +12595,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    sE/hlm9Dubx2TsDdxAUbQUB+KtVFXfxaV1ex3UgWlQtT6XdzwFo6Zyd1owN6+QkgLIh4
    YJ5+RP1W8lV0JfIkERCZBCpMwP22c4wr9ak3zEbvOMaKwHiUagGQiNbpHxC4P8d/wexh
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 225]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    b6rNke5oCoqv2e6fFTvcrlLeMsqbxZtuC47tF+DRIVD/SMnXLZv/tT0VqKCU52Fg9EdY
    zyIU62wrOdoSWCBghJh4hSdW17Uxy7U871DIOyV0v65aMbNYH7jScRZn8r1kkO1CUJZ9
@@ -11424,8 +12651,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    xfn//QYnxkKFWzbkV+M+p7UKTVhozuZLI2LaAx8zg8nFc7z5beP8bu2CVRctwyuc+mgB
    Yp4UWr6UW60A9ZUVTruq95YpQlIegC7zjekxfDUNKBryD3B3w8nE5wzuPOqBwhsL6+aG
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 226]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    L4Q29pbkHonv1zqnMoCWnEfZlmbWsbxjDqwh89RMTvHerHorKGGqHIRsLeZI1GPS2Wns
    jglKlil6/peoVkRgbTdlrg4zkqES/D94Ki4TSFZRc0mfkjtGE9N8S/3d+Sn5xz9NufsG
@@ -11476,8 +12707,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    wdlNTU8Jp22k2m0nyNrOP54LOxgutcfk0tMZoEO30jOUUN4EgRzN66TOi7AJTvnlDb46
    fNda+DY8rw6X3pbVyLj37PProxQME5W8KwIHHlx0cxBwfsGe2O6facFsvf6XcTJXmvRC
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 227]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    5JMYfg81U6WCtND6GQUDsopjHms+esc00umKnpsJU6lp6KD6didZ64lCKKHCmSuVRgAw
    WWpkAcZLM2yPKlTYBZhxJ/ACTpl3wE4XNlrBnA++0w0pm1m12AJ93gjB/gIRKK2i2NzF
@@ -11528,8 +12763,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    y37fdMJZqu/JJvVo7guTX4WZ23rRkd8NJCd8vEn/VgigZHyEf6MBMVuoulrT/dal8SF7
    yZo+wFda7/a2JOPfywZMAldXLUPyrwY8UcgjxqGXaTpHGyikSTutdiO/ckQSesIWPqxy
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 228]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    CifgoF5ignCdHnhirZOfzfk29+OrmdH4ZVqqxugplBd/DzBoGCAcheWAAtqifLo+iHnJ
    suTegHB1TWED8mOXCSwd5vj6efh4lPef8BD2z4WLI1VCMgW08EWCnjpzxNOjdlhAueyz
@@ -11580,8 +12819,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Itney/4nHVxJZOhMMLaNTBQuYi1XFwnoMoTI08pE0XyG5DeH1cPVKJ8jnKOcwg1+eetg
    bIm/RuwcUQWdDB3AelCcMSuj+g2aKBD7/zi8jgd47TQsWbj0Xv2GkNTdAIRylad+qoIK
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 229]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    jLbrZiwOps2KBay/qJ6E+lryEqUNbBgEo4WTGCFAglRYRtS3aRO1+5KiBzwlXwsUK8iZ
    1vNyqD/2+cIx3VWi8G77f3khx4mX7fuwQJT7D+yU+SZj+6TzHBEPjdDlOTzL32xzYFCW
@@ -11632,8 +12875,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    NFWGhK/3s0PGt9fxwAN9urGbg3ToBRQHIk7YSTa7xhSK1mu9nBPL0B5nUyb1Tge1YZnd
    kc5bEneMy1C/HwOSOuaI+0WnHJKynA4YYqAsSYbaZINlY6yLxalpnu6CzGvVZsqIxBJ4
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 230]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    nTksRc3iBEwPMGmCvaJ3lJmJaJFLpW+gZd4R/hk+wBXgdPccRaM2hWeMcQV6oHBce7O3
    ip+ix66RHiliJCh3OW1cIMSl0V95R7tW/duhAu7/4ML/LQN4YUq0Yg6dT9N3p1KFrJny
@@ -11684,8 +12931,12 @@ Internet-Draft              Composite ML-DSA                  April 2026
    bWHvPUH2T4QtxDD7zT4YfpN++a51ySqwpUXp3Uaj7qXCdVDjMRbt6P4oG9tLv1xrfUFF
    gs+R3xkoe72t2G0mQJ7n1uie3O5C7s7O74hfJTcBegNnElUy7TuRCJh+kR2DJTWMrqal
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 231]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    VpRGAcAfwFiNQNEdKjwYCXVzVA1AgO3UCAiCqogy/QrDLiyGfpBL4cgNwu8ZowH01pzo
    HfUjYhtKiEYFQSH1ud040ZVfVXetPoueDnSc2tPeOlLZx9kCf7voKXlZh2rAE8yjh2CF
@@ -11736,8 +12987,12 @@ Appendix F.  Contributors and Acknowledgements
    (Siemens), José Ignacio Escribano, Jan Oupický, 陳志華 (Abel C.  H.
    Chen, Chunghwa Telecom), 林邦曄 (Austin Lin, Chunghwa Telecom), Zhao
 
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 232]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Peiduo (Seventh Sense AI), Phil Hallin (Microsoft), Samuel Lee
    (Microsoft), Alicja Kario (Red Hat), Jean-Pierre Fiset (Crypto4A),
@@ -11775,6 +13030,7 @@ Authors' Addresses
    Canada
    Email: mike.ounsworth@entrust.com
 
+
    John Gray
    Entrust Limited
    2500 Solandt Road – Suite 100
@@ -11782,14 +13038,24 @@ Authors' Addresses
    Canada
    Email: john.gray@entrust.com
 
+
+
+
+
+
+
+
 Ounsworth, et al.        Expires 11 October 2026              [Page 233]
+
 Internet-Draft              Composite ML-DSA                  April 2026
+
 
    Massimiliano Pala
    OpenCA Labs
    New York City, New York,
    United States of America
    Email: director@openca.org
+
 
    Jan Klaussner
    Bundesdruckerei GmbH
@@ -11798,8 +13064,41 @@ Internet-Draft              Composite ML-DSA                  April 2026
    Germany
    Email: jan.klaussner@bdr.de
 
+
    Scott Fluhrer
    Cisco Systems
    Email: sfluhrer@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Ounsworth, et al.        Expires 11 October 2026              [Page 234]

@@ -1,30 +1,632 @@
 [
   {
-    "id": "getting-started-md",
-    "title": "Getting Started with Local RAG",
-    "path": "/rag-seed/docs/getting-started.md",
-    "type": "md",
-    "description": "Overview of the bundled SPA seed corpus and how to ingest it locally."
+    "id": "pqc-drafts-draft-ietf-lamps-cert-binding-for-multi-auth-06-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps Cert Binding For Multi Auth 06",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-cert-binding-for-multi-auth-06.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-cms-kyber-13-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps Cms Kyber 13",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-cms-kyber-13.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-cms-ml-dsa-07-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps Cms Ml Dsa 07",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-cms-ml-dsa-07.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-cms-sphincs-plus-19-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps Cms Sphincs Plus 19",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-cms-sphincs-plus-19.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-dilithium-certificates-13-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps Dilithium Certificates 13",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-dilithium-certificates-13.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-kyber-certificates-11-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps Kyber Certificates 11",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-kyber-certificates-11.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-pq-composite-kem-14-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps Pq Composite Kem 14",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-pq-composite-kem-14.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-pq-composite-sigs-18-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps Pq Composite Sigs 18",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-pq-composite-sigs-18.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-x509-shbs-13-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps X509 Shbs 13",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-x509-shbs-13.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-lamps-x509-slhdsa-09-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Lamps X509 Slhdsa 09",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-lamps-x509-slhdsa-09.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-pquip-pqc-engineers-14-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Pquip Pqc Engineers 14",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-pquip-pqc-engineers-14.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-pquip-pqt-hybrid-terminology-06-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Pquip Pqt Hybrid Terminology 06",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-pquip-pqt-hybrid-terminology-06.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-tls-ecdhe-mlkem-04-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Tls Ecdhe Mlkem 04",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-tls-ecdhe-mlkem-04.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-ietf-tls-hybrid-design-16-txt",
+    "title": "PQC / DRAFTS / Draft Ietf Tls Hybrid Design 16",
+    "path": "/rag-seed/docs/pqc/drafts/draft-ietf-tls-hybrid-design-16.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-turner-lamps-cms-fn-dsa-00-txt",
+    "title": "PQC / DRAFTS / Draft Turner Lamps Cms Fn Dsa 00",
+    "path": "/rag-seed/docs/pqc/drafts/draft-turner-lamps-cms-fn-dsa-00.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-drafts-draft-turner-lamps-fn-dsa-certificates-00-txt",
+    "title": "PQC / DRAFTS / Draft Turner Lamps Fn Dsa Certificates 00",
+    "path": "/rag-seed/docs/pqc/drafts/draft-turner-lamps-fn-dsa-certificates-00.txt",
+    "type": "txt",
+    "description": "Bundled IETF internet-draft for local PQC and PKI retrieval in the browser."
+  },
+  {
+    "id": "pqc-nist-fips-nist-fips-203-pdf",
+    "title": "NIST FIPS 203",
+    "path": "/rag-seed/docs/pqc/nist_fips/NIST.FIPS.203.pdf",
+    "type": "pdf",
+    "description": "Bundled NIST FIPS 203 PDF for local post-quantum cryptography retrieval."
+  },
+  {
+    "id": "pqc-nist-fips-nist-fips-204-pdf",
+    "title": "NIST FIPS 204",
+    "path": "/rag-seed/docs/pqc/nist_fips/NIST.FIPS.204.pdf",
+    "type": "pdf",
+    "description": "Bundled NIST FIPS 204 PDF for local post-quantum cryptography retrieval."
+  },
+  {
+    "id": "pqc-nist-fips-nist-fips-205-pdf",
+    "title": "NIST FIPS 205",
+    "path": "/rag-seed/docs/pqc/nist_fips/NIST.FIPS.205.pdf",
+    "type": "pdf",
+    "description": "Bundled NIST FIPS 205 PDF for local post-quantum cryptography retrieval."
+  },
+  {
+    "id": "pqc-rfcs-rfc8391-txt",
+    "title": "RFC 8391",
+    "path": "/rag-seed/docs/pqc/rfcs/rfc8391.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8391 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "pqc-rfcs-rfc8554-txt",
+    "title": "RFC 8554",
+    "path": "/rag-seed/docs/pqc/rfcs/rfc8554.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8554 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "pqc-rfcs-rfc9629-txt",
+    "title": "RFC 9629",
+    "path": "/rag-seed/docs/pqc/rfcs/rfc9629.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9629 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "pqc-rfcs-rfc9763-txt",
+    "title": "RFC 9763",
+    "path": "/rag-seed/docs/pqc/rfcs/rfc9763.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9763 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc2459-txt",
+    "title": "RFC 2459",
+    "path": "/rag-seed/docs/rfc2459.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 2459 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc2510-txt",
+    "title": "RFC 2510",
+    "path": "/rag-seed/docs/rfc2510.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 2510 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc2511-txt",
+    "title": "RFC 2511",
+    "path": "/rag-seed/docs/rfc2511.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 2511 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc2560-txt",
+    "title": "RFC 2560",
+    "path": "/rag-seed/docs/rfc2560.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 2560 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc2585-txt",
+    "title": "RFC 2585",
+    "path": "/rag-seed/docs/rfc2585.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 2585 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc2630-txt",
+    "title": "RFC 2630",
+    "path": "/rag-seed/docs/rfc2630.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 2630 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc2797-txt",
+    "title": "RFC 2797",
+    "path": "/rag-seed/docs/rfc2797.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 2797 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc2986-txt",
+    "title": "RFC 2986",
+    "path": "/rag-seed/docs/rfc2986.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 2986 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc3161-txt",
+    "title": "RFC 3161",
+    "path": "/rag-seed/docs/rfc3161.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 3161 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc3279-txt",
+    "title": "RFC 3279",
+    "path": "/rag-seed/docs/rfc3279.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 3279 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc3280-txt",
+    "title": "RFC 3280",
+    "path": "/rag-seed/docs/rfc3280.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 3280 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc3281-txt",
+    "title": "RFC 3281",
+    "path": "/rag-seed/docs/rfc3281.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 3281 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc3739-txt",
+    "title": "RFC 3739",
+    "path": "/rag-seed/docs/rfc3739.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 3739 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc3779-txt",
+    "title": "RFC 3779",
+    "path": "/rag-seed/docs/rfc3779.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 3779 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc3852-txt",
+    "title": "RFC 3852",
+    "path": "/rag-seed/docs/rfc3852.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 3852 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc4055-txt",
+    "title": "RFC 4055",
+    "path": "/rag-seed/docs/rfc4055.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 4055 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc4158-txt",
+    "title": "RFC 4158",
+    "path": "/rag-seed/docs/rfc4158.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 4158 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc4210-txt",
+    "title": "RFC 4210",
+    "path": "/rag-seed/docs/rfc4210.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 4210 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc4211-txt",
+    "title": "RFC 4211",
+    "path": "/rag-seed/docs/rfc4211.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 4211 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc4387-txt",
+    "title": "RFC 4387",
+    "path": "/rag-seed/docs/rfc4387.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 4387 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc4512-txt",
+    "title": "RFC 4512",
+    "path": "/rag-seed/docs/rfc4512.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 4512 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5019-txt",
+    "title": "RFC 5019",
+    "path": "/rag-seed/docs/rfc5019.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5019 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5055-txt",
+    "title": "RFC 5055",
+    "path": "/rag-seed/docs/rfc5055.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5055 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5272-txt",
+    "title": "RFC 5272",
+    "path": "/rag-seed/docs/rfc5272.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5272 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5273-txt",
+    "title": "RFC 5273",
+    "path": "/rag-seed/docs/rfc5273.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5273 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5274-txt",
+    "title": "RFC 5274",
+    "path": "/rag-seed/docs/rfc5274.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5274 for local retrieval in the in-browser RAG index."
   },
   {
     "id": "rfc5280-txt",
-    "title": "RFC 5280: PKIX Certificate and CRL Profile",
+    "title": "RFC 5280",
     "path": "/rag-seed/docs/rfc5280.txt",
     "type": "txt",
-    "description": "Core PKIX reference covering certificate fields, extensions, CRLs, and path validation."
+    "description": "Bundled RFC reference 5280 for local retrieval in the in-browser RAG index."
   },
   {
-    "id": "composite-mldsa-draft-txt",
-    "title": "Draft: Composite ML-DSA for X.509 PKI",
-    "path": "/rag-seed/docs/draft-ietf-lamps-pq-composite-sigs-v18.txt",
+    "id": "rfc5480-txt",
+    "title": "RFC 5480",
+    "path": "/rag-seed/docs/rfc5480.txt",
     "type": "txt",
-    "description": "Current IETF draft for hybrid post-quantum composite signatures in X.509 and PKIX."
+    "description": "Bundled RFC reference 5480 for local retrieval in the in-browser RAG index."
   },
   {
-    "id": "nist-cswp-pdf",
-    "title": "NIST Cybersecurity White Paper",
-    "path": "/rag-seed/docs/NIST.CSWP.pdf",
-    "type": "pdf",
-    "description": "Seed PDF for testing local PDF parsing, chunking, and retrieval behavior."
+    "id": "rfc5652-txt",
+    "title": "RFC 5652",
+    "path": "/rag-seed/docs/rfc5652.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5652 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5755-txt",
+    "title": "RFC 5755",
+    "path": "/rag-seed/docs/rfc5755.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5755 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5758-txt",
+    "title": "RFC 5758",
+    "path": "/rag-seed/docs/rfc5758.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5758 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5816-txt",
+    "title": "RFC 5816",
+    "path": "/rag-seed/docs/rfc5816.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5816 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5912-txt",
+    "title": "RFC 5912",
+    "path": "/rag-seed/docs/rfc5912.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5912 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5914-txt",
+    "title": "RFC 5914",
+    "path": "/rag-seed/docs/rfc5914.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5914 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc5934-txt",
+    "title": "RFC 5934",
+    "path": "/rag-seed/docs/rfc5934.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 5934 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc6066-txt",
+    "title": "RFC 6066",
+    "path": "/rag-seed/docs/rfc6066.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 6066 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc6125-txt",
+    "title": "RFC 6125",
+    "path": "/rag-seed/docs/rfc6125.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 6125 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc6402-txt",
+    "title": "RFC 6402",
+    "path": "/rag-seed/docs/rfc6402.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 6402 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc6712-txt",
+    "title": "RFC 6712",
+    "path": "/rag-seed/docs/rfc6712.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 6712 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc6818-txt",
+    "title": "RFC 6818",
+    "path": "/rag-seed/docs/rfc6818.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 6818 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc6960-txt",
+    "title": "RFC 6960",
+    "path": "/rag-seed/docs/rfc6960.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 6960 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc6961-txt",
+    "title": "RFC 6961",
+    "path": "/rag-seed/docs/rfc6961.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 6961 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc6962-txt",
+    "title": "RFC 6962",
+    "path": "/rag-seed/docs/rfc6962.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 6962 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc7030-txt",
+    "title": "RFC 7030",
+    "path": "/rag-seed/docs/rfc7030.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 7030 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc7468-txt",
+    "title": "RFC 7468",
+    "path": "/rag-seed/docs/rfc7468.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 7468 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc7633-txt",
+    "title": "RFC 7633",
+    "path": "/rag-seed/docs/rfc7633.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 7633 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8017-txt",
+    "title": "RFC 8017",
+    "path": "/rag-seed/docs/rfc8017.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8017 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8295-txt",
+    "title": "RFC 8295",
+    "path": "/rag-seed/docs/rfc8295.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8295 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8366-txt",
+    "title": "RFC 8366",
+    "path": "/rag-seed/docs/rfc8366.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8366 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8410-txt",
+    "title": "RFC 8410",
+    "path": "/rag-seed/docs/rfc8410.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8410 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8446-txt",
+    "title": "RFC 8446",
+    "path": "/rag-seed/docs/rfc8446.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8446 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8555-txt",
+    "title": "RFC 8555",
+    "path": "/rag-seed/docs/rfc8555.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8555 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8737-txt",
+    "title": "RFC 8737",
+    "path": "/rag-seed/docs/rfc8737.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8737 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8738-txt",
+    "title": "RFC 8738",
+    "path": "/rag-seed/docs/rfc8738.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8738 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8739-txt",
+    "title": "RFC 8739",
+    "path": "/rag-seed/docs/rfc8739.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8739 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8894-txt",
+    "title": "RFC 8894",
+    "path": "/rag-seed/docs/rfc8894.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8894 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8954-txt",
+    "title": "RFC 8954",
+    "path": "/rag-seed/docs/rfc8954.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8954 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc8995-txt",
+    "title": "RFC 8995",
+    "path": "/rag-seed/docs/rfc8995.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 8995 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9148-txt",
+    "title": "RFC 9148",
+    "path": "/rag-seed/docs/rfc9148.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9148 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9162-txt",
+    "title": "RFC 9162",
+    "path": "/rag-seed/docs/rfc9162.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9162 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9480-txt",
+    "title": "RFC 9480",
+    "path": "/rag-seed/docs/rfc9480.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9480 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9481-txt",
+    "title": "RFC 9481",
+    "path": "/rag-seed/docs/rfc9481.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9481 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9483-txt",
+    "title": "RFC 9483",
+    "path": "/rag-seed/docs/rfc9483.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9483 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9654-txt",
+    "title": "RFC 9654",
+    "path": "/rag-seed/docs/rfc9654.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9654 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9733-txt",
+    "title": "RFC 9733",
+    "path": "/rag-seed/docs/rfc9733.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9733 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9810-txt",
+    "title": "RFC 9810",
+    "path": "/rag-seed/docs/rfc9810.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9810 for local retrieval in the in-browser RAG index."
+  },
+  {
+    "id": "rfc9811-txt",
+    "title": "RFC 9811",
+    "path": "/rag-seed/docs/rfc9811.txt",
+    "type": "txt",
+    "description": "Bundled RFC reference 9811 for local retrieval in the in-browser RAG index."
   }
 ]

@@ -70,6 +70,12 @@ import {
   ReasoningTrigger,
 } from '@/components/ai-elements/reasoning';
 import {
+  Task,
+  TaskContent,
+  TaskItem,
+  TaskTrigger,
+} from '@/components/ai-elements/task';
+import {
   Source,
   Sources,
   SourcesContent,
@@ -1344,6 +1350,14 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
         return;
       }
 
+      if (useWebSearch && ragStatus === 'indexing') {
+        sileo.info({
+          title: 'Local RAG still indexing',
+          description: 'Wait for the local seed corpus to finish indexing before sending a new message.',
+        });
+        return;
+      }
+
       setEngineError(null);
       setRagError(null);
       setStatus('submitted');
@@ -1615,6 +1629,7 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
       updateMessage,
       useApiTools,
       useWebSearch,
+      ragStatus,
     ],
   );
 
@@ -1787,12 +1802,19 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
   }, []);
 
   const isSubmitDisabled = useMemo(
-    () => !text.trim() || hasWebGpuSupport === false || loadingModelId === model || status === 'streaming' || status === 'submitted',
-    [hasWebGpuSupport, loadingModelId, model, status, text],
+    () =>
+      !text.trim() ||
+      hasWebGpuSupport === false ||
+      loadingModelId === model ||
+      (useWebSearch && ragStatus === 'indexing') ||
+      status === 'streaming' ||
+      status === 'submitted',
+    [hasWebGpuSupport, loadingModelId, model, ragStatus, status, text, useWebSearch],
   );
   const isBusyGenerating = status === 'streaming' || status === 'submitted';
   const isSelectedModelLoading = loadingModelId === model;
-  const isComposerLocked = hasWebGpuSupport === false || isBusyGenerating || isSelectedModelLoading;
+  const isRagIndexing = useWebSearch && ragStatus === 'indexing';
+  const isComposerLocked = hasWebGpuSupport === false || isBusyGenerating || isSelectedModelLoading || isRagIndexing;
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col gap-4', isPanel ? 'h-full' : 'min-h-[720px]')}>
@@ -2070,6 +2092,24 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
 
           <div className="grid shrink-0">
             <div className="w-full px-4 pb-4 pt-3">
+              {isRagIndexing ? (
+                <Task className="mb-3 rounded-xl border border-border/70 bg-muted/30 px-4 py-3" defaultOpen>
+                  <TaskTrigger title="Indexing local RAG seed">
+                    <div className="flex w-full items-center gap-2 text-sm text-muted-foreground">
+                      <Spinner className="size-4 text-foreground" />
+                      <p className="font-medium text-foreground">Indexing local RAG seed</p>
+                      <span className="text-xs text-muted-foreground">
+                        Chat input unlocks when retrieval is ready.
+                      </span>
+                    </div>
+                  </TaskTrigger>
+                  <TaskContent>
+                    <TaskItem>Reading the bundled RFC, PQC, and NIST references from `rag-seed`.</TaskItem>
+                    <TaskItem>Chunking the documents and building the retrieval index locally in this browser.</TaskItem>
+                    <TaskItem>Generating embeddings when available, then caching the index in IndexedDB.</TaskItem>
+                  </TaskContent>
+                </Task>
+              ) : null}
               <PromptInput globalDrop multiple onSubmit={handleSubmit}>
                 <PromptInputHeader>
                   <PromptInputAttachmentsDisplay />
@@ -2082,6 +2122,8 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                     placeholder={
                       isSelectedModelLoading
                         ? `Loading ${selectedModelData?.name ?? 'the selected model'} locally before chat unlocks...`
+                        : isRagIndexing
+                          ? 'Indexing the local RAG seed before chat input unlocks...'
                         : 'Ask about PKI, devices, registrations, keys, or anything you want to reason through locally.'
                     }
                     value={text}

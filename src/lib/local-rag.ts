@@ -8,7 +8,7 @@ type WebLLMModule = typeof import('@mlc-ai/web-llm');
 const RAG_DB_NAME = 'lamassu-local-rag';
 const RAG_DB_VERSION = 1;
 const RAG_STORE_NAME = 'seed-index';
-const RAG_INDEX_KEY = 'rag-seed-v2-semantic';
+const RAG_INDEX_KEY = 'rag-seed-v3-semantic';
 const EMBEDDING_MODEL_ID = 'snowflake-arctic-embed-s-q0f32-MLC-b4';
 const EMBEDDING_BATCH_SIZE = 4;
 const MAX_CHUNK_LENGTH = 1200;
@@ -227,13 +227,7 @@ async function writeStoredIndex(index: RagStoredIndex) {
 }
 
 function getManifestSignature(manifest: RagSeedDocument[]) {
-  return JSON.stringify(
-    manifest.map((document) => ({
-      id: document.id,
-      path: document.path,
-      type: document.type,
-    })),
-  );
+  return JSON.stringify(manifest);
 }
 
 function normalizeWhitespace(text: string) {
