@@ -76,7 +76,13 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/sources';
 import { SpeechInput } from '@/components/ai-elements/speech-input';
-import { JsonRenderToolResult } from '@/components/tools/JsonRenderToolResult';
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from '@/components/ai-elements/tool';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -443,6 +449,158 @@ function normalizeRuntimeStats(stats: string | null) {
   return stats;
 }
 
+function cleanAssistantText(text: string) {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function extractTaggedReasoning(text: string) {
+  const matches = [...text.matchAll(/<think>([\s\S]*?)<\/think>/gi)];
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const reasoning = matches.map((match) => match[1]?.trim()).filter(Boolean).join('\n\n');
+  const answer = cleanAssistantText(text.replace(/<think>[\s\S]*?<\/think>/gi, ' '));
+
+  return {
+    answer,
+    reasoning,
+  };
+}
+
+function looksLikeLeakedReasoning(text: string) {
+  const normalized = text.toLowerCase();
+  const signals = [
+    'the user',
+    'i should',
+    'they might',
+    'keep the response',
+    'acknowledge their greeting',
+    'possible needs',
+    'since the previous messages',
+    'i need to',
+    'however,',
+  ];
+
+  return signals.filter((signal) => normalized.includes(signal)).length >= 2;
+}
+
+function splitSentences(text: string) {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function isMetaReasoningSentence(sentence: string) {
+  const normalized = sentence.toLowerCase();
+  const signals = [
+    'the user',
+    'i should',
+    'i need to',
+    'they might',
+    'keep the response',
+    'since the previous messages',
+    'maybe they',
+    'let me check',
+    'however,',
+    'just a greeting',
+    'relevant to the topics',
+  ];
+
+  return signals.some((signal) => normalized.includes(signal));
+}
+
+function splitReasoningFromAnswerBySentence(text: string) {
+  const sentences = splitSentences(text);
+
+  if (sentences.length < 2) {
+    return null;
+  }
+
+  const answerSentences: string[] = [];
+
+  for (let index = sentences.length - 1; index >= 0; index -= 1) {
+    const sentence = sentences[index];
+
+    if (isMetaReasoningSentence(sentence)) {
+      break;
+    }
+
+    answerSentences.unshift(sentence);
+  }
+
+  if (answerSentences.length === 0 || answerSentences.length === sentences.length) {
+    return null;
+  }
+
+  const answer = cleanAssistantText(answerSentences.join(' '));
+  const reasoning = cleanAssistantText(
+    sentences.slice(0, sentences.length - answerSentences.length).join(' '),
+  );
+
+  if (!answer || !reasoning || !looksLikeLeakedReasoning(reasoning)) {
+    return null;
+  }
+
+  return { answer, reasoning };
+}
+
+function splitLeakedReasoning(text: string) {
+  const normalized = cleanAssistantText(text);
+
+  if (!normalized) {
+    return null;
+  }
+
+  const tagged = extractTaggedReasoning(normalized);
+  if (tagged) {
+    return tagged;
+  }
+
+  const blocks = normalized.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+  if (blocks.length < 2) {
+    return null;
+  }
+
+  const answer = blocks.at(-1) ?? '';
+  const reasoning = blocks.slice(0, -1).join('\n\n');
+
+  if (!answer || !reasoning) {
+    return null;
+  }
+
+  if (!looksLikeLeakedReasoning(reasoning)) {
+    return splitReasoningFromAnswerBySentence(normalized);
+  }
+
+  return {
+    answer: cleanAssistantText(answer),
+    reasoning,
+  };
+}
+
+function sanitizeAssistantReply(text: string) {
+  const normalized = cleanAssistantText(text);
+  const split = splitLeakedReasoning(normalized);
+
+  if (!split) {
+    return {
+      finalAnswer: normalized,
+      leakedReasoning: null,
+    };
+  }
+
+  return {
+    finalAnswer: split.answer || normalized,
+    leakedReasoning: split.reasoning,
+  };
+}
+
 function withToolModelGuidance(message: string, selectedModelData?: ModelOption) {
   if (!selectedModelData?.supportsToolCalling) {
     return message;
@@ -458,6 +616,42 @@ function formatProgress(report: InitProgressReport | null) {
 
   const value = Number.isFinite(report.progress) ? report.progress * 100 : 0;
   return Math.min(100, Math.max(0, value));
+}
+
+function getToolUiState(tool: ChatToolInvocation) {
+  if (tool.state) {
+    if (tool.state === 'approval-requested') {
+      return 'approval-requested' as const;
+    }
+
+    if (tool.state === 'approval-responded') {
+      return 'approval-responded' as const;
+    }
+
+    if (tool.state === 'output-denied') {
+      return 'output-denied' as const;
+    }
+
+    return 'output-available' as const;
+  }
+
+  if (tool.status === 'pending') {
+    return 'input-streaming' as const;
+  }
+
+  if (tool.status === 'running') {
+    return 'input-available' as const;
+  }
+
+  if (tool.status === 'denied') {
+    return 'output-denied' as const;
+  }
+
+  if (tool.status === 'error') {
+    return 'output-error' as const;
+  }
+
+  return 'output-available' as const;
 }
 
 function buildRagContext(results: RagSearchResult[]) {
@@ -1033,34 +1227,30 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
           }
 
           reply += delta;
-          updateMessage(assistantKey, (message) => ({
-            ...message,
-            status: 'streaming',
-            versions: message.versions.map((version) =>
-              version.id === messageId ? { ...version, content: reply } : version,
-            ),
-          }));
         }
 
         const duration = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+        const sanitizedReply = sanitizeAssistantReply(reply);
 
         updateMessage(assistantKey, (message) => ({
           ...message,
           status: undefined,
           reasoning: {
-            content: toolCallCount > 0 && ragResults.length > 0
-              ? `Response generated locally with ${selectedModelName} on WebGPU using live API tools and the local seed corpus.`
-              : toolCallCount > 0
-                ? `Response generated locally with ${selectedModelName} on WebGPU using live API tools.`
-                : ragResults.length > 0
-                  ? `Response generated locally with ${selectedModelName} on WebGPU using the local seed corpus.`
-                  : `Response generated locally with ${selectedModelName} on WebGPU.`,
+            content: [
+              toolCallCount > 0 && ragResults.length > 0
+                ? `Response generated locally with ${selectedModelName} on WebGPU using live API tools and the local seed corpus.`
+                : toolCallCount > 0
+                  ? `Response generated locally with ${selectedModelName} on WebGPU using live API tools.`
+                  : ragResults.length > 0
+                    ? `Response generated locally with ${selectedModelName} on WebGPU using the local seed corpus.`
+                    : `Response generated locally with ${selectedModelName} on WebGPU.`,
+            ].filter(Boolean).join('\n\n'),
             duration,
             isStreaming: false,
           },
           versions: message.versions.map((version) =>
             version.id === messageId
-              ? { ...version, content: reply || 'No output returned.' }
+              ? { ...version, content: sanitizedReply.finalAnswer || 'No output returned.' }
               : version,
           ),
         }));
@@ -1775,46 +1965,20 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                             {message.tools?.length ? (
                               <div className="mb-3 space-y-2">
                                 {message.tools.map((tool) => (
-                                  <div
-                                    className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
-                                    key={tool.id}
-                                  >
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="font-medium text-foreground">{tool.name}</p>
-                                        <p>{tool.description}</p>
-                                      </div>
-                                      <Badge variant={tool.status === 'error' ? 'destructive' : 'outline'}>
-                                        {tool.status}
-                                      </Badge>
-                                    </div>
-                                    <div className="mt-2 grid gap-2">
-                                      <div>
-                                        <p className="font-medium text-foreground">Arguments</p>
-                                        <div className="mt-2">
-                                          <JsonRenderToolResult
-                                            title={`${tool.name} arguments`}
-                                            value={tool.parameters}
-                                          />
-                                        </div>
-                                      </div>
-                                      {tool.result !== undefined ? (
-                                        <div>
-                                          <p className="font-medium text-foreground">Result</p>
-                                          <div className="mt-2">
-                                            <JsonRenderToolResult
-                                              title={`${tool.name} result`}
-                                              value={tool.result}
-                                            />
-                                          </div>
-                                        </div>
-                                      ) : null}
-                                      {tool.error ? (
-                                        <div>
-                                          <p className="font-medium text-destructive">Error</p>
-                                          <p className="mt-1 text-destructive">{tool.error}</p>
-                                        </div>
-                                      ) : null}
+                                  <Tool defaultOpen={tool.status === 'running' || tool.status === 'error'} key={tool.id}>
+                                    <ToolHeader
+                                      state={getToolUiState(tool)}
+                                      title={tool.name}
+                                      type="dynamic-tool"
+                                      toolName={tool.name}
+                                    />
+                                    <ToolContent>
+                                      <p className="text-sm text-muted-foreground">{tool.description}</p>
+                                      <ToolInput input={tool.parameters} />
+                                      <ToolOutput
+                                        errorText={tool.error}
+                                        output={tool.result}
+                                      />
                                       {tool.destructive && tool.state ? (
                                         <Confirmation
                                           approval={
@@ -1864,8 +2028,8 @@ export function WebLlmChatbot({ variant = 'page' }: WebLlmChatbotProps) {
                                           </ConfirmationRejected>
                                         </Confirmation>
                                       ) : null}
-                                    </div>
-                                  </div>
+                                    </ToolContent>
+                                  </Tool>
                                 ))}
                               </div>
                             ) : null}

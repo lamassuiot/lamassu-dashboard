@@ -205,20 +205,57 @@ export type ReasoningContentProps = ComponentProps<
 };
 
 const streamdownPlugins = { cjk, code, math, mermaid };
+const STREAM_CHUNK_MIN = 3;
+const STREAM_CHUNK_RANGE = 2;
+const STREAM_INTERVAL_MS = 25;
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => (
-    <CollapsibleContent
-      className={cn(
-        "mt-4 text-sm",
-        "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-        className
-      )}
-      {...props}
-    >
-      <Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
-    </CollapsibleContent>
-  )
+  ({ className, children, ...props }: ReasoningContentProps) => {
+    const { isStreaming } = useReasoning();
+    const [streamedContent, setStreamedContent] = useState(children);
+
+    useEffect(() => {
+      if (!isStreaming) {
+        setStreamedContent(children);
+        return;
+      }
+
+      setStreamedContent((previous) =>
+        children.startsWith(previous) ? previous : ""
+      );
+    }, [children, isStreaming]);
+
+    useEffect(() => {
+      if (!isStreaming || streamedContent === children) {
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        setStreamedContent((previous) => {
+          const base = children.startsWith(previous) ? previous : "";
+          const chunkSize =
+            Math.floor(Math.random() * STREAM_CHUNK_RANGE) + STREAM_CHUNK_MIN;
+
+          return children.slice(0, Math.min(children.length, base.length + chunkSize));
+        });
+      }, STREAM_INTERVAL_MS);
+
+      return () => clearTimeout(timer);
+    }, [children, isStreaming, streamedContent]);
+
+    return (
+      <CollapsibleContent
+        className={cn(
+          "mt-4 text-sm",
+          "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+          className
+        )}
+        {...props}
+      >
+        <Streamdown plugins={streamdownPlugins}>{streamedContent}</Streamdown>
+      </CollapsibleContent>
+    );
+  }
 );
 
 Reasoning.displayName = "Reasoning";
