@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -19,17 +18,14 @@ import {
     FileText, Settings2, Copy, Check, Download as DownloadIcon,
     ChevronsUpDown, BookText,
 } from "lucide-react";
-import { cn } from '@/lib/utils';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
-import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
+import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { KmsKeySelector } from '@/components/shared/KmsKeySelector';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { Stepper } from '@/components/shared/Stepper';
-import {
-    KEY_USAGE_OPTIONS, EKU_OPTIONS,
-    KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS,
-} from '@/lib/form-options';
+import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
+import { CLIENT_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, type ApiSigningProfile, type CreateCertificateIssuanceProfile, type CreateCertificateKeySpec, type CreateCertificatePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines, fetchKmsKey } from '@/lib/kms-data';
 import { parseCertificatePemDetails } from '@/lib-crypto/cert-parser';
@@ -37,6 +33,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { sileo } from '@/lib/toast';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { ApiKmsKey } from '@/lib/kms-data';
+import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
+import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:58.999Z";
 
@@ -94,12 +92,12 @@ export default function CreateCertificateClient() {
     const [stateProvince, setStateProvince] = useState('');
     const [locality, setLocality] = useState('');
     const [validity, setValidity] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '1y' });
-    const [selectedKeyUsages, setSelectedKeyUsages] = useState<string[]>(['DigitalSignature', 'KeyEncipherment']);
-    const [selectedEkus, setSelectedEkus] = useState<string[]>(['ClientAuth']);
+    const [selectedKeyUsages, setSelectedKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
+    const [selectedEkus, setSelectedEkus] = useState<ExtendedKeyUsageOption[]>([...CLIENT_AUTH_EXTENDED_KEY_USAGES]);
     const [isCA, setIsCA] = useState(false);
 
     // Profile
-    const [profileMode, setProfileMode] = useState<'reuse' | 'inline'>('inline');
+    const [profileMode, setProfileMode] = useState<ProfileMode>('inline');
     const [profileId, setProfileId] = useState('');
     const [allProfiles, setAllProfiles] = useState<ApiSigningProfile[]>([]);
     const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
@@ -132,12 +130,12 @@ export default function CreateCertificateClient() {
         loadPageData();
     }, [loadPageData]);
 
-    const handleKeyUsageToggle = (id: string) => {
-        setSelectedKeyUsages(prev => prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id]);
+    const handleKeyUsageChange = (usage: string, checked: boolean) => {
+        setSelectedKeyUsages(prev => checked ? [...prev, usage as KeyUsageOption] : prev.filter(u => u !== usage));
     };
 
-    const handleEkuToggle = (id: string) => {
-        setSelectedEkus(prev => prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id]);
+    const handleExtendedKeyUsageChange = (usage: string, checked: boolean) => {
+        setSelectedEkus(prev => checked ? [...prev, usage as ExtendedKeyUsageOption] : prev.filter(u => u !== usage));
     };
 
     const handleCopy = async (text: string) => {
@@ -186,9 +184,9 @@ export default function CreateCertificateClient() {
         const inlineProfile: CreateCertificateIssuanceProfile = {
             validity: formatValidityForApi(validity),
             sign_as_ca: isCA,
-            honor_key_usage: true,
+            honor_key_usage: false,
             key_usage: selectedKeyUsages,
-            honor_extended_key_usages: true,
+            honor_extended_key_usages: false,
             extended_key_usages: selectedEkus,
         };
 
@@ -455,124 +453,30 @@ export default function CreateCertificateClient() {
                     <Card className={DETAIL_CARD_CLASSNAME}>
                         <SectionHeader icon={BookText} title="Profile" />
                         <CardContent className="p-6 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div
-                                    className={cn(
-                                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-                                        profileMode === 'reuse' ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:border-primary/50"
-                                    )}
-                                    onClick={() => setProfileMode('reuse')}
-                                >
-                                    <div className="p-4 flex items-center space-x-3">
-                                        <div className={cn("p-2 rounded-lg", profileMode === 'reuse' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                                            <BookText className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-base font-semibold">Reuse Profile</h3>
-                                            <p className="text-sm text-muted-foreground">Use a predefined issuance template</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div
-                                    className={cn(
-                                        "cursor-pointer transition-all duration-200 hover:shadow-md border-2",
-                                        profileMode === 'inline' ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:border-primary/50"
-                                    )}
-                                    onClick={() => setProfileMode('inline')}
-                                >
-                                    <div className="p-4 flex items-center space-x-3">
-                                        <div className={cn("p-2 rounded-lg", profileMode === 'inline' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                                            <Settings2 className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-base font-semibold">Define Inline</h3>
-                                            <p className="text-sm text-muted-foreground">Define a one-time issuance policy</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {profileMode === 'reuse' && (
-                                <div className="pt-4 mt-4 border-t space-y-1.5">
-                                    <Label htmlFor="cc-profileId">Profile</Label>
-                                    <p className="text-xs text-muted-foreground">Takes precedence over the CA&apos;s default profile.</p>
-                                    <Select
-                                        value={profileId}
-                                        onValueChange={setProfileId}
-                                        disabled={isLoadingProfiles}
-                                    >
-                                        <SelectTrigger id="cc-profileId">
-                                            <SelectValue placeholder={isLoadingProfiles ? "Loading profiles..." : "Select a profile..."} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {allProfiles.map((p) => (
-                                                <SelectItem key={p.id} value={p.id}>
-                                                    {p.name}
-                                                    {p.description && (
-                                                        <span className="text-muted-foreground ml-2 text-xs">— {p.description}</span>
-                                                    )}
-                                                </SelectItem>
-                                            ))}
-                                            {allProfiles.length === 0 && !isLoadingProfiles && (
-                                                <SelectItem value="__none__" disabled>No profiles available</SelectItem>
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                    {profileId && (
-                                        <p className="text-xs text-muted-foreground font-mono">ID: {profileId}</p>
-                                    )}
-                                </div>
-                            )}
+                            <SigningProfileSelector
+                                profileMode={profileMode}
+                                onProfileModeChange={setProfileMode}
+                                availableProfiles={allProfiles}
+                                isLoadingProfiles={isLoadingProfiles}
+                                selectedProfileId={profileId || null}
+                                onProfileIdChange={(id) => setProfileId(id || '')}
+                                inlineModeEnabled={true}
+                                createModeEnabled={false}
+                                validity={validity}
+                                onValidityChange={setValidity}
+                                keyUsages={selectedKeyUsages}
+                                onKeyUsageChange={handleKeyUsageChange}
+                                extendedKeyUsages={selectedEkus}
+                                onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
+                            />
 
                             {profileMode === 'inline' && (
-                                <div className="pt-4 mt-4 border-t space-y-4">
-                                    <ExpirationInput
-                                        label="Validity"
-                                        value={validity}
-                                        onValueChange={setValidity}
-                                        idPrefix="cc-validity"
-                                    />
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Key Usages</Label>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
-                                            {KEY_USAGE_OPTIONS.map((opt) => (
-                                                <div key={opt.id} className="flex items-center gap-2">
-                                                    <Checkbox
-                                                        id={`cc-ku-${opt.id}`}
-                                                        checked={selectedKeyUsages.includes(opt.id)}
-                                                        onCheckedChange={() => handleKeyUsageToggle(opt.id)}
-                                                    />
-                                                    <Label htmlFor={`cc-ku-${opt.id}`} className="font-normal text-sm cursor-pointer">
-                                                        {opt.label}
-                                                    </Label>
-                                                </div>
-                                            ))}
-                                        </div>
+                                <div className="flex items-center justify-between rounded-md border p-3 bg-background">
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor="cc-isCA" className="font-medium cursor-pointer">Mark as CA Certificate</Label>
+                                        <p className="text-xs text-muted-foreground">Enables Basic Constraints with the CA flag.</p>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Extended Key Usages</Label>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4">
-                                            {EKU_OPTIONS.map((opt) => (
-                                                <div key={opt.id} className="flex items-center gap-2">
-                                                    <Checkbox
-                                                        id={`cc-eku-${opt.id}`}
-                                                        checked={selectedEkus.includes(opt.id)}
-                                                        onCheckedChange={() => handleEkuToggle(opt.id)}
-                                                    />
-                                                    <Label htmlFor={`cc-eku-${opt.id}`} className="font-normal text-sm cursor-pointer">
-                                                        {opt.label}
-                                                    </Label>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between rounded-md border p-3 bg-background">
-                                        <div className="space-y-0.5">
-                                            <Label htmlFor="cc-isCA" className="font-medium cursor-pointer">Mark as CA Certificate</Label>
-                                            <p className="text-xs text-muted-foreground">Enables Basic Constraints with the CA flag.</p>
-                                        </div>
-                                        <Switch id="cc-isCA" checked={isCA} onCheckedChange={setIsCA} />
-                                    </div>
+                                    <Switch id="cc-isCA" checked={isCA} onCheckedChange={setIsCA} />
                                 </div>
                             )}
                         </CardContent>

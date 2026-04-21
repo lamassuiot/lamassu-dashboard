@@ -8,20 +8,7 @@ import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessa
 import { CalendarDays, ListChecks } from "lucide-react";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
 import { formatCertificateUsageLabel } from '@/lib/utils';
-
-const NESTED_CONTAINER_STYLES = "space-y-4 p-4 border rounded-md ml-4 -mt-4 bg-background";
-
-const keyUsageOptions = [
-  "DigitalSignature", "ContentCommitment", "KeyEncipherment", "DataEncipherment",
-  "KeyAgreement", "CertSign", "CRLSign", "EncipherOnly", "DecipherOnly"
-] as const;
-type KeyUsageOption = typeof keyUsageOptions[number];
-
-const extendedKeyUsageOptions = [
-  "ServerAuth", "ClientAuth", "CodeSigning", "EmailProtection",
-  "TimeStamping", "OCSPSigning", "Any"
-] as const;
-type ExtendedKeyUsageOption = typeof extendedKeyUsageOptions[number];
+import { CA_KEY_USAGES, extendedKeyUsageOptions, keyUsageOptions } from '@/lib/certificate-usage-options';
 
 /**
  * Simplified schema for inline CA certificate profile during CA creation.
@@ -55,7 +42,7 @@ export type SimplifiedInlineProfileFormValues = z.infer<typeof simplifiedInlineP
 
 export const defaultSimplifiedFormValues: SimplifiedInlineProfileFormValues = {
   validity: { type: 'Duration', durationValue: '1y' },
-  keyUsages: ['CertSign', 'CRLSign'],
+  keyUsages: [...CA_KEY_USAGES],
   extendedKeyUsages: [],
 };
 

@@ -28,6 +28,7 @@ import { SigningProfileSelector } from '@/components/shared/SigningProfileSelect
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { SectionHeader } from '@/components/shared/FormComponents';
+import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 
 
 // This specific date string is used to represent "indefinite validity" (no expiration) in the API.
@@ -100,8 +101,8 @@ export default function IssueCertificateFormClient() {
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
-  const [keyUsages, setKeyUsages] = useState<string[]>(['DigitalSignature', 'KeyEncipherment']);
-  const [extendedKeyUsages, setExtendedKeyUsages] = useState<string[]>(['ClientAuth', 'ServerAuth']);
+  const [keyUsages, setKeyUsages] = useState<KeyUsageOption[]>([...TLS_KEY_USAGES]);
+  const [extendedKeyUsages, setExtendedKeyUsages] = useState<ExtendedKeyUsageOption[]>([...DEVICE_AUTH_EXTENDED_KEY_USAGES]);
   const [validity, setValidity] = useState<ExpirationConfig>({ type: 'Duration', durationValue: '1y' });
   const [honorSubject, setHonorSubject] = useState<boolean>(true);
   

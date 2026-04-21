@@ -1,11 +1,13 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import type { CertSortConfig, SortDirection, SortableCertColumn } from '@/app/certificates/page';
 import type { MetadataFilter } from '@/components/shared/MetadataFilterManager';
+import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
+import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
 
 const _API_STATUS_VALUES_FOR_FILTER = {
   ALL: 'ALL',
@@ -15,6 +17,14 @@ const _API_STATUS_VALUES_FOR_FILTER = {
 } as const;
 export type ApiStatusFilterValue = typeof _API_STATUS_VALUES_FOR_FILTER[keyof typeof _API_STATUS_VALUES_FOR_FILTER];
 export type ApiCertificateStatusValue = Exclude<ApiStatusFilterValue, 'ALL'>;
+export type CertificateBooleanFilterValue = 'ALL' | 'true' | 'false';
+export type CertificateDateFilterOperator = 'af' | 'bf' | 'eq';
+export interface CertificateDateFilterValue {
+  operator: CertificateDateFilterOperator;
+  date?: Date;
+}
+
+const DEFAULT_CERTIFICATE_DATE_OPERATOR: CertificateDateFilterOperator = 'af';
 
 interface UsePaginatedCertificateFetcherParams {
   caId?: string | null;
@@ -22,7 +32,6 @@ interface UsePaginatedCertificateFetcherParams {
 }
 
 export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = '10' }: UsePaginatedCertificateFetcherParams = {}) {
-  
   const [isClientMounted, setIsClientMounted] = useState(false);
   useEffect(() => { setIsClientMounted(true); }, []);
 
@@ -38,10 +47,18 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   // Filtering & Sorting State
   const [pageSize, setPageSize] = useState<string>(initialPageSize);
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState<'commonName' | 'serialNumber'>('commonName');
   const [statusFilter, setStatusFilter] = useState<ApiStatusFilterValue>('ALL');
   const [statusFilters, setStatusFilters] = useState<ApiCertificateStatusValue[]>([]);
+  const [subjectKeyIdFilter, setSubjectKeyIdFilter] = useState('');
+  const [engineIdFilter, setEngineIdFilter] = useState('');
+  const [keyUsageFilters, setKeyUsageFilters] = useState<KeyUsageOption[]>([]);
+  const [extendedKeyUsageFilters, setExtendedKeyUsageFilters] = useState<ExtendedKeyUsageOption[]>([]);
+  const [revocationReasonFilters, setRevocationReasonFilters] = useState<string[]>([]);
+  const [isCaFilter, setIsCaFilter] = useState<CertificateBooleanFilterValue>('ALL');
+  const [validFromFilter, setValidFromFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
+  const [validToFilter, setValidToFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
+  const [revocationTimestampFilter, setRevocationTimestampFilter] = useState<CertificateDateFilterValue>({ operator: DEFAULT_CERTIFICATE_DATE_OPERATOR });
   const [caIdFilter, setCaIdFilter] = useState<string | null>(caId);
   const [sortConfig, setSortConfig] = useState<CertSortConfig | null>({ column: 'validFrom', direction: 'desc' });
   const [metadataFilters, setMetadataFilters] = useState<MetadataFilter[]>([]);
@@ -49,18 +66,6 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
   
   // Ref to track if this is the very first load to prevent extra renders
   const isInitialLoad = useRef(true);
-
-  // Debounce search term
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      // Don't cause a re-render on the initial mount with an empty search term
-      if (isInitialLoad.current && searchTerm === '') {
-        return;
-      }
-      setDebouncedSearchTerm(searchTerm);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [searchTerm]);
 
   // Debounce metadata filters
   useEffect(() => {
@@ -116,32 +121,27 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
             const bookmarkToFetch = bookmarkStack[currentPageIndex];
             if (bookmarkToFetch) apiParams.append('bookmark', bookmarkToFetch);
 
-            const filtersToApply: string[] = [];
             const effectiveStatusFilters: ApiCertificateStatusValue[] =
               statusFilters.length > 0
                 ? statusFilters
                 : statusFilter !== 'ALL'
                   ? [statusFilter as ApiCertificateStatusValue]
                   : [];
-
-            if (effectiveStatusFilters.length === 1) {
-                filtersToApply.push(`status[equal]${effectiveStatusFilters[0]}`);
-            } else if (effectiveStatusFilters.length > 1) {
-                filtersToApply.push(`status[in]${effectiveStatusFilters.join(',')}`);
-            }
-            if (debouncedSearchTerm.trim() !== '') {
-                if (searchField === 'commonName') {
-                    filtersToApply.push(`subject.common_name[contains]${debouncedSearchTerm.trim()}`);
-                } else if (searchField === 'serialNumber') {
-                    filtersToApply.push(`serial_number[contains_ignorecase]${debouncedSearchTerm.trim()}`);
-                }
-            }
-            debouncedMetadataFilters.forEach(item => {
-                if (item.filter.trim() !== '') {
-                    filtersToApply.push(`metadata[jsonpath]${encodeURIComponent(item.filter.trim())}`);
-                }
+            appendCertificateQueryFilters(apiParams, {
+              searchTerm,
+              searchField,
+              statusFilters: effectiveStatusFilters,
+              subjectKeyIdFilter,
+              engineIdFilter,
+              revocationReasonFilters,
+              isCaFilter,
+              validFromFilter,
+              validToFilter,
+              revocationTimestampFilter,
+              keyUsageFilters,
+              extendedKeyUsageFilters,
+              metadataFilters: debouncedMetadataFilters,
             });
-            filtersToApply.forEach(f => apiParams.append('filter', f));
             
             const fetchWithQuery = (queryString: string) => fetchIssuedCertificates({
                 forCaId: caIdFilter ?? undefined,
@@ -154,10 +154,9 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
             } catch (initialError) {
                 if (effectiveStatusFilters.length > 1) {
                     const fallbackParams = new URLSearchParams(apiParams);
+                    const filtersWithoutStatus = fallbackParams.getAll('filter').filter((filter) => !filter.startsWith('status['));
                     fallbackParams.delete('filter');
-                    filtersToApply
-                      .filter((filter) => !filter.startsWith('status['))
-                      .forEach((filter) => fallbackParams.append('filter', filter));
+                    filtersWithoutStatus.forEach((filter) => fallbackParams.append('filter', filter));
 
                     const fallbackResult = await fetchWithQuery(fallbackParams.toString());
                     result = {
@@ -202,7 +201,25 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
         setCurrentPageIndex(0);
         setBookmarkStack([null]);
     }
-  }, [pageSize, debouncedSearchTerm, searchField, statusFilter, statusFilters, sortConfig, caIdFilter, debouncedMetadataFilters]);
+  }, [
+    pageSize,
+    searchTerm,
+    searchField,
+    statusFilter,
+    statusFilters,
+    subjectKeyIdFilter,
+    engineIdFilter,
+    keyUsageFilters,
+    extendedKeyUsageFilters,
+    revocationReasonFilters,
+    isCaFilter,
+    validFromFilter,
+    validToFilter,
+    revocationTimestampFilter,
+    sortConfig,
+    caIdFilter,
+    debouncedMetadataFilters,
+  ]);
 
 
   const handleNextPage = () => {
@@ -242,16 +259,67 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     );
   };
 
+  const filterBarProps = useMemo(() => ({
+    searchTerm,
+    onSearchTermChange: setSearchTerm,
+    searchField,
+    onSearchFieldChange: setSearchField,
+    statusFilters,
+    onStatusFiltersChange: setStatusFilters,
+    subjectKeyIdFilter,
+    onSubjectKeyIdFilterChange: setSubjectKeyIdFilter,
+    engineIdFilter,
+    onEngineIdFilterChange: setEngineIdFilter,
+    keyUsageFilters,
+    onKeyUsageFiltersChange: setKeyUsageFilters,
+    extendedKeyUsageFilters,
+    onExtendedKeyUsageFiltersChange: setExtendedKeyUsageFilters,
+    revocationReasonFilters,
+    onRevocationReasonFiltersChange: setRevocationReasonFilters,
+    isCaFilter,
+    onIsCaFilterChange: setIsCaFilter,
+    validFromFilter,
+    onValidFromFilterChange: setValidFromFilter,
+    validToFilter,
+    onValidToFilterChange: setValidToFilter,
+    revocationTimestampFilter,
+    onRevocationTimestampFilterChange: setRevocationTimestampFilter,
+    metadataFilters,
+    onMetadataFiltersChange: setMetadataFilters,
+  }), [
+    engineIdFilter,
+    extendedKeyUsageFilters,
+    isCaFilter,
+    keyUsageFilters,
+    metadataFilters,
+    revocationReasonFilters,
+    revocationTimestampFilter,
+    searchField,
+    searchTerm,
+    statusFilters,
+    subjectKeyIdFilter,
+    validFromFilter,
+    validToFilter,
+  ]);
+
   return {
     certificates,
     isLoading,
     error,
     pageSize, setPageSize,
     searchTerm, setSearchTerm,
-    debouncedSearchTerm,
     searchField, setSearchField,
     statusFilter, setStatusFilter,
     statusFilters, setStatusFilters,
+    subjectKeyIdFilter, setSubjectKeyIdFilter,
+    engineIdFilter, setEngineIdFilter,
+    keyUsageFilters, setKeyUsageFilters,
+    extendedKeyUsageFilters, setExtendedKeyUsageFilters,
+    revocationReasonFilters, setRevocationReasonFilters,
+    isCaFilter, setIsCaFilter,
+    validFromFilter, setValidFromFilter,
+    validToFilter, setValidToFilter,
+    revocationTimestampFilter, setRevocationTimestampFilter,
     caIdFilter, setCaIdFilter,
     metadataFilters, setMetadataFilters,
     debouncedMetadataFilters,
@@ -259,6 +327,7 @@ export function usePaginatedCertificateFetcher({ caId = null, initialPageSize = 
     currentPageIndex,
     nextTokenFromApi,
     bookmarkStack,
+    filterBarProps,
     handleNextPage,
     handlePreviousPage,
     refresh,

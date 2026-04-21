@@ -7,16 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
+import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
-import { DmsSelector } from '@/components/shared/DmsSelector';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { fetchDevices } from '@/lib/devices-api';
 import { sileo } from '@/lib/toast';
@@ -24,6 +22,8 @@ import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
+import { DeviceFilterBar } from '@/components/shared/filters/DeviceFilterBar';
+import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -112,7 +112,7 @@ export default function DevicesPage() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [searchField, setSearchField] = useState<'id' | 'tags'>('id');
-  const [statusFilter, setStatusFilter] = useState<DeviceStatus | 'ALL'>('ALL');
+  const [statusFilters, setStatusFilters] = useState<DeviceStatus[]>([]);
 
   // Sorting and pagination states
   const [pageSize, setPageSize] = useState<string>('10');
@@ -178,7 +178,7 @@ export default function DevicesPage() {
     try {
         const params = new URLSearchParams();
         if (sortConfig) {
-            let apiSortColumn = sortConfig.column;
+            let apiSortColumn: string = sortConfig.column;
             if(apiSortColumn === 'deviceGroup') {
                 apiSortColumn = 'dms_owner';
             } else if (apiSortColumn === 'createdAt') {
@@ -196,11 +196,14 @@ export default function DevicesPage() {
             params.append('bookmark', bookmarkToFetch);
         }
         
-        const filtersToApply: string[] = [];
-        if (dmsOwnerFilter) filtersToApply.push(`dms_owner[equal]${dmsOwnerFilter}`);
-        if (debouncedSearchTerm.trim() !== '') filtersToApply.push(`${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
-        if (statusFilter !== 'ALL') filtersToApply.push(`status[equal]${statusFilter}`);
-        filtersToApply.forEach(f => params.append('filter', f));
+        if (dmsOwnerFilter) params.append('filter', `dms_owner[equal]${dmsOwnerFilter}`);
+        if (debouncedSearchTerm.trim() !== '') params.append('filter', `${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+        appendSingleOrMultiFilter(
+          params,
+          statusFilters,
+          (value) => `status[equal]${value}`,
+          (values) => `status[in]${values.join(',')}`
+        );
 
         const data = await fetchDevices(params);
         const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
@@ -226,7 +229,7 @@ export default function DevicesPage() {
         setIsLoadingApi(false);
         if (isInitialLoad.current) isInitialLoad.current = false;
     }
-  }, [debouncedSearchTerm, dmsOwnerFilter, pageSize, searchField, sortConfig, statusFilter]);
+  }, [sortConfig, pageSize, dmsOwnerFilter, debouncedSearchTerm, searchField, statusFilters]);
 
   // Effect for filter changes
   useEffect(() => {
@@ -234,7 +237,7 @@ export default function DevicesPage() {
         setCurrentPageIndex(0);
         setBookmarkStack([null]);
     }
-  }, [debouncedSearchTerm, searchField, statusFilter, pageSize, dmsOwnerFilter, sortConfig]);
+  }, [debouncedSearchTerm, searchField, statusFilters, pageSize, dmsOwnerFilter, sortConfig]);
 
   // Main data fetching effect
   useEffect(() => {
@@ -260,22 +263,22 @@ export default function DevicesPage() {
     const isSorted = sortConfig?.column === column;
     let Icon = ChevronsUpDown;
     if (isSorted) {
-      if (column === 'createdAt' || column === 'expirationDate') {
+      if (column === 'createdAt') {
         Icon = sortConfig?.direction === 'asc' ? ArrowUp01 : ArrowDown10;
       } else {
         Icon = sortConfig?.direction === 'asc' ? ArrowUpZA : ArrowDownAZ;
       }
-    } else if (column === 'createdAt' || column === 'expirationDate') {
+    } else if (column === 'createdAt') {
          Icon = ChevronsUpDown;
     }
 
 
     return (
       <TableHead className={cn("cursor-pointer hover:bg-muted/60", 
-        (column === 'createdAt' || column === 'expirationDate') && "text-center", 
+        column === 'createdAt' && "text-center", 
         className)} onClick={() => requestSort(column)}>
         <div className={cn("flex items-center gap-1", 
-          (column === 'createdAt' || column === 'expirationDate') && "justify-center")}>
+          column === 'createdAt' && "justify-center")}>
           {title} <Icon className={cn("h-4 w-4", isSorted ? "text-primary" : "text-muted-foreground/50")} />
         </div>
       </TableHead>
@@ -353,7 +356,7 @@ export default function DevicesPage() {
     setCurrentPageIndex(prevIndex);
   };
 
-  const hasActiveFilters = debouncedSearchTerm || statusFilter !== 'ALL' || dmsOwnerFilter;
+  const hasActiveFilters = debouncedSearchTerm || statusFilters.length > 0 || dmsOwnerFilter;
 
   return (
     <div className="space-y-6 w-full pb-8">
@@ -377,64 +380,24 @@ export default function DevicesPage() {
         Overview of all registered IoT devices, their status, and associated groups.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-        <div className="space-y-1">
-          <Label htmlFor="searchTermInput">Search Term</Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-            <Input
-              id="searchTermInput"
-              type="text"
-              placeholder="Filter by ID or Tag..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10"
-              disabled={isLoadingApi}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <Label htmlFor="searchFieldSelect">Search In</Label>
-          <Select value={searchField} onValueChange={(value: 'id' | 'tags') => setSearchField(value)} disabled={isLoadingApi}>
-            <SelectTrigger id="searchFieldSelect">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="id">Device ID</SelectItem>
-              <SelectItem value="tags">Tags</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1">
-          <Label htmlFor="dmsOwnerFilter">Registration Authority</Label>
-          <DmsSelector
-            value={dmsOwnerFilter}
-            onChange={handleDmsOwnerChange}
-            disabled={isLoadingApi}
+      <DeviceFilterBar
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        searchField={searchField}
+        onSearchFieldChange={setSearchField}
+        dmsOwnerFilter={dmsOwnerFilter}
+        onDmsOwnerFilterChange={handleDmsOwnerChange}
+        statusFilters={statusFilters}
+        onStatusFiltersChange={setStatusFilters}
+        disabled={isLoadingApi}
+        actions={
+          <ColumnSelector
+            columns={columns}
+            onColumnToggle={handleColumnToggle}
+            align="end"
           />
-        </div>
-        
-        <div className="space-y-1">
-          <Label htmlFor="statusFilter">Status</Label>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as DeviceStatus | 'ALL')} disabled={isLoadingApi}>
-            <SelectTrigger id="statusFilter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All Statuses</SelectItem>
-              <SelectItem value="ACTIVE">Active</SelectItem>
-              <SelectItem value="NO_IDENTITY">No Identity</SelectItem>
-              <SelectItem value="RENEWAL_PENDING">Renewal Pending</SelectItem>
-              <SelectItem value="EXPIRING_SOON">Expiring Soon</SelectItem>
-              <SelectItem value="EXPIRED">Expired</SelectItem>
-              <SelectItem value="REVOKED">Revoked</SelectItem>
-              <SelectItem value="DECOMMISSIONED">Decommissioned</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+        }
+      />
 
       <SplitPanelLayout
         isPanelOpen={isEnrollModalOpen}
@@ -468,13 +431,6 @@ export default function DevicesPage() {
 
         {!apiError && sortedDevices.length > 0 && (
           <>
-            <div className="flex justify-end mb-2">
-              <ColumnSelector
-                columns={columns}
-                onColumnToggle={handleColumnToggle}
-                align="end"
-              />
-            </div>
             <div className={cn("overflow-x-auto transition-opacity duration-300", isLoadingApi && sortedDevices.length > 0 && "opacity-50 pointer-events-none")}>
               <Table>
               <TableHeader>

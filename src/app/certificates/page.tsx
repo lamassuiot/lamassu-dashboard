@@ -6,24 +6,20 @@ import { useRouter } from 'next/navigation';
 import { CertificateList } from '@/components/CertificateList';
 import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
 import type { CertificateData } from '@/types/certificate';
-import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, Search, PlusCircle, ChevronLeft, ChevronRight, X, Upload, KeyRound } from 'lucide-react';
+import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, PlusCircle, Upload, KeyRound } from 'lucide-react';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
-import { MetadataFilterManager } from '@/components/shared/MetadataFilterManager';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
-import { usePaginatedCertificateFetcher, type ApiCertificateStatusValue } from '@/hooks/usePaginatedCertificateFetcher';
+import { usePaginatedCertificateFetcher } from '@/hooks/usePaginatedCertificateFetcher';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ColumnSelector } from '@/components/ui/column-selector';
-import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
+import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
+import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 
 export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime';
 export type SortDirection = 'asc' | 'desc';
@@ -76,13 +72,8 @@ export default function CertificatesPage() {
     isLoading: isLoadingApi,
     error: apiError,
     pageSize, setPageSize,
-    searchTerm, setSearchTerm,
-    debouncedSearchTerm,
-    searchField, setSearchField,
-    statusFilters, setStatusFilters,
+    filterBarProps,
     caIdFilter, setCaIdFilter,
-    metadataFilters, setMetadataFilters,
-    debouncedMetadataFilters,
     sortConfig, requestSort,
     currentPageIndex,
     nextTokenFromApi,
@@ -222,22 +213,6 @@ export default function CertificatesPage() {
     );
   }
   
-  const statusOptions = [
-    { label: 'Active', value: 'ACTIVE' },
-    { label: 'Expired', value: 'EXPIRED' },
-    { label: 'Revoked', value: 'REVOKED' },
-  ];
-
-  const statusOptionValues = statusOptions.map(opt => opt.value as ApiCertificateStatusValue);
-  const statusOptionValueSet = new Set(statusOptionValues);
-  const selectedStatusValues = statusFilters;
-  const handleStatusFilterChange = (selected: string[]) => {
-    const validSelected = selected.filter(
-      (value): value is ApiCertificateStatusValue => statusOptionValueSet.has(value as ApiCertificateStatusValue)
-    );
-    setStatusFilters(validSelected);
-  };
-
   return (
     <div className="w-full space-y-6 pb-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -261,99 +236,15 @@ export default function CertificatesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_180px_minmax(180px,1fr)_minmax(220px,1fr)_minmax(260px,1.6fr)_auto] xl:items-end">
-        {/* Search */}
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor="certSearchTermInput">Search</Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="certSearchTermInput"
-              type="text"
-              placeholder="Search certificates..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9"
-              disabled={isLoadingApi}
-            />
-          </div>
-        </div>
-
-        {/* Search In */}
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor="certSearchFieldSelect">Search In</Label>
-          <Select
-            value={searchField}
-            onValueChange={(value: 'commonName' | 'serialNumber') => setSearchField(value)}
-            disabled={isLoadingApi}
-          >
-            <SelectTrigger id="certSearchFieldSelect" className="h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="commonName">Common Name</SelectItem>
-              <SelectItem value="serialNumber">Serial Number</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* CA Issuer */}
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor="ca-filter-button">CA Issuer</Label>
-          <div className="relative">
-            <Button
-              id="ca-filter-button"
-              variant="outline"
-              className="h-9 w-full justify-start truncate pr-10 text-left font-normal"
-              onClick={() => handleOpenCaSelector('filter')}
-              disabled={isLoadingApi || isLoadingCAs}
-            >
-              <span className="truncate">{selectedCaForFilter ? selectedCaForFilter.name : 'All Issuers'}</span>
-            </Button>
-            {caIdFilter && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setCaIdFilter(null)}
-                className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
-                title="Clear CA filter"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Status */}
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor="certStatusFilterSelect">Status</Label>
-          <div className={cn(isLoadingApi && "pointer-events-none opacity-50")}>
-            <MultiSelectDropdown
-              id="certStatusFilterSelect"
-              options={statusOptions}
-              allOptionValues={statusOptions.map(opt => opt.value)}
-              selectedValues={selectedStatusValues}
-              onChange={handleStatusFilterChange}
-              buttonText="All Statuses"
-              className="h-9 min-h-9"
-            />
-          </div>
-        </div>
-
-        {/* Metadata (JSONPath) */}
-        <div className="min-w-0 space-y-1.5">
-          <Label htmlFor="certMetadataSearchInput">Metadata (JSONPath)</Label>
-          <MetadataFilterManager
-            id="certMetadataSearchInput"
-            value={metadataFilters}
-            onChange={setMetadataFilters}
-            disabled={isLoadingApi}
-            placeholder="e.g., $.key > value"
-          />
-        </div>
-
-        {/* Columns selector */}
-        <div className="flex items-end xl:justify-self-end">
+      <CertificateFilterBar
+        {...filterBarProps}
+        caIdFilter={caIdFilter}
+        selectedCaLabel={selectedCaForFilter?.name}
+        onOpenCaSelector={() => handleOpenCaSelector('filter')}
+        onClearCaFilter={() => setCaIdFilter(null)}
+        disabled={isLoadingApi}
+        isLoadingCAs={isLoadingCAs}
+        actions={
           <ColumnSelector
             columns={[
               { id: 'commonName',     label: 'Common Name',      visible: columnVisibility.commonName,     disabled: true },
@@ -367,68 +258,8 @@ export default function CertificatesPage() {
             onColumnToggle={handleColumnToggle}
             align="end"
           />
-        </div>
-      </div>
-
-      {/* Active Filters Indicator */}
-      {(debouncedSearchTerm || statusFilters.length > 0 || caIdFilter || debouncedMetadataFilters.length > 0) && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-          <span>Active filters:</span>
-          {debouncedSearchTerm && (
-            <Badge variant="secondary" className="text-xs">
-              {searchField === 'commonName' ? 'Common Name' : 'Serial Number'} contains "{debouncedSearchTerm}"
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setSearchTerm('')}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </Badge>
-          )}
-          {statusFilters.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              Status: {statusFilters.join(', ')}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setStatusFilters([])}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </Badge>
-          )}
-          {caIdFilter && selectedCaForFilter && (
-            <Badge variant="secondary" className="text-xs">
-              CA Issuer: {selectedCaForFilter.name}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setCaIdFilter(null)}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </Badge>
-          )}
-          {metadataFilters.length > 0 && metadataFilters.map((item) => (
-            <Badge key={item.filter} variant="secondary" className={cn("text-xs", item.name ? "" : "font-mono")}>
-              Metadata: {item.name || item.filter}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => setMetadataFilters(prev => prev.filter(f => f.filter !== item.filter))}
-                title={item.name ? `Filter: ${item.filter}` : undefined}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </Badge>
-          ))}
-        </div>
-      )}
+        }
+      />
 
       {(apiError || errorCAs || errorCryptoEngines) && (
         <Alert variant="destructive">
@@ -468,35 +299,19 @@ export default function CertificatesPage() {
       )}
       
       {!(apiError || errorCAs || errorCryptoEngines) && (certificates.length > 0 || isLoadingApi) && (
-        <div className="flex justify-between items-center mt-4">
-            <div className="flex items-center space-x-2">
-              <Label htmlFor="pageSizeSelectCertList" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-              <Select
-                value={pageSize}
-                onValueChange={(value) => { setPageSize(value); }}
-                disabled={isLoadingApi || isLoadingCAs}
-              >
-                <SelectTrigger id="pageSizeSelectCertList" className="w-[80px]">
-                  <SelectValue placeholder="Page size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-                <Button onClick={handlePreviousPage} disabled={isLoadingApi || currentPageIndex === 0} variant="outline">
-                    <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-                </Button>
-                <Button onClick={handleNextPage} disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)} variant="outline">
-                    Next <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-            </div>
-        </div>
+        <CertificatePaginationControls
+          className="mt-4"
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={['10', '25', '50', '100']}
+          pageSizeLabel="Page Size:"
+          pageSizeSelectId="pageSizeSelectCertList"
+          isLoading={isLoadingApi || isLoadingCAs}
+          onPreviousPage={handlePreviousPage}
+          onNextPage={handleNextPage}
+          canGoPrevious={!isLoadingApi && currentPageIndex > 0}
+          canGoNext={!isLoadingApi && (currentPageIndex < bookmarkStack.length - 1 || Boolean(nextTokenFromApi))}
+        />
       )}
 
       <CertificateDetailsModal certificate={selectedCertificate} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
