@@ -2,14 +2,9 @@
 'use client';
 
 import React from 'react';
-import { ShieldQuestion, FolderKey } from 'lucide-react';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
-import AWSKMSLogo from "./CryptoEngineIcons/AWS-KMS.png"
-import AWSSMLogo from "./CryptoEngineIcons/AWS-SM.png"
-import PKCS11Logo from "./CryptoEngineIcons/PKCS11.png"
-import VaultLogo from "./CryptoEngineIcons/HASHICORP-VAULT.png"
+import { CryptoEngineIcon } from './CryptoEngineIcon';
 
 interface CryptoEngineViewerProps {
   engine: ApiCryptoEngine;

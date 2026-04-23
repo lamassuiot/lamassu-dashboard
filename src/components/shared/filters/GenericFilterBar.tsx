@@ -392,7 +392,7 @@ function DateFilterControl<TValues extends GenericFilterValues>({
               <Button
                 type="button"
                 variant="ghost"
-               
+                size="sm"
                 className="h-7 shrink-0 px-2 text-xs"
                 onClick={() =>
                   context.onValueChange({
