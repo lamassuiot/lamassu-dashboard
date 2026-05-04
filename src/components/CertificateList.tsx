@@ -31,13 +31,16 @@ interface CertificateListProps {
   certificates: CertificateData[];
   allCAs: CA[];
   onInspectCertificate?: (certificate: CertificateData) => void;
-  onCertificateUpdated: (updatedCertificate: CertificateData) => void;
+  onCertificateUpdated?: (updatedCertificate: CertificateData) => void;
   sortConfig: CertSortConfig | null;
   requestSort: (column: SortableCertColumn) => void;
   isLoading?: boolean;
   showIssuerColumn?: boolean;
   columnVisibility?: Partial<Record<'commonName' | 'certificateAuthority' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'revocationTime', boolean>>;
   onColumnToggle?: (columnId: string) => void;
+  /** Selection mode: when provided, rows become selectable instead of navigable */
+  onSelectCertificate?: (cert: CertificateData) => void;
+  currentSelectedCertificateId?: string | null;
 }
 
 const DEFAULT_COLUMN_VISIBILITY = {
@@ -65,6 +68,8 @@ export function CertificateList({
   isLoading,
   showIssuerColumn = true,
   columnVisibility: providedColumnVisibility,
+  onSelectCertificate,
+  currentSelectedCertificateId,
 }: CertificateListProps) {
   const router = useRouter();
   const columnVisibility = { ...DEFAULT_COLUMN_VISIBILITY, ...providedColumnVisibility };
@@ -119,7 +124,7 @@ export function CertificateList({
         reason: reason,
       });
 
-      onCertificateUpdated({
+      onCertificateUpdated?.({
         ...certificateToRevoke,
         apiStatus: 'REVOKED',
         revocationReason: reason,
@@ -154,7 +159,7 @@ export function CertificateList({
         status: 'ACTIVE',
       });
 
-      onCertificateUpdated({ ...certificate, apiStatus: 'ACTIVE', revocationReason: undefined });
+      onCertificateUpdated?.({ ...certificate, apiStatus: 'ACTIVE', revocationReason: undefined });
       sileo.success({
         title: "Certificate Re-activated",
         description: `Certificate "${getCommonName(certificate.subject)}" has been re-activated.`
@@ -221,7 +226,7 @@ export function CertificateList({
               {columnVisibility.expires && <SortableHeader column="expires" title="Expires" center dateColumn />}
               {columnVisibility.status && <SortableHeader column="status" title="Status" center />}
               {columnVisibility.revocationTime && <SortableHeader column="revocationTime" title="Revocation Time" center dateColumn className="hidden xl:table-cell" />}
-              <TableHead className="text-right">Actions</TableHead>
+              {!onSelectCertificate && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -230,18 +235,40 @@ export function CertificateList({
               const issuerDisplayName = issuerCa ? issuerCa.name : getCommonName(cert.issuer);
               const isOnHold = cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationReason === 'CertificateHold';
 
+              const isSelectedRow = onSelectCertificate &&
+                (currentSelectedCertificateId === cert.id || currentSelectedCertificateId === cert.serialNumber);
+
               return (
-                <TableRow key={cert.id}>
+                <TableRow
+                  key={cert.id}
+                  className={cn(
+                    onSelectCertificate && "cursor-pointer",
+                    isSelectedRow && "bg-primary/5"
+                  )}
+                  onClick={onSelectCertificate ? () => onSelectCertificate(cert) : undefined}
+                >
                   {columnVisibility.commonName && (
-                    <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto font-medium text-left whitespace-normal"
-                        onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
-                        title={`View details for ${getCommonName(cert.subject)}`}
-                      >
-                        {getCommonName(cert.subject)}
-                      </Button>
+                    <TableCell className={cn(
+                      "font-medium truncate max-w-[150px] sm:max-w-xs border-l-2",
+                      isSelectedRow ? "border-l-primary" : "border-l-transparent"
+                    )}>
+                      {onSelectCertificate ? (
+                        <span
+                          className={cn("font-medium", isSelectedRow ? "text-primary" : "")}
+                          title={cert.subject}
+                        >
+                          {getCommonName(cert.subject)}
+                        </span>
+                      ) : (
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto font-medium text-left whitespace-normal"
+                          onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
+                          title={`View details for ${getCommonName(cert.subject)}`}
+                        >
+                          {getCommonName(cert.subject)}
+                        </Button>
+                      )}
                     </TableCell>
                   )}
                   {columnVisibility.certificateAuthority && (
@@ -260,11 +287,11 @@ export function CertificateList({
                   )}
                   {showIssuerColumn && columnVisibility.issuer && (
                     <TableCell className="hidden lg:table-cell truncate max-w-[200px]">
-                      {issuerCa ? (
+                      {!onSelectCertificate && issuerCa ? (
                         <Button
                           variant="link"
                           className="p-0 h-auto text-left whitespace-normal leading-tight"
-                          onClick={() => router.push(`/certificate-authorities/details?caId=${issuerCa.id}`)}
+                          onClick={(e) => { e.stopPropagation(); router.push(`/certificate-authorities/details?caId=${issuerCa.id}`); }}
                           title={`View details for CA: ${issuerCa.name}`}
                         >
                           {issuerCa.name}
@@ -308,7 +335,7 @@ export function CertificateList({
                       )}
                     </TableCell>
                   )}
-                  <TableCell className="text-right">
+                  {!onSelectCertificate && <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" title="More actions" className="h-8 w-8">
@@ -343,7 +370,7 @@ export function CertificateList({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </TableCell>
+                  </TableCell>}
                 </TableRow>
               );
             })}

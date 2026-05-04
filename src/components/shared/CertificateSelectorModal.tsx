@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
@@ -41,6 +40,8 @@ const defaultDateFilterValue: CertificateDateFilterValue = {
   operator: 'af',
   date: undefined,
 };
+
+const emptyRequiredKeyUsages: readonly KeyUsageOption[] = [];
 
 function flattenCaOptions(cas: CA[]): CA[] {
   const options: CA[] = [];
@@ -133,7 +134,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   onCertificateSelected,
   currentSelectedCertificateId,
   limitToCAs,
-  requiredKeyUsages = [],
+  requiredKeyUsages = emptyRequiredKeyUsages,
   includeCaCertificates = false,
 }) => {
   const [availableCerts, setAvailableCerts] = useState<CertificateData[]>([]);
@@ -186,8 +187,10 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   // Reset pagination when filters or page size change, or when modal opens
   useEffect(() => {
     if (isOpen) { // Only reset if modal is opening or filters change while open
-      setCurrentPageIndex(0);
-      setBookmarkStack([null]);
+      setCurrentPageIndex((currentIndex) => currentIndex === 0 ? currentIndex : 0);
+      setBookmarkStack((currentStack) => (
+        currentStack.length === 1 && currentStack[0] === null ? currentStack : [null]
+      ));
     }
   }, [
     pageSize,
@@ -428,6 +431,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
               </div>
             )}
             {!isLoadingCerts && !errorCerts && availableCerts.length > 0 && (
+<<<<<<< HEAD
               <ScrollArea className="my-2 flex-grow">
                 <div className="min-w-[920px]">
                   <Table>
