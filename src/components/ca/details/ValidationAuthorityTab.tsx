@@ -20,6 +20,7 @@ import { downloadFile } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { SelectedCertificateDisplay } from '@/components/shared/SelectedCertificateDisplay';
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
 import { VaSettingsCard } from '@/components/shared/VaSettingsCard';
 import * as asn1js from "asn1js";
