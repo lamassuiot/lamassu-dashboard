@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ShieldCheck, PlusCircle, X, HelpCircle, Loader2 } from "lucide-react";
+import { FileText, ShieldCheck, PlusCircle, HelpCircle, Loader2, X } from "lucide-react";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import type { CA } from '@/lib/ca-data';
@@ -39,6 +39,12 @@ interface CMPEnrollmentSettingsCardProps {
   onClearCmpProtectionCertificate: () => void;
 }
 
+function getCertificateName(value?: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/CN=([^,]+)/);
+  return match ? match[1] : value;
+}
+
 export function CMPEnrollmentSettingsCard({
   cmpEnrollmentCa,
   onSelectCmpEnrollmentCa,
@@ -61,6 +67,10 @@ export function CMPEnrollmentSettingsCard({
   onSelectCmpProtectionCertificate,
   onClearCmpProtectionCertificate,
 }: CMPEnrollmentSettingsCardProps) {
+  const protectionCertificateSerial = cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '';
+  const protectionCertificateName = getCertificateName(cmpProtectionCertificate?.subject) || 'Protection certificate';
+  const protectionCertificateIssuer = getCertificateName(cmpProtectionCertificate?.issuer);
+
   return (
     <SettingsCard
       icon={ShieldCheck}
@@ -77,31 +87,45 @@ export function CMPEnrollmentSettingsCard({
 
       <div>
         <Label>Protection Certificate</Label>
-        <p className="text-xs text-muted-foreground mb-1">Certificate used to sign CMP response messages. Leave empty to send responses unprotected.</p>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onSelectCmpProtectionCertificate} className="flex-1 justify-start text-left font-normal" disabled={isLoadingDependencies || authLoading}>
-            {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : cmpProtectionCertificate ? cmpProtectionCertificate.subject : cmpProtectionCertificateId ? `Selected certificate ${cmpProtectionCertificateId}` : "Select Protection Certificate..."}
-          </Button>
-          {(cmpProtectionCertificate || cmpProtectionCertificateId) && (
-            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-destructive" onClick={onClearCmpProtectionCertificate}>
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-        {(cmpProtectionCertificate || cmpProtectionCertificateId) && (
-          <div className="mt-2 rounded-md border bg-muted/20 p-3">
-            <p className="text-sm font-medium text-foreground truncate" title={cmpProtectionCertificate?.subject || cmpProtectionCertificateId || undefined}>
-              {cmpProtectionCertificate?.subject || 'Protection certificate selected'}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              SN: <IdentifierDisplay value={cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || 'Unknown'} className="text-xs" />
-            </p>
-            {cmpProtectionCertificate?.issuer && (
-              <p className="text-xs text-muted-foreground truncate" title={cmpProtectionCertificate.issuer}>
-                Issuer: {cmpProtectionCertificate.issuer}
-              </p>
-            )}
+        <p className="text-xs text-muted-foreground mb-2">Certificate used to sign CMP response messages. Leave empty to send responses unprotected.</p>
+        {(cmpProtectionCertificate || cmpProtectionCertificateId) ? (
+          <div className="rounded-md border bg-muted/20">
+            <div className="flex items-start gap-3 p-3">
+              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="truncate text-sm font-medium text-foreground" title={cmpProtectionCertificate?.subject || protectionCertificateSerial}>
+                  {protectionCertificateName}
+                </p>
+                <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-[72px_minmax(0,1fr)]">
+                  {protectionCertificateSerial && (
+                    <>
+                      <span className="text-muted-foreground/80">Serial</span>
+                      <IdentifierDisplay value={protectionCertificateSerial} className="min-w-0 truncate font-mono text-xs text-muted-foreground" />
+                    </>
+                  )}
+                  {protectionCertificateIssuer && (
+                    <>
+                      <span className="text-muted-foreground/80">Issuer</span>
+                      <span className="min-w-0 truncate" title={cmpProtectionCertificate?.issuer}>{protectionCertificateIssuer}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={onClearCmpProtectionCertificate} disabled={isLoadingDependencies || authLoading} className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive">
+                <X className="h-4 w-4" />
+                <span className="sr-only">Clear protection certificate</span>
+              </Button>
+            </div>
+            <div className="border-t px-3 py-2">
+              <Button type="button" variant="secondary" size="sm" onClick={onSelectCmpProtectionCertificate} disabled={isLoadingDependencies || authLoading}>
+                Change certificate
+              </Button>
+            </div>
           </div>
+        ) : (
+          <Button type="button" variant="outline" onClick={onSelectCmpProtectionCertificate} className="w-full justify-start text-left font-normal" disabled={isLoadingDependencies || authLoading}>
+            {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Select Protection Certificate..."}
+          </Button>
         )}
       </div>
 
