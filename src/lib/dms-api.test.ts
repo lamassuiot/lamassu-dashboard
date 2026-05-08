@@ -515,6 +515,148 @@ describe('dms-api', () => {
       expect(webhookSettings?.config.log_level).toBe('Warn')
     })
 
+    it('should fetch RA with combined CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK auth mode', async () => {
+      const raWithCombinedAuth: ApiRaItem = {
+        ...mockRa,
+        settings: {
+          ...mockRa.settings,
+          enrollment_settings: {
+            ...mockRa.settings.enrollment_settings,
+            est_rfc7030_settings: {
+              auth_mode: 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK',
+              client_certificate_settings: {
+                chain_level_validation: 2,
+                validation_cas: ['ca-1', 'ca-2'],
+                allow_expired: false,
+              },
+              external_webhook_settings: {
+                name: 'combined-webhook',
+                url: 'https://auth.example.com/validate',
+                log_level: 'Info',
+                auth_mode: 'NO_AUTH',
+              },
+            },
+          },
+        },
+      }
+
+      server.use(
+        http.get(`${DMS_API_BASE}/dms/${raWithCombinedAuth.id}`, () => {
+          return HttpResponse.json(raWithCombinedAuth)
+        })
+      )
+
+      const result = await fetchRaById(raWithCombinedAuth.id)
+      const estSettings = result.settings.enrollment_settings.est_rfc7030_settings
+
+      expect(estSettings).toBeDefined()
+      expect(estSettings?.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
+      expect(estSettings?.client_certificate_settings).toBeDefined()
+      expect(estSettings?.client_certificate_settings?.validation_cas).toEqual(['ca-1', 'ca-2'])
+      expect(estSettings?.external_webhook_settings).toBeDefined()
+      expect(estSettings?.external_webhook_settings?.name).toBe('combined-webhook')
+    })
+
+    it('should create RA with combined auth mode including both settings blocks', async () => {
+      let capturedBody: any
+
+      server.use(
+        http.post(`${DMS_API_BASE}/dms`, async ({ request }) => {
+          capturedBody = await request.json()
+          return HttpResponse.json(mockRa)
+        })
+      )
+
+      const payload: RaCreationPayload = {
+        id: 'ra-combined',
+        name: 'RA Combined Auth',
+        metadata: {},
+        settings: {
+          ...mockRa.settings,
+          enrollment_settings: {
+            ...mockRa.settings.enrollment_settings,
+            est_rfc7030_settings: {
+              auth_mode: 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK',
+              client_certificate_settings: {
+                chain_level_validation: -1,
+                validation_cas: ['ca-1'],
+                allow_expired: true,
+              },
+              external_webhook_settings: {
+                name: 'my-webhook',
+                url: 'https://hooks.example.com/verify',
+                log_level: 'Info',
+                auth_mode: 'API_KEY',
+                api_key_auth: {
+                  key: 'super-secret-key',
+                },
+              },
+            },
+          },
+        },
+      }
+
+      await createOrUpdateRa(payload, false)
+
+      const estSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings
+      expect(estSettings.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
+      expect(estSettings.client_certificate_settings).toBeDefined()
+      expect(estSettings.client_certificate_settings.validation_cas).toEqual(['ca-1'])
+      expect(estSettings.external_webhook_settings).toBeDefined()
+      expect(estSettings.external_webhook_settings.auth_mode).toBe('API_KEY')
+      expect(estSettings.external_webhook_settings.api_key_auth.key).toBe('super-secret-key')
+    })
+
+    it('should create RA with combined auth mode and OIDC webhook', async () => {
+      let capturedBody: any
+
+      server.use(
+        http.post(`${DMS_API_BASE}/dms`, async ({ request }) => {
+          capturedBody = await request.json()
+          return HttpResponse.json(mockRa)
+        })
+      )
+
+      const payload: RaCreationPayload = {
+        id: 'ra-combined-oidc',
+        name: 'RA Combined Auth OIDC',
+        metadata: {},
+        settings: {
+          ...mockRa.settings,
+          enrollment_settings: {
+            ...mockRa.settings.enrollment_settings,
+            est_rfc7030_settings: {
+              auth_mode: 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK',
+              client_certificate_settings: {
+                chain_level_validation: 1,
+                validation_cas: ['ca-1'],
+                allow_expired: false,
+              },
+              external_webhook_settings: {
+                name: 'oidc-webhook',
+                url: 'https://hooks.example.com/verify',
+                log_level: 'Debug',
+                auth_mode: 'OIDC',
+                oidc_auth: {
+                  client_id: 'my-client',
+                  client_secret: 'my-secret',
+                  well_known_url: 'https://idp.example.com/.well-known/openid-configuration',
+                },
+              },
+            },
+          },
+        },
+      }
+
+      await createOrUpdateRa(payload, false)
+
+      const estSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings
+      expect(estSettings.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
+      expect(estSettings.client_certificate_settings.chain_level_validation).toBe(1)
+      expect(estSettings.external_webhook_settings.auth_mode).toBe('OIDC')
+      expect(estSettings.external_webhook_settings.oidc_auth.client_id).toBe('my-client')
+    })
+
     it('should handle createOrUpdateRa error without JSON response', async () => {
       const payload: RaCreationPayload = {
         id: 'ra-error',
