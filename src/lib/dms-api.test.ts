@@ -382,16 +382,20 @@ describe('dms-api', () => {
           enrollment_settings: {
             ...mockRa.settings.enrollment_settings,
             est_rfc7030_settings: {
-              auth_mode: 'webhook',
+              auth_mode: 'EXTERNAL_WEBHOOK',
               external_webhook_settings: {
                 name: 'auth-webhook',
                 url: 'https://auth.example.com/validate',
-                log_level: 'info',
-                auth_mode: 'oidc',
-                oidc_auth: {
-                  client_id: 'webhook-client',
-                  client_secret: 'secret',
-                  well_known_url: 'https://auth.example.com/.well-known/openid-configuration',
+                method: 'POST',
+                config: {
+                  validate_server_cert: true,
+                  log_level: 'Info',
+                  auth_mode: 'OIDC',
+                  oidc: {
+                    client_id: 'webhook-client',
+                    client_secret: 'secret',
+                    well_known: 'https://auth.example.com/.well-known/openid-configuration',
+                  },
                 },
               },
             },
@@ -414,7 +418,101 @@ describe('dms-api', () => {
 
       const result = await createOrUpdateRa(payload, false)
 
-      expect(result).toBeUndefined() // createOrUpdateRa returns void
+      expect(result).toBeUndefined()
+    })
+
+    it('should handle EST webhook settings with API Key auth', async () => {
+      const raWithApiKeyWebhook: ApiRaItem = {
+        ...mockRa,
+        settings: {
+          ...mockRa.settings,
+          enrollment_settings: {
+            ...mockRa.settings.enrollment_settings,
+            est_rfc7030_settings: {
+              auth_mode: 'EXTERNAL_WEBHOOK',
+              external_webhook_settings: {
+                name: 'apikey-webhook',
+                url: 'https://auth.example.com/validate',
+                method: 'POST',
+                config: {
+                  validate_server_cert: false,
+                  log_level: 'Debug',
+                  auth_mode: 'API_KEY',
+                  apikey: {
+                    key: 'my-secret-key',
+                    header: 'X-API-Key',
+                  },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      let capturedBody: any
+
+      server.use(
+        http.post(`${DMS_API_BASE}/dms`, async ({ request }) => {
+          capturedBody = await request.json()
+          return HttpResponse.json(raWithApiKeyWebhook)
+        })
+      )
+
+      const payload: RaCreationPayload = {
+        id: 'ra-apikey-webhook',
+        name: 'RA with API Key Webhook',
+        metadata: {},
+        settings: raWithApiKeyWebhook.settings,
+      }
+
+      await createOrUpdateRa(payload, false)
+
+      const webhookSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings.external_webhook_settings
+      expect(webhookSettings.method).toBe('POST')
+      expect(webhookSettings.config.auth_mode).toBe('API_KEY')
+      expect(webhookSettings.config.apikey.key).toBe('my-secret-key')
+      expect(webhookSettings.config.apikey.header).toBe('X-API-Key')
+      expect(webhookSettings.config.validate_server_cert).toBe(false)
+    })
+
+    it('should handle EST webhook settings with no auth', async () => {
+      const raWithNoAuthWebhook: ApiRaItem = {
+        ...mockRa,
+        settings: {
+          ...mockRa.settings,
+          enrollment_settings: {
+            ...mockRa.settings.enrollment_settings,
+            est_rfc7030_settings: {
+              auth_mode: 'EXTERNAL_WEBHOOK',
+              external_webhook_settings: {
+                name: 'open-webhook',
+                url: 'https://internal.example.com/validate',
+                method: 'GET',
+                config: {
+                  validate_server_cert: true,
+                  log_level: 'Warn',
+                  auth_mode: 'NO_AUTH',
+                },
+              },
+            },
+          },
+        },
+      }
+
+      server.use(
+        http.get(`${DMS_API_BASE}/dms/${raWithNoAuthWebhook.id}`, () => {
+          return HttpResponse.json(raWithNoAuthWebhook)
+        })
+      )
+
+      const result = await fetchRaById(raWithNoAuthWebhook.id)
+
+      const webhookSettings = result.settings.enrollment_settings.est_rfc7030_settings?.external_webhook_settings
+      expect(webhookSettings).toBeDefined()
+      expect(webhookSettings?.method).toBe('GET')
+      expect(webhookSettings?.config.auth_mode).toBe('NO_AUTH')
+      expect(webhookSettings?.config.validate_server_cert).toBe(true)
+      expect(webhookSettings?.config.log_level).toBe('Warn')
     })
 
     it('should handle createOrUpdateRa error without JSON response', async () => {

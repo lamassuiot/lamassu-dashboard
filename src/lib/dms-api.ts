@@ -9,7 +9,21 @@ import { apiFetch } from './api-client';
 export interface ApiRaOidcAuth {
     client_id: string;
     client_secret: string;
-    well_known_url: string;
+    well_known: string;
+}
+export interface ApiRaWebhookHttpClient {
+    validate_server_cert: boolean;
+    log_level: string;
+    auth_mode: string;
+    oidc?: ApiRaOidcAuth;
+    apikey?: {
+        key: string;
+        header: string;
+    };
+    mtls?: {
+        cert: string;
+        key: string;
+    };
 }
 export interface ApiRaEstSettings {
     auth_mode: string;
@@ -21,12 +35,8 @@ export interface ApiRaEstSettings {
     external_webhook_settings?: {
         name: string;
         url: string;
-        log_level: string;
-        auth_mode: string;
-        api_key_auth?: {
-            key: string;
-        };
-        oidc_auth?: ApiRaOidcAuth;
+        method: string;
+        config: ApiRaWebhookHttpClient;
     };
 }
 export interface ApiRaEnrollmentSettings {

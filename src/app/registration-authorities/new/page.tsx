@@ -97,9 +97,12 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   // Webhook state
   const [webhookName, setWebhookName] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookMethod, setWebhookMethod] = useState('POST');
+  const [webhookValidateServerCert, setWebhookValidateServerCert] = useState(true);
   const [webhookLogLevel, setWebhookLogLevel] = useState('Info');
   const [webhookAuthMode, setWebhookAuthMode] = useState('No Auth');
   const [webhookApiKey, setWebhookApiKey] = useState('');
+  const [webhookApiKeyHeader, setWebhookApiKeyHeader] = useState('X-API-Key');
   
   // OIDC Webhook state
   const [oidcClientId, setOidcClientId] = useState('');
@@ -211,20 +214,23 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 const webhookSettings = authSettings.external_webhook_settings;
                 setWebhookName(webhookSettings.name || '');
                 setWebhookUrl(webhookSettings.url || '');
-                setWebhookLogLevel(webhookSettings.log_level || 'Info');
+                setWebhookMethod(webhookSettings.method || 'POST');
+                setWebhookValidateServerCert(webhookSettings.config.validate_server_cert ?? false);
+                setWebhookLogLevel(webhookSettings.config.log_level || 'Info');
                 
-                const apiWebhookAuthMode = webhookSettings.auth_mode;
+                const apiWebhookAuthMode = webhookSettings.config.auth_mode;
                 let uiWebhookAuthMode = 'No Auth';
                 if (apiWebhookAuthMode === 'OIDC') uiWebhookAuthMode = 'OIDC';
                 if (apiWebhookAuthMode === 'API_KEY') uiWebhookAuthMode = 'API Key';
                 setWebhookAuthMode(uiWebhookAuthMode);
 
-                if (uiWebhookAuthMode === 'API Key' && webhookSettings.api_key_auth) {
-                    setWebhookApiKey(webhookSettings.api_key_auth.key || '');
-                } else if (uiWebhookAuthMode === 'OIDC' && webhookSettings.oidc_auth) {
-                    setOidcClientId(webhookSettings.oidc_auth.client_id || '');
-                    setOidcClientSecret(webhookSettings.oidc_auth.client_secret || '');
-                    setOidcWellKnownUrl(webhookSettings.oidc_auth.well_known_url || '');
+                if (uiWebhookAuthMode === 'API Key' && webhookSettings.config.apikey) {
+                    setWebhookApiKey(webhookSettings.config.apikey.key || '');
+                    setWebhookApiKeyHeader(webhookSettings.config.apikey.header || 'X-API-Key');
+                } else if (uiWebhookAuthMode === 'OIDC' && webhookSettings.config.oidc) {
+                    setOidcClientId(webhookSettings.config.oidc.client_id || '');
+                    setOidcClientSecret(webhookSettings.config.oidc.client_secret || '');
+                    setOidcWellKnownUrl(webhookSettings.config.oidc.well_known || '');
                 }
             }
         }
@@ -303,23 +309,29 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         };
     } else if (authMode === 'External Webhook') {
         const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
-        estSettings.external_webhook_settings = {
-            name: webhookName,
-            url: webhookUrl,
+        const webhookConfig: any = {
+            validate_server_cert: webhookValidateServerCert,
             log_level: webhookLogLevel,
             auth_mode: webhookAuthModeMapping[webhookAuthMode],
         };
         if (webhookAuthMode === 'API Key') {
-            estSettings.external_webhook_settings.api_key_auth = {
-                key: webhookApiKey
+            webhookConfig.apikey = {
+                key: webhookApiKey,
+                header: webhookApiKeyHeader,
             };
         } else if (webhookAuthMode === 'OIDC') {
-            estSettings.external_webhook_settings.oidc_auth = {
+            webhookConfig.oidc = {
                 client_id: oidcClientId,
                 client_secret: oidcClientSecret,
-                well_known_url: oidcWellKnownUrl,
+                well_known: oidcWellKnownUrl,
             };
         }
+        estSettings.external_webhook_settings = {
+            name: webhookName,
+            url: webhookUrl,
+            method: webhookMethod,
+            config: webhookConfig,
+        };
     }
 
 
@@ -725,7 +737,17 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                              <Label htmlFor="webhookLogLevel">Webhook Log Level</Label>
+                              <Label htmlFor="webhookMethod">HTTP Method</Label>
+                              <Select value={webhookMethod} onValueChange={setWebhookMethod}>
+                                  <SelectTrigger id="webhookMethod" className="mt-1"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="POST">POST</SelectItem>
+                                      <SelectItem value="PUT">PUT</SelectItem>
+                                  </SelectContent>
+                              </Select>
+                          </div>
+                          <div>
+                              <Label htmlFor="webhookLogLevel">Log Level</Label>
                               <Select value={webhookLogLevel} onValueChange={setWebhookLogLevel}>
                                   <SelectTrigger id="webhookLogLevel" className="mt-1"><SelectValue /></SelectTrigger>
                                   <SelectContent>
@@ -736,8 +758,22 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                                   </SelectContent>
                               </Select>
                           </div>
+                      </div>
+                      <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                          <div className="space-y-0.5">
+                              <Label htmlFor="webhookValidateServerCert" className="flex items-center">
+                                  <Server className="mr-2 h-4 w-4 text-muted-foreground" />
+                                  Validate Server Certificate
+                              </Label>
+                              <p className="text-sm text-muted-foreground">
+                                  Verify the TLS certificate of the webhook endpoint.
+                              </p>
+                          </div>
+                          <Switch id="webhookValidateServerCert" checked={webhookValidateServerCert} onCheckedChange={setWebhookValidateServerCert} />
+                      </div>
+                      <div>
                           <div>
-                              <Label htmlFor="webhookAuthMode">Webhook Auth Mode</Label>
+                              <Label htmlFor="webhookAuthMode">Auth Mode</Label>
                               <Select value={webhookAuthMode} onValueChange={setWebhookAuthMode}>
                                   <SelectTrigger id="webhookAuthMode" className="mt-1"><SelectValue /></SelectTrigger>
                                   <SelectContent>
@@ -749,24 +785,30 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                           </div>
                       </div>
                       {webhookAuthMode === 'API Key' && (
-                          <div>
-                              <Label htmlFor="webhookApiKey">API Key</Label>
-                              <Input id="webhookApiKey" type="password" value={webhookApiKey} onChange={e => setWebhookApiKey(e.target.value)} placeholder="Enter API Key" className="mt-1"/>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                  <Label htmlFor="webhookApiKey">API Key</Label>
+                                  <Input id="webhookApiKey" type="password" value={webhookApiKey} onChange={e => setWebhookApiKey(e.target.value)} placeholder="Enter API Key" className="mt-1"/>
+                              </div>
+                              <div>
+                                  <Label htmlFor="webhookApiKeyHeader">Header Name</Label>
+                                  <Input id="webhookApiKeyHeader" value={webhookApiKeyHeader} onChange={e => setWebhookApiKeyHeader(e.target.value)} placeholder="X-API-Key" className="mt-1"/>
+                              </div>
                           </div>
                       )}
                       {webhookAuthMode === 'OIDC' && (
                           <div className="space-y-4 pt-2 border-t mt-4">
                               <h5 className="font-medium text-sm text-muted-foreground pt-2">OIDC Settings</h5>
                               <div>
-                                  <Label htmlFor="oidcClientId">OIDC Client ID</Label>
+                                  <Label htmlFor="oidcClientId">Client ID</Label>
                                   <Input id="oidcClientId" value={oidcClientId} onChange={e => setOidcClientId(e.target.value)} placeholder="Enter OIDC Client ID" className="mt-1"/>
                               </div>
                               <div>
-                                  <Label htmlFor="oidcClientSecret">OIDC Client Secret</Label>
+                                  <Label htmlFor="oidcClientSecret">Client Secret</Label>
                                   <Input id="oidcClientSecret" type="password" value={oidcClientSecret} onChange={e => setOidcClientSecret(e.target.value)} placeholder="Enter OIDC Client Secret" className="mt-1"/>
                               </div>
                               <div>
-                                  <Label htmlFor="oidcWellKnownUrl">OIDC Well Known URL</Label>
+                                  <Label htmlFor="oidcWellKnownUrl">Well-Known URL</Label>
                                   <Input id="oidcWellKnownUrl" value={oidcWellKnownUrl} onChange={e => setOidcWellKnownUrl(e.target.value)} placeholder="https://your-issuer.com/.well-known/openid-configuration" className="mt-1"/>
                               </div>
                           </div>
