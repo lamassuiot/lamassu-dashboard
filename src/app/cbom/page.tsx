@@ -58,6 +58,14 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const resolveProjectIdentifier = (cbomData: unknown): string => {
   if (!cbomData || typeof cbomData !== 'object') {
@@ -101,6 +109,44 @@ const getTotalFindings = (item: CBOMItem): number | undefined => {
     0,
   );
 };
+
+interface ResponsivePanelProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}
+
+function ResponsivePanel({ open, onOpenChange, title, description, children }: ResponsivePanelProps) {
+  const isMobile = useIsMobile();
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="max-h-[90vh] overflow-y-auto">
+          <DrawerHeader>
+            <DrawerTitle>{title}</DrawerTitle>
+            <DrawerDescription>{description}</DrawerDescription>
+          </DrawerHeader>
+          {children}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-[480px] sm:max-w-[480px] flex flex-col p-0 overflow-hidden">
+        <SheetHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
+          <SheetTitle>{title}</SheetTitle>
+          <SheetDescription>{description}</SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
 
 export default function CBOMPage() {
   const { isAuthenticated, user } = useAuth();
@@ -461,13 +507,13 @@ export default function CBOMPage() {
         </div>
       </div>
 
-      <Drawer open={isUploadDrawerOpen} onOpenChange={setIsUploadDrawerOpen}>
-        <DrawerContent className="max-h-[90vh] overflow-y-auto">
-          <DrawerHeader>
-            <DrawerTitle>Upload CBOM</DrawerTitle>
-            <DrawerDescription>Import an existing CBOM JSON file and add it to the dashboard.</DrawerDescription>
-          </DrawerHeader>
-          <div className="px-4 pb-6">
+      <ResponsivePanel
+        open={isUploadDrawerOpen}
+        onOpenChange={setIsUploadDrawerOpen}
+        title="Upload CBOM"
+        description="Import an existing CBOM JSON file and add it to the dashboard."
+      >
+        <div className="px-6 pt-5 pb-6">
             <label
               htmlFor="cbom-upload"
               className={cn(
@@ -517,16 +563,15 @@ export default function CBOMPage() {
               onChange={(event) => handleUploadFile(event.target.files?.[0])}
             />
           </div>
-        </DrawerContent>
-      </Drawer>
+      </ResponsivePanel>
 
-      <Drawer open={isScanDrawerOpen} onOpenChange={setIsScanDrawerOpen}>
-        <DrawerContent className="max-h-[90vh] overflow-y-auto">
-          <DrawerHeader>
-            <DrawerTitle>Scan CBOM</DrawerTitle>
-            <DrawerDescription>Scan a public or authenticated Git repository and persist the resulting CBOM.</DrawerDescription>
-          </DrawerHeader>
-          <div className="space-y-5 px-4 pb-6">
+      <ResponsivePanel
+        open={isScanDrawerOpen}
+        onOpenChange={setIsScanDrawerOpen}
+        title="Scan CBOM"
+        description="Scan a public or authenticated Git repository and persist the resulting CBOM."
+      >
+        <div className="space-y-5 px-6 pt-5 pb-6">
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input
                 placeholder="https://github.com/org/repo.git"
@@ -655,8 +700,7 @@ export default function CBOMPage() {
               </div>
             )}
           </div>
-        </DrawerContent>
-      </Drawer>
+      </ResponsivePanel>
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-end gap-2">
