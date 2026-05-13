@@ -52,6 +52,24 @@ function getCaIdReference(value?: string | null): string | null {
   return match ? match[1] : null;
 }
 
+const confirmationModeOptions = [
+  {
+    value: 'default',
+    title: 'Default (implicit)',
+    description: 'Use the server default behavior and treat enrollment as implicitly confirmed.',
+  },
+  {
+    value: 'IMPLICIT',
+    title: 'Implicit',
+    description: 'Complete enrollment without waiting for an additional confirmation message from the client.',
+  },
+  {
+    value: 'EXPLICIT',
+    title: 'Explicit',
+    description: 'Require the client to confirm the issued certificate before the configured timeout expires.',
+  },
+] as const;
+
 export function CMPEnrollmentSettingsCard({
   cmpEnrollmentCa,
   onSelectCmpEnrollmentCa,
@@ -78,6 +96,7 @@ export function CMPEnrollmentSettingsCard({
   const protectionCertificateName = getCertificateName(cmpProtectionCertificate?.subject) || 'Protection certificate';
   const protectionCertificateIssuer = getCertificateName(cmpProtectionCertificate?.issuer);
   const protectionCertificateIssuerCaId = cmpProtectionCertificate?.issuerCaId || getCaIdReference(cmpProtectionCertificate?.issuer);
+  const selectedConfirmationMode = confirmationModeOptions.find((option) => option.value === (cmpConfirmationMode || 'default'));
 
   return (
     <SettingsCard
@@ -163,11 +182,18 @@ export function CMPEnrollmentSettingsCard({
         <div>
           <Label htmlFor="cmpConfirmationMode">Confirmation Mode</Label>
           <Select value={cmpConfirmationMode || 'default'} onValueChange={(v) => setCmpConfirmationMode(v === 'default' ? '' : v)}>
-            <SelectTrigger id="cmpConfirmationMode" className="mt-1"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">Default (implicit)</SelectItem>
-              <SelectItem value="IMPLICIT">IMPLICIT</SelectItem>
-              <SelectItem value="EXPLICIT">EXPLICIT</SelectItem>
+            <SelectTrigger id="cmpConfirmationMode" className="mt-1">
+              <SelectValue>{selectedConfirmationMode?.title}</SelectValue>
+            </SelectTrigger>
+            <SelectContent className="min-w-[320px]">
+              {confirmationModeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value} textValue={option.title} className="items-start py-2">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium leading-none">{option.title}</p>
+                    <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
+                  </div>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
