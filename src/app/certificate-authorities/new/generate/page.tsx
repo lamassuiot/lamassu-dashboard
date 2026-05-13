@@ -364,10 +364,6 @@ export default function CreateCaGeneratePage() {
   const handleInnerKeyTypeChange = (value: string) => {
     setInnerKeyType(value)
     // Key spec will be reset by the useEffect above
-  }
-
-  const handleInnerKeyTypeChange = (value: string) => {
-    setInnerKeyType(value);
   };
   const handleParentCaSelectFromModal = (ca: CA) => {
     if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
