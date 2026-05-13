@@ -2,6 +2,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,12 @@ function getCertificateName(value?: string | null): string | null {
   return match ? match[1] : value;
 }
 
+function getCaIdReference(value?: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/^CA_ID:(.+)$/);
+  return match ? match[1] : null;
+}
+
 export function CMPEnrollmentSettingsCard({
   cmpEnrollmentCa,
   onSelectCmpEnrollmentCa,
@@ -70,6 +77,7 @@ export function CMPEnrollmentSettingsCard({
   const protectionCertificateSerial = cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '';
   const protectionCertificateName = getCertificateName(cmpProtectionCertificate?.subject) || 'Protection certificate';
   const protectionCertificateIssuer = getCertificateName(cmpProtectionCertificate?.issuer);
+  const protectionCertificateIssuerCaId = cmpProtectionCertificate?.issuerCaId || getCaIdReference(cmpProtectionCertificate?.issuer);
 
   return (
     <SettingsCard
@@ -93,9 +101,20 @@ export function CMPEnrollmentSettingsCard({
             <div className="flex items-start gap-3 p-3">
               <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="truncate text-sm font-medium text-foreground" title={cmpProtectionCertificate?.subject || protectionCertificateSerial}>
-                  {protectionCertificateName}
-                </p>
+                {protectionCertificateSerial ? (
+                  <Button variant="link" className="h-auto min-w-0 justify-start truncate p-0 text-left text-sm font-medium" asChild>
+                    <Link
+                      href={`/certificates/details?certificateId=${encodeURIComponent(protectionCertificateSerial)}`}
+                      title={cmpProtectionCertificate?.subject || `View certificate ${protectionCertificateSerial}`}
+                    >
+                      {protectionCertificateName}
+                    </Link>
+                  </Button>
+                ) : (
+                  <p className="truncate text-sm font-medium text-foreground" title={cmpProtectionCertificate?.subject || protectionCertificateSerial}>
+                    {protectionCertificateName}
+                  </p>
+                )}
                 <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-[72px_minmax(0,1fr)]">
                   {protectionCertificateSerial && (
                     <>
@@ -106,7 +125,18 @@ export function CMPEnrollmentSettingsCard({
                   {protectionCertificateIssuer && (
                     <>
                       <span className="text-muted-foreground/80">Issuer</span>
-                      <span className="min-w-0 truncate" title={cmpProtectionCertificate?.issuer}>{protectionCertificateIssuer}</span>
+                      {protectionCertificateIssuerCaId ? (
+                        <Button variant="link" size="sm" className="h-auto min-w-0 justify-start truncate p-0 text-xs font-normal" asChild>
+                          <Link
+                            href={`/certificate-authorities/details?caId=${encodeURIComponent(protectionCertificateIssuerCaId)}`}
+                            title={`View CA ${protectionCertificateIssuerCaId}`}
+                          >
+                            {protectionCertificateIssuerCaId}
+                          </Link>
+                        </Button>
+                      ) : (
+                        <span className="min-w-0 truncate" title={cmpProtectionCertificate?.issuer}>{protectionCertificateIssuer}</span>
+                      )}
                     </>
                   )}
                 </div>
