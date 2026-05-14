@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import type { CA } from '@/lib/ca-data';
 import { Button } from '@/components/ui/button';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
+import { Badge } from '@/components/ui/badge';
 import {
   Ban,
   ShieldAlert,
@@ -19,7 +20,8 @@ import { formatDistanceToNowStrict, isPast, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
-import { Badge } from '@/components/ui/badge';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface CaFilesystemViewItemProps {
   ca: CA;
@@ -38,6 +40,8 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(level < 2);
   const hasChildren = ca.children && ca.children.length > 0;
+  const isChameleonCertificate = Boolean(ca.rawApiData?.metadata?.["lamassu.io/certificate/chameleon"]);
+  const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm) || isChameleonCertificate;
 
   const expiryDate = parseISO(ca.expires);
   const isExpired = isPast(expiryDate);
@@ -100,24 +104,7 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
             onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }} 
           />
         )}
-        {!hasChildren && <div className="w-4 h-4 flex-shrink-0"></div>} 
-        
-        {IconComponent}
-        
-        <div className="flex-grow min-w-0">
-          <div className="flex items-center space-x-2">
-            <p className="text-sm font-medium truncate">{ca.name}</p>
-            {ca.caType === 'IMPORTED' && <UploadCloud className="h-4 w-4 text-muted-foreground flex-shrink-0" title="Imported CA with Private Key" />}
-            {ca.caType === 'EXTERNAL_PUBLIC' && <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" title="External Public CA (Certificate Only)" />}
-            {(ca.keyAlgorithm.toUpperCase().startsWith("ML-DSA") || ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"]) && (
-              <Badge className="text-xs">PQC</Badge>
-            )}
-            {ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"] && (
-              <Badge className="text-xs">HYBRID</Badge>
-            )}
-          </div>
-          <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")}>{statusText}</p>
-        </div>
+        {!hasChildren && <div className="w-4 h-4 flex-shrink-0"></div>}
 
         <div className="flex h-6 w-6 shrink-0 items-center justify-center">
           {iconNode}
@@ -131,6 +118,15 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
             )}
             {ca.caType === 'EXTERNAL_PUBLIC' && (
               <span title="External Public CA"><FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" /></span>
+            )}
+            {isPqcCertificate && (
+              <Badge className="text-xs gap-1 shrink-0">
+                <QuantumAlgorithmIcon variant="primaryBadge" className="h-3 w-3" />
+                PQC
+              </Badge>
+            )}
+            {isChameleonCertificate && (
+              <Badge className="text-xs shrink-0">HYBRID</Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground truncate">{expiryText}</p>

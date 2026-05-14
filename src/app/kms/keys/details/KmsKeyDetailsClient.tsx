@@ -42,6 +42,8 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKeyDetailed {
   id: string;
@@ -716,7 +718,7 @@ export default function KmsKeyDetailsClient() {
     : keyDetails.algorithm === 'RSA'
       ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
       : 'border-border bg-muted text-muted-foreground';
-
+  const isPqcKey = isPqcAlgorithm(keyDetails.algorithm);
   return (
     <BreadcrumbPage
       className="space-y-5"
@@ -980,8 +982,6 @@ export default function KmsKeyDetailsClient() {
                 </div>
               </div>
 
-              <Separator />
-
               {/* ── Technical Profile ── */}
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
                 <div>
@@ -995,8 +995,9 @@ export default function KmsKeyDetailsClient() {
                         <p className="text-xs font-medium text-muted-foreground">Algorithm</p>
                         <p className="mt-1 text-sm font-medium">{keyDetails.algorithm}</p>
                       </div>
-                      <span className={cn('inline-flex h-6 items-center rounded-md px-2 text-xs font-medium', algorithmBadgeClass)}>
-                        {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : keyDetails.algorithm === 'MLDSA' ? 'Post-Quantum' : 'Other'}
+                      <span className={cn('inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium', algorithmBadgeClass)}>
+                        {isPqcKey && <QuantumAlgorithmIcon className="h-3 w-3" />}
+                        {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : keyDetails.algorithm === 'MLDSA' ? 'Post-Quantum' : keyDetails.algorithm === 'Ed25519' ? 'Edwards Curve' : 'Other'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3 py-3">
