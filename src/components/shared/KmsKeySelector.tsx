@@ -11,6 +11,9 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKeySelectorProps {
   value?: string; // Selected key ID (pkcs11_uri)
@@ -39,6 +42,7 @@ export function KmsKeySelector({
 
   const selectedKey = keys.find(k => k.pkcs11_uri === value);
   const selectedEngine = selectedKey ? allCryptoEngines.find(e => e.id === selectedKey.engine_id) : null;
+  const selectedKeyIsPqc = isPqcAlgorithm(selectedKey?.algorithm);
 
   const loadKeys = useCallback(async () => {
     setIsLoading(true);
@@ -97,7 +101,8 @@ export function KmsKeySelector({
             <div className="flex items-center gap-2 min-w-0">
               <KeyRound className="h-4 w-4 shrink-0" />
               <span className="font-medium truncate">{selectedKey.name}</span>
-              <Badge variant="secondary" className="text-xs shrink-0">
+              <Badge variant="secondary" className="text-xs shrink-0 gap-1">
+                {selectedKeyIsPqc && <QuantumAlgorithmIcon className="h-3 w-3" />}
                 {selectedKey.algorithm} {selectedKey.size}
               </Badge>
             </div>
@@ -146,49 +151,70 @@ export function KmsKeySelector({
                 <p>No KMS keys found</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Strength</TableHead>
-                    <TableHead>Crypto Engine</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredKeys.map((key) => {
-                    const engine = allCryptoEngines.find(e => e.id === key.engine_id);
-                    const isSelected = value === key.pkcs11_uri;
-                    return (
-                      <TableRow
-                        key={key.pkcs11_uri}
-                        onClick={() => handleSelectKey(key)}
-                        className={`cursor-pointer ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                            {key.name}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs">{key.algorithm} {key.size}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <KeyStrengthIndicator algorithm={key.algorithm} size={String(key.size)} />
-                        </TableCell>
-                        <TableCell>
-                          {engine ? (
-                            <CryptoEngineViewer engine={engine} plainIcon />
-                          ) : (
-                            <Badge variant="secondary" className="text-xs">{key.engine_id}</Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <ScrollArea className="h-[400px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Strength</TableHead>
+                      <TableHead>Crypto Engine</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredKeys.map((key) => {
+                      const engine = allCryptoEngines.find(e => e.id === key.engine_id);
+                      const isSelected = value === key.pkcs11_uri;
+                      const isPqcKey = isPqcAlgorithm(key.algorithm);
+                      
+                      return (
+                        <TableRow 
+                          key={key.pkcs11_uri}
+                          className={isSelected ? "bg-muted/50" : ""}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {key.name}
+                              {isSelected && <Check className="h-4 w-4 text-primary" />}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs gap-1">
+                              {isPqcKey && <QuantumAlgorithmIcon className="h-3 w-3" />}
+                              {key.algorithm} {key.size}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <KeyStrengthIndicator 
+                              algorithm={key.algorithm} 
+                              size={String(key.size)} 
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {engine ? (
+                              <CryptoEngineViewer engine={engine} />
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                {key.engine_id}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant={isSelected ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleSelectKey(key)}
+                            >
+                              {isSelected ? 'Selected' : 'Select'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
             )}
           </div>
         </SheetContent>

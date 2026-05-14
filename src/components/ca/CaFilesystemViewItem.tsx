@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { Badge } from '@/components/ui/badge';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface CaFilesystemViewItemProps {
   ca: CA;
@@ -45,6 +47,8 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(level < 2);
   const hasChildren = ca.children && ca.children.length > 0;
+  const isChameleonCertificate = Boolean(ca.rawApiData?.metadata?.["lamassu.io/certificate/chameleon"]);
+  const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm) || isChameleonCertificate;
 
   const expiryDate = parseISO(ca.expires);
   const isExpired = isPast(expiryDate);
@@ -118,10 +122,13 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
             <p className="text-sm font-medium truncate">{ca.name}</p>
             {ca.caType === 'IMPORTED' && <UploadCloud className="h-4 w-4 text-muted-foreground flex-shrink-0" title="Imported CA with Private Key" />}
             {ca.caType === 'EXTERNAL_PUBLIC' && <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" title="External Public CA (Certificate Only)" />}
-            {(ca.keyAlgorithm.toUpperCase().startsWith("ML-DSA") || ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"]) && (
-              <Badge className="text-xs">PQC</Badge>
+            {isPqcCertificate && (
+              <Badge className="text-xs gap-1">
+                <QuantumAlgorithmIcon variant="primaryBadge" className="h-3 w-3" />
+                PQC
+              </Badge>
             )}
-            {ca.rawApiData?.metadata["lamassu.io/certificate/chameleon"] && (
+            {isChameleonCertificate && (
               <Badge className="text-xs">HYBRID</Badge>
             )}
           </div>

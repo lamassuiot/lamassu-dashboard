@@ -29,6 +29,8 @@ import { CryptoEngineViewer, getEngineIconStyle } from '@/components/shared/Cryp
 import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificatesTab';
 import { ValidationAuthorityTab } from '@/components/ca/details/ValidationAuthorityTab';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 
 interface CaStats {
@@ -388,6 +390,8 @@ export default function CertificateAuthorityDetailsClient() {
     : caDetails.status === 'revoked'
     ? 'bg-destructive'
     : 'bg-amber-500';
+  const isChameleonCertificate = Boolean(caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']);
+  const isPqcCertificate = isPqcAlgorithm(caDetails.keyAlgorithm) || isChameleonCertificate;
 
   return (
     <BreadcrumbPage
@@ -488,13 +492,14 @@ export default function CertificateAuthorityDetailsClient() {
                   </span>
                 )}
 
-                  {(caDetails.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
-                    <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+                  {isPqcCertificate && (
+                    <Badge variant="outline" className="text-xs gap-1 border-primary/30 text-primary">
+                      <QuantumAlgorithmIcon className="h-3 w-3" />
                       PQC
                     </Badge>
                   )}
 
-                  {caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && (
+                  {isChameleonCertificate && (
                     <Badge variant="outline" className="text-xs border-primary/30 text-primary">
                       HYBRID
                     </Badge>

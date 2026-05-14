@@ -40,6 +40,8 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKeyDetailed {
   id: string;
@@ -715,6 +717,7 @@ export default function KmsKeyDetailsClient() {
     : keyDetails.algorithm === 'RSA'
       ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
       : 'border-border bg-muted text-muted-foreground';
+  const isPqcKey = isPqcAlgorithm(keyDetails.algorithm);
   const summaryCards = [
     {
       label: 'Key Size',
@@ -782,28 +785,60 @@ export default function KmsKeyDetailsClient() {
               }
             </div>
 
-            <div className="min-w-0 space-y-2">
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight truncate" title={keyDetails.alias}>
-                  {keyDetails.alias}
-                </h1>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">ID</span>
-                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
-                    {keyDetails.id}
-                  </code>
-                  <Button
-                    variant="ghost"
-                   
-                    className="h-6 w-6 p-0 shrink-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(keyDetails.id);
-                      setCopiedId(true);
-                      setTimeout(() => setCopiedId(false), 2000);
-                    }}
-                  >
-                    {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                  </Button>
+                <div className="min-w-0 space-y-2">
+                  <div>
+                    <h1 className="text-2xl font-semibold tracking-tight truncate" title={keyDetails.alias}>
+                      {keyDetails.alias}
+                    </h1>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-muted-foreground">ID</span>
+                      <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs xl:hidden">
+                        {keyDetails.id}
+                      </code>
+                      <code className="hidden rounded border bg-muted px-2 py-0.5 font-mono text-xs xl:inline-block">
+                        {keyDetails.id}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(keyDetails.id);
+                          setCopiedId(true);
+                          setTimeout(() => setCopiedId(false), 2000);
+                        }}
+                      >
+                        {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                      accessPillClass
+                    )}>
+                      <span className={cn('h-1.5 w-1.5 rounded-full', accessDotClass)} />
+                      {keyDetails.hasPrivateKey ? 'PRIVATE KEY AVAILABLE' : 'PUBLIC KEY ONLY'}
+                    </div>
+
+                    <Badge variant="outline" className={cn('text-xs gap-1', algorithmBadgeClass)}>
+                      {isPqcKey && <QuantumAlgorithmIcon className="h-3 w-3" />}
+                      {keyDetails.algorithm}
+                    </Badge>
+
+                    <Badge variant="secondary" className="text-xs">
+                      {isPqcKey && <QuantumAlgorithmIcon className="mr-1 h-3 w-3" />}
+                      {keyDetails.keyTypeDisplay}
+                    </Badge>
+
+                    {cryptoEngine && (
+                      <div className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-0.5">
+                        <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                        <span className="text-xs text-muted-foreground">{cryptoEngine.name || cryptoEngine.type}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -994,7 +1029,37 @@ export default function KmsKeyDetailsClient() {
                 </div>
               </div>
 
-              <Separator />
+              <div className="space-y-6">
+                <Card className="overflow-hidden rounded-xl shadow-sm">
+                  <CardHeader className="border-b py-4">
+                    <CardTitle className="flex items-center text-lg">
+                      <ShieldCheck className="mr-3 h-5 w-5 text-primary" />
+                      Technical Profile
+                    </CardTitle>
+                    <CardDescription>Algorithm, strength, access mode, and engine placement.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="divide-y">
+                      <div className="py-3 first:pt-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Algorithm</p>
+                            <p className="mt-1 text-sm font-medium">{keyDetails.algorithm}</p>
+                          </div>
+                          <Badge variant="outline" className={cn('text-xs gap-1', algorithmBadgeClass)}>
+                            {isPqcKey && <QuantumAlgorithmIcon className="h-3 w-3" />}
+                            {keyDetails.algorithm === 'RSA'
+                              ? 'Asymmetric'
+                              : keyDetails.algorithm === 'ECDSA'
+                                ? 'Elliptic Curve'
+                                : keyDetails.algorithm === 'MLDSA'
+                                  ? 'Post-Quantum'
+                                  : keyDetails.algorithm === 'Ed25519'
+                                    ? 'Edwards Curve'
+                                    : 'Other'}
+                          </Badge>
+                        </div>
+                      </div>
 
               {/* ── Technical Profile ── */}
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">

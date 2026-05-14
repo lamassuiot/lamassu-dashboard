@@ -20,6 +20,8 @@ import {
   type CreateSigningProfilePayload,
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
+import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
@@ -615,41 +617,70 @@ export default function CreateCaGeneratePage() {
             </div>
           </div>
         </div>
-
-        <Separator />
-
-        {/* ── CA Settings ── */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-          <div>
-            <p className="font-semibold">CA Settings</p>
-            <p className="text-sm text-muted-foreground mt-1">Define the CA type, identity, and chain relationship.</p>
-          </div>
-          <div className="space-y-4 lg:col-span-2">
-            <CardSelector
-              label="CA Type"
-              value={caType}
-              onChange={handleCaTypeChange}
-              disabled={isSubmitting}
-              options={[
-                { value: 'root', label: 'Root CA', description: 'Self-signed trust anchor. Top of the certificate chain.', icon: Shield },
-                { value: 'intermediate', label: 'Intermediate CA', description: 'Signed by a parent CA. Issues end-entity certificates.', icon: BookText },
-              ]}
-            />
-            {caType === 'intermediate' && (
-              <div className="space-y-1.5">
-                <Label htmlFor="parentCa">Parent Certification Authority</Label>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setIsParentCaModalOpen(true)}
-                  className="w-full justify-start text-left font-normal"
-                  id="parentCa"
-                  disabled={isLoadingDependencies || isSubmitting}
-                >
-                  {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
-                </Button>
-                {selectedParentCa && (
-                  <CaVisualizerCard ca={selectedParentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
+        <form onSubmit={handleSubmit} className="space-y-8">
+            <Card>
+              <SectionHeader icon={KeyRound} title="KMS: New Key Pair Generation settings" />
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="cryptoEngine">Crypto Engine</Label>
+                  <CryptoEngineSelector
+                    value={cryptoEngineId}
+                    onValueChange={setCryptoEngineId}
+                    disabled={isSubmitting}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="keyType">Key Type</Label>
+                    <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
+                      <SelectTrigger id="keyType"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {supportedKeyTypes.map(type => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="keySpec">{keySpecLabel}</Label>
+                    <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
+                      <SelectTrigger id="keySpec"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch id="hybridCA" checked={isHybridCa} onCheckedChange={setIsHybridCa} />
+                  <Label htmlFor="hybridCA">Hybrid CA</Label>
+                </div>
+                {isHybridCa && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="innerKeyType">Inner Key Type</Label>
+                      <Select value={innerKeyType} onValueChange={handleInnerKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
+                        <SelectTrigger id="innerKeyType"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {supportedKeyTypes.map(type => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="innerKeySpec">{innerKeySpecLabel}</Label>
+                      <Select value={innerKeySpec} onValueChange={setInnerKeySpec} disabled={!selectedEngine || innerKeySpecOptions.length === 0 || isSubmitting}>
+                        <SelectTrigger id="innerKeySpec"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {innerKeySpecOptions.map((ks) => (
+                            <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 )}
                 {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
               </div>

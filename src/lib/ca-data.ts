@@ -52,7 +52,7 @@ export interface ApiCaItem {
   id: string; // This is the CA's own ID
   certificate: ApiCertificateData;
   serial_number: string; // Duplicated from certificate.serial_number
-  metadata: Record<string, any>;
+  metadata: Record<string, any> | null;
   validity?: {
     type: string;
     duration: string;

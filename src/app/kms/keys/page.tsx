@@ -23,6 +23,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { KMSFilterBar } from '@/components/shared/filters/KMSFilterBar';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKey {
   id: string;
@@ -311,6 +313,7 @@ export default function KmsKeysPage() {
               <TableBody>
                 {keys.map((key) => {
                   const engine = allCryptoEngines.find(e => e.id === key.cryptoEngineId);
+                  const isPqcKey = isPqcAlgorithm(key.algorithm);
                   return (
                     <TableRow key={key.id}>
                       <TableCell className="font-medium">
@@ -322,7 +325,12 @@ export default function KmsKeysPage() {
                           {key.name}
                         </button>
                       </TableCell>
-                      <TableCell>{key.keyTypeDisplay}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          {isPqcKey && <QuantumAlgorithmIcon />}
+                          <span>{key.keyTypeDisplay}</span>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <KeyStrengthIndicator algorithm={key.algorithm} size={key.size} />
                       </TableCell>

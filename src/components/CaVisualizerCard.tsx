@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { Badge } from '@/components/ui/badge';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface CaVisualizerCardProps {
   ca: CA;
@@ -47,6 +49,8 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
   }
 
   const { text: statusText, isCritical } = getStatusAndExpiryText(ca);
+  const isChameleonCertificate = Boolean(ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']);
+  const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm) || isChameleonCertificate;
 
   const cardInnerContent = (
     <div className={cn("flex items-center p-3")}>
@@ -58,10 +62,13 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
           <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 truncate" title={ca.name}>
             {ca.name}
           </p>
-          {(ca.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
-            <Badge className="text-[10px] h-5 px-1.5">PQC</Badge>
+          {isPqcCertificate && (
+            <Badge className="text-[10px] h-5 px-1.5 gap-1">
+              <QuantumAlgorithmIcon variant="primaryBadge" className="h-3 w-3" />
+              PQC
+            </Badge>
           )}
-          {ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && (
+          {isChameleonCertificate && (
             <Badge className="text-[10px] h-5 px-1.5">HYBRID</Badge>
           )}
         </div>
