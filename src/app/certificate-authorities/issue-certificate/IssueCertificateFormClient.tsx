@@ -435,7 +435,7 @@ export default function IssueCertificateFormClient() {
         ? { name: "RSASSA-PKCS1-v1_5", modulusLength: parseInt(selectedRsaKeySize, 10), publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }
         : selectedAlgorithm === 'ECDSA' ? { name: "ECDSA", namedCurve: selectedEcdsaCurve }
         : { name: "Ed25519" };
-      const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
+      const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]) as CryptoKeyPair;
 
       const privateKeyPem = formatAsPem(arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey)), 'PRIVATE KEY');
       setGeneratedPrivateKeyPem(privateKeyPem);

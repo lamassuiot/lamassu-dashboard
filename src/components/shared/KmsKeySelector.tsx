@@ -11,6 +11,8 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { Input } from "@/components/ui/input";
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKeySelectorProps {
   value?: string; // Selected key ID (pkcs11_uri)
@@ -104,6 +106,7 @@ export function KmsKeySelector({
               <KeyRound className="h-4 w-4 shrink-0" />
               <span className="font-medium truncate">{selectedKey.name}</span>
               <Badge variant="secondary">
+                {isPqcAlgorithm(selectedKey.algorithm) && <QuantumAlgorithmIcon className="h-3 w-3" />}
                 {selectedKey.algorithm} {selectedKey.size}
               </Badge>
             </div>
@@ -178,7 +181,10 @@ export function KmsKeySelector({
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{key.algorithm} {key.size}</Badge>
+                          <Badge variant="secondary">
+                            {isPqcAlgorithm(key.algorithm) && <QuantumAlgorithmIcon className="h-3 w-3" />}
+                            {key.algorithm} {key.size}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <KeyStrengthIndicator algorithm={key.algorithm} size={String(key.size)} />

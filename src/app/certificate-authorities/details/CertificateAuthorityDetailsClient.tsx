@@ -32,6 +32,8 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/shared/DetailHero';
 import { IssuerStat, ValidityStat } from '@/components/shared/CertificateHeroStats';
 import { parseDistinguishedName } from '@/lib-crypto';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 
 interface CaStats {
@@ -373,6 +375,9 @@ export default function CertificateAuthorityDetailsClient() {
   }
 
 
+  const isChameleonCertificate = Boolean(caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']);
+  const isPqcCertificate = isPqcAlgorithm(caDetails.keyAlgorithm) || isChameleonCertificate;
+
   const issuerCa = caDetails.issuer !== 'Self-signed'
     ? findCaById(caDetails.issuer, allCertificateAuthoritiesData)
     : null;
@@ -431,12 +436,13 @@ export default function CertificateAuthorityDetailsClient() {
                 {cryptoEngine.name || cryptoEngine.type}
               </Badge>
             )}
-            {(caDetails.keyAlgorithm.toUpperCase().startsWith('ML-DSA') || caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
-              <Badge variant="info">PQC</Badge>
+            {isPqcCertificate && (
+              <Badge variant="info">
+                <QuantumAlgorithmIcon className="h-3 w-3" />
+                PQC
+              </Badge>
             )}
-            {caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && (
-              <Badge variant="info">HYBRID</Badge>
-            )}
+            {isChameleonCertificate && <Badge variant="info">HYBRID</Badge>}
             {caDetails.rawApiData?.certificate?.key_metadata && (
               <Badge variant="secondary" className="font-mono">
                 <KeyRound />

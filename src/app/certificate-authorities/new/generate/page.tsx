@@ -21,6 +21,7 @@ import {
   type CreateSigningProfilePayload,
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
+import { Switch } from '@/components/ui/switch';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
@@ -537,10 +538,6 @@ export default function CreateCaGeneratePage() {
     { label: 'New', href: '/certificate-authorities/new' },
     { label: 'Generate' },
   ];
-  const handleIsHybridCaChange = () => {
-    setIsHybridCa(!isHybridCa)
-  }
-
   return (
     <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
       <div className="w-[80%] mx-auto space-y-5 mb-8">
@@ -608,6 +605,39 @@ export default function CreateCaGeneratePage() {
                 <p className="text-xs text-muted-foreground">Bit length or curve for the selected algorithm.</p>
               </div>
             </div>
+            <div className="flex items-center space-x-2">
+              <Switch id="hybridCA" checked={isHybridCa} onCheckedChange={setIsHybridCa} disabled={isSubmitting} />
+              <Label htmlFor="hybridCA">Hybrid CA</Label>
+            </div>
+            {isHybridCa && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="innerKeyType">Inner Key Type</Label>
+                  <Select value={innerKeyType} onValueChange={handleInnerKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
+                    <SelectTrigger id="innerKeyType"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {supportedKeyTypes.map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="innerKeySpec">{innerKeySpecLabel}</Label>
+                  <Select value={innerKeySpec} onValueChange={setInnerKeySpec} disabled={!selectedEngine || innerKeySpecOptions.length === 0 || isSubmitting}>
+                    <SelectTrigger id="innerKeySpec" aria-invalid={isHybridCa && !innerKeySpec} aria-describedby={isHybridCa && !innerKeySpec ? 'generate-ca-inner-key-spec-error' : undefined}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {innerKeySpecOptions.map((ks) => (
+                        <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {isHybridCa && !innerKeySpec && (
+                    <FormFieldError id="generate-ca-inner-key-spec-error" title="Inner Key Specification required." description="Select one before creating the hybrid CA." />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

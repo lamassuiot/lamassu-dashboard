@@ -43,6 +43,8 @@ import { DetailHero, DetailHeroActionsMenu, DetailHeroStat } from '@/components/
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKeyDetailed {
   id: string;
@@ -717,6 +719,7 @@ export default function KmsKeyDetailsClient() {
     );
   }
 
+  const isPqcKey = isPqcAlgorithm(keyDetails.algorithm);
 
   return (
     <BreadcrumbPage
@@ -932,8 +935,6 @@ export default function KmsKeyDetailsClient() {
                 </div>
               </div>
 
-              <Separator />
-
               {/* ── Technical Profile ── */}
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
                 <div>
@@ -948,7 +949,8 @@ export default function KmsKeyDetailsClient() {
                         <p className="mt-1 text-sm font-medium">{keyDetails.algorithm}</p>
                       </div>
                       <Badge variant="secondary">
-                        {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : keyDetails.algorithm === 'MLDSA' ? 'Post-Quantum' : 'Other'}
+                        {isPqcKey && <QuantumAlgorithmIcon className="h-3 w-3" />}
+                        {keyDetails.algorithm === 'RSA' ? 'Asymmetric' : keyDetails.algorithm === 'ECDSA' ? 'Elliptic Curve' : keyDetails.algorithm === 'MLDSA' ? 'Post-Quantum' : keyDetails.algorithm === 'Ed25519' ? 'Edwards Curve' : 'Other'}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between gap-3 py-3">
