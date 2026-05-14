@@ -27,6 +27,8 @@ import { ListPageSkeleton } from '@/components/shared/PageSkeletons';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import { format } from 'date-fns';
+import { QuantumAlgorithmIcon } from '@/components/shared/QuantumAlgorithmIcon';
+import { isPqcAlgorithm } from '@/lib/pqc';
 
 interface KmsKey {
   id: string;
@@ -452,6 +454,7 @@ export default function KmsKeysPage() {
               <TableBody>
                 {keys.map((key) => {
                   const engine = allCryptoEngines.find(e => e.id === key.cryptoEngineId);
+                  const isPqcKey = isPqcAlgorithm(key.algorithm);
                   return (
                     <TableRow key={key.id}>
                       <TableCell className="font-medium">
@@ -464,7 +467,10 @@ export default function KmsKeysPage() {
                         </button>
                       </TableCell>
                       <TableCell>
-                        <span>{key.keyTypeDisplay}</span>
+                        <div className="flex items-center gap-1.5">
+                          {isPqcKey && <QuantumAlgorithmIcon />}
+                          <span>{key.keyTypeDisplay}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <KeyStrengthIndicator algorithm={key.algorithm} size={key.size} />
