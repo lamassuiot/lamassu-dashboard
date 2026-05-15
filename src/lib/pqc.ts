@@ -5,6 +5,7 @@ const PQC_ALGORITHM_PREFIXES = [
   'SLH-DSA',
   'SLH_DSA',
   'SLHDSA',
+  'COMPOSITE',
   'SPHINCS',
   'DILITHIUM',
   'FALCON',
