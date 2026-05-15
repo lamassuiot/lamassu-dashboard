@@ -33,6 +33,50 @@ export const MLDSA_SECURITY_LEVEL_OPTIONS = [
   { value: 'ML-DSA-87', label: 'ML-DSA-87 (Security Level 5 - ~AES-256)' },
 ];
 
+/**
+ * SLH-DSA (FIPS 205) parameter set metadata.
+ * Keys are the numeric IDs (1–12) returned by the KMS API as the key size.
+ */
+export const SLHDSA_PARAM_SET_INFO: Record<string, { name: string; hash: string; security: string; speed: string }> = {
+  '1':  { name: 'SHA2_128s',  hash: 'SHA-2',  security: '128-bit', speed: 'small sig' },
+  '2':  { name: 'SHAKE_128s', hash: 'SHAKE',  security: '128-bit', speed: 'small sig' },
+  '3':  { name: 'SHA2_128f',  hash: 'SHA-2',  security: '128-bit', speed: 'fast sig'  },
+  '4':  { name: 'SHAKE_128f', hash: 'SHAKE',  security: '128-bit', speed: 'fast sig'  },
+  '5':  { name: 'SHA2_192s',  hash: 'SHA-2',  security: '192-bit', speed: 'small sig' },
+  '6':  { name: 'SHAKE_192s', hash: 'SHAKE',  security: '192-bit', speed: 'small sig' },
+  '7':  { name: 'SHA2_192f',  hash: 'SHA-2',  security: '192-bit', speed: 'fast sig'  },
+  '8':  { name: 'SHAKE_192f', hash: 'SHAKE',  security: '192-bit', speed: 'fast sig'  },
+  '9':  { name: 'SHA2_256s',  hash: 'SHA-2',  security: '256-bit', speed: 'small sig' },
+  '10': { name: 'SHAKE_256s', hash: 'SHAKE',  security: '256-bit', speed: 'small sig' },
+  '11': { name: 'SHA2_256f',  hash: 'SHA-2',  security: '256-bit', speed: 'fast sig'  },
+  '12': { name: 'SHAKE_256f', hash: 'SHAKE',  security: '256-bit', speed: 'fast sig'  },
+};
+
+export const SLHDSA_PARAM_SET_OPTIONS = Object.entries(SLHDSA_PARAM_SET_INFO).map(([id, info]) => ({
+  value: id,
+  label: `${id} — ${info.name} (${info.hash}, ${info.security}, ${info.speed})`,
+}));
+
+/**
+ * Composite-ML-DSA-RSA (IETF composite-sigs draft) parameter set metadata.
+ * Keys are the numeric IDs (1–8) returned by the KMS API as the key size.
+ */
+export const COMPOSITE_MLDSA_RSA_PARAM_SET_INFO: Record<string, { name: string }> = {
+  '1': { name: 'MLDSA44-RSA2048-PSS-SHA256'   },
+  '2': { name: 'MLDSA44-RSA2048-PKCS15-SHA256' },
+  '3': { name: 'MLDSA65-RSA3072-PSS-SHA512'   },
+  '4': { name: 'MLDSA65-RSA3072-PKCS15-SHA512' },
+  '5': { name: 'MLDSA65-RSA4096-PSS-SHA512'   },
+  '6': { name: 'MLDSA65-RSA4096-PKCS15-SHA512' },
+  '7': { name: 'MLDSA87-RSA3072-PSS-SHA512'   },
+  '8': { name: 'MLDSA87-RSA4096-PSS-SHA512'   },
+};
+
+export const COMPOSITE_MLDSA_RSA_PARAM_SET_OPTIONS = Object.entries(COMPOSITE_MLDSA_RSA_PARAM_SET_INFO).map(([id, info]) => ({
+  value: id,
+  label: `${id} — ${info.name}`,
+}));
+
 
 // --- Key Usages ---
 export const KEY_USAGE_OPTIONS = keyUsageOptions.map((id) => ({

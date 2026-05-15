@@ -22,6 +22,7 @@ import { TagInput } from '@/components/shared/TagInput';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { cn } from '@/lib/utils';
 import { FormFieldError, FormValidationSummary } from '@/components/shared/FormValidationSummary';
+import { SLHDSA_PARAM_SET_INFO, COMPOSITE_MLDSA_RSA_PARAM_SET_INFO } from '@/lib/form-options';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -62,6 +63,8 @@ export default function CreateKmsKeyPage() {
   const [rsaKeySize, setRsaKeySize] = useState('2048');
   const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
   const [mldsaSecurityLevel, setMLDSASecurityLevel] = useState('65');
+  const [slhdsaParamSet, setSlhdsaParamSet] = useState('1');
+  const [compositeMLDSARsaParamSet, setCompositeMLDSARsaParamSet] = useState('1');
   const [ed25519KeySize, setEd25519KeySize] = useState('256');
 
   const [importKeyName, setImportKeyName] = useState('');
@@ -106,7 +109,18 @@ export default function CreateKmsKeyPage() {
     if (selectedEngine && keyType) {
       const isKeyTypeSupported = supportedKeyTypes.some(kt => kt.type === keyType);
       if (!isKeyTypeSupported && supportedKeyTypes.length > 0) {
-        setKeyType(supportedKeyTypes[0].type);
+        const firstType = supportedKeyTypes[0];
+        setKeyType(firstType.type);
+        // Also sync the size state for the new key type
+        if (firstType.sizes.length > 0) {
+          const firstSize = firstType.sizes[0].toString();
+          if (firstType.type === 'RSA') setRsaKeySize(firstSize);
+          else if (firstType.type === 'ECDSA') setEcdsaCurve(firstSize);
+          else if (firstType.type === 'ML-DSA') setMLDSASecurityLevel(firstSize);
+          else if (firstType.type === 'SLH-DSA') setSlhdsaParamSet(firstSize);
+          else if (firstType.type === 'Composite-ML-DSA-RSA') setCompositeMLDSARsaParamSet(firstSize);
+          else if (firstType.type === 'Ed25519') setEd25519KeySize(firstSize);
+        }
       }
     }
   }, [selectedEngine, keyType, supportedKeyTypes]);
@@ -122,6 +136,10 @@ export default function CreateKmsKeyPage() {
         setEcdsaCurve(firstSize.toString());
       } else if (value === 'ML-DSA') {
         setMLDSASecurityLevel(firstSize.toString());
+      } else if (value === 'SLH-DSA') {
+        setSlhdsaParamSet(firstSize.toString());
+      } else if (value === 'Composite-ML-DSA-RSA') {
+        setCompositeMLDSARsaParamSet(firstSize.toString());
       } else if (value === 'Ed25519') {
         setEd25519KeySize(firstSize.toString());
       }
@@ -131,13 +149,35 @@ export default function CreateKmsKeyPage() {
   const currentKeySpecOptions = (() => {
     const keyTypeDetail = supportedKeyTypes.find(kt => kt.type === keyType);
     if (!keyTypeDetail) return [];
-    return keyTypeDetail.sizes.map(size => ({ value: size.toString(), label: size.toString() }));
+    
+    return keyTypeDetail.sizes.map(size => {
+      const sizeStr = size.toString();
+      if (keyType === 'SLH-DSA') {
+        const info = SLHDSA_PARAM_SET_INFO[sizeStr];
+        return {
+          value: sizeStr,
+          label: info
+            ? `${sizeStr} — ${info.name} (${info.hash}, ${info.security}, ${info.speed})`
+            : sizeStr,
+        };
+      }
+      if (keyType === 'Composite-ML-DSA-RSA') {
+        const info = COMPOSITE_MLDSA_RSA_PARAM_SET_INFO[sizeStr];
+        return {
+          value: sizeStr,
+          label: info ? info.name : sizeStr,
+        };
+      }
+      return { value: sizeStr, label: sizeStr };
+    });
   })();
 
   const keySpecLabel = (() => {
     if (keyType === 'RSA') return 'RSA Key Size';
     else if (keyType === 'ECDSA') return 'ECDSA Curve';
     else if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
+    else if (keyType === 'SLH-DSA') return 'SLH-DSA Parameter Set';
+    else if (keyType === 'Composite-ML-DSA-RSA') return 'Composite Parameter Set';
     else if (keyType === 'Ed25519') return 'Ed25519 Key Size';
     return 'Key Specification';
   })();
@@ -146,6 +186,8 @@ export default function CreateKmsKeyPage() {
     if (keyType === 'RSA') return rsaKeySize;
     if (keyType === 'ECDSA') return ecdsaCurve;
     if (keyType === 'ML-DSA') return mldsaSecurityLevel;
+    if (keyType === 'SLH-DSA') return slhdsaParamSet;
+    if (keyType === 'Composite-ML-DSA-RSA') return compositeMLDSARsaParamSet;
     if (keyType === 'Ed25519') return ed25519KeySize;
     return '';
   })();
@@ -173,6 +215,8 @@ export default function CreateKmsKeyPage() {
     if (keyType === 'RSA') setRsaKeySize(value);
     else if (keyType === 'ECDSA') setEcdsaCurve(value);
     else if (keyType === 'ML-DSA') setMLDSASecurityLevel(value);
+    else if (keyType === 'SLH-DSA') setSlhdsaParamSet(value);
+    else if (keyType === 'Composite-ML-DSA-RSA') setCompositeMLDSARsaParamSet(value);
     else if (keyType === 'Ed25519') setEd25519KeySize(value);
   };
 
@@ -224,6 +268,10 @@ export default function CreateKmsKeyPage() {
             : parseInt(ecdsaCurve, 10);
         } else if (keyType === 'ML-DSA') {
           sizeValue = parseInt(mldsaSecurityLevel.replace('ML-DSA-', ''), 10);
+        } else if (keyType === 'SLH-DSA') {
+          sizeValue = parseInt(slhdsaParamSet, 10);
+        } else if (keyType === 'Composite-ML-DSA-RSA') {
+          sizeValue = parseInt(compositeMLDSARsaParamSet, 10);
         } else if (keyType === 'Ed25519') {
           sizeValue = parseInt(ed25519KeySize, 10);
         } else {
