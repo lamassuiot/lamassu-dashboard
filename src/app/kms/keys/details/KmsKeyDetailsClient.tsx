@@ -26,6 +26,8 @@ import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, upda
 import {
   SIGNATURE_ALGORITHMS,
   MLDSA_ALGORITHMS,
+  SLHDSA_ALGORITHMS,
+  COMPOSITE_MLDSA_RSA_ALGORITHMS,
   arrayBufferToBase64,
   buildSignedCsr,
   type CsrSan,
@@ -47,7 +49,7 @@ interface KmsKeyDetailed {
   id: string;
   alias: string;
   keyTypeDisplay: string;
-  algorithm: 'RSA' | 'ECDSA' | 'MLDSA' | 'Ed25519' | 'Unknown';
+  algorithm: 'RSA' | 'ECDSA' | 'MLDSA' | 'SLHDSA' | 'COMPOSITE_MLDSA_RSA' | 'Ed25519' | 'Unknown';
   keySize?: string | number;
   hasPrivateKey: boolean;
   publicKeyPem?: string;
@@ -344,13 +346,16 @@ export default function KmsKeyDetailsClient() {
         }
 
         // Normalise the algorithm string from the API.
-        // The API may return "MLDSA", "MLDSA_65", "ML-DSA-65", etc.
+        // The API may return "MLDSA", "MLDSA_65", "ML-DSA-65", "SLHDSA", "SLH-DSA-3",
+        // "Composite-ML-DSA-RSA", "Composite-ML-DSA-RSA-3", etc.
         // We normalise dashes → underscores first, then classify.
         const algoUpper = apiKey.algorithm.toUpperCase().replaceAll('-', '_');
         let normalizedAlgorithm: KmsKeyDetailed['algorithm'];
         if (algoUpper === 'RSA') normalizedAlgorithm = 'RSA';
         else if (algoUpper === 'ECDSA') normalizedAlgorithm = 'ECDSA';
         else if (algoUpper.startsWith('MLDSA') || algoUpper.startsWith('ML_DSA')) normalizedAlgorithm = 'MLDSA';
+        else if (algoUpper.startsWith('SLHDSA') || algoUpper.startsWith('SLH_DSA')) normalizedAlgorithm = 'SLHDSA';
+        else if (algoUpper.startsWith('COMPOSITE')) normalizedAlgorithm = 'COMPOSITE_MLDSA_RSA';
         else if (algoUpper === 'ED25519') normalizedAlgorithm = 'Ed25519';
         else normalizedAlgorithm = 'Unknown';
 
@@ -367,12 +372,32 @@ export default function KmsKeyDetailsClient() {
             }
           }
         }
+        // For SLHDSA, ensure keySize is the parameter-set ID (1–12).
+        if (normalizedAlgorithm === 'SLHDSA') {
+          const validIds = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+          const sizeStr = String(apiKey.size);
+          if (!validIds.includes(sizeStr)) {
+            const variantMatch = algoUpper.match(/(?:SLHDSA|SLH_DSA)[_]?(\d+)/);
+            if (variantMatch && validIds.includes(variantMatch[1])) {
+              resolvedKeySize = Number.parseInt(variantMatch[1], 10);
+            }
+          }
+        }
+        // For COMPOSITE_MLDSA_RSA, ensure keySize is the parameter-set ID (1–8).
+        if (normalizedAlgorithm === 'COMPOSITE_MLDSA_RSA') {
+          const validIds = ['1','2','3','4','5','6','7','8'];
+          const sizeStr = String(apiKey.size);
+          if (!validIds.includes(sizeStr)) {
+            const variantMatch = algoUpper.match(/COMPOSITE[_\w]*?(\d+)$/);
+            if (variantMatch && validIds.includes(variantMatch[1])) {
+              resolvedKeySize = Number.parseInt(variantMatch[1], 10);
+            }
+          }
+        }
         const detailedKey: KmsKeyDetailed = {
           id: apiKey.pkcs11_uri,
           alias: apiKey.name || apiKey.key_id,
           keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
-          algorithm: normalizedAlgorithm,
-          keySize: resolvedKeySize,
           algorithm: normalizedAlgorithm,
           keySize: resolvedKeySize,
           hasPrivateKey: apiKey.has_private_key,
@@ -414,6 +439,26 @@ export default function KmsKeyDetailsClient() {
           setSignAlgorithm(defaultMldsaAlgo);
           setVerifyAlgorithm(defaultMldsaAlgo);
           setCsrSignAlgorithm(defaultMldsaAlgo);
+        } else if (detailedKey.algorithm === 'SLHDSA') {
+          // Default to the parameter set matching the key size (1–12).
+          // Fall back to SLHDSA_1 when the size is unrecognised.
+          const validIds = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+          const sizeStr = String(detailedKey.keySize ?? '');
+          const defaultSlhdsaAlgo = validIds.includes(sizeStr) ? `SLHDSA_${sizeStr}` : 'SLHDSA_1';
+
+          setSignAlgorithm(defaultSlhdsaAlgo);
+          setVerifyAlgorithm(defaultSlhdsaAlgo);
+          setCsrSignAlgorithm(defaultSlhdsaAlgo);
+        } else if (detailedKey.algorithm === 'COMPOSITE_MLDSA_RSA') {
+          // Default to the parameter set matching the key size (1–8).
+          // Fall back to COMPOSITE_MLDSA_RSA_1 when the size is unrecognised.
+          const validIds = ['1','2','3','4','5','6','7','8'];
+          const sizeStr = String(detailedKey.keySize ?? '');
+          const defaultCompositeAlgo = validIds.includes(sizeStr) ? `COMPOSITE_MLDSA_RSA_${sizeStr}` : 'COMPOSITE_MLDSA_RSA_1';
+
+          setSignAlgorithm(defaultCompositeAlgo);
+          setVerifyAlgorithm(defaultCompositeAlgo);
+          setCsrSignAlgorithm(defaultCompositeAlgo);
         } else if (detailedKey.algorithm === 'Ed25519') {
           setSignAlgorithm('Ed25519_PURE');
           setVerifyAlgorithm('Ed25519_PURE');
@@ -506,7 +551,7 @@ export default function KmsKeyDetailsClient() {
       }
 
       const payload = {
-        algorithm: MLDSA_ALGORITHMS.has(signAlgorithm) ? `${signAlgorithm}_PURE` : signAlgorithm,
+        algorithm: SLHDSA_ALGORITHMS.has(signAlgorithm) ? 'SLHDSA_PURE' : COMPOSITE_MLDSA_RSA_ALGORITHMS.has(signAlgorithm) ? 'COMPOSITE_MLDSA_RSA_PURE' : MLDSA_ALGORITHMS.has(signAlgorithm) ? `${signAlgorithm}_PURE` : signAlgorithm,
         message: encodedPayload,
         message_type: signMessageType.toLowerCase(),
       };
@@ -563,7 +608,7 @@ export default function KmsKeyDetailsClient() {
       }
 
       const payload = {
-        algorithm: verifyAlgorithm,
+        algorithm: SLHDSA_ALGORITHMS.has(verifyAlgorithm) ? 'SLHDSA_PURE' : COMPOSITE_MLDSA_RSA_ALGORITHMS.has(verifyAlgorithm) ? 'COMPOSITE_MLDSA_RSA_PURE' : MLDSA_ALGORITHMS.has(verifyAlgorithm) ? `${verifyAlgorithm}_PURE` : verifyAlgorithm,
         message: encodedUnsignedPayload,
         message_type: verifyMessageType.toLowerCase(),
         signature: signatureToVerify,
@@ -620,7 +665,7 @@ export default function KmsKeyDetailsClient() {
         signFn: async (tbsBase64) => {
           const result = await signWithKmsKey(
             keyDetails.id,
-            { algorithm: MLDSA_ALGORITHMS.has(csrSignAlgorithm) ? `${csrSignAlgorithm}_PURE` : csrSignAlgorithm, message: tbsBase64, message_type: 'raw' },
+            { algorithm: SLHDSA_ALGORITHMS.has(csrSignAlgorithm) ? 'SLHDSA_PURE' : COMPOSITE_MLDSA_RSA_ALGORITHMS.has(csrSignAlgorithm) ? 'COMPOSITE_MLDSA_RSA_PURE' : MLDSA_ALGORITHMS.has(csrSignAlgorithm) ? `${csrSignAlgorithm}_PURE` : csrSignAlgorithm, message: tbsBase64, message_type: 'raw' },
           );
           return result.signature;
         },
@@ -660,6 +705,18 @@ export default function KmsKeyDetailsClient() {
       // Restrict to the exact parameter set of this key (44 / 65 / 87).
       const sizeStr = String(keyDetails.keySize ?? '');
       return algo !== `MLDSA_${sizeStr}`;
+    }
+    if (keyDetails.algorithm === 'SLHDSA') {
+      if (!algo.startsWith('SLHDSA')) return true;
+      // Restrict to the exact parameter set of this key (1–12).
+      const sizeStr = String(keyDetails.keySize ?? '');
+      return algo !== `SLHDSA_${sizeStr}`;
+    }
+    if (keyDetails.algorithm === 'COMPOSITE_MLDSA_RSA') {
+      if (!algo.startsWith('COMPOSITE_MLDSA_RSA')) return true;
+      // Restrict to the exact parameter set of this key (1–8).
+      const sizeStr = String(keyDetails.keySize ?? '');
+      return algo !== `COMPOSITE_MLDSA_RSA_${sizeStr}`;
     }
     if (keyDetails.algorithm === 'Ed25519') {
       return algo !== 'Ed25519_PURE';
