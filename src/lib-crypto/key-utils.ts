@@ -1,4 +1,4 @@
-import { PSS_ALGO_PARAMS, MLDSA_ALGORITHMS } from "./constants";
+import { PSS_ALGO_PARAMS, MLDSA_ALGORITHMS, SLHDSA_ALGORITHMS, COMPOSITE_MLDSA_RSA_ALGORITHMS } from "./constants";
 
 /**
  * Returns the WebCrypto key import params for a given Lamassu signature
@@ -56,6 +56,18 @@ export function getKeyImportParams(
         throw new Error(
           `ML-DSA (${algorithm}) keys cannot be imported via WebCrypto. ` +
             `Handle MLDSA separately using the MLDSA_ALGORITHMS guard.`,
+        );
+      }
+      if (SLHDSA_ALGORITHMS.has(algorithm)) {
+        throw new Error(
+          `SLH-DSA (${algorithm}) keys cannot be imported via WebCrypto. ` +
+            `Handle SLHDSA separately using the SLHDSA_ALGORITHMS guard.`,
+        );
+      }
+      if (COMPOSITE_MLDSA_RSA_ALGORITHMS.has(algorithm)) {
+        throw new Error(
+          `Composite-ML-DSA-RSA (${algorithm}) keys cannot be imported via WebCrypto. ` +
+            `Handle composite algorithms separately using the COMPOSITE_MLDSA_RSA_ALGORITHMS guard.`,
         );
       }
       throw new Error(`Unknown signature algorithm: ${algorithm}`);
