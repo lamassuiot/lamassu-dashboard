@@ -275,6 +275,49 @@ export async function fetchRaById(raId: string): Promise<ApiRaItem> {
     return handleApiError(response, 'Failed to fetch RA details');
 }
 
+// CMP transactions surface the full lifecycle of every CMP enrollment
+// processed for an RA. States are:
+//   PENDING       - enrollment accepted, cert not yet issued (async mode)
+//   ISSUED        - cert issued, awaiting certConf from the EE
+//   ISSUE_FAILED  - async worker failed to issue
+//   CONFIRMED     - EE sent valid certConf; enrollment complete
+//   REVOKED       - the enrolled certificate was subsequently revoked
+//
+// The endpoint mirrors the standard list contract (page_size, bookmark,
+// sort_by, filter) and projects out the raw CertDER/CSRDER blobs.
+export interface CmpTransactionItem {
+    transaction_id: string;
+    dms_id: string;
+    state: 'PENDING' | 'ISSUED' | 'ISSUE_FAILED' | 'CONFIRMED' | 'REVOKED' | string;
+    is_reenrollment: boolean;
+    created_at: string;
+    expires_at: string;
+    confirmed_at?: string;
+    error_message?: string;
+    certificate_serial_number?: string;
+    has_certificate: boolean;
+}
+
+export interface CmpTransactionsResponse {
+    next: string;
+    list: CmpTransactionItem[];
+}
+
+export async function fetchCmpTransactions(
+    raId: string,
+    params?: URLSearchParams,
+): Promise<CmpTransactionsResponse> {
+    const url = new URL(`${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}/cmp/transactions`);
+    if (params) {
+        params.forEach((value, key) => url.searchParams.append(key, value));
+    }
+    if (!url.searchParams.has('page_size')) {
+        url.searchParams.set('page_size', '25');
+    }
+    const response = await apiFetch(url.toString());
+    return handleApiError(response, 'Failed to fetch CMP transactions');
+}
+
 export async function createOrUpdateRa(
     payload: RaCreationPayload,
     isEditMode: boolean,

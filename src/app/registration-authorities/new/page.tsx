@@ -842,7 +842,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </Button>
               </div>
       </form>
-      <CaSelectorModal 
+      <CaSelectorModal
         isOpen={isValidationCaModalOpen} 
         onOpenChange={setIsValidationCaModalOpen} 
         title="Add Validation CA" 

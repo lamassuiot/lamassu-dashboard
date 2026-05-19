@@ -27,6 +27,7 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
 import { EstCaCertsPanel } from '@/components/shared/EstCaCertsPanel';
+import { CmpEnrollModal } from '@/components/shared/CmpEnrollModal';
 import { fetchRegistrationAuthorities, updateRaMetadata, type ApiRaItem, deleteRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
 import { ColumnSelector } from '@/components/ui/column-selector';
@@ -57,7 +58,7 @@ interface SortConfig {
 
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
-type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | null;
+type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | 'cmpenroll' | null;
 
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
@@ -272,6 +273,11 @@ export default function RegistrationAuthoritiesPage() {
     setEstPanelMode('cacerts');
   };
 
+  const handleOpenCmpEnrollModal = (ra: ApiRaItem) => {
+    setSelectedRaForEstAction(ra);
+    setEstPanelMode('cmpenroll');
+  };
+
   const handleShowMetadata = (ra: ApiRaItem) => {
     setSelectedRaForMetadata(ra);
     setIsMetadataModalOpen(true);
@@ -385,7 +391,46 @@ export default function RegistrationAuthoritiesPage() {
         <ColumnSelector columns={raColumns} onColumnToggle={handleColumnToggle} align="end" />
       </div>
 
-        <div>
+        <SplitPanelLayout
+          isPanelOpen={estPanelMode !== null}
+          onPanelOpenChange={handleEstPanelOpenChange}
+          mobilePanelAsDialog
+          panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_720px]"
+        panel={
+            estPanelMode === 'enroll' ? (
+              <EstEnrollModal
+                isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
+                onOpenChange={handleEstPanelOpenChange}
+                ra={selectedRaForEstAction}
+                className="p-4"
+                presentation="inline"
+              />
+            ) : estPanelMode === 'reenroll' ? (
+              <EstReEnrollModal
+                isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
+                onOpenChange={handleEstPanelOpenChange}
+                ra={selectedRaForEstAction}
+                className="p-4"
+                presentation="inline"
+              />
+            ) : estPanelMode === 'cacerts' ? (
+              <EstCaCertsPanel
+                isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
+                onOpenChange={handleEstPanelOpenChange}
+                ra={selectedRaForEstAction}
+                className="p-4"
+              />
+            ) : estPanelMode === 'cmpenroll' ? (
+              <CmpEnrollModal
+                isOpen={estPanelMode === 'cmpenroll' && !!selectedRaForEstAction}
+                onOpenChange={handleEstPanelOpenChange}
+                ra={selectedRaForEstAction as any}
+                className="p-4"
+                presentation="inline"
+              />
+            ) : null
+        }
+        >
         {error && (
           <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -414,6 +459,7 @@ export default function RegistrationAuthoritiesPage() {
             onOpenEnrollModal={handleOpenEnrollModal}
             onOpenReEnrollModal={handleOpenReEnrollModal}
             onOpenCaCertsPanel={handleOpenCaCertsPanel}
+            onOpenCmpEnrollModal={handleOpenCmpEnrollModal}
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
@@ -473,18 +519,42 @@ export default function RegistrationAuthoritiesPage() {
                           <BookText className="mr-2 h-4 w-4" /><span>Show Metadata</span>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <TerminalSquare className="mr-2 h-4 w-4" /><span>EST (RFC-7030)</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent>
-                              <DropdownMenuItem onClick={() => handleOpenEnrollModal(ra)}><span>Enroll...</span></DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenReEnrollModal(ra)}><span>Re-Enroll...</span></DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenCaCertsPanel(ra)}><span>Get CA Certs</span></DropdownMenuItem>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
+                        {/* Protocol-aware enrollment menus: the RA's enrollment
+                            protocol determines which submenu is shown so the
+                            operator only sees commands that the DMS will accept.
+                            We check both the top-level protocol field and the
+                            presence of the protocol-specific settings block to
+                            stay tolerant of older RAs that may have one set but
+                            not the other. */}
+                        {(ra.settings.enrollment_settings.protocol === 'EST'
+                            || !!ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode) && (
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <TerminalSquare className="mr-2 h-4 w-4" /><span>EST (RFC-7030)</span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent>
+                                <DropdownMenuItem onClick={() => handleOpenEnrollModal(ra)}><span>Enroll...</span></DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleOpenReEnrollModal(ra)}><span>Re-Enroll...</span></DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleOpenCaCertsPanel(ra)}><span>Get CA Certs</span></DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
+                        )}
+                        {(ra.settings.enrollment_settings.protocol === 'CMP'
+                            || !!ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode) && (
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <TerminalSquare className="mr-2 h-4 w-4" /><span>CMP (RFC-9483)</span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent>
+                                <DropdownMenuItem onClick={() => handleOpenCmpEnrollModal(ra)}><span>Enroll...</span></DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => router.push(`/registration-authorities/transactions?raId=${ra.id}`)}><span>View Transactions</span></DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => setRaToDelete(ra)} className="text-destructive focus:text-destructive">
                           <Trash2 className="mr-2 h-4 w-4" /><span>Delete</span>
