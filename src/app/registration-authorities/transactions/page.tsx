@@ -24,10 +24,10 @@ import { CmpIssuedCertificatesPanel } from '@/components/ra/CmpIssuedCertificate
 //     Shows the permanent cert record (ACTIVE / REVOKED / EXPIRED).
 
 // Filters that scope to active (in-flight) transactions only.
-const ACTIVE_FILTERS = ['state[equal]PENDING', 'state[equal]ISSUED'];
+const ACTIVE_FILTERS = ['state[in]PENDING,ISSUED'];
 
 // Filters that scope to terminal (completed) transactions only.
-const COMPLETED_FILTERS = ['state[equal]CONFIRMED', 'state[equal]REVOKED'];
+const COMPLETED_FILTERS = ['state[in]CONFIRMED,REVOKED'];
 
 export default function RaCmpTransactionsPage() {
     const router = useRouter();
