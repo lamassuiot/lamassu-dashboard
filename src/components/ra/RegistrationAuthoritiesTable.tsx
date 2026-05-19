@@ -36,6 +36,7 @@ interface RegistrationAuthoritiesTableProps {
   onOpenEnrollModal: (ra: ApiRaItem) => void;
   onOpenReEnrollModal: (ra: ApiRaItem) => void;
   onOpenCaCertsPanel: (ra: ApiRaItem) => void;
+  onOpenCmpEnrollModal: (ra: ApiRaItem) => void;
   onDelete: (ra: ApiRaItem) => void;
   sortConfig: SortConfig | null;
   requestSort: (column: SortableColumn) => void;
@@ -85,6 +86,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
   onOpenEnrollModal,
   onOpenReEnrollModal,
   onOpenCaCertsPanel,
+  onOpenCmpEnrollModal,
   onDelete,
   sortConfig,
   requestSort,
@@ -216,25 +218,53 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                       <span>Show Metadata</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <TerminalSquare className="mr-2 h-4 w-4" />
-                        <span>EST (RFC-7030)</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuPortal>
-                        <DropdownMenuSubContent className="w-48">
-                          <DropdownMenuItem onClick={() => onOpenEnrollModal(ra)}>
-                            <span>Enroll...</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onOpenReEnrollModal(ra)}>
-                            <span>Re-Enroll...</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onOpenCaCertsPanel(ra)}>
-                            <span>Get CA Certs</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                      </DropdownMenuPortal>
-                    </DropdownMenuSub>
+                    {/* Protocol-aware enrollment menus: only the protocol
+                        actually configured on the RA is offered, so the
+                        operator can't accidentally click EST commands on a
+                        CMP-only DMS (or vice versa). The fallback `auth_mode`
+                        presence check guards against older RAs that may have
+                        been migrated without the top-level protocol field. */}
+                    {(ra.settings.enrollment_settings.protocol === 'EST'
+                        || !!ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode) && (
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <TerminalSquare className="mr-2 h-4 w-4" />
+                          <span>EST (RFC-7030)</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuPortal>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem onClick={() => onOpenEnrollModal(ra)}>
+                              <span>Enroll...</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onOpenReEnrollModal(ra)}>
+                              <span>Re-Enroll...</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onOpenCaCertsPanel(ra)}>
+                              <span>Get CA Certs</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuPortal>
+                      </DropdownMenuSub>
+                    )}
+                    {(ra.settings.enrollment_settings.protocol === 'CMP'
+                        || !!ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode) && (
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <TerminalSquare className="mr-2 h-4 w-4" />
+                          <span>CMP (RFC-9483)</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuPortal>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem onClick={() => onOpenCmpEnrollModal(ra)}>
+                              <span>Enroll...</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/registration-authorities/transactions?raId=${ra.id}`)}>
+                              <span>View Transactions</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuPortal>
+                      </DropdownMenuSub>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => onDelete(ra)}

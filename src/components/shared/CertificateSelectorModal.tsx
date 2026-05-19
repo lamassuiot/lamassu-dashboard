@@ -17,6 +17,7 @@ import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '../ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { ScrollArea } from '../ui/scroll-area';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
@@ -431,7 +432,6 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
               </div>
             )}
             {!isLoadingCerts && !errorCerts && availableCerts.length > 0 && (
-<<<<<<< HEAD
               <ScrollArea className="my-2 flex-grow">
                 <div className="min-w-[920px]">
                   <Table>
