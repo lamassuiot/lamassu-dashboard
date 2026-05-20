@@ -1,14 +1,16 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, ArrowLeft, Pencil } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Pencil, ListOrdered, FileText } from 'lucide-react';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { CmpTransactionsPanel } from '@/components/ra/CmpTransactionsPanel';
 import { CmpIssuedCertificatesPanel } from '@/components/ra/CmpIssuedCertificatesPanel';
+import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // The CMP transaction lifecycle is now fully persisted:
 //
@@ -22,12 +24,6 @@ import { CmpIssuedCertificatesPanel } from '@/components/ra/CmpIssuedCertificate
 //
 //   - Past Enrollments (certificates) → from the CA service, filtered by RA.
 //     Shows the permanent cert record (ACTIVE / REVOKED / EXPIRED).
-
-// Filters that scope to active (in-flight) transactions only.
-const ACTIVE_FILTERS = ['state[in]PENDING,ISSUED'];
-
-// Filters that scope to terminal (completed) transactions only.
-const COMPLETED_FILTERS = ['state[in]CONFIRMED,REVOKED'];
 
 export default function RaCmpTransactionsPage() {
     const router = useRouter();
@@ -66,52 +62,54 @@ export default function RaCmpTransactionsPage() {
 
     return (
         <div className="mb-8 w-full space-y-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Link href="/registration-authorities" className="hover:underline">
-                            Registration Authorities
-                        </Link>
-                        <span>/</span>
-                        <span>{ra?.name ?? raId}</span>
-                        <span>/</span>
-                        <span>CMP Transactions</span>
+            <DetailBreadcrumbRow
+                items={[
+                    { label: 'Registration Authorities', href: '/registration-authorities' },
+                    { label: ra?.name ?? raId },
+                    { label: <Badge variant="default" className="text-xs">CMP Transactions</Badge> },
+                ]}
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={() => router.push('/registration-authorities')}>
+                            <ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs
+                        </Button>
+                        <Button variant="outline" onClick={() => router.push(`/registration-authorities/new?raId=${raId}`)}>
+                            <Pencil className="mr-2 h-4 w-4" /> Edit Settings
+                        </Button>
                     </div>
-                    <h1 className="text-2xl font-semibold mt-1">{ra?.name ?? raId}</h1>
-                    <p className="text-sm text-muted-foreground">CMP enrollment lifecycle for this Registration Authority.</p>
-                    {raLoadError && (
-                        <p className="text-sm text-destructive mt-1">Could not load RA metadata: {raLoadError}</p>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => router.push('/registration-authorities')}>
-                        <ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs
-                    </Button>
-                    <Button variant="outline" onClick={() => router.push(`/registration-authorities/new?raId=${raId}`)}>
-                        <Pencil className="mr-2 h-4 w-4" /> Edit Settings
-                    </Button>
-                </div>
-            </div>
-
-            <CmpTransactionsPanel
-                raId={raId}
-                title="Active Enrollments"
-                description="In-flight CMP transactions awaiting completion: PENDING (cert not yet issued) or ISSUED (awaiting certConf from the device)."
-                extraFilter={ACTIVE_FILTERS}
-                hideStateFilter
-                emptyMessage="No active CMP enrollments in flight."
+                }
             />
+            {raLoadError && (
+                <p className="text-sm text-destructive">Could not load RA metadata: {raLoadError}</p>
+            )}
 
-            <CmpTransactionsPanel
-                raId={raId}
-                title="Completed Enrollments"
-                description="Terminal CMP transactions: CONFIRMED (enrollment complete) or REVOKED (certificate subsequently revoked). These rows are retained for audit."
-                extraFilter={COMPLETED_FILTERS}
-                hideStateFilter={false}
-                emptyMessage="No completed CMP enrollments yet."
-            />
+            <Tabs defaultValue="transactions" className="w-full">
+                <div className="border-b">
+                    <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+                        <TabsTrigger
+                            value="transactions"
+                            className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                        >
+                            <ListOrdered className="mr-2 h-4 w-4" />CMP Transactions
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="certificates"
+                            className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                        >
+                            <FileText className="mr-2 h-4 w-4" />Issued Certificates
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
-            <CmpIssuedCertificatesPanel raId={raId} />
+                <div className="mt-6 pb-6">
+                    <TabsContent value="transactions" className="mt-0">
+                        <CmpTransactionsPanel raId={raId} withCard={false} />
+                    </TabsContent>
+                    <TabsContent value="certificates" className="mt-0">
+                        <CmpIssuedCertificatesPanel raId={raId} withCard={false} />
+                    </TabsContent>
+                </div>
+            </Tabs>
         </div>
     );
 }

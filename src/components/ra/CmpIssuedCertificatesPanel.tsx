@@ -18,6 +18,7 @@ import {
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { cn } from '@/lib/utils';
 
 // Render the status badge using the same colour vocabulary as the device/cert
 // pages elsewhere. EXPIRED is not a stored status on the certificate itself —
@@ -168,7 +169,7 @@ export const CmpIssuedCertificatesPanel: React.FC<CmpIssuedCertificatesPanelProp
                 </Alert>
             )}
 
-            <div className="rounded-md border overflow-x-auto">
+            <div className={cn('overflow-x-auto', withCard && 'rounded-md border')}>
                 <Table>
                     <TableHeader>
                         <TableRow>
