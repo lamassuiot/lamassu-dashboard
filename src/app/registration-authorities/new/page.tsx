@@ -213,7 +213,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setRegistrationMode(enrollment_settings.registration_mode);
         const currentProtocol = enrollment_settings.protocol === 'EST_RFC7030'
           ? 'EST'
-          : enrollment_settings.protocol === 'CMP_RFC4210'
+          : enrollment_settings.protocol === 'CMP_RFC9483'
             ? 'CMP'
             : 'None';
         setProtocol(currentProtocol);
@@ -343,7 +343,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         return;
     }
     
-    const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'CMP': 'CMP_RFC4210', 'None': '' };
+    const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'CMP': 'CMP_RFC9483', 'None': '' };
     const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE' };
     
     const estSettings: any = {
