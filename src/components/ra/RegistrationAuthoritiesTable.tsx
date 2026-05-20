@@ -103,6 +103,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
             {columnVisibility.icon && <TableHead className="w-12"></TableHead>}
             {columnVisibility.name && <SortableTableHeader column="name" title="Name" onSort={requestSort} sortConfig={sortConfig} />}
             {columnVisibility.registrationMode && <TableHead className="hidden md:table-cell">Registration Mode</TableHead>}
+            {columnVisibility.protocol && <TableHead className="hidden md:table-cell">Protocol</TableHead>}
             {columnVisibility.enrollmentCA && <TableHead className="min-w-[280px]">Enrollment CA</TableHead>}
             {columnVisibility.authMode && <TableHead className="hidden lg:table-cell">Auth Mode</TableHead>}
             {columnVisibility.createdAt && <SortableTableHeader column="creation_ts" title="Created At" onSort={requestSort} sortConfig={sortConfig} />}
@@ -151,6 +152,16 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
               {columnVisibility.registrationMode && (
                 <TableCell className="hidden md:table-cell">
                   <Badge variant="secondary">{ra.settings.enrollment_settings.registration_mode}</Badge>
+                </TableCell>
+              )}
+              {columnVisibility.protocol && (
+                <TableCell className="hidden md:table-cell">
+                  {(() => {
+                    const p = ra.settings.enrollment_settings.protocol;
+                    if (p === 'EST_RFC7030') return <Badge variant="outline" className="font-mono text-xs">EST</Badge>;
+                    if (p === 'CMP_RFC9483') return <Badge variant="outline" className="font-mono text-xs">CMP</Badge>;
+                    return <Badge variant="secondary" className="text-xs">None</Badge>;
+                  })()}
                 </TableCell>
               )}
               {columnVisibility.enrollmentCA && (

@@ -18,6 +18,7 @@ import {
 import { fetchCmpTransactions, type CmpTransactionItem } from '@/lib/dms-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { sileo } from '@/lib/toast';
+import { cn } from '@/lib/utils';
 
 // State badge styling — mirrors the colour conventions used for device/cert
 // states elsewhere in the dashboard.
@@ -198,7 +199,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                 </Alert>
             )}
 
-            <div className="rounded-md border overflow-x-auto">
+            <div className={cn('overflow-x-auto', withCard && 'rounded-md border')}>
                 <Table>
                     <TableHeader>
                         <TableRow>
