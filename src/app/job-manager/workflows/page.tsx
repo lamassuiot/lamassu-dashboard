@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Workflow, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,7 @@ import { fetchWorkflows, type WfxWorkflow } from '@/lib/wfx-api';
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
 
 export default function WorkflowsPage() {
+    const router = useRouter();
     const [workflows, setWorkflows] = useState<WfxWorkflow[]>([]);
     const [total, setTotal] = useState<number>(0);
     const [isLoading, setIsLoading] = useState(true);
@@ -52,6 +54,10 @@ export default function WorkflowsPage() {
     }, [load, offset]);
 
     const handleRefresh = () => load(offset);
+
+    const handleOpenWorkflow = (wf: WfxWorkflow) => {
+        router.push(`/job-manager/workflows/details?name=${encodeURIComponent(wf.name)}`);
+    };
 
     const totalPages = Math.max(1, Math.ceil(total / Number(pageSize)));
     const currentPage = Math.floor(offset / Number(pageSize)) + 1;
@@ -120,7 +126,12 @@ export default function WorkflowsPage() {
                                 {workflows.map(wf => (
                                     <TableRow key={wf.name}>
                                         <TableCell className="font-medium">
-                                            <span className="font-mono text-sm">{wf.name}</span>
+                                            <button
+                                                onClick={() => handleOpenWorkflow(wf)}
+                                                className="font-mono text-sm text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors text-left"
+                                            >
+                                                {wf.name}
+                                            </button>
                                         </TableCell>
                                         <TableCell>
                                             <span className="text-sm text-muted-foreground">
