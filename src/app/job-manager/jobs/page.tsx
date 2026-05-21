@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Briefcase, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Loader2, Eye } from 'lucide-react';
+import { ClipboardList, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Eye, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { format as formatDate, parseISO, isValid } from 'date-fns';
 import {
@@ -18,6 +17,11 @@ import {
     type WfxJob,
     type ListJobsParams,
 } from '@/lib/wfx-api';
+import {
+    JobFilterBar,
+    type JobFilterValues,
+    defaultJobFilterValues,
+} from '@/components/shared/filters/JobFilterBar';
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
 
@@ -64,13 +68,18 @@ export default function JobsPage() {
     const [pageSize, setPageSize] = useState('10');
     const [offset, setOffset] = useState(0);
 
-    // Filters
-    const [stateFilter, setStateFilter] = useState('');
-    const [clientFilter, setClientFilter] = useState('');
-    const [workflowFilter, setWorkflowFilter] = useState('');
-    const [pendingState, setPendingState] = useState('');
-    const [pendingClient, setPendingClient] = useState('');
-    const [pendingWorkflow, setPendingWorkflow] = useState('');
+    const [filterValues, setFilterValues] = useState<JobFilterValues>(defaultJobFilterValues);
+
+    const handleFilterChange = useCallback(
+        (key: Extract<keyof JobFilterValues, string>, value: unknown) => {
+            setFilterValues((prev) => ({ ...prev, [key]: value }));
+        },
+        [],
+    );
+
+    const handleClearAllFilters = useCallback(() => {
+        setFilterValues(defaultJobFilterValues);
+    }, []);
 
     const load = useCallback(async (currentOffset: number) => {
         setIsLoading(true);
@@ -81,9 +90,11 @@ export default function JobsPage() {
                 offset: currentOffset,
                 sort: 'desc',
             };
-            if (stateFilter) params.state = stateFilter;
-            if (clientFilter) params.clientId = clientFilter;
-            if (workflowFilter) params.workflow = workflowFilter;
+            if (filterValues.clientIdFilter) params.clientId = filterValues.clientIdFilter;
+            if (filterValues.stateFilter) params.state = filterValues.stateFilter;
+            if (filterValues.groupFilter) params.group = filterValues.groupFilter;
+            if (filterValues.tagFilter.length) params.tag = filterValues.tagFilter;
+            if (filterValues.workflowFilter) params.workflow = filterValues.workflowFilter;
 
             const result = await fetchJobs(params);
             setJobs(result.content ?? []);
@@ -96,32 +107,17 @@ export default function JobsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [pageSize, stateFilter, clientFilter, workflowFilter]);
+    }, [pageSize, filterValues]);
 
     useEffect(() => {
         setOffset(0);
-    }, [pageSize, stateFilter, clientFilter, workflowFilter]);
+    }, [pageSize, filterValues]);
 
     useEffect(() => {
         load(offset);
     }, [load, offset]);
 
     const handleRefresh = () => load(offset);
-
-    const handleApplyFilters = () => {
-        setStateFilter(pendingState.trim());
-        setClientFilter(pendingClient.trim());
-        setWorkflowFilter(pendingWorkflow.trim());
-    };
-
-    const handleClearFilters = () => {
-        setPendingState('');
-        setPendingClient('');
-        setPendingWorkflow('');
-        setStateFilter('');
-        setClientFilter('');
-        setWorkflowFilter('');
-    };
 
     const totalPages = Math.max(1, Math.ceil(total / Number(pageSize)));
     const currentPage = Math.floor(offset / Number(pageSize)) + 1;
@@ -140,7 +136,7 @@ export default function JobsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                    <Briefcase className="h-8 w-8 text-primary" />
+                    <ClipboardList className="h-8 w-8 text-primary" />
                     <h1 className="text-2xl font-headline font-semibold">Jobs</h1>
                 </div>
                 <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
@@ -166,48 +162,13 @@ export default function JobsPage() {
                 </Alert>
             )}
 
-            {/* Filters */}
-            <div className="flex flex-wrap items-end gap-3">
-                <div className="flex flex-col gap-1">
-                    <Label htmlFor="filter-state" className="text-xs text-muted-foreground">State</Label>
-                    <Input
-                        id="filter-state"
-                        placeholder="e.g. INSTALLING"
-                        value={pendingState}
-                        onChange={e => setPendingState(e.target.value)}
-                        className="h-8 w-36 text-sm"
-                        onKeyDown={e => e.key === 'Enter' && handleApplyFilters()}
-                    />
-                </div>
-                <div className="flex flex-col gap-1">
-                    <Label htmlFor="filter-client" className="text-xs text-muted-foreground">Client ID</Label>
-                    <Input
-                        id="filter-client"
-                        placeholder="e.g. client42"
-                        value={pendingClient}
-                        onChange={e => setPendingClient(e.target.value)}
-                        className="h-8 w-40 text-sm"
-                        onKeyDown={e => e.key === 'Enter' && handleApplyFilters()}
-                    />
-                </div>
-                <div className="flex flex-col gap-1">
-                    <Label htmlFor="filter-workflow" className="text-xs text-muted-foreground">Workflow</Label>
-                    <Input
-                        id="filter-workflow"
-                        placeholder="e.g. wfx.workflow.dau"
-                        value={pendingWorkflow}
-                        onChange={e => setPendingWorkflow(e.target.value)}
-                        className="h-8 w-48 text-sm"
-                        onKeyDown={e => e.key === 'Enter' && handleApplyFilters()}
-                    />
-                </div>
-                <Button size="sm" onClick={handleApplyFilters} className="h-8">Apply</Button>
-                {(stateFilter || clientFilter || workflowFilter) && (
-                    <Button size="sm" variant="ghost" onClick={handleClearFilters} className="h-8">
-                        Clear
-                    </Button>
-                )}
-            </div>
+            {/* Filter Bar */}
+            <JobFilterBar
+                values={filterValues}
+                onChange={handleFilterChange}
+                onClearAll={handleClearAllFilters}
+                disabled={isLoading}
+            />
 
             {/* Empty state */}
             {!isLoading && !error && jobs.length === 0 && (

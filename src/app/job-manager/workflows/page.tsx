@@ -117,9 +117,6 @@ export default function WorkflowsPage() {
                                 <TableRow>
                                     <TableHead>Name</TableHead>
                                     <TableHead>Description</TableHead>
-                                    <TableHead>States</TableHead>
-                                    <TableHead>Groups</TableHead>
-                                    <TableHead>Transitions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -137,42 +134,6 @@ export default function WorkflowsPage() {
                                             <span className="text-sm text-muted-foreground">
                                                 {wf.description || '—'}
                                             </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap gap-1">
-                                                {wf.states?.length > 0 ? (
-                                                    wf.states.slice(0, 6).map(s => (
-                                                        <Badge key={s.name} variant="secondary" className="text-xs font-mono">
-                                                            {s.name}
-                                                        </Badge>
-                                                    ))
-                                                ) : (
-                                                    <span className="text-muted-foreground text-xs">—</span>
-                                                )}
-                                                {wf.states?.length > 6 && (
-                                                    <Badge variant="outline" className="text-xs text-muted-foreground">
-                                                        +{wf.states.length - 6}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            {wf.groups && wf.groups.length > 0 ? (
-                                                <div className="flex flex-wrap gap-1">
-                                                    {wf.groups.map(g => (
-                                                        <Badge key={g.name} variant="outline" className="text-xs">
-                                                            {g.name}
-                                                        </Badge>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <span className="text-muted-foreground text-xs">—</span>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="secondary" className="text-xs tabular-nums">
-                                                {wf.transitions?.length ?? 0}
-                                            </Badge>
                                         </TableCell>
                                     </TableRow>
                                 ))}

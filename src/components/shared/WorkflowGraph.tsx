@@ -1,520 +1,636 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { graphlib, layout as dagreLayout } from '@dagrejs/dagre';
-import type { WfxWorkflow } from '@/lib/wfx-api';
+import React, { useId, useMemo } from 'react';
+import type { WfxTransition, WfxWorkflow } from '@/lib/wfx-api';
 
-// ─── Layout constants ──────────────────────────────────────────────────────────
+const START_ID = '__START__';
+const END_ID = '__END__';
 
-const STATE_W = 130;
-const STATE_H = 38;
-const START_R = 7;
-const END_R = 12;
-const GRAPH_PAD = 50;
-const ARROW_ID = 'wf-graph-arrowhead';
+const STATE_H = 26;
+const START_R = 6;
+const END_R = 9;
+const TOP_PAD = 18;
+const FIRST_STATE_Y = 72;
+const RANK_GAP = 66;
+const BOTTOM_GAP = 66;
+const H_GAP = 108;
+const CENTER_X = 250;
+const PAD_X = 44;
+const PAD_BOTTOM = 28;
+
+const TRUNK_X_OFFSETS = [0, 0, -14, -28, -56, -32, -92, -108, -116, -124];
 
 type Pt = { x: number; y: number };
-const ff = (n: number) => n.toFixed(1);
+type NodeType = 'state' | 'start' | 'end';
+type EdgeKind = 'direct' | 'side' | 'terminal' | 'start' | 'end';
 
-interface LayoutNode {
+interface GraphNode {
+    id: string;
+    label: string;
+    type: NodeType;
     x: number;
     y: number;
     width: number;
     height: number;
-    type: 'state' | 'start' | 'end';
-    label: string;
 }
 
-interface LayoutEdge {
+interface GraphEdge {
     from: string;
     to: string;
-    points: Pt[];
     label: string;
+    path: string;
+    labelPoint?: Pt;
+    kind: EdgeKind;
+    active?: boolean;
 }
 
-type EdgeSide = 'top' | 'right' | 'bottom' | 'left';
-
-interface PreparedEdge extends LayoutEdge {
-    resolvedPoints: Pt[];
+interface BuiltGraph {
+    nodes: GraphNode[];
+    edges: GraphEdge[];
+    width: number;
+    height: number;
+    activeStateIds: Set<string>;
+    currentStateId?: string;
+    hasHistory: boolean;
 }
 
-// ─── Dagre layout ─────────────────────────────────────────────────────────────
+function ff(n: number): string {
+    return n.toFixed(1);
+}
 
-function buildLayout(wf: WfxWorkflow) {
-    const g = new graphlib.Graph({ multigraph: true });
-    g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 55, marginx: GRAPH_PAD, marginy: GRAPH_PAD });
-    g.setDefaultEdgeLabel(() => ({}));
+function stateWidth(label: string): number {
+    return Math.max(52, Math.min(118, label.length * 6 + 18));
+}
 
-    const stateNames = new Set((wf.states ?? []).map(s => s.name));
-    const transitions = wf.transitions ?? [];
-
-    for (const s of wf.states ?? []) {
-        g.setNode(s.name, { width: STATE_W, height: STATE_H, label: s.name, type: 'state' });
-    }
-    g.setNode('__START__', { width: START_R * 2, height: START_R * 2, label: '', type: 'start' });
-    g.setNode('__END__', { width: END_R * 2, height: END_R * 2, label: '', type: 'end' });
-
-    const hasIncoming = new Set(transitions.filter(t => stateNames.has(t.to)).map(t => t.to));
-    const hasOutgoing = new Set(transitions.filter(t => stateNames.has(t.from)).map(t => t.from));
-
-    for (const s of wf.states ?? []) {
-        if (!hasIncoming.has(s.name)) g.setEdge('__START__', s.name, { label: '' }, `_s_${s.name}`);
-        if (!hasOutgoing.has(s.name)) g.setEdge(s.name, '__END__', { label: '' }, `_e_${s.name}`);
-    }
-
-    transitions.forEach((t, i) => {
-        if (stateNames.has(t.from) && stateNames.has(t.to)) {
-            g.setEdge(t.from, t.to, { label: t.eligible }, `t_${i}`);
-        }
-    });
-
-    dagreLayout(g);
-
-    // Extract node positions from Dagre
-    const nodes = new Map<string, LayoutNode>();
-    for (const n of g.nodes()) nodes.set(n, g.node(n) as unknown as LayoutNode);
-
-    // ── Reassign waypoints for side-channel edges using interval-based lane scheduling ──
-    //
-    // Dagre routes back-edges and long-range skip-edges through a shared x-corridor,
-    // causing all of them to visually overlap. Instead, we replace their waypoints
-    // with manually computed right-side lanes, assigning lanes via greedy interval
-    // scheduling so that edges with overlapping y-ranges never share a lane.
-
-    // Right boundary of all nodes
-    let nodeRightEdge = 0;
-    for (const [, nd] of nodes) nodeRightEdge = Math.max(nodeRightEdge, nd.x + nd.width / 2);
-
-    // ── Detect side-channel edges ─────────────────────────────────────────
-    // Two criteria:
-    //   1. Back-edges (target sits above source in the layout).
-    //   2. Any node whose incoming edges have pairwise-overlapping y-ranges.
-    //      These edges share the same approach corridor and would visually overlap
-    //      without explicit lane routing — even when they are forward edges and
-    //      their waypoints never exceed the node column boundary.
-
-    type EdgeDesc = { v: string; w: string; name?: string };
-    interface SideCandidate { e: EdgeDesc; minY: number; maxY: number; }
-
-    const ek = (e: EdgeDesc) => e.name ?? `${e.v}\0${e.w}`;
-    const yr = (a: LayoutNode, b: LayoutNode) => ({
-        min: Math.min(a.y, b.y),
-        max: Math.max(a.y, b.y),
-    });
-
-    const sideIds = new Set<string>();
-
-    // Criterion 1 — back-edges
-    for (const e of g.edges()) {
-        const src = nodes.get(e.v), tgt = nodes.get(e.w);
-        if (src && tgt && tgt.y < src.y - 5) sideIds.add(ek(e));
-    }
-
-    // Criterion 2 — pairwise overlapping y-ranges sharing a target
-    type EI = { e: EdgeDesc; src: LayoutNode; tgt: LayoutNode };
-    const byTarget = new Map<string, EI[]>();
-    for (const e of g.edges()) {
-        const src = nodes.get(e.v), tgt = nodes.get(e.w);
-        if (!src || !tgt) continue;
-        if (!byTarget.has(e.w)) byTarget.set(e.w, []);
-        byTarget.get(e.w)!.push({ e, src, tgt });
-    }
-    for (const [, inc] of byTarget) {
-        if (inc.length < 2) continue;
-        for (let i = 0; i < inc.length; i++) {
-            for (let j = i + 1; j < inc.length; j++) {
-                const ri = yr(inc[i].src, inc[i].tgt);
-                const rj = yr(inc[j].src, inc[j].tgt);
-                if (ri.min < rj.max && rj.min < ri.max) {
-                    sideIds.add(ek(inc[i].e));
-                    sideIds.add(ek(inc[j].e));
-                }
-            }
-        }
-    }
-
-    // Build the candidate list
-    const sideCandidates: SideCandidate[] = [];
-    for (const e of g.edges()) {
-        if (!sideIds.has(ek(e))) continue;
-        const src = nodes.get(e.v), tgt = nodes.get(e.w);
-        if (!src || !tgt) continue;
-        const { min: minY, max: maxY } = yr(src, tgt);
-        sideCandidates.push({ e, minY, maxY });
-    }
-
-    // Sort by minY so the sweep processes edges top-to-bottom
-    sideCandidates.sort((a, b) => a.minY - b.minY);
-
-    // Greedy interval-coloring: assign each edge the first lane whose last
-    // allocated edge ends (maxY) before this edge begins (minY).
-    // This is the classic "minimum number of rooms" scheduling problem.
-    const laneMaxY: number[] = []; // laneMaxY[i] = maxY of the last edge assigned to lane i
-    const LANE_ORIGIN = nodeRightEdge + 28;
-    const LANE_GAP = 22;
-
-    for (const { e, minY, maxY } of sideCandidates) {
-        const src = nodes.get(e.v)!;
-        const tgt = nodes.get(e.w)!;
-
-        let lane = laneMaxY.findIndex(endY => endY < minY - 4);
-        if (lane === -1) {
-            lane = laneMaxY.length;
-            laneMaxY.push(maxY);
-        } else {
-            laneMaxY[lane] = maxY;
-        }
-
-        const laneX = LANE_ORIGIN + lane * LANE_GAP;
-        const ed = g.edge(e) as { points?: Pt[] };
-        // Two waypoints: one at source y, one at target y — both at laneX.
-        // prepareEdges will prepend/append the actual node-boundary connection points.
-        ed.points = [
-            { x: laneX, y: src.y },
-            { x: laneX, y: tgt.y },
-        ];
-    }
-    // ── End lane scheduling ───────────────────────────────────────────────
-
-    const edges: LayoutEdge[] = [];
-    for (const e of g.edges()) {
-        const ed = g.edge(e) as { points?: Pt[]; label?: string };
-        edges.push({ from: e.v, to: e.w, points: ed.points ?? [], label: ed.label ?? '' });
-    }
-
-    // Width must cover any assigned lanes
-    let maxX = 0;
-    for (const [, nd] of nodes) maxX = Math.max(maxX, nd.x + nd.width / 2);
-    for (const edg of edges) for (const p of edg.points) maxX = Math.max(maxX, p.x);
-
-    const gd = g.graph() as { width?: number; height?: number };
+function makeStateNode(id: string, x: number, y: number): GraphNode {
     return {
-        nodes,
-        edges,
-        width: maxX + GRAPH_PAD * 2,
-        height: (gd.height ?? 400) + GRAPH_PAD * 2,
+        id,
+        label: id,
+        type: 'state',
+        x,
+        y,
+        width: stateWidth(id),
+        height: STATE_H,
     };
 }
 
-// ─── Geometry ─────────────────────────────────────────────────────────────────
-
-function rectBoundary(node: LayoutNode, dx: number, dy: number): Pt {
-    const hw = node.width / 2;
-    const hh = node.height / 2;
-    const len = Math.hypot(dx, dy);
-    if (len === 0) return { x: node.x, y: node.y };
-    const nx = dx / len, ny = dy / len;
-    const sx = nx !== 0 ? hw / Math.abs(nx) : Infinity;
-    const sy = ny !== 0 ? hh / Math.abs(ny) : Infinity;
-    const s = Math.min(sx, sy);
-    return { x: node.x + nx * s, y: node.y + ny * s };
+function stateOrder(workflow: WfxWorkflow): Map<string, number> {
+    return new Map((workflow.states ?? []).map((state, index) => [state.name, index]));
 }
 
-function circleBoundary(cx: number, cy: number, r: number, dx: number, dy: number): Pt {
-    const len = Math.hypot(dx, dy) || 1;
-    return { x: cx + (dx / len) * r, y: cy + (dy / len) * r };
+function isRejected(name: string): boolean {
+    return /reject|fail|error|cancel/i.test(name);
 }
 
-function getEdgeSide(dx: number, dy: number): EdgeSide {
-    if (Math.abs(dx) > Math.abs(dy)) {
-        return dx >= 0 ? 'right' : 'left';
+function compareByWorkflowOrder(order: Map<string, number>) {
+    return (a: string, b: string) =>
+        (order.get(a) ?? Number.MAX_SAFE_INTEGER) - (order.get(b) ?? Number.MAX_SAFE_INTEGER);
+}
+
+function buildPrimaryPath(
+    states: string[],
+    transitions: WfxTransition[],
+    terminalStates: Set<string>,
+    order: Map<string, number>,
+): string[] {
+    if (states.length === 0) return [];
+
+    const incoming = new Set(transitions.map(t => t.to));
+    const start = states.find(state => !incoming.has(state)) ?? states[0];
+    const outgoing = new Map<string, WfxTransition[]>();
+
+    for (const transition of transitions) {
+        if (!outgoing.has(transition.from)) outgoing.set(transition.from, []);
+        outgoing.get(transition.from)?.push(transition);
     }
-    return dy >= 0 ? 'bottom' : 'top';
+
+    for (const options of outgoing.values()) {
+        options.sort((a, b) => (order.get(a.to) ?? 0) - (order.get(b.to) ?? 0));
+    }
+
+    const path = [start];
+    const seen = new Set(path);
+    let current = start;
+
+    while (true) {
+        const options = (outgoing.get(current) ?? []).filter(t => !seen.has(t.to));
+        if (options.length === 0) break;
+
+        const next =
+            options.find(t => !terminalStates.has(t.to) && !isRejected(t.to)) ??
+            options.find(t => !isRejected(t.to)) ??
+            options[0];
+
+        path.push(next.to);
+        seen.add(next.to);
+        current = next.to;
+
+        if (terminalStates.has(current)) break;
+    }
+
+    return path;
 }
 
-function spreadLinear(slot: number, count: number, span: number): number {
+function spread(slot: number, count: number, gap: number): number {
     if (count <= 1) return 0;
-    const start = -span / 2;
-    const step = span / (count - 1);
-    return start + slot * step;
+    return (slot - (count - 1) / 2) * gap;
 }
 
-function rectPort(node: LayoutNode, side: EdgeSide, slot: number, count: number): Pt {
-    const hw = node.width / 2;
-    const hh = node.height / 2;
-    const xSpan = Math.max(0, node.width - 28);
-    const ySpan = Math.max(0, node.height - 16);
+function rectPort(node: GraphNode, side: 'top' | 'right' | 'bottom' | 'left', offset = 0): Pt {
+    if (side === 'top') return { x: node.x + offset, y: node.y - node.height / 2 };
+    if (side === 'right') return { x: node.x + node.width / 2, y: node.y + offset };
+    if (side === 'bottom') return { x: node.x + offset, y: node.y + node.height / 2 };
+    return { x: node.x - node.width / 2, y: node.y + offset };
+}
 
-    if (side === 'top' || side === 'bottom') {
+function circlePort(node: GraphNode, toward: Pt, radius: number): Pt {
+    const dx = toward.x - node.x;
+    const dy = toward.y - node.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return {
+        x: node.x + (dx / len) * radius,
+        y: node.y + (dy / len) * radius,
+    };
+}
+
+function cubic(start: Pt, c1: Pt, c2: Pt, end: Pt): string {
+    return [
+        `M ${ff(start.x)} ${ff(start.y)}`,
+        `C ${ff(c1.x)} ${ff(c1.y)} ${ff(c2.x)} ${ff(c2.y)} ${ff(end.x)} ${ff(end.y)}`,
+    ].join(' ');
+}
+
+function line(start: Pt, end: Pt): string {
+    return `M ${ff(start.x)} ${ff(start.y)} L ${ff(end.x)} ${ff(end.y)}`;
+}
+
+function midpoint(a: Pt, b: Pt): Pt {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function cubicPoint(start: Pt, c1: Pt, c2: Pt, end: Pt, t = 0.5): Pt {
+    const mt = 1 - t;
+    return {
+        x: mt ** 3 * start.x + 3 * mt ** 2 * t * c1.x + 3 * mt * t ** 2 * c2.x + t ** 3 * end.x,
+        y: mt ** 3 * start.y + 3 * mt ** 2 * t * c1.y + 3 * mt * t ** 2 * c2.y + t ** 3 * end.y,
+    };
+}
+
+function shiftPathX(path: string, dx: number): string {
+    let index = 0;
+    return path.replace(/-?\d+(?:\.\d+)?/g, value => {
+        const n = Number(value);
+        const shifted = index % 2 === 0 ? n + dx : n;
+        index += 1;
+        return ff(shifted);
+    });
+}
+
+function routeDirect(from: GraphNode, to: GraphNode, label: string, kind: EdgeKind): GraphEdge {
+    const start = from.type === 'start'
+        ? circlePort(from, to, START_R)
+        : rectPort(from, 'bottom');
+    const end = to.type === 'end'
+        ? circlePort(to, from, END_R)
+        : rectPort(to, 'top');
+
+    const deltaY = Math.max(22, Math.abs(end.y - start.y) * 0.46);
+    const c1 = { x: start.x, y: start.y + deltaY };
+    const c2 = { x: end.x, y: end.y - deltaY };
+    const path = Math.abs(start.x - end.x) < 2
+        ? line(start, end)
+        : cubic(start, c1, c2, end);
+
+    return {
+        from: from.id,
+        to: to.id,
+        label,
+        path,
+        labelPoint: label
+            ? Math.abs(start.x - end.x) < 2
+                ? midpoint(start, end)
+                : cubicPoint(start, c1, c2, end)
+            : undefined,
+        kind,
+    };
+}
+
+function routeSide(
+    from: GraphNode,
+    to: GraphNode,
+    label: string,
+    laneX: number,
+    slot: number,
+    slotCount: number,
+): GraphEdge {
+    const portOffset = Math.max(-8, Math.min(8, spread(slot, slotCount, 7)));
+    const start = rectPort(from, 'right', portOffset);
+    const end = rectPort(to, 'top', Math.max(-to.width / 2 + 10, Math.min(to.width / 2 - 10, portOffset)));
+    const c1 = { x: laneX, y: start.y };
+    const c2 = { x: laneX, y: end.y };
+    const path = cubic(start, c1, c2, end);
+
+    return {
+        from: from.id,
+        to: to.id,
+        label,
+        path,
+        labelPoint: label ? cubicPoint(start, c1, c2, end) : undefined,
+        kind: 'side',
+    };
+}
+
+function routeRejected(
+    from: GraphNode,
+    to: GraphNode,
+    label: string,
+    laneX: number,
+    slot: number,
+    slotCount: number,
+): GraphEdge {
+    const start = rectPort(from, 'right', Math.max(-8, Math.min(8, spread(slot, slotCount, 6))));
+    const targetOffset = Math.max(-to.width / 2 + 10, Math.min(to.width / 2 - 10, spread(slot, slotCount, 12)));
+    const end = rectPort(to, 'top', targetOffset);
+    const c1 = { x: laneX, y: start.y };
+    const c2 = { x: end.x, y: end.y - 44 };
+    const path = cubic(start, c1, c2, end);
+
+    return {
+        from: from.id,
+        to: to.id,
+        label,
+        path,
+        labelPoint: label ? cubicPoint(start, c1, c2, end) : undefined,
+        kind: 'side',
+    };
+}
+
+function routeTerminal(from: GraphNode, to: GraphNode, label: string, slot: number, slotCount: number): GraphEdge {
+    const start = rectPort(from, 'bottom', Math.max(-10, Math.min(10, spread(slot, slotCount, 8))));
+    const end = circlePort(to, start, END_R);
+    const bendY = Math.max(start.y + 26, to.y - 28);
+    const c1 = { x: start.x, y: bendY };
+    const c2 = { x: to.x, y: bendY };
+    const path = cubic(start, c1, c2, end);
+
+    return {
+        from: from.id,
+        to: to.id,
+        label,
+        path,
+        labelPoint: label ? cubicPoint(start, c1, c2, end) : undefined,
+        kind: 'end',
+    };
+}
+
+function sortTerminalStates(states: string[], order: Map<string, number>): string[] {
+    return [...states].sort((a, b) => {
+        const rejectDelta = Number(isRejected(a)) - Number(isRejected(b));
+        if (rejectDelta !== 0) return rejectDelta;
+        return compareByWorkflowOrder(order)(a, b);
+    });
+}
+
+interface WorkflowGraphProps {
+    workflow: WfxWorkflow;
+    followedStates?: string[];
+}
+
+function uniqueConsecutive(states: string[]): string[] {
+    return states.filter((state, index) => state && state !== states[index - 1]);
+}
+
+function buildGraph(workflow: WfxWorkflow, followedStates: string[] = []): BuiltGraph {
+    const stateNames = (workflow.states ?? []).map(state => state.name);
+    const validStates = new Set(stateNames);
+    const transitions = (workflow.transitions ?? []).filter(t => validStates.has(t.from) && validStates.has(t.to));
+    const order = stateOrder(workflow);
+    const followedPath = uniqueConsecutive(followedStates.filter(state => validStates.has(state)));
+    const activeStateIds = new Set(followedPath);
+    const activeEdgeIds = new Set(
+        followedPath.slice(0, -1).map((state, index) => `${state}->${followedPath[index + 1]}`),
+    );
+    const currentStateId = followedPath[followedPath.length - 1];
+
+    const hasHistory = followedPath.length > 0;
+
+    if (stateNames.length === 0) {
+        const startNode: GraphNode = {
+            id: START_ID,
+            label: '',
+            type: 'start',
+            x: CENTER_X,
+            y: TOP_PAD,
+            width: START_R * 2,
+            height: START_R * 2,
+        };
+
         return {
-            x: node.x + spreadLinear(slot, count, xSpan),
-            y: node.y + (side === 'bottom' ? hh : -hh),
+            nodes: [startNode],
+            edges: [],
+            width: CENTER_X * 2,
+            height: TOP_PAD * 2,
+            activeStateIds,
+            currentStateId,
+            hasHistory,
         };
     }
 
-    return {
-        x: node.x + (side === 'right' ? hw : -hw),
-        y: node.y + spreadLinear(slot, count, ySpan),
+    const outgoingStateNames = new Set(transitions.map(t => t.from));
+    const incomingStateNames = new Set(transitions.map(t => t.to));
+    const terminalStates = new Set(stateNames.filter(name => !outgoingStateNames.has(name)));
+    const primaryPath = buildPrimaryPath(stateNames, transitions, terminalStates, order);
+    const terminalList = sortTerminalStates(
+        stateNames.filter(name => terminalStates.has(name)),
+        order,
+    );
+    const trunk = [
+        ...primaryPath.filter(name => !terminalStates.has(name)),
+        ...stateNames.filter(name => !terminalStates.has(name) && !primaryPath.includes(name)),
+    ];
+
+    const nodes = new Map<string, GraphNode>();
+    const firstTrunkX = CENTER_X + (TRUNK_X_OFFSETS[0] ?? 0);
+    const startNode: GraphNode = {
+        id: START_ID,
+        label: '',
+        type: 'start',
+        x: firstTrunkX,
+        y: TOP_PAD,
+        width: START_R * 2,
+        height: START_R * 2,
     };
-}
+    nodes.set(START_ID, startNode);
 
-function circlePort(node: LayoutNode, side: EdgeSide, slot: number, count: number): Pt {
-    const radius = node.type === 'start' ? START_R : END_R;
-    const baseAngle =
-        side === 'right' ? 0 :
-        side === 'bottom' ? Math.PI / 2 :
-        side === 'left' ? Math.PI :
-        -Math.PI / 2;
-    const spread = Math.min(Math.PI / 2, Math.max(0, count - 1) * 0.24);
-    const angle = baseAngle + (count <= 1 ? 0 : -spread / 2 + (spread * slot) / (count - 1));
-
-    return {
-        x: node.x + Math.cos(angle) * radius,
-        y: node.y + Math.sin(angle) * radius,
-    };
-}
-
-function nodePort(node: LayoutNode, side: EdgeSide, slot: number, count: number, dx: number, dy: number): Pt {
-    if (node.type === 'state') {
-        return rectPort(node, side, slot, count);
-    }
-
-    if (count <= 1) {
-        const radius = node.type === 'start' ? START_R : END_R;
-        return circleBoundary(node.x, node.y, radius, dx, dy);
-    }
-
-    return circlePort(node, side, slot, count);
-}
-
-function prepareEdges(nodes: Map<string, LayoutNode>, edges: LayoutEdge[]): PreparedEdge[] {
-    const outgoingGroups = new Map<string, number[]>();
-    const incomingGroups = new Map<string, number[]>();
-
-    edges.forEach((e, index) => {
-        const src = nodes.get(e.from);
-        const tgt = nodes.get(e.to);
-        if (!src || !tgt) return;
-
-        const toFirst: Pt = e.points[0] ?? tgt;
-        const fromLast: Pt = e.points[e.points.length - 1] ?? src;
-        const srcSide = getEdgeSide(toFirst.x - src.x, toFirst.y - src.y);
-        const tgtSide = getEdgeSide(fromLast.x - tgt.x, fromLast.y - tgt.y);
-
-        const outgoingKey = `${e.from}:out:${srcSide}`;
-        const incomingKey = `${e.to}:in:${tgtSide}`;
-
-        if (!outgoingGroups.has(outgoingKey)) outgoingGroups.set(outgoingKey, []);
-        if (!incomingGroups.has(incomingKey)) incomingGroups.set(incomingKey, []);
-
-        outgoingGroups.get(outgoingKey)?.push(index);
-        incomingGroups.get(incomingKey)?.push(index);
+    trunk.forEach((name, index) => {
+        const offset =
+            TRUNK_X_OFFSETS[index] ??
+            TRUNK_X_OFFSETS[TRUNK_X_OFFSETS.length - 1] - (index - TRUNK_X_OFFSETS.length + 1) * 8;
+        nodes.set(name, makeStateNode(name, CENTER_X + offset, FIRST_STATE_Y + index * RANK_GAP));
     });
 
-    return edges.map((e, index) => {
-        const src = nodes.get(e.from);
-        const tgt = nodes.get(e.to);
-        if (!src || !tgt) {
-            return { ...e, resolvedPoints: e.points };
+    const bottomY = FIRST_STATE_Y + Math.max(trunk.length, 1) * RANK_GAP + BOTTOM_GAP;
+    terminalList.forEach((name, index) => {
+        nodes.set(name, makeStateNode(name, CENTER_X + spread(index, terminalList.length, H_GAP), bottomY));
+    });
+
+    for (const name of stateNames) {
+        if (nodes.has(name)) continue;
+        nodes.set(name, makeStateNode(name, CENTER_X, bottomY));
+    }
+
+    const endNode: GraphNode = {
+        id: END_ID,
+        label: '',
+        type: 'end',
+        x: CENTER_X,
+        y: bottomY + BOTTOM_GAP,
+        width: END_R * 2,
+        height: END_R * 2,
+    };
+    nodes.set(END_ID, endNode);
+
+    const primaryPairs = new Set(primaryPath.slice(0, -1).map((name, index) => `${name}->${primaryPath[index + 1]}`));
+    const transitionEdges: GraphEdge[] = [];
+    const sideTransitions = transitions.filter(t => !primaryPairs.has(`${t.from}->${t.to}`));
+    const sideSlots = new Map<string, number>();
+
+    sideTransitions
+        .filter(t => isRejected(t.to))
+        .sort((a, b) => (nodes.get(a.from)?.y ?? 0) - (nodes.get(b.from)?.y ?? 0))
+        .forEach((transition, index, list) => {
+            sideSlots.set(`${transition.from}->${transition.to}`, list.length - index - 1);
+        });
+
+    for (const transition of transitions) {
+        const from = nodes.get(transition.from);
+        const to = nodes.get(transition.to);
+        if (!from || !to) continue;
+
+        const key = `${transition.from}->${transition.to}`;
+        if (primaryPairs.has(key)) {
+            transitionEdges.push(routeDirect(from, to, transition.eligible, 'direct'));
+            continue;
         }
 
-        const wp = e.points;
-        const toFirst: Pt = wp[0] ?? tgt;
-        const fromLast: Pt = wp[wp.length - 1] ?? src;
-        const srcDx = toFirst.x - src.x;
-        const srcDy = toFirst.y - src.y;
-        const tgtDx = fromLast.x - tgt.x;
-        const tgtDy = fromLast.y - tgt.y;
-        const srcSide = getEdgeSide(srcDx, srcDy);
-        const tgtSide = getEdgeSide(tgtDx, tgtDy);
+        if (isRejected(transition.to)) {
+            const rejectedCount = sideTransitions.filter(t => isRejected(t.to)).length;
+            const slot = sideSlots.get(key) ?? 0;
+            const laneX = to.x + to.width / 2 + 28 + slot * 24;
+            transitionEdges.push(routeRejected(from, to, transition.eligible, laneX, slot, Math.max(1, rejectedCount)));
+            continue;
+        }
 
-        const outgoingKey = `${e.from}:out:${srcSide}`;
-        const incomingKey = `${e.to}:in:${tgtSide}`;
-        const outgoing = outgoingGroups.get(outgoingKey) ?? [index];
-        const incoming = incomingGroups.get(incomingKey) ?? [index];
-        const start = nodePort(src, srcSide, outgoing.indexOf(index), outgoing.length, srcDx, srcDy);
-        const end = nodePort(tgt, tgtSide, incoming.indexOf(index), incoming.length, tgtDx, tgtDy);
+        if (terminalStates.has(transition.to)) {
+            transitionEdges.push(routeDirect(from, to, transition.eligible, 'terminal'));
+            continue;
+        }
 
-        return {
-            ...e,
-            resolvedPoints: [start, ...wp, end],
-        };
-    });
-}
-
-// ─── Path rendering ───────────────────────────────────────────────────────────
-
-/**
- * Converts a list of points to a smooth cubic bezier path using
- * Catmull-Rom parameterisation (tension = 1/6).
- * The curve passes exactly through every point.
- */
-function smoothD(pts: Pt[]): string {
-    if (pts.length < 2) return '';
-    if (pts.length === 2) {
-        return `M ${ff(pts[0].x)} ${ff(pts[0].y)} L ${ff(pts[1].x)} ${ff(pts[1].y)}`;
+        const laneX = Math.max(from.x, to.x) + Math.max(from.width, to.width) / 2 + 36;
+        transitionEdges.push(routeSide(from, to, transition.eligible, laneX, 0, 1));
     }
 
-    let d = `M ${ff(pts[0].x)} ${ff(pts[0].y)}`;
+    const startStates = stateNames.filter(name => !incomingStateNames.has(name));
+    const startEdges = (startStates.length > 0 ? startStates : [stateNames[0]])
+        .map(name => nodes.get(name))
+        .filter((node): node is GraphNode => Boolean(node))
+        .map(node => routeDirect(startNode, node, '', 'start'));
 
-    for (let i = 1; i < pts.length; i++) {
-        const p0 = pts[Math.max(0, i - 2)];
-        const p1 = pts[i - 1];
-        const p2 = pts[i];
-        const p3 = pts[Math.min(pts.length - 1, i + 1)];
+    const endEdges = terminalList
+        .map(name => nodes.get(name))
+        .filter((node): node is GraphNode => Boolean(node))
+        .map((node, index) => routeTerminal(node, endNode, '', index, terminalList.length));
 
-        const cp1x = p1.x + (p2.x - p0.x) / 6;
-        const cp1y = p1.y + (p2.y - p0.y) / 6;
-        const cp2x = p2.x - (p3.x - p1.x) / 6;
-        const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-        d += ` C ${ff(cp1x)},${ff(cp1y)} ${ff(cp2x)},${ff(cp2y)} ${ff(p2.x)},${ff(p2.y)}`;
+    const edges = [...startEdges, ...transitionEdges, ...endEdges];
+    for (const edge of edges) {
+        edge.active =
+            activeEdgeIds.has(`${edge.from}->${edge.to}`) ||
+            (edge.from === START_ID && edge.to === followedPath[0]) ||
+            (edge.to === END_ID && activeStateIds.has(edge.from));
     }
 
-    return d;
+    const allNodes = [...nodes.values()];
+
+    const nodeMinX = Math.min(...allNodes.map(node => node.x - node.width / 2));
+    const nodeMaxX = Math.max(...allNodes.map(node => node.x + node.width / 2));
+    const labelMaxX = Math.max(
+        nodeMaxX,
+        ...edges.map(edge => (edge.labelPoint?.x ?? nodeMaxX) + (edge.label.length * 5 + 10)),
+    );
+
+    const minX = Math.min(nodeMinX, START_R);
+    const maxX = Math.max(nodeMaxX, labelMaxX);
+    const shiftX = PAD_X - minX;
+
+    for (const node of allNodes) node.x += shiftX;
+    for (const edge of edges) {
+        edge.path = shiftPathX(edge.path, shiftX);
+        if (edge.labelPoint) edge.labelPoint.x += shiftX;
+    }
+
+    return {
+        nodes: allNodes,
+        edges,
+        width: Math.ceil(maxX - minX + PAD_X * 2),
+        height: Math.ceil(endNode.y + END_R + PAD_BOTTOM),
+        activeStateIds,
+        currentStateId,
+        hasHistory,
+    };
 }
 
-// ─── WorkflowGraph ────────────────────────────────────────────────────────────
-
-export function WorkflowGraph({ workflow }: { workflow: WfxWorkflow }) {
-    const { nodes, width, height, preparedEdges } = useMemo(() => {
-        const layout = buildLayout(workflow);
-        return {
-            ...layout,
-            preparedEdges: prepareEdges(layout.nodes, layout.edges),
-        };
-    }, [workflow]);
+export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphProps) {
+    const markerBaseId = useId().replace(/:/g, '');
+    const markerId = `${markerBaseId}-arrow`;
+    const activeMarkerId = `${markerBaseId}-active-arrow`;
+    const graph = useMemo(() => buildGraph(workflow, followedStates), [followedStates, workflow]);
 
     return (
         <div className="w-full overflow-x-auto">
             <svg
-                width={width}
-                height={height}
-                viewBox={`0 0 ${width} ${height}`}
-                style={{ maxWidth: '100%', display: 'block', margin: '0 auto' }}
+                width={graph.width}
+                height={graph.height}
+                viewBox={`0 0 ${graph.width} ${graph.height}`}
+                className="mx-auto block max-w-full"
+                role="img"
+                aria-label={`${workflow.name} workflow graph`}
             >
                 <defs>
-                    {/*
-                     * Arrow marker: viewBox 0 0 10 6, tip at (10, 3).
-                     * markerUnits="userSpaceOnUse" keeps the size fixed in
-                     * user-space (8×6 px) regardless of stroke width.
-                     * refX=10 places the TIP at the path endpoint so the
-                     * arrowhead never overlaps the target node (which is drawn
-                     * on top anyway, but this keeps geometry clean).
-                     */}
                     <marker
-                        id={ARROW_ID}
+                        id={markerId}
                         viewBox="0 0 10 6"
                         refX="10"
                         refY="3"
                         markerUnits="userSpaceOnUse"
-                        markerWidth="10"
+                        markerWidth="8"
                         markerHeight="6"
                         orient="auto"
                     >
-                        <path
-                            d="M 0 0 L 10 3 L 0 6 Z"
-                            style={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
+                        <path d="M 0 0 L 10 3 L 0 6 Z" className="fill-muted-foreground" />
+                    </marker>
+                    <marker
+                        id={activeMarkerId}
+                        viewBox="0 0 10 6"
+                        refX="10"
+                        refY="3"
+                        markerUnits="userSpaceOnUse"
+                        markerWidth="8"
+                        markerHeight="6"
+                        orient="auto"
+                    >
+                        <path d="M 0 0 L 10 3 L 0 6 Z" className="fill-primary" />
                     </marker>
                 </defs>
 
-                {/* Edges first — nodes render on top and naturally cover any overlap */}
-                {preparedEdges.map((e, i) => {
-                    const pts = e.resolvedPoints;
-                    const d = smoothD(pts);
-                    if (!d) return null;
+                {graph.edges.map((edge, index) => (
+                    <path
+                        key={`${edge.from}-${edge.to}-${index}`}
+                        d={edge.path}
+                        fill="none"
+                        strokeWidth={edge.active ? 2 : 1}
+                        markerEnd={`url(#${edge.active ? activeMarkerId : markerId})`}
+                        className={
+                            edge.active
+                                ? 'stroke-primary'
+                                : graph.hasHistory
+                                ? 'stroke-muted-foreground/25'
+                                : edge.kind === 'direct'
+                                ? 'stroke-muted-foreground/70'
+                                : 'stroke-muted-foreground/55'
+                        }
+                    />
+                ))}
 
-                    // Label goes at the midpoint of the interior waypoints
-                    const labelPts = e.points.length > 0 ? e.points : pts;
-                    const mid = labelPts[Math.floor(labelPts.length / 2)] ?? pts[Math.floor(pts.length / 2)];
-                    const labelW = e.label ? e.label.length * 6 + 10 : 0;
+                {graph.edges.map((edge, index) => {
+                    if (!edge.label || !edge.labelPoint) return null;
+
+                    const labelWidth = edge.label.length * 6 + 10;
 
                     return (
-                        <g key={i}>
-                            <path
-                                d={d}
-                                fill="none"
-                                strokeWidth={1.5}
-                                markerEnd={`url(#${ARROW_ID})`}
-                                style={{ stroke: 'hsl(var(--muted-foreground) / 0.55)' }}
+                        <g key={`${edge.from}-${edge.to}-${index}-label`}>
+                            <rect
+                                x={edge.labelPoint.x - labelWidth / 2}
+                                y={edge.labelPoint.y - 7}
+                                width={labelWidth}
+                                height={13}
+                                rx={2}
+                                className="fill-background stroke-background"
+                                strokeWidth={3}
                             />
-                            {e.label && (
-                                <>
-                                    <rect
-                                        x={mid.x - labelW / 2}
-                                        y={mid.y - 7}
-                                        width={labelW}
-                                        height={13}
-                                        rx={2}
-                                        style={{ fill: 'hsl(var(--background))' }}
-                                    />
-                                    <text
-                                        x={mid.x}
-                                        y={mid.y}
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fontSize={9}
-                                        fontFamily="inherit"
-                                        style={{ fill: 'hsl(var(--muted-foreground))' }}
-                                    >
-                                        {e.label}
-                                    </text>
-                                </>
-                            )}
+                            <text
+                                x={edge.labelPoint.x}
+                                y={edge.labelPoint.y}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fontSize={9}
+                                className="fill-muted-foreground"
+                            >
+                                {edge.label}
+                            </text>
                         </g>
                     );
                 })}
 
-                {/* Nodes */}
-                {Array.from(nodes.entries()).map(([name, nd]) => {
-                    if (nd.type === 'start') {
+                {graph.nodes.map(node => {
+                    if (node.type === 'start') {
                         return (
                             <circle
-                                key={name}
-                                cx={nd.x}
-                                cy={nd.y}
+                                key={node.id}
+                                cx={node.x}
+                                cy={node.y}
                                 r={START_R}
-                                style={{ fill: 'hsl(var(--foreground))' }}
+                                className="fill-foreground"
                             />
                         );
                     }
 
-                    if (nd.type === 'end') {
+                    if (node.type === 'end') {
                         return (
-                            <g key={name}>
+                            <g key={node.id}>
                                 <circle
-                                    cx={nd.x}
-                                    cy={nd.y}
+                                    cx={node.x}
+                                    cy={node.y}
                                     r={END_R}
-                                    style={{ fill: 'none', stroke: 'hsl(var(--foreground))', strokeWidth: 2 }}
+                                    fill="none"
+                                    strokeWidth={1.5}
+                                    className="stroke-foreground"
                                 />
-                                <circle
-                                    cx={nd.x}
-                                    cy={nd.y}
-                                    r={END_R - 4}
-                                    style={{ fill: 'hsl(var(--foreground))' }}
-                                />
+                                <circle cx={node.x} cy={node.y} r={END_R - 4} className="fill-foreground" />
                             </g>
                         );
                     }
 
-                    const rx = nd.x - nd.width / 2;
-                    const ry = nd.y - nd.height / 2;
+                    const isActive = graph.activeStateIds.has(node.id);
+                    const isCurrent = graph.currentStateId === node.id;
+
                     return (
-                        <g key={name}>
+                        <g key={node.id}>
                             <rect
-                                x={rx}
-                                y={ry}
-                                width={nd.width}
-                                height={nd.height}
-                                rx={6}
-                                style={{
-                                    fill: 'hsl(var(--primary) / 0.1)',
-                                    stroke: 'hsl(var(--primary) / 0.8)',
-                                    strokeWidth: 1.5,
-                                }}
+                                x={node.x - node.width / 2}
+                                y={node.y - node.height / 2}
+                                width={node.width}
+                                height={node.height}
+                                rx={3}
+                                className={
+                                    isCurrent
+                                        ? 'fill-primary/30 stroke-primary'
+                                        : isActive
+                                        ? 'fill-primary/15 stroke-primary'
+                                        : graph.hasHistory
+                                        ? 'fill-card stroke-muted-foreground/25'
+                                        : 'fill-primary/10 stroke-primary/75'
+                                }
+                                strokeWidth={isCurrent ? 2 : isActive ? 1.5 : 1}
                             />
                             <text
-                                x={nd.x}
-                                y={nd.y}
+                                x={node.x}
+                                y={node.y}
                                 textAnchor="middle"
                                 dominantBaseline="middle"
-                                fontSize={11}
-                                fontFamily="inherit"
-                                style={{ fill: 'hsl(var(--foreground))' }}
+                                fontSize={10}
+                                className="fill-foreground"
                             >
-                                {nd.label}
+                                {node.label}
                             </text>
                         </g>
                     );

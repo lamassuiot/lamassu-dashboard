@@ -113,34 +113,32 @@ export default function WorkflowDetailsPage() {
 
             <Separator />
 
-            {/* Graph */}
-            <div>
-                <p className="text-sm font-semibold mb-4">State Machine</p>
-                <WorkflowGraph workflow={workflow} />
-            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+                <div className="min-w-0">
+                    <p className="text-sm font-semibold mb-4">State Machine</p>
+                    <WorkflowGraph workflow={workflow} />
+                </div>
 
-            <Separator />
-
-            {/* JSON */}
-            <div>
-                <p className="text-sm font-semibold mb-3">Definition</p>
-                <div className="rounded-md overflow-hidden border">
-                    <MonacoEditor
-                        height="500px"
-                        language="json"
-                        theme={monacoTheme}
-                        value={JSON.stringify(workflow, null, 2)}
-                        options={{
-                            readOnly: true,
-                            minimap: { enabled: false },
-                            scrollBeyondLastLine: false,
-                            fontSize: 12,
-                            lineNumbers: 'off',
-                            folding: true,
-                            wordWrap: 'on',
-                            contextmenu: false,
-                        }}
-                    />
+                <div className="min-w-0">
+                    <p className="text-sm font-semibold mb-3">Definition</p>
+                    <div className="rounded-md overflow-hidden border">
+                        <MonacoEditor
+                            height="650px"
+                            language="json"
+                            theme={monacoTheme}
+                            value={JSON.stringify(workflow, null, 2)}
+                            options={{
+                                readOnly: true,
+                                minimap: { enabled: false },
+                                scrollBeyondLastLine: false,
+                                fontSize: 12,
+                                lineNumbers: 'off',
+                                folding: true,
+                                wordWrap: 'on',
+                                contextmenu: false,
+                            }}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

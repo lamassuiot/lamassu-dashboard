@@ -94,7 +94,7 @@ export interface ListJobsParams {
     group?: string;
     clientId?: string;
     workflow?: string;
-    tag?: string;
+    tag?: string[];
 }
 
 export async function fetchJobs(params: ListJobsParams = {}): Promise<PaginatedJobList> {
@@ -106,14 +106,24 @@ export async function fetchJobs(params: ListJobsParams = {}): Promise<PaginatedJ
     if (params.group) q.set('group', params.group);
     if (params.clientId) q.set('clientId', params.clientId);
     if (params.workflow) q.set('workflow', params.workflow);
-    if (params.tag) q.set('tag', params.tag);
+    if (params.tag?.length) params.tag.forEach((t) => q.append('tag', t));
 
     const response = await apiFetch(`${get_WFX_API_BASE_URL()}/jobs?${q}`);
     return handleApiError(response, 'Failed to fetch jobs');
 }
 
-export async function fetchJob(id: string): Promise<WfxJob> {
-    const response = await apiFetch(`${get_WFX_API_BASE_URL()}/jobs/${encodeURIComponent(id)}`);
+export interface FetchJobOptions {
+    history?: boolean;
+}
+
+export async function fetchJob(id: string, options: FetchJobOptions = {}): Promise<WfxJob> {
+    const q = new URLSearchParams();
+    if (options.history) q.set('history', 'True');
+
+    const query = q.toString();
+    const response = await apiFetch(
+        `${get_WFX_API_BASE_URL()}/jobs/${encodeURIComponent(id)}${query ? `?${query}` : ''}`,
+    );
     return handleApiError(response, 'Failed to fetch job');
 }
 

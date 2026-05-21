@@ -14,6 +14,7 @@ interface TagInputProps {
   placeholder?: string;
   className?: string;
   id?: string;
+  showHint?: boolean;
 }
 
 export const TagInput: React.FC<TagInputProps> = ({
@@ -21,7 +22,8 @@ export const TagInput: React.FC<TagInputProps> = ({
   onChange,
   placeholder = "Add tags...",
   className,
-  id
+  id,
+  showHint = true,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const tags = Array.isArray(value) ? value : [];
@@ -88,7 +90,7 @@ export const TagInput: React.FC<TagInputProps> = ({
           autoComplete="off"
         />
       </label>
-      <p className="text-xs text-muted-foreground">Press Enter to add a tag. Click 'x' on a tag to remove it.</p>
+      {showHint && <p className="text-xs text-muted-foreground">Press Enter to add a tag. Click 'x' on a tag to remove it.</p>}
     </div>
   );
 };
