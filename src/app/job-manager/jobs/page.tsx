@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { format as formatDate, parseISO, isValid } from 'date-fns';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import {
     fetchJobs,
     resolveJobGroup,
@@ -24,16 +24,6 @@ import {
 } from '@/components/shared/filters/JobFilterBar';
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
-
-function formatIso(value: string | null | undefined): string {
-    if (!value) return '—';
-    try {
-        const d = parseISO(value);
-        return isValid(d) ? formatDate(d, 'dd/MM/yyyy HH:mm:ss') : value;
-    } catch {
-        return value;
-    }
-}
 
 function StatusBadge({ state }: { state: string | undefined }) {
     if (!state) return <span className="text-muted-foreground text-xs">—</span>;
@@ -234,11 +224,11 @@ export default function JobsPage() {
                                             <TableCell>
                                                 <GroupBadge group={group} />
                                             </TableCell>
-                                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                                                {formatIso(job.stime)}
+                                            <TableCell>
+                                                {job.stime ? <DateDisplay date={job.stime} className="items-center" /> : <span className="text-xs text-muted-foreground">—</span>}
                                             </TableCell>
-                                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                                                {formatIso(job.mtime)}
+                                            <TableCell>
+                                                {job.mtime ? <DateDisplay date={job.mtime} className="items-center" /> : <span className="text-xs text-muted-foreground">—</span>}
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button
