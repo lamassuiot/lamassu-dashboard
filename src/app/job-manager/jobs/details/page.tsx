@@ -132,11 +132,6 @@ export default function JobDetailsPage() {
             value: group ?? 'N/A',
             hint: 'Resolved workflow group',
         },
-        {
-            label: 'Tags',
-            value: (job.tags?.length ?? 0).toString(),
-            hint: job.tags?.length === 1 ? 'Classification label' : 'Classification labels',
-        },
     ];
 
     return (
@@ -173,41 +168,19 @@ export default function JobDetailsPage() {
                                     <h1 className="break-all text-2xl font-semibold tracking-tight">
                                         {job.id}
                                     </h1>
-                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                        <span className="text-xs font-medium text-muted-foreground">Client</span>
-                                        <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">
-                                            {job.clientId ?? 'N/A'}
-                                        </code>
-                                    </div>
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <div
-                                        className={cn(
-                                            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
-                                            statusPillClass,
-                                        )}
-                                    >
-                                        <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass)} />
-                                        {job.status?.state ?? 'UNKNOWN'}
-                                    </div>
-
                                     {job.workflow?.name && (
                                         <Badge variant="secondary" className="text-xs font-mono">
                                             {job.workflow.name}
-                                        </Badge>
-                                    )}
-
-                                    {group && (
-                                        <Badge variant="outline" className="text-xs">
-                                            {group}
                                         </Badge>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="grid gap-4 sm:grid-cols-4 xl:min-w-[520px]">
+                        <div className="grid gap-4 sm:grid-cols-2 xl:min-w-[360px]">
                             {summaryCards.map((item, index) => (
                                 <div
                                     key={item.label}
@@ -294,6 +267,14 @@ export default function JobDetailsPage() {
                                         <DetailInfoRow label="Group" value={group ?? 'N/A'} />
                                         <DetailInfoRow label="Created" value={job.stime ? <DateDisplay date={job.stime} showRelative={true} /> : '-'} />
                                         <DetailInfoRow label="Modified" value={job.mtime ? <DateDisplay date={job.mtime} showRelative={true} /> : '-'} />
+                                        <DetailInfoRow
+                                            label="Tags"
+                                            value={
+                                                job.tags?.length
+                                                    ? <div className="flex flex-wrap gap-1">{job.tags.map(t => <Badge key={t} variant="secondary" className="text-xs font-mono">{t}</Badge>)}</div>
+                                                    : <span className="text-xs text-muted-foreground">—</span>
+                                            }
+                                        />
                                     </DetailInfoRows>
                                 </DetailSectionCard>
 
@@ -305,7 +286,7 @@ export default function JobDetailsPage() {
                                 >
                                     {job.status?.context && Object.keys(job.status.context).length > 0 ? (
                                         <Tabs defaultValue="fields" className="w-full">
-                                            <div className="border-b px-1">
+                                            <div className="border-b px-0">
                                                 <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
                                                     <TabsTrigger value="fields" className={INNER_TAB_TRIGGER_CLASS}>
                                                         <LayoutList className="h-3.5 w-3.5" />
