@@ -18,6 +18,10 @@ import {
   Shield,
   ShieldAlert,
 } from 'lucide-react';
+import AWSKMSLogo from "@/components/shared/CryptoEngineIcons/AWS-KMS.png";
+import AWSSMLogo from "@/components/shared/CryptoEngineIcons/AWS-SM.png";
+import VaultLogo from "@/components/shared/CryptoEngineIcons/HASHICORP-VAULT.png";
+import PKCS11Logo from "@/components/shared/CryptoEngineIcons/PKCS11.png";
 
 const formatEngineType = (type: string) => type.replaceAll('_', ' ');
 
