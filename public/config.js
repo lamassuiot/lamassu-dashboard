@@ -30,7 +30,7 @@ window.lamassuConfig = {
     // --- Authentication (OIDC) ---
     // Set to `false` to disable OIDC authentication and use a mock user for development.
     // In a production environment, this should always be `true`.
-    LAMASSU_AUTH_ENABLED: true,
+    LAMASSU_AUTH_ENABLED: false,
   
     // The OIDC provider's URL. All OIDC endpoints (.well-known, authorization, token)
     // are relative to this authority.

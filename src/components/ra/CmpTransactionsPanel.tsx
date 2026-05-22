@@ -72,7 +72,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
     raId,
     withCard = true,
     title = 'CMP Transactions',
-    description = "CMP enrollment transactions for this RA. Includes active (PENDING / ISSUED), completed (CONFIRMED), revoked (REVOKED), and failed (ISSUE_FAILED) rows.",
+    description = "In-flight CMP enrollment transactions for this RA (PENDING, ISSUED, ISSUE_FAILED). Completed enrollments are shown in the Issued Certificates tab — switch the State filter to see CONFIRMED or REVOKED rows here.",
     extraFilter,
     hideStateFilter = false,
     emptyMessage = 'No CMP transactions for this RA.',
@@ -82,8 +82,17 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const [stateFilter, setStateFilter] = useState<'all' | 'PENDING' | 'ISSUED' | 'ISSUE_FAILED' | 'CONFIRMED' | 'REVOKED'>('all');
-    const [kindFilter, setKindFilter] = useState<'all' | 'reenroll' | 'enroll'>('all');
+    // When an extraFilter already scopes the rows (e.g. the 3-tab layout
+    // passes state[in]…), default to "all" so we don't double-filter. When
+    // used standalone, default to "inflight" for the classic behaviour.
+    const [stateFilter, setStateFilter] = useState<'inflight' | 'all' | 'completed' | 'PENDING' | 'ISSUED' | 'ISSUE_FAILED' | 'CONFIRMED' | 'REVOKED'>(
+        extraFilter ? 'all' : 'inflight',
+    );
+    // Operation filter distinguishes the three CMP body tags that create a
+    // transaction: ir (initial), cr (initial), and kur (re-enrollment).
+    // Older rows lack a stored request_type — fall back to is_reenrollment
+    // when querying so the filter still works against the existing data.
+    const [kindFilter, setKindFilter] = useState<'all' | 'ir' | 'cr' | 'kur'>('all');
     const [pageSize, setPageSize] = useState(PAGE_SIZES[1]);
     const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
     const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -99,9 +108,24 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
             params.set('sort_mode', 'desc');
             const bookmark = bookmarkStack[currentPageIndex];
             if (bookmark) params.set('bookmark', bookmark);
-            if (stateFilter !== 'all') params.append('filter', `state[equal]${stateFilter}`);
+            // Translate the virtual "inflight" / "completed" groups into a
+            // state[in]A,B,C filter so the server only sends back rows the
+            // user actually wants to see. Single-state selections still use
+            // a plain state[equal] filter for clarity in logs.
+            switch (stateFilter) {
+                case 'all':
+                    break;
+                case 'inflight':
+                    params.append('filter', 'state[in]PENDING,ISSUED,ISSUE_FAILED');
+                    break;
+                case 'completed':
+                    params.append('filter', 'state[in]CONFIRMED,REVOKED');
+                    break;
+                default:
+                    params.append('filter', `state[equal]${stateFilter}`);
+            }
             if (kindFilter !== 'all') {
-                params.append('filter', `is_reenrollment[equal]${kindFilter === 'reenroll'}`);
+                params.append('filter', `request_type[equal]${kindFilter}`);
             }
             if (extraFilter) {
                 for (const f of extraFilter) params.append('filter', f);
@@ -161,14 +185,16 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
             <div className="flex flex-wrap items-center gap-2">
                 {!hideStateFilter && (
                     <Select value={stateFilter} onValueChange={(v) => { setStateFilter(v as any); resetPagination(); }}>
-                        <SelectTrigger className="w-[150px]"><SelectValue placeholder="State" /></SelectTrigger>
+                        <SelectTrigger className="w-[180px]"><SelectValue placeholder="State" /></SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="inflight">In-flight (default)</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
                             <SelectItem value="all">All states</SelectItem>
                             <SelectItem value="PENDING">PENDING</SelectItem>
                             <SelectItem value="ISSUED">ISSUED</SelectItem>
+                            <SelectItem value="ISSUE_FAILED">ISSUE_FAILED</SelectItem>
                             <SelectItem value="CONFIRMED">CONFIRMED</SelectItem>
                             <SelectItem value="REVOKED">REVOKED</SelectItem>
-                            <SelectItem value="ISSUE_FAILED">ISSUE_FAILED</SelectItem>
                         </SelectContent>
                     </Select>
                 )}
@@ -176,8 +202,9 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                     <SelectTrigger className="w-[150px]"><SelectValue placeholder="Operation" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All operations</SelectItem>
-                        <SelectItem value="enroll">IR/CR (initial)</SelectItem>
-                        <SelectItem value="reenroll">KUR (re-enroll)</SelectItem>
+                        <SelectItem value="ir">IR (initialization)</SelectItem>
+                        <SelectItem value="cr">CR (certification)</SelectItem>
+                        <SelectItem value="kur">KUR (re-enroll)</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button variant="outline" size="icon" onClick={onRefresh} disabled={isLoading} title="Refresh">
@@ -206,6 +233,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                             <TableHead className="min-w-[220px]">Transaction ID</TableHead>
                             <TableHead>State</TableHead>
                             <TableHead>Operation</TableHead>
+                            <TableHead>Device ID</TableHead>
                             <TableHead>Certificate</TableHead>
                             <TableHead>Created</TableHead>
                             <TableHead>Confirmed</TableHead>
@@ -215,20 +243,28 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                     <TableBody>
                         {isLoading && transactions.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                                     <Loader2 className="inline mr-2 h-4 w-4 animate-spin" /> Loading…
                                 </TableCell>
                             </TableRow>
                         )}
                         {!isLoading && transactions.length === 0 && !error && (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                                     {emptyMessage}
                                 </TableCell>
                             </TableRow>
                         )}
                         {transactions.map((tx) => {
                             const badge = stateBadgeVariant(tx.state);
+                            // Prefer the persisted request_type; fall back to
+                            // is_reenrollment for legacy rows where the field
+                            // wasn't populated at insert time. "ir/cr" remains
+                            // the legitimate display when we cannot tell the
+                            // two apart for an old initial-enrollment row.
+                            const opLabel = tx.request_type
+                                ? tx.request_type
+                                : (tx.is_reenrollment ? 'kur' : 'ir/cr');
                             return (
                                 <TableRow key={tx.transaction_id}>
                                     <TableCell className="font-mono text-xs">
@@ -249,14 +285,27 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                         <Badge variant={badge.variant} className={badge.className}>{tx.state}</Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="secondary" className="font-mono text-xs">
-                                            {tx.is_reenrollment ? 'kur' : 'ir/cr'}
+                                        <Badge variant="secondary" className="font-mono text-xs uppercase">
+                                            {opLabel}
                                         </Badge>
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                        {tx.subject_common_name ? (
+                                            <Link
+                                                href={`/devices/details?deviceId=${encodeURIComponent(tx.subject_common_name)}`}
+                                                className="hover:underline"
+                                                title={`View device ${tx.subject_common_name}`}
+                                            >
+                                                {tx.subject_common_name}
+                                            </Link>
+                                        ) : (
+                                            <span className="text-muted-foreground">—</span>
+                                        )}
                                     </TableCell>
                                     <TableCell className="font-mono text-xs">
                                         {tx.has_certificate && tx.certificate_serial_number ? (
                                             <Link
-                                                href={`/certificates/${tx.certificate_serial_number}`}
+                                                href={`/certificates/details?certificateId=${tx.certificate_serial_number}`}
                                                 className="hover:underline"
                                             >
                                                 {tx.certificate_serial_number}
