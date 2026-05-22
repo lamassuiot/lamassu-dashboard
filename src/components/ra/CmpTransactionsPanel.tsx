@@ -13,7 +13,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-    AlertTriangle, ChevronLeft, ChevronRight, Loader2, RefreshCw,
+    AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Loader2, RefreshCw,
 } from 'lucide-react';
 import { fetchCmpTransactions, type CmpTransactionItem } from '@/lib/dms-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
@@ -235,6 +235,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                             <TableHead>Operation</TableHead>
                             <TableHead>Device ID</TableHead>
                             <TableHead>Certificate</TableHead>
+                            <TableHead>Workflow</TableHead>
                             <TableHead>Created</TableHead>
                             <TableHead>Confirmed</TableHead>
                             <TableHead>Expires</TableHead>
@@ -243,14 +244,14 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                     <TableBody>
                         {isLoading && transactions.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                                     <Loader2 className="inline mr-2 h-4 w-4 animate-spin" /> Loading…
                                 </TableCell>
                             </TableRow>
                         )}
                         {!isLoading && transactions.length === 0 && !error && (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                                     {emptyMessage}
                                 </TableCell>
                             </TableRow>
@@ -309,6 +310,20 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                                 className="hover:underline"
                                             >
                                                 {tx.certificate_serial_number}
+                                            </Link>
+                                        ) : (
+                                            <span className="text-muted-foreground">—</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                        {tx.wfx_job_id ? (
+                                            <Link
+                                                href={`/job-manager/jobs/details?jobId=${encodeURIComponent(tx.wfx_job_id)}`}
+                                                className="inline-flex items-center gap-1 hover:underline"
+                                                title="Open the WFX workflow for this transaction"
+                                            >
+                                                <span className="truncate max-w-[140px]">{tx.wfx_job_id}</span>
+                                                <ExternalLink className="h-3 w-3 shrink-0" />
                                             </Link>
                                         ) : (
                                             <span className="text-muted-foreground">—</span>
