@@ -2,17 +2,18 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { AlertTriangle, ClipboardList, FileText, Info, LayoutList, Loader2, Workflow } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { DetailSectionCard } from '@/components/shared/DetailSectionCard';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
-import { fetchJob, resolveJobGroup, type WfxJob } from '@/lib/wfx-api';
+import { fetchJob, resolveJobGroup, type WfxJob, type WfxJobStatus } from '@/lib/wfx-api';
 import { WorkflowGraph } from '@/components/shared/WorkflowGraph';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
@@ -57,8 +58,58 @@ function getFollowedStates(job: WfxJob): string[] {
     return uniqueConsecutive(historyStates);
 }
 
+interface JobStatusSnapshot {
+    id: string;
+    status: WfxJobStatus;
+    mtime?: string | null;
+    isCurrent: boolean;
+}
+
+function serializeStatus(status?: WfxJobStatus): string | null {
+    return status ? JSON.stringify(status) : null;
+}
+
+function getStatusSnapshots(job: WfxJob): JobStatusSnapshot[] {
+    const historySnapshots = [...(job.history ?? [])]
+        .map((entry, index) => ({ entry, index }))
+        .sort((a, b) => {
+            if (!a.entry.mtime || !b.entry.mtime) return a.index - b.index;
+            return a.entry.mtime < b.entry.mtime ? -1 : a.entry.mtime > b.entry.mtime ? 1 : a.index - b.index;
+        })
+        .flatMap(({ entry, index }) => (
+            entry.status?.state
+                ? [{
+                    id: `history-${entry.mtime ?? 'unknown'}-${index}`,
+                    status: entry.status,
+                    mtime: entry.mtime,
+                    isCurrent: false,
+                }]
+                : []
+        ));
+
+    if (!job.status?.state) {
+        return historySnapshots;
+    }
+
+    const currentStatusKey = serializeStatus(job.status);
+    const latestHistoryStatusKey = serializeStatus(historySnapshots[historySnapshots.length - 1]?.status);
+
+    if (currentStatusKey && currentStatusKey === latestHistoryStatusKey) {
+        return historySnapshots;
+    }
+
+    return [
+        ...historySnapshots,
+        {
+            id: 'current-status',
+            status: job.status,
+            mtime: job.mtime,
+            isCurrent: true,
+        },
+    ];
+}
+
 export default function JobDetailsPage() {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const monacoTheme = useMonacoTheme();
     const jobId = searchParams.get('jobId') ?? '';
@@ -66,6 +117,7 @@ export default function JobDetailsPage() {
     const [job, setJob] = useState<WfxJob | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedStatusSnapshotId, setSelectedStatusSnapshotId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!jobId) {
@@ -86,7 +138,12 @@ export default function JobDetailsPage() {
     }, [jobId]);
 
     const followedStates = useMemo(() => (job ? getFollowedStates(job) : []), [job]);
+    const statusSnapshots = useMemo(() => (job ? getStatusSnapshots(job) : []), [job]);
     const group = job ? resolveJobGroup(job) : undefined;
+
+    useEffect(() => {
+        setSelectedStatusSnapshotId(statusSnapshots[statusSnapshots.length - 1]?.id ?? null);
+    }, [statusSnapshots]);
 
     if (isLoading) {
         return (
@@ -117,10 +174,14 @@ export default function JobDetailsPage() {
     }
 
     const accentBarClass = 'bg-primary';
-    const statusPillClass = group === 'TERMINAL'
-        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-        : 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300';
-    const statusDotClass = group === 'TERMINAL' ? 'bg-emerald-500' : 'bg-blue-500';
+    const selectedStatusSnapshot = statusSnapshots.find(snapshot => snapshot.id === selectedStatusSnapshotId)
+        ?? statusSnapshots[statusSnapshots.length - 1];
+    const selectedStatusContext = selectedStatusSnapshot?.status.context;
+    const selectedStatusDescription = selectedStatusSnapshot?.isCurrent
+        ? 'Latest reported context from the job status.'
+        : selectedStatusSnapshot?.status.state
+        ? `Context reported when the job entered ${selectedStatusSnapshot.status.state}.`
+        : 'Reported context for the selected job status.';
     const summaryCards = [
         {
             label: 'State',
@@ -236,7 +297,64 @@ export default function JobDetailsPage() {
                                 contentClassName="p-5"
                             >
                                 {job.workflow ? (
-                                    <WorkflowGraph workflow={job.workflow} followedStates={followedStates} />
+                                    <div className="space-y-4">
+                                        <WorkflowGraph workflow={job.workflow} followedStates={followedStates} />
+                                        {statusSnapshots.length > 0 && (
+                                            <div className="border-t pt-4">
+                                                <div className="mb-3 flex items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm font-medium">Reported statuses</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Select a status snapshot to inspect the context reported at that point in time.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 overflow-x-auto pb-1">
+                                                    {statusSnapshots.map(snapshot => {
+                                                        const isSelected = snapshot.id === selectedStatusSnapshot?.id;
+
+                                                        return (
+                                                            <Button
+                                                                key={snapshot.id}
+                                                                type="button"
+                                                                variant={isSelected ? 'default' : 'outline'}
+                                                                size="sm"
+                                                                className={cn(
+                                                                    'h-auto min-w-[132px] flex-col items-start gap-1 px-3 py-2 text-left whitespace-normal',
+                                                                    !isSelected && 'border-dashed',
+                                                                )}
+                                                                onClick={() => setSelectedStatusSnapshotId(snapshot.id)}
+                                                            >
+                                                                <span className="font-mono text-xs">{snapshot.status.state}</span>
+                                                                <span
+                                                                    className={cn(
+                                                                        'text-[11px]',
+                                                                        isSelected
+                                                                            ? 'text-primary-foreground/80'
+                                                                            : 'text-muted-foreground',
+                                                                    )}
+                                                                >
+                                                                    {snapshot.isCurrent ? 'Current status' : 'Historic status'}
+                                                                </span>
+                                                                {snapshot.mtime && (
+                                                                    <DateDisplay
+                                                                        date={snapshot.mtime}
+                                                                        showRelative={false}
+                                                                        className={cn(
+                                                                            'text-[11px]',
+                                                                            isSelected
+                                                                                ? 'text-primary-foreground'
+                                                                                : 'text-muted-foreground',
+                                                                        )}
+                                                                    />
+                                                                )}
+                                                            </Button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 ) : (
                                     <Alert>
                                         <AlertTriangle className="h-4 w-4" />
@@ -281,10 +399,18 @@ export default function JobDetailsPage() {
                                 <DetailSectionCard
                                     icon={Info}
                                     title="Status Context"
-                                    description="Last reported context from the job status."
+                                    description={selectedStatusDescription}
+                                    action={selectedStatusSnapshot?.mtime ? (
+                                        <div className="min-w-[140px] text-right">
+                                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                                Reported
+                                            </p>
+                                            <DateDisplay date={selectedStatusSnapshot.mtime} showRelative={true} className="items-end" />
+                                        </div>
+                                    ) : undefined}
                                     contentClassName="p-0"
                                 >
-                                    {job.status?.context && Object.keys(job.status.context).length > 0 ? (
+                                    {selectedStatusContext && Object.keys(selectedStatusContext).length > 0 ? (
                                         <Tabs defaultValue="fields" className="w-full">
                                             <div className="border-b px-0">
                                                 <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
@@ -300,7 +426,7 @@ export default function JobDetailsPage() {
                                             </div>
                                             <TabsContent value="fields" className="mt-0">
                                                 <DetailInfoRows className="px-4">
-                                                    {Object.entries(job.status.context).map(([key, val]) => (
+                                                    {Object.entries(selectedStatusContext).map(([key, val]) => (
                                                         <DetailInfoRow
                                                             key={key}
                                                             label={key}
@@ -318,7 +444,7 @@ export default function JobDetailsPage() {
                                                     height="200px"
                                                     language="json"
                                                     theme={monacoTheme}
-                                                    value={JSON.stringify(job.status.context, null, 2)}
+                                                    value={JSON.stringify(selectedStatusContext, null, 2)}
                                                     options={{
                                                         readOnly: true,
                                                         minimap: { enabled: false },
@@ -334,7 +460,7 @@ export default function JobDetailsPage() {
                                         </Tabs>
                                     ) : (
                                         <p className="px-4 py-3 text-xs text-muted-foreground">
-                                            No context data in the current status.
+                                            No context data in the selected status.
                                         </p>
                                     )}
                                 </DetailSectionCard>

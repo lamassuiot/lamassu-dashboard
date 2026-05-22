@@ -6,7 +6,7 @@ import type { WfxTransition, WfxWorkflow } from '@/lib/wfx-api';
 const START_ID = '__START__';
 const END_ID = '__END__';
 
-const STATE_H = 26;
+const STATE_H = 30;
 const START_R = 6;
 const END_R = 9;
 const TOP_PAD = 18;
@@ -59,7 +59,7 @@ function ff(n: number): string {
 }
 
 function stateWidth(label: string): number {
-    return Math.max(52, Math.min(118, label.length * 6 + 18));
+    return Math.max(76, Math.min(156, label.length * 6 + 24));
 }
 
 function makeStateNode(id: string, x: number, y: number): GraphNode {
@@ -486,7 +486,7 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
     const graph = useMemo(() => buildGraph(workflow, followedStates), [followedStates, workflow]);
 
     return (
-        <div className="w-full overflow-x-auto">
+        <div className="w-full overflow-x-auto rounded-md border bg-muted/20 p-4">
             <svg
                 width={graph.width}
                 height={graph.height}
@@ -522,40 +522,57 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
                     </marker>
                 </defs>
 
-                {graph.edges.map((edge, index) => (
-                    <path
-                        key={`${edge.from}-${edge.to}-${index}`}
-                        d={edge.path}
-                        fill="none"
-                        strokeWidth={edge.active ? 2 : 1}
-                        markerEnd={`url(#${edge.active ? activeMarkerId : markerId})`}
-                        className={
-                            edge.active
-                                ? 'stroke-primary'
-                                : graph.hasHistory
-                                ? 'stroke-muted-foreground/25'
-                                : edge.kind === 'direct'
-                                ? 'stroke-muted-foreground/70'
-                                : 'stroke-muted-foreground/55'
-                        }
-                    />
-                ))}
+                {graph.edges.map((edge, index) => {
+                    const isBranch = edge.kind === 'side' || edge.kind === 'terminal';
+                    const strokeClass = edge.active
+                        ? 'stroke-primary'
+                        : graph.hasHistory
+                        ? 'stroke-muted-foreground/25'
+                        : edge.kind === 'direct'
+                        ? 'stroke-foreground/60'
+                        : 'stroke-muted-foreground/45';
+
+                    return (
+                        <g key={`${edge.from}-${edge.to}-${index}`}>
+                            <path
+                                d={edge.path}
+                                fill="none"
+                                strokeWidth={edge.active ? 4 : 2.5}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="stroke-background"
+                                opacity={0.9}
+                            />
+                            <path
+                                d={edge.path}
+                                fill="none"
+                                strokeWidth={edge.active ? 2.5 : 1.35}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeDasharray={!edge.active && isBranch ? '5 4' : undefined}
+                                markerEnd={`url(#${edge.active ? activeMarkerId : markerId})`}
+                                className={strokeClass}
+                            />
+                        </g>
+                    );
+                })}
 
                 {graph.edges.map((edge, index) => {
                     if (!edge.label || !edge.labelPoint) return null;
 
-                    const labelWidth = edge.label.length * 6 + 10;
+                    const labelWidth = edge.label.length * 6 + 16;
+                    const isActive = edge.active;
 
                     return (
                         <g key={`${edge.from}-${edge.to}-${index}-label`}>
                             <rect
                                 x={edge.labelPoint.x - labelWidth / 2}
-                                y={edge.labelPoint.y - 7}
+                                y={edge.labelPoint.y - 9}
                                 width={labelWidth}
-                                height={13}
-                                rx={2}
-                                className="fill-background stroke-background"
-                                strokeWidth={3}
+                                height={18}
+                                rx={4}
+                                className={isActive ? 'fill-primary stroke-primary' : 'fill-card stroke-border'}
+                                strokeWidth={1}
                             />
                             <text
                                 x={edge.labelPoint.x}
@@ -563,7 +580,7 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
                                 textAnchor="middle"
                                 dominantBaseline="middle"
                                 fontSize={9}
-                                className="fill-muted-foreground"
+                                className={isActive ? 'fill-primary-foreground' : 'fill-muted-foreground'}
                             >
                                 {edge.label}
                             </text>
@@ -574,13 +591,21 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
                 {graph.nodes.map(node => {
                     if (node.type === 'start') {
                         return (
-                            <circle
-                                key={node.id}
-                                cx={node.x}
-                                cy={node.y}
-                                r={START_R}
-                                className="fill-foreground"
-                            />
+                            <g key={node.id}>
+                                <circle
+                                    cx={node.x}
+                                    cy={node.y}
+                                    r={START_R + 3}
+                                    className="fill-background stroke-primary/35"
+                                    strokeWidth={1.5}
+                                />
+                                <circle
+                                    cx={node.x}
+                                    cy={node.y}
+                                    r={START_R - 1}
+                                    className="fill-primary"
+                                />
+                            </g>
                         );
                     }
 
@@ -590,45 +615,72 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
                                 <circle
                                     cx={node.x}
                                     cy={node.y}
-                                    r={END_R}
+                                    r={END_R + 2}
                                     fill="none"
                                     strokeWidth={1.5}
-                                    className="stroke-foreground"
+                                    className="stroke-primary/45"
                                 />
-                                <circle cx={node.x} cy={node.y} r={END_R - 4} className="fill-foreground" />
+                                <circle
+                                    cx={node.x}
+                                    cy={node.y}
+                                    r={END_R - 2}
+                                    className="fill-background stroke-foreground"
+                                    strokeWidth={1.25}
+                                />
+                                <circle cx={node.x} cy={node.y} r={END_R - 5} className="fill-foreground" />
                             </g>
                         );
                     }
 
                     const isActive = graph.activeStateIds.has(node.id);
                     const isCurrent = graph.currentStateId === node.id;
+                    const x = node.x - node.width / 2;
+                    const y = node.y - node.height / 2;
 
                     return (
                         <g key={node.id}>
                             <rect
-                                x={node.x - node.width / 2}
-                                y={node.y - node.height / 2}
+                                x={x}
+                                y={y}
                                 width={node.width}
                                 height={node.height}
-                                rx={3}
+                                rx={6}
                                 className={
                                     isCurrent
-                                        ? 'fill-primary/30 stroke-primary'
+                                        ? 'fill-primary stroke-primary'
                                         : isActive
-                                        ? 'fill-primary/15 stroke-primary'
+                                        ? 'fill-primary/10 stroke-primary'
                                         : graph.hasHistory
-                                        ? 'fill-card stroke-muted-foreground/25'
-                                        : 'fill-primary/10 stroke-primary/75'
+                                        ? 'fill-background stroke-border'
+                                        : 'fill-background stroke-foreground/40'
                                 }
                                 strokeWidth={isCurrent ? 2 : isActive ? 1.5 : 1}
                             />
+                            {(isActive || isCurrent) && (
+                                <rect
+                                    x={x + 2}
+                                    y={y + 2}
+                                    width={4}
+                                    height={node.height - 4}
+                                    rx={2}
+                                    className={isCurrent ? 'fill-primary-foreground/70' : 'fill-primary'}
+                                />
+                            )}
+                            {isCurrent && (
+                                <circle
+                                    cx={x + node.width - 10}
+                                    cy={y + 9}
+                                    r={2.5}
+                                    className="fill-primary-foreground"
+                                />
+                            )}
                             <text
                                 x={node.x}
                                 y={node.y}
                                 textAnchor="middle"
                                 dominantBaseline="middle"
                                 fontSize={10}
-                                className="fill-foreground"
+                                className={isCurrent ? 'fill-primary-foreground' : 'fill-foreground'}
                             >
                                 {node.label}
                             </text>
