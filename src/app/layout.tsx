@@ -88,6 +88,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'alerts': "Alerts",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
+  'asn1': "ASN1 Decoder",
 };
 
 interface NavItem {
@@ -137,6 +138,7 @@ const navigationConfig: NavGroup[] = [
     label: 'TOOLS',
     items: [
       { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
+      { href: '/tools/asn1', label: 'ASN1 Decoder', icon: GitCommit },
     ],
   },
 ];
