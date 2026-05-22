@@ -74,7 +74,6 @@ export interface ApiRaCmpClientCertSettings {
 export interface ApiRaCmpSettings {
     confirmation_mode: string;
     confirmation_timeout: string;
-    enrollment_ca: string;
     auth_mode: string;
     client_certificate_settings?: ApiRaCmpClientCertSettings;
     protection_certificate?: string;
@@ -290,6 +289,14 @@ export interface CmpTransactionItem {
     dms_id: string;
     state: 'PENDING' | 'ISSUED' | 'ISSUE_FAILED' | 'CONFIRMED' | 'REVOKED' | string;
     is_reenrollment: boolean;
+    // request_type is the CMP body tag that started the transaction:
+    // "ir" (Initialization Request), "cr" (Certification Request), or
+    // "kur" (Key Update Request). Older rows persisted before the field
+    // existed return an empty string; the UI falls back to is_reenrollment.
+    request_type?: 'ir' | 'cr' | 'kur' | string;
+    // subject_common_name is the CN from the enrollment request's CertTemplate
+    // (the device ID). May be empty for legacy rows.
+    subject_common_name?: string;
     created_at: string;
     expires_at: string;
     confirmed_at?: string;

@@ -56,7 +56,7 @@ export interface CmpIssuedCertificatesPanelProps {
 
 export const CmpIssuedCertificatesPanel: React.FC<CmpIssuedCertificatesPanelProps> = ({
     raId,
-    title = 'Past Enrollments',
+    title = 'Issued Certificates',
     description = "Certificates the CA has issued via this Registration Authority. Active, revoked, and expired certs are all shown here — this is the permanent enrollment record, distinct from the in-flight CMP transaction view above.",
     withCard = true,
     className,
@@ -173,7 +173,7 @@ export const CmpIssuedCertificatesPanel: React.FC<CmpIssuedCertificatesPanelProp
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Common Name</TableHead>
+                            <TableHead>Device ID</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="min-w-[260px]">Serial Number</TableHead>
                             <TableHead>Valid From</TableHead>
@@ -202,7 +202,7 @@ export const CmpIssuedCertificatesPanel: React.FC<CmpIssuedCertificatesPanelProp
                             return (
                                 <TableRow key={cert.serialNumber}>
                                     <TableCell>
-                                        <Link href={`/certificates/${cert.serialNumber}`} className="hover:underline">
+                                        <Link href={`/certificates/details?certificateId=${cert.serialNumber}`} className="hover:underline">
                                             {extractCommonName(cert.subject) || cert.subject}
                                         </Link>
                                     </TableCell>
@@ -210,7 +210,7 @@ export const CmpIssuedCertificatesPanel: React.FC<CmpIssuedCertificatesPanelProp
                                         <Badge variant={badge.variant} className={badge.className}>{status}</Badge>
                                     </TableCell>
                                     <TableCell className="font-mono text-xs">
-                                        <Link href={`/certificates/${cert.serialNumber}`} className="hover:underline">
+                                        <Link href={`/certificates/details?certificateId=${cert.serialNumber}`} className="hover:underline">
                                             {cert.serialNumber}
                                         </Link>
                                     </TableCell>

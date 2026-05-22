@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Cpu, Settings, Loader2, Tag as TagIconLucide, Edit, Globe, ShieldCheck, CircleDashed } from "lucide-react";
+import { ArrowLeft, PlusCircle, Cpu, Settings, Loader2, Tag as TagIconLucide, Edit, Globe, ShieldCheck } from "lucide-react";
 import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
@@ -94,7 +94,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   // CMP (RFC 9483) state
   const [cmpConfirmationMode, setCmpConfirmationMode] = useState('');
   const [cmpConfirmationTimeout, setCmpConfirmationTimeout] = useState('30s');
-  const [cmpEnrollmentCa, setCmpEnrollmentCa] = useState<CA | null>(null);
   const [cmpValidationCAs, setCmpValidationCAs] = useState<CA[]>([]);
   const [cmpChainValidationLevel, setCmpChainValidationLevel] = useState(0);
   const [cmpAllowExpiredAuth, setCmpAllowExpiredAuth] = useState(false);
@@ -125,7 +124,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [isAdditionalValidationCaModalOpen, setIsAdditionalValidationCaModalOpen] = useState(false);
   const [isManagedCaModalOpen, setIsManagedCaModalOpen] = useState(false);
   const [isCmpValidationCaModalOpen, setIsCmpValidationCaModalOpen] = useState(false);
-  const [isCmpEnrollmentCaModalOpen, setIsCmpEnrollmentCaModalOpen] = useState(false);
   const [isCmpProtectionCertificateModalOpen, setIsCmpProtectionCertificateModalOpen] = useState(false);
   const [availableCAsForSelection, setAvailableCAsForSelection] = useState<CA[]>([]);
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
@@ -211,11 +209,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         
         const { enrollment_settings, reenrollment_settings, server_keygen_settings, ca_distribution_settings } = settings;
         setRegistrationMode(enrollment_settings.registration_mode);
-        const currentProtocol = enrollment_settings.protocol === 'EST_RFC7030'
-          ? 'EST'
-          : enrollment_settings.protocol === 'CMP_RFC9483'
-            ? 'CMP'
-            : 'None';
+        const currentProtocol = enrollment_settings.protocol === 'CMP_RFC9483' ? 'CMP' : 'EST';
         setProtocol(currentProtocol);
         setIssuanceProfileId(enrollment_settings.issuance_profile_id || null);
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
@@ -258,7 +252,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         if (cmpSettings) {
             setCmpConfirmationMode(cmpSettings.confirmation_mode || '');
             setCmpConfirmationTimeout(cmpSettings.confirmation_timeout || '30s');
-            setCmpEnrollmentCa(findCaById(cmpSettings.enrollment_ca, availableCAsForSelection));
             void hydrateProtectionCertificate(cmpSettings.protection_certificate);
             if (cmpSettings.client_certificate_settings) {
                 setCmpChainValidationLevel(cmpSettings.client_certificate_settings.chain_level_validation);
@@ -327,13 +320,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setIsSubmitting(false);
         return;
     }
-    if (protocol !== 'CMP' && !enrollmentCa) {
+    if (!enrollmentCa) {
         sileo.error({ title: "Validation Error", description: "An Enrollment CA must be selected." });
-        setIsSubmitting(false);
-        return;
-    }
-    if (protocol === 'CMP' && !cmpEnrollmentCa) {
-        sileo.error({ title: "Validation Error", description: "A CMP Enrollment CA must be selected." });
         setIsSubmitting(false);
         return;
     }
@@ -342,38 +330,44 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setIsSubmitting(false);
         return;
     }
-    
-    const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'CMP': 'CMP_RFC9483', 'None': '' };
-    const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE' };
-    
-    const estSettings: any = {
-        auth_mode: authModeMapping[authMode as keyof typeof authModeMapping],
-    };
 
-    if (authMode === 'Client Certificate') {
-        estSettings.client_certificate_settings = {
-            chain_level_validation: chainValidationLevel,
-            validation_cas: validationCAs.map(ca => ca.id),
-            allow_expired: allowExpiredAuth,
+    const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'CMP': 'CMP_RFC9483' };
+    const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE' };
+
+    // Only build settings for the selected protocol. The backend additionally
+    // zeroes the unused protocol's settings on persist, but we drop them
+    // client-side so the over-the-wire payload reflects the user intent.
+    let estSettings: any = undefined;
+    if (protocol === 'EST') {
+        estSettings = {
+            auth_mode: authModeMapping[authMode as keyof typeof authModeMapping],
         };
-    } else if (authMode === 'External Webhook') {
-        const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
-        estSettings.external_webhook_settings = {
-            name: webhookName,
-            url: webhookUrl,
-            log_level: webhookLogLevel,
-            auth_mode: webhookAuthModeMapping[webhookAuthMode],
-        };
-        if (webhookAuthMode === 'API Key') {
-            estSettings.external_webhook_settings.api_key_auth = {
-                key: webhookApiKey
+
+        if (authMode === 'Client Certificate') {
+            estSettings.client_certificate_settings = {
+                chain_level_validation: chainValidationLevel,
+                validation_cas: validationCAs.map(ca => ca.id),
+                allow_expired: allowExpiredAuth,
             };
-        } else if (webhookAuthMode === 'OIDC') {
-            estSettings.external_webhook_settings.oidc_auth = {
-                client_id: oidcClientId,
-                client_secret: oidcClientSecret,
-                well_known_url: oidcWellKnownUrl,
+        } else if (authMode === 'External Webhook') {
+            const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
+            estSettings.external_webhook_settings = {
+                name: webhookName,
+                url: webhookUrl,
+                log_level: webhookLogLevel,
+                auth_mode: webhookAuthModeMapping[webhookAuthMode],
             };
+            if (webhookAuthMode === 'API Key') {
+                estSettings.external_webhook_settings.api_key_auth = {
+                    key: webhookApiKey
+                };
+            } else if (webhookAuthMode === 'OIDC') {
+                estSettings.external_webhook_settings.oidc_auth = {
+                    client_id: oidcClientId,
+                    client_secret: oidcClientSecret,
+                    well_known_url: oidcWellKnownUrl,
+                };
+            }
         }
     }
 
@@ -391,17 +385,16 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       metadata: raData?.metadata || {},
       settings: {
         enrollment_settings: {
-          enrollment_ca: protocol === 'CMP' ? (cmpEnrollmentCa?.id ?? '') : enrollmentCa!.id,
+          enrollment_ca: enrollmentCa.id,
           protocol: protocolMapping[protocol],
           enable_replaceable_enrollment: allowOverrideEnrollment,
           verify_csr_signature: verifyCsrSignature,
           issuance_profile_id: issuanceProfileId || undefined,
-          est_rfc7030_settings: estSettings,
+          ...(protocol === 'EST' && { est_rfc7030_settings: estSettings }),
           ...(protocol === 'CMP' && {
             lwc_rfc9483_settings: {
               confirmation_mode: cmpConfirmationMode,
               confirmation_timeout: cmpConfirmationTimeout,
-              enrollment_ca: cmpEnrollmentCa?.id || '',
               auth_mode: 'CLIENT_CERTIFICATE',
               client_certificate_settings: {
                 validation_cas: cmpValidationCAs.map(ca => ca.id),
@@ -672,13 +665,12 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               <SettingsCard
                 icon={Globe}
                 title="Enrollment Protocol"
-                description="Select the protocol devices will use to enroll. All sections below are configured specifically for this choice."
+                description="Select the protocol devices will use to enroll. A DMS uses exactly one protocol; all sections below are configured specifically for this choice."
               >
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {([
                     { value: 'EST',  label: 'EST',  sub: 'RFC 7030',        icon: Globe         },
                     { value: 'CMP',  label: 'CMP',  sub: 'RFC 9483 / LWC',  icon: ShieldCheck   },
-                    { value: 'None', label: 'None', sub: 'No protocol',      icon: CircleDashed  },
                   ] as const).map(({ value, label, sub, icon: Icon }) => (
                     <button
                       key={value}
@@ -700,7 +692,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               </SettingsCard>
 
               {/* ── Protocol-dependent sections ─────────────────────────────────── */}
-              {protocol !== 'None' && (
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <div className="h-px flex-1 bg-border" />
@@ -806,8 +797,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 {protocol === 'CMP' && (<>
 
                   <CMPEnrollmentSettingsCard
-                    cmpEnrollmentCa={cmpEnrollmentCa}
-                    onSelectCmpEnrollmentCa={() => setIsCmpEnrollmentCaModalOpen(true)}
+                    enrollmentCa={enrollmentCa}
+                    onSelectEnrollmentCa={() => setIsEnrollmentCaModalOpen(true)}
                     isLoadingDependencies={isLoadingDependencies}
                     authLoading={authLoading}
                     allCryptoEngines={allCryptoEngines}
@@ -832,7 +823,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
                 </div>{/* end border-l bracket */}
               </div>
-              )}{/* end protocol-dependent sections */}
+              {/* end protocol-dependent sections */}
 
               <div className="flex justify-end space-x-2 pt-8">
                   <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
@@ -879,7 +870,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         allCryptoEngines={allCryptoEngines}
       />
       <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setEnrollmentCa(ca); setIsEnrollmentCaModalOpen(false); }} currentSelectedCaId={enrollmentCa?.id} allCryptoEngines={allCryptoEngines} />
-      <CaSelectorModal isOpen={isCmpEnrollmentCaModalOpen} onOpenChange={setIsCmpEnrollmentCaModalOpen} title="Select CMP Enrollment CA" description="Choose the CA that will issue certificates for CMP traffic." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setCmpEnrollmentCa(ca); setIsCmpEnrollmentCaModalOpen(false); }} currentSelectedCaId={cmpEnrollmentCa?.id} allCryptoEngines={allCryptoEngines} />
       <CertificateSelectorModal
         isOpen={isCmpProtectionCertificateModalOpen}
         onOpenChange={setIsCmpProtectionCertificateModalOpen}
