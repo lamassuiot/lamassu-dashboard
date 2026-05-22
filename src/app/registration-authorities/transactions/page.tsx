@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, ArrowLeft, Pencil, ListOrdered, FileText } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Pencil, ListOrdered, FileText, CheckCircle2 } from 'lucide-react';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { CmpTransactionsPanel } from '@/components/ra/CmpTransactionsPanel';
 import { CmpIssuedCertificatesPanel } from '@/components/ra/CmpIssuedCertificatesPanel';
@@ -66,7 +66,7 @@ export default function RaCmpTransactionsPage() {
                 items={[
                     { label: 'Registration Authorities', href: '/registration-authorities' },
                     { label: ra?.name ?? raId },
-                    { label: <Badge variant="default" className="text-xs">CMP Transactions</Badge> },
+                    { label: <Badge variant="default" className="text-xs">CMP Enrollments</Badge> },
                 ]}
                 actions={
                     <div className="flex items-center gap-2">
@@ -83,14 +83,20 @@ export default function RaCmpTransactionsPage() {
                 <p className="text-sm text-destructive">Could not load RA metadata: {raLoadError}</p>
             )}
 
-            <Tabs defaultValue="transactions" className="w-full">
+            <Tabs defaultValue="active" className="w-full">
                 <div className="border-b">
                     <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
                         <TabsTrigger
-                            value="transactions"
+                            value="active"
                             className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
                         >
-                            <ListOrdered className="mr-2 h-4 w-4" />CMP Transactions
+                            <ListOrdered className="mr-2 h-4 w-4" />Active Enrollments
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="completed"
+                            className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                        >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />Completed Enrollments
                         </TabsTrigger>
                         <TabsTrigger
                             value="certificates"
@@ -102,8 +108,27 @@ export default function RaCmpTransactionsPage() {
                 </div>
 
                 <div className="mt-6 pb-6">
-                    <TabsContent value="transactions" className="mt-0">
-                        <CmpTransactionsPanel raId={raId} withCard={false} />
+                    <TabsContent value="active" className="mt-0">
+                        <CmpTransactionsPanel
+                            raId={raId}
+                            withCard={false}
+                            title="Active Enrollments"
+                            description="In-flight CMP enrollment transactions awaiting completion (PENDING, ISSUED, ISSUE_FAILED)."
+                            extraFilter={['state[in]PENDING,ISSUED,ISSUE_FAILED']}
+                            hideStateFilter
+                            emptyMessage="No active CMP enrollments for this RA."
+                        />
+                    </TabsContent>
+                    <TabsContent value="completed" className="mt-0">
+                        <CmpTransactionsPanel
+                            raId={raId}
+                            withCard={false}
+                            title="Completed Enrollments"
+                            description="Terminal CMP transactions — CONFIRMED means the end-entity sent a valid certConf, REVOKED means the certificate was subsequently revoked."
+                            extraFilter={['state[in]CONFIRMED,REVOKED']}
+                            hideStateFilter
+                            emptyMessage="No completed CMP transactions for this RA."
+                        />
                     </TabsContent>
                     <TabsContent value="certificates" className="mt-0">
                         <CmpIssuedCertificatesPanel raId={raId} withCard={false} />

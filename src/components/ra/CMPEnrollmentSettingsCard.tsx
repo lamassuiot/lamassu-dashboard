@@ -18,8 +18,8 @@ import { SettingsCard } from './SettingsCard';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 interface CMPEnrollmentSettingsCardProps {
-  cmpEnrollmentCa: CA | null;
-  onSelectCmpEnrollmentCa: () => void;
+  enrollmentCa: CA | null;
+  onSelectEnrollmentCa: () => void;
   isLoadingDependencies: boolean;
   authLoading: boolean;
   allCryptoEngines: ApiCryptoEngine[];
@@ -71,8 +71,8 @@ const confirmationModeOptions = [
 ] as const;
 
 export function CMPEnrollmentSettingsCard({
-  cmpEnrollmentCa,
-  onSelectCmpEnrollmentCa,
+  enrollmentCa,
+  onSelectEnrollmentCa,
   isLoadingDependencies,
   authLoading,
   allCryptoEngines,
@@ -106,10 +106,10 @@ export function CMPEnrollmentSettingsCard({
     >
       <div>
         <Label>Enrollment CA</Label>
-        <Button type="button" variant="outline" onClick={onSelectCmpEnrollmentCa} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>
-          {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : cmpEnrollmentCa ? cmpEnrollmentCa.name : "Select Enrollment CA..."}
+        <Button type="button" variant="outline" onClick={onSelectEnrollmentCa} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>
+          {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
         </Button>
-        {cmpEnrollmentCa && <div className="mt-2"><CaVisualizerCard ca={cmpEnrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} /></div>}
+        {enrollmentCa && <div className="mt-2"><CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} /></div>}
       </div>
 
       <div>
