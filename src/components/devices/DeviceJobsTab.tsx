@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Eye, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -25,12 +24,25 @@ import {
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
 
+function getStateSemantic(state: string): { dot: string; pill: string } {
+    const s = state.toUpperCase();
+    if (/FAIL|ERROR|ABORT|REJECT|CANCEL/.test(s))
+        return { dot: 'bg-red-500', pill: 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-400' };
+    if (/SUCCESS|DONE|COMPLET|FINISH|OK/.test(s))
+        return { dot: 'bg-emerald-500', pill: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' };
+    if (/WAIT|PEND|QUEUE|HOLD|PAUSE/.test(s))
+        return { dot: 'bg-amber-500', pill: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-400' };
+    return { dot: 'bg-blue-500', pill: 'border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-400' };
+}
+
 function StatusBadge({ state }: { state: string | undefined }) {
     if (!state) return <span className="text-muted-foreground text-xs">—</span>;
+    const { dot, pill } = getStateSemantic(state);
     return (
-        <Badge variant="secondary" className="text-xs font-mono">
+        <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-mono font-medium', pill)}>
+            <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', dot)} />
             {state}
-        </Badge>
+        </span>
     );
 }
 
@@ -38,12 +50,15 @@ function GroupBadge({ group }: { group: string | undefined }) {
     if (!group) return <span className="text-muted-foreground text-xs">—</span>;
     const isTerminal = group === 'TERMINAL';
     return (
-        <Badge
-            variant={isTerminal ? 'outline' : 'default'}
-            className={cn('text-xs', isTerminal && 'text-muted-foreground')}
-        >
+        <span className={cn(
+            'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide',
+            isTerminal
+                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                : 'border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-400',
+        )}>
+            <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', isTerminal ? 'bg-emerald-500' : 'bg-blue-500')} />
             {group}
-        </Badge>
+        </span>
     );
 }
 
@@ -193,11 +208,11 @@ export function DeviceJobsTab({ deviceId }: DeviceJobsTabProps) {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>ID</TableHead>
-                                    <TableHead>Workflow</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Group</TableHead>
-                                    <TableHead>Created</TableHead>
-                                    <TableHead>Last Modified</TableHead>
+                                    <TableHead className="text-center">Workflow</TableHead>
+                                    <TableHead className="text-center">Status</TableHead>
+                                    <TableHead className="text-center">Group</TableHead>
+                                    <TableHead className="text-center">Created</TableHead>
+                                    <TableHead className="text-center">Last Modified</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -215,7 +230,7 @@ export function DeviceJobsTab({ deviceId }: DeviceJobsTabProps) {
                                                     {job.id}
                                                 </button>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="text-center">
                                                 {job.workflow?.name ? (
                                                     <button
                                                         onClick={() => router.push(`/job-manager/workflows?name=${encodeURIComponent(job.workflow!.name)}`)}
@@ -227,16 +242,16 @@ export function DeviceJobsTab({ deviceId }: DeviceJobsTabProps) {
                                                     <span className="text-muted-foreground text-xs">—</span>
                                                 )}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="text-center">
                                                 <StatusBadge state={job.status?.state} />
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="text-center">
                                                 <GroupBadge group={group} />
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="text-center">
                                                 {job.stime ? <DateDisplay date={job.stime} className="items-center" /> : <span className="text-xs text-muted-foreground">—</span>}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="text-center">
                                                 {job.mtime ? <DateDisplay date={job.mtime} className="items-center" /> : <span className="text-xs text-muted-foreground">—</span>}
                                             </TableCell>
                                             <TableCell className="text-right">
