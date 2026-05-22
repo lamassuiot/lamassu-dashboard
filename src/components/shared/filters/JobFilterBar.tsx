@@ -38,6 +38,7 @@ interface JobFilterBarProps {
     onClearAll: () => void;
     disabled?: boolean;
     actions?: React.ReactNode;
+    hideFields?: Array<keyof JobFilterValues>;
 }
 
 export function JobFilterBar({
@@ -46,6 +47,7 @@ export function JobFilterBar({
     onClearAll,
     disabled = false,
     actions,
+    hideFields,
 }: JobFilterBarProps) {
     const [workflows, setWorkflows] = useState<WfxWorkflow[]>([]);
     const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false);
@@ -156,9 +158,13 @@ export function JobFilterBar({
         [isLoadingWorkflows, workflows],
     );
 
+    const visibleFields = hideFields?.length
+        ? fields.filter((f) => !hideFields.includes(f.key as keyof JobFilterValues))
+        : fields;
+
     return (
         <GenericFilterBar<JobFilterValues>
-            fields={fields}
+            fields={visibleFields}
             values={values}
             onChange={onChange}
             onClearAll={onClearAll}
