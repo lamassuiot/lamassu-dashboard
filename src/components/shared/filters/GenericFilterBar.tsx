@@ -1,18 +1,19 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { format, isValid, parseISO } from 'date-fns';
-import { Calendar as CalendarIcon, Minus, Plus, Search, X } from 'lucide-react';
+import { format, isValid, parse, parseISO } from 'date-fns';
+import { Calendar as CalendarIcon, Clock3, Minus, Plus, Search, X } from 'lucide-react';
 
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { type CalendarProps, Calendar } from '@/components/ui/calendar';
+import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TimedInput } from '@/components/ui/timed-input';
+import { getDisplayDateAndTimeFormat, getDisplayDateFormat } from '@/lib/config';
 import { cn } from '@/lib/utils';
 
 export type GenericFilterValues = object;
@@ -25,6 +26,7 @@ export interface GenericFilterOption {
 export interface GenericDateFilterValue {
   operator?: string;
   date?: Date | string;
+  includeTime?: boolean;
 }
 
 export interface GenericFilterBadge {
@@ -66,7 +68,7 @@ export interface GenericFilterField<TValues extends GenericFilterValues> {
   dateOperators?: GenericFilterOption[];
   buttonText?: string;
   allOptionValues?: string[];
-  calendarProps?: Omit<CalendarProps, 'mode' | 'selected' | 'onSelect'>;
+  calendarProps?: Omit<React.ComponentProps<typeof Calendar>, 'mode' | 'selected' | 'onSelect'>;
   renderControl?: (context: GenericFilterRenderContext<TValues>) => React.ReactNode;
   isActive?: (value: unknown, values: TValues) => boolean;
   getActiveBadges?: (
@@ -107,19 +109,306 @@ function normalizeDateValue(value: unknown): Date | undefined {
 function normalizeDateFilterValue(
   value: unknown,
   field: GenericFilterField<any>
-): { operator?: string; date?: Date } {
+): { operator?: string; date?: Date; includeTime?: boolean } {
   if (field.dateOperators?.length && value && typeof value === 'object' && !Array.isArray(value)) {
     const dateFilter = value as GenericDateFilterValue;
     return {
       operator: typeof dateFilter.operator === 'string' ? dateFilter.operator : field.dateOperators[0]?.value,
       date: normalizeDateValue(dateFilter.date),
+      includeTime: Boolean(dateFilter.includeTime),
     };
   }
 
   return {
     operator: field.dateOperators?.[0]?.value,
     date: normalizeDateValue(value),
+    includeTime: false,
   };
+}
+
+function formatDateInputValue(date?: Date) {
+  return date ? format(date, 'dd/MM/yyyy') : '';
+}
+
+function formatDateDraftValue(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function zeroFillInvalidDateDraftValue(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  const day = digits.slice(0, 2).padEnd(2, '0') || '00';
+  const month = digits.slice(2, 4).padEnd(2, '0') || '00';
+  const year = digits.slice(4, 8).padEnd(4, '0') || '0000';
+
+  return `${day}/${month}/${year}`;
+}
+
+function parseDateInputValue(value: string) {
+  if (!value) return undefined;
+
+  const parsedDate = parse(value, 'dd/MM/yyyy', new Date());
+  if (!isValid(parsedDate)) return undefined;
+
+  const normalizedValue = format(parsedDate, 'dd/MM/yyyy');
+  return normalizedValue === value ? parsedDate : undefined;
+}
+
+function formatTimeInputValue(date?: Date, includeTime = false) {
+  return date && includeTime ? format(date, 'HH:mm:ss') : '';
+}
+
+function formatTimeDraftValue(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 6);
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  }
+
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4)}`;
+}
+
+function applyDatePartsWithExistingTime(nextDate: Date, existingDate?: Date, includeTime = false) {
+  const mergedDate = new Date(nextDate);
+
+  if (!includeTime) {
+    mergedDate.setHours(0, 0, 0, 0);
+    return mergedDate;
+  }
+
+  if (existingDate) {
+    mergedDate.setHours(
+      existingDate.getHours(),
+      existingDate.getMinutes(),
+      existingDate.getSeconds(),
+      existingDate.getMilliseconds()
+    );
+    return mergedDate;
+  }
+
+  mergedDate.setHours(0, 0, 0, 0);
+  return mergedDate;
+}
+
+function parseTimeInputValue(value: string, baseDate: Date) {
+  const normalizedValue = value.trim();
+  const match = normalizedValue.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+
+  if (!match) return undefined;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3] || '0');
+
+  if (hours > 23 || minutes > 59 || seconds > 59) {
+    return undefined;
+  }
+
+  const nextDate = new Date(baseDate);
+  nextDate.setHours(hours, minutes, seconds, 0);
+  return nextDate;
+}
+
+function getDateFilterDisplayValue(date: Date, includeTime = false) {
+  return format(date, includeTime ? getDisplayDateAndTimeFormat() : getDisplayDateFormat());
+}
+
+interface DateFilterControlProps<TValues extends GenericFilterValues> {
+  context: GenericFilterRenderContext<TValues>;
+  field: GenericFilterField<TValues>;
+  selectedDate?: Date;
+  selectedOperator?: string;
+  includeTime?: boolean;
+}
+
+function DateFilterControl<TValues extends GenericFilterValues>({
+  context,
+  field,
+  selectedDate,
+  selectedOperator,
+  includeTime = false,
+}: DateFilterControlProps<TValues>) {
+  const [draftDateInput, setDraftDateInput] = useState(() => formatDateInputValue(selectedDate));
+  const [draftTimeInput, setDraftTimeInput] = useState(() => formatTimeInputValue(selectedDate, includeTime));
+
+  useEffect(() => {
+    setDraftDateInput(formatDateInputValue(selectedDate));
+  }, [selectedDate]);
+
+  useEffect(() => {
+    setDraftTimeInput(formatTimeInputValue(selectedDate, includeTime));
+  }, [selectedDate, includeTime]);
+
+  const applyDraftDateInput = () => {
+    const trimmedValue = draftDateInput.trim();
+
+    if (trimmedValue === '') {
+      context.onValueChange({ operator: selectedOperator, date: undefined, includeTime });
+      return;
+    }
+
+    const parsedDate = parseDateInputValue(trimmedValue);
+    if (parsedDate) {
+      context.onValueChange({
+        operator: selectedOperator,
+        date: applyDatePartsWithExistingTime(parsedDate, selectedDate, includeTime),
+        includeTime,
+      });
+      return;
+    }
+
+    setDraftDateInput(zeroFillInvalidDateDraftValue(trimmedValue));
+  };
+
+  const applyDraftTimeInput = () => {
+    if (!selectedDate) {
+      setDraftTimeInput('');
+      return;
+    }
+
+    const trimmedValue = draftTimeInput.trim();
+    if (trimmedValue === '') {
+      const clearedTimeDate = new Date(selectedDate);
+      clearedTimeDate.setHours(0, 0, 0, 0);
+      context.onValueChange({
+        operator: selectedOperator,
+        date: clearedTimeDate,
+        includeTime: false,
+      });
+      return;
+    }
+
+    const parsedDate = parseTimeInputValue(trimmedValue, selectedDate);
+    if (parsedDate) {
+      context.onValueChange({
+        operator: selectedOperator,
+        date: parsedDate,
+        includeTime: true,
+      });
+      return;
+    }
+
+    setDraftTimeInput(formatTimeInputValue(selectedDate, includeTime));
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          id={context.id}
+          variant="outline"
+          className={cn(
+            'h-9 flex-1 justify-start text-left font-normal',
+            !selectedDate && 'text-muted-foreground',
+            field.inputClassName
+          )}
+          disabled={context.disabled}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          {selectedDate ? getDateFilterDisplayValue(selectedDate, includeTime) : `Pick ${field.label.toLowerCase()}`}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto rounded-lg border p-2" align="start">
+        <div className="space-y-2">
+          <div className="mx-auto w-fit">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(nextDate) =>
+                context.onValueChange({
+                  operator: selectedOperator,
+                  date: nextDate ? applyDatePartsWithExistingTime(nextDate, selectedDate, includeTime) : undefined,
+                  includeTime,
+                })
+              }
+              captionLayout="dropdown"
+              startMonth={new Date(new Date().getFullYear() - 30, 0)}
+              endMonth={new Date(new Date().getFullYear() + 50, 11)}
+              initialFocus
+              className="[--cell-size:1.85rem] bg-transparent p-1"
+              {...field.calendarProps}
+            />
+          </div>
+
+          <div className="-mx-2 space-y-2 border-t pt-2">
+            <div className="space-y-2 px-2">
+              <div className="relative">
+                <CalendarIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={draftDateInput}
+                  placeholder="dd/MM/YYYY"
+                  onChange={(event) => setDraftDateInput(formatDateDraftValue(event.target.value))}
+                  onBlur={applyDraftDateInput}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      applyDraftDateInput();
+                    }
+                  }}
+                  disabled={context.disabled}
+                  className="h-8 bg-transparent pl-8 text-xs"
+                />
+              </div>
+              <div className="relative">
+                <Clock3 className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={draftTimeInput}
+                  placeholder="HH:mm:ss"
+                  onChange={(event) => setDraftTimeInput(formatTimeDraftValue(event.target.value))}
+                  onBlur={applyDraftTimeInput}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      applyDraftTimeInput();
+                    }
+                  }}
+                  disabled={context.disabled || !selectedDate}
+                  className="h-8 bg-transparent pl-8 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end px-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 px-2 text-xs"
+                onClick={() =>
+                  context.onValueChange({
+                    operator: selectedOperator,
+                    date: includeTime ? new Date() : applyDatePartsWithExistingTime(new Date(), undefined, false),
+                    includeTime,
+                  })
+                }
+                disabled={context.disabled}
+              >
+                Today
+              </Button>
+            </div>
+          </div>
+
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function GenericFilterBar<TValues extends GenericFilterValues>({
@@ -196,7 +485,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
         return [];
       case 'date':
         return field.dateOperators?.length
-          ? { operator: field.dateOperators[0]?.value, date: undefined }
+          ? { operator: field.dateOperators[0]?.value, date: undefined, includeTime: false }
           : undefined;
       case 'custom':
         return null;
@@ -242,8 +531,8 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
 
         const operatorLabel = field.dateOperators?.find((option) => option.value === dateFilter.operator)?.label;
         return operatorLabel
-          ? `${field.label}: ${operatorLabel} ${format(dateFilter.date, 'PPP')}`
-          : `${field.label}: ${format(dateFilter.date, 'PPP')}`;
+          ? `${field.label}: ${operatorLabel} ${getDateFilterDisplayValue(dateFilter.date, dateFilter.includeTime)}`
+          : `${field.label}: ${getDateFilterDisplayValue(dateFilter.date, dateFilter.includeTime)}`;
       }
       case 'custom':
       default:
@@ -356,61 +645,36 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
         const dateFilter = normalizeDateFilterValue(context.value, field);
         const selectedDate = dateFilter.date;
         const selectedOperator = dateFilter.operator || field.dateOperators?.[0]?.value;
-        const selectedOperatorLabel = field.dateOperators?.find((option) => option.value === selectedOperator)?.label;
+        const includeTime = Boolean(dateFilter.includeTime);
 
         if (field.dateOperators?.length) {
           return (
             <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    id={context.id}
-                    variant="outline"
-                    className={cn(
-                      'h-9 flex-1 justify-start text-left font-normal',
-                      !selectedDate && 'text-muted-foreground',
-                      field.inputClassName
-                    )}
-                    disabled={context.disabled}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate
-                      ? `${selectedOperatorLabel || 'Date'} · ${format(selectedDate, 'PPP')}`
-                      : field.placeholder || `Select ${field.label.toLowerCase()}...`}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-3" align="start">
-                  <div className="space-y-3">
-                    <Select
-                      value={selectedOperator}
-                      onValueChange={(nextOperator) =>
-                        context.onValueChange({ operator: nextOperator, date: selectedDate })
-                      }
-                      disabled={context.disabled}
-                    >
-                      <SelectTrigger className="h-9 w-full">
-                        <SelectValue placeholder="Select an operator" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {field.dateOperators.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(nextDate) =>
-                        context.onValueChange({ operator: selectedOperator, date: nextDate })
-                      }
-                      initialFocus
-                      {...field.calendarProps}
-                    />
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <Select
+                value={selectedOperator}
+                onValueChange={(nextOperator) =>
+                  context.onValueChange({ operator: nextOperator, date: selectedDate, includeTime })
+                }
+                disabled={context.disabled}
+              >
+                <SelectTrigger className="h-9 w-[120px] shrink-0">
+                  <SelectValue placeholder="Operator" />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.dateOperators.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <DateFilterControl
+                context={context}
+                field={field}
+                selectedDate={selectedDate}
+                selectedOperator={selectedOperator}
+                includeTime={includeTime}
+              />
               {selectedDate && (
                 <Button
                   variant="outline"
@@ -442,7 +706,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                   disabled={context.disabled}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, 'PPP') : field.placeholder || 'Pick a date'}
+                  {selectedDate ? getDateFilterDisplayValue(selectedDate, dateFilter.includeTime) : field.placeholder || 'Pick a date'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">

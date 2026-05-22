@@ -9,7 +9,6 @@ import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import dynamic from 'next/dynamic';
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { Input } from '@/components/ui/input';
@@ -17,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
 import { filterCaList } from '@/lib/ca-utils';
+import { cn } from '@/lib/utils';
 
 
 const CaFilesystemView = dynamic(() => 
@@ -218,20 +218,29 @@ export default function CertificateAuthoritiesPage() {
                  />
             </div>
             <div className="flex items-end shrink-0 md:justify-end">
-             <ToggleGroup type="single" value={viewMode} onValueChange={handleViewModeChange} variant="outline" aria-label="View mode" className="w-full md:w-auto h-9">
-              <ToggleGroupItem value="list" aria-label="List view" className="h-9 whitespace-nowrap">
-                <List className="h-4 w-4 mr-0 sm:mr-2" />
-                <span className="hidden sm:inline">List</span>
-              </ToggleGroupItem>
-              <ToggleGroupItem value="hierarchy" aria-label="Hierarchy view" className="h-9 whitespace-nowrap">
-                <Network className="h-4 w-4 mr-0 sm:mr-2" />
-                  <span className="hidden sm:inline">Hierarchy</span>
-              </ToggleGroupItem>
-                <ToggleGroupItem value="graph" aria-label="Graph view" className="h-9 whitespace-nowrap">
-                <GitFork className="h-4 w-4 mr-0 sm:mr-2" />
-                  <span className="hidden sm:inline">Graph</span>
-              </ToggleGroupItem>
-            </ToggleGroup>
+              <div className="flex items-center gap-0.5 rounded-md bg-muted p-1" role="group" aria-label="View mode">
+                {([
+                  { value: 'list', icon: List, label: 'List' },
+                  { value: 'hierarchy', icon: Network, label: 'Hierarchy' },
+                  { value: 'graph', icon: GitFork, label: 'Graph' },
+                ] as const).map(({ value, icon: Icon, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-label={`${label} view`}
+                    aria-pressed={viewMode === value}
+                    onClick={() => handleViewModeChange(value)}
+                    className={cn(
+                      'inline-flex items-center justify-center rounded-sm w-8 h-8 transition-colors',
+                      viewMode === value
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

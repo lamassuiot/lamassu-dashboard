@@ -451,7 +451,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
                     type="button"
                     variant="outline"
                     onClick={() => setIsCertificateSignerModalOpen(true)}
-                    className="w-full md:w-2/3 lg:w-1/2 justify-start text-left font-normal"
+                    className="h-auto min-h-12 w-full justify-start px-4 py-3 text-left text-base font-medium md:w-3/4 lg:w-2/3"
                     disabled={isSubmitting}
                   >
                     {selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}...`

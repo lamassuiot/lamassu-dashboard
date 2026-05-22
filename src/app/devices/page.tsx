@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { format } from 'date-fns';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-select
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { DeviceFilterBar } from '@/components/shared/filters/DeviceFilterBar';
 import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
+import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -46,6 +48,12 @@ interface SortConfig {
   column: SortableColumn;
   direction: SortDirection;
 }
+
+const defaultDateFilterValue: GenericDateFilterValue = {
+  operator: 'af',
+  date: undefined,
+  includeTime: false,
+};
 
 export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
   let badgeClass = "";
@@ -111,8 +119,10 @@ export default function DevicesPage() {
   // Filter states
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
-  const [searchField, setSearchField] = useState<'id' | 'tags'>('id');
+  const [tagSearchTerm, setTagSearchTerm] = useState<string>('');
+  const [debouncedTagSearchTerm, setDebouncedTagSearchTerm] = useState<string>('');
   const [statusFilters, setStatusFilters] = useState<DeviceStatus[]>([]);
+  const [createdAtFilter, setCreatedAtFilter] = useState<GenericDateFilterValue>(defaultDateFilterValue);
 
   // Sorting and pagination states
   const [pageSize, setPageSize] = useState<string>('10');
@@ -169,6 +179,19 @@ export default function DevicesPage() {
     };
   }, [searchTerm]);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+        if (isInitialLoad.current && tagSearchTerm === '') {
+            return;
+        }
+        setDebouncedTagSearchTerm(tagSearchTerm);
+    }, 500);
+
+    return () => {
+        clearTimeout(handler);
+    };
+  }, [tagSearchTerm]);
+
   const fetchData = useCallback(async (bookmarkToFetch: string | null) => {
     
     
@@ -197,13 +220,25 @@ export default function DevicesPage() {
         }
         
         if (dmsOwnerFilter) params.append('filter', `dms_owner[equal]${dmsOwnerFilter}`);
-        if (debouncedSearchTerm.trim() !== '') params.append('filter', `${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+        if (debouncedSearchTerm.trim() !== '') params.append('filter', `id[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+        if (debouncedTagSearchTerm.trim() !== '') params.append('filter', `tags[contains_ignorecase]${debouncedTagSearchTerm.trim()}`);
         appendSingleOrMultiFilter(
           params,
           statusFilters,
           (value) => `status[equal]${value}`,
           (values) => `status[in]${values.join(',')}`
         );
+        if (createdAtFilter.date && createdAtFilter.operator) {
+          const createdAtValue = createdAtFilter.includeTime
+            ? format(createdAtFilter.date, "yyyy-MM-dd'T'HH:mm:ss")
+            : format(createdAtFilter.date, 'yyyy-MM-dd');
+          const createdAtOperator = createdAtFilter.operator === 'bf'
+            ? 'before'
+            : createdAtFilter.operator === 'eq'
+              ? 'equal'
+              : 'after';
+          params.append('filter', `creation_timestamp[${createdAtOperator}]${createdAtValue}`);
+        }
 
         const data = await fetchDevices(params);
         const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
@@ -229,7 +264,7 @@ export default function DevicesPage() {
         setIsLoadingApi(false);
         if (isInitialLoad.current) isInitialLoad.current = false;
     }
-  }, [sortConfig, pageSize, dmsOwnerFilter, debouncedSearchTerm, searchField, statusFilters]);
+  }, [createdAtFilter, sortConfig, pageSize, dmsOwnerFilter, debouncedSearchTerm, debouncedTagSearchTerm, statusFilters]);
 
   // Effect for filter changes
   useEffect(() => {
@@ -237,7 +272,7 @@ export default function DevicesPage() {
         setCurrentPageIndex(0);
         setBookmarkStack([null]);
     }
-  }, [debouncedSearchTerm, searchField, statusFilters, pageSize, dmsOwnerFilter, sortConfig]);
+  }, [createdAtFilter, debouncedSearchTerm, debouncedTagSearchTerm, statusFilters, pageSize, dmsOwnerFilter, sortConfig]);
 
   // Main data fetching effect
   useEffect(() => {
@@ -356,7 +391,7 @@ export default function DevicesPage() {
     setCurrentPageIndex(prevIndex);
   };
 
-  const hasActiveFilters = debouncedSearchTerm || statusFilters.length > 0 || dmsOwnerFilter;
+  const hasActiveFilters = debouncedSearchTerm || debouncedTagSearchTerm || statusFilters.length > 0 || dmsOwnerFilter || createdAtFilter.date;
 
   return (
     <div className="space-y-6 w-full pb-8">
@@ -383,12 +418,14 @@ export default function DevicesPage() {
       <DeviceFilterBar
         searchTerm={searchTerm}
         onSearchTermChange={setSearchTerm}
-        searchField={searchField}
-        onSearchFieldChange={setSearchField}
+        tagSearchTerm={tagSearchTerm}
+        onTagSearchTermChange={setTagSearchTerm}
         dmsOwnerFilter={dmsOwnerFilter}
         onDmsOwnerFilterChange={handleDmsOwnerChange}
         statusFilters={statusFilters}
         onStatusFiltersChange={setStatusFilters}
+        createdAtFilter={createdAtFilter}
+        onCreatedAtFilterChange={setCreatedAtFilter}
         disabled={isLoadingApi}
         actions={
           <ColumnSelector

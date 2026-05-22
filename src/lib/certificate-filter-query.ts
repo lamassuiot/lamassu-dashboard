@@ -9,6 +9,7 @@ import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
 export interface CertificateQueryDateFilterValue {
   operator: 'af' | 'bf' | 'eq';
   date?: Date;
+  includeTime?: boolean;
 }
 
 export interface CertificateQueryFilters {
@@ -93,11 +94,11 @@ export function appendCertificateQueryFilters(
   appendDateFilter(params, 'revocation_timestamp', revocationTimestampFilter);
 
   keyUsageFilters.forEach((usage) => {
-    params.append('filter', `extensions.key_usage[contains]${usage}`);
+    params.append('filter', `extensions.key_usage[ct_ic]${usage}`);
   });
 
   extendedKeyUsageFilters.forEach((usage) => {
-    params.append('filter', `extensions.extended_key_usage[contains]${usage}`);
+    params.append('filter', `extensions.extended_key_usage[ct_ic]${usage}`);
   });
 
   metadataFilters.forEach((item) => {
@@ -117,5 +118,9 @@ function appendDateFilter(
     return;
   }
 
-  params.append('filter', `${field}[${DATE_OPERATOR_BY_FILTER_VALUE[filter.operator]}]${format(filter.date, 'yyyy-MM-dd')}`);
+  const formattedValue = filter.includeTime
+    ? format(filter.date, "yyyy-MM-dd'T'HH:mm:ss")
+    : format(filter.date, 'yyyy-MM-dd');
+
+  params.append('filter', `${field}[${DATE_OPERATOR_BY_FILTER_VALUE[filter.operator]}]${formattedValue}`);
 }

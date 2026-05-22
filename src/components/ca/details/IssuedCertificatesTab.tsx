@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { sileo } from '@/lib/toast';
@@ -12,6 +12,7 @@ import type { CA } from '@/lib/ca-data';
 import { usePaginatedCertificateFetcher } from '@/hooks/usePaginatedCertificateFetcher';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
+import { ColumnSelector } from '@/components/ui/column-selector';
 
 interface IssuedCertificatesTabProps {
     caId: string;
@@ -21,6 +22,15 @@ interface IssuedCertificatesTabProps {
 
 export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ caId, caIsActive, allCAs }) => {
     const routerHook = useRouter();
+    const [columnVisibility, setColumnVisibility] = useState({
+        commonName: true,
+        serialNumber: true,
+        issuer: false,
+        validFrom: true,
+        expires: true,
+        status: true,
+        revocationTime: true,
+    });
 
     const {
         certificates,
@@ -44,6 +54,10 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
         }
     };
 
+    const handleColumnToggle = (columnId: string) => {
+        setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId as keyof typeof prev] }));
+    };
+
     return (
         <div className="space-y-4">
             <CertificateFilterBar
@@ -51,6 +65,18 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                 disabled={isLoading}
                 actions={
                     <>
+                        <ColumnSelector
+                            columns={[
+                                { id: 'commonName', label: 'Common Name', visible: columnVisibility.commonName, disabled: true },
+                                { id: 'serialNumber', label: 'Serial Number', visible: columnVisibility.serialNumber },
+                                { id: 'validFrom', label: 'Valid From', visible: columnVisibility.validFrom },
+                                { id: 'expires', label: 'Expires', visible: columnVisibility.expires },
+                                { id: 'status', label: 'Status', visible: columnVisibility.status },
+                                { id: 'revocationTime', label: 'Revocation Time', visible: columnVisibility.revocationTime },
+                            ]}
+                            onColumnToggle={handleColumnToggle}
+                            align="end"
+                        />
                         <Button
                             variant="outline"
                             size="icon"
@@ -99,6 +125,7 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                         requestSort={requestSort}
                         isLoading={isLoading}
                         showIssuerColumn={false}
+                        columnVisibility={columnVisibility}
                     />
                     <CertificatePaginationControls
                         className="mt-4 border-t pt-4"
