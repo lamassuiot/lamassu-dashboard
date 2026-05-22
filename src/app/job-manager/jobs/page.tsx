@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ClipboardList, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Eye, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +49,7 @@ function GroupBadge({ group }: { group: string | undefined }) {
 
 export default function JobsPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
 
     const [jobs, setJobs] = useState<WfxJob[]>([]);
     const [total, setTotal] = useState<number>(0);
@@ -58,7 +59,15 @@ export default function JobsPage() {
     const [pageSize, setPageSize] = useState('10');
     const [offset, setOffset] = useState(0);
 
-    const [filterValues, setFilterValues] = useState<JobFilterValues>(defaultJobFilterValues);
+    // Seed clientId from the URL on first render so deep-links like
+    // /job-manager/jobs?clientId=<txID> from the CMP transactions panel
+    // land directly on the matching row.
+    const [filterValues, setFilterValues] = useState<JobFilterValues>(() => {
+        const initialClientId = searchParams.get('clientId') ?? '';
+        return initialClientId
+            ? { ...defaultJobFilterValues, clientIdFilter: initialClientId }
+            : defaultJobFilterValues;
+    });
 
     const handleFilterChange = useCallback(
         (key: Extract<keyof JobFilterValues, string>, value: unknown) => {
@@ -178,7 +187,8 @@ export default function JobsPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>ID</TableHead>
-                                    <TableHead>Client</TableHead>
+                                    <TableHead>Device ID</TableHead>
+                                    <TableHead>Transaction ID</TableHead>
                                     <TableHead>Workflow</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Group</TableHead>
@@ -190,6 +200,18 @@ export default function JobsPage() {
                             <TableBody>
                                 {jobs.map(job => {
                                     const group = resolveJobGroup(job);
+                                    // For Lamassu CMP jobs the WFX clientId is the
+                                    // device CN. The CMP transactionID lives in
+                                    // definition.transactionId (with a fallback to
+                                    // status.context for very early states).
+                                    const deviceId = job.clientId ?? undefined;
+                                    const defTxId = typeof job.definition?.transactionId === 'string'
+                                        ? (job.definition.transactionId as string)
+                                        : undefined;
+                                    const ctxTxId = typeof job.status?.context?.transactionId === 'string'
+                                        ? (job.status.context.transactionId as string)
+                                        : undefined;
+                                    const txId = defTxId || ctxTxId;
                                     return (
                                         <TableRow key={job.id}>
                                             <TableCell className="font-medium">
@@ -202,8 +224,21 @@ export default function JobsPage() {
                                                 </button>
                                             </TableCell>
                                             <TableCell>
-                                                <span className="font-mono text-xs text-muted-foreground truncate max-w-[160px] block" title={job.clientId}>
-                                                    {job.clientId ?? '—'}
+                                                {deviceId ? (
+                                                    <button
+                                                        onClick={() => router.push(`/devices/details?deviceId=${encodeURIComponent(deviceId)}`)}
+                                                        className="text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors font-mono text-xs truncate max-w-[160px] block text-left"
+                                                        title={`View device ${deviceId}`}
+                                                    >
+                                                        {deviceId}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-muted-foreground text-xs">—</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="font-mono text-xs text-muted-foreground truncate max-w-[180px] block" title={txId}>
+                                                    {txId ?? '—'}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
