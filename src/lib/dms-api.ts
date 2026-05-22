@@ -297,6 +297,11 @@ export interface CmpTransactionItem {
     // subject_common_name is the CN from the enrollment request's CertTemplate
     // (the device ID). May be empty for legacy rows.
     subject_common_name?: string;
+    // wfx_job_id is the UUID of the WFX job mirroring this transaction's
+    // lifecycle. Used to deep-link the management UI to the corresponding
+    // workflow detail page. Empty when WFX integration is disabled or the
+    // job could not be created.
+    wfx_job_id?: string;
     created_at: string;
     expires_at: string;
     confirmed_at?: string;
