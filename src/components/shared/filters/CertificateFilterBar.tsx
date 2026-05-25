@@ -275,6 +275,7 @@ export function CertificateFilterBar({
       ? [createDateField<CertificateFilterValues>({
           key: 'revocationTimestampFilter',
           label: 'Revocation Time',
+          placeholder: 'Pick date',
           visibility: 'advanced',
           dateOperators: [...dateOperatorOptions],
         })]
@@ -303,6 +304,7 @@ export function CertificateFilterBar({
       ? [createDateField<CertificateFilterValues>({
           key: 'validFromFilter',
           label: 'Valid From',
+          placeholder: 'Pick date',
           visibility: 'advanced',
           dateOperators: [...dateOperatorOptions],
         })]
@@ -311,6 +313,7 @@ export function CertificateFilterBar({
       ? [createDateField<CertificateFilterValues>({
           key: 'validToFilter',
           label: 'Valid To',
+          placeholder: 'Pick date',
           visibility: 'advanced',
           dateOperators: [...dateOperatorOptions],
         })]

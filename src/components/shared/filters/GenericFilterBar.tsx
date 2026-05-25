@@ -311,14 +311,16 @@ function DateFilterControl<TValues extends GenericFilterValues>({
           id={context.id}
           variant="outline"
           className={cn(
-            'h-9 flex-1 justify-start text-left font-normal',
+            'h-9 w-full min-w-0 justify-start text-left font-normal',
             !selectedDate && 'text-muted-foreground',
             field.inputClassName
           )}
           disabled={context.disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {selectedDate ? getDateFilterDisplayValue(selectedDate, includeTime) : `Pick ${field.label.toLowerCase()}`}
+          <span className="truncate">
+            {selectedDate ? getDateFilterDisplayValue(selectedDate, includeTime) : field.placeholder || 'Pick date'}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto rounded-lg border p-2" align="start">
@@ -649,7 +651,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
 
         if (field.dateOperators?.length) {
           return (
-            <div className="flex gap-2">
+            <div className="flex min-w-0 gap-2">
               <Select
                 value={selectedOperator}
                 onValueChange={(nextOperator) =>
@@ -657,7 +659,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                 }
                 disabled={context.disabled}
               >
-                <SelectTrigger className="h-9 w-[120px] shrink-0">
+                <SelectTrigger className="h-9 w-[108px] shrink-0">
                   <SelectValue placeholder="Operator" />
                 </SelectTrigger>
                 <SelectContent>
@@ -668,13 +670,15 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                   ))}
                 </SelectContent>
               </Select>
-              <DateFilterControl
-                context={context}
-                field={field}
-                selectedDate={selectedDate}
-                selectedOperator={selectedOperator}
-                includeTime={includeTime}
-              />
+              <div className="min-w-0 flex-1 basis-[11rem]">
+                <DateFilterControl
+                  context={context}
+                  field={field}
+                  selectedDate={selectedDate}
+                  selectedOperator={selectedOperator}
+                  includeTime={includeTime}
+                />
+              </div>
               {selectedDate && (
                 <Button
                   variant="outline"
@@ -692,33 +696,37 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
         }
 
         return (
-          <div className="flex gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id={context.id}
-                  variant="outline"
-                  className={cn(
-                    'h-9 flex-1 justify-start text-left font-normal',
-                    !selectedDate && 'text-muted-foreground',
-                    field.inputClassName
-                  )}
-                  disabled={context.disabled}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? getDateFilterDisplayValue(selectedDate, dateFilter.includeTime) : field.placeholder || 'Pick a date'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(nextDate) => context.onValueChange(nextDate)}
-                  initialFocus
-                  {...field.calendarProps}
-                />
-              </PopoverContent>
-            </Popover>
+          <div className="flex min-w-0 gap-2">
+            <div className="min-w-0 flex-1">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id={context.id}
+                    variant="outline"
+                    className={cn(
+                      'h-9 min-w-0 w-full justify-start text-left font-normal',
+                      !selectedDate && 'text-muted-foreground',
+                      field.inputClassName
+                    )}
+                    disabled={context.disabled}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <span className="truncate">
+                      {selectedDate ? getDateFilterDisplayValue(selectedDate, dateFilter.includeTime) : field.placeholder || 'Pick a date'}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(nextDate) => context.onValueChange(nextDate)}
+                    initialFocus
+                    {...field.calendarProps}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
             {selectedDate && (
               <Button
                 variant="outline"

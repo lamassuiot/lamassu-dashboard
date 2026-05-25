@@ -283,7 +283,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full p-0 sm:max-w-3xl lg:max-w-5xl">
+      <SheetContent side="right" className="w-full p-0 sm:max-w-4xl lg:max-w-[96rem]">
         <div className="flex h-full flex-col overflow-hidden bg-background">
           <SheetHeader className="border-b px-6 py-5 text-left">
             <SheetTitle>{title}</SheetTitle>
