@@ -128,6 +128,7 @@ export default function RaCmpTransactionsPage() {
                             extraFilter={['state[in]CONFIRMED,REVOKED']}
                             hideStateFilter
                             emptyMessage="No completed CMP transactions for this RA."
+                            workflowColumnLabel="Job"
                         />
                     </TabsContent>
                     <TabsContent value="certificates" className="mt-0">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,9 @@ import {
     AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Loader2, RefreshCw,
 } from 'lucide-react';
 import { fetchCmpTransactions, type CmpTransactionItem } from '@/lib/dms-api';
+import { fetchJob } from '@/lib/wfx-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +42,64 @@ const stateBadgeVariant = (state: string): { variant: 'default' | 'secondary' | 
 };
 
 const PAGE_SIZES = ['10', '25', '50', '100'];
+
+// States where a WFX reason tooltip is useful.
+const FAILURE_STATES = new Set(['REVOKED', 'ISSUE_FAILED']);
+
+/**
+ * WfxReasonBadge wraps the state Badge with a Tooltip that lazy-loads the
+ * rejection/revocation reason from WFX the first time the user hovers.
+ * If there's no wfx_job_id it renders the plain badge without a tooltip.
+ */
+const WfxReasonBadge: React.FC<{
+    state: string;
+    wfxJobId?: string;
+    badge: { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string };
+}> = ({ state, wfxJobId, badge }) => {
+    const [reason, setReason] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const fetched = useRef(false);
+
+    const showTooltip = FAILURE_STATES.has(state) && !!wfxJobId;
+
+    const onOpen = (open: boolean) => {
+        if (!open || fetched.current || !wfxJobId) return;
+        fetched.current = true;
+        setLoading(true);
+        fetchJob(wfxJobId, { history: true })
+            .then((job) => {
+                // The rejection reason lives in the status.message of the
+                // terminal "Rejected" state, or in context.reason.
+                const msg = job.status?.message
+                    || (job.status?.context as any)?.reason
+                    || null;
+                setReason(msg);
+            })
+            .catch(() => setReason(null))
+            .finally(() => setLoading(false));
+    };
+
+    if (!showTooltip) {
+        return <Badge variant={badge.variant} className={badge.className}>{state}</Badge>;
+    }
+
+    return (
+        <TooltipProvider delayDuration={200}>
+            <Tooltip onOpenChange={onOpen}>
+                <TooltipTrigger asChild>
+                    <Badge variant={badge.variant} className={cn(badge.className, 'cursor-help')}>
+                        {state}
+                    </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs">
+                    {loading && <span className="text-muted-foreground">Loading…</span>}
+                    {!loading && reason && <span>{reason}</span>}
+                    {!loading && !reason && <span className="text-muted-foreground">No reason available</span>}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
+};
 
 export interface CmpTransactionsPanelProps {
     raId: string;
@@ -65,6 +125,8 @@ export interface CmpTransactionsPanelProps {
     hideStateFilter?: boolean;
     /** Shown in the empty state instead of the default "No CMP transactions". */
     emptyMessage?: string;
+    /** Override the label of the Workflow column. Defaults to "Workflow". */
+    workflowColumnLabel?: string;
     className?: string;
 }
 
@@ -76,6 +138,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
     extraFilter,
     hideStateFilter = false,
     emptyMessage = 'No CMP transactions for this RA.',
+    workflowColumnLabel = 'Workflow',
     className,
 }) => {
     const [transactions, setTransactions] = useState<CmpTransactionItem[]>([]);
@@ -176,6 +239,12 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
         }
     };
 
+    // Detail link for a single CMP transaction — workflow timeline + ASN.1
+    // decoded request/response per state transition. raId is required so the
+    // details page can scope its filter to the right DMS row.
+    const txDetailHref = (txId: string) =>
+        `/registration-authorities/transactions/details?txId=${encodeURIComponent(txId)}&raId=${encodeURIComponent(raId)}`;
+
     const header = (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div>
@@ -235,7 +304,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                             <TableHead>Operation</TableHead>
                             <TableHead>Device ID</TableHead>
                             <TableHead>Certificate</TableHead>
-                            <TableHead>Workflow</TableHead>
+                            <TableHead>{workflowColumnLabel}</TableHead>
                             <TableHead>Created</TableHead>
                             <TableHead>Confirmed</TableHead>
                             <TableHead>Expires</TableHead>
@@ -269,13 +338,29 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                             return (
                                 <TableRow key={tx.transaction_id}>
                                     <TableCell className="font-mono text-xs">
-                                        <button
-                                            className="hover:underline text-left"
-                                            onClick={() => copyTxId(tx.transaction_id)}
-                                            title="Copy transaction ID"
-                                        >
-                                            {tx.transaction_id}
-                                        </button>
+                                        {/* The transaction ID is the primary click target — it opens
+                                            the detail page where the user can travel the workflow
+                                            states and inspect the ASN.1-decoded CMP messages. The
+                                            old copy-to-clipboard action moves to a secondary button
+                                            so the row stays one-click-navigable. */}
+                                        <div className="flex items-center gap-2">
+                                            <Link
+                                                href={txDetailHref(tx.transaction_id)}
+                                                className="hover:underline text-left"
+                                                title="Open transaction details"
+                                            >
+                                                {tx.transaction_id}
+                                            </Link>
+                                            <button
+                                                onClick={() => copyTxId(tx.transaction_id)}
+                                                className="text-muted-foreground hover:text-foreground"
+                                                title="Copy transaction ID"
+                                                aria-label="Copy transaction ID"
+                                            >
+                                                <span className="sr-only">Copy</span>
+                                                ⧉
+                                            </button>
+                                        </div>
                                         {tx.error_message && (
                                             <div className="text-destructive text-xs mt-1 font-sans">
                                                 {tx.error_message}
@@ -283,7 +368,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={badge.variant} className={badge.className}>{tx.state}</Badge>
+                                        <WfxReasonBadge state={tx.state} wfxJobId={tx.wfx_job_id} badge={badge} />
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="secondary" className="font-mono text-xs uppercase">
