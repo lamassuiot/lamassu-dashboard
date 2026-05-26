@@ -802,6 +802,11 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     isLoadingDependencies={isLoadingDependencies}
                     authLoading={authLoading}
                     allCryptoEngines={allCryptoEngines}
+                    availableProfiles={availableProfiles}
+                    issuanceProfileId={issuanceProfileId}
+                    setIssuanceProfileId={setIssuanceProfileId}
+                    selectedProfileForDisplay={selectedProfileForDisplay}
+                    enrollmentCaDefaultProfile={enrollmentCaDefaultProfile}
                     cmpConfirmationMode={cmpConfirmationMode}
                     setCmpConfirmationMode={setCmpConfirmationMode}
                     cmpConfirmationTimeout={cmpConfirmationTimeout}

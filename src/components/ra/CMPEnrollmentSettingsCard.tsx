@@ -8,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { FileText, ShieldCheck, PlusCircle, HelpCircle, Loader2, X } from "lucide-react";
+import { AlertTriangle, FileText, ShieldCheck, PlusCircle, HelpCircle, Loader2, X } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
+import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import type { CA } from '@/lib/ca-data';
+import type { ApiSigningProfile } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { CertificateData } from '@/types/certificate';
 import { SettingsCard } from './SettingsCard';
@@ -23,6 +26,11 @@ interface CMPEnrollmentSettingsCardProps {
   isLoadingDependencies: boolean;
   authLoading: boolean;
   allCryptoEngines: ApiCryptoEngine[];
+  availableProfiles: ApiSigningProfile[];
+  issuanceProfileId: string | null;
+  setIssuanceProfileId: (id: string | null) => void;
+  selectedProfileForDisplay: ApiSigningProfile | undefined;
+  enrollmentCaDefaultProfile: ApiSigningProfile | undefined;
   cmpConfirmationMode: string;
   setCmpConfirmationMode: (v: string) => void;
   cmpConfirmationTimeout: string;
@@ -76,6 +84,11 @@ export function CMPEnrollmentSettingsCard({
   isLoadingDependencies,
   authLoading,
   allCryptoEngines,
+  availableProfiles,
+  issuanceProfileId,
+  setIssuanceProfileId,
+  selectedProfileForDisplay,
+  enrollmentCaDefaultProfile,
   cmpConfirmationMode,
   setCmpConfirmationMode,
   cmpConfirmationTimeout,
@@ -109,7 +122,53 @@ export function CMPEnrollmentSettingsCard({
         <Button type="button" variant="outline" onClick={onSelectEnrollmentCa} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies || authLoading}>
           {isLoadingDependencies || authLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
         </Button>
-        {enrollmentCa && <div className="mt-2"><CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} /></div>}
+        {enrollmentCa &&
+          <div className="mt-2 space-y-3">
+            <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
+            <div className='pl-2 space-y-2'>
+              <Label>Issuance Profile (Optional)</Label>
+              <Select value={issuanceProfileId || "ca-default"} onValueChange={(v) => setIssuanceProfileId(v === "ca-default" ? null : v)}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select an issuance profile..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ca-default">Use Enrollment CA's Default</SelectItem>
+                  {availableProfiles.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {selectedProfileForDisplay ? (
+                <div className="pt-2">
+                  <IssuanceProfileCard profile={selectedProfileForDisplay} />
+                </div>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  <Alert variant="warning">
+                    <AlertTriangle className="h-4 w-4"/>
+                    <AlertTitle>Using Default</AlertTitle>
+                    <AlertDescription>
+                      No profile selected. The Enrollment CA's default issuance profile will be used to sign certificates.
+                    </AlertDescription>
+                  </Alert>
+                  {enrollmentCaDefaultProfile && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">CA Default Profile:</p>
+                      <IssuanceProfileCard profile={enrollmentCaDefaultProfile} />
+                    </div>
+                  )}
+                  {!enrollmentCaDefaultProfile && enrollmentCa && (
+                    <Alert variant="warning">
+                      <AlertTriangle className="h-4 w-4"/>
+                      <AlertTitle>Warning</AlertTitle>
+                      <AlertDescription>
+                        The selected Enrollment CA does not have a default profile configured.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        }
       </div>
 
       <div>
