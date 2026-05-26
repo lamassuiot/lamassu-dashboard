@@ -202,15 +202,16 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         const authSettings = enrollment_settings.est_rfc7030_settings;
         if (authSettings) {
-            const authModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth' };
+            const authModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth', 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK': 'Client Certificate + Webhook' };
             const currentAuthMode = authModeMap[authSettings.auth_mode] || 'Client Certificate';
             setAuthMode(currentAuthMode);
             
-            if (currentAuthMode === 'Client Certificate' && authSettings.client_certificate_settings) {
+            if ((currentAuthMode === 'Client Certificate' || currentAuthMode === 'Client Certificate + Webhook') && authSettings.client_certificate_settings) {
                 setChainValidationLevel(authSettings.client_certificate_settings.chain_level_validation);
                 setAllowExpiredAuth(authSettings.client_certificate_settings.allow_expired);
                 setValidationCAs(authSettings.client_certificate_settings.validation_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
-            } else if (currentAuthMode === 'External Webhook' && authSettings.external_webhook_settings) {
+            }
+            if ((currentAuthMode === 'External Webhook' || currentAuthMode === 'Client Certificate + Webhook') && authSettings.external_webhook_settings) {
                 const webhookSettings = authSettings.external_webhook_settings;
                 setWebhookName(webhookSettings.name || '');
                 setWebhookUrl(webhookSettings.url || '');
@@ -295,19 +296,20 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         return;
     }
     const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'None': '' };
-    const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE' };
+    const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE', 'Client Certificate + Webhook': 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK' };
     
     const estSettings: any = {
         auth_mode: authModeMapping[authMode as keyof typeof authModeMapping],
     };
 
-    if (authMode === 'Client Certificate') {
+    if (authMode === 'Client Certificate' || authMode === 'Client Certificate + Webhook') {
         estSettings.client_certificate_settings = {
             chain_level_validation: chainValidationLevel,
             validation_cas: validationCAs.map(ca => ca.id),
             allow_expired: allowExpiredAuth,
         };
-    } else if (authMode === 'External Webhook') {
+    }
+    if (authMode === 'External Webhook' || authMode === 'Client Certificate + Webhook') {
         const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
         const webhookConfig: any = {
             validate_server_cert: webhookValidateServerCert,
@@ -692,9 +694,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 </div>
                 <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
               </div>
-              <div><Label htmlFor="authMode">Authentication Mode</Label><Select value={authMode} onValueChange={setAuthMode}><SelectTrigger id="authMode" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Client Certificate">Client Certificate</SelectItem><SelectItem value="External Webhook">External Webhook</SelectItem><SelectItem value="No Auth">No Auth</SelectItem></SelectContent></Select></div>
+              <div><Label htmlFor="authMode">Authentication Mode</Label><Select value={authMode} onValueChange={setAuthMode}><SelectTrigger id="authMode" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Client Certificate">Client Certificate</SelectItem><SelectItem value="External Webhook">External Webhook</SelectItem><SelectItem value="Client Certificate + Webhook">Client Certificate + Webhook</SelectItem><SelectItem value="No Auth">No Auth</SelectItem></SelectContent></Select></div>
               
-              {authMode === 'Client Certificate' && (
+              {(authMode === 'Client Certificate' || authMode === 'Client Certificate + Webhook') && (
                   <div className="space-y-4 pt-2 border-t mt-4">
                       <h4 className="font-medium text-md text-muted-foreground pt-2">Client Certificate Auth Settings</h4>
                       <div>
@@ -722,7 +724,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </div>
               )}
 
-              {authMode === 'External Webhook' && (
+              {(authMode === 'External Webhook' || authMode === 'Client Certificate + Webhook') && (
                   <div className="space-y-4 pt-2 border-t mt-4">
                       <h4 className="font-medium text-md text-muted-foreground pt-2">Webhook Settings</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
