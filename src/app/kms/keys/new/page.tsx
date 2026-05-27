@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight, PlusCircle, FileKey, Loader2, Tag } from "lucide-react";
 import { sileo } from '@/lib/toast';
+import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { createKmsKey, importKmsKey } from '@/lib/kms-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -22,8 +22,16 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { TagInput } from '@/components/shared/TagInput';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import {
+  getKeySpecLabel,
+  getKeySpecOptions,
+  getKeyTypeDetails,
+  getPreferredKeySpecValue,
+  getSupportedKeyTypeOptions,
+  getSupportedKeyTypeValues,
+  parseKeySpecToApiSize,
+} from '@/lib/crypto-key-fields';
 import { cn } from '@/lib/utils';
-import { SLHDSA_PARAM_SET_INFO, COMPOSITE_MLDSA_RSA_PARAM_SET_INFO } from '@/lib/form-options';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -61,12 +69,7 @@ export default function CreateKmsKeyPage() {
   const [keyName, setKeyName] = useState('');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
   const [keyType, setKeyType] = useState('RSA');
-  const [rsaKeySize, setRsaKeySize] = useState('2048');
-  const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
-  const [mldsaSecurityLevel, setMLDSASecurityLevel] = useState('65');
-  const [slhdsaParamSet, setSlhdsaParamSet] = useState('1');
-  const [compositeMLDSARsaParamSet, setCompositeMLDSARsaParamSet] = useState('1');
-  const [ed25519KeySize, setEd25519KeySize] = useState('256');
+  const [keySpec, setKeySpec] = useState('');
 
   const [importKeyName, setImportKeyName] = useState('');
   const [privateKeyPem, setPrivateKeyPem] = useState('');
@@ -107,27 +110,18 @@ export default function CreateKmsKeyPage() {
   }));
 
   useEffect(() => {
-    if (selectedEngine && keyType) {
-      const isKeyTypeSupported = supportedKeyTypes.some(kt => kt.type === keyType);
-      if (!isKeyTypeSupported && supportedKeyTypes.length > 0) {
-        const firstType = supportedKeyTypes[0];
-        setKeyType(firstType.type);
-        // Also sync the size state for the new key type
-        if (firstType.sizes.length > 0) {
-          const firstSize = firstType.sizes[0].toString();
-          if (firstType.type === 'RSA') setRsaKeySize(firstSize);
-          else if (firstType.type === 'ECDSA') setEcdsaCurve(firstSize);
-          else if (firstType.type === 'ML-DSA') setMLDSASecurityLevel(firstSize);
-          else if (firstType.type === 'SLH-DSA') setSlhdsaParamSet(firstSize);
-          else if (firstType.type === 'Composite-ML-DSA-RSA') setCompositeMLDSARsaParamSet(firstSize);
-          else if (firstType.type === 'Ed25519') setEd25519KeySize(firstSize);
-        }
-      }
+    if (supportedKeyTypes.length === 0) {
+      return;
+    }
+
+    if (!supportedKeyTypes.includes(keyType)) {
+      setKeyType(supportedKeyTypes[0]);
     }
   }, [selectedEngine, keyType, supportedKeyTypes]);
 
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
+<<<<<<< HEAD
     const keyTypeDetail = supportedKeyTypes.find(kt => kt.type === value);
     if (keyTypeDetail && keyTypeDetail.sizes.length > 0) {
       const firstSize = keyTypeDetail.sizes[0];
@@ -144,9 +138,17 @@ export default function CreateKmsKeyPage() {
       } else if (value === 'Ed25519') {
         setEd25519KeySize(firstSize.toString());
       }
-    }
+=======
   };
 
+  useEffect(() => {
+    if (currentKeySpecOptions.length === 0) {
+      setKeySpec('');
+      return;
+>>>>>>> 6a613fe (feat: add CryptoKeyTypeSpecFields component for key type and specification selection)
+    }
+
+<<<<<<< HEAD
   const currentKeySpecOptions = (() => {
     const keyTypeDetail = supportedKeyTypes.find(kt => kt.type === keyType);
     if (!keyTypeDetail) return [];
@@ -201,6 +203,12 @@ export default function CreateKmsKeyPage() {
     else if (keyType === 'Composite-ML-DSA-RSA') setCompositeMLDSARsaParamSet(value);
     else if (keyType === 'Ed25519') setEd25519KeySize(value);
   };
+=======
+    if (!currentKeySpecOptions.some((option) => option.value === keySpec)) {
+      setKeySpec(getPreferredKeySpecValue(keyType, currentKeySpecOptions));
+    }
+  }, [currentKeySpecOptions, keySpec, keyType]);
+>>>>>>> 6a613fe (feat: add CryptoKeyTypeSpecFields component for key type and specification selection)
 
   const handleMetadataChange = (value: string | undefined) => {
     const newValue = value || '{}';
@@ -218,6 +226,7 @@ export default function CreateKmsKeyPage() {
     setIsSubmitting(true);
 
     if (selectedMode === 'newKeyPair') {
+<<<<<<< HEAD
       if (!cryptoEngineId) {
         sileo.error({ title: "Validation Error", description: "Please select a Crypto Engine." });
         setIsSubmitting(false);
@@ -228,37 +237,42 @@ export default function CreateKmsKeyPage() {
         setIsSubmitting(false);
         return;
       }
+=======
+        if (!cryptoEngineId) {
+            sileo.error({ title: "Validation Error", description: "Please select a Crypto Engine." });
+            setIsSubmitting(false);
+            return;
+        }
+        if (!keyName.trim()) {
+            sileo.error({ title: "Validation Error", description: "Key Name / Alias is required." });
+            setIsSubmitting(false);
+            return;
+        }
+        if (!keySpec) {
+            sileo.error({ title: "Validation Error", description: "Please select a key specification." });
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Validate metadata JSON
+        let parsedMetadata: Record<string, any> | undefined;
+        if (metadata.trim() && metadata.trim() !== '{}') {
+            try {
+                parsedMetadata = JSON.parse(metadata);
+            } catch {
+                sileo.error({ title: "Validation Error", description: "Metadata must be valid JSON." });
+                setIsSubmitting(false);
+                return;
+            }
+        }
+>>>>>>> 6a613fe (feat: add CryptoKeyTypeSpecFields component for key type and specification selection)
 
       let parsedMetadata: Record<string, any> | undefined;
       if (metadata.trim() && metadata.trim() !== '{}') {
         try {
-            // Get the current size/spec value based on key type
-            let sizeValue: number;
-            if (keyType === 'RSA') {
-                sizeValue = parseInt(rsaKeySize, 10);
-            } else if (keyType === 'ECDSA') {
-                // For ECDSA, we might have curve names like 'P-256' or just numbers
-                if (ecdsaCurve.includes('P-')) {
-                    sizeValue = parseInt(ecdsaCurve.replace('P-', ''), 10);
-                } else {
-                    // If it's already a number, parse it
-                    sizeValue = parseInt(ecdsaCurve, 10);
-                }
-            }
-            else if (keyType === 'ML-DSA') {
-                sizeValue = parseInt(mldsaSecurityLevel.replace('ML-DSA-', ''), 10);
-            } else if (keyType === 'SLH-DSA') {
-                sizeValue = parseInt(slhdsaParamSet, 10);
-            } else if (keyType === 'Composite-ML-DSA-RSA') {
-                sizeValue = parseInt(compositeMLDSARsaParamSet, 10);
-            } else if (keyType === 'Ed25519') {
-                sizeValue = parseInt(ed25519KeySize, 10);
-            } else {
-                // For other key types, try to parse as number
-                sizeValue = parseInt(currentKeySpecValue, 10);
-                if (isNaN(sizeValue)) {
-                    sizeValue = 0; // fallback
-                }
+            const sizeValue = parseKeySpecToApiSize(keyType, keySpec);
+            if (Number.isNaN(sizeValue)) {
+                throw new Error(`Unsupported key specification "${keySpec}" for ${keyType}.`);
             }
 
             const payload = {
@@ -550,62 +564,26 @@ export default function CreateKmsKeyPage() {
                     <Label htmlFor="cryptoEngine">Crypto Engine</Label>
                     <CryptoEngineSelector
                       value={cryptoEngineId}
-                      onValueChange={(engineId) => {
-                        setCryptoEngineId(engineId);
-                        // Reset key type when engine changes
-                        const newEngine = cryptoEngines.find(e => e.id === engineId);
-                        if (newEngine && newEngine.supported_key_types.length > 0) {
-                          const firstSupportedType = newEngine.supported_key_types[0];
-                          setKeyType(firstSupportedType.type);
-                          // Set default size for the first supported type
-                          if (firstSupportedType.sizes.length > 0) {
-                            const firstSize = firstSupportedType.sizes[0].toString();
-                            if (firstSupportedType.type === 'RSA') {
-                              setRsaKeySize(firstSize);
-                            } else if (firstSupportedType.type === 'ECDSA') {
-                              setEcdsaCurve(firstSize);
-                            } else if (firstSupportedType.type === 'ML-DSA') {
-                              setMLDSASecurityLevel(firstSize);
-                            } else if (firstSupportedType.type === 'SLH-DSA') {
-                              setSlhdsaParamSet(firstSize);
-                            } else if (firstSupportedType.type === 'Composite-ML-DSA-RSA') {
-                              setCompositeMLDSARsaParamSet(firstSize);
-                            } else if (firstSupportedType.type === 'Ed25519') {
-                              setEd25519KeySize(firstSize);
-                            }
-                          }
-                        }
-                      }}
+                      onValueChange={setCryptoEngineId}
                       disabled={isSubmitting}
                       className="mt-1"
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="keyType">Key Type</Label>
-                      <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={isSubmitting || isLoadingEngines || !selectedEngine}>
-                        <SelectTrigger id="keyType" className="mt-1"><SelectValue placeholder="Select key type" /></SelectTrigger>
-                        <SelectContent>
-                          {availableKeyTypeOptions.map(kt => <SelectItem key={kt.value} value={kt.value}>{kt.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      {!selectedEngine && !isLoadingEngines && (
-                        <p className="text-sm text-muted-foreground mt-1">Please select a crypto engine first</p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="keySpec">{keySpecLabel}</Label>
-                      <Select value={currentKeySpecValue} onValueChange={handleKeySpecChange} disabled={isSubmitting || isLoadingEngines || !keyType}>
-                        <SelectTrigger id="keySpec" className="mt-1"><SelectValue placeholder="Select key specification" /></SelectTrigger>
-                        <SelectContent>
-                          {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      {!keyType && (
-                        <p className="text-sm text-muted-foreground mt-1">Please select a key type first</p>
-                      )}
-                    </div>
-                  </div>
+                  <CryptoKeyTypeSpecFields
+                    idPrefix="kms-key"
+                    keyTypeValue={keyType}
+                    keyTypeOptions={availableKeyTypeOptions}
+                    onKeyTypeChange={handleKeyTypeChange}
+                    keySpecLabel={keySpecLabel}
+                    keySpecValue={keySpec}
+                    keySpecOptions={currentKeySpecOptions}
+                    onKeySpecChange={setKeySpec}
+                    disabled={isSubmitting || isLoadingEngines || !selectedEngine}
+                    keySpecDisabled={isSubmitting || isLoadingEngines || currentKeySpecOptions.length === 0}
+                  />
+                  {!selectedEngine && !isLoadingEngines && (
+                    <p className="text-sm text-muted-foreground">Please select a crypto engine first.</p>
+                  )}
                 </CardContent>
               </Card>
             )}
