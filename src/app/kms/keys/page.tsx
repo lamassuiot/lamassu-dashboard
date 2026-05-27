@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { fetchCryptoEngines, fetchKmsKeys, deleteKmsKey } from '@/lib/kms-data';
+import { formatKeyTypeDisplay } from '@/lib/crypto-key-fields';
 import { DeleteKmsKeyModal } from '@/components/shared/DeleteKmsKeyModal';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
@@ -120,7 +121,7 @@ export default function KmsKeysPage() {
         return {
           id: apiKey.pkcs11_uri,
           name: apiKey.name,
-          keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
+          keyTypeDisplay: formatKeyTypeDisplay(apiKey.algorithm, String(apiKey.size)),
           hasPrivateKey: apiKey.has_private_key,
           cryptoEngineId: apiKey.engine_id,
           algorithm: apiKey.algorithm,
