@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { fetchCryptoEngines, fetchKmsKey, signWithKmsKey, verifyWithKmsKey, updateKeyAliases, updateKeyTags, updateKeyMetadata, type PatchOperation } from '@/lib/kms-data';
+import { formatKeyTypeDisplay, getSignatureAlgorithmLabel } from '@/lib/crypto-key-fields';
 import {
   SIGNATURE_ALGORITHMS,
   MLDSA_ALGORITHMS,
@@ -394,10 +395,17 @@ export default function KmsKeyDetailsClient() {
             }
           }
         }
+        const canonicalAlgo: Partial<Record<string, string>> = {
+          MLDSA: 'ML-DSA',
+          SLHDSA: 'SLH-DSA',
+          COMPOSITE_MLDSA_RSA: 'Composite-ML-DSA-RSA',
+        };
+        const algoForDisplay = canonicalAlgo[normalizedAlgorithm] ?? apiKey.algorithm;
+
         const detailedKey: KmsKeyDetailed = {
           id: apiKey.pkcs11_uri,
           alias: apiKey.name || apiKey.key_id,
-          keyTypeDisplay: `${apiKey.algorithm} ${apiKey.size}`,
+          keyTypeDisplay: formatKeyTypeDisplay(algoForDisplay, String(resolvedKeySize)),
           algorithm: normalizedAlgorithm,
           keySize: resolvedKeySize,
           hasPrivateKey: apiKey.has_private_key,
@@ -1249,7 +1257,7 @@ export default function KmsKeyDetailsClient() {
                         <SelectTrigger id="signAlgorithm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {signatureAlgorithms.map(algo => (
-                            <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{algo}</SelectItem>
+                            <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{getSignatureAlgorithmLabel(algo)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
