@@ -173,6 +173,38 @@ export function formatKeyTypeDisplay(algorithm: string, size: string): string {
   return `${algorithm} ${rawSize}`;
 }
 
+const SIGNATURE_ALGORITHM_LABELS: Record<string, string> = {
+  RSASSA_PSS_SHA_256: 'RSA-PSS SHA-256',
+  RSASSA_PSS_SHA_384: 'RSA-PSS SHA-384',
+  RSASSA_PSS_SHA_512: 'RSA-PSS SHA-512',
+  RSASSA_PKCS1_V1_5_SHA_256: 'RSA PKCS#1 v1.5 SHA-256',
+  RSASSA_PKCS1_V1_5_SHA_384: 'RSA PKCS#1 v1.5 SHA-384',
+  RSASSA_PKCS1_V1_5_SHA_512: 'RSA PKCS#1 v1.5 SHA-512',
+  ECDSA_SHA_256: 'ECDSA SHA-256',
+  ECDSA_SHA_384: 'ECDSA SHA-384',
+  ECDSA_SHA_512: 'ECDSA SHA-512',
+  MLDSA_44: 'ML-DSA-44',
+  MLDSA_65: 'ML-DSA-65',
+  MLDSA_87: 'ML-DSA-87',
+  Ed25519_PURE: 'Ed25519',
+  ...Object.fromEntries(
+    Object.entries(SLHDSA_PARAM_SET_INFO).map(([id, info]) => [
+      `SLHDSA_${id}`,
+      `SLH-DSA ${info.name} (${info.hash}, ${info.security}, ${info.speed})`,
+    ]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(COMPOSITE_MLDSA_RSA_PARAM_SET_INFO).map(([id, info]) => [
+      `COMPOSITE_MLDSA_RSA_${id}`,
+      `Composite-ML-DSA-RSA ${info.name}`,
+    ]),
+  ),
+};
+
+export function getSignatureAlgorithmLabel(algo: string): string {
+  return SIGNATURE_ALGORITHM_LABELS[algo] ?? algo;
+}
+
 export function parseKeySpecToApiSize(keyType: string, keySpec: string): number {
   if (keyType === 'ECDSA') {
     return Number.parseInt(keySpec.replace(/^P-/, ''), 10);
