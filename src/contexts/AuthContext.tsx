@@ -2,14 +2,13 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback, useRef } from 'react';
-import { User, UserManager, WebStorageStateStore, Log, UserProfile } from 'oidc-client-ts';
+import type { User, UserManager, UserProfile } from 'oidc-client-ts';
 import { useRouter } from 'next/navigation';
 import { useConfig } from './ConfigContext';
 
-// Optional: Configure oidc-client-ts logging
-Log.setLogger(console);
-Log.setLevel(Log.DEBUG);
+type OidcModule = typeof import('oidc-client-ts');
 
+let oidcModulePromise: Promise<OidcModule> | null = null;
 
 const createUserManager = (): UserManager | null => {
   // Check moved inside the function to be safe.
@@ -38,7 +37,50 @@ const createUserManager = (): UserManager | null => {
       monitorSession, // Opt-in: avoids CheckSessionIFrame errors when unsupported/blocked
     });
   }
-  return null;
+
+  oidcModulePromise ??= import('oidc-client-ts').then((module) => {
+    module.Log.setLogger(console);
+    module.Log.setLevel(module.Log.DEBUG);
+    return module;
+  });
+
+  return oidcModulePromise;
+};
+
+const createUserManager = async (): Promise<UserManager | null> => {
+  if (typeof window === 'undefined' || (window as any).lamassuConfig?.LAMASSU_AUTH_ENABLED === false) {
+    return null;
+  }
+
+  const config = (window as any).lamassuConfig;
+  const authority = config?.LAMASSU_AUTH_AUTHORITY;
+  const clientId = config?.LAMASSU_AUTH_CLIENT_ID || 'frontend';
+  const monitorSession = config?.LAMASSU_AUTH_MONITOR_SESSION === true;
+
+  if (!authority) {
+    console.warn('LAMASSU_AUTH_AUTHORITY not found in config');
+    return null;
+  }
+
+  const oidcModule = await loadOidcModule();
+  if (!oidcModule) {
+    return null;
+  }
+
+  const { UserManager: OidcUserManager, WebStorageStateStore } = oidcModule;
+
+  return new OidcUserManager({
+    authority: authority,
+    client_id: clientId,
+    redirect_uri: `${window.location.origin}/signin-callback`,
+    silent_redirect_uri: `${window.location.origin}/silent-renew-callback`,
+    post_logout_redirect_uri: `${window.location.origin}/signout-callback`,
+    response_type: 'code',
+    scope: 'openid profile email',
+    userStore: new WebStorageStateStore({ store: window.localStorage }),
+    automaticSilentRenew: true,
+    monitorSession,
+  });
 };
 
 interface AuthContextType {
@@ -57,14 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { config, isConfigLoaded } = useConfig();
   const [authMode, setAuthMode] = useState<'loading' | 'enabled' | 'disabled'>('loading');
   const isHandlingExpiryRef = useRef(false);
-
-  // OIDC specific state that will only be used if authMode is 'enabled'
-  const userManagerInstance = useMemo(() => {
-    if (authMode === 'enabled' && config) {
-      return createUserManager();
-    }
-    return null;
-  }, [authMode, config]);
+  const [userManagerInstance, setUserManagerInstance] = useState<UserManager | null>(null);
 
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,6 +111,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAuthMode(isEnabled ? 'enabled' : 'disabled');
     }
   }, [config, isConfigLoaded]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const initializeUserManager = async () => {
+      if (authMode !== 'enabled' || !config) {
+        setUserManagerInstance(null);
+        return;
+      }
+
+      const manager = await createUserManager();
+      if (!isCancelled) {
+        setUserManagerInstance(manager);
+      }
+    };
+
+    initializeUserManager();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [authMode, config]);
 
   const signoutRedirectCognito = useCallback(async () => {
     if (!userManagerInstance) {
@@ -237,7 +294,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const contextValue = useMemo(
     () => {
       if (authMode === 'disabled') {
-        const mockUser = new User({
+        const mockUser = {
           id_token: 'mock_id_token',
           access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiYXBwLWFkbWluIiwib2ZmbGluZV9hY2Nlc3MiXX0sIm5hbWUiOiJEZXYgVXNlciJ9.mockSignature',
           scope: 'openid profile email',
@@ -253,7 +310,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } as UserProfile,
           expires_at: Math.floor(Date.now() / 1000) + 3600,
           session_state: 'mock-session-state',
-        });
+          expired: false,
+        } as User;
 
         return {
           user: mockUser,
