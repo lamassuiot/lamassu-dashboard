@@ -141,6 +141,38 @@ export function getPreferredKeySpecValue(keyType: string, options: CryptoSelectO
   return options[0].value;
 }
 
+export function formatKeyTypeDisplay(algorithm: string, size: string): string {
+  const rawSize = String(size).trim();
+
+  if (algorithm === 'RSA' || algorithm === 'Ed25519') {
+    return `${algorithm} ${rawSize} bit`;
+  }
+
+  if (algorithm === 'ECDSA') {
+    const curveValue = normalizeCurveValue(rawSize);
+    const option = ECDSA_CURVE_OPTIONS.find((candidate) => candidate.value === curveValue);
+    return `${algorithm} ${option?.label ?? curveValue}`;
+  }
+
+  if (algorithm === 'ML-DSA') {
+    const normalizedValue = normalizeMlDsaValue(rawSize);
+    const option = MLDSA_SECURITY_LEVEL_OPTIONS.find((candidate) => candidate.value === normalizedValue);
+    return option?.label ?? `${algorithm} ${normalizedValue}`;
+  }
+
+  if (algorithm === 'SLH-DSA') {
+    const info = SLHDSA_PARAM_SET_INFO[rawSize];
+    return info ? `${algorithm} ${info.name} (${info.hash}, ${info.security}, ${info.speed})` : `${algorithm} ${rawSize}`;
+  }
+
+  if (algorithm === 'Composite-ML-DSA-RSA') {
+    const info = COMPOSITE_MLDSA_RSA_PARAM_SET_INFO[rawSize];
+    return info ? `${algorithm} ${info.name}` : `${algorithm} ${rawSize}`;
+  }
+
+  return `${algorithm} ${rawSize}`;
+}
+
 export function parseKeySpecToApiSize(keyType: string, keySpec: string): number {
   if (keyType === 'ECDSA') {
     return Number.parseInt(keySpec.replace(/^P-/, ''), 10);
