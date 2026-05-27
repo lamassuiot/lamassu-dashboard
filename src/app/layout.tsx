@@ -62,6 +62,7 @@ import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
+import { ChatbotWidget } from '@/components/chatbot/ChatbotWidget';
 
 
 interface DecodedAccessToken {
@@ -323,6 +324,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   };
 
   return (
+    <>
     <SidebarProvider defaultOpen>
       <div className="flex flex-col h-screen bg-background text-foreground w-full">
         <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header text-header-foreground px-4 md:px-6 sticky top-0 z-30">
@@ -556,6 +558,8 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       <BackendStatusDialog isOpen={isStatusModalOpen} onOpenChange={setIsStatusModalOpen} />
       <VersionInfoDialog isOpen={isVersionModalOpen} onOpenChange={setIsVersionModalOpen} versionInfo={VERSION_INFO} />
     </SidebarProvider>
+    <ChatbotWidget />
+    </>
   );
 };
 

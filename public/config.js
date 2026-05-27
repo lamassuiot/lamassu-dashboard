@@ -18,27 +18,13 @@ window.lamassuConfig = {
     // The base URL for all backend API services (CA, DMS, DevManager, etc.).
     // This should be the root of your API gateway or load balancer.
     // Example: "https://api.yourdomain.com"    
-    LAMASSU_API: "https://lab.lamassu.io/api",
-    // LAMASSU_API: "https://localhost:8443/api",
-    // LAMASSU_API: "http://localhost:8080/api",
-
-    // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.
-    // If not provided, these endpoints will be based on the LAMASSU_API value.
-    // Useful if validation/enrollment services are hosted on a separate public domain.
-    // LAMASSU_PUBLIC_API: "https://your-public-endpoint.example.com"
+    LAMASSU_API: "https://demo-api.lamassu.cloud",
 
     // --- Authentication (OIDC) ---
-    // Set to `false` to disable OIDC authentication and use a mock user for development.
-    // In a production environment, this should always be `true`.
-    LAMASSU_AUTH_ENABLED: true,
-  
-    // The OIDC provider's URL. All OIDC endpoints (.well-known, authorization, token)
-    // are relative to this authority.
-    // Example: "https://auth.yourdomain.com/realms/your-realm"
-    LAMASSU_AUTH_AUTHORITY: "https://lab.lamassu.io/auth/realms/lamassu",
-    
-    // The OIDC client ID registered with your provider for this frontend application.
-    LAMASSU_AUTH_CLIENT_ID: "frontend",
+    // Set to false to skip OIDC and use a mock user (dev/testing only)
+    LAMASSU_AUTH_ENABLED: false,
+    // LAMASSU_AUTH_AUTHORITY: "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_d2VFzoHA2",
+    // LAMASSU_AUTH_CLIENT_ID: "2sskv9h3clq7ctls2sg7u4grlk",
       
     // --- UI Customization ---
     // Set to true to enable loading of a custom footer from /public/footer.html
@@ -60,6 +46,10 @@ window.lamassuConfig = {
     // Example: "aws.123456789012.eu-west-1,aws.987654321098.us-east-1"
     LAMASSU_CONNECTORS: [
       "aws.1010101010.eu-west-1"
-    ]
+    ],
+
+    // --- Mattin AI Chatbot ---
+    MATTIN_API_KEY: "RPeES08KlbHQx9UQCZg3NeWZ1xoVzyFc",
+    MATTIN_AGENT_URL: "https://mattin.lksnext.com/public/v1/app/13/chat/31/call"
   };
   

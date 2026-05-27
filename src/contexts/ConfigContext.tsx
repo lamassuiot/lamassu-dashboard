@@ -15,6 +15,8 @@ interface LamassuConfig {
   TOAST_POSITION?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   DISPLAY_DATE_FORMAT?: string;
   DISPLAY_DATE_AND_TIME_FORMAT?: string;
+  MATTIN_API_KEY?: string;
+  MATTIN_AGENT_URL?: string;
   [key: string]: any;
 }
 
