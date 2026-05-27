@@ -24,12 +24,21 @@ import { Switch } from '@/components/ui/switch';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
+import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { formatISO, add, format } from 'date-fns';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS } from '@/lib/form-options';
+import {
+  getKeySpecLabel,
+  getKeySpecOptions,
+  getKeyTypeDetails,
+  getPreferredKeySpecValue,
+  getSupportedKeyTypeOptions,
+  getSupportedKeyTypeValues,
+  parseKeySpecToApiSize,
+} from '@/lib/crypto-key-fields';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { CardSelector } from '@/components/shared/CardSelector';
@@ -256,62 +265,18 @@ export default function CreateCaGeneratePage() {
 
   const selectedEngine = useMemo(() => allCryptoEngines.find(e => e.id === cryptoEngineId), [allCryptoEngines, cryptoEngineId]);
 
-  const supportedKeyTypes = useMemo(
-    () => selectedEngine?.supported_key_types.map(kt => kt.type) ?? [],
-    [selectedEngine],
+  const supportedKeyTypes = useMemo(() => getSupportedKeyTypeValues(selectedEngine), [selectedEngine]);
+  const keyTypeOptions = useMemo(() => getSupportedKeyTypeOptions(selectedEngine), [selectedEngine]);
+  const currentKeySpecOptions = useMemo(
+    () => getKeySpecOptions(keyType, getKeyTypeDetails(selectedEngine, keyType)),
+    [keyType, selectedEngine],
   );
-
-  const buildKeySpecOptions = useCallback((type: string) => {
-    if (!selectedEngine) return [];
-
-    const keyTypeDetails = selectedEngine.supported_key_types.find(
-      (kt) => kt.type.toUpperCase() === type.toUpperCase(),
-    );
-    if (!keyTypeDetails) return [];
-
-    return keyTypeDetails.sizes.map((size) => {
-      const sizeValue = String(size);
-      if (type === 'ECDSA') {
-        const curve = ECDSA_CURVE_OPTIONS.find((option) => option.value.includes(sizeValue));
-        return curve || { value: sizeValue, label: `Unknown Curve ${sizeValue}` };
-      }
-      if (type === 'ML-DSA') {
-        const normalizedSize = sizeValue.replace(/^ML-DSA-/, '');
-        const option = MLDSA_SECURITY_LEVEL_OPTIONS.find(
-          ({ value }: { value: string }) => value === sizeValue || value.endsWith(`-${normalizedSize}`),
-        );
-        return option || { value: sizeValue, label: `ML-DSA ${normalizedSize}` };
-      }
-      if (type === 'RSA') {
-        return { value: sizeValue, label: `${sizeValue} bit` };
-      }
-      return { value: sizeValue, label: sizeValue };
-    });
-  }, [selectedEngine]);
-
-  const currentKeySpecOptions = useMemo(() => {
-    return buildKeySpecOptions(keyType);
-  }, [buildKeySpecOptions, keyType]);
-
-  const innerKeySpecOptions = useMemo(() => {
-    return buildKeySpecOptions(innerKeyType);
-  }, [buildKeySpecOptions, innerKeyType]);
-
-  const keySpecLabel = useMemo(() => {
-    if (keyType === 'RSA') return 'RSA Key Size';
-    if (keyType === 'ECDSA') return 'ECDSA Curve';
-    if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
-    if (keyType === 'Ed25519') return 'Ed25519 Key Size';
-    return 'Key Specification';
-  }, [keyType]);
-
-  const innerKeySpecLabel = useMemo(() => {
-    if (innerKeyType === 'RSA') return 'Inner RSA Key Size';
-    if (innerKeyType === 'ECDSA') return 'Inner ECDSA Curve';
-    if (innerKeyType === 'ML-DSA') return 'Inner ML-DSA Security Level';
-    if (innerKeyType === 'Ed25519') return 'Inner Ed25519 Key Size';
-    return 'Inner Key Specification';
-  }, [innerKeyType]);
+  const innerKeySpecOptions = useMemo(
+    () => getKeySpecOptions(innerKeyType, getKeyTypeDetails(selectedEngine, innerKeyType)),
+    [innerKeyType, selectedEngine],
+  );
+  const keySpecLabel = useMemo(() => getKeySpecLabel(keyType), [keyType]);
+  const innerKeySpecLabel = useMemo(() => getKeySpecLabel(innerKeyType, 'Inner'), [innerKeyType]);
 
   useEffect(() => {
     if (supportedKeyTypes.length === 0) return;
@@ -329,34 +294,26 @@ export default function CreateCaGeneratePage() {
 
   // Effect to update keySpec when options change
   useEffect(() => {
-    if (currentKeySpecOptions.length > 0) {
-      const defaultSpec = keyType === 'RSA' ? '2048' : keyType === 'ECDSA' ? 'P-256' : currentKeySpecOptions[0].value;
-      if (currentKeySpecOptions.some(opt => opt.value === defaultSpec)) {
-        setKeySpec(defaultSpec);
-      } else {
-        setKeySpec(currentKeySpecOptions[0].value);
-      }
-    } else {
+    if (currentKeySpecOptions.length === 0) {
       setKeySpec('');
+      return;
     }
-  }, [currentKeySpecOptions, keyType]);
+
+    if (!currentKeySpecOptions.some((option) => option.value === keySpec)) {
+      setKeySpec(getPreferredKeySpecValue(keyType, currentKeySpecOptions));
+    }
+  }, [currentKeySpecOptions, keySpec, keyType]);
 
   useEffect(() => {
-    if (innerKeySpecOptions.length > 0) {
-      const defaultSpec = innerKeyType === 'RSA'
-        ? '2048'
-        : innerKeyType === 'ECDSA'
-          ? 'P-256'
-          : innerKeySpecOptions[0].value;
-      if (innerKeySpecOptions.some((opt) => opt.value === defaultSpec)) {
-        setInnerKeySpec(defaultSpec);
-      } else {
-        setInnerKeySpec(innerKeySpecOptions[0].value);
-      }
-    } else {
+    if (innerKeySpecOptions.length === 0) {
       setInnerKeySpec('');
+      return;
     }
-  }, [innerKeySpecOptions, innerKeyType]);
+
+    if (!innerKeySpecOptions.some((option) => option.value === innerKeySpec)) {
+      setInnerKeySpec(getPreferredKeySpecValue(innerKeyType, innerKeySpecOptions));
+    }
+  }, [innerKeySpecOptions, innerKeySpec, innerKeyType]);
 
 
   const handleCaTypeChange = (value: string) => {
@@ -405,10 +362,7 @@ export default function CreateCaGeneratePage() {
   };
 
   const parseKeyBits = (type: string, spec: string): number => {
-    if (type === 'ECDSA') {
-      return Number.parseInt(spec.replace('P-', ''), 10);
-    }
-    return Number.parseInt(spec.replace(/^ML-DSA-/, ''), 10);
+    return parseKeySpecToApiSize(type, spec);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -602,65 +556,44 @@ export default function CreateCaGeneratePage() {
               )}
               <p className="text-xs text-muted-foreground">Hardware or software engine that will manage this key.</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="keyType">Key Type</Label>
-                <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
-                  <SelectTrigger id="keyType"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {selectedEngine?.supported_key_types.map(kt => (
-                      <SelectItem key={kt.type} value={kt.type}>{kt.type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Algorithm family (RSA or ECDSA).</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="keySpec">{keySpecLabel}</Label>
-                <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
-                  <SelectTrigger id="keySpec" aria-invalid={!keySpec} aria-describedby={!keySpec ? 'generate-ca-key-spec-error' : undefined}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {!keySpec && (
-                  <FormFieldError id="generate-ca-key-spec-error" title="Key Specification required." description="Select one before creating the CA." />
-                )}
-                <p className="text-xs text-muted-foreground">Bit length or curve for the selected algorithm.</p>
-              </div>
-            </div>
+            <CryptoKeyTypeSpecFields
+              idPrefix="ca-outer-key"
+              keyTypeValue={keyType}
+              keyTypeOptions={keyTypeOptions}
+              onKeyTypeChange={handleKeyTypeChange}
+              keySpecLabel={keySpecLabel}
+              keySpecValue={keySpec}
+              keySpecOptions={currentKeySpecOptions}
+              onKeySpecChange={setKeySpec}
+              disabled={!selectedEngine || isSubmitting}
+              keySpecDisabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}
+            />
+            {!keySpec && (
+              <FormFieldError id="generate-ca-key-spec-error" title="Key Specification required." description="Select one before creating the CA." />
+            )}
             <div className="flex items-center space-x-2">
               <Switch id="hybridCA" checked={isHybridCa} onCheckedChange={setIsHybridCa} disabled={isSubmitting} />
               <Label htmlFor="hybridCA">Hybrid CA</Label>
             </div>
             {isHybridCa && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="innerKeyType">Inner Key Type</Label>
-                  <Select value={innerKeyType} onValueChange={handleInnerKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
-                    <SelectTrigger id="innerKeyType"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {supportedKeyTypes.map(type => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="innerKeySpec">{innerKeySpecLabel}</Label>
-                  <Select value={innerKeySpec} onValueChange={setInnerKeySpec} disabled={!selectedEngine || innerKeySpecOptions.length === 0 || isSubmitting}>
-                    <SelectTrigger id="innerKeySpec" aria-invalid={isHybridCa && !innerKeySpec} aria-describedby={isHybridCa && !innerKeySpec ? 'generate-ca-inner-key-spec-error' : undefined}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {innerKeySpecOptions.map((ks) => (
-                        <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {isHybridCa && !innerKeySpec && (
-                    <FormFieldError id="generate-ca-inner-key-spec-error" title="Inner Key Specification required." description="Select one before creating the hybrid CA." />
-                  )}
-                </div>
-              </div>
+              <>
+                <CryptoKeyTypeSpecFields
+                  idPrefix="ca-inner-key"
+                  keyTypeLabel="Inner Key Type"
+                  keyTypeValue={innerKeyType}
+                  keyTypeOptions={keyTypeOptions}
+                  onKeyTypeChange={handleInnerKeyTypeChange}
+                  keySpecLabel={innerKeySpecLabel}
+                  keySpecValue={innerKeySpec}
+                  keySpecOptions={innerKeySpecOptions}
+                  onKeySpecChange={setInnerKeySpec}
+                  disabled={!selectedEngine || isSubmitting}
+                  keySpecDisabled={!selectedEngine || innerKeySpecOptions.length === 0 || isSubmitting}
+                />
+                {!innerKeySpec && (
+                  <FormFieldError id="generate-ca-inner-key-spec-error" title="Inner Key Specification required." description="Select one before creating the hybrid CA." />
+                )}
+              </>
             )}
           </div>
         </div>

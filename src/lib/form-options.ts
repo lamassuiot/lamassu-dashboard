@@ -28,9 +28,9 @@ export const ECDSA_CURVE_OPTIONS = [
 ];
 
 export const MLDSA_SECURITY_LEVEL_OPTIONS = [
-  { value: 'ML-DSA-44', label: 'ML-DSA-44 (Security Level 1 - ~AES-128)' },
-  { value: 'ML-DSA-65', label: 'ML-DSA-65 (Security Level 3 - ~AES-192)' },
-  { value: 'ML-DSA-87', label: 'ML-DSA-87 (Security Level 5 - ~AES-256)' },
+  { value: 'ML-DSA-44', label: 'ML-DSA-44' },
+  { value: 'ML-DSA-65', label: 'ML-DSA-65' },
+  { value: 'ML-DSA-87', label: 'ML-DSA-87' },
 ];
 
 /**
@@ -54,7 +54,7 @@ export const SLHDSA_PARAM_SET_INFO: Record<string, { name: string; hash: string;
 
 export const SLHDSA_PARAM_SET_OPTIONS = Object.entries(SLHDSA_PARAM_SET_INFO).map(([id, info]) => ({
   value: id,
-  label: `${id} — ${info.name} (${info.hash}, ${info.security}, ${info.speed})`,
+  label: `${id} - ${info.name} (${info.hash}, ${info.security}, ${info.speed})`,
 }));
 
 /**
@@ -74,7 +74,7 @@ export const COMPOSITE_MLDSA_RSA_PARAM_SET_INFO: Record<string, { name: string }
 
 export const COMPOSITE_MLDSA_RSA_PARAM_SET_OPTIONS = Object.entries(COMPOSITE_MLDSA_RSA_PARAM_SET_INFO).map(([id, info]) => ({
   value: id,
-  label: `${id} — ${info.name}`,
+  label: `${id} - ${info.name}`,
 }));
 
 
