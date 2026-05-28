@@ -92,13 +92,27 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [oidcWellKnownUrl, setOidcWellKnownUrl] = useState('');
 
   // CMP (RFC 9483) state
-  const [cmpConfirmationMode, setCmpConfirmationMode] = useState('');
+  const [cmpConfirmationMode, setCmpConfirmationMode] = useState('EXPLICIT');
   const [cmpConfirmationTimeout, setCmpConfirmationTimeout] = useState('30s');
+  // Only meaningful when workflow=phased; empty defers to the server default.
+  const [cmpApprovalTimeout, setCmpApprovalTimeout] = useState('');
   const [cmpValidationCAs, setCmpValidationCAs] = useState<CA[]>([]);
   const [cmpChainValidationLevel, setCmpChainValidationLevel] = useState(0);
   const [cmpAllowExpiredAuth, setCmpAllowExpiredAuth] = useState(false);
+  const [cmpEnforcePopo, setCmpEnforcePopo] = useState(true);
   const [cmpProtectionCertificate, setCmpProtectionCertificate] = useState<CertificateData | null>(null);
   const [cmpProtectionCertificateId, setCmpProtectionCertificateId] = useState<string | null>(null);
+  const [cmpWorkflow, setCmpWorkflow] = useState('direct');
+  // CMP auth (mirrors EST): mode + webhook config
+  const [cmpAuthMode, setCmpAuthMode] = useState('Client Certificate');
+  const [cmpWebhookName, setCmpWebhookName] = useState('');
+  const [cmpWebhookUrl, setCmpWebhookUrl] = useState('');
+  const [cmpWebhookLogLevel, setCmpWebhookLogLevel] = useState('Info');
+  const [cmpWebhookAuthMode, setCmpWebhookAuthMode] = useState('No Auth');
+  const [cmpWebhookApiKey, setCmpWebhookApiKey] = useState('');
+  const [cmpOidcClientId, setCmpOidcClientId] = useState('');
+  const [cmpOidcClientSecret, setCmpOidcClientSecret] = useState('');
+  const [cmpOidcWellKnownUrl, setCmpOidcWellKnownUrl] = useState('');
 
 
   const [revokeOnReEnroll, setRevokeOnReEnroll] = useState(true);
@@ -250,13 +264,37 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         const cmpSettings = enrollment_settings.lwc_rfc9483_settings;
         if (cmpSettings) {
-            setCmpConfirmationMode(cmpSettings.confirmation_mode || '');
+            setCmpConfirmationMode(cmpSettings.accept_implicit ? 'IMPLICIT' : 'EXPLICIT');
             setCmpConfirmationTimeout(cmpSettings.confirmation_timeout || '30s');
+            setCmpApprovalTimeout(cmpSettings.approval_timeout || '');
             void hydrateProtectionCertificate(cmpSettings.protection_certificate);
+            setCmpEnforcePopo(cmpSettings.enforce_popo ?? true);
+            setCmpWorkflow(cmpSettings.workflow || 'direct');
+
+            const cmpAuthModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth', 'NO_AUTH': 'No Auth' };
+            const uiCmpAuthMode = cmpAuthModeMap[cmpSettings.auth_mode] || 'Client Certificate';
+            setCmpAuthMode(uiCmpAuthMode);
+
             if (cmpSettings.client_certificate_settings) {
                 setCmpChainValidationLevel(cmpSettings.client_certificate_settings.chain_level_validation);
                 setCmpAllowExpiredAuth(cmpSettings.client_certificate_settings.allow_expired);
                 setCmpValidationCAs(resolveSelectedCas(cmpSettings.client_certificate_settings.validation_cas, availableCAsForSelection));
+            }
+            if (uiCmpAuthMode === 'External Webhook' && cmpSettings.external_webhook_settings) {
+                const wh = cmpSettings.external_webhook_settings;
+                setCmpWebhookName(wh.name || '');
+                setCmpWebhookUrl(wh.url || '');
+                setCmpWebhookLogLevel(wh.log_level || 'Info');
+                const whAuthMap: { [key: string]: string } = { 'NO_AUTH': 'No Auth', 'OIDC': 'OIDC', 'API_KEY': 'API Key' };
+                const uiWhAuthMode = whAuthMap[wh.auth_mode] || 'No Auth';
+                setCmpWebhookAuthMode(uiWhAuthMode);
+                if (uiWhAuthMode === 'API Key' && wh.api_key_auth) {
+                    setCmpWebhookApiKey(wh.api_key_auth.key || '');
+                } else if (uiWhAuthMode === 'OIDC' && wh.oidc_auth) {
+                    setCmpOidcClientId(wh.oidc_auth.client_id || '');
+                    setCmpOidcClientSecret(wh.oidc_auth.client_secret || '');
+                    setCmpOidcWellKnownUrl(wh.oidc_auth.well_known_url || '');
+                }
             }
         } else {
             void hydrateProtectionCertificate(undefined);
@@ -371,6 +409,49 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         }
     }
 
+    // CMP auth mirrors EST verbatim (same auth_mode/webhook payload shape).
+    let cmpLwcSettings: any = undefined;
+    if (protocol === 'CMP') {
+        cmpLwcSettings = {
+            accept_implicit: cmpConfirmationMode === 'IMPLICIT',
+            confirmation_timeout: cmpConfirmationTimeout,
+            // Only emit approval_timeout when phased; the backend ignores it
+            // for direct workflows and an empty value defers to the 7-day
+            // server default.
+            ...(cmpWorkflow === 'phased' && cmpApprovalTimeout.trim()
+                ? { approval_timeout: cmpApprovalTimeout.trim() }
+                : {}),
+            auth_mode: authModeMapping[cmpAuthMode as keyof typeof authModeMapping],
+            protection_certificate: cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '',
+            enforce_popo: cmpEnforcePopo,
+            workflow: cmpWorkflow,
+        };
+        if (cmpAuthMode === 'Client Certificate') {
+            cmpLwcSettings.client_certificate_settings = {
+                validation_cas: cmpValidationCAs.map(ca => ca.id),
+                chain_level_validation: cmpChainValidationLevel,
+                allow_expired: cmpAllowExpiredAuth,
+            };
+        } else if (cmpAuthMode === 'External Webhook') {
+            const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
+            cmpLwcSettings.external_webhook_settings = {
+                name: cmpWebhookName,
+                url: cmpWebhookUrl,
+                log_level: cmpWebhookLogLevel,
+                auth_mode: webhookAuthModeMapping[cmpWebhookAuthMode],
+            };
+            if (cmpWebhookAuthMode === 'API Key') {
+                cmpLwcSettings.external_webhook_settings.api_key_auth = { key: cmpWebhookApiKey };
+            } else if (cmpWebhookAuthMode === 'OIDC') {
+                cmpLwcSettings.external_webhook_settings.oidc_auth = {
+                    client_id: cmpOidcClientId,
+                    client_secret: cmpOidcClientSecret,
+                    well_known_url: cmpOidcWellKnownUrl,
+                };
+            }
+        }
+    }
+
 
     let keySettings;
     if (enableKeyGeneration) {
@@ -391,19 +472,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           verify_csr_signature: verifyCsrSignature,
           issuance_profile_id: issuanceProfileId || undefined,
           ...(protocol === 'EST' && { est_rfc7030_settings: estSettings }),
-          ...(protocol === 'CMP' && {
-            lwc_rfc9483_settings: {
-              confirmation_mode: cmpConfirmationMode,
-              confirmation_timeout: cmpConfirmationTimeout,
-              auth_mode: 'CLIENT_CERTIFICATE',
-              client_certificate_settings: {
-                validation_cas: cmpValidationCAs.map(ca => ca.id),
-                chain_level_validation: cmpChainValidationLevel,
-                allow_expired: cmpAllowExpiredAuth,
-              },
-              protection_certificate: cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '',
-            },
-          }),
+          ...(protocol === 'CMP' && { lwc_rfc9483_settings: cmpLwcSettings }),
           device_provisioning_profile: {
             icon: selectedDeviceIconName!,
             icon_color: `${selectedDeviceIconColor}-${selectedDeviceIconBgColor}`,
@@ -811,6 +880,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     setCmpConfirmationMode={setCmpConfirmationMode}
                     cmpConfirmationTimeout={cmpConfirmationTimeout}
                     setCmpConfirmationTimeout={setCmpConfirmationTimeout}
+                    cmpApprovalTimeout={cmpApprovalTimeout}
+                    setCmpApprovalTimeout={setCmpApprovalTimeout}
                     cmpValidationCAs={cmpValidationCAs}
                     onRemoveCmpValidationCa={handleRemoveCmpValidationCa}
                     onAddCmpValidationCa={() => setIsCmpValidationCaModalOpen(true)}
@@ -822,6 +893,28 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     cmpProtectionCertificateId={cmpProtectionCertificateId}
                     onSelectCmpProtectionCertificate={() => setIsCmpProtectionCertificateModalOpen(true)}
                     onClearCmpProtectionCertificate={() => { setCmpProtectionCertificate(null); setCmpProtectionCertificateId(null); }}
+                    cmpEnforcePopo={cmpEnforcePopo}
+                    setCmpEnforcePopo={setCmpEnforcePopo}
+                    cmpWorkflow={cmpWorkflow}
+                    setCmpWorkflow={setCmpWorkflow}
+                    cmpAuthMode={cmpAuthMode}
+                    setCmpAuthMode={setCmpAuthMode}
+                    cmpWebhookName={cmpWebhookName}
+                    setCmpWebhookName={setCmpWebhookName}
+                    cmpWebhookUrl={cmpWebhookUrl}
+                    setCmpWebhookUrl={setCmpWebhookUrl}
+                    cmpWebhookLogLevel={cmpWebhookLogLevel}
+                    setCmpWebhookLogLevel={setCmpWebhookLogLevel}
+                    cmpWebhookAuthMode={cmpWebhookAuthMode}
+                    setCmpWebhookAuthMode={setCmpWebhookAuthMode}
+                    cmpWebhookApiKey={cmpWebhookApiKey}
+                    setCmpWebhookApiKey={setCmpWebhookApiKey}
+                    cmpOidcClientId={cmpOidcClientId}
+                    setCmpOidcClientId={setCmpOidcClientId}
+                    cmpOidcClientSecret={cmpOidcClientSecret}
+                    setCmpOidcClientSecret={setCmpOidcClientSecret}
+                    cmpOidcWellKnownUrl={cmpOidcWellKnownUrl}
+                    setCmpOidcWellKnownUrl={setCmpOidcWellKnownUrl}
                   />
 
                 </>)}{/* end CMP sections */}
