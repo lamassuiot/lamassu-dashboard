@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CertificateSelectorModal } from './CertificateSelectorModal';
@@ -59,8 +59,16 @@ vi.mock('@/components/shared/CertificatePaginationControls', () => ({
   CertificatePaginationControls: () => <div>pagination controls</div>,
 }));
 
-vi.mock('./SelectableCertificateItem', () => ({
-  SelectableCertificateItem: () => <li>certificate</li>,
+vi.mock('@/components/shared/DateDisplay', () => ({
+  DateDisplay: ({ date }: { date: string }) => <span>{date}</span>,
+}));
+
+vi.mock('@/components/shared/IdentifierDisplay', () => ({
+  IdentifierDisplay: ({ value }: { value: string }) => <span>{value}</span>,
+}));
+
+vi.mock('@/components/shared/ApiStatusBadge', () => ({
+  ApiStatusBadge: ({ status }: { status?: string }) => <span>{status ?? 'UNKNOWN'}</span>,
 }));
 
 function buildCa(id: string, name: string): CA {
@@ -76,6 +84,20 @@ function buildCa(id: string, name: string): CA {
 }
 
 const EMPTY_REQUIRED_KEY_USAGES = [] as const;
+
+function buildCertificate(subject: string, isCa: boolean) {
+  return {
+    id: `${subject}-id`,
+    fileName: `${subject}.pem`,
+    subject,
+    issuer: 'CN=Issuer',
+    serialNumber: `${subject}-serial`,
+    validFrom: '2025-01-01T00:00:00Z',
+    validTo: '2027-01-01T00:00:00Z',
+    pemData: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
+    rawApiData: { is_ca: isCa },
+  };
+}
 
 describe('CertificateSelectorModal', () => {
   beforeEach(() => {
@@ -126,6 +148,146 @@ describe('CertificateSelectorModal', () => {
           forCaId: undefined,
         })
       );
+    });
+  });
+
+  it('filters out CA certificates by default', async () => {
+    fetchIssuedCertificatesMock.mockResolvedValue({
+      certificates: [
+        buildCertificate('CA Certificate', true),
+        buildCertificate('Leaf Certificate', false),
+      ],
+      nextToken: null,
+    });
+
+    render(
+      <CertificateSelectorModal
+        isOpen
+        onOpenChange={() => {}}
+        title="Select Certificate"
+        description="Choose a certificate"
+        onCertificateSelected={() => {}}
+        requiredKeyUsages={EMPTY_REQUIRED_KEY_USAGES}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Leaf Certificate')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('CA Certificate')).not.toBeInTheDocument();
+  });
+
+  it('can include CA certificates for CRL signer selection', async () => {
+    fetchIssuedCertificatesMock.mockResolvedValue({
+      certificates: [
+        buildCertificate('CA Certificate', true),
+        buildCertificate('Leaf Certificate', false),
+      ],
+      nextToken: null,
+    });
+
+    render(
+      <CertificateSelectorModal
+        isOpen
+        onOpenChange={() => {}}
+        title="Select CRL Signer Certificate"
+        description="Choose a certificate"
+        onCertificateSelected={() => {}}
+        requiredKeyUsages={EMPTY_REQUIRED_KEY_USAGES}
+        includeCaCertificates
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('CA Certificate')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('CA').length).toBeGreaterThan(1);
+    expect(screen.getByText('Leaf Certificate')).toBeInTheDocument();
+  });
+
+  it('adds the selected CA certificate when CRL signer selection is restricted to that CA', async () => {
+    fetchIssuedCertificatesMock.mockResolvedValue({
+      certificates: [buildCertificate('Leaf Certificate', false)],
+      nextToken: null,
+    });
+
+    render(
+      <CertificateSelectorModal
+        isOpen
+        onOpenChange={() => {}}
+        title="Select CRL Signer Certificate"
+        description="Choose a certificate"
+        onCertificateSelected={() => {}}
+        limitToCAs={[buildCa('ca-1', 'CA 1')]}
+        requiredKeyUsages={EMPTY_REQUIRED_KEY_USAGES}
+        includeCaCertificates
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('CA 1').length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText('Leaf Certificate')).toBeInTheDocument();
+  });
+
+  it('does not duplicate the selected CA certificate when serial formatting differs', async () => {
+    fetchIssuedCertificatesMock.mockResolvedValue({
+      certificates: [
+        {
+          ...buildCertificate('CA 1', true),
+          serialNumber: 'AA:BB',
+        },
+      ],
+      nextToken: null,
+    });
+
+    render(
+      <CertificateSelectorModal
+        isOpen
+        onOpenChange={() => {}}
+        title="Select CRL Signer Certificate"
+        description="Choose a certificate"
+        onCertificateSelected={() => {}}
+        limitToCAs={[{ ...buildCa('ca-1', 'CA 1'), serialNumber: 'AABB' }]}
+        requiredKeyUsages={EMPTY_REQUIRED_KEY_USAGES}
+        includeCaCertificates
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('CA 1')).toHaveLength(1);
+    });
+  });
+
+  it('marks a certificate as selected when the current selection is a subject key identifier', async () => {
+    fetchIssuedCertificatesMock.mockResolvedValue({
+      certificates: [
+        {
+          ...buildCertificate('CRL Signer', false),
+          rawApiData: {
+            is_ca: false,
+            subject_key_id: 'AA:BB:CC',
+          },
+        },
+      ],
+      nextToken: null,
+    });
+
+    render(
+      <CertificateSelectorModal
+        isOpen
+        onOpenChange={() => {}}
+        title="Select CRL Signer Certificate"
+        description="Choose a certificate"
+        onCertificateSelected={() => {}}
+        currentSelectedCertificateId="aabbcc"
+        requiredKeyUsages={EMPTY_REQUIRED_KEY_USAGES}
+        includeCaCertificates
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Selected')).toBeInTheDocument();
     });
   });
 });

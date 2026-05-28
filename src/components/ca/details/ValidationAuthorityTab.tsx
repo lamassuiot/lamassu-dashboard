@@ -182,7 +182,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
   const handleCertificateSignerSelected = (certificate: CertificateData) => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: certificate.serialNumber });
+      setConfig({ ...config, subjectKeyIDSigner: certificate.rawApiData?.subject_key_id ?? null });
       setSelectedCertificateSignerDisplay(certificate);
     }
     setIsCertificateSignerModalOpen(false);
@@ -437,6 +437,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                 currentSelectedCertificateId={config.subjectKeyIDSigner}
                 limitToCAs={[ca]}
                 requiredKeyUsages={['CRLSign']}
+                includeCaCertificates
               />
 
               <div className="mt-8 flex justify-end">

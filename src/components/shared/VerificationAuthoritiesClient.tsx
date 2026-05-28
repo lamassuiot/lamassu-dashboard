@@ -192,7 +192,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
 
   const handleCertificateSignerSelected = (certificate: CertificateData) => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: certificate.serialNumber }); // Storing SN, but API needs SKI
+      setConfig({ ...config, subjectKeyIDSigner: certificate.rawApiData?.subject_key_id ?? null });
       setSelectedCertificateSignerDisplay(certificate);
     }
     setIsCertificateSignerModalOpen(false);
@@ -497,6 +497,7 @@ export function VerificationAuthoritiesClient() { // Renamed component
                   currentSelectedCertificateId={config.subjectKeyIDSigner}
                   limitToCAs={selectedCaForConfig ? [selectedCaForConfig] : undefined}
                   requiredKeyUsages={['CRLSign']}
+                  includeCaCertificates
                 />
 
                 <div className="mt-8 flex justify-end">

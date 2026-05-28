@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
@@ -334,17 +334,16 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className={cn('sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col', className)}>
-                <DialogHeader className="sr-only">
-                    <DialogTitle>EST Re-Enroll</DialogTitle>
-                    <DialogDescription>
+        <Sheet open={isOpen} onOpenChange={onOpenChange}>
+            <SheetContent side="right" className={cn('w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col', className)}>
+                <SheetHeader className="sr-only">
+                    <SheetTitle>EST Re-Enroll</SheetTitle>
+                    <SheetDescription>
                         Generate re-enrollment commands for RA: {ra?.name} ({ra?.id})
-                    </DialogDescription>
-                </DialogHeader>
+                    </SheetDescription>
+                </SheetHeader>
                 {panelContent}
-                <DialogFooter className="sr-only" />
-            </DialogContent>
-        </Dialog>
+            </SheetContent>
+        </Sheet>
     );
 };
