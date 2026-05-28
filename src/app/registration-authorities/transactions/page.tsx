@@ -17,10 +17,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 //   - Active Enrollments → cmp_transactions with state IN (PENDING, ISSUED).
 //     These are in-flight protocol rows still awaiting completion.
 //
-//   - Completed Enrollments → cmp_transactions with state IN (CONFIRMED,
-//     REVOKED). These are terminal-state rows retained for audit visibility.
-//     CONFIRMED means the EE sent a valid certConf. REVOKED means the
-//     enrolled certificate was subsequently revoked.
+//   - Completed Enrollments → cmp_transactions in any terminal state:
+//     CONFIRMED (the EE sent a valid certConf), REVOKED (the enrolled cert
+//     was subsequently revoked), or ISSUE_FAILED (the enrollment was
+//     rejected — either by the CA, by an administrator, or by the approval
+//     timeout sweeper). Retained for audit visibility.
 //
 //   - Past Enrollments (certificates) → from the CA service, filtered by RA.
 //     Shows the permanent cert record (ACTIVE / REVOKED / EXPIRED).
@@ -113,8 +114,8 @@ export default function RaCmpTransactionsPage() {
                             raId={raId}
                             withCard={false}
                             title="Active Enrollments"
-                            description="In-flight CMP enrollment transactions awaiting completion (PENDING, ISSUED, ISSUE_FAILED)."
-                            extraFilter={['state[in]PENDING,ISSUED,ISSUE_FAILED']}
+                            description="In-flight CMP enrollment transactions awaiting completion (PENDING, ISSUED)."
+                            extraFilter={['state[in]PENDING,ISSUED']}
                             hideStateFilter
                             emptyMessage="No active CMP enrollments for this RA."
                         />
@@ -124,8 +125,8 @@ export default function RaCmpTransactionsPage() {
                             raId={raId}
                             withCard={false}
                             title="Completed Enrollments"
-                            description="Terminal CMP transactions — CONFIRMED means the end-entity sent a valid certConf, REVOKED means the certificate was subsequently revoked."
-                            extraFilter={['state[in]CONFIRMED,REVOKED']}
+                            description="Terminal CMP transactions — CONFIRMED (valid certConf received), REVOKED (cert revoked after issuance), or ISSUE_FAILED (rejected by CA, administrator, or approval timeout)."
+                            extraFilter={['state[in]CONFIRMED,REVOKED,ISSUE_FAILED']}
                             hideStateFilter
                             emptyMessage="No completed CMP transactions for this RA."
                             workflowColumnLabel="Job"

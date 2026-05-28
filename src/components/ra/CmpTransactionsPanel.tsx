@@ -13,9 +13,15 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-    AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Loader2, RefreshCw,
+    AlertTriangle, Check, ChevronLeft, ChevronRight, ExternalLink, Loader2, RefreshCw, X,
 } from 'lucide-react';
-import { fetchCmpTransactions, type CmpTransactionItem } from '@/lib/dms-api';
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { buttonVariants } from '@/components/ui/button';
+import { approveCmpTransaction, fetchCmpTransactions, rejectCmpTransaction, type CmpTransactionItem } from '@/lib/dms-api';
 import { fetchJob } from '@/lib/wfx-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -47,41 +53,49 @@ const PAGE_SIZES = ['10', '25', '50', '100'];
 const FAILURE_STATES = new Set(['REVOKED', 'ISSUE_FAILED']);
 
 /**
- * WfxReasonBadge wraps the state Badge with a Tooltip that lazy-loads the
- * rejection/revocation reason from WFX the first time the user hovers.
- * If there's no wfx_job_id it renders the plain badge without a tooltip.
+ * WfxReasonBadge wraps the state Badge with a Tooltip exposing the
+ * rejection/revocation reason. tx.error_message is the authoritative source
+ * (set by the controller / monitor / admin reject path on every terminal
+ * failure), so we surface it eagerly. We only fall back to a lazy WFX
+ * history fetch when the row carries no error_message — that covers legacy
+ * rows from before the field was populated.
  */
 const WfxReasonBadge: React.FC<{
     state: string;
     wfxJobId?: string;
+    errorMessage?: string;
     badge: { variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string };
-}> = ({ state, wfxJobId, badge }) => {
-    const [reason, setReason] = useState<string | null>(null);
+}> = ({ state, wfxJobId, errorMessage, badge }) => {
+    const [fetchedReason, setFetchedReason] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const fetched = useRef(false);
 
-    const showTooltip = FAILURE_STATES.has(state) && !!wfxJobId;
+    const inlineReason = (errorMessage ?? '').trim();
+    const hasInlineReason = inlineReason.length > 0;
+    const showTooltip = FAILURE_STATES.has(state) && (hasInlineReason || !!wfxJobId);
 
     const onOpen = (open: boolean) => {
-        if (!open || fetched.current || !wfxJobId) return;
+        // Skip the WFX round-trip when we already have an authoritative reason
+        // on the row itself.
+        if (!open || fetched.current || !wfxJobId || hasInlineReason) return;
         fetched.current = true;
         setLoading(true);
         fetchJob(wfxJobId, { history: true })
             .then((job) => {
-                // The rejection reason lives in the status.message of the
-                // terminal "Rejected" state, or in context.reason.
                 const msg = job.status?.message
                     || (job.status?.context as any)?.reason
                     || null;
-                setReason(msg);
+                setFetchedReason(msg);
             })
-            .catch(() => setReason(null))
+            .catch(() => setFetchedReason(null))
             .finally(() => setLoading(false));
     };
 
     if (!showTooltip) {
         return <Badge variant={badge.variant} className={badge.className}>{state}</Badge>;
     }
+
+    const reason = hasInlineReason ? inlineReason : fetchedReason;
 
     return (
         <TooltipProvider delayDuration={200}>
@@ -160,6 +174,10 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
     const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
     const [currentPageIndex, setCurrentPageIndex] = useState(0);
     const [nextBookmark, setNextBookmark] = useState<string | null>(null);
+    const [approvingId, setApprovingId] = useState<string | null>(null);
+    const [rejectingId, setRejectingId] = useState<string | null>(null);
+    const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+    const [rejectReason, setRejectReason] = useState('');
 
     const loadPage = useCallback(async () => {
         setIsLoading(true);
@@ -179,10 +197,13 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                 case 'all':
                     break;
                 case 'inflight':
-                    params.append('filter', 'state[in]PENDING,ISSUED,ISSUE_FAILED');
+                    params.append('filter', 'state[in]PENDING,ISSUED');
                     break;
                 case 'completed':
-                    params.append('filter', 'state[in]CONFIRMED,REVOKED');
+                    // ISSUE_FAILED is terminal — it groups CA failures, admin
+                    // rejections, and approval-timeout sweeps. No further
+                    // protocol activity is expected on those rows.
+                    params.append('filter', 'state[in]CONFIRMED,REVOKED,ISSUE_FAILED');
                     break;
                 default:
                     params.append('filter', `state[equal]${stateFilter}`);
@@ -228,6 +249,42 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
     const onRefresh = () => {
         // Force a reload by recreating the bookmark stack reference.
         setBookmarkStack((s) => [...s]);
+    };
+
+    // Approve a PENDING phased-workflow transaction: issues the certificate so
+    // the device can retrieve it via pollReq, then refreshes the page.
+    const handleApprove = async (txId: string) => {
+        if (approvingId) return;
+        setApprovingId(txId);
+        try {
+            await approveCmpTransaction(raId, txId);
+            sileo.success({ title: 'Transaction approved', description: 'The certificate has been issued; the device can now retrieve it.' });
+            onRefresh();
+        } catch (e: any) {
+            sileo.error({ title: 'Approval failed', description: e.message || 'Could not approve the transaction.' });
+        } finally {
+            setApprovingId(null);
+        }
+    };
+
+    // Reject a PENDING phased-workflow transaction. The row moves to
+    // ISSUE_FAILED with the supplied reason; the device sees that reason on
+    // its next pollReq as an error PKIMessage.
+    const handleRejectConfirm = async () => {
+        if (!rejectTarget || rejectingId) return;
+        const txId = rejectTarget;
+        setRejectingId(txId);
+        try {
+            await rejectCmpTransaction(raId, txId, rejectReason.trim() || undefined);
+            sileo.success({ title: 'Transaction rejected', description: 'The device will see the rejection on its next pollReq.' });
+            setRejectTarget(null);
+            setRejectReason('');
+            onRefresh();
+        } catch (e: any) {
+            sileo.error({ title: 'Rejection failed', description: e.message || 'Could not reject the transaction.' });
+        } finally {
+            setRejectingId(null);
+        }
     };
 
     const copyTxId = async (txId: string) => {
@@ -308,19 +365,20 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                             <TableHead>Created</TableHead>
                             <TableHead>Confirmed</TableHead>
                             <TableHead>Expires</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading && transactions.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                                     <Loader2 className="inline mr-2 h-4 w-4 animate-spin" /> Loading…
                                 </TableCell>
                             </TableRow>
                         )}
                         {!isLoading && transactions.length === 0 && !error && (
                             <TableRow>
-                                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                                     {emptyMessage}
                                 </TableCell>
                             </TableRow>
@@ -368,7 +426,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        <WfxReasonBadge state={tx.state} wfxJobId={tx.wfx_job_id} badge={badge} />
+                                        <WfxReasonBadge state={tx.state} wfxJobId={tx.wfx_job_id} errorMessage={tx.error_message} badge={badge} />
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="secondary" className="font-mono text-xs uppercase">
@@ -427,6 +485,38 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
                                     <TableCell>
                                         <DateDisplay date={tx.expires_at} highlightExpired />
                                     </TableCell>
+                                    <TableCell className="text-right">
+                                        {/* Phased-workflow transactions park in PENDING until an
+                                            administrator approves issuance; approving issues the
+                                            cert so the device can fetch it via pollReq. */}
+                                        {tx.state === 'PENDING' ? (
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleApprove(tx.transaction_id)}
+                                                    disabled={approvingId === tx.transaction_id || rejectingId === tx.transaction_id}
+                                                >
+                                                    {approvingId === tx.transaction_id
+                                                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        : <Check className="mr-2 h-4 w-4" />}
+                                                    Approve
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => { setRejectTarget(tx.transaction_id); setRejectReason(''); }}
+                                                    disabled={approvingId === tx.transaction_id || rejectingId === tx.transaction_id}
+                                                >
+                                                    {rejectingId === tx.transaction_id
+                                                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        : <X className="mr-2 h-4 w-4" />}
+                                                    Reject
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <span className="text-muted-foreground">—</span>
+                                        )}
+                                    </TableCell>
                                 </TableRow>
                             );
                         })}
@@ -459,11 +549,57 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
         </div>
     );
 
+    // Reject-confirmation dialog: lives outside the card so it overlays
+    // correctly regardless of which render branch (card vs inline) is used.
+    const rejectDialog = (
+        <AlertDialog
+            open={!!rejectTarget}
+            onOpenChange={(open) => {
+                if (!open && !rejectingId) {
+                    setRejectTarget(null);
+                    setRejectReason('');
+                }
+            }}
+        >
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Reject CMP transaction</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        The transaction will move to ISSUE_FAILED and no certificate will be issued. The device sees the reason on its next pollReq.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-2">
+                    <label htmlFor="cmpRejectReason" className="text-sm font-medium">Reason (optional)</label>
+                    <Textarea
+                        id="cmpRejectReason"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="Why is this enrollment being rejected?"
+                        rows={3}
+                        disabled={!!rejectingId}
+                    />
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={!!rejectingId}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={handleRejectConfirm}
+                        className={cn(buttonVariants({ variant: 'destructive' }))}
+                        disabled={!!rejectingId}
+                    >
+                        {rejectingId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Reject
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+
     if (!withCard) {
         return (
             <div className={className}>
                 <div className="mb-4">{header}</div>
                 {body}
+                {rejectDialog}
             </div>
         );
     }
@@ -472,6 +608,7 @@ export const CmpTransactionsPanel: React.FC<CmpTransactionsPanelProps> = ({
         <Card className={className}>
             <CardHeader>{header}</CardHeader>
             <CardContent>{body}</CardContent>
+            {rejectDialog}
         </Card>
     );
 };

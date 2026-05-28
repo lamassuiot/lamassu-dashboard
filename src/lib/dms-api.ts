@@ -72,11 +72,34 @@ export interface ApiRaCmpClientCertSettings {
     allow_expired: boolean;
 }
 export interface ApiRaCmpSettings {
-    confirmation_mode: string;
+    // When true, the server skips the certConf round-trip if the EE asks for
+    // implicit confirmation (id-it-implicitConfirm in generalInfo). When false
+    // (default), the EE must send an explicit certConf within
+    // confirmation_timeout. Backend field: EnrollmentOptionsLWCRFC9483.AcceptImplicit.
+    accept_implicit: boolean;
     confirmation_timeout: string;
+    // How long a phased-workflow transaction waits in PENDING for admin
+    // approve/reject before being swept. Empty/omitted uses the server
+    // default (7d). Only meaningful when workflow=phased.
+    approval_timeout?: string;
     auth_mode: string;
     client_certificate_settings?: ApiRaCmpClientCertSettings;
+    // Mirrors the EST webhook shape so the same auth UI drives both protocols.
+    external_webhook_settings?: {
+        name: string;
+        url: string;
+        log_level: string;
+        auth_mode: string;
+        api_key_auth?: {
+            key: string;
+        };
+        oidc_auth?: ApiRaOidcAuth;
+    };
     protection_certificate?: string;
+    enforce_popo?: boolean;
+    // 'direct' (synchronous issuance) or 'phased' (admin-approved issuance).
+    // Empty/absent is treated as 'direct'.
+    workflow?: string;
 }
 export interface ApiRaEnrollmentSettings {
     registration_mode: string;
@@ -347,6 +370,37 @@ export async function createOrUpdateRa(
     });
 
     await handleApiError(response, `Failed to ${isEditMode ? 'update' : 'create'} RA`);
+}
+
+
+// approveCmpTransaction releases a PENDING phased-workflow CMP transaction so
+// the backend issues the certificate. The EE then retrieves it via pollReq.
+export async function approveCmpTransaction(raId: string, transactionId: string): Promise<CmpTransactionItem> {
+    const response = await apiFetch(
+        `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}/cmp/transactions/${transactionId}/approve`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        },
+    );
+    return handleApiError(response, 'Failed to approve CMP transaction');
+}
+
+// rejectCmpTransaction denies a PENDING phased-workflow CMP transaction. The
+// row transitions to ISSUE_FAILED carrying the reason; pollReq later surfaces
+// it to the EE as an error PKIMessage. Reason is optional (empty falls back
+// to a generic server message).
+export async function rejectCmpTransaction(raId: string, transactionId: string, reason?: string): Promise<CmpTransactionItem> {
+    const response = await apiFetch(
+        `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}/cmp/transactions/${transactionId}/reject`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reason ? { reason } : {}),
+        },
+    );
+    return handleApiError(response, 'Failed to reject CMP transaction');
 }
 
 

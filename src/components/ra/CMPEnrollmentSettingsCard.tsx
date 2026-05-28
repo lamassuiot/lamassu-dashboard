@@ -35,6 +35,8 @@ interface CMPEnrollmentSettingsCardProps {
   setCmpConfirmationMode: (v: string) => void;
   cmpConfirmationTimeout: string;
   setCmpConfirmationTimeout: (v: string) => void;
+  cmpApprovalTimeout: string;
+  setCmpApprovalTimeout: (v: string) => void;
   cmpValidationCAs: CA[];
   onRemoveCmpValidationCa: (id: string) => void;
   onAddCmpValidationCa: () => void;
@@ -46,6 +48,28 @@ interface CMPEnrollmentSettingsCardProps {
   cmpProtectionCertificateId?: string | null;
   onSelectCmpProtectionCertificate: () => void;
   onClearCmpProtectionCertificate: () => void;
+  cmpEnforcePopo: boolean;
+  setCmpEnforcePopo: (v: boolean) => void;
+  cmpWorkflow: string;
+  setCmpWorkflow: (v: string) => void;
+  cmpAuthMode: string;
+  setCmpAuthMode: (v: string) => void;
+  cmpWebhookName: string;
+  setCmpWebhookName: (v: string) => void;
+  cmpWebhookUrl: string;
+  setCmpWebhookUrl: (v: string) => void;
+  cmpWebhookLogLevel: string;
+  setCmpWebhookLogLevel: (v: string) => void;
+  cmpWebhookAuthMode: string;
+  setCmpWebhookAuthMode: (v: string) => void;
+  cmpWebhookApiKey: string;
+  setCmpWebhookApiKey: (v: string) => void;
+  cmpOidcClientId: string;
+  setCmpOidcClientId: (v: string) => void;
+  cmpOidcClientSecret: string;
+  setCmpOidcClientSecret: (v: string) => void;
+  cmpOidcWellKnownUrl: string;
+  setCmpOidcWellKnownUrl: (v: string) => void;
 }
 
 function getCertificateName(value?: string | null): string | null {
@@ -62,19 +86,27 @@ function getCaIdReference(value?: string | null): string | null {
 
 const confirmationModeOptions = [
   {
-    value: 'default',
-    title: 'Default (implicit)',
-    description: 'Use the server default behavior and treat enrollment as implicitly confirmed.',
+    value: 'EXPLICIT',
+    title: 'Explicit (default)',
+    description: 'Require the client to send a certConf within the configured timeout. Transactions otherwise expire and the certificate is revoked.',
   },
   {
     value: 'IMPLICIT',
     title: 'Implicit',
-    description: 'Complete enrollment without waiting for an additional confirmation message from the client.',
+    description: 'Skip the certConf round-trip when the client requests implicit confirmation (id-it-implicitConfirm). The certificate is considered confirmed on delivery.',
+  },
+] as const;
+
+const workflowOptions = [
+  {
+    value: 'direct',
+    title: 'Direct (synchronous)',
+    description: 'Issue and return the certificate inline in response to the enrollment request.',
   },
   {
-    value: 'EXPLICIT',
-    title: 'Explicit',
-    description: 'Require the client to confirm the issued certificate before the configured timeout expires.',
+    value: 'phased',
+    title: 'Phased (admin-approved)',
+    description: 'Defer issuance until an administrator approves the request. The device receives a "waiting" response and polls for the certificate.',
   },
 ] as const;
 
@@ -93,6 +125,8 @@ export function CMPEnrollmentSettingsCard({
   setCmpConfirmationMode,
   cmpConfirmationTimeout,
   setCmpConfirmationTimeout,
+  cmpApprovalTimeout,
+  setCmpApprovalTimeout,
   cmpValidationCAs,
   onRemoveCmpValidationCa,
   onAddCmpValidationCa,
@@ -104,12 +138,35 @@ export function CMPEnrollmentSettingsCard({
   cmpProtectionCertificateId,
   onSelectCmpProtectionCertificate,
   onClearCmpProtectionCertificate,
+  cmpEnforcePopo,
+  setCmpEnforcePopo,
+  cmpWorkflow,
+  setCmpWorkflow,
+  cmpAuthMode,
+  setCmpAuthMode,
+  cmpWebhookName,
+  setCmpWebhookName,
+  cmpWebhookUrl,
+  setCmpWebhookUrl,
+  cmpWebhookLogLevel,
+  setCmpWebhookLogLevel,
+  cmpWebhookAuthMode,
+  setCmpWebhookAuthMode,
+  cmpWebhookApiKey,
+  setCmpWebhookApiKey,
+  cmpOidcClientId,
+  setCmpOidcClientId,
+  cmpOidcClientSecret,
+  setCmpOidcClientSecret,
+  cmpOidcWellKnownUrl,
+  setCmpOidcWellKnownUrl,
 }: CMPEnrollmentSettingsCardProps) {
   const protectionCertificateSerial = cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '';
   const protectionCertificateName = getCertificateName(cmpProtectionCertificate?.subject) || 'Protection certificate';
   const protectionCertificateIssuer = getCertificateName(cmpProtectionCertificate?.issuer);
   const protectionCertificateIssuerCaId = cmpProtectionCertificate?.issuerCaId || getCaIdReference(cmpProtectionCertificate?.issuer);
-  const selectedConfirmationMode = confirmationModeOptions.find((option) => option.value === (cmpConfirmationMode || 'default'));
+  const selectedConfirmationMode = confirmationModeOptions.find((option) => option.value === (cmpConfirmationMode || 'EXPLICIT'));
+  const selectedWorkflow = workflowOptions.find((option) => option.value === (cmpWorkflow || 'direct'));
 
   return (
     <SettingsCard
@@ -169,6 +226,33 @@ export function CMPEnrollmentSettingsCard({
             </div>
           </div>
         }
+      </div>
+
+      <div>
+        <Label htmlFor="cmpWorkflow">Enrollment Workflow</Label>
+        <p className="text-xs text-muted-foreground mb-1">Controls whether certificates are issued automatically or only after administrator approval.</p>
+        <Select value={cmpWorkflow || 'direct'} onValueChange={setCmpWorkflow}>
+          <SelectTrigger id="cmpWorkflow" className="mt-1">
+            <SelectValue>{selectedWorkflow?.title}</SelectValue>
+          </SelectTrigger>
+          <SelectContent className="min-w-[320px]">
+            {workflowOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value} textValue={option.title} className="items-start py-2">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium leading-none">{option.title}</p>
+                  <p className="text-xs leading-snug text-muted-foreground">{option.description}</p>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {cmpWorkflow === 'phased' && (
+          <div className="mt-3">
+            <Label htmlFor="cmpApprovalTimeout">Approval Timeout</Label>
+            <p className="text-xs text-muted-foreground mb-1">How long a PENDING transaction waits for an administrator to approve or reject it. Leave empty to use the server default (7 days).</p>
+            <Input id="cmpApprovalTimeout" value={cmpApprovalTimeout} onChange={(e) => setCmpApprovalTimeout(e.target.value)} placeholder="e.g., 7d, 24h, 30m" className="mt-1" />
+          </div>
+        )}
       </div>
 
       <div>
@@ -240,7 +324,7 @@ export function CMPEnrollmentSettingsCard({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="cmpConfirmationMode">Confirmation Mode</Label>
-          <Select value={cmpConfirmationMode || 'default'} onValueChange={(v) => setCmpConfirmationMode(v === 'default' ? '' : v)}>
+          <Select value={cmpConfirmationMode || 'EXPLICIT'} onValueChange={setCmpConfirmationMode}>
             <SelectTrigger id="cmpConfirmationMode" className="mt-1">
               <SelectValue>{selectedConfirmationMode?.title}</SelectValue>
             </SelectTrigger>
@@ -265,39 +349,143 @@ export function CMPEnrollmentSettingsCard({
       </div>
 
       <div className="space-y-4 pt-2 border-t">
-        <h4 className="font-medium text-sm text-muted-foreground pt-2">Client Certificate Authentication</h4>
-        <div>
-          <Label>Validation CAs</Label>
-          <div className="mt-2 space-y-2">
-            {cmpValidationCAs.length > 0 ? (
-              cmpValidationCAs.map(ca => (
-                <div key={ca.id} className="flex items-center gap-2 group">
-                  <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => onRemoveCmpValidationCa(ca.id)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground italic text-center p-2">No validation CAs selected.</p>
-            )}
+        <h4 className="font-medium text-sm text-muted-foreground pt-2">Security Enforcement</h4>
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Switch id="cmpEnforcePopo" checked={cmpEnforcePopo} onCheckedChange={setCmpEnforcePopo} />
+            <Label htmlFor="cmpEnforcePopo">Enforce Proof-of-Possession (POPO)</Label>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent className="max-w-xs"><p>When enabled, the CRMF CertReqMsg MUST contain a valid POPO signature proving private key ownership. Required by RFC 9483 §4.1.</p></TooltipContent></Tooltip></TooltipProvider>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={onAddCmpValidationCa} className="mt-2">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
-          </Button>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Switch id="cmpAllowExpiredAuth" checked={cmpAllowExpiredAuth} onCheckedChange={setCmpAllowExpiredAuth} />
-          <Label htmlFor="cmpAllowExpiredAuth">Allow Expired Client Certificates</Label>
-        </div>
-        <div>
-          <Label htmlFor="cmpChainValidationLevel" className="flex items-center">
-            Chain Validation Level
-            <TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>0 = leaf only, 1 = one intermediate, etc.</p></TooltipContent></Tooltip></TooltipProvider>
-          </Label>
-          <Input id="cmpChainValidationLevel" type="number" min={0} value={cmpChainValidationLevel} onChange={(e) => setCmpChainValidationLevel(Number.parseInt(e.target.value) || 0)} className="mt-1" />
+          {!cmpEnforcePopo && (
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Security Warning</AlertTitle>
+              <AlertDescription>
+                Disabling POPO enforcement should only be done for testing purposes or when another mechanism (e.g. mTLS) already proves private key possession.
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </div>
+
+      <div className="space-y-4 pt-2 border-t">
+        <h4 className="font-medium text-sm text-muted-foreground pt-2">Authentication</h4>
+        <div>
+          <Label htmlFor="cmpAuthMode" className="flex items-center">
+            Authentication Mode
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent className="max-w-xs"><p>Single source of truth for CMP request authorization. <strong>Client Certificate / Combined</strong> require the message to be signature-protected (RFC 9483 §3.2) and validate the signer cert against the Validation CAs — unprotected requests are rejected at the wire layer. <strong>No Auth / External Webhook</strong> accept unsigned messages; authorization is either none or delegated entirely to the webhook.</p></TooltipContent></Tooltip></TooltipProvider>
+          </Label>
+          <Select value={cmpAuthMode} onValueChange={setCmpAuthMode}>
+            <SelectTrigger id="cmpAuthMode" className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Client Certificate">Client Certificate</SelectItem>
+              <SelectItem value="External Webhook">External Webhook</SelectItem>
+              <SelectItem value="No Auth">No Auth</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {cmpAuthMode === 'Client Certificate' && (
+        <div className="space-y-4 pt-2 border-t">
+          <h4 className="font-medium text-sm text-muted-foreground pt-2">Client Certificate Auth Settings</h4>
+          <div>
+            <Label>Validation CAs</Label>
+            <div className="mt-2 space-y-2">
+              {cmpValidationCAs.length > 0 ? (
+                cmpValidationCAs.map(ca => (
+                  <div key={ca.id} className="flex items-center gap-2 group">
+                    <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => onRemoveCmpValidationCa(ca.id)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground italic text-center p-2">No validation CAs selected.</p>
+              )}
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={onAddCmpValidationCa} className="mt-2">
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
+            </Button>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Switch id="cmpAllowExpiredAuth" checked={cmpAllowExpiredAuth} onCheckedChange={setCmpAllowExpiredAuth} />
+            <Label htmlFor="cmpAllowExpiredAuth">Allow Expired Client Certificates</Label>
+          </div>
+          <div>
+            <Label htmlFor="cmpChainValidationLevel" className="flex items-center">
+              Chain Validation Level
+              <TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>0 = leaf only, 1 = one intermediate, etc.</p></TooltipContent></Tooltip></TooltipProvider>
+            </Label>
+            <Input id="cmpChainValidationLevel" type="number" min={0} value={cmpChainValidationLevel} onChange={(e) => setCmpChainValidationLevel(Number.parseInt(e.target.value) || 0)} className="mt-1" />
+          </div>
+        </div>
+      )}
+
+      {cmpAuthMode === 'External Webhook' && (
+        <div className="space-y-4 pt-2 border-t">
+          <h4 className="font-medium text-sm text-muted-foreground pt-2">Webhook Settings</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="cmpWebhookName">Webhook Name</Label>
+              <Input id="cmpWebhookName" value={cmpWebhookName} onChange={(e) => setCmpWebhookName(e.target.value)} placeholder="e.g., MyValidationFunc" className="mt-1" />
+            </div>
+            <div>
+              <Label htmlFor="cmpWebhookUrl">Webhook URL</Label>
+              <Input id="cmpWebhookUrl" value={cmpWebhookUrl} onChange={(e) => setCmpWebhookUrl(e.target.value)} placeholder="http://localhost:8080/verify" className="mt-1" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="cmpWebhookLogLevel">Webhook Log Level</Label>
+              <Select value={cmpWebhookLogLevel} onValueChange={setCmpWebhookLogLevel}>
+                <SelectTrigger id="cmpWebhookLogLevel" className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Info">Info</SelectItem>
+                  <SelectItem value="Debug">Debug</SelectItem>
+                  <SelectItem value="Warn">Warn</SelectItem>
+                  <SelectItem value="Error">Error</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="cmpWebhookAuthMode">Webhook Auth Mode</Label>
+              <Select value={cmpWebhookAuthMode} onValueChange={setCmpWebhookAuthMode}>
+                <SelectTrigger id="cmpWebhookAuthMode" className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="No Auth">No Auth</SelectItem>
+                  <SelectItem value="OIDC">OIDC</SelectItem>
+                  <SelectItem value="API Key">API Key</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {cmpWebhookAuthMode === 'API Key' && (
+            <div>
+              <Label htmlFor="cmpWebhookApiKey">API Key</Label>
+              <Input id="cmpWebhookApiKey" type="password" value={cmpWebhookApiKey} onChange={e => setCmpWebhookApiKey(e.target.value)} placeholder="Enter API Key" className="mt-1" />
+            </div>
+          )}
+          {cmpWebhookAuthMode === 'OIDC' && (
+            <div className="space-y-4 pt-2 border-t">
+              <h5 className="font-medium text-sm text-muted-foreground pt-2">OIDC Settings</h5>
+              <div>
+                <Label htmlFor="cmpOidcClientId">OIDC Client ID</Label>
+                <Input id="cmpOidcClientId" value={cmpOidcClientId} onChange={e => setCmpOidcClientId(e.target.value)} placeholder="Enter OIDC Client ID" className="mt-1" />
+              </div>
+              <div>
+                <Label htmlFor="cmpOidcClientSecret">OIDC Client Secret</Label>
+                <Input id="cmpOidcClientSecret" type="password" value={cmpOidcClientSecret} onChange={e => setCmpOidcClientSecret(e.target.value)} placeholder="Enter OIDC Client Secret" className="mt-1" />
+              </div>
+              <div>
+                <Label htmlFor="cmpOidcWellKnownUrl">OIDC Well Known URL</Label>
+                <Input id="cmpOidcWellKnownUrl" value={cmpOidcWellKnownUrl} onChange={e => setCmpOidcWellKnownUrl(e.target.value)} placeholder="https://your-issuer.com/.well-known/openid-configuration" className="mt-1" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </SettingsCard>
   );
 }
