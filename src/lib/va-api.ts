@@ -39,6 +39,14 @@ export interface VaUpdatePayload {
     regenerate_on_revoke: boolean;
 }
 
+export const getDefaultVAConfig = (caId: string): VAConfig => ({
+  caId,
+  refreshInterval: '24h',
+  validity: '7d',
+  subjectKeyIDSigner: null,
+  regenerateOnRevoke: true,
+});
+
 
 
 

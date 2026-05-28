@@ -14,22 +14,10 @@ import { DetailItem } from './DetailItem';
 import { Badge } from '../ui/badge';
 import { Input } from '@/components/ui/input';
 import { sileo } from '@/lib/toast';
+import { downloadFile } from '@/lib/utils';
 import { checkOcspStatus, type OcspResponseDetails } from '@/lib/va-api';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
-
-// Helper functions for downloads
-const downloadFile = (data: ArrayBuffer, filename: string, mimeType: string) => {
-    const blob = new Blob([data], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-};
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
     const bytes = new Uint8Array(buffer);
