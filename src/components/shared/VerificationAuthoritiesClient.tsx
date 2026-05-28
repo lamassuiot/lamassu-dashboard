@@ -1,7 +1,6 @@
 
 'use client';
 
-import Link from 'next/link';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
