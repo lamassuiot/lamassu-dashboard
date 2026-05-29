@@ -6,14 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
-import type { AlertEvent } from '@/app/alerts/page';
-
 type ParsedAuthClaims = Record<string, unknown> | null;
+
+export interface AuditEventSummary {
+  type: string;
+  payload: object;
+}
 
 interface AuditUserInfoPanelProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  event: AlertEvent | null;
+  event: AuditEventSummary | null;
 }
 
 const formatEpoch = (value: unknown): string => {

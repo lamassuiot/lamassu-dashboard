@@ -7,7 +7,6 @@ import { apiFetch } from './api-client';
 export interface ApiEventLog {
     id: string;
     event_type: string;
-    category: 'audit' | 'general';
     received_at: string;
     expires_at?: string;
     event: object;
@@ -24,6 +23,7 @@ export interface EventRetentionConfig {
 
 export interface EventLogFilters {
     event_type?: string;
+    source?: string;
     received_at_after?: string;
     received_at_before?: string;
     sort_by?: string;
@@ -37,6 +37,9 @@ function buildQueryParams(filters: EventLogFilters): URLSearchParams {
 
     if (filters.event_type) {
         params.append('filter', `event_type[eq]=${filters.event_type}`);
+    }
+    if (filters.source) {
+        params.append('filter', `source[eq]=${filters.source}`);
     }
     if (filters.received_at_after) {
         params.append('filter', `received_at[af]=${filters.received_at_after}`);

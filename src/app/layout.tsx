@@ -32,7 +32,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check, ScrollText } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check, Logs } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -95,7 +95,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'integrations': "Platform Integrations",
   'crypto-engines': "Crypto Engines",
   'alerts': "Alerts",
-  'events': "Event Logs",
+  'events': "Audit Logs",
   'tools': "Tools",
   'certificate-viewer': "Certificate Viewer",
   'job-manager': "Job Manager",
@@ -167,7 +167,7 @@ const navigationConfig: NavGroup[] = [
     label: 'NOTIFICATIONS',
     items: [
       { href: '/alerts', label: 'Alerts', icon: Info, uiAuthzCapabilities: 'pki.alerts.subscription' },
-      { href: '/events', label: 'Event Logs', icon: ScrollText },
+      { href: '/events', label: 'Audit Logs', icon: Logs },
     ],
   },
   {

@@ -11,6 +11,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
@@ -107,9 +108,10 @@ function EventSummary({ event }: { event: object }) {
 
 interface EventLogsTableProps {
     events: ApiEventLog[];
+    onViewUserInfo?: (event: ApiEventLog) => void;
 }
 
-export const EventLogsTable: React.FC<EventLogsTableProps> = ({ events }) => {
+export const EventLogsTable: React.FC<EventLogsTableProps> = ({ events, onViewUserInfo }) => {
     const monacoTheme = useMonacoTheme();
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
@@ -125,6 +127,7 @@ export const EventLogsTable: React.FC<EventLogsTableProps> = ({ events }) => {
                         <TableHead className="w-[10px]" />
                         <TableHead className="w-[160px]">TIMESTAMP</TableHead>
                         <TableHead>EVENT</TableHead>
+                        {onViewUserInfo && <TableHead className="w-[100px] text-right" />}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -148,10 +151,21 @@ export const EventLogsTable: React.FC<EventLogsTableProps> = ({ events }) => {
                                 <TableCell>
                                     <EventSummary event={event.event} />
                                 </TableCell>
+                                {onViewUserInfo && (
+                                    <TableCell className="text-right align-top pt-2">
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={(e) => { e.stopPropagation(); onViewUserInfo(event); }}
+                                        >
+                                            User Info
+                                        </Button>
+                                    </TableCell>
+                                )}
                             </TableRow>
                             {expandedRow === event.id && (
                                 <TableRow className="border-0">
-                                    <TableCell colSpan={3} className="p-0">
+                                    <TableCell colSpan={onViewUserInfo ? 4 : 3} className="p-0">
                                         <div className="p-4 bg-muted/50">
                                             <div className="overflow-hidden rounded-md border bg-background">
                                                 <MonacoEditor
