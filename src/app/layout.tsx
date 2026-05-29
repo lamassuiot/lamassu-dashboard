@@ -25,6 +25,7 @@ import {
   useSidebar,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
@@ -62,6 +63,10 @@ import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
+import { Roboto } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const roboto = Roboto({subsets:['latin'],variable:'--font-sans'});
 
 
 interface DecodedAccessToken {
@@ -324,6 +329,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   };
 
   return (
+    <TooltipProvider>
     <SidebarProvider defaultOpen>
       <div className="flex flex-col h-screen bg-background text-foreground w-full">
         <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header text-header-foreground px-4 md:px-6 sticky top-0 z-30">
@@ -567,6 +573,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       <BackendStatusDialog isOpen={isStatusModalOpen} onOpenChange={setIsStatusModalOpen} />
       <VersionInfoDialog isOpen={isVersionModalOpen} onOpenChange={setIsVersionModalOpen} versionInfo={VERSION_INFO} />
     </SidebarProvider>
+    </TooltipProvider>
   );
 };
 
@@ -677,7 +684,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", roboto.variable)}>
       <head>
         <Script src="/config.js" strategy="beforeInteractive" />
         <title>LamassuIoT Certificate Manager</title>

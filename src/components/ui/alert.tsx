@@ -1,22 +1,16 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
-import { ChevronDown, ChevronUp } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border-l-4 bg-muted/50 transition-colors",
+  "group/alert relative grid w-full gap-0.5 rounded-2xl border px-4 py-3 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2.5 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-background text-foreground border-l-border [&>svg]:text-muted-foreground",
+        default: "bg-card text-card-foreground",
         destructive:
-          "border-l-destructive bg-destructive/10 text-foreground [&>svg]:text-destructive",
-        warning:
-          "border-l-chart-3 bg-muted/60 text-foreground [&>svg]:text-chart-3",
-        success:
-          "border-l-chart-2 bg-muted/60 text-foreground [&>svg]:text-chart-2",
+          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
       },
     },
     defaultVariants: {
@@ -25,165 +19,58 @@ const alertVariants = cva(
   }
 )
 
-interface AlertProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof alertVariants> {
-  expandable?: boolean;
-  defaultExpanded?: boolean;
-  children?: React.ReactNode;
-}
-
-const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
-  ({ className, variant, expandable = false, defaultExpanded = false, children, onClick, ...props }, ref) => {
-    const [isExpanded, setIsExpanded] = React.useState(defaultExpanded);
-    
-    if (!expandable) {
-      return (
-        <div
-          ref={ref}
-          role="alert"
-          className={cn(alertVariants({ variant }), "p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4", className)}
-          {...props}
-        >
-          {children}
-        </div>
-      );
-    }
-
-    const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      setIsExpanded(!isExpanded);
-      onClick?.(e);
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        setIsExpanded(!isExpanded);
-      }
-    };
-
-    return (
-      <div
-        ref={ref}
-        role="button"
-        tabIndex={0}
-        className={cn(alertVariants({ variant }), "cursor-pointer hover:bg-muted/70", className)}
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
-        {...props}
-      >
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-start space-x-3 flex-1 min-w-0">
-            {/* Render icon first */}
-            {React.Children.map(children, (child) => {
-              if (React.isValidElement(child) && 
-                  child.type !== AlertTitle && 
-                  child.type !== AlertDescription &&
-                  child.type !== AlertExpandableContent) {
-                return child;
-              }
-              return null;
-            })}
-            {/* Then render title and description in a column */}
-            <div className="flex flex-col space-y-1 flex-1">
-              {React.Children.map(children, (child) => {
-                if (React.isValidElement(child) && (child.type === AlertTitle || child.type === AlertDescription)) {
-                  return child;
-                }
-                return null;
-              })}
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 ml-4 flex-shrink-0">
-            {isExpanded ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-        {/* Expandable content with smooth transition */}
-        <div 
-          className={cn(
-            "overflow-hidden transition-all duration-300 ease-in-out",
-            isExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
-          )}
-        >
-          <div className="px-4 pb-4">
-            {React.Children.map(children, (child) => {
-              if (React.isValidElement(child) && child.type === AlertExpandableContent) {
-                return child;
-              }
-              return null;
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  }
-);
-Alert.displayName = "Alert"
-
-const AlertTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement> & {
-    variant?: "default" | "destructive" | "warning" | "success"
-  }
->(({ className, variant, ...props }, ref) => (
-  <h5
-    ref={ref}
-    className={cn(
-      "font-medium font-semibold leading-none tracking-tight ",
-      variant === "default" && "text-foreground",
-      variant === "destructive" && "text-destructive",
-      variant === "warning" && "text-chart-3",
-      variant === "success" && "text-chart-2",
-      className
-    )}
-    {...props}
-  />
-))
-AlertTitle.displayName = "AlertTitle"
-
-const AlertDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("text-sm text-muted-foreground [&_p]:leading-relaxed", className)}
-    {...props}
-  />
-))
-AlertDescription.displayName = "AlertDescription"
-
-// Export expandable content wrapper for children that should only show when expanded
-const AlertExpandableContent = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, onClick, onKeyDown, ...props }, ref) => {
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Prevent event bubbling to avoid collapsing the alert when clicking inside the content
-    e.stopPropagation();
-    onClick?.(e);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Prevent event bubbling for keyboard interactions too
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.stopPropagation();
-    }
-    onKeyDown?.(e);
-  };
-
+function Alert({
+  className,
+  variant,
+  ...props
+}: React.ComponentProps<"div"> & VariantProps<typeof alertVariants>) {
   return (
     <div
-      ref={ref}
-      className={cn("space-y-4", className)}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      data-slot="alert"
+      role="alert"
+      className={cn(alertVariants({ variant }), className)}
       {...props}
     />
-  );
-})
-AlertExpandableContent.displayName = "AlertExpandableContent"
+  )
+}
 
-export { Alert, AlertTitle, AlertDescription, AlertExpandableContent }
+function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-title"
+      className={cn(
+        "font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function AlertDescription({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-description"
+      className={cn(
+        "text-sm text-balance text-muted-foreground md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-action"
+      className={cn("absolute top-2.5 right-3", className)}
+      {...props}
+    />
+  )
+}
+
+export { Alert, AlertTitle, AlertDescription, AlertAction }
