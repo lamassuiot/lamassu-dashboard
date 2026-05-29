@@ -1,10 +1,10 @@
 # Stage 1: Build the Next.js application
-FROM node:20-alpine AS builder
+FROM node:22-slim AS builder
 
 # Set working directory
 WORKDIR /app
 
-RUN apk add --no-cache git
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 # Copy package.json and package-lock.json (or yarn.lock)
 COPY package*.json ./
@@ -18,7 +18,9 @@ COPY . .
 
 # Build the application
 # This will output to the 'out' directory due to `output: 'export'` in next.config.ts
-RUN npm run build
+# NEXT_TELEMETRY_DISABLED prevents background HTTP requests from triggering TLS/crypto
+# module initialization, which causes V8 assertion crashes in certain Node.js builds.
+RUN NEXT_TELEMETRY_DISABLED=1 npm run build
 
 # Stage 2: Serve the static files with Nginx
 FROM nginx:stable-alpine
