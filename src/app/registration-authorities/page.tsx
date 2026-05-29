@@ -62,7 +62,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RegistrationAuthoritiesTable } from '@/components/ra/RegistrationAuthoritiesTable';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 
@@ -412,38 +411,7 @@ export default function RegistrationAuthoritiesPage() {
         </div>
       </div>
 
-        <SplitPanelLayout
-          isPanelOpen={estPanelMode !== null}
-          onPanelOpenChange={handleEstPanelOpenChange}
-          mobilePanelAsDialog
-          panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_720px]"
-        panel={
-            estPanelMode === 'enroll' ? (
-              <EstEnrollModal
-                isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
-                className="p-4"
-                presentation="inline"
-              />
-            ) : estPanelMode === 'reenroll' ? (
-              <EstReEnrollModal
-                isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
-                className="p-4"
-                presentation="inline"
-              />
-            ) : estPanelMode === 'cacerts' ? (
-              <EstCaCertsPanel
-                isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
-                className="p-4"
-              />
-            ) : null
-        }
-        >
+        <div>
         {error && (
           <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -652,9 +620,24 @@ export default function RegistrationAuthoritiesPage() {
             </div>
           </div>
         )}
-        </SplitPanelLayout>
+        </div>
 
     </div>
+    <EstEnrollModal
+        isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
+        onOpenChange={handleEstPanelOpenChange}
+        ra={selectedRaForEstAction}
+      />
+    <EstReEnrollModal
+        isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
+        onOpenChange={handleEstPanelOpenChange}
+        ra={selectedRaForEstAction}
+      />
+    <EstCaCertsPanel
+        isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
+        onOpenChange={handleEstPanelOpenChange}
+        ra={selectedRaForEstAction}
+      />
     <CaSelectorModal
         isOpen={isCaSelectorOpen}
         onOpenChange={setIsCaSelectorOpen}

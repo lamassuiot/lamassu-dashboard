@@ -1,12 +1,14 @@
-
 'use client';
 
 import React from 'react';
-import { FileText, CheckCircle, AlertTriangle, Clock } from "lucide-react";
+import { CheckCircle2, FileText } from 'lucide-react';
+import { isPast, parseISO } from 'date-fns';
 import type { CertificateData } from '@/types/certificate';
-import { format, parseISO, isPast } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface SelectableCertificateItemProps {
   certificate: CertificateData;
@@ -14,74 +16,112 @@ interface SelectableCertificateItemProps {
   isSelected: boolean;
 }
 
-export const SelectableCertificateItem: React.FC<SelectableCertificateItemProps> = ({ 
-  certificate, 
+function getCommonName(subjectOrIssuer: string): string {
+  const cnMatch = subjectOrIssuer.match(/CN=([^,]+)/i);
+  return cnMatch ? cnMatch[1].trim() : subjectOrIssuer;
+}
+
+export const SelectableCertificateItem: React.FC<SelectableCertificateItemProps> = ({
+  certificate,
   onSelect,
   isSelected,
 }) => {
-
-  const handleItemClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onSelect(certificate);
-  };
-  
   const expiryDate = parseISO(certificate.validTo);
   const isCertExpired = isPast(expiryDate);
   const isCertRevoked = certificate.apiStatus?.toUpperCase() === 'REVOKED';
-  const isCertActive = certificate.apiStatus?.toUpperCase() === 'ACTIVE' && !isCertExpired;
+  const displayStatus = isCertRevoked ? 'REVOKED' : isCertExpired ? 'EXPIRED' : certificate.apiStatus;
 
-  let statusIcon = <Clock className="h-3.5 w-3.5 text-yellow-500" />;
-  let statusText = `Expires ${format(expiryDate, 'MMM dd, yyyy')}`;
-  let statusColorClass = "text-yellow-600 dark:text-yellow-400";
-
-  if (isCertRevoked) {
-    statusIcon = <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
-    statusText = "Revoked";
-    statusColorClass = "text-red-600 dark:text-red-400";
-  } else if (isCertExpired) {
-    statusIcon = <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />;
-    statusText = `Expired ${format(expiryDate, 'MMM dd, yyyy')}`;
-    statusColorClass = "text-orange-600 dark:text-orange-400";
-  } else if (isCertActive) {
-    statusIcon = <CheckCircle className="h-3.5 w-3.5 text-green-500" />;
-    statusColorClass = "text-green-600 dark:text-green-400";
-  }
-
+  const certificateTitle = getCommonName(certificate.subject || '') || certificate.fileName || 'Certificate';
+  const issuerTitle = getCommonName(certificate.issuer || '') || 'Unknown issuer';
+  const showSubjectLine = Boolean(certificate.subject && certificate.subject !== certificateTitle);
+  const showIssuerLine = Boolean(certificate.issuer && certificate.issuer !== issuerTitle);
 
   return (
-    <li 
+    <li>
+      <button
+        type="button"
         className={cn(
-            "flex items-center space-x-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer",
-            isSelected && 'bg-primary/10 ring-1 ring-primary'
+          'group w-full rounded-lg border bg-background p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'hover:border-muted-foreground/30 hover:bg-muted/20',
+          isSelected && 'border-primary bg-primary/5 shadow-sm hover:border-primary hover:bg-primary/5'
         )}
-        onClick={handleItemClick}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleItemClick(e as any);}}
+        onClick={() => onSelect(certificate)}
         aria-pressed={isSelected}
-    >
-        <FileText className={cn("h-5 w-5 flex-shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
-        <div className="flex-1 min-w-0">
-            <p className={cn(
-                "text-sm font-medium truncate",
-                isSelected ? "text-primary" : "text-foreground",
-                (isCertExpired || isCertRevoked) && "text-destructive/80 dark:text-destructive/70"
-              )}
-              title={certificate.subject}
-            >
-                {certificate.subject || certificate.fileName}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-                SN: <IdentifierDisplay value={certificate.serialNumber} className="text-xs" />
-            </p>
-            <p className="text-xs text-muted-foreground truncate" title={certificate.issuer}>
-                Issuer: {certificate.issuer}
-            </p>
+      >
+        <div className="flex items-start gap-4">
+          <div
+            className={cn(
+              'mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground transition-colors',
+              isSelected && 'border-primary/30 bg-primary/10 text-primary'
+            )}
+          >
+            <FileText className="h-5 w-5" />
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p
+                    className={cn(
+                      'truncate text-sm font-semibold text-foreground',
+                      isSelected && 'text-primary',
+                      (isCertExpired || isCertRevoked) && 'text-destructive/90'
+                    )}
+                    title={certificate.subject || certificate.fileName}
+                  >
+                    {certificateTitle}
+                  </p>
+                  {isSelected && (
+                    <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary">
+                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                      Selected
+                    </Badge>
+                  )}
+                </div>
+                {showSubjectLine && (
+                  <p className="truncate text-xs text-muted-foreground" title={certificate.subject}>
+                    {certificate.subject}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <ApiStatusBadge status={displayStatus} />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Issuer</p>
+                <p className="truncate text-sm text-foreground" title={certificate.issuer}>
+                  {issuerTitle}
+                </p>
+                {showIssuerLine && (
+                  <p className="truncate text-xs text-muted-foreground" title={certificate.issuer}>
+                    {certificate.issuer}
+                  </p>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Serial Number</p>
+                <IdentifierDisplay value={certificate.serialNumber} className="block truncate text-xs text-foreground" />
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Expires</p>
+                <DateDisplay
+                  date={certificate.validTo}
+                  className="text-sm text-foreground"
+                  relativeClassName="text-xs"
+                  highlightExpired
+                />
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center space-x-1.5 flex-shrink-0" title={statusText}>
-            {statusIcon}
-            <span className={cn("text-xs hidden sm:inline", statusColorClass)}>{statusText}</span>
-        </div>
+      </button>
     </li>
   );
 };

@@ -34,6 +34,7 @@ const createUserManager = (): UserManager | null => {
       scope: 'openid profile email', // Standard scopes
       userStore: new WebStorageStateStore({ store: window.localStorage }), // Persist user session
       automaticSilentRenew: true, // Proactively renew tokens
+      loadUserInfo: true, // Fetch userinfo endpoint to surface claims like `picture`
       monitorSession, // Opt-in: avoids CheckSessionIFrame errors when unsupported/blocked
     });
   }

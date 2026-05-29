@@ -28,7 +28,7 @@ import {
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck} from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
@@ -289,6 +289,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
   const showGlobalBreadcrumbs =
@@ -358,9 +359,19 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 p-1 h-auto text-header-foreground hover:bg-header/80 hover:text-header-foreground">
                   <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
-                  <div className='flex items-center justify-center bg-header-foreground/20 rounded-full h-8 w-8'>
-                    <User className="h-5 w-5 text-header-foreground" />
-                  </div>
+                  {user?.profile.picture && !avatarError ? (
+                    <img
+                      src={user.profile.picture}
+                      alt={user.profile.name || user.profile.email || 'User'}
+                      referrerPolicy="no-referrer"
+                      className="h-8 w-8 rounded-full object-cover"
+                      onError={() => setAvatarError(true)}
+                    />
+                  ) : (
+                    <div className='flex items-center justify-center bg-header-foreground/20 rounded-full h-8 w-8'>
+                      <User className="h-5 w-5 text-header-foreground" />
+                    </div>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>

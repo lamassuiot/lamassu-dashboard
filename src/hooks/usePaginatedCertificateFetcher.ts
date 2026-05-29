@@ -22,6 +22,7 @@ export type CertificateDateFilterOperator = 'af' | 'bf' | 'eq';
 export interface CertificateDateFilterValue {
   operator: CertificateDateFilterOperator;
   date?: Date;
+  includeTime?: boolean;
 }
 
 const DEFAULT_CERTIFICATE_DATE_OPERATOR: CertificateDateFilterOperator = 'af';

@@ -379,7 +379,7 @@ export default function AlertsPage() {
                 </div>
 
       <SplitPanelLayout
-        isPanelOpen={!!rightPanelMode}
+        isPanelOpen={rightPanelMode === 'subscribe' || rightPanelMode === 'subscription-details'}
         onPanelOpenChange={(isOpen) => {
           if (!isOpen) handleCloseRightPanel();
         }}
@@ -395,8 +395,6 @@ export default function AlertsPage() {
               subscriptionToEdit={subscriptionToEdit}
               presentation="inline"
             />
-          ) : rightPanelMode === 'audit-user' ? (
-            <AuditUserInfoPanel event={auditEventForUserInfo} onClose={handleCloseRightPanel} />
           ) : rightPanelMode === 'subscription-details' ? (
             <SubscriptionDetailsModal
               isOpen={rightPanelMode === 'subscription-details' && !!selectedSubscriptionForDetails}
@@ -472,6 +470,11 @@ export default function AlertsPage() {
           )}
       </SplitPanelLayout>
     </div>
+    <AuditUserInfoPanel
+      isOpen={rightPanelMode === 'audit-user'}
+      onOpenChange={(isOpen) => { if (!isOpen) handleCloseRightPanel(); }}
+      event={auditEventForUserInfo}
+    />
     </>
   );
 }

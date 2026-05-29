@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import type { CertificateData } from '@/types/certificate';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Eye, MoreVertical, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, ChevronsUpDown, ShieldAlert, FileText, ShieldCheck, Download } from 'lucide-react';
 import {
@@ -36,12 +37,13 @@ interface CertificateListProps {
   requestSort: (column: SortableCertColumn) => void;
   isLoading?: boolean;
   showIssuerColumn?: boolean;
-  columnVisibility?: Partial<Record<'commonName' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'revocationTime', boolean>>;
+  columnVisibility?: Partial<Record<'commonName' | 'certificateAuthority' | 'serialNumber' | 'issuer' | 'validFrom' | 'expires' | 'status' | 'revocationTime', boolean>>;
   onColumnToggle?: (columnId: string) => void;
 }
 
 const DEFAULT_COLUMN_VISIBILITY = {
   commonName: true,
+  certificateAuthority: true,
   serialNumber: true,
   issuer: true,
   validFrom: true,
@@ -215,6 +217,7 @@ export function CertificateList({
           <TableHeader>
             <TableRow>
               {columnVisibility.commonName && <SortableHeader column="commonName" title="Common Name" />}
+              {columnVisibility.certificateAuthority && <TableHead className="text-center">CA</TableHead>}
               {columnVisibility.serialNumber && <SortableHeader column="serialNumber" title="Serial Number" className="hidden md:table-cell" />}
               {showIssuerColumn && columnVisibility.issuer && <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>}
               {columnVisibility.validFrom && <SortableHeader column="validFrom" title="Valid From" center dateColumn />}
@@ -242,6 +245,15 @@ export function CertificateList({
                       >
                         {getCommonName(cert.subject)}
                       </Button>
+                    </TableCell>
+                  )}
+                  {columnVisibility.certificateAuthority && (
+                    <TableCell className="text-center">
+                      {cert.rawApiData?.is_ca ? (
+                        <Badge>CA</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                   )}
                   {columnVisibility.serialNumber && (

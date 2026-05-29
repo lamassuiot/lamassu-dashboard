@@ -2,12 +2,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Card } from '@/components/ui/card';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info } from "lucide-react";
+import { Loader2, ArrowLeft, RefreshCw as RefreshCwIcon, AlertTriangle, Info, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CA } from '@/lib/ca-data';
 import { findCaById, signCertificate, fetchAndProcessCAs } from '@/lib/ca-data';
@@ -28,6 +28,7 @@ import { Badge } from '../ui/badge';
 import { Stepper } from './Stepper';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
+import { CaSelectorModal } from './CaSelectorModal';
 
 // Re-defining RA type here to avoid complex imports, but ideally this would be shared
 interface ApiRaItem {
@@ -91,6 +92,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     const [step, setStep] = useState(1);
     const [deviceId, setDeviceId] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
     
     // Step 2 state
     const [keygenMethod, setKeygenMethod] = useState<'device' | 'server'>('device');
@@ -114,28 +116,28 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
     const isServerKeygenSupported = ra?.settings.server_keygen_settings?.enabled === true;
 
+    const loadDependencies = async () => {
+        setIsLoadingDependencies(true);
+        setErrorDependencies(null);
+        try {
+            const [casData, enginesData] = await Promise.all([
+                fetchAndProcessCAs(),
+                fetchCryptoEngines()
+            ]);
+            setAvailableCAs(casData);
+            setAllCryptoEngines(enginesData);
+        } catch (err: any) {
+            setErrorDependencies(err.message || "Failed to load required data.");
+        } finally {
+            setIsLoadingDependencies(false);
+        }
+    };
+
     // Fetch dependencies when modal opens
     useEffect(() => {
-        if (!isOpen ) return;
-
-        const loadDependencies = async () => {
-            setIsLoadingDependencies(true);
-            setErrorDependencies(null);
-            try {
-                const [casData, enginesData] = await Promise.all([
-                    fetchAndProcessCAs(),
-                    fetchCryptoEngines()
-                ]);
-                setAvailableCAs(casData);
-                setAllCryptoEngines(enginesData);
-            } catch (err: any) {
-                setErrorDependencies(err.message || "Failed to load required data.");
-            } finally {
-                setIsLoadingDependencies(false);
-            }
-        };
-
+        if (!isOpen) return;
         loadDependencies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
     
 
@@ -200,16 +202,14 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
         }
     };
 
-    const handleBootstrapSignerChange = (caId: string) => {
-        const selected = selectableSigners.find(s => s.id === caId);
-        setBootstrapSigner(selected || null);
-
-        if (selected?.defaultIssuanceLifetime && DURATION_REGEX.test(selected.defaultIssuanceLifetime)) {
-            setBootstrapValidity(selected.defaultIssuanceLifetime);
+    const handleBootstrapSignerSelected = (ca: CA) => {
+        setBootstrapSigner(ca);
+        if (ca.defaultIssuanceLifetime && DURATION_REGEX.test(ca.defaultIssuanceLifetime)) {
+            setBootstrapValidity(ca.defaultIssuanceLifetime);
         } else {
-            // Fallback for Indefinite, date formats, or not specified
             setBootstrapValidity('1h');
         }
+        setIsCaSelectorOpen(false);
     };
 
     const currentKeySpecOptions = keygenType === 'RSA' ? RSA_KEY_SIZE_OPTIONS : ECDSA_CURVE_OPTIONS;
@@ -476,21 +476,23 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                     <p className="text-xs text-muted-foreground mb-2">
                                         Select a CA to sign the temporary bootstrap certificate.
                                     </p>
-                                    <Select 
-                                        value={bootstrapSigner?.id}
-                                        onValueChange={handleBootstrapSignerChange}
+                                    <Button
+                                        id="bootstrap-signer"
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full justify-between font-normal"
+                                        onClick={() => setIsCaSelectorOpen(true)}
+                                        disabled={isLoadingDependencies}
                                     >
-                                        <SelectTrigger id="bootstrap-signer">
-                                            <SelectValue placeholder="Select a signing CA..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {selectableSigners.map(signer => (
-                                                <SelectItem key={signer.id} value={signer.id}>
-                                                    {signer.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                        <span className={bootstrapSigner ? "text-foreground" : "text-muted-foreground"}>
+                                            {isLoadingDependencies
+                                                ? "Loading CAs..."
+                                                : bootstrapSigner
+                                                    ? bootstrapSigner.name
+                                                    : "Select a signing CA..."}
+                                        </span>
+                                        <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                    </Button>
                                     {bootstrapSigner && (
                                         <div className="mt-2"><CaVisualizerCard ca={bootstrapSigner} className="shadow-none border-border" allCryptoEngines={allCryptoEngines}/></div>
                                     )}
@@ -586,7 +588,20 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                     </div>
                 </div>
 
-                <DialogFooter className="border-t px-6 py-4">
+                <CaSelectorModal
+                    isOpen={isCaSelectorOpen}
+                    onOpenChange={setIsCaSelectorOpen}
+                    title="Select Bootstrap Signer"
+                    description="Choose the Certification Authority that will sign the temporary bootstrap certificate."
+                    availableCAs={selectableSigners}
+                    isLoadingCAs={isLoadingDependencies}
+                    errorCAs={errorDependencies}
+                    loadCAsAction={loadDependencies}
+                    onCaSelected={handleBootstrapSignerSelected}
+                    currentSelectedCaId={bootstrapSigner?.id}
+                    allCryptoEngines={allCryptoEngines}
+                />
+                <SheetFooter className="border-t px-6 py-4">
                     <div className="w-full flex justify-between">
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <div className="flex space-x-2">
@@ -610,7 +625,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                             )}
                         </div>
                     </div>
-                </DialogFooter>
+                </SheetFooter>
         </>
     );
 
@@ -625,16 +640,16 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className={cn("sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] flex flex-col", className)}>
-                <DialogHeader className="sr-only">
-                    <DialogTitle>EST Enroll</DialogTitle>
-                    <DialogDescription>
+        <Sheet open={isOpen} onOpenChange={onOpenChange}>
+            <SheetContent side="right" className={cn("w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col", className)}>
+                <SheetHeader className="sr-only">
+                    <SheetTitle>EST Enroll</SheetTitle>
+                    <SheetDescription>
                         Generate enrollment commands for RA: {ra?.name} ({ra?.id})
-                    </DialogDescription>
-                </DialogHeader>
+                    </SheetDescription>
+                </SheetHeader>
                 {panelContent}
-            </DialogContent>
-        </Dialog>
+            </SheetContent>
+        </Sheet>
     );
 };

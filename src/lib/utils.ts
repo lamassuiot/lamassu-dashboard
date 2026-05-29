@@ -5,6 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function downloadFile(data: ArrayBuffer, filename: string, mimeType: string): void {
+  const blob = new Blob([data], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 const PRESERVED_USAGE_ACRONYMS = ["OCSP", "CRL"] as const;
 
 export function formatCertificateUsageLabel(value: string): string {

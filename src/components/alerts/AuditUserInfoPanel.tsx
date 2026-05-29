@@ -1,17 +1,19 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { UserRound, X, ShieldCheck } from 'lucide-react';
+import { UserRound, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import type { AlertEvent } from '@/app/alerts/page';
 
 type ParsedAuthClaims = Record<string, unknown> | null;
 
 interface AuditUserInfoPanelProps {
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
   event: AlertEvent | null;
-  onClose: () => void;
 }
 
 const formatEpoch = (value: unknown): string => {
@@ -91,7 +93,7 @@ const decodeCertificateClaim = (value: unknown): string | null => {
   }
 };
 
-export function AuditUserInfoPanel({ event, onClose }: AuditUserInfoPanelProps) {
+export function AuditUserInfoPanel({ isOpen, onOpenChange, event }: AuditUserInfoPanelProps) {
   const { authid, authtype, authclaims, parsedClaims, rawClaimsIsPresent } = useMemo(() => {
     const payload = (event?.payload ?? {}) as Record<string, unknown>;
     const authidValue = payload.authid;
@@ -107,8 +109,6 @@ export function AuditUserInfoPanel({ event, onClose }: AuditUserInfoPanelProps) 
     };
   }, [event]);
 
-  if (!event) return null;
-
   const claims = parsedClaims ?? {};
   const isCertificateAuth = String(authtype ?? '').toLowerCase() === 'crt';
   const certificatePem = decodeCertificateClaim((claims as Record<string, unknown>).crt);
@@ -116,23 +116,19 @@ export function AuditUserInfoPanel({ event, onClose }: AuditUserInfoPanelProps) 
   const accountRoles = ((claims.resource_access as { account?: { roles?: unknown[] } } | undefined)?.account?.roles ?? []) as unknown[];
 
   return (
-    <div className="flex h-full min-h-[540px] flex-col rounded-lg border bg-background">
-      <div className="border-b p-6 pb-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Audit Event User Info</h2>
-            <p className="text-sm text-muted-foreground">User identity details extracted from this audit event.</p>
-          </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close user info panel">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Badge variant="secondary" className="font-normal">{event.type}</Badge>
-        </div>
-      </div>
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col">
+        <SheetHeader className="border-b px-6 py-5 text-left">
+          <SheetTitle>Audit Event User Info</SheetTitle>
+          <SheetDescription>User identity details extracted from this audit event.</SheetDescription>
+          {event && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge variant="secondary" className="font-normal">{event.type}</Badge>
+            </div>
+          )}
+        </SheetHeader>
 
-      <div className="flex-1 overflow-y-auto p-6 pt-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
         <section className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <UserRound className="h-4 w-4 text-primary" />
@@ -232,7 +228,12 @@ export function AuditUserInfoPanel({ event, onClose }: AuditUserInfoPanelProps) 
             {rawClaimsIsPresent ? asText(authclaims) : 'Not present'}
           </pre>
         </section>
-      </div>
-    </div>
+        </div>
+
+        <SheetFooter className="border-t px-6 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

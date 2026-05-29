@@ -156,87 +156,87 @@
 
   .dark {
     /* Base Dark Theme Colors */
-    --background: 222 40% 15%;
-    /* Dark Blue-Gray */
-    --foreground: 210 40% 95%;
-    /* Light Gray */
+    --background: 222 28% 8%;
+    /* Deep slate */
+    --foreground: 210 20% 96%;
+    /* Soft white */
 
-    --primary: 217 90% 35%;
-    /* Slightly lighter/desaturated primary */
-    --primary-foreground: 0 0% 98%;
-    /* Near White */
+    --primary: 212 100% 63%;
+    /* Crisp cobalt accent */
+    --primary-foreground: 222 47% 11%;
+    /* Dark ink for contrast on bright accent */
 
-    --header-background: 217 90% 35%;
-    /* Custom header background for dark mode */
-    --header-foreground: 0 0% 98%;
-    /* Custom header foreground for dark mode */
+    --header-background: 222 24% 11%;
+    /* Dark app chrome instead of bright blue */
+    --header-foreground: 210 20% 96%;
+    /* Light header foreground */
     --header-height: 3rem;
 
-    --accent: 150 50% 70%;
-    /* Muted accent */
-    --accent-foreground: 150 50% 20%;
-    /* Darker accent */
+    --accent: 222 18% 17%;
+    /* Subtle slate accent surface */
+    --accent-foreground: 210 20% 95%;
+    /* Readable accent text */
 
     /* Standard ShadCN UI Colors (Dark Mode) */
-    --card: 222 40% 18%;
-    /* Darker card */
-    --card-foreground: 210 40% 95%;
-    /* Light Gray */
+    --card: 222 22% 11%;
+    /* Elevated dark card */
+    --card-foreground: 210 20% 95%;
+    /* Light card text */
 
-    --popover: 222 40% 18%;
-    /* Darker popover */
-    --popover-foreground: 210 40% 95%;
-    /* Light Gray */
+    --popover: 222 22% 11%;
+    /* Match card surfaces */
+    --popover-foreground: 210 20% 95%;
+    /* Light popover text */
 
-    --secondary: 217 30% 15%;
-    /* Darker secondary */
-    --secondary-foreground: 210 40% 90%;
-    /* Lighter secondary text */
+    --secondary: 222 18% 15%;
+    /* Secondary surface */
+    --secondary-foreground: 210 18% 92%;
+    /* Secondary text */
 
-    --muted: 217 30% 22%;
-    /* Darker muted */
-    --muted-foreground: 210 30% 65%;
-    /* Muted gray text */
+    --muted: 222 16% 18%;
+    /* Muted panels and fills */
+    --muted-foreground: 215 15% 70%;
+    /* Muted copy */
 
-    --destructive: 0 63% 50%;
-    /* Darker Red */
+    --destructive: 0 72% 56%;
+    /* Punchier red for dark surfaces */
     --destructive-foreground: 0 0% 98%;
     /* Near White */
 
-    --border: 217 20% 30%;
-    /* Darker Border */
-    --input: 217 20% 35%;
-    /* Darker input border */
-    --ring: 217 80% 65%;
-    /* Primary variant for dark rings */
+    --border: 222 16% 22%;
+    /* Refined surface borders */
+    --input: 222 16% 24%;
+    /* Input outline */
+    --ring: 212 100% 68%;
+    /* Bright but controlled focus ring */
 
     /* Homepage Specific Colors */
     --homepage-card-background: hsl(var(--primary));
 
     /* Chart Colors (Dark Theme) - adjust as needed */
-    --chart-1: 217 80% 65%;
-    --chart-2: 150 60% 60%;
-    --chart-3: 35 70% 50%;
-    --chart-4: 0 60% 55%;
-    --chart-5: 260 60% 65%;
+    --chart-1: 212 100% 68%;
+    --chart-2: 176 55% 56%;
+    --chart-3: 38 90% 58%;
+    --chart-4: 3 80% 63%;
+    --chart-5: 262 80% 70%;
 
     /* Sidebar Specific Colors (Dark Theme) */
-    --sidebar-background: 222 40% 12%;
-    /* Even darker for sidebar */
-    --sidebar-foreground: 210 40% 90%;
-    /* Light gray text */
-    --sidebar-primary: 217 90% 60%;
-    /* Same as dark primary */
-    --sidebar-primary-foreground: 0 0% 98%;
-    /* Same as dark primary-foreground */
-    --sidebar-accent: 150 50% 65%;
-    /* Adjusted dark accent */
-    --sidebar-accent-foreground: 150 50% 15%;
-    /* Darker accent text */
-    --sidebar-border: 222 40% 25%;
-    /* Dark sidebar border */
-    --sidebar-ring: 217 80% 65%;
-    /* Ring color */
+    --sidebar-background: 222 28% 10%;
+    /* Slightly denser than page background */
+    --sidebar-foreground: 210 18% 94%;
+    /* Light sidebar text */
+    --sidebar-primary: 212 100% 63%;
+    /* Shared accent color */
+    --sidebar-primary-foreground: 222 47% 11%;
+    /* Shared accent foreground */
+    --sidebar-accent: 222 18% 17%;
+    /* Hover and secondary states */
+    --sidebar-accent-foreground: 210 20% 95%;
+    /* Sidebar accent text */
+    --sidebar-border: 222 16% 20%;
+    /* Sidebar border */
+    --sidebar-ring: 212 100% 68%;
+    /* Sidebar focus ring */
 
     /* CA Graph View Colors - Dark Mode */
     /* CA Node - Active Status */
@@ -464,7 +464,7 @@
 }
 
 .dark .text-primary {
-  color: hsl(217 100% 70%);
+  color: hsl(212 100% 71%);
 }
 
 /* ── Sileo toasts ───────────────────────────────────────────────────────────

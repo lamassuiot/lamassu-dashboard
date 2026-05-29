@@ -6,28 +6,25 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Shield, Loader2, AlertTriangle as AlertTriangleIcon, FileText, Download, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Loader2, AlertTriangle as AlertTriangleIcon, FileText, Download, RefreshCw, Eye } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
-import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { DurationInput } from '@/components/shared/DurationInput';
 import { sileo } from '@/lib/toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
-import { cn } from '@/lib/utils';
-import { fetchVaConfig, updateVaConfig, downloadCrl, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
+import { downloadFile } from '@/lib/utils';
+import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
+import { VaSettingsCard } from '@/components/shared/VaSettingsCard';
 import * as asn1js from "asn1js";
 import { CertificateRevocationList, getCrypto, setEngine } from "pkijs";
-import { format } from 'date-fns';
 
 const crlReasonCodeMap: { [key: number]: string } = {
   0: "Unspecified",
@@ -41,26 +38,6 @@ const crlReasonCodeMap: { [key: number]: string } = {
   9: "PrivilegeWithdrawn",
   10: "AACompromise"
 };
-
-const downloadFile = (data: ArrayBuffer, filename: string, mimeType: string) => {
-  const blob = new Blob([data], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
-const getDefaultVAConfig = (caId: string): VAConfig => ({
-  caId,
-  refreshInterval: '24h',
-  validity: '7d',
-  subjectKeyIDSigner: null,
-  regenerateOnRevoke: true,
-});
 
 interface RevokedCertificate {
   serialNumber: string;
@@ -94,7 +71,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
   const [isDownloadingCrl, setIsDownloadingCrl] = useState(false);
 
   // CRL viewer state
-  const [showCrlViewer, setShowCrlViewer] = useState(false);
+  const [isCrlSheetOpen, setIsCrlSheetOpen] = useState(false);
   const [crlUrl, setCrlUrl] = useState<string>('');
   const [isLoadingCrl, setIsLoadingCrl] = useState(false);
   const [crlDetails, setCrlDetails] = useState<CrlDetails | null>(null);
@@ -182,10 +159,17 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
   const handleCertificateSignerSelected = (certificate: CertificateData) => {
     if (config) {
-      setConfig({ ...config, subjectKeyIDSigner: certificate.serialNumber });
+      setConfig({ ...config, subjectKeyIDSigner: certificate.rawApiData?.subject_key_id ?? null });
       setSelectedCertificateSignerDisplay(certificate);
     }
     setIsCertificateSignerModalOpen(false);
+  };
+
+  const handleClearCertificateSigner = () => {
+    if (config) {
+      setConfig({ ...config, subjectKeyIDSigner: null });
+    }
+    setSelectedCertificateSignerDisplay(null);
   };
 
   const handleInputChange = (key: 'refreshInterval' | 'validity', value: string) => {
@@ -294,13 +278,13 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
 
       setCrlDetails({
         issuer: crl.issuer.typesAndValues.map((tv: any) => `${tv.type}=${tv.value.valueBlock.value}`).join(', '),
-        thisUpdate: format(crl.thisUpdate.value, getDisplayDateFormat()),
-        nextUpdate: crl.nextUpdate ? format(crl.nextUpdate.value, getDisplayDateFormat()) : 'Not specified',
+        thisUpdate: crl.thisUpdate.value.toISOString(),
+        nextUpdate: crl.nextUpdate ? crl.nextUpdate.value.toISOString() : undefined,
         revokedCertificates: crl.revokedCertificates?.map((cert: any) => ({
           serialNumber: cert.userCertificate.valueBlock.valueHex.byteLength > 20
             ? cert.userCertificate.valueBlock.valueHex.slice(0, 20).toString('hex') + '...'
             : Buffer.from(cert.userCertificate.valueBlock.valueHex).toString('hex'),
-          revocationDate: format(cert.revocationDate.value, getDisplayDateFormat()),
+          revocationDate: cert.revocationDate.value.toISOString(),
           reason: getReason(cert),
         })) || [],
       });
@@ -350,103 +334,21 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
     <div className="space-y-6">
       {config && (
         <div className="grid gap-6 xl:grid-cols-[1fr_auto]">
-          <Card className="overflow-hidden rounded-xl shadow-sm">
-            <CardHeader className="border-b py-4">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <CardTitle className="text-lg flex items-center">
-                    <Shield className="mr-3 h-5 w-5 text-primary" />
-                    VA Settings
-                  </CardTitle>
-                  <CardDescription>Define validation parameters for this Certificate Authority.</CardDescription>
-                </div>
-                <Button variant="secondary" size="sm" onClick={fetchCurrentVaConfig} disabled={isLoadingConfig}>
-                  <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingConfig && "animate-spin")} />
-                  Refresh Config
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <DurationInput
-                id="va-refreshInterval"
-                label="CRL Refresh Interval"
-                value={config.refreshInterval}
-                onChange={(value) => handleInputChange('refreshInterval', value)}
-                placeholder="e.g., 24h, 30m, 7d"
-                description="How often to check for new CRLs."
-              />
-              <DurationInput
-                id="va-validity"
-                label="CRL Max Validity / Cache Duration"
-                value={config.validity}
-                onChange={(value) => handleInputChange('validity', value)}
-                placeholder="e.g., 7d, 48h"
-                description="Maximum time to consider a cached CRL valid."
-              />
-
-              <div className="space-y-1">
-                <Label htmlFor="va-crlSigner" className="block">CRL Signer</Label>
-                <Button
-                  id="va-crlSigner"
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsCertificateSignerModalOpen(true)}
-                  className="w-full md:w-2/3 lg:w-1/2 justify-start text-left font-normal"
-                  disabled={isSubmitting}
-                >
-                  {selectedCertificateSignerDisplay ? `${selectedCertificateSignerDisplay.subject.substring(0, 30)}...`
-                    : "Select CRL Signer Certificate..."}
-                </Button>
-                {selectedCertificateSignerDisplay && (
-                  <div className="mt-2 p-2 border rounded-md bg-muted/30 max-w-md">
-                    <p className="text-sm font-medium text-foreground truncate" title={selectedCertificateSignerDisplay.subject}>
-                      Selected: {selectedCertificateSignerDisplay.subject}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      SN: <IdentifierDisplay value={selectedCertificateSignerDisplay.serialNumber} className="text-xs" />
-                    </p>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">Certificate whose public key corresponds to the SubjectKeyIdentifier in generated CRLs.</p>
-              </div>
-
-              <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                <div className="space-y-0.5">
-                  <Label htmlFor="va-regenerateOnRevoke" className="flex items-center">
-                    <RefreshCw className="mr-2 h-4 w-4 text-muted-foreground" />
-                    Regenerate CRL Immediately on Revocation
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    When enabled, a new CRL will be generated immediately whenever a certificate is revoked.
-                  </p>
-                </div>
-                <Switch
-                  id="va-regenerateOnRevoke"
-                  checked={config.regenerateOnRevoke}
-                  onCheckedChange={() => handleSwitchChange('regenerateOnRevoke')}
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <CertificateSelectorModal
-                isOpen={isCertificateSignerModalOpen}
-                onOpenChange={setIsCertificateSignerModalOpen}
-                title="Select CRL Signer Certificate"
-                description="Choose the certificate whose public key will be used for the SubjectKeyIdentifier in CRLs generated by this VA."
-                onCertificateSelected={handleCertificateSignerSelected}
-                currentSelectedCertificateId={config.subjectKeyIDSigner}
-                limitToCAs={[ca]}
-                requiredKeyUsages={['CRLSign']}
-              />
-
-              <div className="mt-8 flex justify-end">
-                <Button onClick={handleSaveConfig} size="lg" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-                  {isSubmitting ? 'Saving...' : 'Save VA Configuration'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <VaSettingsCard
+            config={config}
+            onInputChange={handleInputChange}
+            onSwitchChange={handleSwitchChange}
+            selectedCertificateSignerDisplay={selectedCertificateSignerDisplay}
+            onCertificateSignerSelected={handleCertificateSignerSelected}
+            onClearCertificateSigner={handleClearCertificateSigner}
+            isCertificateSignerModalOpen={isCertificateSignerModalOpen}
+            onCertificateSignerModalOpenChange={setIsCertificateSignerModalOpen}
+            isSubmitting={isSubmitting}
+            isLoadingConfig={isLoadingConfig}
+            onSave={handleSaveConfig}
+            onRefresh={fetchCurrentVaConfig}
+            limitToCAs={[ca]}
+          />
 
           <Card className="overflow-hidden rounded-xl shadow-sm">
             <CardHeader className="border-b py-4">
@@ -468,15 +370,13 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                   variant="secondary"
                   size="sm"
                   onClick={() => {
-                    setShowCrlViewer(v => !v);
-                    if (!showCrlViewer) {
-                      setCrlDetails(null);
-                      setRawCrlDer(null);
-                    }
+                    setCrlDetails(null);
+                    setRawCrlDer(null);
+                    setIsCrlSheetOpen(true);
                   }}
                 >
-                  {showCrlViewer ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                  {showCrlViewer ? 'Hide CRL' : 'Fetch & Show CRL'}
+                  <Eye className="mr-2 h-4 w-4" />
+                  Fetch &amp; Show CRL
                 </Button>
               </div>
               {latestCrl ? (
@@ -498,119 +398,135 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                 <p className="text-sm italic text-muted-foreground">No CRL has been generated for this VA role yet.</p>
               )}
 
-              {/* Inline CRL Viewer */}
-              {showCrlViewer && (
-                <div className="border-t pt-4 space-y-3">
-                  <div>
-                    <Label htmlFor="crl-url-input">CRL URL</Label>
-                    <Input
-                      id="crl-url-input"
-                      type="text"
-                      placeholder="Enter CRL URL"
-                      value={crlUrl}
-                      onChange={(e) => setCrlUrl(e.target.value)}
-                      disabled={isLoadingCrl}
-                      className="mt-1 font-mono text-xs"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {ca.subjectKeyId
-                        ? `Auto-generated from base URL + CA SKI: ${ca.subjectKeyId}`
-                        : 'Enter the CRL URL manually'}
-                    </p>
-                  </div>
+              <Sheet open={isCrlSheetOpen} onOpenChange={setIsCrlSheetOpen}>
+                <SheetContent className="w-full sm:max-w-[50vw] overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-primary" />
+                      Fetch &amp; Show CRL
+                    </SheetTitle>
+                    <SheetDescription>
+                      Fetch and parse a Certificate Revocation List from the given URL.
+                    </SheetDescription>
+                  </SheetHeader>
 
-                  {showHttpWarning && (
-                    <Alert variant="warning">
-                      <AlertTriangleIcon className="h-4 w-4" />
-                      <AlertTitle>Insecure URL Warning</AlertTitle>
-                      <AlertDescription>
-                        The provided URL uses 'http'. Modern browsers may upgrade this request to 'https' due to Content-Security-Policy.
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                  <div className="mt-6 space-y-4">
+                    <div>
+                      <Label htmlFor="crl-url-input">CRL URL</Label>
+                      <Input
+                        id="crl-url-input"
+                        type="text"
+                        placeholder="Enter CRL URL"
+                        value={crlUrl}
+                        onChange={(e) => setCrlUrl(e.target.value)}
+                        disabled={isLoadingCrl}
+                        className="mt-1 font-mono text-xs"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {ca.subjectKeyId
+                          ? `Auto-generated from base URL + CA SKI: ${ca.subjectKeyId}`
+                          : 'Enter the CRL URL manually'}
+                      </p>
+                    </div>
 
-                  <Button onClick={handleFetchAndParseCrl} disabled={!crlUrl || isLoadingCrl} className="w-full">
-                    {isLoadingCrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    Fetch & Parse CRL
-                  </Button>
-
-                  {crlDetails && (
-                    crlDetails.error ? (
-                      <Alert variant="destructive">
+                    {showHttpWarning && (
+                      <Alert variant="warning">
                         <AlertTriangleIcon className="h-4 w-4" />
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{crlDetails.error}</AlertDescription>
+                        <AlertTitle>Insecure URL Warning</AlertTitle>
+                        <AlertDescription>
+                          The provided URL uses 'http'. Modern browsers may upgrade this request to 'https' due to Content-Security-Policy.
+                        </AlertDescription>
                       </Alert>
-                    ) : (
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-semibold">CRL Details</h4>
-                        <div className="grid grid-cols-1 gap-y-2 text-xs">
-                          <div>
-                            <p className="font-medium text-muted-foreground uppercase tracking-wide">Issuer</p>
-                            <p className="mt-0.5 font-mono break-all">{crlDetails.issuer}</p>
-                          </div>
-                          <div>
-                            <p className="font-medium text-muted-foreground uppercase tracking-wide">This Update</p>
-                            <p className="mt-0.5">{crlDetails.thisUpdate}</p>
-                          </div>
-                          <div>
-                            <p className="font-medium text-muted-foreground uppercase tracking-wide">Next Update</p>
-                            <p className="mt-0.5">{crlDetails.nextUpdate}</p>
-                          </div>
-                        </div>
+                    )}
 
-                        {rawCrlDer && (
-                          <Button variant="secondary" size="sm" onClick={() => downloadFile(rawCrlDer, 'crl.der', 'application/pkix-crl')}>
-                            <Download className="mr-2 h-4 w-4" /> Download CRL (DER)
-                          </Button>
-                        )}
+                    <Button onClick={handleFetchAndParseCrl} disabled={!crlUrl || isLoadingCrl} className="w-full">
+                      {isLoadingCrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                      Fetch &amp; Parse CRL
+                    </Button>
 
-                        <div>
-                          <h4 className="text-sm font-semibold mb-2">Revoked Certificates ({crlDetails.revokedCertificates.length})</h4>
-                          <ScrollArea className="h-64 border rounded-md">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Serial Number</TableHead>
-                                  <TableHead>Revocation Date</TableHead>
-                                  <TableHead>Reason</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {crlDetails.revokedCertificates.length > 0 ? (
-                                  crlDetails.revokedCertificates.map(cert => (
-                                    <TableRow key={cert.serialNumber}>
-                                      <TableCell className="font-mono text-xs">
-                                        <Button
-                                          variant="link"
-                                          className="h-auto p-0 text-xs font-mono"
-                                          onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
-                                        >
-                                          <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
-                                        </Button>
-                                      </TableCell>
-                                      <TableCell className="text-xs">{cert.revocationDate}</TableCell>
-                                      <TableCell className="text-xs">{cert.reason}</TableCell>
-                                    </TableRow>
-                                  ))
-                                ) : (
+                    {crlDetails && (
+                      crlDetails.error ? (
+                        <Alert variant="destructive">
+                          <AlertTriangleIcon className="h-4 w-4" />
+                          <AlertTitle>Error</AlertTitle>
+                          <AlertDescription>{crlDetails.error}</AlertDescription>
+                        </Alert>
+                      ) : (
+                        <div className="space-y-4">
+                          <h4 className="text-sm font-semibold">CRL Details</h4>
+                          <div className="grid grid-cols-1 gap-y-2 text-xs">
+                            <div>
+                              <p className="font-medium text-muted-foreground uppercase tracking-wide">Issuer</p>
+                              <p className="mt-0.5 font-mono break-all">{crlDetails.issuer}</p>
+                            </div>
+                            <div>
+                              <p className="font-medium text-muted-foreground uppercase tracking-wide">This Update</p>
+                              <DateDisplay date={crlDetails.thisUpdate} showRelative={true} className="mt-0.5 text-xs" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-muted-foreground uppercase tracking-wide">Next Update</p>
+                              {crlDetails.nextUpdate
+                                ? <DateDisplay date={crlDetails.nextUpdate} showRelative={true} className="mt-0.5 text-xs" />
+                                : <p className="mt-0.5 text-xs text-muted-foreground">Not specified</p>
+                              }
+                            </div>
+                          </div>
+
+                          {rawCrlDer && (
+                            <Button variant="secondary" size="sm" onClick={() => downloadFile(rawCrlDer, 'crl.der', 'application/pkix-crl')}>
+                              <Download className="mr-2 h-4 w-4" /> Download CRL (DER)
+                            </Button>
+                          )}
+
+                          <div>
+                            <h4 className="text-sm font-semibold mb-2">Revoked Certificates ({crlDetails.revokedCertificates.length})</h4>
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader>
                                   <TableRow>
-                                    <TableCell colSpan={3} className="text-center text-muted-foreground">No certificates revoked in this CRL.</TableCell>
+                                    <TableHead>Serial Number</TableHead>
+                                    <TableHead>Revocation Date</TableHead>
+                                    <TableHead>Reason</TableHead>
                                   </TableRow>
-                                )}
-                              </TableBody>
-                            </Table>
-                          </ScrollArea>
+                                </TableHeader>
+                                <TableBody>
+                                  {crlDetails.revokedCertificates.length > 0 ? (
+                                    crlDetails.revokedCertificates.map(cert => (
+                                      <TableRow key={cert.serialNumber}>
+                                        <TableCell className="font-mono text-xs truncate max-w-[120px]">
+                                          <Button
+                                            variant="link"
+                                            className="h-auto p-0 text-xs font-mono"
+                                            onClick={() => router.push(`/certificates/details?certificateId=${cert.serialNumber}`)}
+                                          >
+                                            <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
+                                          </Button>
+                                        </TableCell>
+                                        <TableCell>
+                                          <DateDisplay date={cert.revocationDate} showRelative={true} className="text-xs" />
+                                        </TableCell>
+                                        <TableCell className="text-xs">{cert.reason}</TableCell>
+                                      </TableRow>
+                                    ))
+                                  ) : (
+                                    <TableRow>
+                                      <TableCell colSpan={3} className="text-center text-muted-foreground">No certificates revoked in this CRL.</TableCell>
+                                    </TableRow>
+                                  )}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  )}
+                      )
+                    )}
 
-                  {!crlDetails && !isLoadingCrl && (
-                    <p className="text-sm text-muted-foreground text-center py-4">Click "Fetch & Parse CRL" to load CRL data.</p>
-                  )}
-                </div>
-              )}
+                    {!crlDetails && !isLoadingCrl && (
+                      <p className="text-sm text-muted-foreground text-center py-4">Click "Fetch &amp; Parse CRL" to load CRL data.</p>
+                    )}
+                  </div>
+                </SheetContent>
+              </Sheet>
             </CardContent>
           </Card>
         </div>

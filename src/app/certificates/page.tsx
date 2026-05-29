@@ -90,6 +90,7 @@ export default function CertificatesPage() {
   // Column visibility (lifted from CertificateList so ColumnSelector can live in the filter bar)
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
     commonName: true,
+    certificateAuthority: true,
     serialNumber: true,
     issuer: true,
     validFrom: true,
@@ -248,6 +249,7 @@ export default function CertificatesPage() {
           <ColumnSelector
             columns={[
               { id: 'commonName',     label: 'Common Name',      visible: columnVisibility.commonName,     disabled: true },
+              { id: 'certificateAuthority', label: 'CA',         visible: columnVisibility.certificateAuthority },
               { id: 'serialNumber',   label: 'Serial Number',    visible: columnVisibility.serialNumber },
               { id: 'issuer',         label: 'CA Issuer',        visible: columnVisibility.issuer },
               { id: 'validFrom',      label: 'Valid From',       visible: columnVisibility.validFrom },

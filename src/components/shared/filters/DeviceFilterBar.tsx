@@ -4,8 +4,8 @@ import React, { useMemo } from 'react';
 
 import { DmsSelector } from '@/components/shared/DmsSelector';
 
-import { GenericFilterBar, type GenericFilterField } from './GenericFilterBar';
-import { createEnumField, createMultiEnumField, createSearchTextField } from './filter-field-helpers';
+import { GenericFilterBar, type GenericDateFilterValue, type GenericFilterField } from './GenericFilterBar';
+import { createDateField, createMultiEnumField, createSearchTextField, createTextField } from './filter-field-helpers';
 
 type DeviceStatus =
   | 'ACTIVE'
@@ -19,22 +19,37 @@ type DeviceStatus =
 interface DeviceFilterBarProps {
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
-  searchField: 'id' | 'tags';
-  onSearchFieldChange: (value: 'id' | 'tags') => void;
+  tagSearchTerm: string;
+  onTagSearchTermChange: (value: string) => void;
   dmsOwnerFilter: string | null;
   onDmsOwnerFilterChange: (value: string | null) => void;
   statusFilters: DeviceStatus[];
   onStatusFiltersChange: (value: DeviceStatus[]) => void;
+  createdAtFilter: GenericDateFilterValue;
+  onCreatedAtFilterChange: (value: GenericDateFilterValue) => void;
   disabled?: boolean;
   actions?: React.ReactNode;
 }
 
 interface DeviceFilterValues {
   searchTerm: string;
-  searchField: 'id' | 'tags';
+  tagSearchTerm: string;
   dmsOwnerFilter: string | null;
   statusFilters: DeviceStatus[];
+  createdAtFilter: GenericDateFilterValue;
 }
+
+const dateOperatorOptions = [
+  { label: 'After', value: 'af' },
+  { label: 'Before', value: 'bf' },
+  { label: 'On', value: 'eq' },
+] as const;
+
+const defaultDateFilterValue: GenericDateFilterValue = {
+  operator: 'af',
+  date: undefined,
+  includeTime: false,
+};
 
 const deviceStatusOptions = [
   { label: 'Active', value: 'ACTIVE' },
@@ -49,41 +64,31 @@ const deviceStatusOptions = [
 export function DeviceFilterBar({
   searchTerm,
   onSearchTermChange,
-  searchField,
-  onSearchFieldChange,
+  tagSearchTerm,
+  onTagSearchTermChange,
   dmsOwnerFilter,
   onDmsOwnerFilterChange,
   statusFilters,
   onStatusFiltersChange,
+  createdAtFilter,
+  onCreatedAtFilterChange,
   disabled = false,
   actions,
 }: DeviceFilterBarProps) {
   const values = useMemo<DeviceFilterValues>(() => ({
     searchTerm,
-    searchField,
+    tagSearchTerm,
     dmsOwnerFilter,
     statusFilters,
-  }), [dmsOwnerFilter, searchField, searchTerm, statusFilters]);
+    createdAtFilter,
+  }), [createdAtFilter, dmsOwnerFilter, searchTerm, statusFilters, tagSearchTerm]);
 
   const fields = useMemo<GenericFilterField<DeviceFilterValues>[]>(() => [
     createSearchTextField<DeviceFilterValues>({
       key: 'searchTerm',
-      label: 'Search Term',
-      placeholder: 'Filter by ID or Tag...',
+      label: 'Device ID',
+      placeholder: 'Filter by device ID...',
       badgeKey: 'device-search',
-      searchFieldKey: 'searchField',
-      searchFieldLabels: {
-        id: 'Device ID',
-        tags: 'Tags',
-      },
-    }),
-    createEnumField<DeviceFilterValues>({
-      key: 'searchField',
-      label: 'Search In',
-      options: [
-        { label: 'Device ID', value: 'id' },
-        { label: 'Tags', value: 'tags' },
-      ],
     }),
     {
       key: 'dmsOwnerFilter',
@@ -116,6 +121,18 @@ export function DeviceFilterBar({
       options: deviceStatusOptions,
       buttonText: 'All Statuses',
     }),
+    createTextField<DeviceFilterValues>({
+      key: 'tagSearchTerm',
+      label: 'Tags',
+      placeholder: 'Filter by tag...',
+      visibility: 'advanced',
+    }),
+    createDateField<DeviceFilterValues>({
+      key: 'createdAtFilter',
+      label: 'Created At',
+      visibility: 'advanced',
+      dateOperators: [...dateOperatorOptions],
+    }),
   ], [disabled, dmsOwnerFilter, onDmsOwnerFilterChange]);
 
   return (
@@ -127,14 +144,17 @@ export function DeviceFilterBar({
           case 'searchTerm':
             onSearchTermChange(String(value ?? ''));
             break;
-          case 'searchField':
-            onSearchFieldChange(value as DeviceFilterValues['searchField']);
+          case 'tagSearchTerm':
+            onTagSearchTermChange(String(value ?? ''));
             break;
           case 'dmsOwnerFilter':
             onDmsOwnerFilterChange((value as string | null) || null);
             break;
           case 'statusFilters':
             onStatusFiltersChange((Array.isArray(value) ? value : []) as DeviceStatus[]);
+            break;
+          case 'createdAtFilter':
+            onCreatedAtFilterChange((value as GenericDateFilterValue) || defaultDateFilterValue);
             break;
           default:
             break;
@@ -144,12 +164,14 @@ export function DeviceFilterBar({
       disabled={disabled}
       onClearAll={() => {
         onSearchTermChange('');
+        onTagSearchTermChange('');
         onDmsOwnerFilterChange(null);
         onStatusFiltersChange([]);
+        onCreatedAtFilterChange(defaultDateFilterValue);
       }}
       idPrefix="device-filter"
       basicFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_180px]"
-      advancedFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2"
+      advancedFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
     />
   );
 }

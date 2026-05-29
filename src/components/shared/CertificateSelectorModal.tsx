@@ -2,15 +2,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
-import type { CA } from '@/lib/ca-data';
-import { SelectableCertificateItem } from './SelectableCertificateItem';
+import { findCaById, type CA } from '@/lib/ca-data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { type ApiCertificateStatusValue, type CertificateDateFilterValue } from '@/hooks/usePaginatedCertificateFetcher';
 import type { ExtendedKeyUsageOption, KeyUsageOption } from '@/lib/certificate-usage-options';
@@ -18,6 +16,14 @@ import { CertificateFilterBar } from '@/components/shared/filters/CertificateFil
 import { Label } from '../ui/label';
 import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '../ui/sheet';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
+import { getDisplayDateFormat } from '@/lib/config';
+import { cn } from '@/lib/utils';
+import { Badge } from '../ui/badge';
 
 
 interface CertificateSelectorModalProps {
@@ -29,6 +35,7 @@ interface CertificateSelectorModalProps {
   currentSelectedCertificateId?: string | null;
   limitToCAs?: CA[];
   requiredKeyUsages?: readonly KeyUsageOption[];
+  includeCaCertificates?: boolean;
 }
 
 const defaultDateFilterValue: CertificateDateFilterValue = {
@@ -57,6 +64,68 @@ function flattenCaOptions(cas: CA[]): CA[] {
   return options;
 }
 
+function formatDistinguishedName(dn: CA['subjectDN'] | CA['issuerDN'] | undefined, fallback: string) {
+  if (!dn) {
+    return fallback;
+  }
+
+  const parts: string[] = [];
+  if (dn.common_name) parts.push(`CN=${dn.common_name}`);
+  if (dn.organization) parts.push(`O=${dn.organization}`);
+  if (dn.organization_unit) parts.push(`OU=${dn.organization_unit}`);
+  if (dn.locality) parts.push(`L=${dn.locality}`);
+  if (dn.state) parts.push(`ST=${dn.state}`);
+  if (dn.country) parts.push(`C=${dn.country}`);
+  return parts.join(', ') || fallback;
+}
+
+function getCommonName(subjectOrIssuer: string) {
+  const cnMatch = subjectOrIssuer.match(/CN=([^,]+)/i);
+  return cnMatch ? cnMatch[1].trim() : subjectOrIssuer;
+}
+
+function normalizeSerialNumber(serialNumber: string | undefined) {
+  return (serialNumber ?? '').replace(/:/g, '').toUpperCase();
+}
+
+function normalizeIdentifier(value: string | undefined | null) {
+  return (value ?? '').replace(/:/g, '').toUpperCase();
+}
+
+function caToCertificateData(ca: CA): CertificateData {
+  const rawCertificate = ca.rawApiData?.certificate;
+  const subjectKeyId = rawCertificate?.subject_key_id ?? ca.subjectKeyId;
+  const engineId = rawCertificate?.engine_id ?? ca.kmsKeyId;
+
+  return {
+    id: ca.serialNumber,
+    fileName: `${ca.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'ca_certificate'}.pem`,
+    subject: formatDistinguishedName(ca.subjectDN, `CN=${ca.name}`),
+    issuer: formatDistinguishedName(ca.issuerDN, ca.issuer),
+    serialNumber: ca.serialNumber,
+    validFrom: rawCertificate?.valid_from ?? '',
+    validTo: ca.expires,
+    pemData: ca.pemData ?? '',
+    publicKeyAlgorithm: ca.keyAlgorithm,
+    issuerCaId: ca.issuer === 'Self-signed' ? ca.id : ca.issuer,
+    apiStatus: rawCertificate?.status ?? ca.status.toUpperCase(),
+    revocationReason: rawCertificate?.revocation_reason,
+    revocationTimestamp: rawCertificate?.revocation_timestamp,
+    rawApiData: rawCertificate ?? {
+      is_ca: ca.isCa ?? true,
+      subject_key_id: subjectKeyId,
+      engine_id: engineId,
+    },
+    signatureAlgorithm: ca.signatureAlgorithm,
+    crlDistributionPoints: ca.crlDistributionPoints,
+    ocspUrls: ca.ocspUrls,
+    caIssuersUrls: ca.caIssuersUrls,
+    sans: ca.sans,
+    keyUsage: ca.keyUsage,
+    extendedKeyUsage: ca.extendedKeyUsage,
+  };
+}
+
 export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> = ({
   isOpen,
   onOpenChange,
@@ -66,6 +135,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   currentSelectedCertificateId,
   limitToCAs,
   requiredKeyUsages = [],
+  includeCaCertificates = false,
 }) => {
   const [availableCerts, setAvailableCerts] = useState<CertificateData[]>([]);
   const [isLoadingCerts, setIsLoadingCerts] = useState(false);
@@ -96,6 +166,10 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   const hasCaRestriction = limitToCAs !== undefined;
   const caOptions = useMemo(() => flattenCaOptions(limitToCAs ?? []), [limitToCAs]);
   const [selectedCaId, setSelectedCaId] = useState<string | null>(null);
+  const selectedCa = useMemo(
+    () => caOptions.find((ca) => ca.id === selectedCaId) ?? null,
+    [caOptions, selectedCaId],
+  );
 
   useEffect(() => {
     if (!hasCaRestriction || caOptions.length === 0) {
@@ -166,20 +240,27 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
         keyUsageFilters: effectiveSelectedKeyUsages,
         extendedKeyUsageFilters: selectedExtendedKeyUsages,
       });
-      // Attempt to filter for non-CA certs if API supports it.
-      // params.append('filter', 'is_ca[equal]false'); 
-
       const result = await fetchIssuedCertificates({
         forCaId: selectedCaId ?? undefined,
         apiQueryString: params.toString(),
       });
-      
-      // Client-side filter for non-CA certs if API doesn't support `is_ca[equal]false`
-      const nonCaCerts = result.certificates.filter(cert => 
-        !cert.rawApiData?.is_ca 
-      );
 
-      setAvailableCerts(nonCaCerts);
+      let certificates = includeCaCertificates
+        ? result.certificates
+        : result.certificates.filter(cert => !cert.rawApiData?.is_ca);
+
+      if (includeCaCertificates && selectedCa && !bookmarkToFetch) {
+        const caCertificate = caToCertificateData(selectedCa);
+        const caCertificateSerial = normalizeSerialNumber(caCertificate.serialNumber);
+        const hasCaCertificate = certificates.some((cert) => (
+          normalizeSerialNumber(cert.serialNumber) === caCertificateSerial
+        ));
+        if (!hasCaCertificate) {
+          certificates = [caCertificate, ...certificates];
+        }
+      }
+
+      setAvailableCerts(certificates);
       setNextTokenFromApi(result.nextToken);
 
     } catch (err: any) {
@@ -203,6 +284,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     validToFilter,
     revocationTimestampFilter,
     hasCaRestriction,
+    includeCaCertificates,
+    selectedCa,
     selectedCaId,
     caOptions.length,
   ]);
@@ -282,40 +365,41 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   ]);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full p-0 sm:max-w-4xl lg:max-w-[96rem]">
+        <div className="flex h-full flex-col overflow-hidden bg-background">
+          <SheetHeader className="border-b px-6 py-5 text-left">
+            <SheetTitle>{title}</SheetTitle>
+            <SheetDescription>{description}</SheetDescription>
+          </SheetHeader>
 
-        <div className="space-y-3 px-1 pb-1 pt-2">
+          <div className="space-y-3 px-6 pb-3 pt-4">
             {hasCaRestriction && (
-                <div className="max-w-sm">
-                    <Label htmlFor="certSelectorCaFilter" className="text-xs">Certification Authority</Label>
-                    <Select
-                        value={selectedCaId ?? undefined}
-                        onValueChange={setSelectedCaId}
-                        disabled={isLoadingCerts || caOptions.length <= 1}
-                    >
-                        <SelectTrigger id="certSelectorCaFilter" className="w-full h-9 text-sm">
-                            <SelectValue placeholder={caOptions.length === 0 ? "No CAs available" : "Select a CA"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {caOptions.map((ca) => (
-                                <SelectItem key={ca.id} value={ca.id}>
-                                    {ca.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+              <div className="max-w-sm">
+                <Label htmlFor="certSelectorCaFilter" className="text-xs">Certification Authority</Label>
+                <Select
+                  value={selectedCaId ?? undefined}
+                  onValueChange={setSelectedCaId}
+                  disabled={isLoadingCerts || caOptions.length <= 1}
+                >
+                  <SelectTrigger id="certSelectorCaFilter" className="h-9 w-full text-sm">
+                    <SelectValue placeholder={caOptions.length === 0 ? "No CAs available" : "Select a CA"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {caOptions.map((ca) => (
+                      <SelectItem key={ca.id} value={ca.id}>
+                        {ca.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             <CertificateFilterBar
               {...filterBarProps}
               disabled={isLoadingCerts}
-              basicFieldsClassName="grid-cols-1 gap-2 sm:grid-cols-[minmax(220px,1.4fr)_180px]"
-              advancedFieldsClassName="grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+              basicFieldsClassName="grid-cols-1 gap-2 xl:grid-cols-[minmax(280px,1.5fr)_200px]"
+              advancedFieldsClassName="grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4"
               idPrefix="cert-selector-filter"
               defaultAdvancedOpen={
                 effectiveSelectedKeyUsages.length > 0 ||
@@ -323,78 +407,170 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                 revocationReasonFilters.length > 0
               }
             />
-        </div>
+          </div>
 
-        <div className="flex-grow overflow-hidden flex flex-col min-h-[200px]"> {/* Added min-h */}
+          <div className="flex min-h-[240px] flex-1 flex-col overflow-hidden px-6 pb-4">
             {isLoadingCerts && !errorCerts && (
-            <div className="flex-grow flex items-center justify-center h-full">
+              <div className="flex h-full flex-grow items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="ml-2">Loading certificates...</p>
-            </div>
+              </div>
             )}
             {errorCerts && !isLoadingCerts && (
-            <div className="flex-grow flex items-center justify-center h-full">
+              <div className="flex h-full flex-grow items-center justify-center">
                 <Alert variant="destructive" className="my-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Error Loading Certificates</AlertTitle>
-                    <AlertDescription>
-                    {errorCerts} <Button variant="link" onClick={() => loadCertificates(bookmarkStack[currentPageIndex])} className="p-0 h-auto">Try again?</Button>
-                    </AlertDescription>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Error Loading Certificates</AlertTitle>
+                  <AlertDescription>
+                    {errorCerts} <Button variant="link" onClick={() => loadCertificates(bookmarkStack[currentPageIndex])} className="h-auto p-0">Try again?</Button>
+                  </AlertDescription>
                 </Alert>
-            </div>
+              </div>
             )}
             {!isLoadingCerts && !errorCerts && availableCerts.length > 0 && (
-            <ScrollArea className="flex-grow my-2 border rounded-md">
-                <ul className="space-y-0.5 p-2">
-                {availableCerts.map((cert) => (
-                    <SelectableCertificateItem
-                    key={cert.id}
-                    certificate={cert}
-                    onSelect={onCertificateSelected}
-                    isSelected={currentSelectedCertificateId === cert.id || currentSelectedCertificateId === cert.serialNumber}
-                    />
-                ))}
-                </ul>
-            </ScrollArea>
+              <ScrollArea className="my-2 flex-grow">
+                <div className="min-w-[920px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Common Name</TableHead>
+                        <TableHead className="text-center">CA</TableHead>
+                        <TableHead className="hidden md:table-cell">Serial Number</TableHead>
+                        <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>
+                        <TableHead className="text-center">Valid From</TableHead>
+                        <TableHead className="text-center">Expires</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="hidden xl:table-cell text-center">Revocation Time</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {availableCerts.map((cert) => {
+                        const issuerCa = cert.issuerCaId ? findCaById(cert.issuerCaId, caOptions) : null;
+                        const issuerDisplayName = issuerCa ? issuerCa.name : getCommonName(cert.issuer);
+                        const selectedIdentifier = normalizeIdentifier(currentSelectedCertificateId);
+                        const isSelected = selectedIdentifier !== '' && [
+                          cert.id,
+                          cert.serialNumber,
+                          cert.rawApiData?.subject_key_id,
+                        ].some((value) => normalizeIdentifier(value) === selectedIdentifier);
+
+                        return (
+                          <TableRow
+                            key={cert.id}
+                            className={cn(isSelected && "bg-primary/5")}
+                          >
+                            <TableCell className="font-medium truncate max-w-[150px] sm:max-w-xs">
+                              <div className="truncate" title={cert.subject}>
+                                {getCommonName(cert.subject)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {cert.rawApiData?.is_ca ? (
+                                <Badge>CA</Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell font-mono text-xs truncate max-w-[120px]">
+                              <IdentifierDisplay value={cert.serialNumber} className="text-xs" />
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell truncate max-w-[200px]">
+                              <span title={cert.issuer}>{issuerDisplayName}</span>
+                            </TableCell>
+                            <TableCell>
+                              <DateDisplay date={cert.validFrom} className="items-center justify-center" />
+                            </TableCell>
+                            <TableCell>
+                              <DateDisplay date={cert.validTo} highlightExpired className="items-center justify-center" />
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex flex-col items-center gap-1">
+                                <ApiStatusBadge status={cert.apiStatus} />
+                                {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationReason && (
+                                  <span className="text-[10px] text-red-600 dark:text-red-400">
+                                    {cert.revocationReason}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden xl:table-cell text-center">
+                              {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
+                                <DateDisplay
+                                  date={cert.revocationTimestamp}
+                                  formatString={getDisplayDateFormat()}
+                                  showRelative={true}
+                                  className="items-center justify-center"
+                                />
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                type="button"
+                                variant={isSelected ? "secondary" : "default"}
+                                size="sm"
+                                onClick={() => onCertificateSelected(cert)}
+                              >
+                                {isSelected ? "Selected" : "Select"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </ScrollArea>
             )}
             {!isLoadingCerts && !errorCerts && availableCerts.length === 0 && (
-            <div className="flex-grow flex items-center justify-center h-full">
-                <p className="text-muted-foreground text-center my-4 p-4 border rounded-md bg-muted/20">
-                    {hasCaRestriction && caOptions.length === 0
-                      ? "No Certification Authorities are available for this selector."
-                      : hasCaRestriction
-                        ? "No non-CA certificates found for the selected CA matching your criteria."
-                        : "No non-CA certificates found matching your criteria."}
-                </p>
-            </div>
+              <div className="flex h-full flex-grow items-center justify-center">
+                {hasCaRestriction && caOptions.length === 0 ? (
+                  <p className="my-4 w-full rounded-md border bg-muted/20 p-4 text-center text-muted-foreground">
+                    No Certification Authorities are available for this selector.
+                  </p>
+                ) : (
+                  <div className="my-4 w-full rounded-lg border-2 border-dashed border-border bg-muted/20 p-8 text-center">
+                    <h3 className="text-lg font-semibold text-muted-foreground">No Issued Certificates Found</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {hasCaRestriction
+                        ? "No certificates found for the selected CA matching your criteria."
+                        : "No certificates found matching your criteria."}
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
-        </div>
-        
-        {/* Pagination Controls */}
-        {(!isLoadingCerts && !errorCerts && (availableCerts.length > 0 || nextTokenFromApi || currentPageIndex > 0)) && (
-          <CertificatePaginationControls
-            className="mt-2 border-t pt-3"
-            pageSize={pageSize}
-            onPageSizeChange={setPageSize}
-            pageSizeOptions={['5', '10', '25']}
-            pageSizeLabel="Page Size:"
-            pageSizeSelectId="pageSizeSelectCertModal"
-            isLoading={isLoadingCerts}
-            onPreviousPage={handlePreviousPage}
-            onNextPage={handleNextPage}
-            canGoPrevious={!isLoadingCerts && currentPageIndex > 0}
-            canGoNext={!isLoadingCerts && (currentPageIndex < bookmarkStack.length - 1 || Boolean(nextTokenFromApi))}
-            onRefresh={handleRefresh}
-            compact
-          />
-        )}
+          </div>
 
-        <DialogFooter className="mt-4">
-          <DialogClose asChild>
-            <Button type="button" variant="outline">Cancel</Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <div className="border-t px-6 py-4">
+            {(!isLoadingCerts && !errorCerts && (availableCerts.length > 0 || nextTokenFromApi || currentPageIndex > 0)) && (
+              <CertificatePaginationControls
+                className="mb-4"
+                pageSize={pageSize}
+                onPageSizeChange={setPageSize}
+                pageSizeOptions={['5', '10', '25']}
+                pageSizeLabel="Page Size:"
+                pageSizeSelectId="pageSizeSelectCertModal"
+                isLoading={isLoadingCerts}
+                onPreviousPage={handlePreviousPage}
+                onNextPage={handleNextPage}
+                canGoPrevious={!isLoadingCerts && currentPageIndex > 0}
+                canGoNext={!isLoadingCerts && (currentPageIndex < bookmarkStack.length - 1 || Boolean(nextTokenFromApi))}
+                onRefresh={handleRefresh}
+                compact
+              />
+            )}
+
+            <SheetFooter className="mt-0">
+              <SheetClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+              </SheetClose>
+            </SheetFooter>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 };

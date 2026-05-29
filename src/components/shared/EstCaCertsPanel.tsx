@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -72,68 +72,68 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
     return `curl ${get_EST_API_BASE_URL()}/${ra.id}/cacerts \\\n  -H "Accept: application/pkcs7-mime"`;
   }, [ra?.id]);
 
-  if (!isOpen || !ra) return null;
-
   return (
-    <Card className={cn('flex h-full min-h-[650px] flex-col overflow-hidden', className)}>
-      <div className="border-b p-6 pb-4">
-        <h2 className="flex items-center text-lg font-semibold">
-          <FileText className="mr-2 h-5 w-5 text-primary" />
-          EST CA Certs
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Retrieve trusted CA certificates for RA: {ra.name} ({ra.id})
-        </p>
-      </div>
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className={cn('w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col', className)}>
+        <SheetHeader className="border-b px-6 py-5 text-left">
+          <SheetTitle className="flex items-center">
+            <FileText className="mr-2 h-5 w-5 text-primary" />
+            EST CA Certs
+          </SheetTitle>
+          <SheetDescription>
+            Retrieve trusted CA certificates for RA: {ra?.name} ({ra?.id})
+          </SheetDescription>
+        </SheetHeader>
 
-      <div className="flex-1 overflow-hidden p-6 pt-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Failed to Load CA Certs</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : isLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading CA certs...
-          </div>
-        ) : (
-          <Tabs defaultValue="pem" className="h-full w-full">
-            <TabsList>
-              <TabsTrigger value="pem">PEM Format</TabsTrigger>
-              <TabsTrigger value="pkcs7">RAW PKCS7</TabsTrigger>
-            </TabsList>
+        <div className="flex-1 overflow-hidden px-6 py-4">
+          {error ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Failed to Load CA Certs</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : isLoading ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading CA certs...
+            </div>
+          ) : (
+            <Tabs defaultValue="pem" className="h-full w-full">
+              <TabsList>
+                <TabsTrigger value="pem">PEM Format</TabsTrigger>
+                <TabsTrigger value="pkcs7">RAW PKCS7</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="pem" className="mt-4 h-[calc(100%-3rem)]">
-              <ScrollArea className="h-full pr-2">
-                <div className="space-y-3">
-                  <Alert>
-                    <AlertDescription>Obtain CA certs using cURL</AlertDescription>
-                    <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPem}</pre>
-                  </Alert>
-                  <CodeBlock content={pemCerts} />
-                </div>
-              </ScrollArea>
-            </TabsContent>
+              <TabsContent value="pem" className="mt-4 h-[calc(100%-3rem)]">
+                <ScrollArea className="h-full pr-2">
+                  <div className="space-y-3">
+                    <Alert>
+                      <AlertDescription>Obtain CA certs using cURL</AlertDescription>
+                      <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPem}</pre>
+                    </Alert>
+                    <CodeBlock content={pemCerts} />
+                  </div>
+                </ScrollArea>
+              </TabsContent>
 
-            <TabsContent value="pkcs7" className="mt-4 h-[calc(100%-3rem)]">
-              <ScrollArea className="h-full pr-2">
-                <div className="space-y-3">
-                  <Alert>
-                    <AlertDescription>Obtain CA certs using cURL</AlertDescription>
-                    <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPkcs7}</pre>
-                  </Alert>
-                  <CodeBlock content={pkcs7Certs} />
-                </div>
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
-        )}
-      </div>
+              <TabsContent value="pkcs7" className="mt-4 h-[calc(100%-3rem)]">
+                <ScrollArea className="h-full pr-2">
+                  <div className="space-y-3">
+                    <Alert>
+                      <AlertDescription>Obtain CA certs using cURL</AlertDescription>
+                      <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPkcs7}</pre>
+                    </Alert>
+                    <CodeBlock content={pkcs7Certs} />
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
+          )}
+        </div>
 
-      <div className="border-t p-6 pt-4">
-        <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-      </div>
-    </Card>
+        <SheetFooter className="border-t px-6 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 };

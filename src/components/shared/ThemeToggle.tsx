@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 export function ThemeToggle() {
   const [theme, setThemeState] = React.useState<"light" | "dark">("light")
   const [mounted, setMounted] = React.useState(false)
+  const toggleButtonClassName =
+    "text-header-foreground/85 hover:bg-header-foreground/10 hover:text-header-foreground focus-visible:ring-header-foreground/30"
 
   // Function to set theme and cookie
   const setTheme = (newTheme: "light" | "dark") => {
@@ -39,7 +41,7 @@ export function ThemeToggle() {
 
   // To avoid hydration mismatch, we don't render the button until the component has mounted on the client
   if (!mounted) {
-    return <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground" disabled />
+    return <Button variant="ghost" size="icon" className={toggleButtonClassName} disabled />
   }
 
   return (
@@ -47,7 +49,7 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       onClick={toggleTheme}
-      className="text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground"
+      className={toggleButtonClassName}
       aria-label="Toggle theme"
     >
       {theme === "light" ? (
