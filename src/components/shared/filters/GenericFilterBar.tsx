@@ -414,6 +414,121 @@ function DateFilterControl<TValues extends GenericFilterValues>({
   );
 }
 
+export interface DatePickerButtonProps {
+  value?: Date;
+  onChange: (date: Date | undefined) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  id?: string;
+  className?: string;
+}
+
+export function DatePickerButton({
+  value,
+  onChange,
+  placeholder = 'Pick date',
+  disabled = false,
+  id,
+  className,
+}: DatePickerButtonProps) {
+  const [draftDateInput, setDraftDateInput] = useState(() => formatDateInputValue(value));
+
+  useEffect(() => {
+    setDraftDateInput(formatDateInputValue(value));
+  }, [value]);
+
+  const applyDraftDateInput = () => {
+    const trimmedValue = draftDateInput.trim();
+    if (trimmedValue === '') {
+      onChange(undefined);
+      return;
+    }
+    const parsedDate = parseDateInputValue(trimmedValue);
+    if (parsedDate) {
+      onChange(applyDatePartsWithExistingTime(parsedDate, value, false));
+      return;
+    }
+    setDraftDateInput(zeroFillInvalidDateDraftValue(trimmedValue));
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          variant="outline"
+          className={cn(
+            'h-9 w-full min-w-0 justify-start text-left font-normal',
+            !value && 'text-muted-foreground',
+            className,
+          )}
+          disabled={disabled}
+        >
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          <span className="truncate">
+            {value ? getDateFilterDisplayValue(value, false) : placeholder}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto rounded-lg border p-2" align="start">
+        <div className="space-y-2">
+          <div className="mx-auto w-fit">
+            <Calendar
+              mode="single"
+              selected={value}
+              onSelect={(nextDate) =>
+                onChange(
+                  nextDate ? applyDatePartsWithExistingTime(nextDate, value, false) : undefined,
+                )
+              }
+              captionLayout="dropdown"
+              startMonth={new Date(new Date().getFullYear() - 30, 0)}
+              endMonth={new Date(new Date().getFullYear() + 50, 11)}
+              initialFocus
+              className="[--cell-size:1.85rem] bg-transparent p-1"
+            />
+          </div>
+          <div className="-mx-2 space-y-2 border-t pt-2">
+            <div className="space-y-2 px-2">
+              <div className="relative">
+                <CalendarIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={draftDateInput}
+                  placeholder="dd/MM/YYYY"
+                  onChange={(event) => setDraftDateInput(formatDateDraftValue(event.target.value))}
+                  onBlur={applyDraftDateInput}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      applyDraftDateInput();
+                    }
+                  }}
+                  disabled={disabled}
+                  className="h-8 bg-transparent pl-8 text-xs"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end px-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 px-2 text-xs"
+                onClick={() => onChange(applyDatePartsWithExistingTime(new Date(), undefined, false))}
+                disabled={disabled}
+              >
+                Today
+              </Button>
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function GenericFilterBar<TValues extends GenericFilterValues>({
   fields,
   values,
