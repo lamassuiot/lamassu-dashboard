@@ -18,7 +18,7 @@ import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/comp
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal'; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
@@ -33,30 +33,6 @@ const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', la
 const serverKeygenRsaBits = [ { value: '2048', label: '2048 bit' }, { value: '3072', label: '3072 bit' }, { value: '4096', label: '4096 bit' }];
 const serverKeygenEcdsaCurves = [ { value: 'P-256', label: 'P-256' }, { value: 'P-384', label: 'P-384' }, { value: 'P-521', label: 'P-521' }];
 
-function SettingsCard({
-  icon: Icon,
-  title,
-  description,
-  children,
-}: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card className="overflow-hidden rounded-xl shadow-sm">
-      <CardHeader className="border-b py-4">
-        <CardTitle className="flex items-center text-lg">
-          <Icon className="mr-3 h-5 w-5 text-primary" />
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">{children}</CardContent>
-    </Card>
-  );
-}
 
 function hslToHex(h: number, s: number, l: number) {
   l /= 100;
@@ -467,77 +443,59 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const SelectedDeviceIcon = getLucideIconByName(selectedDeviceIconName);
 
   return (
-    <div className="mb-8 w-full space-y-6">
+    <div className="w-[80%] mx-auto mb-8">
+
+      {/* ── Nav ── */}
       {isEditMode ? (
         <DetailBreadcrumbRow
           items={[
             { label: 'Home', href: '/' },
             { label: 'Registration Authorities', href: '/registration-authorities' },
-            {
-              label: (
-                <Badge variant="default" className="text-xs">
-                  {raName || raId || 'Edit'}
-                </Badge>
-              ),
-            },
+            { label: <Badge variant="default" className="text-xs">{raName || raId || 'Edit'}</Badge> },
           ]}
           actions={
-            <Button variant="outline" onClick={() => router.back()}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs
+            <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
             </Button>
           }
+          className="mb-6"
         />
       ) : (
-        <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs</Button>
+        <div className="flex justify-end mb-4">
+          <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
+          </Button>
+        </div>
       )}
 
-      {isEditMode ? (
-        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      {/* ── Edit hero ── */}
+      {isEditMode && (
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm mb-8">
           <div className="h-1 w-full bg-primary" />
           <div className="p-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex items-start gap-4">
-                <div
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: selectedDeviceIconBgColor }}
-                >
-                  {SelectedDeviceIcon ? (
-                    <SelectedDeviceIcon className="h-6 w-6" style={{ color: selectedDeviceIconColor }} />
-                  ) : (
-                    <Settings className="h-6 w-6 text-primary" />
-                  )}
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: selectedDeviceIconBgColor }}>
+                  {SelectedDeviceIcon ? <SelectedDeviceIcon className="h-6 w-6" style={{ color: selectedDeviceIconColor }} /> : <Settings className="h-6 w-6 text-primary" />}
                 </div>
-
                 <div className="min-w-0 space-y-2">
                   <div>
                     <h1 className="text-2xl font-semibold tracking-tight">{raName || 'Edit Registration Authority'}</h1>
-                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                      Modify settings for the Registration Authority.
-                    </p>
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Modify settings for the Registration Authority.</p>
                   </div>
-
                   <div className="flex flex-wrap items-center gap-2">
                     <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">{raId || raIdFromQuery}</code>
-                    {heroBadges.map((badge) => (
-                      <Badge key={badge} variant="outline" className="text-xs">
-                        {badge}
-                      </Badge>
-                    ))}
-                    {enableKeyGeneration ? <Badge variant="secondary" className="text-xs">Server Keygen</Badge> : null}
+                    {heroBadges.map((badge) => <Badge key={badge} variant="outline" className="text-xs">{badge}</Badge>)}
+                    {enableKeyGeneration && <Badge variant="secondary" className="text-xs">Server Keygen</Badge>}
                   </div>
                 </div>
               </div>
-
               <div className="grid gap-4 md:grid-cols-4 xl:min-w-[640px]">
                 {summaryCards.map((item) => (
                   <div key={item.label} className={item.emphasized ? '' : 'text-center'}>
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
                     {item.emphasized ? (
-                      <div className="mt-1">
-                        <span className="inline-flex max-w-full rounded-md border bg-muted px-2.5 py-1 text-sm font-medium">
-                          <span className="truncate">{item.value}</span>
-                        </span>
-                      </div>
+                      <div className="mt-1"><span className="inline-flex max-w-full rounded-md border bg-muted px-2.5 py-1 text-sm font-medium"><span className="truncate">{item.value}</span></span></div>
                     ) : (
                       <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
                     )}
@@ -548,407 +506,418 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             </div>
           </div>
         </div>
-      ) : (
-        <div className="space-y-1">
-          <h1 className="flex items-center text-2xl font-semibold tracking-tight">
-            <PageIcon className="mr-2 h-6 w-6 text-primary" /> Create New Registration Authority
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Configure all settings for the new Registration Authority below.
-          </p>
-        </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-              <SettingsCard
-                icon={Settings}
-                title="General RA Settings"
-                description="Define the primary identity used to reference and manage this Registration Authority."
-              >
-                  <div><Label htmlFor="raName">RA Name</Label><Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required className="mt-1" />{!raName.trim() && <p className="text-xs text-destructive mt-1">RA Name is required.</p>}</div>
-                  <div><Label htmlFor="raId">RA ID</Label><Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} className="mt-1" />{!raId.trim() && !isEditMode && <p className="text-xs text-destructive mt-1">RA ID is required.</p>}</div>
-              </SettingsCard>
+      <form onSubmit={handleSubmit} className="space-y-0">
 
-              <SettingsCard
-                icon={Cpu}
-                title="Enrollment Device Registration"
-                description="Configure how devices are classified and presented when they register through this authority."
-              >
-                  <div>
-                  <Label htmlFor="registrationMode">Registration Mode</Label>
-                  <Select value={registrationMode} onValueChange={setRegistrationMode}>
-                      <SelectTrigger id="registrationMode" className="mt-1"><SelectValue /></SelectTrigger>
+        {/* ── Page header (create mode only) ── */}
+        {!isEditMode && (
+          <div className="pb-8 border-b">
+            <h1 className="text-2xl font-bold">Create New Registration Authority</h1>
+            <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+              Configure all settings for the new Registration Authority below.
+            </p>
+          </div>
+        )}
+
+        {/* ── General Settings ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">General Settings</p>
+            <p className="text-sm text-muted-foreground mt-1">Define the primary identity used to reference and manage this RA.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="raName">RA Name</Label>
+              <Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required />
+              {!raName.trim() && <p className="text-xs text-destructive">RA Name is required.</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="raId">RA ID</Label>
+              <Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} />
+              {!raId.trim() && !isEditMode && <p className="text-xs text-destructive">RA ID is required.</p>}
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── Device Registration ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Device Registration</p>
+            <p className="text-sm text-muted-foreground mt-1">Configure how devices are classified and presented when they register through this authority.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="registrationMode">Registration Mode</Label>
+              <Select value={registrationMode} onValueChange={setRegistrationMode}>
+                <SelectTrigger id="registrationMode"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="JITP">JITP (Just-In-Time Provisioning)</SelectItem>
+                  <SelectItem value="Pre registration">Pre-registration</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="raTags">Tags</Label>
+              <TagInput id="raTags" value={tags} onChange={setTags} placeholder="Add tags..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="deviceIconButton">Device Icon</Label>
+              <Button id="deviceIconButton" type="button" variant="outline" onClick={() => setIsDeviceIconModalOpen(true)} className="w-full justify-start text-left font-normal flex items-center gap-2">
+                {getLucideIconByName(selectedDeviceIconName) ? (
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 rounded-sm flex items-center justify-center" style={{ backgroundColor: selectedDeviceIconBgColor }}>
+                      {React.createElement(getLucideIconByName(selectedDeviceIconName)!, { className: "h-5 w-5", style: { color: selectedDeviceIconColor } })}
+                    </div>
+                    {selectedDeviceIconName}
+                  </div>
+                ) : "Select Device Icon..."}
+              </Button>
+              <p className="text-xs text-muted-foreground">Default icon and colors for devices registered through this RA.</p>
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── Enrollment Settings ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Enrollment Settings</p>
+            <p className="text-sm text-muted-foreground mt-1">Control issuance policy, enrollment authentication, and CSR handling for new certificates.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="protocol">Protocol</Label>
+              <Select value={protocol} onValueChange={setProtocol}>
+                <SelectTrigger id="protocol"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EST">EST</SelectItem>
+                  <SelectItem value="None">None</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="enrollmentCa">Enrollment CA</Label>
+              <Button type="button" variant="outline" onClick={() => setIsEnrollmentCaModalOpen(true)} className="w-full justify-start text-left font-normal" disabled={isLoadingDependencies}>
+                {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
+              </Button>
+              {enrollmentCa && (
+                <div className="space-y-3">
+                  <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
+                  <div className="space-y-2">
+                    <Label>Issuance Profile (Optional)</Label>
+                    <Select value={issuanceProfileId || "ca-default"} onValueChange={(v) => setIssuanceProfileId(v === "ca-default" ? null : v)}>
+                      <SelectTrigger><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
                       <SelectContent>
-                      <SelectItem value="JITP">JITP (Just-In-Time Provisioning)</SelectItem>
-                      <SelectItem value="Pre registration">Pre-registration</SelectItem>
+                        <SelectItem value="ca-default">Use Enrollment CA's Default</SelectItem>
+                        {availableProfiles.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                       </SelectContent>
-                  </Select>
-                  </div>
-                  <div>
-                  <Label htmlFor="raTags"><TagIconLucide className="inline mr-1 h-4 w-4 text-muted-foreground"/>Tags</Label>
-                  <TagInput id="raTags" value={tags} onChange={setTags} placeholder="Add tags..." className="mt-1" />
-                  </div>
-                  <div className="pt-2">
-                  <Label htmlFor="deviceIconButton">Device Icon</Label>
-                  <Button id="deviceIconButton" type="button" variant="outline" onClick={() => setIsDeviceIconModalOpen(true)} className="w-full justify-start text-left font-normal flex items-center gap-2 mt-1">
-                      {getLucideIconByName(selectedDeviceIconName) ? (
-                      <div className="flex items-center gap-2">
-                          <div className="p-1 rounded-sm flex items-center justify-center" style={{ backgroundColor: selectedDeviceIconBgColor }}>
-                          {React.createElement(getLucideIconByName(selectedDeviceIconName)!, { className: "h-5 w-5", style: { color: selectedDeviceIconColor } })}
+                    </Select>
+                    {selectedProfileForDisplay ? (
+                      <IssuanceProfileCard profile={selectedProfileForDisplay} />
+                    ) : (
+                      <div className="space-y-2">
+                        <Alert variant="warning">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertTitle>Using Default</AlertTitle>
+                          <AlertDescription>No profile selected. The Enrollment CA's default issuance profile will be used.</AlertDescription>
+                        </Alert>
+                        {enrollmentCaDefaultProfile && (
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">CA Default Profile:</p>
+                            <IssuanceProfileCard profile={enrollmentCaDefaultProfile} />
                           </div>
-                          {selectedDeviceIconName}
+                        )}
+                        {!enrollmentCaDefaultProfile && enrollmentCa && (
+                          <Alert variant="warning">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Warning</AlertTitle>
+                            <AlertDescription>The selected Enrollment CA does not have a default profile configured.</AlertDescription>
+                          </Alert>
+                        )}
                       </div>
-                      ) : "Select Device Icon..."}
-                  </Button>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">Default icon and colors for devices registered through this RA.</p>
-              </SettingsCard>
-
-              <SettingsCard
-                icon={Key}
-                title="Enrollment Settings"
-                description="Control issuance policy, enrollment authentication, and CSR handling for new certificates."
-              >
-                  <div>
-                    <Label htmlFor="protocol">Protocol</Label>
-                    <Select value={protocol} onValueChange={setProtocol}>
-                        <SelectTrigger id="protocol" className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="EST">EST</SelectItem>
-                            <SelectItem value="None">None</SelectItem>
-                        </SelectContent>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="allowOverrideEnrollment">Allow Override Enrollment</Label>
+                <p className="text-xs text-muted-foreground">Allow clients to override the default enrollment certificate during enrollment.</p>
+              </div>
+              <Switch id="allowOverrideEnrollment" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="verifyCsrSignature">Verify CSR Signature</Label>
+                <p className="text-xs text-muted-foreground">Verify the cryptographic signature of Certificate Signing Requests during enrollment.</p>
+              </div>
+              <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="authMode">Authentication Mode</Label>
+              <Select value={authMode} onValueChange={setAuthMode}>
+                <SelectTrigger id="authMode"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Client Certificate">Client Certificate</SelectItem>
+                  <SelectItem value="External Webhook">External Webhook</SelectItem>
+                  <SelectItem value="Client Certificate + Webhook">Client Certificate + Webhook</SelectItem>
+                  <SelectItem value="No Auth">No Auth</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {(authMode === 'Client Certificate' || authMode === 'Client Certificate + Webhook') && (
+              <div className="space-y-4 pt-4 border-t">
+                <p className="text-sm font-medium text-muted-foreground">Client Certificate Auth Settings</p>
+                <div className="space-y-1.5">
+                  <Label>Validation CAs</Label>
+                  <div className="space-y-2">
+                    {validationCAs.length > 0 ? validationCAs.map(ca => (
+                      <div key={ca.id} className="flex items-center gap-2 group">
+                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground italic">No validation CAs selected.</p>}
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setIsValidationCaModalOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
+                  </Button>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch id="allowExpiredAuth" checked={allowExpiredAuth} onCheckedChange={setAllowExpiredAuth} />
+                  <Label htmlFor="allowExpiredAuth">Allow Authenticating Expired Certificates</Label>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="chainValidationLevel" className="flex items-center">
+                    Chain Validation Level
+                    <TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>-1 equals full chain validation.</p></TooltipContent></Tooltip></TooltipProvider>
+                  </Label>
+                  <Input id="chainValidationLevel" type="number" value={chainValidationLevel} onChange={(e) => setChainValidationLevel(Number.parseInt(e.target.value))} />
+                </div>
+              </div>
+            )}
+            {(authMode === 'External Webhook' || authMode === 'Client Certificate + Webhook') && (
+              <div className="space-y-4 pt-4 border-t">
+                <p className="text-sm font-medium text-muted-foreground">Webhook Settings</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="webhookName">Webhook Name</Label>
+                    <Input id="webhookName" value={webhookName} onChange={(e) => setWebhookName(e.target.value)} placeholder="e.g., MyValidationFunc" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="webhookUrl">Webhook URL</Label>
+                    <Input id="webhookUrl" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="http://localhost:8080/verify" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="webhookMethod">HTTP Method</Label>
+                    <Select value={webhookMethod} onValueChange={setWebhookMethod}>
+                      <SelectTrigger id="webhookMethod"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="POST">POST</SelectItem>
+                        <SelectItem value="PUT">PUT</SelectItem>
+                      </SelectContent>
                     </Select>
                   </div>
-              <div>
-                <Label htmlFor="enrollmentCa">Enrollment CA</Label>
-                <Button type="button" variant="outline" onClick={() => setIsEnrollmentCaModalOpen(true)} className="w-full justify-start text-left font-normal mt-1" disabled={isLoadingDependencies}>{isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}</Button>
-                {enrollmentCa && 
-                  <div className="mt-2 space-y-3">
-                    <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
-                    <div className='pl-2 space-y-2'>
-                        <Label>Issuance Profile (Optional)</Label>
-                         <Select value={issuanceProfileId || "ca-default"} onValueChange={(v) => setIssuanceProfileId(v === "ca-default" ? null : v)}>
-                            <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Select an issuance profile..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ca-default">Use Enrollment CA's Default</SelectItem>
-                                {availableProfiles.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        {selectedProfileForDisplay ? (
-                          <div className="pt-2">
-                            <IssuanceProfileCard profile={selectedProfileForDisplay} />
-                          </div>
-                        ) : (
-                          <div className="mt-2 space-y-2">
-                            <Alert variant="warning">
-                              <AlertTriangle className="h-4 w-4"/>
-                              <AlertTitle>Using Default</AlertTitle>
-                              <AlertDescription>
-                                No profile selected. The Enrollment CA's default issuance profile will be used to sign certificates.
-                              </AlertDescription>
-                            </Alert>
-                            {enrollmentCaDefaultProfile && (
-                              <div>
-                                <p className="text-sm text-muted-foreground mb-2">CA Default Profile:</p>
-                                <IssuanceProfileCard profile={enrollmentCaDefaultProfile} />
-                              </div>
-                            )}
-                            {!enrollmentCaDefaultProfile && enrollmentCa && (
-                              <Alert variant="warning">
-                                <AlertTriangle className="h-4 w-4"/>
-                                <AlertTitle>Warning</AlertTitle>
-                                <AlertDescription>
-                                  The selected Enrollment CA does not have a default profile configured.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                          </div>
-                        )}
-                    </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="webhookLogLevel">Log Level</Label>
+                    <Select value={webhookLogLevel} onValueChange={setWebhookLogLevel}>
+                      <SelectTrigger id="webhookLogLevel"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Info">Info</SelectItem>
+                        <SelectItem value="Debug">Debug</SelectItem>
+                        <SelectItem value="Warn">Warn</SelectItem>
+                        <SelectItem value="Error">Error</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                }
-              </div>
-              <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                <div className="space-y-0.5">
-                  <Label htmlFor="allowOverrideEnrollment" className="flex items-center">
-                    <Settings className="mr-2 h-4 w-4 text-muted-foreground" />
-                    Allow Override Enrollment
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Allow clients to override the default enrollment certificate during enrollment.
-                  </p>
                 </div>
-                <Switch id="allowOverrideEnrollment" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
-              </div>
-              <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                <div className="space-y-0.5">
-                  <Label htmlFor="verifyCsrSignature" className="flex items-center">
-                    <PackageCheck className="mr-2 h-4 w-4 text-muted-foreground" />
-                    Verify CSR Signature
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Verify the cryptographic signature of Certificate Signing Requests during enrollment.
-                  </p>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="webhookValidateServerCert">Validate Server Certificate</Label>
+                    <p className="text-xs text-muted-foreground">Verify the TLS certificate of the webhook endpoint.</p>
+                  </div>
+                  <Switch id="webhookValidateServerCert" checked={webhookValidateServerCert} onCheckedChange={setWebhookValidateServerCert} />
                 </div>
-                <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="webhookAuthMode">Webhook Auth Mode</Label>
+                  <Select value={webhookAuthMode} onValueChange={setWebhookAuthMode}>
+                    <SelectTrigger id="webhookAuthMode"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="No Auth">No Auth</SelectItem>
+                      <SelectItem value="OIDC">OIDC</SelectItem>
+                      <SelectItem value="API Key">API Key</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {webhookAuthMode === 'API Key' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="webhookApiKey">API Key</Label>
+                      <Input id="webhookApiKey" type="password" value={webhookApiKey} onChange={e => setWebhookApiKey(e.target.value)} placeholder="Enter API Key" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="webhookApiKeyHeader">Header Name</Label>
+                      <Input id="webhookApiKeyHeader" value={webhookApiKeyHeader} onChange={e => setWebhookApiKeyHeader(e.target.value)} placeholder="X-API-Key" />
+                    </div>
+                  </div>
+                )}
+                {webhookAuthMode === 'OIDC' && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <p className="text-sm font-medium text-muted-foreground">OIDC Settings</p>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="oidcClientId">Client ID</Label>
+                      <Input id="oidcClientId" value={oidcClientId} onChange={e => setOidcClientId(e.target.value)} placeholder="Enter OIDC Client ID" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="oidcClientSecret">Client Secret</Label>
+                      <Input id="oidcClientSecret" type="password" value={oidcClientSecret} onChange={e => setOidcClientSecret(e.target.value)} placeholder="Enter OIDC Client Secret" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="oidcWellKnownUrl">Well-Known URL</Label>
+                      <Input id="oidcWellKnownUrl" value={oidcWellKnownUrl} onChange={e => setOidcWellKnownUrl(e.target.value)} placeholder="https://your-issuer.com/.well-known/openid-configuration" />
+                    </div>
+                  </div>
+                )}
               </div>
-              <div><Label htmlFor="authMode">Authentication Mode</Label><Select value={authMode} onValueChange={setAuthMode}><SelectTrigger id="authMode" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Client Certificate">Client Certificate</SelectItem><SelectItem value="External Webhook">External Webhook</SelectItem><SelectItem value="Client Certificate + Webhook">Client Certificate + Webhook</SelectItem><SelectItem value="No Auth">No Auth</SelectItem></SelectContent></Select></div>
-              
-              {(authMode === 'Client Certificate' || authMode === 'Client Certificate + Webhook') && (
-                  <div className="space-y-4 pt-2 border-t mt-4">
-                      <h4 className="font-medium text-md text-muted-foreground pt-2">Client Certificate Auth Settings</h4>
-                      <div>
-                        <Label>Validation CAs</Label>
-                        <div className="mt-2 space-y-2">
-                            {validationCAs.length > 0 ? (
-                                validationCAs.map(ca => (
-                                    <div key={ca.id} className="flex items-center gap-2 group">
-                                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveValidationCa(ca.id)}>
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-sm text-muted-foreground italic text-center p-2">No validation CAs selected.</p>
-                            )}
-                        </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => setIsValidationCaModalOpen(true)} className="mt-2">
-                           <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
-                        </Button>
-                      </div>
-                      <div className="flex items-center space-x-2 pt-2"><Switch id="allowExpiredAuth" checked={allowExpiredAuth} onCheckedChange={setAllowExpiredAuth} /><Label htmlFor="allowExpiredAuth">Allow Authenticating Expired Certificates</Label></div>
-                      <div><Label htmlFor="chainValidationLevel" className="flex items-center">Chain Validation Level<TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>-1 equals full chain validation.</p></TooltipContent></Tooltip></TooltipProvider></Label><Input id="chainValidationLevel" type="number" value={chainValidationLevel} onChange={(e) => setChainValidationLevel(Number.parseInt(e.target.value))} className="mt-1" /></div>
-                  </div>
-              )}
+            )}
+          </div>
+        </div>
 
-              {(authMode === 'External Webhook' || authMode === 'Client Certificate + Webhook') && (
-                  <div className="space-y-4 pt-2 border-t mt-4">
-                      <h4 className="font-medium text-md text-muted-foreground pt-2">Webhook Settings</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                              <Label htmlFor="webhookName">Webhook Name</Label>
-                              <Input id="webhookName" value={webhookName} onChange={(e) => setWebhookName(e.target.value)} placeholder="e.g., MyValidationFunc" className="mt-1" />
-                          </div>
-                          <div>
-                              <Label htmlFor="webhookUrl">Webhook URL</Label>
-                              <Input id="webhookUrl" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="http://localhost:8080/verify" className="mt-1" />
-                          </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                              <Label htmlFor="webhookMethod">HTTP Method</Label>
-                              <Select value={webhookMethod} onValueChange={setWebhookMethod}>
-                                  <SelectTrigger id="webhookMethod" className="mt-1"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                      <SelectItem value="POST">POST</SelectItem>
-                                      <SelectItem value="PUT">PUT</SelectItem>
-                                  </SelectContent>
-                              </Select>
-                          </div>
-                          <div>
-                              <Label htmlFor="webhookLogLevel">Log Level</Label>
-                              <Select value={webhookLogLevel} onValueChange={setWebhookLogLevel}>
-                                  <SelectTrigger id="webhookLogLevel" className="mt-1"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                      <SelectItem value="Info">Info</SelectItem>
-                                      <SelectItem value="Debug">Debug</SelectItem>
-                                      <SelectItem value="Warn">Warn</SelectItem>
-                                      <SelectItem value="Error">Error</SelectItem>
-                                  </SelectContent>
-                              </Select>
-                          </div>
-                      </div>
-                      <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                          <div className="space-y-0.5">
-                              <Label htmlFor="webhookValidateServerCert" className="flex items-center">
-                                  <Server className="mr-2 h-4 w-4 text-muted-foreground" />
-                                  Validate Server Certificate
-                              </Label>
-                              <p className="text-sm text-muted-foreground">
-                                  Verify the TLS certificate of the webhook endpoint.
-                              </p>
-                          </div>
-                          <Switch id="webhookValidateServerCert" checked={webhookValidateServerCert} onCheckedChange={setWebhookValidateServerCert} />
-                      </div>
-                      <div>
-                          <div>
-                              <Label htmlFor="webhookAuthMode">Auth Mode</Label>
-                              <Select value={webhookAuthMode} onValueChange={setWebhookAuthMode}>
-                                  <SelectTrigger id="webhookAuthMode" className="mt-1"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                      <SelectItem value="No Auth">No Auth</SelectItem>
-                                      <SelectItem value="OIDC">OIDC</SelectItem>
-                                      <SelectItem value="API Key">API Key</SelectItem>
-                                  </SelectContent>
-                              </Select>
-                          </div>
-                      </div>
-                      {webhookAuthMode === 'API Key' && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                  <Label htmlFor="webhookApiKey">API Key</Label>
-                                  <Input id="webhookApiKey" type="password" value={webhookApiKey} onChange={e => setWebhookApiKey(e.target.value)} placeholder="Enter API Key" className="mt-1"/>
-                              </div>
-                              <div>
-                                  <Label htmlFor="webhookApiKeyHeader">Header Name</Label>
-                                  <Input id="webhookApiKeyHeader" value={webhookApiKeyHeader} onChange={e => setWebhookApiKeyHeader(e.target.value)} placeholder="X-API-Key" className="mt-1"/>
-                              </div>
-                          </div>
-                      )}
-                      {webhookAuthMode === 'OIDC' && (
-                          <div className="space-y-4 pt-2 border-t mt-4">
-                              <h5 className="font-medium text-sm text-muted-foreground pt-2">OIDC Settings</h5>
-                              <div>
-                                  <Label htmlFor="oidcClientId">Client ID</Label>
-                                  <Input id="oidcClientId" value={oidcClientId} onChange={e => setOidcClientId(e.target.value)} placeholder="Enter OIDC Client ID" className="mt-1"/>
-                              </div>
-                              <div>
-                                  <Label htmlFor="oidcClientSecret">Client Secret</Label>
-                                  <Input id="oidcClientSecret" type="password" value={oidcClientSecret} onChange={e => setOidcClientSecret(e.target.value)} placeholder="Enter OIDC Client Secret" className="mt-1"/>
-                              </div>
-                              <div>
-                                  <Label htmlFor="oidcWellKnownUrl">Well-Known URL</Label>
-                                  <Input id="oidcWellKnownUrl" value={oidcWellKnownUrl} onChange={e => setOidcWellKnownUrl(e.target.value)} placeholder="https://your-issuer.com/.well-known/openid-configuration" className="mt-1"/>
-                              </div>
-                          </div>
-                      )}
-                  </div>
-              )}
-              </SettingsCard>
+        <Separator />
 
-              <SettingsCard
-                icon={PackageCheck}
-                title="Re-Enrollment Settings"
-                description="Set certificate replacement, renewal windows, and additional trust requirements for re-enrollment."
-              >
-                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="revokeOnReEnroll" className="flex items-center">
-                        <PackageCheck className="mr-2 h-4 w-4 text-muted-foreground" />
-                        Revoke On Re-Enroll
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Automatically revoke the old certificate when a new one is issued during re-enrollment.
-                      </p>
-                    </div>
-                    <Switch id="revokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} />
-                  </div>
-                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="allowExpiredRenewal" className="flex items-center">
-                        <AlertTriangle className="mr-2 h-4 w-4 text-muted-foreground" />
-                        Allow Expired Renewal
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Permit renewal of certificates that have already expired.
-                      </p>
-                    </div>
-                    <Switch id="allowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
-                  </div>
-                  <DurationInput id="allowedRenewalDelta" label="Allowed Renewal Delta" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Max time after expiry a cert can be renewed."/>
-                  <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry to start allowing renewals."/>
-                  <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when renewal is critical."/>
-                  <div>
-                    <Label htmlFor="additionalValidationCAs">Additional Validation CAs (for re-enrollment)</Label>
-                    <div className="mt-2 space-y-2">
-                            {additionalValidationCAs.length > 0 ? (
-                                additionalValidationCAs.map(ca => (
-                                    <div key={ca.id} className="flex items-center gap-2 group">
-                                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}>
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-sm text-muted-foreground italic text-center p-2">No additional validation CAs selected.</p>
-                            )}
-                        </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => setIsAdditionalValidationCaModalOpen(true)} className="mt-2">
-                           <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
-                        </Button>
-                  </div>
-              </SettingsCard>
-
-              <SettingsCard
-                icon={Server}
-                title="Server Key Generation"
-                description="Define whether the platform generates device keys and what algorithms are permitted."
-              >
-                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="enableKeyGeneration" className="flex items-center">
-                        <Server className="mr-2 h-4 w-4 text-muted-foreground" />
-                        Enable Server-Side Key Generation
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Generate cryptographic keys on the server instead of requiring client-side generation.
-                      </p>
-                    </div>
-                    <Switch id="enableKeyGeneration" checked={enableKeyGeneration} onCheckedChange={setEnableKeyGeneration} />
-                  </div>{enableKeyGeneration && (<div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2"><div><Label htmlFor="serverKeygenType">Key Type</Label><Select value={serverKeygenType} onValueChange={setServerKeygenType}><SelectTrigger id="serverKeygenType" className="mt-1"><SelectValue/></SelectTrigger><SelectContent>{serverKeygenTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor="serverKeygenSpec">{serverKeygenType === 'RSA' ? 'Key Bits' : 'Curve'}</Label><Select value={serverKeygenSpec} onValueChange={setServerKeygenSpec}><SelectTrigger id="serverKeygenSpec" className="mt-1"><SelectValue/></SelectTrigger><SelectContent>{currentServerKeygenSpecOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div></div>)}
-              </SettingsCard>
-
-              <SettingsCard
-                icon={AlertTriangle}
-                title="CA Distribution"
-                description="Choose which authorities and chains are distributed to clients through this Registration Authority."
-              >
-                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="includeDownstreamCA" className="flex items-center">
-                        <AlertTriangle className="mr-2 h-4 w-4 text-muted-foreground" />
-                        Include 'Downstream' CA
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Include downstream Certificate Authorities in the distribution.
-                      </p>
-                    </div>
-                    <Switch id="includeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
-                  </div>
-                  <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="includeEnrollmentCA" className="flex items-center">
-                        <Key className="mr-2 h-4 w-4 text-muted-foreground" />
-                        Include Enrollment CA
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Include the enrollment Certificate Authority in the distribution.
-                      </p>
-                    </div>
-                    <Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
-                  </div>
-                  <div>
-                    <Label>Managed CAs</Label>
-                    <div className="mt-2 space-y-2">
-                        {managedCAs.length > 0 ? (
-                            managedCAs.map(ca => (
-                                <div key={ca.id} className="flex items-center gap-2 group">
-                                    <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}>
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-sm text-muted-foreground italic text-center p-2">No managed CAs selected.</p>
-                        )}
-                    </div>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setIsManagedCaModalOpen(true)} className="mt-2">
-                       <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
-                    </Button>
-                  </div>
-              </SettingsCard>
-              <div className="flex justify-end space-x-2 pt-8">
-                  <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4" />}
-                      {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
-                  </Button>
+        {/* ── Re-Enrollment Settings ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Re-Enrollment Settings</p>
+            <p className="text-sm text-muted-foreground mt-1">Set certificate replacement, renewal windows, and additional trust requirements for re-enrollment.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="revokeOnReEnroll">Revoke On Re-Enroll</Label>
+                <p className="text-xs text-muted-foreground">Automatically revoke the old certificate when a new one is issued during re-enrollment.</p>
               </div>
+              <Switch id="revokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="allowExpiredRenewal">Allow Expired Renewal</Label>
+                <p className="text-xs text-muted-foreground">Permit renewal of certificates that have already expired.</p>
+              </div>
+              <Switch id="allowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
+            </div>
+            <DurationInput id="allowedRenewalDelta" label="Allowed Renewal Delta" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Max time after expiry a cert can be renewed." />
+            <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry to start allowing renewals." />
+            <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when renewal is critical." />
+            <div className="space-y-1.5">
+              <Label>Additional Validation CAs</Label>
+              <div className="space-y-2">
+                {additionalValidationCAs.length > 0 ? additionalValidationCAs.map(ca => (
+                  <div key={ca.id} className="flex items-center gap-2 group">
+                    <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
+                  </div>
+                )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsAdditionalValidationCaModalOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── Server Key Generation ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Server Key Generation</p>
+            <p className="text-sm text-muted-foreground mt-1">Define whether the platform generates device keys and what algorithms are permitted.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="enableKeyGeneration">Enable Server-Side Key Generation</Label>
+                <p className="text-xs text-muted-foreground">Generate cryptographic keys on the server instead of requiring client-side generation.</p>
+              </div>
+              <Switch id="enableKeyGeneration" checked={enableKeyGeneration} onCheckedChange={setEnableKeyGeneration} />
+            </div>
+            {enableKeyGeneration && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="serverKeygenType">Key Type</Label>
+                  <Select value={serverKeygenType} onValueChange={setServerKeygenType}>
+                    <SelectTrigger id="serverKeygenType"><SelectValue /></SelectTrigger>
+                    <SelectContent>{serverKeygenTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="serverKeygenSpec">{serverKeygenType === 'RSA' ? 'Key Bits' : 'Curve'}</Label>
+                  <Select value={serverKeygenSpec} onValueChange={setServerKeygenSpec}>
+                    <SelectTrigger id="serverKeygenSpec"><SelectValue /></SelectTrigger>
+                    <SelectContent>{currentServerKeygenSpecOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── CA Distribution ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">CA Distribution</p>
+            <p className="text-sm text-muted-foreground mt-1">Choose which authorities and chains are distributed to clients through this RA.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="includeDownstreamCA">Include Downstream CA</Label>
+                <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the distribution.</p>
+              </div>
+              <Switch id="includeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="includeEnrollmentCA">Include Enrollment CA</Label>
+                <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the distribution.</p>
+              </div>
+              <Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Managed CAs</Label>
+              <div className="space-y-2">
+                {managedCAs.length > 0 ? managedCAs.map(ca => (
+                  <div key={ca.id} className="flex items-center gap-2 group">
+                    <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
+                  </div>
+                )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsManagedCaModalOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="flex justify-end gap-2 pt-6">
+          <Button type="button" variant="outline" size="sm" onClick={() => router.back()}>Cancel</Button>
+          <Button type="submit" size="sm" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+            {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
+          </Button>
+        </div>
       </form>
       <CaSelectorModal 
         isOpen={isValidationCaModalOpen} 

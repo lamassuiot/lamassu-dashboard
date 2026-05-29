@@ -2,12 +2,14 @@
 'use client';
 
 import type React from 'react';
-import { Landmark, KeyRound, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Landmark, KeyRound } from 'lucide-react';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
 import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
+import { Badge } from '@/components/ui/badge';
+import { CardAction, CardDescription, CardHeader } from '@/components/ui/card';
 
 interface CaVisualizerCardProps {
   ca: CA;
@@ -16,86 +18,67 @@ interface CaVisualizerCardProps {
   allCryptoEngines?: ApiCryptoEngine[];
 }
 
-const StatusIcon: React.FC<{ status: CA['status']; expires: string }> = ({ status, expires }) => {
-  const expiryDate = parseISO(expires);
-  if (status === 'revoked') {
-    return <XCircle className="h-5 w-5 text-destructive" title="Status: Revoked" />;
+const getStatusInfo = (ca: CA): { expiryText: string; label: string; variant: 'active' | 'expired' | 'revoked' } => {
+  const expiryDate = parseISO(ca.expires);
+  if (ca.status === 'revoked') {
+    return { expiryText: 'Revoked', label: 'Revoked', variant: 'revoked' };
   }
   if (isPast(expiryDate)) {
-    return <AlertTriangle className="h-5 w-5 text-orange-500" title="Status: Expired" />;
+    return { expiryText: `Expired ${formatDistanceToNowStrict(expiryDate)} ago`, label: 'Expired', variant: 'expired' };
   }
-  return <CheckCircle className="h-5 w-5 text-green-500" title="Status: Active" />;
+  return { expiryText: `Expires in ${formatDistanceToNowStrict(expiryDate)}`, label: 'Active', variant: 'active' };
 };
 
-const getStatusAndExpiryText = (ca: CA): { text: string; isCritical: boolean } => {
-  const expiryDate = parseISO(ca.expires);
-  const isExpired = isPast(expiryDate);
-
-  if (ca.status === 'revoked') {
-    return { text: 'Revoked', isCritical: true };
-  }
-  if (isExpired) {
-    return { text: `Expired ${formatDistanceToNowStrict(expiryDate)} ago`, isCritical: true };
-  }
-  return { text: `Expires in ${formatDistanceToNowStrict(expiryDate)}`, isCritical: false };
+const statusBadgeClasses: Record<'active' | 'expired' | 'revoked', string> = {
+  active: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  expired: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
+  revoked: '',
 };
-
 
 export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, className, onClick, allCryptoEngines }) => {
+  const { expiryText, label, variant } = getStatusInfo(ca);
 
-  const cardBaseClasses = "rounded-lg border bg-primary/5 dark:bg-primary/10 border-blue-800/40 dark:border-blue-300/40 shadow-sm transition-shadow w-full";
-  const clickableClasses = onClick ? "hover:shadow-md hover:bg-primary/10 dark:hover:bg-primary/20 cursor-pointer" : "";
-
-  let IconComponent: React.ReactNode;
+  let iconNode: React.ReactNode;
   if (ca.kmsKeyId) {
     const engine = allCryptoEngines?.find(e => e.id === ca.kmsKeyId);
-    if (engine) {
-      IconComponent = <CryptoEngineViewer engine={engine} iconOnly className="h-6 w-6 flex-shrink-0" />;
-    } else {
-      IconComponent = <KeyRound className={cn("h-6 w-6 flex-shrink-0", "text-primary")} />;
-    }
+    iconNode = engine
+      ? <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4" />
+      : <KeyRound className="h-4 w-4 text-primary" />;
   } else {
-    IconComponent = <Landmark className={cn("h-6 w-6 flex-shrink-0", "text-primary")} />;
+    iconNode = <Landmark className="h-4 w-4 text-primary" />;
   }
 
-  const { text: statusText, isCritical } = getStatusAndExpiryText(ca);
-
-  const cardInnerContent = (
-    <div className={cn("flex items-center p-3")}>
-      <div className="p-2 flex-shrink-0 border-r border-border/50 pr-3 mr-3">
-        {IconComponent}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 truncate" title={ca.name}>
-          {ca.name}
-        </p>
-        <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")} title={statusText}>
-          {statusText}
-        </p>
-      </div>
-      <div className="flex-shrink-0 border-l border-border/50 pl-3 ml-3">
-        <StatusIcon status={ca.status} expires={ca.expires} />
-      </div>
-    </div>
-  );
-
-  if (onClick) {
-    return (
-      <button
-        data-ca-visualizer-card="true"
-        type="button"
-        onClick={() => onClick(ca)}
-        className={cn(cardBaseClasses, clickableClasses, className, "text-left")}
-        aria-label={`View details for ${ca.name}`}
-      >
-        {cardInnerContent}
-      </button>
-    );
-  }
+  const Comp = onClick ? 'button' : 'div';
 
   return (
-    <div data-ca-visualizer-card="true" className={cn(cardBaseClasses, className)}>
-      {cardInnerContent}
-    </div>
+    <Comp
+      data-slot="card"
+      data-size="sm"
+      data-ca-visualizer-card="true"
+      {...(onClick ? { type: 'button' as const, onClick: () => onClick(ca), 'aria-label': `Select ${ca.name}` } : {})}
+      className={cn(
+        'group/card flex flex-col gap-4 overflow-hidden rounded-[min(var(--radius-4xl),24px)] bg-card text-sm text-card-foreground shadow-sm ring-1 ring-foreground/5 dark:ring-foreground/10 w-full text-left py-4',
+        onClick && 'cursor-pointer transition-[box-shadow,ring] hover:shadow-md hover:ring-primary/25',
+        className
+      )}
+    >
+      <CardHeader>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
+            {iconNode}
+          </div>
+          <span className="truncate text-sm font-medium leading-none">{ca.name}</span>
+        </div>
+        <CardAction>
+          <Badge
+            variant={variant === 'revoked' ? 'destructive' : 'outline'}
+            className={statusBadgeClasses[variant]}
+          >
+            {label}
+          </Badge>
+        </CardAction>
+        <CardDescription className="truncate text-xs">{expiryText}</CardDescription>
+      </CardHeader>
+    </Comp>
   );
 };

@@ -1,5 +1,6 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import { ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -11,6 +12,10 @@ const alertVariants = cva(
         default: "bg-card text-card-foreground",
         destructive:
           "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+        success:
+          "bg-card text-green-700 border-green-200 dark:text-green-400 dark:border-green-800 *:data-[slot=alert-description]:text-green-600/90 dark:*:data-[slot=alert-description]:text-green-400/90",
+        warning:
+          "bg-card text-yellow-700 border-yellow-200 dark:text-yellow-400 dark:border-yellow-800 *:data-[slot=alert-description]:text-yellow-600/90 dark:*:data-[slot=alert-description]:text-yellow-400/90",
       },
     },
     defaultVariants: {
@@ -19,29 +24,91 @@ const alertVariants = cva(
   }
 )
 
+const alertTitleVariants = cva("font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground", {
+  variants: {
+    variant: {
+      default: "",
+      warning: "text-yellow-700 dark:text-yellow-400",
+      success: "text-green-700 dark:text-green-400",
+      destructive: "text-destructive",
+    },
+  },
+  defaultVariants: {
+    variant: "default",
+  },
+})
+
+interface AlertProps extends React.ComponentProps<"div">, VariantProps<typeof alertVariants> {
+  expandable?: boolean;
+  defaultExpanded?: boolean;
+}
+
 function Alert({
   className,
   variant,
+  expandable,
+  defaultExpanded = true,
+  children,
   ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof alertVariants>) {
+}: AlertProps) {
+  const [expanded, setExpanded] = React.useState(defaultExpanded ?? true)
+
+  if (!expandable) {
+    return (
+      <div
+        data-slot="alert"
+        role="alert"
+        className={cn(alertVariants({ variant }), className)}
+        {...props}
+      >
+        {children}
+      </div>
+    )
+  }
+
+  const childArray = React.Children.toArray(children)
+  const mainContent = childArray.filter(
+    c => !React.isValidElement(c) || c.type !== AlertExpandableContent
+  )
+  const expandableContent = childArray.filter(
+    c => React.isValidElement(c) && c.type === AlertExpandableContent
+  )
+
   return (
     <div
       data-slot="alert"
       role="alert"
-      className={cn(alertVariants({ variant }), className)}
+      data-expanded={expanded}
+      className={cn(alertVariants({ variant }), "block", className)}
       {...props}
-    />
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded(prev => !prev)}
+        className="w-full text-left flex items-center gap-2.5"
+      >
+        {mainContent}
+        <ChevronDown
+          className={cn(
+            "ml-auto size-4 shrink-0 transition-transform duration-200",
+            expanded && "rotate-180"
+          )}
+        />
+      </button>
+      {expanded && <div className="mt-3">{expandableContent}</div>}
+    </div>
   )
 }
 
-function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
+function AlertTitle({
+  className,
+  variant,
+  ...props
+}: React.ComponentProps<"div"> & VariantProps<typeof alertTitleVariants>) {
   return (
     <div
       data-slot="alert-title"
-      className={cn(
-        "font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
-        className
-      )}
+      className={cn(alertTitleVariants({ variant }), className)}
       {...props}
     />
   )
@@ -73,4 +140,14 @@ function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-export { Alert, AlertTitle, AlertDescription, AlertAction }
+function AlertExpandableContent({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-expandable-content"
+      className={cn("text-sm", className)}
+      {...props}
+    />
+  )
+}
+
+export { Alert, AlertTitle, AlertDescription, AlertAction, AlertExpandableContent }
