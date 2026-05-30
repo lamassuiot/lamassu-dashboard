@@ -220,7 +220,7 @@ export function CertificateList({
               {columnVisibility.certificateAuthority && <TableHead className="text-center">CA</TableHead>}
               {columnVisibility.serialNumber && <SortableHeader column="serialNumber" title="Serial Number" className="hidden md:table-cell" />}
               {showIssuerColumn && columnVisibility.issuer && <TableHead className="hidden lg:table-cell">CA Issuer</TableHead>}
-              {columnVisibility.validFrom && <SortableHeader column="validFrom" title="Valid From" center dateColumn />}
+              {columnVisibility.validFrom && <SortableHeader column="validFrom" title="Valid From" center dateColumn className="hidden sm:table-cell" />}
               {columnVisibility.expires && <SortableHeader column="expires" title="Expires" center dateColumn />}
               {columnVisibility.status && <SortableHeader column="status" title="Status" center />}
               {columnVisibility.revocationTime && <SortableHeader column="revocationTime" title="Revocation Time" center dateColumn className="hidden xl:table-cell" />}
@@ -278,7 +278,7 @@ export function CertificateList({
                     </TableCell>
                   )}
                   {columnVisibility.validFrom && (
-                    <TableCell><DateDisplay date={cert.validFrom} className='items-center' /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><DateDisplay date={cert.validFrom} className='items-center' /></TableCell>
                   )}
                   {columnVisibility.expires && (
                     <TableCell><DateDisplay date={cert.validTo} highlightExpired className='items-center' /></TableCell>

@@ -68,8 +68,8 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
       <DropdownMenuTrigger asChild>
         <Button
           id={id}
-          variant="outline"
-          className={cn("h-10 w-full justify-between gap-2 font-normal", className)}
+          variant="ghost"
+          className={cn("h-8 w-full justify-between gap-2 bg-input/50 px-2.5 font-normal hover:bg-input/70", className)}
           title={selectedLabels.length > 0 ? selectedLabels.join(', ') : buttonText}
         >
           <div className="min-w-0 flex-1 truncate text-left">

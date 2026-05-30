@@ -2,11 +2,10 @@
 
 import Link from 'next/link';
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Shield, Loader2, FileText, X, RefreshCw } from 'lucide-react';
+import { Loader2, FileText, X, RefreshCw } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
 import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
@@ -53,23 +52,7 @@ export function VaSettingsCard({
   limitToCAs,
 }: VaSettingsCardProps) {
   return (
-    <Card className="overflow-hidden rounded-xl shadow-sm">
-      <CardHeader className="border-b py-4">
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <CardTitle className="text-lg flex items-center">
-              <Shield className="mr-3 h-5 w-5 text-primary" />
-              VA Settings
-            </CardTitle>
-            <CardDescription>Define validation parameters for this Certificate Authority.</CardDescription>
-          </div>
-          <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isLoadingConfig}>
-            <RefreshCw className={cn('mr-2 h-4 w-4', isLoadingConfig && 'animate-spin')} />
-            Refresh Config
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="space-y-6">
         <DurationInput
           id="va-refreshInterval"
           label="CRL Refresh Interval"
@@ -232,13 +215,16 @@ export function VaSettingsCard({
           includeCaCertificates
         />
 
-        <div className="mt-8 flex justify-end">
-          <Button onClick={onSave} size="lg" disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+        <div className="flex items-center gap-2">
+          <Button onClick={onSave} size="sm" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isSubmitting ? 'Saving...' : 'Save VA Configuration'}
           </Button>
+          <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isLoadingConfig}>
+            <RefreshCw className={cn('mr-2 h-4 w-4', isLoadingConfig && 'animate-spin')} />
+            Refresh
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

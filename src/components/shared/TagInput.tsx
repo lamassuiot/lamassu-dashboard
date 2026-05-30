@@ -53,27 +53,27 @@ export const TagInput: React.FC<TagInputProps> = ({
     <div className={cn("space-y-2", className)}>
       <label
         htmlFor={inputId}
-        className="flex flex-wrap gap-2 items-center w-full rounded-md border border-input bg-card p-2 min-h-[2.5rem] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 cursor-text"
+        className="flex flex-wrap gap-1.5 items-center w-full rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 min-h-8 transition-[color,box-shadow] duration-200 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30 cursor-text"
       >
         {tags.map((tag, index) => (
           <Badge
             key={index}
             variant="secondary"
-            className="flex items-center gap-1.5 text-sm py-1 px-2.5"
+            className="flex items-center gap-1 text-xs py-0.5 px-2"
           >
             {tag}
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-4 w-4 p-0 text-muted-foreground hover:text-destructive hover:bg-transparent"
+              className="h-3.5 w-3.5 p-0 text-muted-foreground hover:text-destructive hover:bg-transparent"
               onClick={(e) => {
-                e.stopPropagation(); // Prevent focusing input when removing tag
+                e.stopPropagation();
                 handleRemoveTag(tag);
               }}
               aria-label={`Remove tag ${tag}`}
             >
-              <XIcon className="h-3.5 w-3.5" />
+              <XIcon className="h-3 w-3" />
             </Button>
           </Badge>
         ))}
@@ -88,7 +88,7 @@ export const TagInput: React.FC<TagInputProps> = ({
           autoComplete="off"
         />
       </label>
-       <p className="text-xs text-muted-foreground">Press Enter to add a tag. Click 'x' on a tag to remove it.</p>
+      <p className="text-xs text-muted-foreground">Press Enter to add a tag. Click 'x' on a tag to remove it.</p>
     </div>
   );
 };

@@ -36,9 +36,10 @@ const CertificatesPageSkeleton = () => (
         <FileText className="h-8 w-8 text-primary" />
         <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
       </div>
-      <div className="flex items-center space-x-2 self-start sm:self-center">
-        <Skeleton className="h-10 w-32" />
-        <Skeleton className="h-10 w-44" />
+      <div className="flex items-center gap-2 self-start sm:self-center">
+        <Skeleton className="h-9 w-9 sm:w-32" />
+        <Skeleton className="h-9 w-9 sm:w-44" />
+        <Skeleton className="h-9 w-9 sm:w-36" />
       </div>
     </div>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
@@ -221,18 +222,18 @@ export default function CertificatesPage() {
             <FileText className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
         </div>
-        <div className="flex items-center space-x-2 self-start sm:self-center">
-            <Button onClick={refreshCertificates} variant="secondary" disabled={isLoadingApi && certificates.length > 0}>
-                <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && certificates.length > 0 && "animate-spin")} /> Refresh List
+        <div className="flex items-center gap-2 self-start sm:self-center">
+            <Button onClick={() => router.push('/certificates/import')} variant="secondary" title="Import Certificate">
+                <Upload className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Import Certificate</span>
             </Button>
-            <Button onClick={() => router.push('/certificates/import')} variant="secondary">
-                <Upload className="mr-2 h-4 w-4" /> Import Certificate
+            <Button onClick={() => router.push('/certificates/create')} variant="secondary" title="Create KeyPair & Certificate">
+                <KeyRound className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Create KeyPair &amp; Certificate</span>
             </Button>
-            <Button onClick={() => router.push('/certificates/create')} variant="secondary">
-                <KeyRound className="mr-2 h-4 w-4" /> Create KeyPair &amp; Certificate
-            </Button>
-            <Button onClick={() => handleOpenCaSelector('issue')} variant="default">
-                <PlusCircle className="mr-2 h-4 w-4" /> Issue Certificate
+            <Button onClick={() => handleOpenCaSelector('issue')} variant="default" title="Issue Certificate">
+                <PlusCircle className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Issue Certificate</span>
             </Button>
         </div>
       </div>
@@ -245,21 +246,35 @@ export default function CertificatesPage() {
         onClearCaFilter={() => setCaIdFilter(null)}
         disabled={isLoadingApi}
         isLoadingCAs={isLoadingCAs}
+        inlineActions
+        basicFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_180px_auto]"
         actions={
-          <ColumnSelector
-            columns={[
-              { id: 'commonName',     label: 'Common Name',      visible: columnVisibility.commonName,     disabled: true },
-              { id: 'certificateAuthority', label: 'CA',         visible: columnVisibility.certificateAuthority },
-              { id: 'serialNumber',   label: 'Serial Number',    visible: columnVisibility.serialNumber },
-              { id: 'issuer',         label: 'CA Issuer',        visible: columnVisibility.issuer },
-              { id: 'validFrom',      label: 'Valid From',       visible: columnVisibility.validFrom },
-              { id: 'expires',        label: 'Expires',          visible: columnVisibility.expires },
-              { id: 'status',         label: 'Status',           visible: columnVisibility.status },
-              { id: 'revocationTime', label: 'Revocation Time',  visible: columnVisibility.revocationTime },
-            ]}
-            onColumnToggle={handleColumnToggle}
-            align="end"
-          />
+          <>
+            <ColumnSelector
+              columns={[
+                { id: 'commonName',     label: 'Common Name',      visible: columnVisibility.commonName,     disabled: true },
+                { id: 'certificateAuthority', label: 'CA',         visible: columnVisibility.certificateAuthority },
+                { id: 'serialNumber',   label: 'Serial Number',    visible: columnVisibility.serialNumber },
+                { id: 'issuer',         label: 'CA Issuer',        visible: columnVisibility.issuer },
+                { id: 'validFrom',      label: 'Valid From',       visible: columnVisibility.validFrom },
+                { id: 'expires',        label: 'Expires',          visible: columnVisibility.expires },
+                { id: 'status',         label: 'Status',           visible: columnVisibility.status },
+                { id: 'revocationTime', label: 'Revocation Time',  visible: columnVisibility.revocationTime },
+              ]}
+              onColumnToggle={handleColumnToggle}
+              align="end"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={refreshCertificates}
+              disabled={isLoadingApi}
+              title="Refresh"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isLoadingApi && certificates.length > 0 && "animate-spin")} />
+            </Button>
+          </>
         }
       />
 

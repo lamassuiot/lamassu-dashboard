@@ -5,11 +5,9 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Check, Download, Link, FileCode, GitBranch, Info } from "lucide-react";
+import { Copy, Check, Download, ChevronRight, FileCode, Link2, ShieldCheck } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import type { CA } from '@/lib/ca-data';
-import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 import { cn } from '@/lib/utils';
 
 interface PemTabContentProps {
@@ -26,87 +24,155 @@ interface PemTabContentProps {
   };
 }
 
-// ── PEM block card ─────────────────────────────────────────────────────────────
+// ── Render PEM with highlighted BEGIN/END markers ─────────────────────────────
 
-interface PemBlockProps {
+function HighlightedPem({ pem }: { pem: string }) {
+  const lines = pem.replaceAll('\\n', '\n').split('\n');
+  return (
+    <>
+      {lines.map((line, i) => (
+        <span
+          key={i}
+          className={cn(
+            'block',
+            line.startsWith('-----') ? 'text-primary/80 font-semibold' : 'text-foreground/60'
+          )}
+        >
+          {line || ' '}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// ── Individual PEM export card ─────────────────────────────────────────────────
+
+interface PemCardProps {
   title: string;
+  subtitle: string;
   icon: React.ElementType;
   badge?: React.ReactNode;
   pem: string | undefined;
-  onCopy: () => void;
-  onDownload: () => void;
-  copied: boolean;
-  height?: string;
+  filename: string;
+  itemName: string;
 }
 
-const PemSection = ({
-  title,
-  icon: Icon,
-  badge,
-  actions,
-  children,
-  contentClassName,
-}: {
-  title: string;
-  icon: React.ElementType;
-  badge?: React.ReactNode;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
-  contentClassName?: string;
-}) => (
-  <Card className="overflow-hidden rounded-xl shadow-sm">
-    <CardHeader className="border-b py-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <CardTitle className="flex min-w-0 items-center text-lg">
-            <Icon className="mr-3 h-5 w-5 shrink-0 text-primary" />
-            <span className="truncate">{title}</span>
-          </CardTitle>
-          {badge}
-        </div>
-        {actions}
-      </div>
-    </CardHeader>
-    <CardContent className={contentClassName}>{children}</CardContent>
-  </Card>
-);
+function PemCard({ title, subtitle, icon: Icon, badge, pem, filename, itemName }: PemCardProps) {
+  const [copied, setCopied] = useState(false);
 
-const PemBlock: React.FC<PemBlockProps> = ({
-  title, icon: Icon, badge, pem, onCopy, onDownload, copied, height = 'h-72',
-}) => (
-  <PemSection
-    title={title}
-    icon={Icon}
-    badge={badge}
-    contentClassName="p-0 pl-2"
-    actions={
-      <div className="flex shrink-0 items-center gap-1.5">
-        <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={onCopy} disabled={!pem}>
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
-        <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={onDownload} disabled={!pem}>
-          <Download className="h-3.5 w-3.5" />
-          .pem
-        </Button>
-      </div>
+  const copy = async () => {
+    if (!pem) return sileo.error({ title: 'Copy Failed', description: 'No PEM data found.' });
+    try {
+      await navigator.clipboard.writeText(pem.replaceAll('\\n', '\n'));
+      setCopied(true);
+      sileo.success({ title: 'Copied!', description: `${title} copied to clipboard.` });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      sileo.error({ title: 'Copy Failed', description: `Could not copy ${title}.` });
     }
-  >
-    {pem ? (
-      <ScrollArea className={cn('w-full', height)}>
-        <pre className="p-4 text-xs font-mono leading-relaxed text-foreground/80 whitespace-pre-wrap break-all">
-          {pem.replaceAll('\\n', '\n')}
-        </pre>
-      </ScrollArea>
-    ) : (
-      <div className="flex items-center justify-center h-28 text-sm text-muted-foreground">
-        No PEM data available.
-      </div>
-    )}
-  </PemSection>
-);
+  };
 
-// ── main export ────────────────────────────────────────────────────────────────
+  const download = () => {
+    if (!pem) return sileo.error({ title: 'Download Failed', description: 'No PEM data found.' });
+    const blob = new Blob([pem.replace(/\\n/g, '\n')], { type: 'application/x-pem-file' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    sileo.success({ title: 'Downloaded', description: `${filename} downloaded.` });
+  };
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-xl border">
+      {/* Card header */}
+      <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <Icon className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-semibold leading-none">{title}</p>
+              {badge}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={copy} disabled={!pem}>
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={download} disabled={!pem}>
+            <Download className="h-3.5 w-3.5" />
+            .pem
+          </Button>
+        </div>
+      </div>
+
+      {/* PEM body */}
+      {pem ? (
+        <ScrollArea className="h-72 bg-muted/10 flex-1">
+          <pre className="p-5 text-xs font-mono leading-relaxed whitespace-pre-wrap break-all">
+            <HighlightedPem pem={pem} />
+          </pre>
+        </ScrollArea>
+      ) : (
+        <div className="flex h-32 items-center justify-center text-sm text-muted-foreground bg-muted/10">
+          No PEM data available.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Chain strip ────────────────────────────────────────────────────────────────
+
+function ChainStrip({
+  certificateChain,
+  currentCertificate,
+}: {
+  certificateChain: CA[];
+  currentCertificate: NonNullable<PemTabContentProps['currentCertificate']>;
+}) {
+  const nodes: Array<{ label: string; isCurrent: boolean }> = [
+    ...certificateChain.map(ca => ({ label: ca.name, isCurrent: false })),
+    { label: currentCertificate.subject, isCurrent: true },
+  ];
+
+  return (
+    <div className="rounded-xl border bg-muted/20 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground mr-1">Chain of Trust</span>
+        {nodes.map((node, i) => (
+          <React.Fragment key={i}>
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                node.isCurrent
+                  ? 'border-primary/30 bg-primary/10 text-primary'
+                  : 'border-border bg-background text-muted-foreground'
+              )}
+            >
+              {node.label}
+            </span>
+            {i < nodes.length - 1 && (
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+            )}
+          </React.Fragment>
+        ))}
+        <Badge variant="outline" className="ml-auto text-xs">{nodes.length} cert{nodes.length !== 1 ? 's' : ''}</Badge>
+      </div>
+    </div>
+  );
+}
+
+// ── Main export ────────────────────────────────────────────────────────────────
 
 export const PemTabContent: React.FC<PemTabContentProps> = ({
   singlePemData,
@@ -116,121 +182,42 @@ export const PemTabContent: React.FC<PemTabContentProps> = ({
   certificateChain,
   currentCertificate,
 }) => {
-  const [certificateCopied, setCertificateCopied] = useState(false);
-  const [chainCopied, setChainCopied] = useState(false);
-
-  const sanitizeFilename = (name: string) => name.replaceAll(/[^a-z0-9_.-]/gi, '_').toLowerCase();
-
-  const copyText = async (text: string, label: string, setCopied: (v: boolean) => void) => {
-    try {
-      await navigator.clipboard.writeText(text.replaceAll('\\n', '\n'));
-      setCopied(true);
-      sileo.success({ title: 'Copied!', description: `${label} copied to clipboard.` });
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      sileo.error({ title: 'Copy Failed', description: `Could not copy ${label}.` });
-    }
-  };
-
-  const downloadPem = (text: string, filename: string, label: string) => {
-    const blob = new Blob([text.replace(/\\n/g, '\n')], { type: 'application/x-pem-file' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    sileo.success({ title: 'Downloaded', description: `${label} downloaded.` });
-  };
-
-  const hasChain = !!fullChainPemData && !!fullChainPemData.trim();
+  const sanitize = (name: string) => name.replaceAll(/[^a-z0-9_.-]/gi, '_').toLowerCase();
+  const base = sanitize(itemName);
+  const hasChain = !!fullChainPemData?.trim();
   const chainCount = itemPathToRootCount ?? 0;
 
   return (
-    <div className="space-y-5">
+    <div className="py-6 space-y-4">
 
-      {/* Single certificate PEM */}
-      <PemBlock
-        title="This Certificate"
-        icon={FileCode}
-        pem={singlePemData}
-        onCopy={() => singlePemData
-          ? copyText(singlePemData, `Certificate PEM for ${itemName}`, setCertificateCopied)
-          : sileo.error({ title: 'Copy Failed', description: 'No PEM data found.' })}
-        onDownload={() => singlePemData
-          ? downloadPem(singlePemData, `${sanitizeFilename(itemName)}.pem`, `Certificate PEM for ${itemName}`)
-          : sileo.error({ title: 'Download Failed', description: 'No PEM data found.' })}
-        copied={certificateCopied}
-      />
-
-      {/* Full chain */}
-      {hasChain && (
-        <PemSection
-          title="Full Certificate Chain"
-          icon={Link}
-          badge={chainCount > 0 ? (
-            <Badge variant="secondary" className="text-xs">
-              {chainCount} cert{chainCount !== 1 ? 's' : ''}
-            </Badge>
-          ) : undefined}
-          contentClassName="p-0 pl-2"
-          actions={
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5"
-                onClick={() => copyText(fullChainPemData!, `Full chain PEM for ${itemName}`, setChainCopied)}
-              >
-                {chainCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                {chainCopied ? 'Copied' : 'Copy'}
-              </Button>
-              <Button
-                variant="secondary" size="sm" className="h-7 px-2.5 text-xs gap-1.5"
-                onClick={() => downloadPem(fullChainPemData!, `${sanitizeFilename(itemName)}_chain.pem`, `Chain PEM for ${itemName}`)}
-              >
-                <Download className="h-3.5 w-3.5" />
-                .pem
-              </Button>
-            </div>
-          }
-        >
-          {/* Two-column body: PEM left, chain visualizer right */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x">
-            <ScrollArea className="h-96">
-              <pre className="p-4 text-xs font-mono leading-relaxed text-foreground/80 whitespace-pre-wrap break-all">
-                {fullChainPemData!.replaceAll('\\n', '\n')}
-              </pre>
-            </ScrollArea>
-
-            {certificateChain && currentCertificate && (
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/20">
-                  <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Chain of Trust</span>
-                </div>
-                <div className="px-4 pt-3">
-                  <div className="flex items-center gap-2 rounded-md border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-3 py-2">
-                    <Info className="h-3.5 w-3.5 shrink-0 text-blue-500 dark:text-blue-400" />
-                    <p className="text-xs text-blue-700 dark:text-blue-300">
-                      The PEM chain is ordered from <strong>leaf → Root</strong>. This diagram follows the same order.
-                    </p>
-                  </div>
-                </div>
-                <ScrollArea className="h-[calc(24rem-2.5rem-3.5rem)]">
-                  <div className="p-4">
-                    <IssuanceChainVisualizer
-                      certificateChain={certificateChain}
-                      currentCertificate={currentCertificate}
-                      invert={true}
-                    />
-                  </div>
-                </ScrollArea>
-              </div>
-            )}
-          </div>
-        </PemSection>
+      {/* Chain strip — only when chain data is available */}
+      {hasChain && certificateChain && currentCertificate && (
+        <ChainStrip certificateChain={certificateChain} currentCertificate={currentCertificate} />
       )}
+
+      {/* Export cards */}
+      <div className={cn('grid gap-4', hasChain ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1')}>
+        <PemCard
+          title="Leaf Certificate"
+          subtitle="PEM-encoded X.509 certificate"
+          icon={FileCode}
+          pem={singlePemData}
+          filename={`${base}.pem`}
+          itemName={itemName}
+        />
+        {hasChain && (
+          <PemCard
+            title="Full Chain"
+            subtitle="Leaf-to-root bundle"
+            icon={Link2}
+            badge={chainCount > 0 ? <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{chainCount}</Badge> : undefined}
+            pem={fullChainPemData}
+            filename={`${base}_chain.pem`}
+            itemName={itemName}
+          />
+        )}
+      </div>
+
     </div>
   );
 };

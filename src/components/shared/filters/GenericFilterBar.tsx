@@ -84,6 +84,7 @@ interface GenericFilterBarProps<TValues extends GenericFilterValues> {
   values: TValues;
   onChange: (key: Extract<keyof TValues, string>, value: unknown) => void;
   actions?: React.ReactNode;
+  inlineActions?: boolean;
   onClearAll?: () => void;
   showActiveFilters?: boolean;
   disabled?: boolean;
@@ -309,9 +310,9 @@ function DateFilterControl<TValues extends GenericFilterValues>({
       <PopoverTrigger asChild>
         <Button
           id={context.id}
-          variant="outline"
+          variant="ghost"
           className={cn(
-            'h-9 w-full min-w-0 justify-start text-left font-normal',
+            'h-8 w-full min-w-0 justify-start bg-input/50 px-2.5 text-left font-normal hover:bg-input/70',
             !selectedDate && 'text-muted-foreground',
             field.inputClassName
           )}
@@ -418,6 +419,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
   values,
   onChange,
   actions,
+  inlineActions = false,
   onClearAll,
   showActiveFilters = true,
   disabled = false,
@@ -580,7 +582,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                 onChange={(nextValue) => context.onValueChange(nextValue)}
                 delay={field.debounceMs}
                 placeholder={field.placeholder}
-                className={cn('h-9 pl-9', isActive && 'pr-10', field.inputClassName)}
+                className={cn('h-8 pl-9', isActive && 'pr-10', field.inputClassName)}
                 disabled={context.disabled}
               />
             ) : (
@@ -590,7 +592,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                 value={typeof context.value === 'string' ? context.value : ''}
                 onChange={(event) => context.onValueChange(event.target.value)}
                 placeholder={field.placeholder}
-                className={cn('h-9 pl-9', isActive && 'pr-10', field.inputClassName)}
+                className={cn('h-8 pl-9', isActive && 'pr-10', field.inputClassName)}
                 disabled={context.disabled}
               />
             )}
@@ -616,7 +618,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
             onValueChange={(nextValue) => context.onValueChange(nextValue)}
             disabled={context.disabled}
           >
-            <SelectTrigger id={context.id} className={cn('h-9', field.inputClassName)}>
+            <SelectTrigger id={context.id} className={cn('h-8', field.inputClassName)}>
               <SelectValue placeholder={field.placeholder || field.label} />
             </SelectTrigger>
             <SelectContent>
@@ -639,7 +641,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
               selectedValues={Array.isArray(context.value) ? (context.value as string[]) : []}
               onChange={(nextValue) => context.onValueChange(nextValue)}
               buttonText={field.buttonText || field.placeholder || field.label}
-              className={cn('h-9 min-h-9', field.inputClassName)}
+              className={cn('h-8 min-h-8', field.inputClassName)}
             />
           </div>
         );
@@ -659,7 +661,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                 }
                 disabled={context.disabled}
               >
-                <SelectTrigger className="h-9 w-[108px] shrink-0">
+                <SelectTrigger className="h-8 w-[108px] shrink-0">
                   <SelectValue placeholder="Operator" />
                 </SelectTrigger>
                 <SelectContent>
@@ -683,7 +685,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-9 w-9 shrink-0"
+                  className="h-8 w-8 shrink-0"
                   onClick={context.clearValue}
                   disabled={context.disabled}
                   title={`Clear ${field.label.toLowerCase()} filter`}
@@ -702,9 +704,9 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
                 <PopoverTrigger asChild>
                   <Button
                     id={context.id}
-                    variant="outline"
+                    variant="ghost"
                     className={cn(
-                      'h-9 min-w-0 w-full justify-start text-left font-normal',
+                      'h-8 min-w-0 w-full justify-start bg-input/50 px-2.5 text-left font-normal hover:bg-input/70',
                       !selectedDate && 'text-muted-foreground',
                       field.inputClassName
                     )}
@@ -731,7 +733,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 shrink-0"
+                className="h-8 w-8 shrink-0"
                 onClick={context.clearValue}
                 disabled={context.disabled}
                 title={`Clear ${field.label.toLowerCase()} filter`}
@@ -776,10 +778,13 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
       {basicFields.length > 0 && (
         <div className={cn('grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 xl:items-end', basicFieldsClassName)}>
           {basicFields.map(renderField)}
+          {inlineActions && actions && (
+            <div className="flex items-center gap-1.5 self-end">{actions}</div>
+          )}
         </div>
       )}
 
-      {(advancedFields.length > 0 || actions) && (
+      {(advancedFields.length > 0 || (!inlineActions && actions)) && (
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-1">
             {advancedFields.length > 0 && (
@@ -798,7 +803,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
               </Button>
             )}
           </div>
-          {actions && <div className="flex items-center justify-end gap-2">{actions}</div>}
+          {!inlineActions && actions && <div className="flex items-center justify-end gap-2">{actions}</div>}
         </div>
       )}
 

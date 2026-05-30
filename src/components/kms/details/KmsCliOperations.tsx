@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SectionHeader } from '@/components/shared/FormComponents';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { Terminal, AlertCircleIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertExpandableContent, AlertTitle } from '@/components/ui/alert';
@@ -268,98 +266,49 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
 `;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
+
+            {/* Initialization steps */}
             <Alert expandable={true} defaultExpanded={false} variant="success">
                 <Terminal className="h-4 w-4" />
                 <AlertTitle variant="default">Initialization Steps</AlertTitle>
                 <AlertDescription>
-                    Expand this section to initialize and configure your CLI environment for PKCS11 KMS operations.
+                    Expand to configure your CLI environment for PKCS11 KMS operations.
                 </AlertDescription>
                 <AlertExpandableContent>
                     <div className="space-y-4 pl-4 border-l-2 border-muted">
                         <div>
-                            <h4 className="font-medium mb-2 flex items-center">
-                                Authentication Setup
-                            </h4>
-                            <p className="text-sm text-muted-foreground mb-3">
-                                Export your current bearer token to authenticate CLI operations:
-                            </p>
-                            <CodeBlock
-                                content={bearerTokenExport}
-                                title="Bearer Token Export"
-                                showDownload={false}
-                                textareaClassName="h-12 font-mono text-xs"
-                            />
+                            <h4 className="font-medium mb-2">Authentication Setup</h4>
+                            <p className="text-sm text-muted-foreground mb-2">Export your bearer token to authenticate CLI operations:</p>
+                            <CodeBlock content={bearerTokenExport} title="Bearer Token Export" showDownload={false} textareaClassName="h-12 font-mono text-xs" />
                         </div>
-
                         <div>
-                            <h4 className="font-medium mb-2 flex items-center">
-                                PKCS11 KMS Configuration
-                            </h4>
-                            <p className="text-sm text-muted-foreground mb-3">
-                                Create a configuration file for PKCS11 KMS operations:
-                            </p>
-                            <CodeBlock
-                                content={configFileCommands}
-                                title="Create pkcs11-kms.config"
-                                showDownload={false}
-                                textareaClassName="h-48 font-mono text-xs"
-                            />
+                            <h4 className="font-medium mb-2">PKCS11 KMS Configuration</h4>
+                            <p className="text-sm text-muted-foreground mb-2">Create a configuration file for PKCS11 KMS operations:</p>
+                            <CodeBlock content={configFileCommands} title="Create pkcs11-kms.config" showDownload={false} textareaClassName="h-48 font-mono text-xs" />
                         </div>
-
                         <div>
-                            <h4 className="font-medium mb-2 flex items-center">
-                                OpenSSL Configuration
-                            </h4>
-                            <p className="text-sm text-muted-foreground mb-3">
-                                First, check your OpenSSL version to determine which configuration to use:
-                            </p>
-                            <CodeBlock
-                                content={opensslVersionCommand}
-                                title="Check OpenSSL Version"
-                                showDownload={false}
-                                textareaClassName="h-2 font-mono text-xs"
-                            />
-
+                            <h4 className="font-medium mb-2">OpenSSL Configuration</h4>
+                            <p className="text-sm text-muted-foreground mb-2">Check your OpenSSL version first:</p>
+                            <CodeBlock content={opensslVersionCommand} title="Check OpenSSL Version" showDownload={false} textareaClassName="h-2 font-mono text-xs" />
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                                 <div>
-                                    <h5 className="font-medium mb-2 font-semibold">OpenSSL version &lt; 3.0.0</h5>
-                                    <p className="text-xs text-muted-foreground mb-2">
-                                        Engine-based configuration for older OpenSSL versions:
-                                    </p>
+                                    <p className="text-sm font-semibold mb-2">OpenSSL &lt; 3.0.0</p>
                                     <Alert variant="warning">
                                         <AlertCircleIcon className="h-4 w-4" />
-                                        <AlertTitle variant="warning">Warning: OpenSSL third-party library required</AlertTitle>
-                                        <AlertDescription>
-                                            In order to use the Lamassu KMS PKCS11 compliant engine, you must install a third-party OpenSSL library that includes PKCS11 support, such as <a href="https://github.com/OpenSC/libp11" style={{ textDecoration: "underline", color: "hsl(var(--primary))" }}>https://github.com/OpenSC/libp11</a>.
-                                        </AlertDescription>
+                                        <AlertTitle variant="warning">Third-party library required</AlertTitle>
+                                        <AlertDescription>Requires a PKCS11-enabled OpenSSL engine such as <a href="https://github.com/OpenSC/libp11" style={{ textDecoration: "underline", color: "hsl(var(--primary))" }}>libp11</a>.</AlertDescription>
                                     </Alert>
-                                    <CodeBlock
-                                        content={opensslEngineCommands}
-                                        title="Create openssl-pkcs11-engine.conf"
-                                        showDownload={false}
-                                        textareaClassName="h-64 font-mono text-xs"
-                                    />
+                                    <CodeBlock content={opensslEngineCommands} title="Create openssl-pkcs11-engine.conf" showDownload={false} textareaClassName="h-64 font-mono text-xs" />
                                 </div>
-
                                 <div>
-                                    <h5 className="font-medium mb-2 font-semibold">OpenSSL version &gt;= 3.0.0</h5>
-                                    <p className="text-xs text-muted-foreground mb-2">
-                                        Provider-based configuration for OpenSSL 3.0+:
-                                    </p>
+                                    <p className="text-sm font-semibold mb-2">OpenSSL &gt;= 3.0.0</p>
                                     <Alert variant="warning">
                                         <AlertCircleIcon className="h-4 w-4" />
-                                        <AlertTitle variant="warning">Warning: OpenSSL third-party library required</AlertTitle>
-                                        <AlertDescription>
-                                            In order to use the Lamassu KMS PKCS11 compliant provider, you must install a third-party OpenSSL library that includes PKCS11 support, such as <a href="https://github.com/latchset/pkcs11-provider" style={{ textDecoration: "underline", color: "hsl(var(--primary))" }}>https://github.com/latchset/pkcs11-provider</a>.
-                                        </AlertDescription>
+                                        <AlertTitle variant="warning">Third-party library required</AlertTitle>
+                                        <AlertDescription>Requires a PKCS11-enabled OpenSSL provider such as <a href="https://github.com/latchset/pkcs11-provider" style={{ textDecoration: "underline", color: "hsl(var(--primary))" }}>pkcs11-provider</a>.</AlertDescription>
                                     </Alert>
-                                    <CodeBlock
-                                        content={opensslProviderCommands}
-                                        title="Create openssl-pkcs11-provider.conf"
-                                        showDownload={false}
-                                        textareaClassName="h-64 font-mono text-xs"
-                                    />
+                                    <CodeBlock content={opensslProviderCommands} title="Create openssl-pkcs11-provider.conf" showDownload={false} textareaClassName="h-64 font-mono text-xs" />
                                 </div>
                             </div>
                         </div>
@@ -367,114 +316,74 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
                 </AlertExpandableContent>
             </Alert>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Global Algorithm and Input Type Selectors */}
-                <div className="lg:col-span-2 mb-6">
-                    <Card>
-                        <CardContent>
-                            <h3 className="text-lg font-semibold mb-4">Signing Configuration</h3>
-                            <p className="text-sm text-muted-foreground mb-4">
-                                These settings apply to all CLI operations below (OpenSSL and PKCS11-tool).
-                            </p>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label htmlFor="kms-cli-algorithm" className="text-sm font-medium text-muted-foreground">
-                                        Algorithm
-                                    </label>
-                                    <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
-                                        <SelectTrigger id="kms-cli-algorithm">
-                                            <SelectValue placeholder="Select algorithm" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {signatureAlgorithms.map(algo => (
-                                                <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>
-                                                    {algo}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label htmlFor="kms-cli-input-type" className="text-sm font-medium text-muted-foreground">
-                                        Input Type
-                                    </label>
-                                    <Select value={inputType} onValueChange={setInputType}>
-                                        <SelectTrigger id="kms-cli-input-type">
-                                            <SelectValue placeholder="Select input type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="digest">Digest (pkcs11 inputs a digest)</SelectItem>
-                                            <SelectItem value="raw">Raw (pkcs11 inputs raw data. It's then hashed internally)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+            {/* Signing configuration */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                    <label htmlFor="kms-cli-algorithm" className="text-sm font-medium">Algorithm</label>
+                    <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
+                        <SelectTrigger id="kms-cli-algorithm"><SelectValue placeholder="Select algorithm" /></SelectTrigger>
+                        <SelectContent>
+                            {signatureAlgorithms.map(algo => (
+                                <SelectItem key={algo} value={algo} disabled={isAlgorithmDisabled(algo)}>{algo}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
-
-                <div className="space-y-6">
-                    <Card>
-                        <SectionHeader icon={Terminal} title="OpenSSL" />
-                        <CardContent className="space-y-4">
-                            <div>
-                                <h4 className="font-medium mb-4">Sign with OpenSSL</h4>
-
-                                <Tabs defaultValue="engine" className="w-full">
-                                    <TabsList className="grid w-full grid-cols-2">
-                                        <TabsTrigger value="engine">Engine (&lt; 3.0.0)</TabsTrigger>
-                                        <TabsTrigger value="provider">Provider (&gt;= 3.0.0)</TabsTrigger>
-                                    </TabsList>
-                                    <TabsContent value="engine" className="mt-4">
-                                        <CodeBlock
-                                            content={opensslSignEngineCommand}
-                                            showDownload={false}
-                                            textareaClassName="h-20 font-mono text-xs"
-                                        />
-                                        <CodeBlock
-                                            className='mt-4'
-                                            content={opensslVerifyEngineCommand}
-                                            showDownload={false}
-                                            textareaClassName="h-20 font-mono text-xs"
-                                        />
-                                    </TabsContent>
-                                    <TabsContent value="provider" className="mt-4">
-                                        <CodeBlock
-                                            content={opensslSignProviderCommand}
-                                            showDownload={false}
-                                            textareaClassName="h-20 font-mono text-xs"
-                                        />
-                                        <CodeBlock
-                                            className='mt-4'
-                                            content={opensslVerifyProviderCommand}
-                                            showDownload={false}
-                                            textareaClassName="h-20 font-mono text-xs"
-                                        />
-                                    </TabsContent>
-                                </Tabs>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                <div className="space-y-6">
-                    <Card>
-                        <SectionHeader icon={Terminal} title="PKCS11-Tool" />
-                        <CardContent className="space-y-4">
-                            <div>
-                                <h4 className="font-medium mb-2">Sign with PKCS11-Tool</h4>
-                                <CodeBlock
-                                    content={pkcs11SignCommand}
-                                    showDownload={false}
-                                    textareaClassName="h-32 font-mono text-xs"
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
+                <div className="space-y-1.5">
+                    <label htmlFor="kms-cli-input-type" className="text-sm font-medium">Input Type</label>
+                    <Select value={inputType} onValueChange={setInputType}>
+                        <SelectTrigger id="kms-cli-input-type"><SelectValue placeholder="Select input type" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="digest">Digest</SelectItem>
+                            <SelectItem value="raw">Raw</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
+
+            {/* Tool tabs */}
+            <Tabs defaultValue="openssl" className="w-full">
+                <div className="border-b overflow-x-auto">
+                    <TabsList className="h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
+                        <TabsTrigger value="openssl" className={pageTabsTriggerClass}>OpenSSL</TabsTrigger>
+                        <TabsTrigger value="pkcs11" className={pageTabsTriggerClass}>PKCS11-Tool</TabsTrigger>
+                    </TabsList>
+                </div>
+
+                <TabsContent value="openssl" className="mt-4">
+                    <Tabs defaultValue="engine" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 max-w-sm">
+                            <TabsTrigger value="engine">Engine (&lt; 3.0.0)</TabsTrigger>
+                            <TabsTrigger value="provider">Provider (&gt;= 3.0.0)</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="engine" className="mt-4 space-y-3">
+                            <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Sign</p>
+                                <CodeBlock content={opensslSignEngineCommand} showDownload={false} textareaClassName="font-mono text-xs" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Verify</p>
+                                <CodeBlock content={opensslVerifyEngineCommand} showDownload={false} textareaClassName="font-mono text-xs" />
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="provider" className="mt-4 space-y-3">
+                            <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Sign</p>
+                                <CodeBlock content={opensslSignProviderCommand} showDownload={false} textareaClassName="font-mono text-xs" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Verify</p>
+                                <CodeBlock content={opensslVerifyProviderCommand} showDownload={false} textareaClassName="font-mono text-xs" />
+                            </div>
+                        </TabsContent>
+                    </Tabs>
+                </TabsContent>
+
+                <TabsContent value="pkcs11" className="mt-4">
+                    <CodeBlock content={pkcs11SignCommand} showDownload={false} textareaClassName="font-mono text-xs" />
+                </TabsContent>
+            </Tabs>
+
         </div>
     );
 };

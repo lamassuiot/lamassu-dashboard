@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -315,18 +315,14 @@ export default function DeviceGroupDetailsClient() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="border-b">
-          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+          <TabsList className={pageTabsListClass}>
             {(
               [
                 { value: 'members', icon: Monitor, label: 'Devices' },
                 { value: 'info', icon: Info, label: 'Information' },
               ] as { value: string; icon: React.ElementType; label: string }[]
             ).map(({ value, icon: Icon, label }) => (
-              <TabsTrigger
-                key={value}
-                value={value}
-                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-              >
+              <TabsTrigger key={value} value={value} className={pageTabsTriggerClass}>
                 <Icon className="h-4 w-4" />
                 {label}
               </TabsTrigger>

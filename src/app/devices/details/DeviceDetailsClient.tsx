@@ -5,7 +5,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap } from 'lucide-react';
 import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/app/devices/page';
@@ -720,24 +720,15 @@ export default function DeviceDetailsClient() {
 
       <Tabs defaultValue="certificatesHistory" className="w-full">
         <div className="border-b">
-          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
-            <TabsTrigger
-              value="certificatesHistory"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <History className="mr-2 h-4 w-4" />Certificates History
+          <TabsList className={pageTabsListClass}>
+            <TabsTrigger value="certificatesHistory" className={pageTabsTriggerClass}>
+              <History className="h-4 w-4" />Certificates History
             </TabsTrigger>
-            <TabsTrigger
-              value="timeline"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <Clock className="mr-2 h-4 w-4" />Timeline
+            <TabsTrigger value="timeline" className={pageTabsTriggerClass}>
+              <Clock className="h-4 w-4" />Timeline
             </TabsTrigger>
-            <TabsTrigger
-              value="metadata"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <SlidersHorizontal className="mr-2 h-4 w-4" />Metadata
+            <TabsTrigger value="metadata" className={pageTabsTriggerClass}>
+              <SlidersHorizontal className="h-4 w-4" />Metadata
             </TabsTrigger>
           </TabsList>
         </div>

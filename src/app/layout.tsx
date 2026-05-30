@@ -63,10 +63,10 @@ import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
-import { Roboto } from "next/font/google";
+import { Roboto, Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
 
-const roboto = Roboto({subsets:['latin'],variable:'--font-sans'});
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 
 interface DecodedAccessToken {
@@ -684,7 +684,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", roboto.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", inter.variable)}>
       <head>
         <Script src="/config.js" strategy="beforeInteractive" />
         <title>LamassuIoT Certificate Manager</title>

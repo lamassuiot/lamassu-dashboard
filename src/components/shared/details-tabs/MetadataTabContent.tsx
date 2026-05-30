@@ -5,12 +5,11 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Save, Loader2, FileJson } from "lucide-react";
+import { Copy, Check, Save, Loader2 } from "lucide-react";
 import { sileo } from '@/lib/toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { PatchOperation } from '@/lib/ca-data';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
-import { DetailSectionCard } from '@/components/shared/DetailSectionCard';
 
 const EDITOR_HEIGHT = '26rem';
 
@@ -66,10 +65,10 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
       sileo.error({ title: "Copy Failed", description: `Could not copy metadata for ${itemName}.` });
     }
   };
-  
+
   const handleSave = async () => {
     if (!onSave || !itemId) return;
-    
+
     let parsedContent;
     try {
       parsedContent = JSON.parse(content);
@@ -93,27 +92,26 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
   };
 
   return (
-    <DetailSectionCard
-      icon={FileJson}
-      title={tabTitle}
-      description={`View${isEditable ? ' or edit' : ''} metadata attached to ${itemName}.`}
-      contentClassName="space-y-4"
-      action={canEdit || !isEmpty ? (
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+      <div>
+        <p className="font-semibold">{tabTitle}</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          View{isEditable ? ' or edit' : ''} metadata attached to {itemName}.
+        </p>
+      </div>
+      <div className="space-y-4 lg:col-span-2">
         <div className="flex items-center gap-2">
           <Button onClick={handleCopy} variant="secondary" size="sm">
             {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
             {copied ? 'Copied' : 'Copy JSON'}
           </Button>
-          {isDirty ? (
+          {isDirty && (
             <Button onClick={handleSave} size="sm" disabled={isSaving}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save Changes
             </Button>
-          ) : null}
+          )}
         </div>
-      ) : undefined}
-    >
-      <div className="space-y-2">
         <div className="overflow-hidden rounded-lg border">
           <Editor
             height={EDITOR_HEIGHT}
@@ -137,6 +135,6 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
         </div>
         {jsonError && <Alert variant="destructive"><AlertDescription>{jsonError}</AlertDescription></Alert>}
       </div>
-    </DetailSectionCard>
+    </div>
   );
 };

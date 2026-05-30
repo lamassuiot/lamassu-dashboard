@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from "@/components/ui/button";
 import { FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, Settings, KeyRound, Copy, Check, ArrowLeft } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -541,24 +541,15 @@ export default function CertificateDetailsClient() { // Renamed component
       {/* Underline tabs */}
       <Tabs defaultValue="information" className="w-full">
         <div className="border-b">
-          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
-            <TabsTrigger
-              value="information"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <Info className="mr-2 h-4 w-4" />Details
+          <TabsList className={pageTabsListClass}>
+            <TabsTrigger value="information" className={pageTabsTriggerClass}>
+              <Info className="h-4 w-4" />Details
             </TabsTrigger>
-            <TabsTrigger
-              value="pem"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <Code2 className="mr-2 h-4 w-4" />Certificate PEM
+            <TabsTrigger value="pem" className={pageTabsTriggerClass}>
+              <Code2 className="h-4 w-4" />Certificate PEM
             </TabsTrigger>
-            <TabsTrigger
-              value="metadata"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <Layers className="mr-2 h-4 w-4" />Metadata
+            <TabsTrigger value="metadata" className={pageTabsTriggerClass}>
+              <Layers className="h-4 w-4" />Metadata
             </TabsTrigger>
           </TabsList>
         </div>

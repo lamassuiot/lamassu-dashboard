@@ -58,6 +58,7 @@ interface CertificateFilterBarProps {
   disabled?: boolean;
   isLoadingCAs?: boolean;
   actions?: React.ReactNode;
+  inlineActions?: boolean;
   basicFieldsClassName?: string;
   advancedFieldsClassName?: string;
   idPrefix?: string;
@@ -133,6 +134,7 @@ export function CertificateFilterBar({
   disabled = false,
   isLoadingCAs = false,
   actions,
+  inlineActions,
   basicFieldsClassName,
   advancedFieldsClassName,
   idPrefix = 'certificate-filter',
@@ -421,6 +423,7 @@ export function CertificateFilterBar({
         }
       }}
       actions={actions}
+      inlineActions={inlineActions}
       disabled={disabled}
       onClearAll={() => {
         onSearchTermChange('');

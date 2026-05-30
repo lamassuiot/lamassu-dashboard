@@ -132,38 +132,47 @@ export default function HomePage() {
 
 
   return (
-    <div className="w-full space-y-8">
-      <div className="flex items-center justify-start">
-        <Button onClick={loadInitialData} variant="secondary" disabled={isReloading}>
-          <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh All
+    <div className="w-full space-y-6">
+
+      {/* Refresh */}
+      <div className="flex justify-end">
+        <Button onClick={loadInitialData} variant="outline" size="sm" disabled={isReloading}>
+          <RefreshCw className={cn("mr-2 h-4 w-4", isReloading && "animate-spin")} /> Refresh
         </Button>
       </div>
-      <div className="flex flex-col gap-8 xl:flex-row xl:items-stretch">
+
+      {/* KPI stat cards */}
+      <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats} />
+
+      {/* Charts */}
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
         <div className="min-w-0 flex-1">
           {anyTimelineLoading && !anyTimelineError ? (
-            <Card className="h-full w-full bg-card shadow-lg">
+            <Card className="h-full w-full">
               <CardHeader>
-                <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
+                <CardTitle className="text-base font-semibold">CA Expiry Timeline</CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
-                <div className="flex h-[320px] items-center justify-center p-4">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="ml-3 text-muted-foreground">Loading Certification Authority timeline data...</p>
+                <div className="flex h-[320px] items-center justify-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading timeline…</p>
                 </div>
               </CardContent>
             </Card>
           ) : anyTimelineError ? (
-            <Card className="h-full w-full bg-card shadow-lg">
+            <Card className="h-full w-full">
               <CardHeader>
-                <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
+                <CardTitle className="text-base font-semibold">CA Expiry Timeline</CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
                 <Alert variant="destructive" className="min-h-[320px]">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Error Loading Timeline Data</AlertTitle>
+                  <AlertTitle>Error Loading Timeline</AlertTitle>
                   <AlertDescription>
                     {anyTimelineError}
-                    <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80 focus:text-destructive">Try again?</Button>
+                    <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80">
+                      Try again?
+                    </Button>
                   </AlertDescription>
                 </Alert>
               </CardContent>
@@ -172,13 +181,11 @@ export default function HomePage() {
             <CaExpiryTimeline cas={allCAs} allCryptoEngines={allCryptoEngines} />
           )}
         </div>
-        <div className="w-full xl:max-w-lg xl:flex-none">
+        <div className="w-full xl:w-80 xl:flex-none">
           <DeviceStatusChartCard />
         </div>
       </div>
-      <div>
-        <SummaryStatsCard stats={summaryStats} isLoading={isLoadingStats} />
-      </div>
+
     </div>
   );
 }

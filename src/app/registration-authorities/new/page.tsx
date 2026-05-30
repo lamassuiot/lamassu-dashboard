@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit, X } from "lucide-react";
+import { ArrowLeft, ChevronsUpDown, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit, X } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -565,16 +565,33 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="deviceIconButton">Device Icon</Label>
-              <Button id="deviceIconButton" type="button" variant="outline" onClick={() => setIsDeviceIconModalOpen(true)} className="w-full justify-start text-left font-normal flex items-center gap-2">
-                {getLucideIconByName(selectedDeviceIconName) ? (
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 rounded-sm flex items-center justify-center" style={{ backgroundColor: selectedDeviceIconBgColor }}>
-                      {React.createElement(getLucideIconByName(selectedDeviceIconName)!, { className: "h-5 w-5", style: { color: selectedDeviceIconColor } })}
-                    </div>
-                    {selectedDeviceIconName}
-                  </div>
-                ) : "Select Device Icon..."}
-              </Button>
+              <button
+                id="deviceIconButton"
+                type="button"
+                onClick={() => setIsDeviceIconModalOpen(true)}
+                className="flex h-auto w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                    style={{ backgroundColor: selectedDeviceIconBgColor }}
+                  >
+                    {React.createElement(getLucideIconByName(selectedDeviceIconName)!, {
+                      className: "h-4 w-4",
+                      style: { color: selectedDeviceIconColor },
+                    })}
+                  </span>
+                  <span className="min-w-0 text-left">
+                    <span className="block truncate text-sm text-foreground">
+                      {selectedDeviceIconName || 'Select device icon'}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      Icon and colors used for new devices
+                    </span>
+                  </span>
+                </span>
+                <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
               <p className="text-xs text-muted-foreground">Default icon and colors for devices registered through this RA.</p>
             </div>
           </div>
@@ -601,9 +618,18 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="enrollmentCa">Enrollment CA</Label>
-              <Button type="button" variant="outline" onClick={() => setIsEnrollmentCaModalOpen(true)} className="w-full justify-start text-left font-normal" disabled={isLoadingDependencies}>
-                {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
-              </Button>
+              <button
+                id="enrollmentCa"
+                type="button"
+                onClick={() => setIsEnrollmentCaModalOpen(true)}
+                disabled={isLoadingDependencies}
+                className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className={enrollmentCa ? "text-foreground" : "text-muted-foreground"}>
+                  {isLoadingDependencies ? <Loader2 className="h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
+                </span>
+                <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
               {enrollmentCa && (
                 <div className="space-y-3">
                   <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />

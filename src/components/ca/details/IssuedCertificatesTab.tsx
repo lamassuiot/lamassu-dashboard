@@ -63,6 +63,9 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
             <CertificateFilterBar
                 {...filterBarProps}
                 disabled={isLoading}
+                inlineActions
+                basicFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_180px_auto]"
+                advancedFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
                 actions={
                     <>
                         <ColumnSelector
@@ -80,16 +83,16 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                         <Button
                             variant="outline"
                             size="icon"
-                            className="h-9 w-9 shrink-0"
+                            className="h-8 w-8 shrink-0"
                             onClick={refresh}
                             disabled={isLoading}
                             title="Refresh"
                         >
-                            <RefreshCw className="h-4 w-4" />
+                            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                         </Button>
                         <Button
                             size="sm"
-                            className="h-9 shrink-0"
+                            className="shrink-0"
                             onClick={handleIssueNewCertificate}
                             disabled={!caIsActive}
                         >
@@ -97,8 +100,6 @@ export const IssuedCertificatesTab: React.FC<IssuedCertificatesTabProps> = ({ ca
                         </Button>
                     </>
                 }
-                basicFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_180px]"
-                advancedFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
             />
 
             {isLoading && certificates.length === 0 ? (

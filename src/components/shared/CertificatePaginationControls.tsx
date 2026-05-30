@@ -48,7 +48,7 @@ export function CertificatePaginationControls({
   const navigationButtonSize = compact ? 'sm' : 'default';
 
   return (
-    <div className={cn('flex items-center justify-between', className)}>
+    <div className={cn('flex flex-wrap items-center justify-between gap-2', className)}>
       <div className="flex items-center gap-2">
         <Label htmlFor={pageSizeSelectId} className="text-sm text-muted-foreground whitespace-nowrap">
           {pageSizeLabel}

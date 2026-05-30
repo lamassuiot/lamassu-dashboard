@@ -1,5 +1,5 @@
 # Stage 1: Build the Next.js application
-FROM node:22-slim AS builder
+FROM node:20-slim AS builder
 
 # Set working directory
 WORKDIR /app
@@ -18,9 +18,10 @@ COPY . .
 
 # Build the application
 # This will output to the 'out' directory due to `output: 'export'` in next.config.ts
-# NEXT_TELEMETRY_DISABLED prevents background HTTP requests from triggering TLS/crypto
-# module initialization, which causes V8 assertion crashes in certain Node.js builds.
-RUN NEXT_TELEMETRY_DISABLED=1 npm run build
+# NEXT_TELEMETRY_DISABLED: prevents background HTTP requests triggering TLS/crypto module init crashes.
+# Node 20 (not 22): Node 22's Turboshaft JIT hits an "unreachable code" V8 assertion crash in
+# turboshaft::BuildGraph during page-data collection under Docker/WSL2 virtualization.
+RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # Stage 2: Serve the static files with Nginx
 FROM nginx:stable-alpine

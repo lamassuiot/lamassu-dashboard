@@ -469,103 +469,100 @@ export default function CertificateAuthorityDetailsClient() {
         }
       />
 
-      {/* ── Hero header card ── */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        {/* Top accent bar */}
-        <div className={cn('h-1 w-full', accentBarClass)} />
+      {/* ── Hero ── */}
+      <div className="border-b pb-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
 
-        <div className="p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-
-            {/* Left: identity */}
-            <div className="flex items-start gap-4">
-              {/* Icon */}
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden">
-                {cryptoEngine
-                  ? <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
-                  : <ShieldCheck className={cn('h-7 w-7', caIsActive ? 'text-primary' : caDetails.status === 'revoked' ? 'text-destructive' : 'text-amber-500')} />
-                }
-              </div>
-
-              <div className="min-w-0 space-y-2">
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">{caDetails.name}</h1>
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">ID</span>
-                    <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
-                      {caDetails.id}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 shrink-0"
-                      onClick={() => {
-                        navigator.clipboard.writeText(caDetails.id);
-                        setCopiedId(true);
-                        setTimeout(() => setCopiedId(false), 2000);
-                      }}
-                    >
-                      {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Badge cluster */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Status pill */}
-                  <div className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
-                    statusPillClass
-                  )}>
-                    <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass)} />
-                    {caDetails.status.toUpperCase()}
-                  </div>
-
-                  {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
-                    <Badge variant="outline" className="text-xs text-destructive border-destructive/30">
-                      {caDetails.rawApiData.certificate.revocation_reason}
-                    </Badge>
-                  )}
-
-                  {caDetails.caType && (
-                    <Badge variant="secondary" className="text-xs">
-                      {caDetails.caType.replaceAll('_', ' ').toUpperCase()}
-                    </Badge>
-                  )}
-
-                  {cryptoEngine && (
-                    <div className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-0.5">
-                      <CryptoEngineViewer engine={cryptoEngine} iconOnly />
-                      <span className="text-xs text-muted-foreground">{cryptoEngine.name || cryptoEngine.type}</span>
-                    </div>
-                  )}
-
-                  {caDetails.rawApiData?.certificate?.key_metadata && (
-                    <Badge variant="outline" className="text-xs gap-1">
-                      <KeyRound className="h-3 w-3" />
-                      {caDetails.rawApiData.certificate.key_metadata.type}
-                      {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
-                      {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
-                    </Badge>
-                  )}
-                </div>
-              </div>
+          {/* Identity */}
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden">
+              {cryptoEngine
+                ? <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
+                : <ShieldCheck className={cn('h-7 w-7', caIsActive ? 'text-primary' : caDetails.status === 'revoked' ? 'text-destructive' : 'text-amber-500')} />
+              }
             </div>
 
-            {/* Center: issued cert stats */}
-            <div className="xl:flex-1 px-6 xl:border-l">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Issued Certificates</p>
-              <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
-            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">{caDetails.name}</h1>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">ID</span>
+                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
+                    {caDetails.id}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(caDetails.id);
+                      setCopiedId(true);
+                      setTimeout(() => setCopiedId(false), 2000);
+                    }}
+                  >
+                    {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                  </Button>
+                </div>
+              </div>
 
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* Status */}
+                <span className={cn(
+                  'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
+                  caIsActive
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                    : caDetails.status === 'revoked'
+                    ? 'bg-destructive/10 text-destructive'
+                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                )}>
+                  <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', statusDotClass)} />
+                  {caDetails.status.toUpperCase()}
+                </span>
+
+                {caDetails.status === 'revoked' && caDetails.rawApiData?.certificate.revocation_reason && (
+                  <span className="inline-flex h-6 items-center rounded-md bg-destructive/10 px-2 text-xs text-destructive">
+                    {caDetails.rawApiData.certificate.revocation_reason}
+                  </span>
+                )}
+
+                {caDetails.caType && (
+                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    {caDetails.caType.replaceAll('_', ' ').toUpperCase()}
+                  </span>
+                )}
+
+                {cryptoEngine && (
+                  <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    <CryptoEngineViewer engine={cryptoEngine} iconOnly />
+                    {cryptoEngine.name || cryptoEngine.type}
+                  </span>
+                )}
+
+                {caDetails.rawApiData?.certificate?.key_metadata && (
+                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground">
+                    <KeyRound className="h-3 w-3 shrink-0" />
+                    {caDetails.rawApiData.certificate.key_metadata.type}
+                    {caDetails.rawApiData.certificate.key_metadata.bits && ` ${caDetails.rawApiData.certificate.key_metadata.bits}`}
+                    {caDetails.rawApiData.certificate.key_metadata.curve_name && ` ${caDetails.rawApiData.certificate.key_metadata.curve_name}`}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
+
+          {/* Stats */}
+          <div className="xl:flex-1 xl:pl-6 xl:border-l">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Issued Certificates</p>
+            <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
+          </div>
+
         </div>
       </div>
 
       {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="border-b">
-          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+        <div className="border-b overflow-x-auto">
+          <TabsList className="h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
             {([
               { value: 'information', icon: Info, label: 'Information' },
               { value: 'certificate', icon: KeyRound, label: 'Certificate PEM' },
