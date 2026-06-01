@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageSquare, X, Send, Loader2, Bot, User, AlertCircle, Trash2 } from 'lucide-react';
+import { MessageSquare, X, Send, Loader2, Bot, User, AlertCircle, Trash2, Maximize2, Minimize2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { sendChatMessage, type ChatMessage } from '@/lib/mattin-api';
@@ -13,6 +15,7 @@ const WELCOME_MESSAGE: ChatMessage = {
 
 export function ChatbotWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -61,58 +64,71 @@ export function ChatbotWidget() {
     }
   };
 
-  const handleClearConversation = () => {
+  const handleClear = () => {
     setMessages([WELCOME_MESSAGE]);
     setConversationId(undefined);
     setError(null);
     setInput('');
   };
 
+  const toggleMaximize = () => setIsMaximized(prev => !prev);
+
   return (
     <>
-      {/* Slide-in panel */}
+      {/* Panel */}
       <div
         className={cn(
-          'fixed top-0 right-0 h-full w-80 md:w-96 z-40 flex flex-col',
-          'bg-background border-l border-border shadow-2xl',
-          'transition-transform duration-300 ease-in-out',
-          isOpen ? 'translate-x-0' : 'translate-x-full',
+          'fixed z-40 flex flex-col bg-background border border-border shadow-2xl',
+          'transition-all duration-300 ease-in-out',
+          isMaximized
+            ? 'inset-4 rounded-xl'
+            : [
+                'top-0 right-0 w-80 md:w-96 rounded-none border-l',
+                isOpen ? 'translate-x-0' : 'translate-x-full',
+              ],
         )}
-        style={{ marginTop: 'var(--header-height, 3rem)', height: 'calc(100% - var(--header-height, 3rem))' }}
+        style={
+          isMaximized
+            ? undefined
+            : { marginTop: 'var(--header-height, 3rem)', height: 'calc(100% - var(--header-height, 3rem))' }
+        }
         aria-hidden={!isOpen}
       >
-        {/* Panel header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-primary text-primary-foreground flex-shrink-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-primary text-primary-foreground flex-shrink-0 rounded-t-[inherit]">
           <div className="flex items-center gap-2">
             <Bot className="h-5 w-5" />
             <span className="font-semibold text-sm">Lamassu AI Assistant</span>
           </div>
           <div className="flex items-center gap-1">
             <Button
-              variant="ghost"
-              size="icon"
+              variant="ghost" size="icon"
               className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
-              onClick={handleClearConversation}
-              title="Clear conversation"
+              onClick={handleClear} title="Clear conversation"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
             <Button
-              variant="ghost"
-              size="icon"
+              variant="ghost" size="icon"
               className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
-              onClick={() => setIsOpen(false)}
-              title="Close"
+              onClick={toggleMaximize} title={isMaximized ? 'Restore' : 'Maximize'}
+            >
+              {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost" size="icon"
+              className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
+              onClick={() => { setIsOpen(false); setIsMaximized(false); }} title="Close"
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* Messages area */}
+        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
           {messages.map((msg, idx) => (
-            <MessageBubble key={idx} message={msg} />
+            <MessageBubble key={idx} message={msg} isMaximized={isMaximized} />
           ))}
 
           {isLoading && (
@@ -136,8 +152,8 @@ export function ChatbotWidget() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
-        <div className="flex-shrink-0 border-t border-border px-4 py-3 bg-background">
+        {/* Input */}
+        <div className="flex-shrink-0 border-t border-border px-4 py-3 bg-background rounded-b-[inherit]">
           <div className="flex items-end gap-2">
             <textarea
               ref={inputRef}
@@ -151,41 +167,37 @@ export function ChatbotWidget() {
                 'flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2',
                 'text-sm placeholder:text-muted-foreground',
                 'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
-                'max-h-32 overflow-y-auto',
+                'disabled:opacity-50 disabled:cursor-not-allowed max-h-32 overflow-y-auto',
               )}
               style={{ fieldSizing: 'content' } as React.CSSProperties}
             />
             <Button
-              size="icon"
-              onClick={handleSend}
+              size="icon" onClick={handleSend}
               disabled={isLoading || !input.trim()}
-              className="flex-shrink-0 h-9 w-9"
-              title="Send message"
+              className="flex-shrink-0 h-9 w-9" title="Send"
             >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
           <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-            Press Enter to send · Shift+Enter for new line
+            Enter to send · Shift+Enter for new line
           </p>
         </div>
       </div>
 
-      {/* Backdrop (mobile) */}
+      {/* Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/20 md:hidden"
-          onClick={() => setIsOpen(false)}
+          className={cn(
+            'fixed inset-0 z-30 bg-black/30',
+            isMaximized ? 'block' : 'block md:hidden',
+          )}
+          onClick={() => { setIsOpen(false); setIsMaximized(false); }}
           aria-hidden
         />
       )}
 
-      {/* FAB toggle button */}
+      {/* FAB */}
       <Button
         size="icon"
         onClick={() => setIsOpen(prev => !prev)}
@@ -203,32 +215,58 @@ export function ChatbotWidget() {
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, isMaximized }: { message: ChatMessage; isMaximized: boolean }) {
   const isUser = message.role === 'user';
 
   return (
     <div className={cn('flex items-start gap-2', isUser && 'flex-row-reverse')}>
-      <div
-        className={cn(
-          'flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center',
-          isUser ? 'bg-primary text-primary-foreground' : 'bg-primary/10',
-        )}
-      >
-        {isUser ? (
-          <User className="h-4 w-4" />
-        ) : (
-          <Bot className="h-4 w-4 text-primary" />
-        )}
+      <div className={cn(
+        'flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center',
+        isUser ? 'bg-primary text-primary-foreground' : 'bg-primary/10',
+      )}>
+        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4 text-primary" />}
       </div>
-      <div
-        className={cn(
-          'max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words',
-          isUser
-            ? 'bg-primary text-primary-foreground rounded-tr-sm'
-            : 'bg-muted text-foreground rounded-tl-sm',
+
+      <div className={cn(
+        'rounded-2xl px-3 py-2 text-sm leading-relaxed',
+        isUser
+          ? 'bg-primary text-primary-foreground rounded-tr-sm max-w-[80%]'
+          : 'bg-muted text-foreground rounded-tl-sm',
+        !isUser && (isMaximized ? 'max-w-[85%]' : 'max-w-[85%]'),
+      )}>
+        {isUser ? (
+          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        ) : (
+          <div className="prose prose-sm dark:prose-invert max-w-none prose-table:text-xs">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                table: ({ children }) => (
+                  <div className="overflow-x-auto my-2">
+                    <table className="border-collapse border border-border text-xs w-full">{children}</table>
+                  </div>
+                ),
+                th: ({ children }) => (
+                  <th className="border border-border bg-muted px-2 py-1 text-left font-semibold whitespace-nowrap">{children}</th>
+                ),
+                td: ({ children }) => (
+                  <td className="border border-border px-2 py-1 whitespace-nowrap">{children}</td>
+                ),
+                code: ({ children, className }) => {
+                  const isBlock = className?.includes('language-');
+                  return isBlock
+                    ? <code className="block bg-background border border-border rounded p-2 text-xs overflow-x-auto">{children}</code>
+                    : <code className="bg-background border border-border rounded px-1 text-xs">{children}</code>;
+                },
+                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
         )}
-      >
-        {message.content}
       </div>
     </div>
   );
