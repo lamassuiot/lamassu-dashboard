@@ -469,8 +469,11 @@ export default function CertificateAuthorityDetailsClient() {
         }
       />
 
+      {/* ── Hero + Tabs (flush, no space-y gap between them) ── */}
+      <div className="flex flex-col">
+
       {/* ── Hero ── */}
-      <div className="border-b pb-6">
+      <div className="pb-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
 
           {/* Identity */}
@@ -561,7 +564,7 @@ export default function CertificateAuthorityDetailsClient() {
 
       {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="border-b overflow-x-auto">
+        <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className="h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
             {([
               { value: 'information', icon: Info, label: 'Information' },
@@ -573,7 +576,7 @@ export default function CertificateAuthorityDetailsClient() {
               <TabsTrigger
                 key={value}
                 value={value}
-                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:[border-bottom-color:var(--color-primary)]! data-[state=active]:bg-transparent! data-[state=active]:text-foreground data-[state=active]:shadow-none"
               >
                 <Icon className="h-4 w-4" />
                 {label}
@@ -646,6 +649,8 @@ export default function CertificateAuthorityDetailsClient() {
           </TabsContent>
         </div>
       </Tabs>
+
+      </div>{/* end Hero + Tabs wrapper */}
 
       {caToRevoke && (
         <RevocationModal

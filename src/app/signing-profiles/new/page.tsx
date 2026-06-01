@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, FileText, Shield, Lock, Code, Settings2 } from "lucide-react";
+import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
 import { Loader2 } from 'lucide-react';
 import {
@@ -113,65 +114,115 @@ export default function CreateSigningProfilePage() {
 
   return (
     <div className="mb-8 w-full space-y-6">
-      <div className="flex flex-col gap-4 p-1 sm:flex-row sm:items-start sm:justify-between sm:p-0">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Create Issuance Profile</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Start from a trusted template, then customize certificate policy, validity, and cryptographic controls.
-          </p>
-          <div className="max-w-xl pt-2">
-            <Stepper currentStep={view === 'template' ? 1 : 2} steps={["Choose Template", "Configure Profile"]} />
-          </div>
-        </div>
-        <Button variant="outline" onClick={() => router.push('/signing-profiles')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Issuance Profiles
-        </Button>
-      </div>
-
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           {view === 'template' ? (
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold">Select a starting template</h2>
-                <p className="text-sm text-muted-foreground">
-                  Choose a baseline profile for common PKI use cases, or start blank.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {templateMetadata.map(({ id, title, description, icon: Icon }) => {
-                  const isActive = selectedTemplateId === id;
+            <div className="flex flex-col gap-8 mb-12">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
+                onClick={() => router.push('/signing-profiles')}
+              >
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
+                Back to Issuance Profiles
+              </Button>
 
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => handleTemplateSelect(id)}
-                      className="text-left"
-                    >
-                      <Card
-                        className={`h-full border transition-all hover:border-primary/50 hover:shadow-md ${
-                          isActive ? 'border-primary ring-1 ring-primary/30' : ''
-                        }`}
+              <div className="flex flex-col items-center gap-10 py-4">
+                {/* Header */}
+                <div className="text-center space-y-3 max-w-lg">
+                  <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
+                    Issuance Profile
+                  </p>
+                  <h1 className="text-3xl font-headline font-bold tracking-tight">
+                    Create Issuance Profile
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Start from a trusted template, then customize certificate policy, validity, and cryptographic controls.
+                  </p>
+                </div>
+
+                {/* Template cards — single row */}
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 w-full max-w-7xl">
+                  {templateMetadata.map(({ id, title, description, icon: Icon }, i) => {
+                    const isSelected = selectedTemplateId === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setSelectedTemplateId(id)}
+                        className={cn(
+                          "group relative flex flex-col gap-6 rounded-xl border-2 p-8 text-left",
+                          "transition-all duration-200 outline-none",
+                          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                          isSelected
+                            ? "border-primary bg-primary/[0.03] shadow-md shadow-primary/10"
+                            : "border-border bg-card hover:border-primary/35 hover:bg-muted/20 hover:shadow-sm"
+                        )}
                       >
-                        <CardHeader className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="rounded-md bg-muted p-2">
-                                <Icon className="h-5 w-5 text-primary" />
-                              </div>
-                              <CardTitle className="text-base">{title}</CardTitle>
-                            </div>
-                            {isActive ? <Badge variant="default">Selected</Badge> : null}
+                        {/* Number + check indicator */}
+                        <div className="flex items-center justify-between">
+                          <span className={cn(
+                            "font-mono text-[11px] font-bold tracking-widest transition-colors",
+                            isSelected ? "text-primary" : "text-muted-foreground/50"
+                          )}>
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          <div className={cn(
+                            "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200",
+                            isSelected ? "border-primary bg-primary" : "border-muted-foreground/25"
+                          )}>
+                            {isSelected && (
+                              <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="shrink-0">
+                                <path d="M1 3L3.5 5.5L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
                           </div>
-                          <CardDescription className="text-xs">{description}</CardDescription>
-                        </CardHeader>
-                      </Card>
-                    </button>
-                  );
-                })}
+                        </div>
+
+                        {/* Icon */}
+                        <div className={cn(
+                          "flex h-12 w-12 items-center justify-center rounded-xl border transition-all duration-200",
+                          isSelected
+                            ? "border-primary/20 bg-primary/10"
+                            : "border-border bg-muted/50 group-hover:border-primary/20 group-hover:bg-primary/5"
+                        )}>
+                          <Icon className={cn(
+                            "h-6 w-6 transition-colors duration-200",
+                            isSelected ? "text-primary" : "text-muted-foreground group-hover:text-primary/70"
+                          )} />
+                        </div>
+
+                        {/* Text */}
+                        <div className="space-y-2">
+                          <p className={cn(
+                            "font-semibold text-sm leading-snug transition-colors",
+                            isSelected ? "text-foreground" : "text-foreground/80"
+                          )}>
+                            {title}
+                          </p>
+                          <p className="text-xs leading-relaxed text-muted-foreground">
+                            {description}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Continue */}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleTemplateSelect(selectedTemplateId)}
+                  className="min-w-[140px]"
+                >
+                  Continue
+                  <ChevronRight className="ml-1.5 h-4 w-4" />
+                </Button>
               </div>
-            </section>
+            </div>
           ) : (
             <SplitPanelLayout
               isPanelOpen
@@ -205,19 +256,19 @@ export default function CreateSigningProfilePage() {
               }
             >
               <div className="space-y-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-semibold">Profile Configuration</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Define rules for certificate issuance, subject handling, and key policy.
-                    </p>
-                  </div>
-                  <Button type="button" variant="ghost" onClick={() => setView('template')}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Change Template
+                <div className="flex justify-end">
+                  <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => setView('template')}>
+                    <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Change Template
                   </Button>
                 </div>
+                <div className="pb-8 border-b">
+                  <h1 className="text-2xl font-bold">Profile Configuration</h1>
+                  <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+                    Define rules for certificate issuance, subject handling, and key policy.
+                  </p>
+                </div>
 
-                <SigningProfileForm form={form} sectionAsCards />
+                <SigningProfileForm form={form} />
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => router.push('/signing-profiles')}>

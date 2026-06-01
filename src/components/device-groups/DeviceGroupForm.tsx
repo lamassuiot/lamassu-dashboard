@@ -1,16 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import { sileo } from '@/lib/toast';
 import { AlertCircle, AlertTriangle, Save, X, Users, Loader2 } from 'lucide-react';
-import { SectionHeader } from '@/components/shared/FormComponents';
 import {
   createDeviceGroup,
   updateDeviceGroup,
@@ -37,6 +36,26 @@ import { ParentGroupSelector } from './ParentGroupSelector';
 interface DeviceGroupFormProps {
   mode: 'create' | 'edit';
   existingGroup?: DeviceGroup;
+}
+
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-10 py-8 lg:grid-cols-3">
+      <div>
+        <p className="font-semibold">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="space-y-4 lg:col-span-2">{children}</div>
+    </div>
+  );
 }
 
 export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
@@ -183,15 +202,13 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-0">
       {/* Basic Information */}
-      <Card>
-        <SectionHeader
-          icon={Users}
-          title="Basic Information"
-          description="Define the group name, description, and parent hierarchy"
-        />
-        <CardContent className="space-y-4">
+      <FormSection
+        title="Basic Information"
+        description="Define the group name, description, and parent hierarchy."
+      >
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">
               Group Name <span className="text-destructive">*</span>
@@ -233,29 +250,38 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
             excludeGroupId={existingGroup?.id}
             error={errors.parentId}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
+      <Separator />
 
       {/* Filter Criteria */}
-      <FilterExpressionBuilder
-        criteria={criteria}
-        onChange={setCriteria}
-        error={errors.criteria}
-      />
+      <FormSection
+        title="Filter Criteria"
+        description="Define dynamic membership rules. All filters are combined with AND logic."
+      >
+        <FilterExpressionBuilder
+          criteria={criteria}
+          onChange={setCriteria}
+          error={errors.criteria}
+        />
+      </FormSection>
 
       {/* Preview Card */}
       {mode === 'edit' && existingGroup && (
-        <Card>
-          <SectionHeader icon={Users} title="Device Count" description="Current devices matching this group" />
-          <CardContent>
+        <>
+          <Separator />
+          <FormSection
+            title="Device Count"
+            description="Current devices matching this group."
+          >
             {isLoadingPreview ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Loading device count...</span>
               </div>
             ) : previewCount !== null ? (
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 p-3 bg-primary/10 rounded-full">
+              <div className="flex items-center gap-3 rounded-md border bg-muted/20 p-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10">
                   <Users className="h-5 w-5 text-primary" />
                 </div>
                 <div>
@@ -271,32 +297,36 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
                 <AlertDescription>
                   {criteria.length === 0
                     ? 'Add filter criteria to see matching device count'
-                    : 'Save the group to see matching device count'}
+                  : 'Save the group to see matching device count'}
                 </AlertDescription>
               </Alert>
             )}
-          </CardContent>
-        </Card>
+          </FormSection>
+        </>
       )}
 
-      {mode === 'create' && criteria.length > 0 && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Device count will be calculated after the group is created. The group will dynamically
-            include all devices matching the filter criteria.
-          </AlertDescription>
-        </Alert>
-      )}
+      <Separator />
 
-      {mode === 'create' && criteria.length === 0 && (
-        <Alert variant="warning">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            No filters defined. This group will match all devices. Add filters to narrow down membership.
-          </AlertDescription>
-        </Alert>
-      )}
+      <div className="space-y-4 py-8">
+        {mode === 'create' && criteria.length > 0 && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Device count will be calculated after the group is created. The group will dynamically
+              include all devices matching the filter criteria.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {mode === 'create' && criteria.length === 0 && (
+          <Alert variant="warning">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              No filters defined. This group will match all devices. Add filters to narrow down membership.
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
 
       {/* Form Actions */}
       <div className="flex justify-end gap-3 pt-4">

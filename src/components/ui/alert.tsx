@@ -11,11 +11,11 @@ const alertVariants = cva(
       variant: {
         default: "bg-card text-card-foreground",
         destructive:
-          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
+          "bg-red-50 text-red-900 border-red-300 *:data-[slot=alert-description]:text-red-800 dark:bg-card dark:text-destructive dark:border-border dark:*:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
         success:
-          "bg-card text-green-700 border-green-200 dark:text-green-400 dark:border-green-800 *:data-[slot=alert-description]:text-green-600/90 dark:*:data-[slot=alert-description]:text-green-400/90",
+          "bg-green-50 text-green-900 border-green-300 dark:bg-card dark:text-green-400 dark:border-green-800 *:data-[slot=alert-description]:text-green-800 dark:*:data-[slot=alert-description]:text-green-400/90",
         warning:
-          "bg-card text-yellow-700 border-yellow-200 dark:text-yellow-400 dark:border-yellow-800 *:data-[slot=alert-description]:text-yellow-600/90 dark:*:data-[slot=alert-description]:text-yellow-400/90",
+          "bg-yellow-50 text-yellow-900 border-yellow-300 dark:bg-card dark:text-yellow-400 dark:border-yellow-800 *:data-[slot=alert-description]:text-yellow-800 dark:*:data-[slot=alert-description]:text-yellow-400/90",
       },
     },
     defaultVariants: {
@@ -28,9 +28,9 @@ const alertTitleVariants = cva("font-medium group-has-[>svg]/alert:col-start-2 [
   variants: {
     variant: {
       default: "",
-      warning: "text-yellow-700 dark:text-yellow-400",
-      success: "text-green-700 dark:text-green-400",
-      destructive: "text-destructive",
+      warning: "text-yellow-900 dark:text-yellow-400",
+      success: "text-green-900 dark:text-green-400",
+      destructive: "text-red-900 dark:text-destructive",
     },
   },
   defaultVariants: {

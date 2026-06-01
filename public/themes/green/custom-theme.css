@@ -1,149 +1,186 @@
+/*
+  Lamassu IoT - Green / Ikerlan Theme (Tailwind v4 compatible)
+*/
+
 :root {
-    --header-height: 50px;
-    --secondary-logo-display: flex;
-    --secondary-logo-url: url('/themes/green/ikerlan.png');
+  --header-height: 50px;
+  --secondary-logo-display: flex;
+  --secondary-logo-url: url('/themes/green/ikerlan.png');
 }
+
+/* ------------------------- */
+/* --- LIGHT THEME (DAY) --- */
+/* ------------------------- */
 
 :root:not(.dark) {
-    /* IK-Theme Light Mode */
-    --background: 220 13% 96%;
-    /* #f2f4f7 - Light Gray */
-    --foreground: 224 71% 4%;
-    /* #080f1e - Nearly Black */
+  --background: hsl(220 13% 96%);
+  --foreground: hsl(224 71% 4%);
 
-    --card: 255 100% 100%;
-    /* #ffffff - White */
-    --card-foreground: 224 71% 4%;
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(224 71% 4%);
 
-    --popover: 255 100% 100%;
-    --popover-foreground: 224 71% 4%;
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(224 71% 4%);
 
-    --primary: 96 64% 59%;
-    /* #6cc24a - Ikerlan Green */
-    --primary-foreground: 224 71% 4%;
+  --primary: hsl(96 64% 59%);              /* #6cc24a Ikerlan Green */
+  --primary-foreground: hsl(224 71% 4%);
 
-    --secondary: 220 13% 92%;
-    /* #e9ebee */
-    --secondary-foreground: 224 71% 4%;
+  --secondary: hsl(220 13% 92%);
+  --secondary-foreground: hsl(224 71% 4%);
 
-    --muted: 220 13% 92%;
-    --muted-foreground: 220 9% 46%;
-    /* #6c757d */
+  --muted: hsl(220 13% 92%);
+  --muted-foreground: hsl(220 9% 46%);
 
-    --accent: 220 13% 88%;
-    /* #dadfe5 */
-    --accent-foreground: 224 71% 4%;
+  --accent: hsl(220 13% 88%);
+  --accent-foreground: hsl(224 71% 4%);
 
-    --destructive: 0 84% 60%;
-    /* #f83232 */
-    --destructive-foreground: 0 0% 98%;
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 98%);
 
-    --border: 220 13% 88%;
-    --input: 220 13% 94%;
-    /* #edf0f2 */
-    --ring: 96 64% 59%;
+  --border: hsl(220 13% 88%);
+  --input: hsl(220 13% 94%);
+  --ring: hsl(96 64% 59%);
 
-    --header-background: 255 100% 100%;
-    --header-foreground: 224 71% 4%;
+  --radius: 0.5rem;
 
-    --sidebar-background: 220 13% 96%;
-    --sidebar-foreground: 224 71% 4%;
-    --sidebar-primary: var(--primary);
-    --sidebar-primary-foreground: var(--primary-foreground);
-    --sidebar-accent: 220 13% 88%;
-    --sidebar-accent-foreground: 224 71% 4%;
-    --sidebar-border: 220 13% 88%;
+  /* Header — bare HSL triplet: used via hsl(var(--header-background)) in @theme */
+  --header-background: 255 100% 100%;
+  --header-foreground: 224 71% 4%;
+
+  /* Sidebar */
+  --sidebar: hsl(220 13% 96%);
+  --sidebar-background: 220 13% 96%;
+  --sidebar-foreground: hsl(224 71% 4%);
+  --sidebar-primary: hsl(96 64% 59%);
+  --sidebar-primary-foreground: hsl(224 71% 4%);
+  --sidebar-accent: hsl(220 13% 88%);
+  --sidebar-accent-foreground: hsl(224 71% 4%);
+  --sidebar-border: hsl(220 13% 88%);
+  --sidebar-ring: hsl(96 64% 59%);
+
+  /* Charts */
+  --chart-1: hsl(96 64% 59%);
+  --chart-2: hsl(150 70% 70%);
+  --chart-3: hsl(30 80% 55%);
+  --chart-4: hsl(0 70% 60%);
+  --chart-5: hsl(260 70% 70%);
 }
 
-.dark {
-    /* IK-Theme Dark Mode */
-    --background: 224 5% 10%;
-    /* #080f1e - Nearly Black */
-    --foreground: 0 0% 98%;
-    /* #fafafa - Near White */
+/* -------------------------- */
+/* --- DARK THEME (NIGHT) --- */
+/* -------------------------- */
 
-    --card: 220 13% 11%;
-    /* #1a1c20 */
-    --card-foreground: 0 0% 98%;
+:root.dark {
+  --background: hsl(224 5% 10%);
+  --foreground: hsl(0 0% 98%);
 
-    --popover: 224 71% 4%;
-    --popover-foreground: 0 0% 98%;
+  --card: hsl(220 13% 11%);
+  --card-foreground: hsl(0 0% 98%);
 
-    --primary: 96 64% 59%;
-    /* #6cc24a - Ikerlan Green */
-    --primary-foreground: 224 71% 4%;
+  --popover: hsl(224 71% 4%);
+  --popover-foreground: hsl(0 0% 98%);
 
-    --secondary: 220 13% 18%;
-    /* #282b30 */
-    --secondary-foreground: 0 0% 98%;
+  --primary: hsl(96 64% 59%);             /* #6cc24a Ikerlan Green */
+  --primary-foreground: hsl(224 71% 4%);
 
-    --muted: 220 13% 18%;
-    --muted-foreground: 220 9% 46%;
-    /* #6c757d */
+  --secondary: hsl(220 13% 18%);
+  --secondary-foreground: hsl(0 0% 98%);
 
-    --accent: 220 13% 24%;
-    /* #373a40 */
-    --accent-foreground: 0 0% 98%;
+  --muted: hsl(220 13% 18%);
+  --muted-foreground: hsl(220 9% 46%);
 
-    --destructive: 0 72% 51%;
-    /* #e5484d */
-    --destructive-foreground: 0 0% 98%;
+  --accent: hsl(220 13% 24%);
+  --accent-foreground: hsl(0 0% 98%);
 
-    --border: 220 13% 24%;
-    --input: 220 13% 18%;
-    --ring: 96 64% 59%;
+  --destructive: hsl(0 72% 51%);
+  --destructive-foreground: hsl(0 0% 98%);
 
-    --header-background: 224 71% 4%;
-    --header-foreground: 0 0% 98%;
+  --border: hsl(220 13% 24%);
+  --input: hsl(220 13% 18%);
+  --ring: hsl(96 64% 59%);
 
-    --sidebar-background: 224 71% 4%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: var(--primary);
-    --sidebar-primary-foreground: var(--primary-foreground);
-    --sidebar-accent: 220 13% 24%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 220 13% 24%;
+  /* Header — bare HSL triplet */
+  --header-background: 224 71% 4%;
+  --header-foreground: 0 0% 98%;
+
+  /* Sidebar */
+  --sidebar: hsl(224 71% 4%);
+  --sidebar-background: 224 71% 4%;
+  --sidebar-foreground: hsl(0 0% 98%);
+  --sidebar-primary: hsl(96 64% 59%);
+  --sidebar-primary-foreground: hsl(224 71% 4%);
+  --sidebar-accent: hsl(220 13% 24%);
+  --sidebar-accent-foreground: hsl(0 0% 98%);
+  --sidebar-border: hsl(220 13% 24%);
+  --sidebar-ring: hsl(96 64% 59%);
+
+  /* Charts */
+  --chart-1: hsl(96 64% 59%);
+  --chart-2: hsl(150 70% 65%);
+  --chart-3: hsl(30 80% 60%);
+  --chart-4: hsl(0 70% 65%);
+  --chart-5: hsl(260 70% 75%);
+
+  /* Direct Tailwind color token overrides — bypasses compiled dark mode values */
+  --color-background: hsl(224 5% 10%);
+  --color-foreground: hsl(0 0% 98%);
+  --color-card: hsl(220 13% 11%);
+  --color-card-foreground: hsl(0 0% 98%);
+  --color-popover: hsl(224 71% 4%);
+  --color-popover-foreground: hsl(0 0% 98%);
+  --color-primary: hsl(96 64% 59%);
+  --color-primary-foreground: hsl(224 71% 4%);
+  --color-secondary: hsl(220 13% 18%);
+  --color-secondary-foreground: hsl(0 0% 98%);
+  --color-muted: hsl(220 13% 18%);
+  --color-muted-foreground: hsl(220 9% 46%);
+  --color-accent: hsl(220 13% 24%);
+  --color-accent-foreground: hsl(0 0% 98%);
+  --color-destructive: hsl(0 72% 51%);
+  --color-border: hsl(220 13% 24%);
+  --color-input: hsl(220 13% 18%);
+  --color-ring: hsl(96 64% 59%);
+  --color-sidebar: hsl(224 71% 4%);
+  --color-sidebar-foreground: hsl(0 0% 98%);
+  --color-sidebar-primary: hsl(96 64% 59%);
+  --color-sidebar-primary-foreground: hsl(224 71% 4%);
+  --color-sidebar-accent: hsl(220 13% 24%);
+  --color-sidebar-accent-foreground: hsl(0 0% 98%);
+  --color-sidebar-border: hsl(220 13% 24%);
+  --color-sidebar-ring: hsl(96 64% 59%);
 }
 
 /* Light theme specific logo color */
 header img[alt="LamassuIoT Logo"] {
-    filter: invert(1) brightness(0) sepia(1) saturate(0) hue-rotate(0deg) brightness(0.2);
-    height: 1.5rem;
+  filter: invert(1) brightness(0) sepia(1) saturate(0) hue-rotate(0deg) brightness(0.2);
+  height: 1.5rem;
 }
 
-/* Dark theme specific logo color */
 .dark header img[alt="LamassuIoT Logo"] {
-    filter: none;
+  filter: none;
 }
 
 .lamassu-logo-theme-filter {
-    /* For light theme: change SVG to #6cc24a (green) */
-    filter: invert(66%) sepia(24%) saturate(1102%) hue-rotate(61deg) brightness(92%) contrast(92%);
+  /* For light theme: change SVG to #6cc24a (green) */
+  filter: invert(66%) sepia(24%) saturate(1102%) hue-rotate(61deg) brightness(92%) contrast(92%);
 }
 
 .dark header .secondary-logo {
-    filter: grayscale(1) invert(1);
+  filter: grayscale(1) invert(1);
 }
 
 .dark header .tertiary-logo {
-    filter: grayscale(1) invert(1);
+  filter: grayscale(1) invert(1);
 }
 
-/* Inject LKS logo next to Ikerlan logo using CSS */
-header {
-    position: relative;
-}
-
-/* Dark theme filter for injected LKS logo */
 .dark header .secondary-logo::after {
-    filter: grayscale(1) invert(1);
+  filter: grayscale(1) invert(1);
 }
 
-/* Dark theme specific logo color */
 .dark header button svg {
-    color: white;
+  color: white;
 }
 
 .secondary-logo {
-    aspect-ratio: 200 / 40;
+  aspect-ratio: 200 / 40;
 }

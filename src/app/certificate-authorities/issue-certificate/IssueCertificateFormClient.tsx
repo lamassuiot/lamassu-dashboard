@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowLeft, Loader2, AlertTriangle, Copy, Check, CheckCircle2, Download as DownloadIcon, X as XIcon, KeyRound, FileText, ChevronRight, UploadCloud } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sileo } from '@/lib/toast';
@@ -496,48 +497,122 @@ export default function IssueCertificateFormClient() {
   // --- Mode selection screen ---
   if (!issuanceModeSelected) {
     return (
-      <div className="w-full space-y-8 mb-8">
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authority
+      <div className="w-full flex flex-col gap-8 mb-12">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
+          onClick={() => router.back()}
+        >
+          <ArrowLeft className="mr-1.5 h-4 w-4" />
+          Back to Certification Authority
         </Button>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-headline font-semibold">Issue New Certificate</h1>
-          <p className="text-sm text-muted-foreground">
-            Issuing from:{' '}
-            {isLoadingCa
-              ? <Skeleton className="h-4 w-[160px] inline-block align-middle" />
-              : <span className="font-mono">{issuerCa?.name || caId.substring(0, 12) + '...'}</span>
-            }
-          </p>
-          <p className="text-muted-foreground pt-1">Choose how you want to provide the certificate request.</p>
-        </div>
-        <Card className="mx-auto max-w-4xl overflow-hidden rounded-xl shadow-sm">
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {issuanceModes.map((mode) => (
+
+        <div className="flex flex-col items-center gap-10 py-4">
+          {/* Header */}
+          <div className="text-center space-y-3 max-w-md">
+            <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
+              Certificate Issuance
+            </p>
+            <h1 className="text-3xl font-headline font-bold tracking-tight">
+              Issue New Certificate
+            </h1>
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <span>Issuing from</span>
+              {isLoadingCa ? (
+                <Skeleton className="h-5 w-28 inline-block rounded" />
+              ) : (
+                <code className="font-mono text-foreground/90 bg-muted border border-border/60 rounded px-2 py-0.5 text-xs">
+                  {issuerCa?.name || caId.substring(0, 12) + '…'}
+                </code>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              How would you like to provide the certificate request?
+            </p>
+          </div>
+
+          {/* Option cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
+            {issuanceModes.map((mode, i) => {
+              const isSelected = issuanceMode === mode.id;
+              return (
                 <button
                   key={mode.id}
                   type="button"
-                  onClick={() => { setIssuanceMode(mode.id); setIssuanceModeSelected(true); }}
-                  className="flex w-full items-start gap-4 px-6 py-5 text-left transition-colors cursor-pointer hover:bg-muted/30"
+                  onClick={() => setIssuanceMode(mode.id)}
+                  className={cn(
+                    "group relative flex flex-col gap-6 rounded-xl border-2 p-7 text-left",
+                    "transition-all duration-200 outline-none",
+                    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    isSelected
+                      ? "border-primary bg-primary/[0.03] shadow-md shadow-primary/10"
+                      : "border-border bg-card hover:border-primary/35 hover:bg-muted/20 hover:shadow-sm"
+                  )}
                 >
-                  <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5">
+                  {/* Number + check indicator */}
+                  <div className="flex items-center justify-between">
+                    <span className={cn(
+                      "font-mono text-[11px] font-bold tracking-widest transition-colors",
+                      isSelected ? "text-primary" : "text-muted-foreground/50"
+                    )}>
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <div className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200",
+                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/25"
+                    )}>
+                      {isSelected && (
+                        <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="shrink-0">
+                          <path d="M1 3L3.5 5.5L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Icon */}
+                  <div className={cn(
+                    "flex h-12 w-12 items-center justify-center rounded-xl border transition-all duration-200",
+                    isSelected
+                      ? "border-primary/20 bg-primary/10"
+                      : "border-border bg-muted/50 group-hover:border-primary/20 group-hover:bg-primary/5"
+                  )}>
                     {React.cloneElement(mode.icon as React.ReactElement<{ className?: string }>, {
-                      className: "h-5 w-5 text-primary",
+                      className: cn(
+                        "h-6 w-6 transition-colors duration-200",
+                        isSelected ? "text-primary" : "text-muted-foreground group-hover:text-primary/70"
+                      ),
                     })}
                   </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <span className="font-semibold text-foreground">{mode.title}</span>
-                    <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{mode.description}</p>
-                  </div>
-                  <div className="mt-1 flex flex-shrink-0 items-center">
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+
+                  {/* Text */}
+                  <div className="space-y-2">
+                    <p className={cn(
+                      "font-semibold text-sm leading-snug transition-colors",
+                      isSelected ? "text-foreground" : "text-foreground/80"
+                    )}>
+                      {mode.title}
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {mode.description}
+                    </p>
                   </div>
                 </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              );
+            })}
+          </div>
+
+          {/* Continue */}
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setIssuanceModeSelected(true)}
+            className="min-w-[140px]"
+          >
+            Continue
+            <ChevronRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        </div>
       </div>
     );
   }

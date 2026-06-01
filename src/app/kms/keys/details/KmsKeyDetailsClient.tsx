@@ -848,7 +848,7 @@ export default function KmsKeyDetailsClient() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <div className="border-b overflow-x-auto">
+        <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className="h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
             {([
               { value: 'overview',      icon: Info,          label: 'Overview' },

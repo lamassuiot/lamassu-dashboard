@@ -343,7 +343,7 @@ echo "signature result (base64 encoded): $(cat signature.bin | base64 -w 0)"
 
             {/* Tool tabs */}
             <Tabs defaultValue="openssl" className="w-full">
-                <div className="border-b overflow-x-auto">
+                <div className="border-b overflow-x-auto overflow-y-hidden">
                     <TabsList className="h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
                         <TabsTrigger value="openssl" className={pageTabsTriggerClass}>OpenSSL</TabsTrigger>
                         <TabsTrigger value="pkcs11" className={pageTabsTriggerClass}>PKCS11-Tool</TabsTrigger>

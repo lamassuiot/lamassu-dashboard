@@ -55,6 +55,7 @@ export default function CreateKmsKeyPage() {
   const monacoTheme = useMonacoTheme();
   const router = useRouter();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
+  const [pendingMode, setPendingMode] = useState<string>(creationModes[0].id);
 
   const [keyName, setKeyName] = useState('');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
@@ -271,60 +272,135 @@ export default function CreateKmsKeyPage() {
 
   if (!selectedMode) {
     return (
-      <div className="w-full space-y-8 mb-8">
-        <Button variant="outline" onClick={() => router.push('/kms/keys')} className="mb-0">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
+      <div className="w-full flex flex-col gap-8 mb-12">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
+          onClick={() => router.push('/kms/keys')}
+        >
+          <ArrowLeft className="mr-1.5 h-4 w-4" />
+          Back to KMS Keys
         </Button>
-        <div className="mx-auto max-w-4xl space-y-2 text-center">
-          <h1 className="text-3xl font-headline font-semibold">Choose Key Creation Method</h1>
-          <p className="text-muted-foreground">Select how you want to create or import your cryptographic key.</p>
-        </div>
-        <Card className="mx-auto max-w-4xl overflow-hidden rounded-xl shadow-sm">
-          <CardContent className='p-0'>
-            <div className="divide-y">
-              {creationModes.map((mode) => {
-                const isDisabled = !!mode.badge;
-                const icon = React.isValidElement(mode.icon)
-                  ? React.cloneElement(mode.icon as React.ReactElement<{ className?: string }>, {
-                      className: cn("h-5 w-5", isDisabled ? "text-muted-foreground" : "text-primary"),
-                    })
-                  : mode.icon;
 
-                return (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    disabled={isDisabled}
-                    onClick={() => setSelectedMode(mode.id)}
-                    className={cn(
-                      "flex w-full items-start gap-4 px-6 py-5 text-left transition-colors",
-                      isDisabled ? "cursor-not-allowed bg-muted/20 text-muted-foreground" : "cursor-pointer hover:bg-muted/30"
-                    )}
-                  >
-                    <div className={cn(
-                      "mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border",
-                      isDisabled ? "border-border bg-muted text-muted-foreground" : "border-primary/20 bg-primary/5"
+        <div className="flex flex-col items-center gap-10 py-4">
+          {/* Header */}
+          <div className="text-center space-y-3 max-w-md">
+            <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
+              Key Management
+            </p>
+            <h1 className="text-3xl font-headline font-bold tracking-tight">
+              Add Cryptographic Key
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Select how you want to create or import your cryptographic key.
+            </p>
+          </div>
+
+          {/* Option cards — single row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-7xl">
+            {creationModes.map((mode, i) => {
+              const isDisabled = !!mode.badge;
+              const isSelected = pendingMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => !isDisabled && setPendingMode(mode.id)}
+                  className={cn(
+                    "group relative flex flex-col gap-6 rounded-xl border-2 p-8 text-left",
+                    "transition-all duration-200 outline-none",
+                    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    isDisabled
+                      ? "cursor-not-allowed border-border bg-muted/20 opacity-60"
+                      : isSelected
+                        ? "border-primary bg-primary/[0.03] shadow-md shadow-primary/10"
+                        : "border-border bg-card hover:border-primary/35 hover:bg-muted/20 hover:shadow-sm"
+                  )}
+                >
+                  {/* Number + check indicator */}
+                  <div className="flex items-center justify-between">
+                    <span className={cn(
+                      "font-mono text-[11px] font-bold tracking-widest transition-colors",
+                      isDisabled ? "text-muted-foreground/30" : isSelected ? "text-primary" : "text-muted-foreground/50"
                     )}>
-                      {icon}
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn("font-semibold", isDisabled ? "text-muted-foreground" : "text-foreground")}>
-                          {mode.title}
-                        </span>
-                        {mode.badge && <Badge variant="secondary">{mode.badge}</Badge>}
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    {isDisabled ? (
+                      <Badge variant="secondary" className="text-[10px] font-medium py-0 px-1.5 h-[18px] rounded-sm">
+                        {mode.badge}
+                      </Badge>
+                    ) : (
+                      <div className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200",
+                        isSelected ? "border-primary bg-primary" : "border-muted-foreground/25"
+                      )}>
+                        {isSelected && (
+                          <svg width="9" height="7" viewBox="0 0 9 7" fill="none" className="shrink-0">
+                            <path d="M1 3L3.5 5.5L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
                       </div>
-                      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{mode.description}</p>
+                    )}
+                  </div>
+
+                  {/* Icon */}
+                  <div className={cn(
+                    "flex h-12 w-12 items-center justify-center rounded-xl border transition-all duration-200",
+                    isDisabled
+                      ? "border-border bg-muted/50"
+                      : isSelected
+                        ? "border-primary/20 bg-primary/10"
+                        : "border-border bg-muted/50 group-hover:border-primary/20 group-hover:bg-primary/5"
+                  )}>
+                    {React.cloneElement(mode.icon as React.ReactElement<{ className?: string }>, {
+                      className: cn(
+                        "h-6 w-6 transition-colors duration-200",
+                        isDisabled
+                          ? "text-muted-foreground/40"
+                          : isSelected
+                            ? "text-primary"
+                            : "text-muted-foreground group-hover:text-primary/70"
+                      ),
+                    })}
+                  </div>
+
+                  {/* Text */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <p className={cn(
+                        "font-semibold text-sm leading-snug transition-colors",
+                        isDisabled ? "text-muted-foreground/50" : isSelected ? "text-foreground" : "text-foreground/80"
+                      )}>
+                        {mode.title}
+                      </p>
+                      {i === 0 && (
+                        <Badge className="text-[10px] font-medium py-0 px-1.5 h-[18px] rounded-sm">
+                          Recommended
+                        </Badge>
+                      )}
                     </div>
-                    <div className="mt-1 flex flex-shrink-0 items-center">
-                      {!isDisabled && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {mode.description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Continue */}
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setSelectedMode(pendingMode)}
+            className="min-w-[140px]"
+          >
+            Continue
+            <ChevronRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        </div>
       </div>
     );
   }

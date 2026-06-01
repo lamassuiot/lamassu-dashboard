@@ -112,7 +112,7 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
           ) : null}
         </div>
 
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
+        <div className="flex h-4 w-4 shrink-0 items-center justify-center">
           {iconNode}
         </div>
 

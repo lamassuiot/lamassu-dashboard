@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
-import { Info, KeyRound, Lock, Link as LinkIcon, Network, Users, AlertCircle, Pencil, X, Check, ChevronRight, ExternalLink } from "lucide-react";
+import { Users, AlertCircle, Pencil, X, Check, ChevronRight, ExternalLink } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,6 @@ import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { revocationReasons } from '@/lib/revocation-reasons';
 import { IssuanceChainVisualizer } from '@/components/shared/IssuanceChainVisualizer';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
-import { DetailSectionCard } from '@/components/shared/DetailSectionCard';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
@@ -390,11 +389,11 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
       (certDetails.caIssuersUrls && certDetails.caIssuersUrls.length > 0);
 
     return (
-      <div className="space-y-6">
+      <div>
 
         {/* Revocation alert */}
         {certDetails.apiStatus?.toLowerCase() === 'revoked' && certDetails.revocationTimestamp && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Certificate Revoked</AlertTitle>
             <AlertDescription className="mt-2 space-y-1.5 text-sm">
@@ -412,13 +411,12 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-          <DetailSectionCard
-            icon={Info}
-            title="General Information"
-            description="Identity, issuer, validity period, and serial details for this certificate."
-          >
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+          <div>
+            <p className="font-semibold">General Information</p>
+            <p className="text-sm text-muted-foreground mt-1">Identity, issuer, validity period, and serial details for this certificate.</p>
+          </div>
+          <div className="lg:col-span-2">
             <DetailInfoRows>
               <DetailInfoRow label="Subject" value={certDetails.subject} className="first:pt-0" />
               <DetailInfoRow label="Issuer" value={certDetails.issuer} />
@@ -426,13 +424,17 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString={getDisplayDateFormat()} />} />
               <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString={getDisplayDateFormat()} highlightExpired />} className="last:pb-0" />
             </DetailInfoRows>
-          </DetailSectionCard>
+          </div>
+        </div>
 
-          <DetailSectionCard
-            icon={KeyRound}
-            title="Key & Signature"
-            description="Algorithm details, fingerprint material, and issuer key identifiers."
-          >
+        <Separator />
+
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+          <div>
+            <p className="font-semibold">Key & Signature</p>
+            <p className="text-sm text-muted-foreground mt-1">Algorithm details, fingerprint material, and issuer key identifiers.</p>
+          </div>
+          <div className="lg:col-span-2">
             <DetailInfoRows>
               <DetailInfoRow label="Public Key Algorithm" value={certDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
               <DetailInfoRow label="Signature Algorithm" value={certDetails.signatureAlgorithm || 'N/A'} />
@@ -468,17 +470,20 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 className="last:pb-0"
               />
             </DetailInfoRows>
-          </DetailSectionCard>
+          </div>
+        </div>
 
+        <Separator />
+
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+          <div>
+            <p className="font-semibold">Certificate Extensions</p>
+            <p className="text-sm text-muted-foreground mt-1">Alternative names and intended usages defined in the certificate.</p>
+          </div>
           <div className="lg:col-span-2">
-            <DetailSectionCard
-              icon={Lock}
-              title="Certificate Extensions"
-              description="Alternative names and intended usages defined in the certificate."
-            >
-              <DetailInfoRows>
-                <DetailInfoRow
-                  label="Subject Alternative Names"
+            <DetailInfoRows>
+              <DetailInfoRow
+                label="Subject Alternative Names"
                   className="first:pt-0"
                   value={
                     certDetails.sans && certDetails.sans.length > 0 ? (
@@ -501,41 +506,49 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   }
                 />
               </DetailInfoRows>
-            </DetailSectionCard>
           </div>
         </div>
 
         {hasDistribution && (
-          <DetailSectionCard
-            icon={LinkIcon}
-            title="Distribution Points"
-            description="Published CRL, OCSP, and issuer endpoints for this certificate."
-            contentClassName="space-y-4"
-          >
-            <div className="space-y-4">
-              <UrlChips urls={certDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
-              <UrlChips urls={certDetails.ocspUrls} label="OCSP Responders" />
-              <UrlChips urls={certDetails.caIssuersUrls} label="CA Issuers (AIA)" />
+          <>
+            <Separator />
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+              <div>
+                <p className="font-semibold">Distribution Points</p>
+                <p className="text-sm text-muted-foreground mt-1">Published CRL, OCSP, and issuer endpoints for this certificate.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <div className="space-y-4">
+                  <UrlChips urls={certDetails.crlDistributionPoints} label="CRL Distribution Points (CDP)" />
+                  <UrlChips urls={certDetails.ocspUrls} label="OCSP Responders" />
+                  <UrlChips urls={certDetails.caIssuersUrls} label="CA Issuers (AIA)" />
+                </div>
+              </div>
             </div>
-          </DetailSectionCard>
+          </>
         )}
 
         {certificateSpecific.certificateChainForVisualizer && (
-          <DetailSectionCard
-            icon={Network}
-            title="Issuance Chain"
-            description="Trust path from this certificate to its issuing authorities."
-          >
-            <IssuanceChainVisualizer
-              certificateChain={certificateSpecific.certificateChainForVisualizer}
-              currentCertificate={{
-                subject: certDetails.subject,
-                statusBadgeVariant: certificateSpecific.statusBadgeVariant,
-                statusBadgeClass: certificateSpecific.statusBadgeClass,
-                statusText: certificateSpecific.apiStatusText,
-              }}
-            />
-          </DetailSectionCard>
+          <>
+            <Separator />
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+              <div>
+                <p className="font-semibold">Issuance Chain</p>
+                <p className="text-sm text-muted-foreground mt-1">Trust path from this certificate to its issuing authorities.</p>
+              </div>
+              <div className="lg:col-span-2">
+                <IssuanceChainVisualizer
+                  certificateChain={certificateSpecific.certificateChainForVisualizer}
+                  currentCertificate={{
+                    subject: certDetails.subject,
+                    statusBadgeVariant: certificateSpecific.statusBadgeVariant,
+                    statusBadgeClass: certificateSpecific.statusBadgeClass,
+                    statusText: certificateSpecific.apiStatusText,
+                  }}
+                />
+              </div>
+            </div>
+          </>
         )}
       </div>
     );
