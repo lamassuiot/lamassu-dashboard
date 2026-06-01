@@ -203,6 +203,7 @@ export function ChatbotWidget() {
         onClick={() => setIsOpen(prev => !prev)}
         className={cn(
           'fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg',
+          'ring-2 ring-white ring-offset-1 ring-offset-primary',
           'transition-transform duration-200',
           isOpen ? 'scale-90' : 'scale-100 hover:scale-105',
         )}
