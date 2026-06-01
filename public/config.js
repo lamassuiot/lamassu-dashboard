@@ -1,55 +1,19 @@
 // public/config.js
-
-/**
- * This file is intended to be used for runtime configuration of the Lamassu UI.
- * It will be loaded by a <script> tag in the main HTML document, making the `lamassuConfig`
- * object available on the `window` object.
- *
- * This allows for easy configuration in different environments (dev, staging, prod)
- * without needing to rebuild the Next.js application. This is particularly useful
- * for containerized deployments (e.g., Docker) where you can mount a different
- * `config.js` file for each environment.
- *
- * Example:
- * You can set these values based on environment variables when your container starts.
- */
 window.lamassuConfig = {
     // --- Core API Endpoint ---
-    // The base URL for all backend API services (CA, DMS, DevManager, etc.).
-    // This should be the root of your API gateway or load balancer.
-    // Example: "https://api.yourdomain.com"    
-    LAMASSU_API: "https://demo-api.lamassu.cloud",
+    // Routes through the local Next.js proxy to avoid CORS in dev
+    LAMASSU_API: "/api/lamassu",
 
-    // --- Authentication (OIDC) ---
-    // Set to false to skip OIDC and use a mock user (dev/testing only)
-    LAMASSU_AUTH_ENABLED: false,
-    // LAMASSU_AUTH_AUTHORITY: "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_d2VFzoHA2",
-    // LAMASSU_AUTH_CLIENT_ID: "2sskv9h3clq7ctls2sg7u4grlk",
-      
+    // --- Authentication (OIDC / Cognito) ---
+    LAMASSU_AUTH_ENABLED: true,
+    LAMASSU_AUTH_AUTHORITY: "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_d2VFzoHA2",
+    LAMASSU_AUTH_CLIENT_ID: "2sskv9h3clq7ctls2sg7u4grlk",
+
     // --- UI Customization ---
-    // Set to true to enable loading of a custom footer from /public/footer.html
     LAMASSU_FOOTER_ENABLED: false,
-
-    // Default position for sileo notifications.
     TOAST_POSITION: "top-center",
-
-    // Date format used throughout the UI (date-fns format string).
-    // Default: "dd/MM/yyyy HH:mm"
     DISPLAY_DATE_FORMAT: "dd/MM/yyyy HH:mm",
-
-    // Date+time format used when the "Display Time" option is enabled.
-    // Default: "dd/MM/yyyy HH:mm:ss"
     DISPLAY_DATE_AND_TIME_FORMAT: "dd/MM/yyyy HH:mm:ss",
-  
-    // A comma-separated list of available connector instances for platform integrations.
-    // This allows the UI to present a list of possible integrations to the user.
-    // Example: "aws.123456789012.eu-west-1,aws.987654321098.us-east-1"
-    LAMASSU_CONNECTORS: [
-      "aws.1010101010.eu-west-1"
-    ],
 
-    // --- Mattin AI Chatbot ---
-    MATTIN_API_KEY: "RPeES08KlbHQx9UQCZg3NeWZ1xoVzyFc",
-    MATTIN_AGENT_URL: "https://mattin.lksnext.com/public/v1/app/13/chat/31/call"
-  };
-  
+    // Mattin AI config is server-side only (.env.local) — not needed here
+};
