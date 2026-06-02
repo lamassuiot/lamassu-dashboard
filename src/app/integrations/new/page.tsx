@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Loader2, Network } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, PlusCircle, Loader2, AlertTriangle } from "lucide-react";
 import { useConfig } from '@/contexts/ConfigContext';
 import { sileo } from '@/lib/toast';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { fetchRaById, updateRaMetadata } from '@/lib/dms-api';
 import { DmsSelector } from '@/components/shared/DmsSelector';
 
@@ -23,13 +24,11 @@ export default function CreateIntegrationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // Load connectors from config when available
     if (config) {
       const configConnectors = config.LAMASSU_CONNECTORS;
       if (Array.isArray(configConnectors)) {
         setConnectors(configConnectors);
       } else {
-        // Fallback to environment variable
         const envConnectors = process.env.NEXT_PUBLIC_CONNECTORS;
         if (typeof envConnectors === 'string') {
           setConnectors(envConnectors.split(',').map(c => c.trim()));
@@ -44,7 +43,7 @@ export default function CreateIntegrationPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedRaId || !selectedConnectorId ) {
+    if (!selectedRaId || !selectedConnectorId) {
       sileo.error({ title: "Validation Error", description: "Please select a Registration Authority and a Connector." });
       return;
     }
@@ -52,12 +51,8 @@ export default function CreateIntegrationPage() {
     setIsSubmitting(true);
 
     try {
-      // Fetch the full RA data to check existing metadata
       const selectedRa = await fetchRaById(selectedRaId);
-
-      // The key for the new integration in the metadata
       const newIntegrationKey = `lamassu.io/iot/${selectedConnectorId}`;
-      
       const existingMetadata = selectedRa.metadata || {};
 
       if (existingMetadata[newIntegrationKey]) {
@@ -65,11 +60,10 @@ export default function CreateIntegrationPage() {
           setIsSubmitting(false);
           return;
       }
-      
-      // Add an empty object for the new integration. Configuration will be done later.
+
       const updatedMetadata = {
         ...existingMetadata,
-        [newIntegrationKey]: {}, 
+        [newIntegrationKey]: {},
       };
 
       await updateRaMetadata(selectedRaId, updatedMetadata);
@@ -88,52 +82,96 @@ export default function CreateIntegrationPage() {
   };
 
   return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.back()}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back
-      </Button>
-
-      <div className="flex items-center space-x-3">
-        <Network className="h-8 w-8 text-primary" />
-        <h1 className="text-2xl font-headline font-semibold">
-          Register New Platform Integration
-        </h1>
+    <div className="mx-auto w-[80%] pb-8">
+      <div className="mb-6 flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push('/integrations')}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to Integrations
+        </Button>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Register Integration</CardTitle>
-            <CardDescription>Select a Registration Authority and the Connector you want to register. Configuration will be done in a separate step.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-              <div className="space-y-2">
-                  <Label htmlFor="ra-select">Registration Authority</Label>
-                  <DmsSelector
-                    value={selectedRaId}
-                    onChange={handleDmsChange}
-                    disabled={isSubmitting}
-                    showAllOption={false}
-                    placeholder="Select an RA to add an integration to..."
-                  />
+      <div className="mb-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Register New Integration</h1>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          Select a Registration Authority and connector to create the integration record. Configuration happens after registration.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-0">
+        <div className="grid grid-cols-1 gap-10 py-8 lg:grid-cols-3">
+          <div>
+            <p className="font-semibold">Registration Target</p>
+            <p className="mt-1 text-sm text-muted-foreground">Choose the Registration Authority that will hold the integration metadata and own later configuration updates.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="ra-select">Registration Authority</Label>
+              <DmsSelector
+                value={selectedRaId}
+                onChange={handleDmsChange}
+                disabled={isSubmitting}
+                selectedDisplay="stacked"
+                showAllOption={false}
+                placeholder="Select an RA to add an integration to..."
+                className="min-h-10"
+              />
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="grid grid-cols-1 gap-10 py-8 lg:grid-cols-3">
+          <div>
+            <p className="font-semibold">Connector Selection</p>
+            <p className="mt-1 text-sm text-muted-foreground">Choose which connector metadata key should be added to the selected Registration Authority.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            {connectors.length === 0 ? (
+              <Alert variant="warning">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>No Connectors Available</AlertTitle>
+                <AlertDescription>No connector IDs were found in the current dashboard configuration.</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="connector-select">Connector</Label>
+              <Select value={selectedConnectorId} onValueChange={setSelectedConnectorId} disabled={isSubmitting || connectors.length === 0}>
+                <SelectTrigger id="connector-select">
+                  <SelectValue placeholder="Select a connector type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {connectors.map((connectorId) => (
+                    <SelectItem key={connectorId} value={connectorId}>{connectorId}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedConnectorId ? (
+              <div className="rounded-md border p-3">
+                <p className="text-sm font-medium">Metadata Key</p>
+                <code className="mt-2 inline-flex rounded border bg-muted px-2 py-1 font-mono text-xs">
+                  lamassu.io/iot/{selectedConnectorId}
+                </code>
               </div>
-              <div className="space-y-2">
-                  <Label htmlFor="connector-select">Connector</Label>
-                  <Select value={selectedConnectorId} onValueChange={setSelectedConnectorId} disabled={isSubmitting}>
-                      <SelectTrigger id="connector-select"><SelectValue placeholder="Select a connector type..."/></SelectTrigger>
-                      <SelectContent>
-                          {connectors.map(connectorId => <SelectItem key={connectorId} value={connectorId}>{connectorId}</SelectItem>)}
-                      </SelectContent>
-                  </Select>
-              </div>
-          </CardContent>
-           <CardFooter className="flex justify-end pt-4">
-              <Button type="submit" size="lg" disabled={isSubmitting || !selectedRaId || !selectedConnectorId}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
-                {isSubmitting ? 'Registering...' : 'Register Integration'}
-              </Button>
-            </CardFooter>
-        </Card>
+            ) : null}
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="flex justify-end py-6">
+          <Button type="submit" disabled={isSubmitting || !selectedRaId || !selectedConnectorId || connectors.length === 0}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+            {isSubmitting ? 'Registering...' : 'Register Integration'}
+          </Button>
+        </div>
       </form>
     </div>
   );

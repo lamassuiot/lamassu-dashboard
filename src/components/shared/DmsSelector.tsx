@@ -25,6 +25,7 @@ interface DmsSelectorProps {
   onChange: (value: string | null, dms?: DmsOption) => void;
   disabled?: boolean;
   className?: string;
+  selectedDisplay?: 'single' | 'stacked';
   /** Whether to show "All Registration Authorities" option - default true */
   showAllOption?: boolean;
   /** Placeholder text when no selection - default varies by showAllOption */
@@ -38,6 +39,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
   onChange,
   disabled = false,
   className,
+  selectedDisplay = 'single',
   showAllOption = true,
   placeholder,
   loadOnMount = false,
@@ -132,22 +134,29 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
+        <button
+          type="button"
           role="combobox"
           aria-expanded={isOpen}
           disabled={disabled}
           className={cn(
-            'w-full justify-between font-normal',
+            'flex w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-left text-sm transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50',
             !value && 'text-muted-foreground',
             className
           )}
         >
-          <div className="flex items-center gap-2 truncate">
+          <div className="flex min-w-0 items-center gap-2 truncate">
             {selectedDms ? (
               <>
                 {renderIcon(selectedDms.icon, selectedDms.iconColor, selectedDms.bgColor)}
-                <span className="truncate">{selectedDms.name}</span>
+                {selectedDisplay === 'stacked' ? (
+                  <div className="flex min-w-0 flex-col items-start">
+                    <span className="truncate text-foreground">{selectedDms.name}</span>
+                    <span className="truncate text-xs text-muted-foreground">{selectedDms.id}</span>
+                  </div>
+                ) : (
+                  <span className="truncate">{selectedDms.name}</span>
+                )}
               </>
             ) : value ? (
               <>
@@ -169,9 +178,9 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
               <ChevronsUpDown className="h-4 w-4 opacity-50" />
             )}
           </div>
-        </Button>
+        </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start">
+      <PopoverContent className="min-w-[300px] p-0 sm:w-[var(--radix-popover-trigger-width)]" align="start">
         <div className="max-h-[300px] overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-6">

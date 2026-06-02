@@ -219,7 +219,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                       <span className="sr-only">More actions</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuItem onClick={() => onEdit(ra.id)}>
                       <Edit className="mr-2 h-4 w-4" />
                       <span>Edit</span>
@@ -239,7 +239,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                         <span>EST (RFC-7030)</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuPortal>
-                        <DropdownMenuSubContent>
+                        <DropdownMenuSubContent className="w-48">
                           <DropdownMenuItem onClick={() => onOpenEnrollModal(ra)}>
                             <span>Enroll...</span>
                           </DropdownMenuItem>

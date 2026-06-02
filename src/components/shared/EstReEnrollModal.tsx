@@ -335,7 +335,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
 
     return (
         <Sheet open={isOpen} onOpenChange={onOpenChange}>
-            <SheetContent side="right" className={cn('w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col', className)}>
+            <SheetContent side="right" className={cn('w-full p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw] flex flex-col', className)}>
                 <SheetHeader className="sr-only">
                     <SheetTitle>EST Re-Enroll</SheetTitle>
                     <SheetDescription>

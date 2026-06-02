@@ -483,7 +483,7 @@ export default function RegistrationAuthoritiesPage() {
                           <span className="sr-only">More actions for {ra.name}</span>
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem onClick={() => router.push(`/registration-authorities/new?raId=${ra.id}`)}>
                           <Edit className="mr-2 h-4 w-4" /><span>Edit</span>
                         </DropdownMenuItem>
@@ -499,7 +499,7 @@ export default function RegistrationAuthoritiesPage() {
                             <TerminalSquare className="mr-2 h-4 w-4" /><span>EST (RFC-7030)</span>
                           </DropdownMenuSubTrigger>
                           <DropdownMenuPortal>
-                            <DropdownMenuSubContent>
+                            <DropdownMenuSubContent className="w-48">
                               <DropdownMenuItem onClick={() => handleOpenEnrollModal(ra)}><span>Enroll...</span></DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenReEnrollModal(ra)}><span>Re-Enroll...</span></DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenCaCertsPanel(ra)}><span>Get CA Certs</span></DropdownMenuItem>

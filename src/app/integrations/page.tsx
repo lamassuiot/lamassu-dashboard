@@ -4,8 +4,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Blocks, PlusCircle, Loader2, AlertTriangle, Settings, Eye, RefreshCw, MoreVertical, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
@@ -31,20 +29,26 @@ import {
 } from "@/components/ui/alert-dialog";
 import Image from 'next/image';
 import AwsIcon from '../aws.svg';
+import AwsIconWhite from '../aws-white.svg';
 
 
 export const IntegrationIcon: React.FC<{ type: DiscoveredIntegration['type'] }> = ({ type }) => {
     switch (type) {
         case 'AWS_IOT_CORE':
-            return <Image src={AwsIcon} alt="AWS IoT Core Icon" className="h-6 w-6" width={24} height={24} />;
+            return (
+              <>
+                <Image src={AwsIcon} alt="AWS IoT Core Icon" className="h-5 w-5 dark:hidden" width={20} height={20} />
+                <Image src={AwsIconWhite} alt="AWS IoT Core Icon" className="hidden h-5 w-5 dark:block" width={20} height={20} />
+              </>
+            );
         default:
-            return <Blocks className="h-6 w-6 text-primary" />;
+            return <Blocks className="h-5 w-5 text-muted-foreground" />;
     }
 };
 
 export default function IntegrationsPage() {
   const router = useRouter();
-  
+
   const [integrations, setIntegrations] = useState<DiscoveredIntegration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +57,6 @@ export default function IntegrationsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const loadIntegrations = useCallback(async () => {
-    
-
     setIsLoading(true);
     setError(null);
     try {
@@ -71,10 +73,6 @@ export default function IntegrationsPage() {
     loadIntegrations();
   }, [loadIntegrations]);
 
-  const handleCreateNewIntegration = () => {
-    router.push('/integrations/new');
-  };
-
   const handleConfigure = (integration: DiscoveredIntegration) => {
     if (integration.type === 'AWS_IOT_CORE') {
         router.push(`/integrations/configure?raId=${integration.raId}&configKey=${integration.configKey}`);
@@ -84,158 +82,155 @@ export default function IntegrationsPage() {
   };
 
   const handleDeleteIntegration = async () => {
-    if (!integrationToDelete) {
-      sileo.error({ title: "Error", description: "No integration selected." });
-      return;
-    }
+    if (!integrationToDelete) return;
     setIsDeleting(true);
     try {
       await deleteRaIntegration(integrationToDelete.raId, integrationToDelete.configKey);
-      sileo.success({ title: "Success", description: "Integration has been deleted." });
-      setIntegrationToDelete(null); // Close the dialog
-      loadIntegrations(); // Refresh the list
+      sileo.success({ title: "Success", description: "Integration deleted." });
+      setIntegrationToDelete(null);
+      loadIntegrations();
     } catch (err: any) {
       sileo.error({ title: "Deletion Failed", description: err.message });
     } finally {
       setIsDeleting(false);
     }
   };
-  
+
   const getConnectorId = (configKey: string) => {
       const prefix = "lamassu.io/iot/";
-      if (configKey.startsWith(prefix)) {
-          return configKey.substring(prefix.length);
-      }
-      return configKey;
+      return configKey.startsWith(prefix) ? configKey.substring(prefix.length) : configKey;
   };
 
   if (isLoading) {
     return (
         <div className="flex flex-col items-center justify-center flex-1 p-8">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-            <p className="text-lg text-muted-foreground">Discovering Integrations...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+            <p className="text-sm text-muted-foreground">Discovering integrations…</p>
         </div>
     );
   }
 
   return (
     <>
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+    <div className="space-y-5 w-full pb-8">
+
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <Blocks className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Platform Integrations</h1>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Platform Integrations</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Discovered from Registration Authority metadata.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-            <Button onClick={loadIntegrations} variant="outline" disabled={isLoading}>
-                <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
-            </Button>
-            <Button onClick={handleCreateNewIntegration}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Create New Integration
-            </Button>
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <Button onClick={loadIntegrations} variant="outline" size="sm" disabled={isLoading}>
+            <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", isLoading && "animate-spin")} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+          <Button onClick={() => router.push('/integrations/new')} size="sm">
+            <PlusCircle className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">New Integration</span>
+          </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Discovered integrations with IoT platforms based on Registration Authority metadata.
-      </p>
 
       {error && (
         <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error Loading Integrations</AlertTitle>
-            <AlertDescription>
-                {error}
-                <Button variant="link" onClick={loadIntegrations} className="p-0 h-auto ml-1">Try again?</Button>
-            </AlertDescription>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error Loading Integrations</AlertTitle>
+          <AlertDescription>
+            {error}
+            <Button variant="link" onClick={loadIntegrations} className="p-0 h-auto ml-1">Try again?</Button>
+          </AlertDescription>
         </Alert>
       )}
 
-      {!isLoading && !error && integrations.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {integrations.map((integration) => (
-            <Card key={integration.id} className="flex flex-col shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between space-x-4">
-                  <div className="flex items-center space-x-4 flex-grow min-w-0">
-                    <IntegrationIcon type={integration.type} />
-                    <div className="flex-grow min-w-0">
-                      <CardTitle className="truncate" title={integration.typeName}>{integration.typeName}</CardTitle>
-                      <CardDescription className="truncate" title={`Linked to RA: ${integration.raName}`}>
-                        Linked to RA: <span className="font-semibold">{integration.raName}</span>
-                      </CardDescription>
-                    </div>
-                  </div>
-                   <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-                              <MoreVertical className="h-4 w-4" />
-                          </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => router.push(`/registration-authorities/new?raId=${integration.raId}`)}>
-                              <Eye className="mr-2 h-4 w-4" />
-                              <span>View RA</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                              onClick={() => setIntegrationToDelete(integration)}
-                              className="text-destructive focus:text-destructive"
-                          >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              <span>Delete</span>
-                          </DropdownMenuItem>
-                      </DropdownMenuContent>
-                  </DropdownMenu>
+      {/* ── List ── */}
+      {!error && integrations.length > 0 && (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="divide-y divide-border">
+            {integrations.map((integration) => (
+              <div key={integration.id} className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors">
+                {/* Icon */}
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-muted">
+                  <IntegrationIcon type={integration.type} />
                 </div>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <div className="space-y-2 text-sm">
-                    <div>
-                        <p className="text-xs font-medium text-muted-foreground">Connector ID</p>
-                        <Badge variant="outline" className="font-mono text-xs">{getConnectorId(integration.configKey)}</Badge>
-                    </div>
-                     <div>
-                        <p className="text-xs font-medium text-muted-foreground">RA ID</p>
-                        <Button
-                            variant="link"
-                            className="p-0 h-auto font-mono text-xs"
-                            onClick={() => router.push(`/registration-authorities/new?raId=${integration.raId}`)}
-                            title={`Edit RA ${integration.raId}`}
-                        >
-                            {integration.raId}
-                        </Button>
-                    </div>
+
+                {/* Name + type */}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-none">{integration.typeName}</p>
+                  <p className="mt-1 text-xs text-muted-foreground truncate">
+                    RA: <span className="text-foreground font-medium">{integration.raName}</span>
+                  </p>
                 </div>
-              </CardContent>
-              <CardFooter>
-                 <Button onClick={() => handleConfigure(integration)} className="w-full">
-                    <Settings className="mr-2 h-4 w-4"/>
-                    Configure Integration
+
+                {/* Connector ID chip */}
+                <code className="hidden sm:inline-flex rounded border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground shrink-0">
+                  {getConnectorId(integration.configKey)}
+                </code>
+
+                {/* Configure button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleConfigure(integration)}
+                  className="shrink-0"
+                >
+                  <Settings className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Configure</span>
                 </Button>
-              </CardFooter>
-            </Card>
-          ))}
+
+                {/* More menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground">
+                      <MoreVertical className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => router.push(`/registration-authorities/new?raId=${integration.raId}`)}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      View RA
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setIntegrationToDelete(integration)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </div>
         </div>
-      ) : (
-        !isLoading && !error && (
-            <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-                <h3 className="text-lg font-semibold text-muted-foreground">No Integrations Found</h3>
-                <p className="text-sm text-muted-foreground">
-                No integrations discovered. Configure one by adding metadata to a Registration Authority.
-                </p>
-                <Button onClick={handleCreateNewIntegration} className="mt-4">
-                <PlusCircle className="mr-2 h-4 w-4" /> Create New Integration
-                </Button>
-            </div>
-        )
+      )}
+
+      {!isLoading && !error && integrations.length === 0 && (
+        <div className="rounded-md border border-dashed p-10 text-center">
+          <Blocks className="mx-auto h-5 w-5 text-muted-foreground" />
+          <h2 className="mt-4 text-base font-semibold">No integrations found</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            No integrations discovered. Add metadata to a Registration Authority to register one.
+          </p>
+          <Button onClick={() => router.push('/integrations/new')} size="sm" className="mt-4">
+            <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> New Integration
+          </Button>
+        </div>
       )}
     </div>
+
     <AlertDialog open={!!integrationToDelete} onOpenChange={(open) => !open && setIntegrationToDelete(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure you want to delete this integration?</AlertDialogTitle>
+                <AlertDialogTitle>Delete this integration?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This will permanently remove the integration configuration for <strong>{integrationToDelete?.typeName}</strong> from the Registration Authority "<strong>{integrationToDelete?.raName}</strong>". This action cannot be undone.
+                    This will permanently remove the integration configuration for <strong>{integrationToDelete?.typeName}</strong> from the Registration Authority &ldquo;<strong>{integrationToDelete?.raName}</strong>&rdquo;. This action cannot be undone.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
