@@ -4,9 +4,24 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageSquare, X, Send, Loader2, Bot, User, AlertCircle, Trash2, Maximize2, Minimize2, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { sendChatMessage, type ChatMessage } from '@/lib/mattin-api';
+
+const PLACEHOLDER_BY_PATH: Record<string, string> = {
+  '/':                           'Ask about your dashboard...',
+  '/certificates':               'Ask about certificates...',
+  '/certificate-authorities':    'Ask about certificate authorities...',
+  '/signing-profiles':           'Ask about issuance profiles...',
+  '/registration-authorities':   'Ask about registration authorities...',
+  '/kms/keys':                   'Ask about keys...',
+  '/crypto-engines':             'Ask about crypto engines...',
+  '/devices':                    'Ask about devices...',
+  '/device-groups':              'Ask about device groups...',
+  '/integrations':               'Ask about integrations...',
+  '/alerts':                     'Ask about alerts...',
+};
 
 const WELCOME_MESSAGE: ChatMessage = {
   role: 'assistant',
@@ -37,6 +52,9 @@ function saveToStorage(messages: ChatMessage[], conversationId?: string) {
 }
 
 export function ChatbotWidget() {
+  const pathname = usePathname();
+  const placeholder = PLACEHOLDER_BY_PATH[pathname] ?? 'Ask me anything about Lamassu...';
+
   const [isOpen, setIsOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadFromStorage().messages);
@@ -67,7 +85,8 @@ export function ChatbotWidget() {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
 
-    const userMessage: ChatMessage = { role: 'user', content: trimmed };
+    const now = new Date().toISOString();
+    const userMessage: ChatMessage = { role: 'user', content: trimmed, timestamp: now };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setError(null);
@@ -76,7 +95,7 @@ export function ChatbotWidget() {
     try {
       const result = await sendChatMessage(trimmed, conversationId);
       setConversationId(result.conversation_id);
-      setMessages(prev => [...prev, { role: 'assistant', content: result.response }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: result.response, timestamp: new Date().toISOString() }]);
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong. Please try again.');
     } finally {
@@ -156,7 +175,7 @@ export function ChatbotWidget() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
           {messages.map((msg, idx) => (
-            <MessageBubble key={idx} message={msg} isMaximized={isMaximized} />
+            <MessageBubble key={idx} message={msg} />
           ))}
 
           {/* Suggested prompts — only shown when conversation is empty */}
@@ -206,7 +225,7 @@ export function ChatbotWidget() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask me anything about Lamassu..."
+              placeholder={placeholder}
               disabled={isLoading}
               rows={1}
               className={cn(
@@ -262,7 +281,7 @@ export function ChatbotWidget() {
   );
 }
 
-function MessageBubble({ message, isMaximized }: { message: ChatMessage; isMaximized: boolean }) {
+function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
 
@@ -272,36 +291,40 @@ function MessageBubble({ message, isMaximized }: { message: ChatMessage; isMaxim
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <div className={cn('flex items-start gap-2 group', isUser && 'flex-row-reverse')}>
-      <div className={cn(
-        'flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center',
-        isUser ? 'bg-primary text-primary-foreground' : 'bg-primary/10',
-      )}>
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4 text-primary" />}
-      </div>
+  const timeLabel = message.timestamp
+    ? new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
 
-      <div className={cn(
-        'relative rounded-2xl px-3 py-2 text-sm leading-relaxed',
-        isUser
-          ? 'bg-primary text-primary-foreground rounded-tr-sm max-w-[80%]'
-          : 'bg-muted text-foreground rounded-tl-sm max-w-[85%]',
-      )}>
-        {isUser ? (
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
-        ) : (
-          <>
-            <div className="prose prose-sm dark:prose-invert max-w-none">
+  return (
+    <div className={cn('flex flex-col gap-0.5', isUser ? 'items-end' : 'items-start')}>
+      <div className={cn('flex items-start gap-2 group w-full', isUser && 'flex-row-reverse')}>
+        <div className={cn(
+          'flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center',
+          isUser ? 'bg-primary text-primary-foreground' : 'bg-primary/10',
+        )}>
+          {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4 text-primary" />}
+        </div>
+
+        <div className={cn(
+          'relative rounded-2xl px-3 py-2 text-sm leading-relaxed',
+          isUser
+            ? 'bg-primary text-primary-foreground rounded-tr-sm max-w-[80%]'
+            : 'bg-muted text-foreground rounded-tl-sm min-w-0 max-w-full',
+        )}>
+          {isUser ? (
+            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          ) : (
+            <>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
                   table: ({ children }) => (
-                    <div className="overflow-x-auto my-2">
-                      <table className="border-collapse border border-border text-xs w-full">{children}</table>
+                    <div className="w-full overflow-x-auto my-2">
+                      <table className="border-collapse border border-border text-xs">{children}</table>
                     </div>
                   ),
                   th: ({ children }) => (
-                    <th className="border border-border bg-background/50 px-2 py-1 text-left font-semibold whitespace-nowrap">{children}</th>
+                    <th className="border border-border bg-muted/50 px-2 py-1 text-left font-semibold whitespace-nowrap">{children}</th>
                   ),
                   td: ({ children }) => (
                     <td className="border border-border px-2 py-1 whitespace-nowrap">{children}</td>
@@ -309,32 +332,37 @@ function MessageBubble({ message, isMaximized }: { message: ChatMessage; isMaxim
                   code: ({ children, className }) => {
                     const isBlock = className?.includes('language-');
                     return isBlock
-                      ? <code className="block bg-background border border-border rounded p-2 text-xs overflow-x-auto">{children}</code>
+                      ? <code className="block bg-background border border-border rounded p-2 text-xs overflow-x-auto my-2">{children}</code>
                       : <code className="bg-background border border-border rounded px-1 text-xs">{children}</code>;
                   },
-                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  p: ({ children }) => <p className="mb-2 last:mb-0 break-words">{children}</p>,
                   ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
                   ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+                  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                  em: ({ children }) => <em className="italic">{children}</em>,
                 }}
               >
                 {message.content}
               </ReactMarkdown>
-            </div>
-
-            {/* Copy button */}
-            <button
-              onClick={handleCopy}
-              className={cn(
-                'absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
-                'text-muted-foreground hover:text-foreground hover:bg-background/50',
-              )}
-              title="Copy"
-            >
-              {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-            </button>
-          </>
-        )}
+              <button
+                onClick={handleCopy}
+                className={cn(
+                  'absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+                  'text-muted-foreground hover:text-foreground hover:bg-background/50',
+                )}
+                title="Copy"
+              >
+                {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+              </button>
+            </>
+          )}
+        </div>
       </div>
+      {timeLabel && (
+        <span className="text-[10px] text-muted-foreground px-9">
+          {timeLabel}
+        </span>
+      )}
     </div>
   );
 }
