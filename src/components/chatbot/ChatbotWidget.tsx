@@ -262,21 +262,22 @@ export function ChatbotWidget() {
         />
       )}
 
-      {/* FAB */}
-      <Button
-        size="icon"
-        onClick={() => setIsOpen(prev => !prev)}
-        className={cn(
-          'fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg',
-          'ring-2 ring-white ring-offset-1 ring-offset-primary',
-          'transition-transform duration-200',
-          isOpen ? 'scale-90' : 'scale-100 hover:scale-105',
-        )}
-        title={isOpen ? 'Close AI assistant' : 'Open AI assistant'}
-        aria-label={isOpen ? 'Close AI assistant' : 'Open AI assistant'}
-      >
-        {isOpen ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
-      </Button>
+      {/* FAB — hidden while panel is open; close is in the panel header */}
+      {!isOpen && (
+        <Button
+          size="icon"
+          onClick={() => setIsOpen(true)}
+          className={cn(
+            'fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg',
+            'ring-2 ring-white ring-offset-1 ring-offset-primary',
+            'transition-transform duration-200 scale-100 hover:scale-105',
+          )}
+          title="Open AI assistant"
+          aria-label="Open AI assistant"
+        >
+          <MessageSquare className="h-6 w-6" />
+        </Button>
+      )}
     </>
   );
 }
