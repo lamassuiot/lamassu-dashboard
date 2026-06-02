@@ -1,17 +1,25 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageSquare, X, Send, Loader2, Bot, User, AlertCircle, Trash2, Maximize2, Minimize2 } from 'lucide-react';
+import { MessageSquare, X, Send, Loader2, Bot, User, AlertCircle, Trash2, Maximize2, Minimize2, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { sendChatMessage, type ChatMessage } from '@/lib/mattin-api';
+import { sileo } from '@/lib/toast';
 
 const WELCOME_MESSAGE: ChatMessage = {
   role: 'assistant',
   content: 'Hello! I\'m the Lamassu AI assistant. I can help you manage certificates, devices, keys, and more. What would you like to do?',
 };
+
+const SUGGESTED_PROMPTS = [
+  'List all CAs',
+  'Show my devices',
+  'List available crypto engines',
+  'Show recent alerts',
+];
 
 export function ChatbotWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -21,12 +29,22 @@ export function ChatbotWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const copyTimeoutRef = useRef<number | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current !== null) {
+        window.clearTimeout(copyTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -36,8 +54,8 @@ export function ChatbotWidget() {
     }
   }, [isOpen, messages, scrollToBottom]);
 
-  const handleSend = async () => {
-    const trimmed = input.trim();
+  const sendMessage = useCallback(async (rawMessage: string) => {
+    const trimmed = rawMessage.trim();
     if (!trimmed || isLoading) return;
 
     const userMessage: ChatMessage = { role: 'user', content: trimmed };
@@ -55,6 +73,10 @@ export function ChatbotWidget() {
     } finally {
       setIsLoading(false);
     }
+  }, [conversationId, isLoading]);
+
+  const handleSend = () => {
+    void sendMessage(input);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -69,9 +91,14 @@ export function ChatbotWidget() {
     setConversationId(undefined);
     setError(null);
     setInput('');
+    setCopiedMessageIndex(null);
   };
 
   const toggleMaximize = () => setIsMaximized(prev => !prev);
+
+  const handlePromptClick = (prompt: string) => {
+    void sendMessage(prompt);
+  };
 
   return (
     <>
@@ -127,8 +154,51 @@ export function ChatbotWidget() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
+          {messages.length === 1 && messages[0]?.role === 'assistant' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {SUGGESTED_PROMPTS.map(prompt => (
+                  <Button
+                    key={prompt}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePromptClick(prompt)}
+                    disabled={isLoading}
+                    className="h-8 rounded-md border-border bg-background text-xs font-normal text-foreground hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {prompt}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {messages.map((msg, idx) => (
-            <MessageBubble key={idx} message={msg} isMaximized={isMaximized} />
+            <MessageBubble
+              key={idx}
+              message={msg}
+              isMaximized={isMaximized}
+              messageIndex={idx}
+              copiedMessageIndex={copiedMessageIndex}
+              onCopyMessage={async (content, messageIndex) => {
+                try {
+                  await navigator.clipboard.writeText(content);
+                  setCopiedMessageIndex(messageIndex);
+                  sileo.success({ title: 'Copied to clipboard' });
+
+                  if (copyTimeoutRef.current !== null) {
+                    window.clearTimeout(copyTimeoutRef.current);
+                  }
+
+                  copyTimeoutRef.current = window.setTimeout(() => {
+                    setCopiedMessageIndex(current => (current === messageIndex ? null : current));
+                  }, 2000);
+                } catch {
+                  sileo.error({ title: 'Copy failed', description: 'Could not copy the assistant response.' });
+                }
+              }}
+            />
           ))}
 
           {isLoading && (
@@ -216,11 +286,24 @@ export function ChatbotWidget() {
   );
 }
 
-function MessageBubble({ message, isMaximized }: { message: ChatMessage; isMaximized: boolean }) {
+function MessageBubble({
+  message,
+  isMaximized,
+  messageIndex,
+  copiedMessageIndex,
+  onCopyMessage,
+}: {
+  message: ChatMessage;
+  isMaximized: boolean;
+  messageIndex: number;
+  copiedMessageIndex: number | null;
+  onCopyMessage: (content: string, messageIndex: number) => Promise<void>;
+}) {
   const isUser = message.role === 'user';
+  const isCopied = copiedMessageIndex === messageIndex;
 
   return (
-    <div className={cn('flex items-start gap-2', isUser && 'flex-row-reverse')}>
+    <div className={cn('group flex items-start gap-2', isUser && 'flex-row-reverse')}>
       <div className={cn(
         'flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center',
         isUser ? 'bg-primary text-primary-foreground' : 'bg-primary/10',
@@ -229,12 +312,29 @@ function MessageBubble({ message, isMaximized }: { message: ChatMessage; isMaxim
       </div>
 
       <div className={cn(
-        'rounded-2xl px-3 py-2 text-sm leading-relaxed',
+        'relative rounded-2xl px-3 py-2 text-sm leading-relaxed',
         isUser
           ? 'bg-primary text-primary-foreground rounded-tr-sm max-w-[80%]'
-          : 'bg-muted text-foreground rounded-tl-sm',
+          : 'bg-muted text-foreground rounded-tl-sm pr-10',
         !isUser && (isMaximized ? 'max-w-[85%]' : 'max-w-[85%]'),
       )}>
+        {!isUser && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => { void onCopyMessage(message.content, messageIndex); }}
+            className={cn(
+              'absolute right-2 top-2 h-7 w-7 text-muted-foreground transition-opacity duration-150',
+              'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+            )}
+            title={isCopied ? 'Copied' : 'Copy response'}
+            aria-label={isCopied ? 'Copied response' : 'Copy response'}
+          >
+            {isCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+          </Button>
+        )}
+
         {isUser ? (
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         ) : (
