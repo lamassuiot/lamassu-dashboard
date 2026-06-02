@@ -7,7 +7,6 @@ import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { sendChatMessage, type ChatMessage } from '@/lib/mattin-api';
-import { sileo } from '@/lib/toast';
 
 const WELCOME_MESSAGE: ChatMessage = {
   role: 'assistant',
@@ -15,36 +14,42 @@ const WELCOME_MESSAGE: ChatMessage = {
 };
 
 const SUGGESTED_PROMPTS = [
-  'List all CAs',
+  'List all certificate authorities',
   'Show my devices',
   'List available crypto engines',
-  'Show recent alerts',
+  'Show the latest alerts',
 ];
+
+const STORAGE_KEY = 'lamassu_chat';
+
+function loadFromStorage(): { messages: ChatMessage[]; conversationId?: string } {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { messages: [WELCOME_MESSAGE] };
+}
+
+function saveToStorage(messages: ChatMessage[], conversationId?: string) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, conversationId }));
+  } catch {}
+}
 
 export function ChatbotWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadFromStorage().messages);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
+  const [conversationId, setConversationId] = useState<string | undefined>(() => loadFromStorage().conversationId);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const copyTimeoutRef = useRef<number | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current !== null) {
-        window.clearTimeout(copyTimeoutRef.current);
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -54,8 +59,12 @@ export function ChatbotWidget() {
     }
   }, [isOpen, messages, scrollToBottom]);
 
-  const sendMessage = useCallback(async (rawMessage: string) => {
-    const trimmed = rawMessage.trim();
+  useEffect(() => {
+    saveToStorage(messages, conversationId);
+  }, [messages, conversationId]);
+
+  const sendMessage = useCallback(async (text: string) => {
+    const trimmed = text.trim();
     if (!trimmed || isLoading) return;
 
     const userMessage: ChatMessage = { role: 'user', content: trimmed };
@@ -73,16 +82,12 @@ export function ChatbotWidget() {
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, isLoading]);
-
-  const handleSend = () => {
-    void sendMessage(input);
-  };
+  }, [isLoading, conversationId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      sendMessage(input);
     }
   };
 
@@ -91,14 +96,10 @@ export function ChatbotWidget() {
     setConversationId(undefined);
     setError(null);
     setInput('');
-    setCopiedMessageIndex(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
-  const toggleMaximize = () => setIsMaximized(prev => !prev);
-
-  const handlePromptClick = (prompt: string) => {
-    void sendMessage(prompt);
-  };
+  const isEmptyState = messages.length === 1 && messages[0].role === 'assistant';
 
   return (
     <>
@@ -138,7 +139,7 @@ export function ChatbotWidget() {
             <Button
               variant="ghost" size="icon"
               className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
-              onClick={toggleMaximize} title={isMaximized ? 'Restore' : 'Maximize'}
+              onClick={() => setIsMaximized(prev => !prev)} title={isMaximized ? 'Restore' : 'Maximize'}
             >
               {isMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </Button>
@@ -154,52 +155,27 @@ export function ChatbotWidget() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
-          {messages.length === 1 && messages[0]?.role === 'assistant' && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {SUGGESTED_PROMPTS.map(prompt => (
-                  <Button
-                    key={prompt}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePromptClick(prompt)}
-                    disabled={isLoading}
-                    className="h-8 rounded-md border-border bg-background text-xs font-normal text-foreground hover:bg-accent hover:text-accent-foreground"
-                  >
-                    {prompt}
-                  </Button>
-                ))}
-              </div>
+          {messages.map((msg, idx) => (
+            <MessageBubble key={idx} message={msg} isMaximized={isMaximized} />
+          ))}
+
+          {/* Suggested prompts — only shown when conversation is empty */}
+          {isEmptyState && !isLoading && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {SUGGESTED_PROMPTS.map(prompt => (
+                <button
+                  key={prompt}
+                  onClick={() => sendMessage(prompt)}
+                  className={cn(
+                    'text-xs px-3 py-1.5 rounded-full border border-primary/40 text-primary',
+                    'bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer',
+                  )}
+                >
+                  {prompt}
+                </button>
+              ))}
             </div>
           )}
-
-          {messages.map((msg, idx) => (
-            <MessageBubble
-              key={idx}
-              message={msg}
-              isMaximized={isMaximized}
-              messageIndex={idx}
-              copiedMessageIndex={copiedMessageIndex}
-              onCopyMessage={async (content, messageIndex) => {
-                try {
-                  await navigator.clipboard.writeText(content);
-                  setCopiedMessageIndex(messageIndex);
-                  sileo.success({ title: 'Copied to clipboard' });
-
-                  if (copyTimeoutRef.current !== null) {
-                    window.clearTimeout(copyTimeoutRef.current);
-                  }
-
-                  copyTimeoutRef.current = window.setTimeout(() => {
-                    setCopiedMessageIndex(current => (current === messageIndex ? null : current));
-                  }, 2000);
-                } catch {
-                  sileo.error({ title: 'Copy failed', description: 'Could not copy the assistant response.' });
-                }
-              }}
-            />
-          ))}
 
           {isLoading && (
             <div className="flex items-start gap-2">
@@ -242,7 +218,7 @@ export function ChatbotWidget() {
               style={{ fieldSizing: 'content' } as React.CSSProperties}
             />
             <Button
-              size="icon" onClick={handleSend}
+              size="icon" onClick={() => sendMessage(input)}
               disabled={isLoading || !input.trim()}
               className="flex-shrink-0 h-9 w-9" title="Send"
             >
@@ -286,24 +262,18 @@ export function ChatbotWidget() {
   );
 }
 
-function MessageBubble({
-  message,
-  isMaximized,
-  messageIndex,
-  copiedMessageIndex,
-  onCopyMessage,
-}: {
-  message: ChatMessage;
-  isMaximized: boolean;
-  messageIndex: number;
-  copiedMessageIndex: number | null;
-  onCopyMessage: (content: string, messageIndex: number) => Promise<void>;
-}) {
+function MessageBubble({ message, isMaximized }: { message: ChatMessage; isMaximized: boolean }) {
   const isUser = message.role === 'user';
-  const isCopied = copiedMessageIndex === messageIndex;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className={cn('group flex items-start gap-2', isUser && 'flex-row-reverse')}>
+    <div className={cn('flex items-start gap-2 group', isUser && 'flex-row-reverse')}>
       <div className={cn(
         'flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center',
         isUser ? 'bg-primary text-primary-foreground' : 'bg-primary/10',
@@ -315,58 +285,54 @@ function MessageBubble({
         'relative rounded-2xl px-3 py-2 text-sm leading-relaxed',
         isUser
           ? 'bg-primary text-primary-foreground rounded-tr-sm max-w-[80%]'
-          : 'bg-muted text-foreground rounded-tl-sm pr-10',
-        !isUser && (isMaximized ? 'max-w-[85%]' : 'max-w-[85%]'),
+          : 'bg-muted text-foreground rounded-tl-sm max-w-[85%]',
       )}>
-        {!isUser && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => { void onCopyMessage(message.content, messageIndex); }}
-            className={cn(
-              'absolute right-2 top-2 h-7 w-7 text-muted-foreground transition-opacity duration-150',
-              'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-            )}
-            title={isCopied ? 'Copied' : 'Copy response'}
-            aria-label={isCopied ? 'Copied response' : 'Copy response'}
-          >
-            {isCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-          </Button>
-        )}
-
         {isUser ? (
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none prose-table:text-xs">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                table: ({ children }) => (
-                  <div className="overflow-x-auto my-2">
-                    <table className="border-collapse border border-border text-xs w-full">{children}</table>
-                  </div>
-                ),
-                th: ({ children }) => (
-                  <th className="border border-border bg-muted px-2 py-1 text-left font-semibold whitespace-nowrap">{children}</th>
-                ),
-                td: ({ children }) => (
-                  <td className="border border-border px-2 py-1 whitespace-nowrap">{children}</td>
-                ),
-                code: ({ children, className }) => {
-                  const isBlock = className?.includes('language-');
-                  return isBlock
-                    ? <code className="block bg-background border border-border rounded p-2 text-xs overflow-x-auto">{children}</code>
-                    : <code className="bg-background border border-border rounded px-1 text-xs">{children}</code>;
-                },
-                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
-              }}
+          <>
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: ({ children }) => (
+                    <div className="overflow-x-auto my-2">
+                      <table className="border-collapse border border-border text-xs w-full">{children}</table>
+                    </div>
+                  ),
+                  th: ({ children }) => (
+                    <th className="border border-border bg-background/50 px-2 py-1 text-left font-semibold whitespace-nowrap">{children}</th>
+                  ),
+                  td: ({ children }) => (
+                    <td className="border border-border px-2 py-1 whitespace-nowrap">{children}</td>
+                  ),
+                  code: ({ children, className }) => {
+                    const isBlock = className?.includes('language-');
+                    return isBlock
+                      ? <code className="block bg-background border border-border rounded p-2 text-xs overflow-x-auto">{children}</code>
+                      : <code className="bg-background border border-border rounded px-1 text-xs">{children}</code>;
+                  },
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </div>
+
+            {/* Copy button */}
+            <button
+              onClick={handleCopy}
+              className={cn(
+                'absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+                'text-muted-foreground hover:text-foreground hover:bg-background/50',
+              )}
+              title="Copy"
             >
-              {message.content}
-            </ReactMarkdown>
-          </div>
+              {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+            </button>
+          </>
         )}
       </div>
     </div>
