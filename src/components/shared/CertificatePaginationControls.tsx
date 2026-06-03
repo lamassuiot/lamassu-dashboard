@@ -68,7 +68,7 @@ export function CertificatePaginationControls({
         {onRefresh && (
           <Button
             onClick={onRefresh}
-            variant="outline"
+            variant="secondary"
             size={compact ? 'icon' : 'default'}
             className={cn(compact && 'h-9 w-9')}
             disabled={isLoading}
@@ -85,7 +85,7 @@ export function CertificatePaginationControls({
         <Button
           onClick={onPreviousPage}
           disabled={isLoading || !canGoPrevious}
-          variant="outline"
+          variant="secondary"
           size={navigationButtonSize}
         >
           <ChevronLeft className={cn('h-4 w-4', !isIconNavigation && 'mr-2')} />
@@ -99,7 +99,7 @@ export function CertificatePaginationControls({
         <Button
           onClick={onNextPage}
           disabled={isLoading || !canGoNext}
-          variant="outline"
+          variant="secondary"
           size={navigationButtonSize}
         >
           {!isIconNavigation && 'Next'}

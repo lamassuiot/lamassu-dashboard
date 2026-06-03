@@ -121,11 +121,11 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
         </div>
         <div className="flex shrink-0 flex-col gap-2">
           {showDownload && (
-            <Button variant="outline" size="icon" onClick={handleDownload} title="Download" className="h-8 w-8">
+            <Button variant="secondary" size="icon" onClick={handleDownload} title="Download" className="h-8 w-8">
               <Download className="h-4 w-4" />
             </Button>
           )}
-          <Button variant="outline" size="icon" onClick={handleCopy} title="Copy" className="h-8 w-8">
+          <Button variant="secondary" size="icon" onClick={handleCopy} title="Copy" className="h-8 w-8">
             {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
           </Button>
         </div>

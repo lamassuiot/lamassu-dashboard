@@ -445,7 +445,7 @@ export default function CreateCaGeneratePage() {
   return (
     <div className="w-[80%] mx-auto mb-8">
       <div className="flex justify-end mb-4">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/certificate-authorities/new')} className="text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" onClick={() => router.push('/certificate-authorities/new')} className="text-muted-foreground hover:text-foreground">
           Change creation method <ArrowLeft className="ml-1.5 h-3.5 w-3.5 rotate-180" />
         </Button>
       </div>
@@ -523,7 +523,7 @@ export default function CreateCaGeneratePage() {
                 <Label htmlFor="parentCa">Parent Certification Authority</Label>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   onClick={() => setIsParentCaModalOpen(true)}
                   className="w-full justify-start text-left font-normal"
                   id="parentCa"
@@ -718,7 +718,7 @@ export default function CreateCaGeneratePage() {
         <Separator />
 
         <div className="flex justify-end pt-6">
-          <Button type="submit" size="sm" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
             {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
           </Button>

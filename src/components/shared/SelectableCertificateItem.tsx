@@ -73,7 +73,7 @@ export const SelectableCertificateItem: React.FC<SelectableCertificateItemProps>
                     {certificateTitle}
                   </p>
                   {isSelected && (
-                    <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary">
+                    <Badge variant="secondary" className="border-primary/30 bg-primary/5 text-primary">
                       <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
                       Selected
                     </Badge>

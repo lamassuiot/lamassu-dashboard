@@ -121,7 +121,7 @@ const ResultStatusBadge: React.FC<{ status: ZlintResult['status'] }> = ({ status
   }
 
   return (
-    <Badge variant="outline" className={cn('capitalize', className)}>
+    <Badge variant="secondary" className={cn('capitalize', className)}>
       <Icon className="h-4 w-4 mr-1.5" />
       <span>{text}</span>
     </Badge>
@@ -506,7 +506,7 @@ export default function CertificateViewerPage() {
                     <>
                     <div className="flex justify-end mb-4">
                         <Button
-                            variant="outline"
+                            variant="secondary"
                             onClick={handleOpenOcspModal}
                             disabled={isFetchingIssuer || !parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0}
                             title={
@@ -529,7 +529,7 @@ export default function CertificateViewerPage() {
                                 <DetailItem label="Valid From" value={isValid(parseISO(parsedDetails.validFrom)) ? formatDate(parseISO(parsedDetails.validFrom), 'PPpp') : 'Invalid Date'} />
                                 <DetailItem label="Valid To" value={isValid(parseISO(parsedDetails.validTo)) ? formatDate(parseISO(parsedDetails.validTo), 'PPpp') : 'Invalid Date'} />
                                 <DetailItem label="Is CA" value={<Badge variant={parsedDetails.isCa ? "default" : "secondary"}>{parsedDetails.isCa ? 'Yes' : 'No'}</Badge>} />
-                                {parsedDetails.pathLenConstraint !== undefined && <DetailItem label="Path Length Constraint" value={<Badge variant="outline">{parsedDetails.pathLenConstraint ?? 'None'}</Badge>} />}
+                                {parsedDetails.pathLenConstraint !== undefined && <DetailItem label="Path Length Constraint" value={<Badge variant="secondary">{parsedDetails.pathLenConstraint ?? 'None'}</Badge>} />}
                             </AccordionContent>
                         </AccordionItem>
                         
@@ -560,12 +560,12 @@ export default function CertificateViewerPage() {
                                     <div className="space-y-2">
                                         {parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0 && (
                                             <div className="flex flex-wrap gap-1">
-                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="outline">{formatCertificateUsageLabel(usage)}</Badge>)}
+                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="secondary">{formatCertificateUsageLabel(usage)}</Badge>)}
                                             </div>
                                         )}
                                         {parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0 && (
                                             <div className="flex flex-wrap gap-1">
-                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="outline">{formatCertificateUsageLabel(usage)}</Badge>)}
+                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="secondary">{formatCertificateUsageLabel(usage)}</Badge>)}
                                             </div>
                                         )}
                                     </div>
@@ -630,7 +630,7 @@ export default function CertificateViewerPage() {
                                         <Button
                                             key={status}
                                             variant={linterStatusFilter === status ? 'default' : 'secondary'}
-                                            size="sm"
+                                           
                                             onClick={() => handleFilterChange(status)}
                                             className="h-7 px-2.5"
                                         >
@@ -687,10 +687,10 @@ export default function CertificateViewerPage() {
                                             <span className="text-sm text-muted-foreground">
                                                 Page {linterCurrentPage} of {totalLinterPages}
                                             </span>
-                                            <Button onClick={() => handlePageChange(linterCurrentPage - 1)} disabled={linterCurrentPage === 1} variant="outline" size="sm">
+                                            <Button onClick={() => handlePageChange(linterCurrentPage - 1)} disabled={linterCurrentPage === 1} variant="secondary">
                                                 <ChevronLeft className="mr-1 h-4 w-4" /> Previous
                                             </Button>
-                                            <Button onClick={() => handlePageChange(linterCurrentPage + 1)} disabled={linterCurrentPage >= totalLinterPages} variant="outline" size="sm">
+                                            <Button onClick={() => handlePageChange(linterCurrentPage + 1)} disabled={linterCurrentPage >= totalLinterPages} variant="secondary">
                                                 Next <ChevronRight className="ml-1 h-4 w-4" />
                                             </Button>
                                         </div>

@@ -303,8 +303,8 @@ export function VerificationAuthoritiesClient() {
                     <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">
                       {selectedCaForConfig.id}
                     </code>
-                    <Badge variant="outline" className="text-xs">VA Configuration</Badge>
-                    {latestCrl ? <Badge variant="secondary" className="text-xs">CRL Available</Badge> : <Badge variant="outline" className="text-xs">No CRL Yet</Badge>}
+                    <Badge variant="secondary" className="text-xs">VA Configuration</Badge>
+                    {latestCrl ? <Badge variant="secondary" className="text-xs">CRL Available</Badge> : <Badge variant="secondary" className="text-xs">No CRL Yet</Badge>}
                   </div>
                 </div>
               </div>
@@ -347,7 +347,7 @@ export function VerificationAuthoritiesClient() {
               </Label>
               <Button
                 id="ca-select-button"
-                variant="outline"
+                variant="secondary"
                 onClick={() => setIsCaSelectModalOpen(true)}
                 className="w-full justify-start text-left font-normal md:w-2/3 lg:w-1/2"
                 disabled={isLoadingCAs}
@@ -419,7 +419,7 @@ export function VerificationAuthoritiesClient() {
               </CardHeader>
               <CardContent>
                 {latestCrl && (
-                  <Button variant="outline" size="sm" onClick={handleDownloadCrl} disabled={isDownloadingCrl} className="mb-4">
+                  <Button variant="secondary" onClick={handleDownloadCrl} disabled={isDownloadingCrl} className="mb-4">
                     {isDownloadingCrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                     Download CRL
                   </Button>

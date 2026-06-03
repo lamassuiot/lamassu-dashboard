@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap } from 'lucide-react';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap, Copy, Check, Tag } from 'lucide-react';
 import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/app/devices/page';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,7 @@ import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { sileo } from '@/lib/toast';
 import { RevocationModal } from '@/components/shared/RevocationModal';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
@@ -96,6 +97,8 @@ export default function DeviceDetailsClient() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  const [copiedId, setCopiedId] = useState(false);
+
   // State for integrations and force update
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
   const [availableIntegrations, setAvailableIntegrations] = useState<DiscoveredIntegration[]>([]);
@@ -599,7 +602,7 @@ export default function DeviceDetailsClient() {
   if (errorDevice) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="secondary" onClick={() => routerHook.back()} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert variant="destructive">
@@ -614,7 +617,7 @@ export default function DeviceDetailsClient() {
   if (!device) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="secondary" onClick={() => routerHook.back()} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert>
@@ -639,15 +642,15 @@ export default function DeviceDetailsClient() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+            <Button variant="secondary" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
             {availableIntegrations.length > 0 && (
-              <Button variant="secondary" size="sm" onClick={() => setIsForceUpdateModalOpen(true)}>
+              <Button variant="secondary" onClick={() => setIsForceUpdateModalOpen(true)}>
                 <Zap className="mr-2 h-4 w-4" /> Force Update
               </Button>
             )}
             <Button
               variant="secondary"
-              size="sm"
+             
               className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
               onClick={() => setIsDecommissionModalOpen(true)}
               disabled={device.status === 'DECOMMISSIONED'}
@@ -656,8 +659,8 @@ export default function DeviceDetailsClient() {
             </Button>
             {device.status === 'DECOMMISSIONED' && (
               <Button
-                variant="outline"
-                size="sm"
+                variant="secondary"
+               
                 className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 onClick={() => setIsDeleteModalOpen(true)}
                 disabled={isDeleting}
@@ -666,74 +669,176 @@ export default function DeviceDetailsClient() {
                 {isDeleting ? 'Deleting...' : 'Permanently Delete'}
               </Button>
             )}
-            <Button size="sm" onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
+            <Button onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
               <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
             </Button>
           </div>
         }
       />
 
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className="h-1 w-full" style={{ backgroundColor: iconColor || '#0f67ff' }} />
-        <div className="flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <div className="shrink-0">
+      {/* ── Hero ── */}
+      <div className="pb-5">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+
+          {/* Identity */}
+          <div className="flex items-start gap-4">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden"
+              style={{ backgroundColor: bgColor || '#F0F8FF' }}
+            >
               <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
             </div>
+
             <div className="min-w-0 space-y-2">
               <div>
-                <h1 className="truncate text-xl font-semibold" title={device.id}>
-                  {device.id}
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Device details, identity lifecycle, and certificate history.
-                </p>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3 shrink-0" />
-                  <span>Created</span>
-                  <span className="text-border">·</span>
-                  <DateDisplay date={device.creation_timestamp} formatString={getDisplayDateFormat()} showRelative={true} className="text-xs" />
+                <h1 className="text-2xl font-semibold tracking-tight truncate" title={device.id}>{device.id}</h1>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">ID</span>
+                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
+                    {device.id}
+                  </code>
+                  <Button
+                    variant="ghost"
+                   
+                    className="h-6 w-6 p-0 shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(device.id);
+                      setCopiedId(true);
+                      setTimeout(() => setCopiedId(false), 2000);
+                    }}
+                  >
+                    {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                  </Button>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <DeviceStatusBadge status={device.status as any} />
-                {device.dms_owner ? (
-                  <Badge variant="outline" className="text-xs">
-                    Managed
-                  </Badge>
-                ) : null}
-                {device.identity ? (
-                  <Badge variant="outline" className="text-xs">
-                    Identity Assigned
-                  </Badge>
-                ) : null}
-                {device.tags?.map(tag => (
-                  <Badge key={tag} variant="secondary" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
+
             </div>
           </div>
+
         </div>
       </div>
 
-      <Tabs defaultValue="certificatesHistory" className="w-full">
-        <div className="border-b">
-          <TabsList className={pageTabsListClass}>
-            <TabsTrigger value="certificatesHistory" className={pageTabsTriggerClass}>
-              <History className="h-4 w-4" />Certificates History
-            </TabsTrigger>
-            <TabsTrigger value="timeline" className={pageTabsTriggerClass}>
-              <Clock className="h-4 w-4" />Timeline
-            </TabsTrigger>
-            <TabsTrigger value="metadata" className={pageTabsTriggerClass}>
-              <SlidersHorizontal className="h-4 w-4" />Metadata
-            </TabsTrigger>
+      {/* ── Tabs ── */}
+      <Tabs defaultValue="information" className="w-full">
+        <div className="border-b overflow-x-auto overflow-y-hidden">
+          <TabsList className={cn(pageTabsListClass, "min-w-max")}>
+            {([
+              { value: 'information', icon: Info, label: 'Information' },
+              { value: 'certificatesHistory', icon: History, label: 'Certificates History' },
+              { value: 'timeline', icon: Clock, label: 'Timeline' },
+              { value: 'metadata', icon: SlidersHorizontal, label: 'Metadata' },
+            ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className={pageTabsTriggerClass}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 
         <div className="mt-6 pb-6">
+        <TabsContent value="information" className="mt-0">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Device Details */}
+            <div className="rounded-lg border bg-card p-5 space-y-4">
+              <h3 className="text-sm font-semibold">Device Details</h3>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Device ID</Label>
+                  <Input readOnly value={device.id} className="font-mono text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Status</Label>
+                  <ApiStatusBadge status={device.status} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Created</Label>
+                  <div className="h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm flex items-center gap-1.5">
+                    <span>{format(parseISO(device.creation_timestamp), getDisplayDateFormat())}</span>
+                    <span className="text-muted-foreground text-xs">({formatDistanceToNowStrict(parseISO(device.creation_timestamp))} ago)</span>
+                  </div>
+                </div>
+                {device.dms_owner && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Registration Authority</Label>
+                    <div className="h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm flex items-center">
+                      <a
+                        href={`/registration-authorities/details?raId=${device.dms_owner}`}
+                        className="text-primary hover:underline truncate"
+                      >
+                        {device.dms_owner}
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {(device.tags?.length ?? 0) > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Tags</Label>
+                    <Input readOnly value={device.tags.join(', ')} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Identity */}
+            <div className="rounded-lg border bg-card p-5 space-y-4">
+              <h3 className="text-sm font-semibold">Identity</h3>
+              {device.identity ? (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <ApiStatusBadge status={device.identity.status} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <Input readOnly value={device.identity.type} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Active Certificate</Label>
+                    <div className="h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm flex items-center">
+                      {device.identity.versions[device.identity.active_version] ? (
+                        <a
+                          href={`/certificates/details?certificateId=${device.identity.versions[device.identity.active_version]}`}
+                          className="text-primary hover:underline truncate font-mono text-xs"
+                        >
+                          {device.identity.versions[device.identity.active_version]}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Total Versions</Label>
+                    <Input readOnly value={Object.keys(device.identity.versions).length} />
+                  </div>
+                  {device.identity.expiration_date && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Certificate Expiration</Label>
+                      <div className="h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm flex items-center gap-1.5">
+                        <span>{format(parseISO(device.identity.expiration_date), getDisplayDateFormat())}</span>
+                        <span className="text-muted-foreground text-xs">({formatDistanceToNowStrict(parseISO(device.identity.expiration_date))})</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-start gap-3 pt-2">
+                  <p className="text-sm text-muted-foreground">No identity assigned to this device.</p>
+                  <Button variant="secondary" onClick={() => setIsAssignIdentityModalOpen(true)}>
+                    <PlusCircle className="mr-2 h-3.5 w-3.5" />
+                    Assign Identity
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
         <TabsContent value="timeline" className="mt-0">
           {timelineEvents.length > 0 ? (
             <>
@@ -750,7 +855,7 @@ export default function DeviceDetailsClient() {
               </ul>
               {allRawEvents.length > timelineDisplayCount && (
                 <div className="flex justify-center mt-2">
-                  <Button onClick={handleLoadMoreTimeline} variant="outline" size="sm" disabled={isTimelineLoading}>
+                  <Button onClick={handleLoadMoreTimeline} variant="secondary" disabled={isTimelineLoading}>
                     {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Load more events
                   </Button>
@@ -880,14 +985,14 @@ export default function DeviceDetailsClient() {
                         <Button
                             onClick={() => setHistoryCurrentPage(p => p - 1)}
                             disabled={isLoadingHistory || historyCurrentPage === 1}
-                            variant="outline" size="sm"
+                            variant="secondary"
                         >
                             <ChevronLeft className="mr-1 h-4 w-4" /> Previous
                         </Button>
                         <Button
                             onClick={() => setHistoryCurrentPage(p => p + 1)}
                             disabled={isLoadingHistory || historyCurrentPage >= totalHistoryPages}
-                            variant="outline" size="sm"
+                            variant="secondary"
                         >
                             Next <ChevronRight className="ml-1 h-4 w-4" />
                         </Button>

@@ -392,7 +392,7 @@ function DateFilterControl<TValues extends GenericFilterValues>({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+               
                 className="h-7 shrink-0 px-2 text-xs"
                 onClick={() =>
                   context.onValueChange({
@@ -599,7 +599,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
             {isActive && (
               <Button
                 variant="ghost"
-                size="sm"
+               
                 className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
                 onClick={context.clearValue}
                 disabled={context.disabled}
@@ -683,7 +683,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
               </div>
               {selectedDate && (
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="icon"
                   className="h-8 w-8 shrink-0"
                   onClick={context.clearValue}
@@ -731,7 +731,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
             </div>
             {selectedDate && (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="icon"
                 className="h-8 w-8 shrink-0"
                 onClick={context.clearValue}
@@ -827,7 +827,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
               {badge.onRemove && (
                 <Button
                   variant="ghost"
-                  size="sm"
+                 
                   className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
                   onClick={badge.onRemove}
                 >
@@ -837,7 +837,7 @@ export function GenericFilterBar<TValues extends GenericFilterValues>({
             </Badge>
           ))}
           {onClearAll && activeBadgeCount > 1 && (
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onClearAll}>
+            <Button variant="ghost" className="h-7 px-2 text-xs" onClick={onClearAll}>
               Clear all
             </Button>
           )}

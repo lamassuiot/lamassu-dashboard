@@ -5,41 +5,24 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   ClipboardCheck,
   PlusCircle,
   Loader2,
   AlertTriangle,
-  Settings2,
-  Tag,
-  ShieldCheck,
-  Edit,
   RefreshCw,
-  MoreVertical,
-  TerminalSquare,
-  Router as RouterIcon,
-  BookText,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  ListChecks,
-  Server,
   Search,
   X,
-  LayoutGrid,
-  List,
-  Clock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn, getCookie, setCookie } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
 import { EstCaCertsPanel } from '@/components/shared/EstCaCertsPanel';
@@ -61,9 +44,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RegistrationAuthoritiesTable } from '@/components/ra/RegistrationAuthoritiesTable';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 
 // Add SortConfig type
 export type SortableColumn = 'name' | 'creation_ts';
@@ -73,7 +53,6 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
 type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | null;
@@ -87,8 +66,6 @@ export default function RegistrationAuthoritiesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // View mode state
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>();
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,7 +73,7 @@ export default function RegistrationAuthoritiesPage() {
   const [caFilterId, setCaFilterId] = useState<string | null>(null);
 
   // Pagination State
-  const [pageSize, setPageSize] = useState(GRID_PAGE_SIZES[0]);
+  const [pageSize, setPageSize] = useState(LIST_PAGE_SIZES[0]);
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
@@ -121,28 +98,6 @@ export default function RegistrationAuthoritiesPage() {
     setIsClientMounted(true);
   }, []);
 
-  // Load view mode from cookie
-  useEffect(() => {
-    if (isClientMounted) {
-      const savedViewMode = getCookie('user-view-mode');
-      const newViewMode = (savedViewMode === 'grid' || savedViewMode === 'list') ? savedViewMode : 'grid';
-      setViewMode(newViewMode);
-      setPageSize(newViewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0]);
-    }
-  }, [isClientMounted]);
-
-  // Save view mode to cookie when it changes and adjust page size
-  useEffect(() => {
-    if (viewMode && isClientMounted) {
-      setCookie('user-view-mode', viewMode);
-      const newPageSize = viewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0];
-      // Only change page size if it's not already in the correct set for the view mode
-      const currentOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
-      if (!currentOptions.includes(pageSize)) {
-          setPageSize(newPageSize);
-      }
-    }
-  }, [viewMode, isClientMounted, pageSize]);
   
   // Debounce search term
   useEffect(() => {
@@ -335,7 +290,7 @@ export default function RegistrationAuthoritiesPage() {
   }
 
   const hasActiveFilters = searchTerm || caFilterId;
-  const pageSizeOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
+  const pageSizeOptions = LIST_PAGE_SIZES;
 
   return (
     <>
@@ -346,7 +301,7 @@ export default function RegistrationAuthoritiesPage() {
           <h1 className="text-2xl font-headline font-semibold">Registration Authorities</h1>
         </div>
         <div className="flex items-center space-x-2">
-           <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
+           <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
                 <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
             </Button>
             <Button variant="default" onClick={handleCreateNewRAClick}>
@@ -378,7 +333,7 @@ export default function RegistrationAuthoritiesPage() {
           <div className="flex items-center gap-2">
             <Button
                 id="ca-filter-button"
-                variant="outline"
+                variant="secondary"
                 className="w-full justify-start text-left font-normal"
                 onClick={() => setIsCaSelectorOpen(true)}
                 disabled={isLoading}
@@ -397,17 +352,6 @@ export default function RegistrationAuthoritiesPage() {
                 </Button>
             )}
            </div>
-        </div>
-        <div className="flex items-center space-x-2">
-            <ToggleGroup
-                type="single"
-                value={viewMode}
-                onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
-                variant="outline"
-            >
-                <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
-                <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
-            </ToggleGroup>
         </div>
       </div>
 
@@ -428,7 +372,7 @@ export default function RegistrationAuthoritiesPage() {
             <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
             </Button>
           </div>
-        ) : viewMode === 'list' ? (
+        ) : (
           <RegistrationAuthoritiesTable
             ras={filteredRas}
             getCaNameById={getCaNameById}
@@ -444,155 +388,6 @@ export default function RegistrationAuthoritiesPage() {
             sortConfig={sortConfig}
             requestSort={requestSort}
           />
-        ) : (
-          <div className={cn("grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3", isLoading && "opacity-50")}>
-            {filteredRas.map(ra => {
-              const profile = ra.settings.enrollment_settings.device_provisioning_profile;
-              const IconComponent = getLucideIconByName(profile.icon);
-              const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
-              const authMode = ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode;
-              const tags = ra.settings.enrollment_settings.device_provisioning_profile.tags;
-              const validationCas = ra.settings?.enrollment_settings?.est_rfc7030_settings?.client_certificate_settings?.validation_cas ?? [];
-              const reEnrollCas = ra.settings.reenrollment_settings?.additional_validation_cas ?? [];
-              const keygen = ra.settings.server_keygen_settings;
-
-              return (
-              <Card key={ra.id} className="flex flex-col overflow-hidden rounded-xl shadow-sm transition-shadow hover:shadow-md">
-                {/* Accent bar */}
-                <div className="h-1 w-full" style={{ backgroundColor: iconColor }} />
-
-                {/* Header */}
-                <div className="p-5 pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: bgColor }}>
-                        {IconComponent
-                          ? <IconComponent className="h-5 w-5" style={{ color: iconColor }} />
-                          : <Settings2 className="h-5 w-5 text-primary" />
-                        }
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="truncate font-semibold leading-tight" title={ra.name}>{ra.name}</h3>
-                        <code className="block truncate max-w-[200px] text-[11px] text-muted-foreground font-mono">{ra.id}</code>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                          <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">More actions for {ra.name}</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem onClick={() => router.push(`/registration-authorities/new?raId=${ra.id}`)}>
-                          <Edit className="mr-2 h-4 w-4" /><span>Edit</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/devices?dms_owner=${ra.id}`)}>
-                          <RouterIcon className="mr-2 h-4 w-4" /><span>View Devices</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleShowMetadata(ra)}>
-                          <BookText className="mr-2 h-4 w-4" /><span>Show Metadata</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <TerminalSquare className="mr-2 h-4 w-4" /><span>EST (RFC-7030)</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent className="w-48">
-                              <DropdownMenuItem onClick={() => handleOpenEnrollModal(ra)}><span>Enroll...</span></DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenReEnrollModal(ra)}><span>Re-Enroll...</span></DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenCaCertsPanel(ra)}><span>Get CA Certs</span></DropdownMenuItem>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setRaToDelete(ra)} className="text-destructive focus:text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" /><span>Delete</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-
-                  {/* Badge cluster */}
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <Badge variant="secondary" className="text-xs">{ra.settings.enrollment_settings.registration_mode}</Badge>
-                    <Badge variant="outline" className="text-xs">{authMode?.replaceAll('_', ' ') || 'N/A'}</Badge>
-                    {keygen?.enabled && (
-                      <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-300 dark:border-emerald-700">Server Keygen</Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Details */}
-                <div className="flex-grow border-t px-5 py-3 space-y-2.5">
-                  {/* Enrollment CA */}
-                  <div className="flex items-center gap-2 text-xs">
-                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="text-muted-foreground shrink-0">Enrollment CA</span>
-                    <span className="ml-auto truncate font-medium text-primary/90" title={getCaNameById(ra.settings.enrollment_settings.enrollment_ca)}>
-                      {getCaNameById(ra.settings.enrollment_settings.enrollment_ca)}
-                    </span>
-                  </div>
-
-                  {/* Tags */}
-                  {tags.length > 0 && (
-                    <div className="flex items-start gap-2 text-xs">
-                      <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
-                      <div className="flex flex-wrap gap-1">
-                        {tags.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Validation CAs */}
-                  {authMode === 'CLIENT_CERTIFICATE' && validationCas.length > 0 && (
-                    <div className="flex items-start gap-2 text-xs">
-                      <ListChecks className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
-                      <div className="min-w-0">
-                        <p className="text-muted-foreground">Validation CAs</p>
-                        <p className="truncate text-foreground/90">{validationCas.map(id => getCaNameById(id)).join(', ')}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Re-enrollment Validation CAs */}
-                  {reEnrollCas.length > 0 && (
-                    <div className="flex items-start gap-2 text-xs">
-                      <ListChecks className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
-                      <div className="min-w-0">
-                        <p className="text-muted-foreground">Re-enrollment CAs</p>
-                        <p className="truncate text-foreground/90">{reEnrollCas.map(id => getCaNameById(id)).join(', ')}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Server-side keygen details */}
-                  {keygen?.enabled && keygen.key && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <Server className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="text-muted-foreground shrink-0">Key</span>
-                      <span className="ml-auto text-foreground/90">
-                        {keygen.key.type}
-                        {' · '}
-                        {keygen.key.type === 'RSA'
-                          ? `${keygen.key.bits} bit`
-                          : ({ 256: 'P-256', 384: 'P-384', 521: 'P-521' } as Record<number,string>)[keygen.key.bits] ?? `${keygen.key.bits} bit`}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer */}
-                <div className="border-t px-5 py-3 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3 shrink-0" />
-                  <span>Created</span>
-                  <span className="text-border">·</span>
-                  <DateDisplay date={ra.creation_ts} formatString={getDisplayDateFormat()} showRelative={false} className="text-xs" />
-                </div>
-              </Card>
-            )})}
-          </div>
         )}
 
         {(!isLoading && !error && (ras.length > 0 || currentPageIndex > 0)) && (
@@ -611,10 +406,10 @@ export default function RegistrationAuthoritiesPage() {
               </Select>
             </div>
             <div className="flex items-center space-x-2">
-              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
+              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
               </Button>
-              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
+              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="secondary">
                 Next <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>

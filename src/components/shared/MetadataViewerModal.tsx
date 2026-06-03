@@ -207,15 +207,15 @@ export const MetadataViewerModal: React.FC<MetadataViewerModalProps> = ({
   ) : (
     <div className="w-full flex justify-between items-center">
       {isEditable && onSave ? (
-        <Button variant="outline" onClick={handleEdit}><Edit className="mr-2 h-4 w-4"/>Edit</Button>
+        <Button variant="secondary" onClick={handleEdit}><Edit className="mr-2 h-4 w-4"/>Edit</Button>
       ) : <div />}
       {presentation === 'sheet' ? (
         <SheetClose asChild>
-          <Button type="button" variant="outline">Close</Button>
+          <Button type="button" variant="secondary">Close</Button>
         </SheetClose>
       ) : (
         <DialogClose asChild>
-          <Button type="button" variant="outline">Close</Button>
+          <Button type="button" variant="secondary">Close</Button>
         </DialogClose>
       )}
     </div>

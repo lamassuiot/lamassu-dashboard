@@ -66,13 +66,13 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
           {({ zoomIn, zoomOut, resetTransform, ...rest }) => (
             <>
               <div className="absolute top-2 left-2 z-10 space-x-1">
-                <Button variant="outline" size="icon" onClick={() => zoomIn()} title="Zoom In">
+                <Button variant="secondary" size="icon" onClick={() => zoomIn()} title="Zoom In">
                   <ZoomIn className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => zoomOut()} title="Zoom Out">
+                <Button variant="secondary" size="icon" onClick={() => zoomOut()} title="Zoom Out">
                   <ZoomOut className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => resetTransform()} title="Reset View">
+                <Button variant="secondary" size="icon" onClick={() => resetTransform()} title="Reset View">
                   <RotateCcw className="h-4 w-4" />
                 </Button>
               </div>

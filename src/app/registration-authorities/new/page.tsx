@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, ChevronsUpDown, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit, X } from "lucide-react";
+import { ArrowLeft, ChevronsUpDown, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit, X, ShieldCheck, Copy, Check } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
@@ -454,7 +454,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             { label: <Badge variant="default" className="text-xs">{raName || raId || 'Edit'}</Badge> },
           ]}
           actions={
-            <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
               <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
             </Button>
           }
@@ -462,7 +462,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         />
       ) : (
         <div className="flex justify-end mb-4">
-          <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
           </Button>
         </div>
@@ -470,38 +470,40 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
       {/* ── Edit hero ── */}
       {isEditMode && (
-        <div className="overflow-hidden rounded-xl border bg-card shadow-sm mb-8">
-          <div className="h-1 w-full bg-primary" />
-          <div className="p-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: selectedDeviceIconBgColor }}>
-                  {SelectedDeviceIcon ? <SelectedDeviceIcon className="h-6 w-6" style={{ color: selectedDeviceIconColor }} /> : <Settings className="h-6 w-6 text-primary" />}
-                </div>
-                <div className="min-w-0 space-y-2">
-                  <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">{raName || 'Edit Registration Authority'}</h1>
-                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Modify settings for the Registration Authority.</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">{raId || raIdFromQuery}</code>
-                    {heroBadges.map((badge) => <Badge key={badge} variant="outline" className="text-xs">{badge}</Badge>)}
-                    {enableKeyGeneration && <Badge variant="secondary" className="text-xs">Server Keygen</Badge>}
-                  </div>
+        <div className="pb-6 mb-6 border-b">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: selectedDeviceIconBgColor }}>
+              {SelectedDeviceIcon
+                ? <SelectedDeviceIcon className="h-6 w-6" style={{ color: selectedDeviceIconColor }} />
+                : <Settings className="h-6 w-6 text-primary" />}
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">{raName || 'Edit Registration Authority'}</h1>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">ID</span>
+                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono">{raId || raIdFromQuery}</code>
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-4 xl:min-w-[640px]">
-                {summaryCards.map((item) => (
-                  <div key={item.label} className={item.emphasized ? '' : 'text-center'}>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                    {item.emphasized ? (
-                      <div className="mt-1"><span className="inline-flex max-w-full rounded-md border bg-muted px-2.5 py-1 text-sm font-medium"><span className="truncate">{item.value}</span></span></div>
-                    ) : (
-                      <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">{item.hint}</p>
-                  </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {heroBadges.filter(Boolean).map((badge) => (
+                  <span key={badge} className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">{badge}</span>
                 ))}
+                {enableKeyGeneration && (
+                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    <Server className="h-3 w-3 shrink-0" /> Server Keygen
+                  </span>
+                )}
+                {enrollmentCa && (
+                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    <ShieldCheck className="h-3 w-3 shrink-0" /> {enrollmentCa.name}
+                  </span>
+                )}
+                {validationCAs.length > 0 && (
+                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    {validationCAs.length} validation {validationCAs.length === 1 ? 'CA' : 'CAs'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -709,7 +711,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                       </div>
                     )) : <p className="text-sm text-muted-foreground italic">No validation CAs selected.</p>}
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setIsValidationCaModalOpen(true)}>
+                  <Button type="button" variant="secondary" onClick={() => setIsValidationCaModalOpen(true)}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
                   </Button>
                 </div>
@@ -851,7 +853,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </div>
                 )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsAdditionalValidationCaModalOpen(true)}>
+              <Button type="button" variant="secondary" onClick={() => setIsAdditionalValidationCaModalOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
               </Button>
             </div>
@@ -928,7 +930,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </div>
                 )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsManagedCaModalOpen(true)}>
+              <Button type="button" variant="secondary" onClick={() => setIsManagedCaModalOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
               </Button>
             </div>
@@ -938,8 +940,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         <Separator />
 
         <div className="flex justify-end gap-2 pt-6">
-          <Button type="button" variant="outline" size="sm" onClick={() => router.back()}>Cancel</Button>
-          <Button type="submit" size="sm" disabled={isSubmitting}>
+          <Button type="button" variant="secondary" onClick={() => router.back()}>Cancel</Button>
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
             {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
           </Button>

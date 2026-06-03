@@ -82,7 +82,7 @@ export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
     default:
       badgeClass = "bg-muted text-muted-foreground border-border";
   }
-  return <Badge variant="outline" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
+  return <Badge variant="secondary" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
 };
 
 export const mapApiIconToIconType = (apiIcon: string): string => {
@@ -534,7 +534,7 @@ export default function DevicesPage() {
                       {columnVisibility.tags && (
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {device.tags.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
+                            {device.tags.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
                           </div>
                         </TableCell>
                       )}
@@ -592,14 +592,14 @@ export default function DevicesPage() {
                   <Button
                       onClick={handlePreviousPage}
                       disabled={isLoadingApi || currentPageIndex === 0}
-                      variant="outline"
+                      variant="secondary"
                   >
                       <ChevronLeft className="mr-2 h-4 w-4" /> Previous
                   </Button>
                   <Button
                       onClick={handleNextPage}
                       disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
-                      variant="outline"
+                      variant="secondary"
                   >
                       Next <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>

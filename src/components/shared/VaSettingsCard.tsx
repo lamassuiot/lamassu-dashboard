@@ -123,7 +123,7 @@ export function VaSettingsCard({
                         {selectedCertificateSignerDisplay.issuerCaId ? (
                           <Button
                             variant="link"
-                            size="sm"
+                           
                             className="h-auto min-w-0 justify-start truncate p-0 text-xs font-normal"
                             asChild
                           >
@@ -159,7 +159,7 @@ export function VaSettingsCard({
                 <Button
                   type="button"
                   variant="secondary"
-                  size="sm"
+                 
                   onClick={() => onCertificateSignerModalOpenChange(true)}
                   disabled={isSubmitting}
                 >
@@ -171,7 +171,7 @@ export function VaSettingsCard({
             <Button
               id="va-crlSigner"
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => onCertificateSignerModalOpenChange(true)}
               className="w-full justify-start text-left font-normal"
               disabled={isSubmitting}
@@ -216,11 +216,11 @@ export function VaSettingsCard({
         />
 
         <div className="flex items-center gap-2">
-          <Button onClick={onSave} size="sm" disabled={isSubmitting}>
+          <Button onClick={onSave} disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isSubmitting ? 'Saving...' : 'Save VA Configuration'}
           </Button>
-          <Button variant="secondary" size="sm" onClick={onRefresh} disabled={isLoadingConfig}>
+          <Button variant="secondary" onClick={onRefresh} disabled={isLoadingConfig}>
             <RefreshCw className={cn('mr-2 h-4 w-4', isLoadingConfig && 'animate-spin')} />
             Refresh
           </Button>

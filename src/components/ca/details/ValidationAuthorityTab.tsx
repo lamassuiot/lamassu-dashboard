@@ -313,7 +313,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
           <AlertTitle>Error Loading Configuration</AlertTitle>
           <AlertDescription>{errorConfig}</AlertDescription>
         </Alert>
-        <Button variant="secondary" size="sm" onClick={fetchCurrentVaConfig}>
+        <Button variant="secondary" onClick={fetchCurrentVaConfig}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Retry
         </Button>
@@ -370,14 +370,14 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
             <div className="space-y-4 lg:col-span-2">
               <div className="flex flex-wrap items-center gap-2">
                 {latestCrl && (
-                  <Button variant="secondary" size="sm" onClick={handleDownloadCrl} disabled={isDownloadingCrl}>
+                  <Button variant="secondary" onClick={handleDownloadCrl} disabled={isDownloadingCrl}>
                     {isDownloadingCrl ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                     Download CRL
                   </Button>
                 )}
                 <Button
                   variant="secondary"
-                  size="sm"
+                 
                   onClick={() => {
                     setCrlDetails(null);
                     setRawCrlDer(null);
@@ -481,7 +481,7 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                           </div>
 
                           {rawCrlDer && (
-                            <Button variant="secondary" size="sm" onClick={() => downloadFile(rawCrlDer, 'crl.der', 'application/pkix-crl')}>
+                            <Button variant="secondary" onClick={() => downloadFile(rawCrlDer, 'crl.der', 'application/pkix-crl')}>
                               <Download className="mr-2 h-4 w-4" /> Download CRL (DER)
                             </Button>
                           )}

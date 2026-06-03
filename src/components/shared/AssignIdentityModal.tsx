@@ -251,8 +251,8 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
             <>
                 <ScrollArea className="flex-grow border rounded-md"><ul className="p-2 space-y-1">{eligibleCerts.map(cert => (<SelectableCertificateItem key={cert.id} certificate={cert} onSelect={setSelectedCert} isSelected={selectedCert?.id === cert.id}/>))}</ul></ScrollArea>
                 <div className="flex justify-end items-center mt-2 pt-2 border-t space-x-2">
-                    <Button onClick={handlePreviousPage} disabled={certCurrentPageIndex === 0 || isLoadingCerts} variant="outline" size="sm"><ChevronLeft className="h-4 w-4 mr-1"/>Previous</Button>
-                    <Button onClick={handleNextPage} disabled={!certNextToken || isLoadingCerts} variant="outline" size="sm">Next<ChevronRight className="h-4 w-4 ml-1"/></Button>
+                    <Button onClick={handlePreviousPage} disabled={certCurrentPageIndex === 0 || isLoadingCerts} variant="secondary"><ChevronLeft className="h-4 w-4 mr-1"/>Previous</Button>
+                    <Button onClick={handleNextPage} disabled={!certNextToken || isLoadingCerts} variant="secondary">Next<ChevronRight className="h-4 w-4 ml-1"/></Button>
                 </div>
             </>
         ) : (
@@ -354,7 +354,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
         <DialogFooter>
           {view === 'select' ? (
             <div className="w-full flex justify-between items-center">
-                <Button variant="outline" onClick={() => setView('issue')}><CornerDownRight className="mr-2 h-4 w-4"/>Issue New Instead</Button>
+                <Button variant="secondary" onClick={() => setView('issue')}><CornerDownRight className="mr-2 h-4 w-4"/>Issue New Instead</Button>
                 <div className="flex space-x-2">
                     <Button type="button" variant="ghost" onClick={handleClose} disabled={isAssigning}>Cancel</Button>
                     <Button type="button" onClick={handleConfirm} disabled={!selectedCert || isAssigning}>
@@ -367,7 +367,7 @@ export const AssignIdentityModal: React.FC<AssignIdentityModalProps> = ({
             <div className="w-full flex justify-between items-center">
                 <Button variant="ghost" onClick={() => setView('select')}><ArrowLeft className="mr-2 h-4 w-4"/>Back to Select</Button>
                 <div className="flex space-x-2">
-                    <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+                    <Button type="button" variant="secondary" onClick={handleClose}>Cancel</Button>
                     <Button type="button" onClick={handleContinueToIssue} disabled={!selectedCA}>Continue to Issue</Button>
                 </div>
             </div>

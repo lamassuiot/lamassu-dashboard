@@ -88,7 +88,7 @@ export function CertificateDetailsModal({ certificate, isOpen, onClose }: Certif
         
         <div className="pt-4 border-t">
           <DialogClose asChild>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="secondary" onClick={onClose}>
               Close
             </Button>
           </DialogClose>

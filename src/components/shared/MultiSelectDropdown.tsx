@@ -85,8 +85,8 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
       <DropdownMenuContent className="w-56" align="end">
         <DropdownMenuLabel>Select options</DropdownMenuLabel>
         <div className="flex justify-between px-2 py-1">
-            <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={handleSelectAll}>Select All</Button>
-            <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={handleClear}>Clear</Button>
+            <Button variant="link" className="p-0 h-auto text-xs" onClick={handleSelectAll}>Select All</Button>
+            <Button variant="link" className="p-0 h-auto text-xs" onClick={handleClear}>Clear</Button>
         </div>
         <DropdownMenuSeparator />
         {options.map((option) => (

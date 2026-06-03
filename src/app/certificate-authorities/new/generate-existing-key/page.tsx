@@ -402,7 +402,7 @@ export default function CreateCaExistingKeyPage() {
 
   return (
     <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+      <Button variant="secondary" onClick={() => router.push('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
@@ -539,7 +539,7 @@ export default function CreateCaExistingKeyPage() {
                       <Label htmlFor="parentCa">Parent Certification Authority</Label>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => setIsParentCaModalOpen(true)}
                         className="w-full justify-start text-left font-normal mt-1"
                         id="parentCa"
@@ -657,7 +657,7 @@ export default function CreateCaExistingKeyPage() {
             </Card>
 
           <div className="flex justify-end pt-4">
-            <Button type="submit" size="lg" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
               {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
             </Button>

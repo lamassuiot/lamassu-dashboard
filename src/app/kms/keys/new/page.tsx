@@ -275,7 +275,7 @@ export default function CreateKmsKeyPage() {
       <div className="w-full flex flex-col gap-8 mb-12">
         <Button
           variant="ghost"
-          size="sm"
+         
           className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
           onClick={() => router.push('/kms/keys')}
         >
@@ -393,7 +393,7 @@ export default function CreateKmsKeyPage() {
           {/* Continue */}
           <Button
             type="button"
-            size="sm"
+           
             onClick={() => setSelectedMode(pendingMode)}
             className="min-w-[140px]"
           >
@@ -408,7 +408,7 @@ export default function CreateKmsKeyPage() {
   return (
     <div className="w-[80%] mx-auto mb-8">
       <div className="flex justify-end mb-4">
-        <Button variant="ghost" size="sm" onClick={() => setSelectedMode(null)} className="text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" onClick={() => setSelectedMode(null)} className="text-muted-foreground hover:text-foreground">
           Change method <ArrowLeft className="ml-1.5 h-3.5 w-3.5 rotate-180" />
         </Button>
       </div>
@@ -662,7 +662,7 @@ export default function CreateKmsKeyPage() {
         <Separator />
 
         <div className="flex justify-end pt-6">
-          <Button type="submit" size="sm" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
             {selectedMode === 'newKeyPair' ? 'Create Key Pair' :
              selectedMode === 'importKeyPair' ? 'Import Key Pair' :

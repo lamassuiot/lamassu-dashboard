@@ -4,7 +4,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { CertificateList } from '@/components/CertificateList';
-import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
+import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout';
+import { CertificateDetailPanel } from '@/components/shared/CertificateDetailPanel';
 import type { CertificateData } from '@/types/certificate';
 import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, PlusCircle, Upload, KeyRound } from 'lucide-react';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
@@ -85,7 +86,6 @@ export default function CertificatesPage() {
   } = usePaginatedCertificateFetcher();
   
   const [selectedCertificate, setSelectedCertificate] = useState<CertificateData | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const [caSelectorMode, setCaSelectorMode] = useState<'issue' | 'filter'>('filter');
   // Column visibility (lifted from CertificateList so ColumnSelector can live in the filter bar)
@@ -180,8 +180,9 @@ export default function CertificatesPage() {
   };
 
   const handleInspectCertificate = (certificate: CertificateData) => {
-    setSelectedCertificate(certificate);
-    setIsModalOpen(true);
+    setSelectedCertificate(prev =>
+      prev?.serialNumber === certificate.serialNumber ? null : certificate
+    );
   };
   
   const handleCaSelectedForFilter = (ca: CA) => {
@@ -216,6 +217,20 @@ export default function CertificatesPage() {
   }
   
   return (
+    <MasterDetailLayout
+      isDetailOpen={!!selectedCertificate}
+      onClose={() => setSelectedCertificate(null)}
+      detailTitle={selectedCertificate ? <span className="font-mono text-xs">{selectedCertificate.serialNumber}</span> : null}
+      detailSubtitle={selectedCertificate?.subject}
+      detailActions={
+        selectedCertificate ? (
+          <Button variant="ghost" className="h-7 text-xs" onClick={() => router.push(`/certificates/details?certificateId=${selectedCertificate.serialNumber}`)}>
+            Open full page →
+          </Button>
+        ) : null
+      }
+      detail={selectedCertificate ? <CertificateDetailPanel certificate={selectedCertificate} /> : null}
+      list={
     <div className="w-full space-y-6 pb-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center space-x-3">
@@ -265,7 +280,7 @@ export default function CertificatesPage() {
               align="end"
             />
             <Button
-              variant="outline"
+              variant="secondary"
               size="icon"
               className="h-8 w-8 shrink-0"
               onClick={refreshCertificates}
@@ -331,7 +346,6 @@ export default function CertificatesPage() {
         />
       )}
 
-      <CertificateDetailsModal certificate={selectedCertificate} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       <CaSelectorModal 
         isOpen={isCaSelectorOpen} 
         onOpenChange={setIsCaSelectorOpen} 
@@ -348,5 +362,7 @@ export default function CertificatesPage() {
         allCryptoEngines={allCryptoEngines}
       />
     </div>
+      }
+    />
   );
 }

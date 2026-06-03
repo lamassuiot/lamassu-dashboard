@@ -104,7 +104,7 @@ export const AkiCaSelectorModal: React.FC<AkiCaSelectorModalProps> = ({
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline">Cancel</Button>
+            <Button type="button" variant="secondary">Cancel</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>

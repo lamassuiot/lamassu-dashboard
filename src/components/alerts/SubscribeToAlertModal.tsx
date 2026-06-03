@@ -588,7 +588,7 @@ export const SubscribeToAlertModal: React.FC<SubscribeToAlertModalProps> = ({
                     {step > 1 && <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4"/>Back</Button>}
                 </div>
                 <div className="flex space-x-2">
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
+                    <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
                     {step < 3 && <Button onClick={handleNext}>Next</Button>}
                     {step === 3 && <Button onClick={handleSubmit} disabled={isSubmitting}>
                         {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}

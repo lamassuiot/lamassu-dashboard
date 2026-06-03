@@ -163,7 +163,7 @@ export const CaSelectorModal: React.FC<CaSelectorModalProps> = ({
         {!children ? (
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">Cancel</Button>
+              <Button type="button" variant="secondary">Cancel</Button>
             </DialogClose>
           </DialogFooter>
         ) : null}

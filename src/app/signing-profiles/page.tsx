@@ -260,7 +260,7 @@ export default function SigningProfilesPage() {
                     type="single"
                     value={viewMode}
                     onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
-                    variant="outline"
+                    variant="secondary"
                 >
                     <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
                     <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
@@ -329,10 +329,10 @@ export default function SigningProfilesPage() {
                 </Select>
               </div>
               <div className="flex items-center space-x-2">
-                  <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
+                  <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
                       <ChevronLeft className="mr-2 h-4 w-4" /> Previous
                   </Button>
-                  <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
+                  <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="secondary">
                       Next <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
               </div>

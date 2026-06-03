@@ -140,10 +140,10 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
                 <TableCell className="hidden lg:table-cell">
                   <div className="flex flex-wrap gap-1">
                     {profile.sign_as_ca && <Badge variant="default" className="bg-green-600/90 text-white">CA</Badge>}
-                    {profile.honor_subject && <Badge variant="outline">Honor Subject</Badge>}
-                    {profile.honor_key_usage && <Badge variant="outline">Honor KU</Badge>}
-                    {profile.honor_extended_key_usages && <Badge variant="outline">Honor EKU</Badge>}
-                    {profile.honor_extensions && <Badge variant="outline">Honor Ext</Badge>}
+                    {profile.honor_subject && <Badge variant="secondary">Honor Subject</Badge>}
+                    {profile.honor_key_usage && <Badge variant="secondary">Honor KU</Badge>}
+                    {profile.honor_extended_key_usages && <Badge variant="secondary">Honor EKU</Badge>}
+                    {profile.honor_extensions && <Badge variant="secondary">Honor Ext</Badge>}
                   </div>
                 </TableCell>
               )}
@@ -157,7 +157,7 @@ export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ prof
                       <Badge key={eku} variant="secondary" className="text-xs">{eku}</Badge>
                     ))}
                     {(profile.key_usage.length + profile.extended_key_usages.length) > 4 && (
-                      <Badge variant="outline">...</Badge>
+                      <Badge variant="secondary">...</Badge>
                     )}
                   </div>
                 </TableCell>

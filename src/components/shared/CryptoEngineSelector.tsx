@@ -72,7 +72,7 @@ export const CryptoEngineSelector: React.FC<CryptoEngineSelectorProps> = ({ valu
           <span className="text-sm font-medium">Error loading engines</span>
         </div>
         <p className="text-xs">{errorEngines}</p>
-        <Button onClick={fetchEngines} variant="link" size="sm" className="p-0 h-auto text-destructive">Try again</Button>
+        <Button onClick={fetchEngines} variant="link" className="p-0 h-auto text-destructive">Try again</Button>
       </div>
     );
   }

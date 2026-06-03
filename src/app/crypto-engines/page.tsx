@@ -135,7 +135,7 @@ export default function CryptoEnginesPage() {
             <div className="min-w-0 space-y-2">
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-semibold tracking-tight">Crypto Engines</h1>
-                <Button onClick={fetchEngines} variant="outline" size="sm" disabled={isLoading} className="gap-1.5">
+                <Button onClick={fetchEngines} variant="secondary" disabled={isLoading} className="gap-1.5">
                   <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
                   Refresh
                 </Button>

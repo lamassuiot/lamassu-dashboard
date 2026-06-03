@@ -260,7 +260,7 @@ const UnauthenticatedLayoutContent = () => {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button variant="ghost" size="sm" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
+          <Button variant="ghost" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
             <LogIn className="mr-0 sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">Login</span>
           </Button>
         </div>
@@ -278,7 +278,7 @@ const UnauthenticatedLayoutContent = () => {
         <p className="text-lg text-muted-foreground mb-8 max-w-md">
           Securely manage your X.509 certificates and IoT device identities. Please log in to access the system.
         </p>
-        <Button onClick={login} size="lg" className="px-8 py-6 text-lg">
+        <Button onClick={login} className="px-8 py-6 text-lg">
           <LogIn className="mr-2 h-5 w-5" /> Login with Lamassu Identity
         </Button>
       </div>

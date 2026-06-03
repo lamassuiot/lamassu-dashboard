@@ -336,7 +336,7 @@ export default function KmsKeysPage() {
                         {engine ? (
                           <CryptoEngineViewer engine={engine} plainIcon />
                         ) : (
-                          <Badge variant="outline" className="text-xs font-normal bg-muted/40 border-muted-foreground/30">
+                          <Badge variant="secondary" className="text-xs font-normal bg-muted/40 border-muted-foreground/30">
                             {key.cryptoEngineId || 'N/A'}
                           </Badge>
                         )}
@@ -483,10 +483,10 @@ export default function KmsKeysPage() {
               </Select>
             </div>
             <div className="flex items-center space-x-2">
-              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
+              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
               </Button>
-              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
+              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="secondary">
                 Next <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>

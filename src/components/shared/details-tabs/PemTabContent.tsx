@@ -103,11 +103,11 @@ function PemCard({ title, subtitle, icon: Icon, badge, pem, filename, itemName }
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={copy} disabled={!pem}>
+          <Button variant="ghost" className="h-7 px-2.5 text-xs gap-1.5" onClick={copy} disabled={!pem}>
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? 'Copied' : 'Copy'}
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs gap-1.5" onClick={download} disabled={!pem}>
+          <Button variant="ghost" className="h-7 px-2.5 text-xs gap-1.5" onClick={download} disabled={!pem}>
             <Download className="h-3.5 w-3.5" />
             .pem
           </Button>
@@ -166,7 +166,7 @@ function ChainStrip({
             )}
           </React.Fragment>
         ))}
-        <Badge variant="outline" className="ml-auto text-xs">{nodes.length} cert{nodes.length !== 1 ? 's' : ''}</Badge>
+        <Badge variant="secondary" className="ml-auto text-xs">{nodes.length} cert{nodes.length !== 1 ? 's' : ''}</Badge>
       </div>
     </div>
   );

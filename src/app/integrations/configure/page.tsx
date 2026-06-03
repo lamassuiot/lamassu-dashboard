@@ -82,7 +82,7 @@ export default function ConfigureIntegrationPage() {
     if (error) {
         return (
             <div className="mx-auto mb-8 w-[80%] space-y-4">
-                <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+                <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
                     <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
                 </Button>
                 <Alert variant="destructive">
@@ -97,7 +97,7 @@ export default function ConfigureIntegrationPage() {
     if (!raData || !configKey) {
          return (
             <div className="mx-auto mb-8 w-[80%] space-y-4">
-                <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+                <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
                     <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
                 </Button>
                 <Alert variant="warning">
@@ -134,15 +134,15 @@ export default function ConfigureIntegrationPage() {
             <div className="mb-6 flex justify-end">
                 <div className="flex items-center gap-2">
                     <Button
-                        variant="outline"
-                        size="sm"
+                        variant="secondary"
+                       
                         onClick={() => router.push(`/registration-authorities/new?raId=${raData.id}`)}
                     >
                         <Eye className="mr-1.5 h-3.5 w-3.5" /> View RA
                     </Button>
                     <Button
                         variant="ghost"
-                        size="sm"
+                       
                         onClick={() => router.push('/integrations')}
                         className="text-muted-foreground hover:text-foreground"
                     >
@@ -162,13 +162,13 @@ export default function ConfigureIntegrationPage() {
                         <p className="mt-0.5 text-xs text-muted-foreground">{pageDescription}</p>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                             <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">{configKey}</code>
-                            {connectorInstance && <Badge variant="outline" className="text-xs">{connectorInstance}</Badge>}
+                            {connectorInstance && <Badge variant="secondary" className="text-xs">{connectorInstance}</Badge>}
                             <span className="text-[11px] text-muted-foreground">
                                 RA: <span className="font-medium text-foreground">{raData.name}</span>
                             </span>
                         </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setIsMetadataModalOpen(true)} className="shrink-0 text-muted-foreground hover:text-foreground">
+                    <Button variant="ghost" onClick={() => setIsMetadataModalOpen(true)} className="shrink-0 text-muted-foreground hover:text-foreground">
                         <BookText className="mr-1.5 h-3.5 w-3.5" /> Metadata
                     </Button>
                 </div>

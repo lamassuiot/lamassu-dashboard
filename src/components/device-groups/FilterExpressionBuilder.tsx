@@ -127,7 +127,7 @@ export function FilterExpressionBuilder({
             <div className="space-y-1 text-sm text-muted-foreground">
               {criteria.map((filter, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  {idx > 0 && <Badge variant="outline">AND</Badge>}
+                  {idx > 0 && <Badge variant="secondary">AND</Badge>}
                   <span>{formatFilterCriteria(filter.field, filter.operand, filter.value)}</span>
                 </div>
               ))}

@@ -24,8 +24,8 @@ function Tabs({
   )
 }
 
-export const pageTabsListClass = "h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0"
-export const pageTabsTriggerClass = "relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none gap-2 transition-colors hover:bg-muted/40 hover:text-foreground data-[state=active]:[border-bottom-color:var(--color-primary)]! data-[state=active]:bg-transparent! data-[state=active]:text-foreground data-[state=active]:shadow-none"
+export const pageTabsListClass = "!h-auto group-data-horizontal/tabs:!h-auto w-full justify-start gap-0 !rounded-none !bg-transparent p-0"
+export const pageTabsTriggerClass = "relative !h-10 flex-none !rounded-none !bg-transparent !shadow-none px-4 py-2 text-sm font-medium text-muted-foreground gap-2 transition-all hover:text-foreground data-[state=active]:[box-shadow:inset_0_-2px_0_var(--color-primary)]! data-[state=active]:!bg-transparent data-active:!bg-transparent data-[state=active]:text-foreground data-active:text-foreground"
 
 const tabsListVariants = cva(
   "group/tabs-list inline-flex w-fit items-center justify-center rounded-2xl p-[3px] text-muted-foreground group-data-horizontal/tabs:h-8 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col group-data-vertical/tabs:p-1 data-[variant=line]:rounded-none",

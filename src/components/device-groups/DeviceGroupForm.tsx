@@ -330,11 +330,11 @@ export function DeviceGroupForm({ mode, existingGroup }: DeviceGroupFormProps) {
 
       {/* Form Actions */}
       <div className="flex justify-end gap-3 pt-4">
-        <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
+        <Button type="button" variant="secondary" onClick={handleCancel} disabled={isSubmitting}>
           <X className="mr-2 h-4 w-4" />
           Cancel
         </Button>
-        <Button type="submit" size="lg" disabled={isSubmitting || (mode === 'create' && criteria.length === 0)}>
+        <Button type="submit" disabled={isSubmitting || (mode === 'create' && criteria.length === 0)}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />

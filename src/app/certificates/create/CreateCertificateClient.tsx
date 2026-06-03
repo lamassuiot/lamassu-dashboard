@@ -245,7 +245,7 @@ export default function CreateCertificateClient() {
         <div className="w-full space-y-6">
             {/* Header */}
             <div className="flex justify-between items-center">
-                <Button variant="outline" onClick={() => router.push('/certificates')}>
+                <Button variant="secondary" onClick={() => router.push('/certificates')}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certificates
                 </Button>
             </div>
@@ -273,7 +273,7 @@ export default function CreateCertificateClient() {
                                 </Label>
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="secondary"
                                     className="w-full justify-between font-normal"
                                     onClick={() => setIsCaSelectorOpen(true)}
                                     disabled={isLoadingCAs}
@@ -545,7 +545,7 @@ export default function CreateCertificateClient() {
                                     <Button
                                         type="button"
                                         variant="secondary"
-                                        size="sm"
+                                       
                                         onClick={() => handleCopy(issuedCertPem)}
                                     >
                                         {certCopied
@@ -556,7 +556,7 @@ export default function CreateCertificateClient() {
                                     <Button
                                         type="button"
                                         variant="secondary"
-                                        size="sm"
+                                       
                                         onClick={() => handleDownload(issuedCertPem, 'certificate.pem')}
                                     >
                                         <DownloadIcon className="mr-1 h-4 w-4" /> Download
@@ -609,7 +609,7 @@ export default function CreateCertificateClient() {
                         <>
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="secondary"
                                 onClick={() => router.push('/certificates')}
                             >
                                 Back to Certificates
@@ -625,7 +625,7 @@ export default function CreateCertificateClient() {
                             {issuedKeyId && (
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="secondary"
                                     onClick={() => router.push(`/kms/keys/details?keyId=${encodeURIComponent(issuedKeyId)}`)}
                                 >
                                     <KeyRound className="mr-2 h-4 w-4" /> View Key in KMS

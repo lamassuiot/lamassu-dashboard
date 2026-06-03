@@ -17,7 +17,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { CaVisualizerCard } from '@/components/CaVisualizerCard';
+import { parseISO, isPast, formatDistanceToNowStrict } from 'date-fns';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 interface SortConfig {
@@ -186,20 +186,34 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                 <TableCell className="max-w-[280px]">
                   {(() => {
                     const ca = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
-                    return ca ? (
-                      <CaVisualizerCard 
-                        ca={ca} 
-                        allCryptoEngines={allCryptoEngines}
-                      onClick={(selectedCa) => router.push(`/certificate-authorities/details?caId=${selectedCa.id}`)}
-                      className="min-w-0 !bg-transparent !border-0 !shadow-none hover:!bg-muted/50"
-                    />
-                  ) : (
-                    <span className="text-muted-foreground text-sm">
-                      CA not found: {ra.settings.enrollment_settings.enrollment_ca}
-                    </span>
-                  );
-                })()}
-              </TableCell>
+                    if (!ca) return <span className="text-muted-foreground text-sm">—</span>;
+                    const expiryDate = parseISO(ca.expires);
+                    const isRevoked = ca.status === 'revoked';
+                    const isExpired = !isRevoked && isPast(expiryDate);
+                    const statusLabel = isRevoked ? 'Revoked' : isExpired ? 'Expired' : 'Active';
+                    const statusClass = isRevoked
+                      ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20'
+                      : isExpired
+                      ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20'
+                      : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
+                    const expiryText = isRevoked ? null : isExpired
+                      ? `Expired ${formatDistanceToNowStrict(expiryDate)} ago`
+                      : `Expires in ${formatDistanceToNowStrict(expiryDate)}`;
+                    return (
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/certificate-authorities/details?caId=${ca.id}`)}
+                          className="text-sm font-medium text-primary hover:underline truncate"
+                        >
+                          {ca.name}
+                        </button>
+                        <Badge variant="secondary" className={`shrink-0 text-xs ${statusClass}`}>{statusLabel}</Badge>
+                        {expiryText && <span className="text-xs text-muted-foreground shrink-0">{expiryText}</span>}
+                      </div>
+                    );
+                  })()}
+                </TableCell>
               )}
               {columnVisibility.authMode && (
                 <TableCell className="hidden lg:table-cell">

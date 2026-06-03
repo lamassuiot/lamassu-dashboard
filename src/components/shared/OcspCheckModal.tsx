@@ -239,14 +239,14 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                                             <div className="space-y-2">
                                                 <Label className="font-semibold">Download/Copy Request</Label>
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                    <Button variant="secondary" size="sm" onClick={() => handleCopyPem(responseDetails?.requestDer, 'OCSP REQUEST', setRequestPemCopied)} disabled={!responseDetails?.requestDer}>
+                                                    <Button variant="secondary" onClick={() => handleCopyPem(responseDetails?.requestDer, 'OCSP REQUEST', setRequestPemCopied)} disabled={!responseDetails?.requestDer}>
                                                         {requestPemCopied ? <Check className="mr-2 h-4 w-4 text-green-500"/> : <Copy className="mr-2 h-4 w-4"/>}
                                                         {requestPemCopied ? 'Copied' : 'Copy PEM'}
                                                     </Button>
-                                                    <Button variant="secondary" size="sm" onClick={() => downloadPem(responseDetails?.requestDer, 'OCSP REQUEST', 'ocsp_request.pem')} disabled={!responseDetails?.requestDer}>
+                                                    <Button variant="secondary" onClick={() => downloadPem(responseDetails?.requestDer, 'OCSP REQUEST', 'ocsp_request.pem')} disabled={!responseDetails?.requestDer}>
                                                         <Download className="mr-2 h-4 w-4"/>Download PEM
                                                     </Button>
-                                                    <Button variant="secondary" size="sm" onClick={() => downloadFile(responseDetails?.requestDer!, 'ocsp_request.der', 'application/ocsp-request')} disabled={!responseDetails?.requestDer}>
+                                                    <Button variant="secondary" onClick={() => downloadFile(responseDetails?.requestDer!, 'ocsp_request.der', 'application/ocsp-request')} disabled={!responseDetails?.requestDer}>
                                                         <Download className="mr-2 h-4 w-4"/>Download DER
                                                     </Button>
                                                 </div>
@@ -254,14 +254,14 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
                                             <div className="space-y-2">
                                                 <Label className="font-semibold">Download/Copy Response</Label>
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                    <Button variant="secondary" size="sm" onClick={() => handleCopyPem(responseDetails?.responseDer, 'OCSP RESPONSE', setResponsePemCopied)} disabled={!responseDetails?.responseDer}>
+                                                    <Button variant="secondary" onClick={() => handleCopyPem(responseDetails?.responseDer, 'OCSP RESPONSE', setResponsePemCopied)} disabled={!responseDetails?.responseDer}>
                                                         {responsePemCopied ? <Check className="mr-2 h-4 w-4 text-green-500"/> : <Copy className="mr-2 h-4 w-4"/>}
                                                         {responsePemCopied ? 'Copied' : 'Copy PEM'}
                                                     </Button>
-                                                    <Button variant="secondary" size="sm" onClick={() => downloadPem(responseDetails?.responseDer, 'OCSP RESPONSE', 'ocsp_response.pem')} disabled={!responseDetails?.responseDer}>
+                                                    <Button variant="secondary" onClick={() => downloadPem(responseDetails?.responseDer, 'OCSP RESPONSE', 'ocsp_response.pem')} disabled={!responseDetails?.responseDer}>
                                                         <Download className="mr-2 h-4 w-4"/>Download PEM
                                                     </Button>
-                                                    <Button variant="secondary" size="sm" onClick={() => downloadFile(responseDetails?.responseDer!, 'ocsp_response.der', 'application/ocsp-response')} disabled={!responseDetails?.responseDer}>
+                                                    <Button variant="secondary" onClick={() => downloadFile(responseDetails?.responseDer!, 'ocsp_response.der', 'application/ocsp-response')} disabled={!responseDetails?.responseDer}>
                                                         <Download className="mr-2 h-4 w-4"/>Download DER
                                                     </Button>
                                                 </div>
@@ -279,7 +279,7 @@ export const OcspCheckModal: React.FC<OcspCheckModalProps> = ({ isOpen, onClose,
 
                 <DialogFooter>
                     <DialogClose asChild>
-                        <Button type="button" variant="outline">Close</Button>
+                        <Button type="button" variant="secondary">Close</Button>
                     </DialogClose>
                 </DialogFooter>
             </DialogContent>

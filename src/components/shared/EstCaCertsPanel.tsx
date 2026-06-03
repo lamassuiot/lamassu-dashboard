@@ -130,7 +130,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
         </div>
 
         <SheetFooter className="border-t px-6 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

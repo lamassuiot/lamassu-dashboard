@@ -670,7 +670,7 @@ export default function KmsKeyDetailsClient() {
   if (error) {
     return (
       <div className="w-full space-y-4 p-4">
-        <Button variant="outline" onClick={() => router.back()} className="mb-4">
+        <Button variant="secondary" onClick={() => router.back()} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
         <Alert variant="destructive">
@@ -687,7 +687,7 @@ export default function KmsKeyDetailsClient() {
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <KeyRound className="h-12 w-12 text-muted-foreground" />
         <p className="text-muted-foreground">KMS Key with ID "{keyId || 'Unknown'}" not found.</p>
-        <Button variant="outline" onClick={() => router.push('/kms/keys')} className="mt-4">
+        <Button variant="secondary" onClick={() => router.push('/kms/keys')} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
       </div>
@@ -746,7 +746,7 @@ export default function KmsKeyDetailsClient() {
         actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="px-2.5">
+              <Button variant="secondary" className="px-2.5">
                 <Settings className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -785,7 +785,7 @@ export default function KmsKeyDetailsClient() {
                   </code>
                   <Button
                     variant="ghost"
-                    size="sm"
+                   
                     className="h-6 w-6 p-0 shrink-0"
                     onClick={() => {
                       navigator.clipboard.writeText(keyDetails.id);
@@ -849,7 +849,7 @@ export default function KmsKeyDetailsClient() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
-          <TabsList className="h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
+          <TabsList className={cn(pageTabsListClass, "min-w-max")}>
             {([
               { value: 'overview',      icon: Info,          label: 'Overview' },
               { value: 'public-key',    icon: FileText,      label: 'Public Key' },
@@ -894,7 +894,7 @@ export default function KmsKeyDetailsClient() {
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-medium text-muted-foreground">Tags</p>
                         {!isEditingTags && (
-                          <Button variant="ghost" size="sm" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
+                          <Button variant="ghost" onClick={() => setIsEditingTags(true)} className="h-7 text-xs">
                             <Edit className="mr-1.5 h-3 w-3" /> Edit
                           </Button>
                         )}
@@ -903,8 +903,8 @@ export default function KmsKeyDetailsClient() {
                         <div className="mt-3 space-y-3 rounded-lg border bg-background px-3 py-3">
                           <TagInput value={keyTags} onChange={setKeyTags} placeholder="Add tags..." />
                           <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={handleCancelEditTags} disabled={isSavingTags}>Cancel</Button>
-                            <Button size="sm" onClick={handleSaveTags} disabled={isSavingTags}>
+                            <Button variant="secondary" onClick={handleCancelEditTags} disabled={isSavingTags}>Cancel</Button>
+                            <Button onClick={handleSaveTags} disabled={isSavingTags}>
                               {isSavingTags ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" />Saving...</> : 'Save'}
                             </Button>
                           </div>
@@ -945,13 +945,13 @@ export default function KmsKeyDetailsClient() {
                           onChange={(e) => setNewAlias(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAlias(); } }}
                         />
-                        <Button onClick={handleAddAlias} size="sm"><PlusCircle className="mr-2 h-4 w-4" />Add</Button>
+                        <Button onClick={handleAddAlias}><PlusCircle className="mr-2 h-4 w-4" />Add</Button>
                       </div>
                       <div className="space-y-2">
                         {keyAliases.length > 0 ? keyAliases.map((alias, idx) => (
                           <div key={idx} className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2">
                             <span className="text-sm font-medium">{alias}</span>
-                            <Button variant="ghost" size="sm" onClick={() => handleRemoveAlias(idx)} className="h-7 w-7 p-0">
+                            <Button variant="ghost" onClick={() => handleRemoveAlias(idx)} className="h-7 w-7 p-0">
                               <XIcon className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
@@ -960,8 +960,8 @@ export default function KmsKeyDetailsClient() {
                         )}
                       </div>
                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={handleCancelEditAliases} disabled={isSavingAliases}>Cancel</Button>
-                        <Button size="sm" onClick={handleSaveAliases} disabled={isSavingAliases}>
+                        <Button variant="secondary" onClick={handleCancelEditAliases} disabled={isSavingAliases}>Cancel</Button>
+                        <Button onClick={handleSaveAliases} disabled={isSavingAliases}>
                           {isSavingAliases ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
                         </Button>
                       </div>
@@ -977,7 +977,7 @@ export default function KmsKeyDetailsClient() {
                       ) : (
                         <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">No aliases configured for this key</div>
                       )}
-                      <Button variant="secondary" size="sm" onClick={() => setIsEditingAliases(true)}>
+                      <Button variant="secondary" onClick={() => setIsEditingAliases(true)}>
                         <Edit className="mr-2 h-3 w-3" /> Edit Aliases
                       </Button>
                     </div>
@@ -1336,7 +1336,7 @@ export default function KmsKeyDetailsClient() {
                           placeholder={csrCurrentSanType === 'DNS' ? 'example.com' : csrCurrentSanType === 'IP' ? '192.168.1.1' : csrCurrentSanType === 'Email' ? 'user@example.com' : 'https://device.id/info'}
                         />
                       </div>
-                      <Button type="button" onClick={handleAddCsrSan} size="sm" className="self-end">Add</Button>
+                      <Button type="button" onClick={handleAddCsrSan} className="self-end">Add</Button>
                     </div>
                     {csrSans.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">

@@ -451,10 +451,10 @@ export default function AlertsPage() {
                     <span className="text-sm text-muted-foreground">
                         Page {currentPage} of {totalPages > 0 ? totalPages : 1}
                     </span>
-                    <Button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} variant="outline" size="sm">
+                    <Button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} variant="secondary">
                         <ChevronLeft className="mr-1 h-4 w-4" /> Previous
                     </Button>
-                    <Button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} variant="outline" size="sm">
+                    <Button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} variant="secondary">
                         Next <ChevronRight className="ml-1 h-4 w-4" />
                     </Button>
                 </div>

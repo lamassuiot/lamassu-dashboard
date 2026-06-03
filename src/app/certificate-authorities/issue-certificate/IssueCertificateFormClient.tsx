@@ -500,7 +500,7 @@ export default function IssueCertificateFormClient() {
       <div className="w-full flex flex-col gap-8 mb-12">
         <Button
           variant="ghost"
-          size="sm"
+         
           className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
           onClick={() => router.back()}
         >
@@ -605,7 +605,7 @@ export default function IssueCertificateFormClient() {
           {/* Continue */}
           <Button
             type="button"
-            size="sm"
+           
             onClick={() => setIssuanceModeSelected(true)}
             className="min-w-[140px]"
           >
@@ -621,7 +621,7 @@ export default function IssueCertificateFormClient() {
   return (
     <div className="w-full space-y-6 mb-8">
       <div className="flex justify-between items-center">
-        <Button variant="outline" onClick={() => router.back()}>
+        <Button variant="secondary" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authority
         </Button>
       </div>
@@ -653,7 +653,7 @@ export default function IssueCertificateFormClient() {
               <div className="flex justify-end mb-4">
                 <Button
                   variant="ghost"
-                  size="sm"
+                 
                   onClick={() => { setIssuanceModeSelected(false); setStep(1); }}
                   className="text-muted-foreground hover:text-foreground"
                 >
@@ -759,7 +759,7 @@ export default function IssueCertificateFormClient() {
                               }
                             />
                           </div>
-                          <Button type="button" size="sm" onClick={handleAddSan}>Add</Button>
+                          <Button type="button" onClick={handleAddSan}>Add</Button>
                         </div>
                         {sans.length > 0 && (
                           <div className="mt-3 p-3 border rounded-md bg-muted/30">
@@ -917,7 +917,7 @@ export default function IssueCertificateFormClient() {
                 {issuanceMode === 'generate' && (
                   <Button
                     type="button"
-                    size="sm"
+                   
                     onClick={handleGenerateAndIssue}
                     disabled={isLoadingCa || isGenerating || !commonName.trim()}
                   >
@@ -928,7 +928,7 @@ export default function IssueCertificateFormClient() {
                 {issuanceMode === 'upload' && (
                   <Button
                     type="button"
-                    size="sm"
+                   
                     onClick={handleIssueCertificateFromUpload}
                     disabled={isLoadingCa || isGenerating || !csrPem.trim() || !!decodedCsrInfo?.error}
                   >
@@ -985,11 +985,11 @@ export default function IssueCertificateFormClient() {
                         Issued Certificate PEM
                       </CardTitle>
                       <div className="flex flex-wrap gap-2 sm:justify-end">
-                        <Button type="button" variant="secondary" size="sm" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
+                        <Button type="button" variant="secondary" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
                           {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500" /> : <Copy className="mr-1 h-4 w-4" />}
                           {issuedCertCopied ? 'Copied' : 'Copy'}
                         </Button>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
+                        <Button type="button" variant="secondary" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
                           <DownloadIcon className="mr-1 h-4 w-4" />Download
                         </Button>
                       </div>
@@ -1020,11 +1020,11 @@ export default function IssueCertificateFormClient() {
                           Generated Private Key
                         </CardTitle>
                         <div className="flex flex-wrap gap-2 sm:justify-end">
-                          <Button type="button" variant="secondary" size="sm" onClick={() => handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
+                          <Button type="button" variant="secondary" onClick={() => handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
                             {privateKeyCopied ? <Check className="mr-1 h-4 w-4 text-green-500" /> : <Copy className="mr-1 h-4 w-4" />}
                             {privateKeyCopied ? 'Copied' : 'Copy'}
                           </Button>
-                          <Button type="button" variant="secondary" size="sm" onClick={() => handleDownload(generatedPrivateKeyPem, "private_key.pem", "application/x-pem-file")}>
+                          <Button type="button" variant="secondary" onClick={() => handleDownload(generatedPrivateKeyPem, "private_key.pem", "application/x-pem-file")}>
                             <DownloadIcon className="mr-1 h-4 w-4" />Download
                           </Button>
                         </div>
@@ -1061,7 +1061,7 @@ export default function IssueCertificateFormClient() {
                 )}
                 {step === 3 && (
                   <>
-                    <Button type="button" variant="outline" onClick={() => {
+                    <Button type="button" variant="secondary" onClick={() => {
                       if (returnToDevice) {
                         router.push(`/devices/details?deviceId=${returnToDevice}&action=assignIdentity`);
                       } else {

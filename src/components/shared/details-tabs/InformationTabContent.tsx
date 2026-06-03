@@ -173,7 +173,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <AlertDescription className="mt-2 space-y-1.5 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Reason:</span>
-                <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
+                <Badge variant="secondary" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
                   {getRevocationReasonLabel(caDetails.rawApiData.certificate.revocation_reason)}
                 </Badge>
               </div>
@@ -248,7 +248,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 value={
                   (caDetails.keyUsage && caDetails.keyUsage.length > 0) || (caDetails.extendedKeyUsage && caDetails.extendedKeyUsage.length > 0) ? (
                     <div className="flex flex-wrap gap-1">
-                      {caDetails.keyUsage?.map(u => <Badge key={u} variant="outline" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                      {caDetails.keyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
                       {caDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
                     </div>
                   ) : 'Not Specified'
@@ -280,7 +280,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                     </AlertDescription>
                   </Alert>
                 )}
-                <Button variant="secondary" size="sm" onClick={() => setIsEditingProfile(true)}>
+                <Button variant="secondary" onClick={() => setIsEditingProfile(true)}>
                   <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit Profile
                 </Button>
               </div>
@@ -297,8 +297,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   createModeEnabled={true}
                 />
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSubmitting}>Cancel</Button>
-                  <Button size="sm" onClick={handleSaveProfile} disabled={isSubmitting || isLoadingProfiles}>
+                  <Button variant="secondary" onClick={handleCancelEdit} disabled={isSubmitting}>Cancel</Button>
+                  <Button onClick={handleSaveProfile} disabled={isSubmitting || isLoadingProfiles}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     <Check className="mr-2 h-3.5 w-3.5" /> Save
                   </Button>
@@ -399,7 +399,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <AlertDescription className="mt-2 space-y-1.5 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Reason:</span>
-                <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
+                <Badge variant="secondary" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
                   {getRevocationReasonLabel(certDetails.revocationReason)}
                 </Badge>
               </div>
@@ -419,7 +419,21 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
           <div className="lg:col-span-2">
             <DetailInfoRows>
               <DetailInfoRow label="Subject" value={certDetails.subject} className="first:pt-0" />
-              <DetailInfoRow label="Issuer" value={certDetails.issuer} />
+              <DetailInfoRow
+                label="Issuer"
+                value={
+                  certDetails.issuerCaId ? (
+                    <button
+                      className="text-primary hover:underline text-left"
+                      onClick={() => routerHook.push(`/certificate-authorities/details?caId=${certDetails.issuerCaId}`)}
+                    >
+                      {certDetails.issuer}
+                    </button>
+                  ) : (
+                    certDetails.issuer
+                  )
+                }
+              />
               <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
               <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString={getDisplayDateFormat()} />} />
               <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString={getDisplayDateFormat()} highlightExpired />} className="last:pb-0" />
@@ -499,7 +513,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                   value={
                     (certDetails.keyUsage && certDetails.keyUsage.length > 0) || (certDetails.extendedKeyUsage && certDetails.extendedKeyUsage.length > 0) ? (
                       <div className="flex flex-wrap gap-1">
-                        {certDetails.keyUsage?.map(u => <Badge key={u} variant="outline" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
+                        {certDetails.keyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
                         {certDetails.extendedKeyUsage?.map(u => <Badge key={u} variant="secondary" className="text-xs">{formatCertificateUsageLabel(u)}</Badge>)}
                       </div>
                     ) : 'Not Specified'

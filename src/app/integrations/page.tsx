@@ -126,11 +126,11 @@ export default function IntegrationsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-center">
-          <Button onClick={loadIntegrations} variant="outline" size="sm" disabled={isLoading}>
+          <Button onClick={loadIntegrations} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", isLoading && "animate-spin")} />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button onClick={() => router.push('/integrations/new')} size="sm">
+          <Button onClick={() => router.push('/integrations/new')}>
             <PlusCircle className="h-3.5 w-3.5 sm:mr-1.5" />
             <span className="hidden sm:inline">New Integration</span>
           </Button>
@@ -174,8 +174,8 @@ export default function IntegrationsPage() {
 
                 {/* Configure button */}
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
+                 
                   onClick={() => handleConfigure(integration)}
                   className="shrink-0"
                 >
@@ -218,7 +218,7 @@ export default function IntegrationsPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             No integrations discovered. Add metadata to a Registration Authority to register one.
           </p>
-          <Button onClick={() => router.push('/integrations/new')} size="sm" className="mt-4">
+          <Button onClick={() => router.push('/integrations/new')} className="mt-4">
             <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> New Integration
           </Button>
         </div>

@@ -88,7 +88,7 @@ export function KmsKeySelector({
     <>
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         onClick={() => setIsModalOpen(true)}
         className={`w-full justify-start text-left font-normal ${className}`}
         disabled={disabled}
@@ -137,7 +137,7 @@ export function KmsKeySelector({
             ) : error ? (
               <div className="text-center py-8 text-destructive">
                 <p>{error}</p>
-                <Button variant="outline" onClick={loadKeys} className="mt-4">
+                <Button variant="secondary" onClick={loadKeys} className="mt-4">
                   Retry
                 </Button>
               </div>
@@ -189,7 +189,7 @@ export function KmsKeySelector({
                             {engine ? (
                               <CryptoEngineViewer engine={engine} />
                             ) : (
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="secondary" className="text-xs">
                                 {key.engine_id}
                               </Badge>
                             )}
@@ -197,7 +197,7 @@ export function KmsKeySelector({
                           <TableCell className="text-right">
                             <Button
                               variant={isSelected ? "default" : "outline"}
-                              size="sm"
+                             
                               onClick={() => handleSelectKey(key)}
                             >
                               {isSelected ? 'Selected' : 'Select'}

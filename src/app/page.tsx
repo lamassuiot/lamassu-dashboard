@@ -525,7 +525,7 @@ export default function HomePage() {
           <p className="font-medium">Unable to load dashboard</p>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">{error}</p>
-        <Button className="mt-4" onClick={loadDashboard} variant="outline" size="sm">
+        <Button className="mt-4" onClick={loadDashboard} variant="outline">
           <RefreshCw className="mr-2 h-4 w-4" />
           Retry
         </Button>
@@ -574,7 +574,7 @@ export default function HomePage() {
               ? `Last sync ${lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
               : 'Not synced'}
           </span>
-          <Button variant="ghost" size="sm" onClick={loadDashboard} className="h-7 gap-1.5 px-2 text-xs">
+          <Button variant="ghost" onClick={loadDashboard} className="h-7 gap-1.5 px-2 text-xs">
             <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
             Refresh
           </Button>
@@ -585,25 +585,25 @@ export default function HomePage() {
       <div>
         <SectionLabel>Quick Actions</SectionLabel>
         <div className="flex flex-wrap gap-2">
-          <Button variant="default" size="sm" className="gap-2" asChild>
+          <Button variant="default" className="gap-2" asChild>
             <a href="/certificate-authorities/new/generate">
               <Landmark className="h-4 w-4" />
               Create CA
             </a>
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" asChild>
+          <Button variant="outline" className="gap-2" asChild>
             <a href="/certificates/create">
               <FilePlus className="h-4 w-4" />
               Issue Certificate
             </a>
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" asChild>
+          <Button variant="outline" className="gap-2" asChild>
             <a href="/registration-authorities/new">
               <Wifi className="h-4 w-4" />
               Enroll Device
             </a>
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" asChild>
+          <Button variant="outline" className="gap-2" asChild>
             <a href="/certificates">
               <FileBadge className="h-4 w-4" />
               View CRLs
@@ -760,7 +760,7 @@ export default function HomePage() {
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-1 flex items-center justify-between">
             <SectionLabel>Recent Activity</SectionLabel>
-            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" asChild>
+            <Button variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" asChild>
               <a href="/alerts">
                 View all <ChevronRight className="h-3 w-3" />
               </a>
@@ -777,7 +777,7 @@ export default function HomePage() {
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="mb-1 flex items-center justify-between">
             <SectionLabel>Certificate Authorities</SectionLabel>
-            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" asChild>
+            <Button variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" asChild>
               <a href="/certificate-authorities">
                 View all <ChevronRight className="h-3 w-3" />
               </a>

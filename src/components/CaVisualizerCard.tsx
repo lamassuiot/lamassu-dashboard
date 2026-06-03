@@ -64,9 +64,7 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
     >
       <CardHeader>
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
-            {iconNode}
-          </div>
+          {iconNode}
           <span className="truncate text-sm font-medium leading-none">{ca.name}</span>
         </div>
         <CardAction>

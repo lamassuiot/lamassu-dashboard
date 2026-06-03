@@ -103,7 +103,7 @@ export default function CreateCaImportPublicPage() {
 
   return (
     <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+      <Button variant="secondary" onClick={() => router.push('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
@@ -162,7 +162,7 @@ export default function CreateCaImportPublicPage() {
             </Card>
             
           <div className="flex justify-end pt-4">
-            <Button type="submit" size="lg" disabled={isSubmitting || !importedCaCertPem.trim()}>
+            <Button type="submit" disabled={isSubmitting || !importedCaCertPem.trim()}>
               {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
               Import Public Certificate
             </Button>

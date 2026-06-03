@@ -200,7 +200,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
                          <Button
                             id="device-icon-preview"
                             type="button"
-                            variant="outline"
+                            variant="secondary"
                             className="h-16 w-16 p-2 flex flex-col items-center justify-center"
                             onClick={() => setIsIconModalOpen(true)}
                             style={{ backgroundColor: iconBgColor }}
@@ -220,7 +220,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+            <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button onClick={handleRegister} disabled={isSubmitting || isLoadingRa || !deviceId || !selectedRa}>

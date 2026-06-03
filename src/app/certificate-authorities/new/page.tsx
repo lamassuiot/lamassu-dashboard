@@ -87,7 +87,7 @@ export default function CreateCaHubPage() {
     <div className="w-full flex flex-col gap-8 mb-12">
       <Button
         variant="ghost"
-        size="sm"
+       
         className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
         onClick={() => router.push('/certificate-authorities')}
       >
@@ -190,7 +190,7 @@ export default function CreateCaHubPage() {
         {/* Continue */}
         <Button
           type="button"
-          size="sm"
+         
           disabled={!selectedId}
           onClick={() => selectedOption && router.push(selectedOption.href)}
           className="min-w-[140px]"

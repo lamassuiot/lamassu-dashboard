@@ -361,7 +361,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
                             <p>{message}</p>
                             <div>
                               {registrationInfo.status === 'FAILED' ? (
-                                <Button type="button" variant="outline" size="sm" onClick={() => handleSyncCa(true)} disabled={isSyncing}>
+                                <Button type="button" variant="secondary" onClick={() => handleSyncCa(true)} disabled={isSyncing}>
                                   {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                   Retry Synchronization
                                 </Button>
@@ -412,7 +412,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
                           </Select>
                         </div>
                         <div className="flex justify-end">
-                          <Button type="button" variant="outline" onClick={() => handleSyncCa(false)} disabled={isSyncing}>
+                          <Button type="button" variant="secondary" onClick={() => handleSyncCa(false)} disabled={isSyncing}>
                             {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             Synchronize CA with AWS
                           </Button>
@@ -517,7 +517,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
                   <FormLabel>IoT Policies</FormLabel>
-                  <Button type="button" size="sm" onClick={() => handleOpenPolicyModal()}>
+                  <Button type="button" onClick={() => handleOpenPolicyModal()}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Add Custom Policy
                   </Button>
@@ -546,10 +546,10 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
                                 </div>
                               </TableCell>
                               <TableCell className="hidden md:table-cell">
-                                <Badge variant="outline">{summary.version}</Badge>
+                                <Badge variant="secondary">{summary.version}</Badge>
                               </TableCell>
                               <TableCell className="hidden md:table-cell">
-                                <Badge variant="outline">{summary.statementCount} {summary.statementCount === 1 ? 'statement' : 'statements'}</Badge>
+                                <Badge variant="secondary">{summary.statementCount} {summary.statementCount === 1 ? 'statement' : 'statements'}</Badge>
                               </TableCell>
                               <TableCell className="max-w-[320px]">
                                 <p className="truncate text-sm text-muted-foreground" title={summary.actionPreview}>
@@ -666,7 +666,7 @@ export const AwsIotIntegrationTab: React.FC<AwsIotIntegrationTabProps> = ({ ra, 
         </div>
 
         <div className="flex justify-end pt-4">
-            <Button type="submit" size="lg" disabled={form.formState.isSubmitting || !isIntegrationEnabled}>
+            <Button type="submit" disabled={form.formState.isSubmitting || !isIntegrationEnabled}>
                 {form.formState.isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
                 Update DMS
             </Button>

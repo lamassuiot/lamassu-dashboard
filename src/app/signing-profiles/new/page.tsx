@@ -121,7 +121,7 @@ export default function CreateSigningProfilePage() {
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+               
                 className="-ml-2 w-fit text-muted-foreground hover:text-foreground"
                 onClick={() => router.push('/signing-profiles')}
               >
@@ -214,7 +214,7 @@ export default function CreateSigningProfilePage() {
                 {/* Continue */}
                 <Button
                   type="button"
-                  size="sm"
+                 
                   onClick={() => handleTemplateSelect(selectedTemplateId)}
                   className="min-w-[140px]"
                 >
@@ -257,7 +257,7 @@ export default function CreateSigningProfilePage() {
             >
               <div className="space-y-6">
                 <div className="flex justify-end">
-                  <Button type="button" variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => setView('template')}>
+                  <Button type="button" variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => setView('template')}>
                     <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Change Template
                   </Button>
                 </div>
@@ -271,7 +271,7 @@ export default function CreateSigningProfilePage() {
                 <SigningProfileForm form={form} />
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="outline" onClick={() => router.push('/signing-profiles')}>
+                  <Button type="button" variant="secondary" onClick={() => router.push('/signing-profiles')}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isSubmitting} className="min-w-36">

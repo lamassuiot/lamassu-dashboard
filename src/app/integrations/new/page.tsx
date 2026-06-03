@@ -86,7 +86,7 @@ export default function CreateIntegrationPage() {
       <div className="mb-6 flex justify-end">
         <Button
           variant="ghost"
-          size="sm"
+         
           onClick={() => router.push('/integrations')}
           className="text-muted-foreground hover:text-foreground"
         >

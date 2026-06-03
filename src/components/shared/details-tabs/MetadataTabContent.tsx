@@ -101,12 +101,12 @@ export const MetadataTabContent: React.FC<MetadataTabContentProps> = ({
       </div>
       <div className="space-y-4 lg:col-span-2">
         <div className="flex items-center gap-2">
-          <Button onClick={handleCopy} variant="secondary" size="sm">
+          <Button onClick={handleCopy} variant="secondary">
             {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Copy className="mr-2 h-4 w-4" />}
             {copied ? 'Copied' : 'Copy JSON'}
           </Button>
           {isDirty && (
-            <Button onClick={handleSave} size="sm" disabled={isSaving}>
+            <Button onClick={handleSave} disabled={isSaving}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save Changes
             </Button>

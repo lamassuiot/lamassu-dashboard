@@ -206,7 +206,7 @@ export function CertificateFilterBar({
             <div className="relative">
               <Button
                 id={id}
-                variant="outline"
+                variant="secondary"
                 className="h-9 w-full justify-start truncate pr-10 text-left font-normal"
                 onClick={onOpenCaSelector}
                 disabled={disabled || isLoadingCAs}
@@ -218,7 +218,7 @@ export function CertificateFilterBar({
               {Boolean(value) && (
                 <Button
                   variant="ghost"
-                  size="sm"
+                 
                   onClick={clearValue}
                   className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0"
                   title="Clear CA filter"

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, ShieldAlert, Loader2, AlertCircle, ListChecks, Info, KeyRound, Lock, Trash2, Settings, ShieldCheck, RefreshCw, Copy, Check, Shield } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { CA, PatchOperation } from '@/lib/ca-data';
@@ -323,7 +323,7 @@ export default function CertificateAuthorityDetailsClient() {
   if ((errorCAs || errorEngines) && !caDetails) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="secondary" onClick={() => routerHook.back()} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert variant="destructive">
@@ -341,7 +341,7 @@ export default function CertificateAuthorityDetailsClient() {
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <FileText className="h-12 w-12 text-muted-foreground" />
         <p className="text-muted-foreground">Certification Authority with ID "{caIdFromUrl || 'Unknown'}" not found or data is unavailable.</p>
-        <Button variant="outline" onClick={() => routerHook.push('/certificate-authorities')} className="mt-4">
+        <Button variant="secondary" onClick={() => routerHook.push('/certificate-authorities')} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certification Authorities
         </Button>
       </div>
@@ -412,13 +412,13 @@ export default function CertificateAuthorityDetailsClient() {
         actions={
           <div className="flex items-center gap-2">
             {isCaOnHold ? (
-              <Button variant="secondary" size="sm" className="gap-2" onClick={handleReactivateCA}>
+              <Button variant="secondary" className="gap-2" onClick={handleReactivateCA}>
                 <ShieldAlert className="h-4 w-4" /> Re-activate
               </Button>
             ) : caDetails.status !== 'revoked' ? (
               <Button
                 variant="secondary"
-                size="sm"
+               
                 className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
                 onClick={handleCARevocation}
                 disabled={isRevoking}
@@ -428,8 +428,7 @@ export default function CertificateAuthorityDetailsClient() {
               </Button>
             ) : (
               <Button
-                variant="outline"
-                size="sm"
+                variant="default"
                 className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                 onClick={handleDeleteCA}
                 disabled={isDeleting}
@@ -441,7 +440,7 @@ export default function CertificateAuthorityDetailsClient() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="px-2.5">
+                <Button variant="secondary" className="px-2.5">
                   <Settings className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -495,7 +494,7 @@ export default function CertificateAuthorityDetailsClient() {
                   </code>
                   <Button
                     variant="ghost"
-                    size="sm"
+                   
                     className="h-6 w-6 p-0 shrink-0"
                     onClick={() => {
                       navigator.clipboard.writeText(caDetails.id);
@@ -565,7 +564,7 @@ export default function CertificateAuthorityDetailsClient() {
       {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
-          <TabsList className="h-auto min-w-max justify-start gap-0 rounded-none bg-transparent p-0">
+          <TabsList className={cn(pageTabsListClass, "min-w-max")}>
             {([
               { value: 'information', icon: Info, label: 'Information' },
               { value: 'certificate', icon: KeyRound, label: 'Certificate PEM' },
@@ -576,7 +575,7 @@ export default function CertificateAuthorityDetailsClient() {
               <TabsTrigger
                 key={value}
                 value={value}
-                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:[border-bottom-color:var(--color-primary)]! data-[state=active]:bg-transparent! data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                className={pageTabsTriggerClass}
               >
                 <Icon className="h-4 w-4" />
                 {label}

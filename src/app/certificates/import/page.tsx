@@ -215,7 +215,7 @@ export default function ImportCertificatePage() {
     <div className="w-full space-y-6 mb-8">
       {/* Header with back button */}
       <div className="flex items-center space-x-4">
-        <Button variant="outline" onClick={() => router.push('/certificates')}>
+        <Button variant="secondary" onClick={() => router.push('/certificates')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certificates
         </Button>
         <div className="flex items-center space-x-3">
@@ -348,7 +348,7 @@ export default function ImportCertificatePage() {
         <div className="flex justify-end space-x-2">
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={() => router.push('/certificates')}
             disabled={isLoading}
           >

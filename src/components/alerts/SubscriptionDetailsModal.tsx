@@ -95,7 +95,7 @@ export const SubscriptionDetailsModal: React.FC<SubscriptionDetailsModalProps> =
               <h4 className="mt-2 border-t pt-2 font-semibold text-foreground">Conditions</h4>
               {subscription.conditions.map((cond, index) => (
                 <div key={index} className="space-y-2">
-                  <DetailItem label="Type" value={<Badge variant="outline">{cond.type}</Badge>} />
+                  <DetailItem label="Type" value={<Badge variant="secondary">{cond.type}</Badge>} />
                   <CodeBlock content={getConditionContent(cond.type, cond.condition)} title="Condition" />
                 </div>
               ))}
@@ -115,7 +115,7 @@ export const SubscriptionDetailsModal: React.FC<SubscriptionDetailsModalProps> =
           Unsubscribe
         </Button>
         <div className="flex space-x-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
           <Button variant="default" onClick={handleEdit}>
             <Edit className="mr-2 h-4 w-4" /> Edit
           </Button>
@@ -146,7 +146,7 @@ export const SubscriptionDetailsModal: React.FC<SubscriptionDetailsModalProps> =
         {panelContent}
         <DialogFooter className="sr-only">
           <DialogClose asChild>
-            <Button type="button" variant="outline">Close</Button>
+            <Button type="button" variant="secondary">Close</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>

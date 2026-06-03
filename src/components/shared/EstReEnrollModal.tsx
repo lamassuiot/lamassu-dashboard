@@ -58,7 +58,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     default:
       badgeClass = "bg-muted text-muted-foreground border-border";
   }
-  return <Badge variant="outline" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
+  return <Badge variant="secondary" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
 };
 
 const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string; }> = ({ type, iconColor, bgColor }) => {
@@ -312,7 +312,7 @@ export const EstReEnrollModal: React.FC<EstReEnrollModalProps> = ({
                     )}
                     {step === 2 && (
                         <>
-                            <Button variant="outline" onClick={handleBack}>
+                            <Button variant="secondary" onClick={handleBack}>
                                 <ArrowLeft className="mr-2 h-4 w-4"/>Back
                             </Button>
                             <Button onClick={() => onOpenChange(false)}>Finish</Button>

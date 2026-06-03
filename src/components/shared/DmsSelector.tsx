@@ -192,7 +192,7 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
               <p className="text-sm text-destructive">{loadError}</p>
               <Button
                 variant="link"
-                size="sm"
+               
                 onClick={() => loadDmsOptions()}
                 className="mt-2"
               >
