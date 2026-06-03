@@ -21,10 +21,11 @@ import type { CertificateHistoryEntry } from './timeline-event-renderers';
 
 import { Badge } from '@/components/ui/badge';
 interface TimelineEventItemProps {
-  event: TimelineEventDisplayData;
-  isLastItem: boolean;
-  onRevoke: (certInfo: CertificateHistoryEntry) => void;
-  onReactivate: (certInfo: CertificateHistoryEntry) => void;
+    event: TimelineEventDisplayData;
+    isLastItem: boolean;
+    onRevoke: (certInfo: CertificateHistoryEntry) => void;
+    onReactivate: (certInfo: CertificateHistoryEntry) => void;
+    onViewWorkflow: (eventData: any) => void;
 }
 
 const eventTypeVisuals: Record<
@@ -129,7 +130,6 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
 
   return (
     <li className="relative flex gap-3">
-      {/* Narrow dot + line column */}
       <div className="flex shrink-0 flex-col items-center">
         {iconPresentation === 'plain' ? (
           <div
@@ -165,9 +165,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
           ))}
       </div>
 
-      {/* Content */}
       <div className={cn('min-w-0 flex-1 pt-0.5', !isLastItem && 'pb-6')}>
-        {/* Header: badge + timestamp */}
         <div className="flex items-center justify-between gap-2">
           <Badge variant="muted" className={cn('border-current/20', badgeClass)}>
             {visuals.display}

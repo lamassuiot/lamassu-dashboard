@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
-import { sileo } from '@/lib/toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
-import { DmsSelector } from '@/components/shared/DmsSelector';
+import { DmsSelector, type DmsOption } from '@/components/shared/DmsSelector';
 import { Separator } from '../ui/separator';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { registerDevice } from '@/lib/devices-api';
@@ -28,6 +29,8 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   onOpenChange,
   onDeviceRegistered,
 }) => {
+  const { user, isAuthenticated } = useAuth();
+  const { toast } = useToast();
 
   // Core state
   const [deviceId, setDeviceId] = useState('');
@@ -63,14 +66,14 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
   // Fetch full RA details when an RA is selected via DmsSelector
   useEffect(() => {
     const fetchSelectedRa = async () => {
-      if (!selectedRaId ) {
+      if (!selectedRaId || !isAuthenticated() || !user?.access_token) {
         setSelectedRa(null);
         return;
       }
 
       setIsLoadingRa(true);
       try {
-        const ra = await fetchRaById(selectedRaId);
+        const ra = await fetchRaById(selectedRaId, user.access_token);
         setSelectedRa(ra);
         
         // Update device profile from RA settings
@@ -82,7 +85,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
         setIconBgColor(parsedBgColor || '#e0e0e0');
       } catch (error: any) {
         console.error('Failed to fetch RA details:', error);
-        sileo.error({ title: "Error", description: "Failed to load RA details" });
+        toast({ title: "Error", description: "Failed to load RA details", variant: "destructive" });
         setSelectedRaId(null);
       } finally {
         setIsLoadingRa(false);
@@ -99,7 +102,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
       setIconColor('#888888');
       setIconBgColor('#e0e0e0');
     }
-  }, [selectedRaId]);
+  }, [selectedRaId, isAuthenticated, user?.access_token, toast]);
 
   const handleDmsChange = (value: string | null) => {
     setSelectedRaId(value);
@@ -127,11 +130,11 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
         metadata: {},
       };
 
-      await registerDevice(payload);
+      await registerDevice(payload, user.access_token);
 
-      sileo.success({
+      toast({
         title: "Device Registered",
-        description: `Device with ID "${deviceId}" has been successfully registered.`
+        description: `Device with ID "${deviceId}" has been successfully registered.`,
       });
       onDeviceRegistered();
       onOpenChange(false);
@@ -140,7 +143,8 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
       setSubmissionError(err.message || 'Device registration failed.');
       sileo.error({
         title: "Registration Failed",
-        description: err.message
+        description: err.message,
+        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);

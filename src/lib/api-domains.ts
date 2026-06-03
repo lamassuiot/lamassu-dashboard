@@ -1,6 +1,5 @@
-
 // src/lib/api-domains.ts
-const getApiBaseUrl = (): string => {
+export const getApiBaseUrl = (): string => {
     // 1. Check for configuration from config.js on the window object
     if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_API) {
         return (window as any).lamassuConfig.LAMASSU_API;
@@ -48,6 +47,7 @@ export const get_VA_CORE_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/va`;
 
 export const get_VA_API_BASE_URL = () => `${get_VA_CORE_API_BASE_URL()}/v1`;
 export const get_WFX_API_BASE_URL = () => `${getApiBaseUrl()}/wfx/nbi/v1`;
+export const get_UPDATES_API_BASE_URL = () => `${getApiBaseUrl()}/updates/v1`;
 
 // These endpoints now use the potentially overridden base URL
 export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/est`;
