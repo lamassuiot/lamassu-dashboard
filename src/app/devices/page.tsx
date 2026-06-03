@@ -2,31 +2,27 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { format } from 'date-fns';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
+import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
+import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
+import { DmsSelector } from '@/components/shared/DmsSelector';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { fetchDevices } from '@/lib/devices-api';
-import { sileo } from '@/lib/toast';
+import { useToast } from '@/hooks/use-toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
-import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
-import { DeviceFilterBar } from '@/components/shared/filters/DeviceFilterBar';
-import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
-import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -38,7 +34,6 @@ interface DeviceData {
   status: DeviceStatus;
   deviceGroup: string;
   createdAt: string;
-  expirationDate?: string;
   tags: string[];
   lastSeen?: string;
   ipAddress?: string;
@@ -50,11 +45,16 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-const defaultDateFilterValue: GenericDateFilterValue = {
-  operator: 'af',
-  date: undefined,
-  includeTime: false,
+const statusSortOrder: Record<DeviceStatus, number> = {
+  'ACTIVE': 0,
+  'EXPIRING_SOON': 1,
+  'RENEWAL_PENDING': 2,
+  'NO_IDENTITY': 3,
+  'EXPIRED': 4,
+  'REVOKED': 5,
+  'DECOMMISSIONED': 6,
 };
+
 
 export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
   let badgeClass = "";
@@ -110,6 +110,8 @@ type SortDirection = 'asc' | 'desc';
 export default function DevicesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { toast } = useToast();
 
   const [devices, setDevices] = useState<DeviceData[]>([]);
   const [isLoadingApi, setIsLoadingApi] = useState(true);
@@ -120,10 +122,8 @@ export default function DevicesPage() {
   // Filter states
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
-  const [tagSearchTerm, setTagSearchTerm] = useState<string>('');
-  const [debouncedTagSearchTerm, setDebouncedTagSearchTerm] = useState<string>('');
-  const [statusFilters, setStatusFilters] = useState<DeviceStatus[]>([]);
-  const [createdAtFilter, setCreatedAtFilter] = useState<GenericDateFilterValue>(defaultDateFilterValue);
+  const [searchField, setSearchField] = useState<'id' | 'tags'>('id');
+  const [statusFilter, setStatusFilter] = useState<DeviceStatus | 'ALL'>('ALL');
 
   // Sorting and pagination states
   const [pageSize, setPageSize] = useState<string>('10');
@@ -144,7 +144,6 @@ export default function DevicesPage() {
     status: true,
     deviceGroup: true,
     createdAt: true,
-    expirationDate: true,
     tags: true,
   });
 
@@ -153,7 +152,6 @@ export default function DevicesPage() {
     { id: 'status', label: 'Status', visible: columnVisibility.status },
     { id: 'deviceGroup', label: 'Device Group', visible: columnVisibility.deviceGroup },
     { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
-    { id: 'expirationDate', label: 'Expiration Date', visible: columnVisibility.expirationDate },
     { id: 'tags', label: 'Tags', visible: columnVisibility.tags },
   ];
 
@@ -180,21 +178,16 @@ export default function DevicesPage() {
     };
   }, [searchTerm]);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-        if (isInitialLoad.current && tagSearchTerm === '') {
-            return;
-        }
-        setDebouncedTagSearchTerm(tagSearchTerm);
-    }, 500);
-
-    return () => {
-        clearTimeout(handler);
-    };
-  }, [tagSearchTerm]);
-
   const fetchData = useCallback(async (bookmarkToFetch: string | null) => {
-    
+    if (authLoading || !isAuthenticated() || !user?.access_token) {
+        if (!authLoading && !isAuthenticated()) {
+            setApiError("User not authenticated.");
+        }
+        setIsLoadingApi(false);
+        setDevices([]);
+        setNextTokenFromApi(null);
+        return;
+    }
     
     setIsLoadingApi(true);
     setApiError(null);
@@ -202,7 +195,7 @@ export default function DevicesPage() {
     try {
         const params = new URLSearchParams();
         if (sortConfig) {
-            let apiSortColumn: string = sortConfig.column;
+            let apiSortColumn = sortConfig.column;
             if(apiSortColumn === 'deviceGroup') {
                 apiSortColumn = 'dms_owner';
             } else if (apiSortColumn === 'createdAt') {
@@ -220,28 +213,13 @@ export default function DevicesPage() {
             params.append('bookmark', bookmarkToFetch);
         }
         
-        if (dmsOwnerFilter) params.append('filter', `dms_owner[equal]${dmsOwnerFilter}`);
-        if (debouncedSearchTerm.trim() !== '') params.append('filter', `id[contains_ignorecase]${debouncedSearchTerm.trim()}`);
-        if (debouncedTagSearchTerm.trim() !== '') params.append('filter', `tags[contains_ignorecase]${debouncedTagSearchTerm.trim()}`);
-        appendSingleOrMultiFilter(
-          params,
-          statusFilters,
-          (value) => `status[equal]${value}`,
-          (values) => `status[in]${values.join(',')}`
-        );
-        if (createdAtFilter.date && createdAtFilter.operator) {
-          const createdAtValue = createdAtFilter.includeTime
-            ? format(createdAtFilter.date, "yyyy-MM-dd'T'HH:mm:ss")
-            : format(createdAtFilter.date, 'yyyy-MM-dd');
-          const createdAtOperator = createdAtFilter.operator === 'bf'
-            ? 'before'
-            : createdAtFilter.operator === 'eq'
-              ? 'equal'
-              : 'after';
-          params.append('filter', `creation_timestamp[${createdAtOperator}]${createdAtValue}`);
-        }
+        const filtersToApply: string[] = [];
+        if (dmsOwnerFilter) filtersToApply.push(`dms_owner[equal]${dmsOwnerFilter}`);
+        if (debouncedSearchTerm.trim() !== '') filtersToApply.push(`${searchField}[contains_ignorecase]${debouncedSearchTerm.trim()}`);
+        if (statusFilter !== 'ALL') filtersToApply.push(`status[equal]${statusFilter}`);
+        filtersToApply.forEach(f => params.append('filter', f));
 
-        const data = await fetchDevices(params);
+        const data = await fetchDevices(user.access_token!, params);
         const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
             id: apiDevice.id,
             displayId: apiDevice.id,
@@ -250,7 +228,6 @@ export default function DevicesPage() {
             status: apiDevice.status as DeviceStatus,
             deviceGroup: apiDevice.dms_owner,
             createdAt: apiDevice.creation_timestamp,
-            expirationDate: apiDevice.identity?.expiration_date,
             tags: apiDevice.tags || [],
         }));
 
@@ -265,7 +242,7 @@ export default function DevicesPage() {
         setIsLoadingApi(false);
         if (isInitialLoad.current) isInitialLoad.current = false;
     }
-  }, [createdAtFilter, sortConfig, pageSize, dmsOwnerFilter, debouncedSearchTerm, debouncedTagSearchTerm, statusFilters]);
+  }, [authLoading, isAuthenticated, user, sortConfig, pageSize, dmsOwnerFilter, debouncedSearchTerm, searchField, statusFilter]);
 
   // Effect for filter changes
   useEffect(() => {
@@ -273,14 +250,14 @@ export default function DevicesPage() {
         setCurrentPageIndex(0);
         setBookmarkStack([null]);
     }
-  }, [createdAtFilter, debouncedSearchTerm, debouncedTagSearchTerm, statusFilters, pageSize, dmsOwnerFilter, sortConfig]);
+  }, [debouncedSearchTerm, searchField, statusFilter, pageSize, dmsOwnerFilter, sortConfig]);
 
   // Main data fetching effect
   useEffect(() => {
     if (bookmarkStack[currentPageIndex] !== undefined) {
         fetchData(bookmarkStack[currentPageIndex]);
     }
-  }, [bookmarkStack, currentPageIndex, fetchData]);
+  }, [currentPageIndex, bookmarkStack, fetchData]);
 
 
   const requestSort = (column: SortableColumn) => {
@@ -346,25 +323,22 @@ export default function DevicesPage() {
   };
 
   const handleOpenEnrollModal = async (device: DeviceData) => {
+    if (!user?.access_token) {
+        toast({ title: 'Authentication Error', description: 'You must be logged in.', variant: 'destructive' });
+        return;
+    }
+
     setDeviceForEnrollModal(device);
     setRaForEnrollModal(null); // Clear previous RA data
     setIsEnrollModalOpen(true);
 
     // Fetch RA details after opening the modal to show loading state inside
     try {
-        const raData = await fetchRaById(device.deviceGroup);
+        const raData = await fetchRaById(device.deviceGroup, user.access_token);
         setRaForEnrollModal(raData);
     } catch (err: any) {
-        sileo.error({ title: 'Error Fetching RA Details', description: err.message });
+        toast({ title: 'Error Fetching RA Details', description: err.message, variant: 'destructive' });
         setIsEnrollModalOpen(false); // Close on error
-    }
-  };
-
-  const handleEnrollPanelOpenChange = (isOpen: boolean) => {
-    setIsEnrollModalOpen(isOpen);
-    if (!isOpen) {
-      setRaForEnrollModal(null);
-      setDeviceForEnrollModal(null);
     }
   };
 
@@ -392,24 +366,26 @@ export default function DevicesPage() {
     setCurrentPageIndex(prevIndex);
   };
 
-  const hasActiveFilters = debouncedSearchTerm || debouncedTagSearchTerm || statusFilters.length > 0 || dmsOwnerFilter || createdAtFilter.date;
+  if (authLoading && !sortedDevices.length) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">Authenticating...</p>
+      </div>
+    );
+  }
+
+  const hasActiveFilters = debouncedSearchTerm || statusFilter !== 'ALL' || dmsOwnerFilter;
 
   return (
-    <BreadcrumbPage items={[{label:'Home',href:'/'}, {label:'Devices'}]} className="space-y-6 w-full pb-8">
-      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-            <Router className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Managed Devices</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Overview of all registered IoT devices, their status, and associated groups.
-            </p>
-          </div>
+    <div className="space-y-6 w-full pb-8">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="flex items-center space-x-3">
+          <DeviceIcon type="CgSmartphoneChip" />
+          <h1 className="text-2xl font-headline font-semibold">Managed Devices</h1>
         </div>
-        <div className="flex items-center space-x-2 shrink-0">
-          <Button onClick={handleRefresh} variant="secondary" disabled={isLoadingApi}>
+        <div className="flex items-center space-x-2">
+          <Button onClick={handleRefresh} variant="outline" disabled={isLoadingApi}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && "animate-spin")} /> Refresh
           </Button>
           <Button onClick={handleCreateNewDevice} disabled={isLoadingApi}>
@@ -418,68 +394,97 @@ export default function DevicesPage() {
         </div>
       </div>
 
-      <DeviceFilterBar
-        searchTerm={searchTerm}
-        onSearchTermChange={setSearchTerm}
-        tagSearchTerm={tagSearchTerm}
-        onTagSearchTermChange={setTagSearchTerm}
-        dmsOwnerFilter={dmsOwnerFilter}
-        onDmsOwnerFilterChange={handleDmsOwnerChange}
-        statusFilters={statusFilters}
-        onStatusFiltersChange={setStatusFilters}
-        createdAtFilter={createdAtFilter}
-        onCreatedAtFilterChange={setCreatedAtFilter}
-        disabled={isLoadingApi}
-        actions={
-          <ColumnSelector
-            columns={columns}
-            onColumnToggle={handleColumnToggle}
-            align="end"
-          />
-        }
-      />
-
-      <SplitPanelLayout
-        isPanelOpen={isEnrollModalOpen}
-        onPanelOpenChange={handleEnrollPanelOpenChange}
-        mobilePanelAsDialog
-        panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_620px]"
-        panel={
-          <EstEnrollModal
-            isOpen={isEnrollModalOpen}
-            onOpenChange={handleEnrollPanelOpenChange}
-            ra={raForEnrollModal}
-            initialDeviceId={deviceForEnrollModal?.id}
-            presentation="inline"
-          />
-        }
-      >
-        {isLoadingApi && !sortedDevices.length && (
-          <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
-              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-              <p className="text-lg text-muted-foreground">Loading devices...</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <div className="space-y-1">
+          <Label htmlFor="searchTermInput">Search Term</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+            <Input
+              id="searchTermInput"
+              type="text"
+              placeholder="Filter by ID or Tag..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10"
+              disabled={isLoadingApi || authLoading}
+            />
           </div>
-        )}
+        </div>
 
-        {apiError && (
-          <Alert variant="destructive" className="mt-4">
-            <AlertCircleIcon className="h-4 w-4" />
-            <AlertTitle>Error Fetching Devices</AlertTitle>
-            <AlertDescription>{apiError}</AlertDescription>
-          </Alert>
-        )}
+        <div className="space-y-1">
+          <Label htmlFor="searchFieldSelect">Search In</Label>
+          <Select value={searchField} onValueChange={(value: 'id' | 'tags') => setSearchField(value)} disabled={isLoadingApi || authLoading}>
+            <SelectTrigger id="searchFieldSelect">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="id">Device ID</SelectItem>
+              <SelectItem value="tags">Tags</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        {!apiError && sortedDevices.length > 0 && (
-          <>
-            <div className={cn("overflow-x-auto transition-opacity duration-300", isLoadingApi && sortedDevices.length > 0 && "opacity-50 pointer-events-none")}>
-              <Table>
+        <div className="space-y-1">
+          <Label htmlFor="dmsOwnerFilter">Registration Authority</Label>
+          <DmsSelector
+            value={dmsOwnerFilter}
+            onChange={handleDmsOwnerChange}
+            disabled={isLoadingApi || authLoading}
+          />
+        </div>
+        
+        <div className="space-y-1">
+          <Label htmlFor="statusFilter">Status</Label>
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as DeviceStatus | 'ALL')} disabled={isLoadingApi || authLoading}>
+            <SelectTrigger id="statusFilter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Statuses</SelectItem>
+              <SelectItem value="ACTIVE">Active</SelectItem>
+              <SelectItem value="NO_IDENTITY">No Identity</SelectItem>
+              <SelectItem value="RENEWAL_PENDING">Renewal Pending</SelectItem>
+              <SelectItem value="EXPIRING_SOON">Expiring Soon</SelectItem>
+              <SelectItem value="EXPIRED">Expired</SelectItem>
+              <SelectItem value="REVOKED">Revoked</SelectItem>
+              <SelectItem value="DECOMMISSIONED">Decommissioned</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {isLoadingApi && !sortedDevices.length && (
+         <div className="flex flex-col items-center justify-center flex-1 p-4 sm:p-8">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <p className="text-lg text-muted-foreground">Loading devices...</p>
+        </div>
+      )}
+
+      {apiError && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertCircleIcon className="h-4 w-4" />
+          <AlertTitle>Error Fetching Devices</AlertTitle>
+          <AlertDescription>{apiError}</AlertDescription>
+        </Alert>
+      )}
+
+      {!apiError && sortedDevices.length > 0 && (
+        <>
+          <div className="flex justify-end mb-2">
+            <ColumnSelector
+              columns={columns}
+              onColumnToggle={handleColumnToggle}
+              align="end"
+            />
+          </div>
+          <div className={cn("overflow-x-auto transition-opacity duration-300", isLoadingApi && sortedDevices.length > 0 && "opacity-50 pointer-events-none")}>
+            <Table>
               <TableHeader>
                 <TableRow>
                   {columnVisibility.id && <SortableTableHeader column="id" title="ID" className="w-[250px]" />}
                   {columnVisibility.status && <SortableTableHeader column="status" title="Status" className="w-[120px]" />}
                   {columnVisibility.deviceGroup && <SortableTableHeader column="deviceGroup" title="Device Group" className="w-[180px]" />}
                   {columnVisibility.createdAt && <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />}
-                  {columnVisibility.expirationDate && <TableHead className="text-center w-[180px]">Expiration Date</TableHead>}
                   {columnVisibility.tags && <TableHead>Tags</TableHead>}
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
@@ -514,24 +519,10 @@ export default function DevicesPage() {
                         <TableCell>
                           <DateDisplay 
                             date={device.createdAt} 
-                            formatString={getDisplayDateFormat()}
+                            formatString="dd/MM/yyyy HH:mm"
                             className="text-xs"
                             relativeClassName="text-xs"
                           />
-                        </TableCell>
-                      )}
-                      {columnVisibility.expirationDate && (
-                        <TableCell>
-                          {device.expirationDate ? (
-                            <DateDisplay 
-                              date={device.expirationDate} 
-                              formatString={getDisplayDateFormat()}
-                              className="text-xs"
-                              relativeClassName="text-xs"
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground">N/A</span>
-                          )}
                         </TableCell>
                       )}
                       {columnVisibility.tags && (
@@ -565,74 +556,79 @@ export default function DevicesPage() {
                   )
                 })}
               </TableBody>
-              </Table>
+            </Table>
+          </div>
+        </>
+      )}
+
+      {!apiError && (sortedDevices.length > 0 || isLoadingApi || hasActiveFilters) && (
+        <div className="flex justify-between items-center mt-4">
+            <div className="flex items-center space-x-2">
+              <Label htmlFor="pageSizeSelectBottom" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
+              <Select
+                value={pageSize}
+                onValueChange={(value) => setPageSize(value)}
+                disabled={isLoadingApi || authLoading}
+              >
+                <SelectTrigger id="pageSizeSelectBottom" className="w-[80px]">
+                  <SelectValue placeholder="Page size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </>
-        )}
 
-        {!apiError && (sortedDevices.length > 0 || isLoadingApi || hasActiveFilters) && (
-          <div className="flex justify-between items-center mt-4">
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="pageSizeSelectBottom" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-                <Select
-                  value={pageSize}
-                  onValueChange={(value) => setPageSize(value)}
-                  disabled={isLoadingApi}
+            <div className="flex items-center space-x-2">
+                <Button
+                    onClick={handlePreviousPage}
+                    disabled={isLoadingApi || currentPageIndex === 0}
+                    variant="outline"
                 >
-                  <SelectTrigger id="pageSizeSelectBottom" className="w-[80px]">
-                    <SelectValue placeholder="Page size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                    <ChevronLeft className="mr-2 h-4 w-4" /> Previous
+                </Button>
+                <Button
+                    onClick={handleNextPage}
+                    disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
+                    variant="outline"
+                >
+                    Next <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+      )}
 
-              <div className="flex items-center space-x-2">
-                  <Button
-                      onClick={handlePreviousPage}
-                      disabled={isLoadingApi || currentPageIndex === 0}
-                      variant="secondary"
-                  >
-                      <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-                  </Button>
-                  <Button
-                      onClick={handleNextPage}
-                      disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
-                      variant="secondary"
-                  >
-                      Next <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-              </div>
-          </div>
-        )}
-
-        {!apiError && !isLoadingApi && sortedDevices.length === 0 && (
-          <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-            <h3 className="text-lg font-semibold text-muted-foreground">
-              {hasActiveFilters ? "No Devices Found" : "No Devices Registered"}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {hasActiveFilters
-                ? "Try adjusting your filters or clear them to see all devices."
-                : "There are no devices registered in the system yet."
-              }
-            </p>
-            <Button onClick={handleCreateNewDevice} className="mt-4">
-              <PlusCircle className="mr-2 h-4 w-4" /> Register New Device
-            </Button>
-          </div>
-        )}
-      </SplitPanelLayout>
+      {!apiError && !isLoadingApi && sortedDevices.length === 0 && (
+        <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
+          <h3 className="text-lg font-semibold text-muted-foreground">
+            {hasActiveFilters ? "No Devices Found" : "No Devices Registered"}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {hasActiveFilters
+              ? "Try adjusting your filters or clear them to see all devices."
+              : "There are no devices registered in the system yet."
+            }
+          </p>
+          <Button onClick={handleCreateNewDevice} className="mt-4">
+            <PlusCircle className="mr-2 h-4 w-4" /> Register New Device
+          </Button>
+        </div>
+      )}
 
       <RegisterDeviceModal
         isOpen={isRegisterModalOpen}
         onOpenChange={setIsRegisterModalOpen}
         onDeviceRegistered={handleDeviceRegistered}
       />
-    </BreadcrumbPage>
+      <EstEnrollModal
+        isOpen={isEnrollModalOpen}
+        onOpenChange={setIsEnrollModalOpen}
+        ra={raForEnrollModal}
+        initialDeviceId={deviceForEnrollModal?.id}
+      />
+    </div>
   );
 }

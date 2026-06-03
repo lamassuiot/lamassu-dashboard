@@ -3,7 +3,6 @@
 'use client'; // This can be a client-side library function
 
 import { get_ALERTS_API_BASE_URL } from './api-domains';
-import { apiFetch } from './api-client';
 
 export interface ApiAlertEventData {
     specversion: string;
@@ -41,11 +40,9 @@ export interface ApiSubscription {
         name: string;
         config: {
             email?: string;
-            webhook_url?: string;
-            webhook_method?: 'POST' | 'PUT';
-            // Backward-compatible fields for existing persisted subscriptions.
             url?: string;
             method?: 'POST' | 'PUT';
+            name?: string;
         };
     };
 }
@@ -61,8 +58,9 @@ export interface SubscriptionPayload {
         name: string;
         config: {
             email?: string;
-            webhook_url?: string;
-            webhook_method?: 'POST' | 'PUT';
+            url?: string;
+            method?: 'POST' | 'PUT';
+            name?: string;
         };
     };
 }
@@ -94,8 +92,12 @@ export async function fetchLatestAlerts(accessToken: string, params?: URLSearchP
   return data;
 }
 
-export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
-  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions`);
+export async function fetchSystemSubscriptions(accessToken: string): Promise<ApiSubscription[]> {
+  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions`, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
 
   if (!response.ok) {
     let errorJson;
@@ -115,11 +117,12 @@ export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
   return data;
 }
 
-export async function subscribeToAlert(payload: SubscriptionPayload): Promise<void> {
-  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscribe`, {
+export async function subscribeToAlert(payload: SubscriptionPayload, accessToken: string): Promise<void> {
+  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscribe`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
   });
@@ -137,11 +140,12 @@ export async function subscribeToAlert(payload: SubscriptionPayload): Promise<vo
   }
 }
 
-export async function updateSubscription(subscriptionId: string, payload: SubscriptionPayload): Promise<void> {
-  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions/${subscriptionId}`, {
+export async function updateSubscription(subscriptionId: string, payload: SubscriptionPayload, accessToken: string): Promise<void> {
+  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions/${subscriptionId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
   });
@@ -159,9 +163,12 @@ export async function updateSubscription(subscriptionId: string, payload: Subscr
   }
 }
 
-export async function unsubscribeFromAlert(subscriptionId: string): Promise<void> {
-  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/unsubscribe/${subscriptionId}`, {
+export async function unsubscribeFromAlert(subscriptionId: string, accessToken: string): Promise<void> {
+  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/unsubscribe/${subscriptionId}`, {
     method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+    },
   });
 
   if (!response.ok) {

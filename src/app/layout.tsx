@@ -1,16 +1,16 @@
 
-
 'use client';
 
 import './globals.css';
-import { ThemedToaster } from '@/components/shared/ThemedToaster';
+import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
+import { QueryClientProvider } from '@/contexts/QueryClientProvider';
 import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   SidebarProvider,
   Sidebar,
@@ -29,9 +29,10 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow} from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Upload, Lock, PlaySquare, Package, Layers, ClipboardList, Workflow } from 'lucide-react';
+import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { jwtDecode } from 'jwt-decode';
@@ -62,7 +63,7 @@ import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
-import { Roboto, Inter } from "next/font/google";
+import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
@@ -80,11 +81,14 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'signing-profiles': "Issuance Profiles",
   'registration-authorities': "Registration Authorities",
   'verification-authorities': "Verification Authorities",
+  'device-inventory': "Device Key Inventory",
+  'firmware-inventory': "Firmware Inventory",
   'new': "New",
   'details': "Details",
   'issue-certificate': "Issue Certificate",
   'kms': "KMS",
   'keys': "Keys",
+  'sym-keys': "Symmetric Keys",
   'devices': "Devices",
   'device-groups': "Device Groups",
   'integrations': "Platform Integrations",
@@ -95,6 +99,11 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'job-manager': "Job Manager",
   'jobs': "Jobs",
   'workflows': "Workflows",
+  'updates': "Updates",
+  'create_update': "Create Update",
+  'launch_update': "Launch Update",
+  'packs': "Update Packs",
+  'pack-details': "Update Pack Details",
 };
 
 interface NavItem {
@@ -115,7 +124,8 @@ const navigationConfig: NavGroup[] = [
   {
     label: 'KMS',
     items: [
-      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false },
+      { href: '/kms/keys', label: 'Asymmetric Keys', icon: KeyRound },
+      { href: '/kms/keys/sym-keys', label: 'Symmetric Keys', icon: Lock },
       { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
     ],
   },
@@ -125,7 +135,8 @@ const navigationConfig: NavGroup[] = [
       { href: '/certificates', label: 'Certificates', icon: FileText },
       { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
       { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon },
-      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck },
+      { href: '/registration-authorities', label: 'Registration Authorities', icon: Users },
+      { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck }
     ],
   },
   {
@@ -133,7 +144,10 @@ const navigationConfig: NavGroup[] = [
     items: [
       { href: '/devices', label: 'Devices', icon: Router },
       { href: '/device-groups', label: 'Device Groups', icon: Layers },
+      { href: '/firmware-inventory', label: 'Firmware Inventory', icon: Cpu },
+      { href: '/device-inventory', label: 'Device Key Inventory', icon: Package },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
+      { href: '/updates', label: 'Updates', icon: Upload }
     ],
   },
   {
@@ -154,6 +168,77 @@ const navigationConfig: NavGroup[] = [
     ],
   },
 ];
+
+const allNavItems = navigationConfig.flatMap(group => group.items);
+
+function isNavItemActive(itemHref: string, currentPath: string): boolean {
+  if (itemHref === currentPath) return true;
+
+  if (itemHref !== '/' && currentPath.startsWith(itemHref)) {
+    if (currentPath.length > itemHref.length && currentPath[itemHref.length] !== '/') {
+      return false;
+    }
+
+    const moreSpecificMatch = allNavItems.find(other =>
+      other.href !== itemHref &&
+      other.href.length > itemHref.length &&
+      other.href.startsWith(itemHref) &&
+      (currentPath === other.href || currentPath.startsWith(other.href + '/'))
+    );
+
+    if (moreSpecificMatch) return false;
+
+    return true;
+  }
+  return false;
+}
+
+function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): BreadcrumbItem[] {
+  const pathSegments = pathname.split('/').filter(segment => segment);
+  const breadcrumbItems: BreadcrumbItem[] = [{ label: 'Home', href: '/' }];
+
+  if (pathname === '/') {
+    return [{ label: 'Home' }];
+  }
+
+  let currentHref = '';
+
+  for (let i = 0; i < pathSegments.length; i++) {
+    const segment = pathSegments[i];
+    let label = PATH_SEGMENT_TO_LABEL_MAP[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
+
+    currentHref += `/${segment}`;
+    const isLastSegment = i === pathSegments.length - 1;
+    let hrefWithQuery = currentHref;
+
+    if (segment === 'details') {
+      if (queryParams.get('caId')) hrefWithQuery += `?caId=${queryParams.get('caId')}`;
+      else if (queryParams.get('certificateId')) hrefWithQuery += `?certificateId=${queryParams.get('certificateId')}`;
+      else if (queryParams.get('keyId')) hrefWithQuery += `?keyId=${queryParams.get('keyId')}`;
+      else if (queryParams.get('deviceId')) hrefWithQuery += `?deviceId=${queryParams.get('deviceId')}`;
+    } else if (segment === 'issue-certificate' && queryParams.get('caId')) {
+      hrefWithQuery += `?caId=${queryParams.get('caId')}`;
+    } else if (segment === 'pack-details') {
+      const packName = queryParams.get('packName');
+      const dmsId = queryParams.get('dmsId');
+      if (packName && dmsId) {
+        hrefWithQuery += `?packName=${packName}&dmsId=${dmsId}`;
+        breadcrumbItems.push({ label: 'Update Packs', href: '/updates/packs' });
+        if (packName) {
+          label = decodeURIComponent(packName);
+        }
+      }
+    }
+
+    if (isLastSegment) {
+      breadcrumbItems.push({ label });
+    } else {
+      breadcrumbItems.push({ label, href: hrefWithQuery });
+    }
+  }
+  return breadcrumbItems;
+}
+
 
 
 const LoadingState = () => (
@@ -199,76 +284,18 @@ const CustomFooter = () => {
   );
 };
 
-const UnauthenticatedLayoutContent = () => {
-  const { login } = useAuth();
-
-  return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground w-full">
-      <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header px-4 py-2 text-header-foreground sticky top-0 z-30 md:px-6">
-        <div className="flex items-center gap-4 h-full">
-          <div className="secondary-logo-container">
-            <div
-              className="secondary-logo h-full w-auto aspect-[200/60]"
-              data-ai-hint="logo"
-              role="img"
-              aria-label="Secondary Logo"
-            />
-            <Separator orientation="vertical" className="h-full bg-header-foreground/30" />
-          </div>
-          <Image
-            src={LogoFullWhite}
-            height={60}
-            width={280}
-            alt="LamassuIoT Logo"
-            className="hidden md:block h-full w-auto"
-          />
-          <Image
-            src={LogoBlue}
-            height={60}
-            width={60}
-            alt="LamassuIoT Logo"
-            className="block md:hidden h-full w-auto invert brightness-0"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <Button variant="ghost" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
-            <LogIn className="mr-0 sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">Login</span>
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
-        <Image
-          src={LogoBlue}
-          height={75}
-          width={75}
-          alt="LamassuIoT Logo"
-          className="lamassu-logo-theme-filter"
-        />
-        <h1 className="text-3xl font-bold mt-3 mb-3">Welcome to LamassuIoT</h1>
-        <p className="text-lg text-muted-foreground mb-8 max-w-md">
-          Securely manage your X.509 certificates and IoT device identities. Please log in to access the system.
-        </p>
-        <Button onClick={login} className="px-8 py-6 text-lg">
-          <LogIn className="mr-2 h-5 w-5" /> Login with Lamassu Identity
-        </Button>
-      </div>
-    </div>
-  );
-};
-
 const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNode, isWizardMode?: boolean }) => {
-  const { user, logout } = useAuth();
+  const { isAuthenticated, user, login, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
-  const [avatarError, setAvatarError] = useState(false);
 
+  const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
   let userRoles: string[] = [];
-  if (user?.access_token) {
+  if (isAuthenticated() && user?.access_token) {
     try {
       const decodedToken = jwtDecode<DecodedAccessToken>(user.access_token);
       if (decodedToken.realm_access && Array.isArray(decodedToken.realm_access.roles)) {
@@ -295,7 +322,9 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       <div className="flex flex-col h-screen bg-background text-foreground w-full">
         <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header text-header-foreground px-4 md:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4 h-full py-2">
-            <SidebarTrigger className="md:hidden text-header-foreground hover:bg-header/80 hover:text-header-foreground" />
+            {isAuthenticated() && (
+              <SidebarTrigger className="md:hidden text-header-foreground hover:bg-header/80 hover:text-header-foreground" />
+            )}
             <div className="secondary-logo-container">
               <div
                 className="secondary-logo h-full w-auto aspect-[200/60]"
@@ -321,177 +350,281 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
             />
           </div>
           <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 p-1 h-auto text-header-foreground hover:bg-header/80 hover:text-header-foreground">
-                  <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
-                  {user?.profile.picture && !avatarError ? (
-                    <img
-                      src={user.profile.picture}
-                      alt={user.profile.name || user.profile.email || 'User'}
-                      referrerPolicy="no-referrer"
-                      className="h-8 w-8 rounded-full object-cover"
-                      onError={() => setAvatarError(true)}
-                    />
-                  ) : (
-                    <div className='flex items-center justify-center bg-header-foreground/20 rounded-full h-8 w-8'>
-                      <User className="h-5 w-5 text-header-foreground" />
+            {isAuthenticated() ? (
+              <>
+                <ThemeToggle />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2 p-1 h-auto text-header-foreground hover:bg-header/80 hover:text-header-foreground">
+                      <span className='hidden sm:inline'>{user?.profile.name || user?.profile.email}</span>
+                      <div className='flex items-center justify-center bg-header-foreground/20 rounded-full h-8 w-8'>
+                        <User className="h-5 w-5 text-header-foreground" />
+                      </div>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">My Account</p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user?.profile.email}
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="identifier-display-mode" className="text-sm cursor-pointer">
+                          ID Separators
+                        </Label>
+                        <Switch
+                          id="identifier-display-mode"
+                          checked={identifierMode === 'with-separators'}
+                          onCheckedChange={toggleIdentifierMode}
+                        />
+                      </div>
                     </div>
-                  )}
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="display-time-mode" className="text-sm cursor-pointer">
+                          Display Time
+                        </Label>
+                        <Switch
+                          id="display-time-mode"
+                          checked={displayTime}
+                          onCheckedChange={toggleDisplayTime}
+                        />
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Profile / Token Claims</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setIsVersionModalOpen(true)}>
+                      <GitCommit className="mr-2 h-4 w-4" />
+                      <span>Version Info</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setIsStatusModalOpen(true)}>
+                      <Info className="mr-2 h-4 w-4" />
+                      <span>Backend Services</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={handleRunWizard}>
+                      <PlaySquare className="mr-2 h-4 w-4" />
+                      <span>Run Setup Wizard</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={logout}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Logout</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <Button variant="ghost" size="sm" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
+                  <LogIn className="mr-0 sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">Login</span>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">My Account</p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {user?.profile.email}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="identifier-display-mode" className="text-sm cursor-pointer">
-                      ID Separators
-                    </Label>
-                    <Switch
-                      id="identifier-display-mode"
-                      checked={identifierMode === 'with-separators'}
-                      onCheckedChange={toggleIdentifierMode}
-                    />
-                  </div>
-                </div>
-                <div className="px-2 py-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="display-time-mode" className="text-sm cursor-pointer">
-                      Display Time
-                    </Label>
-                    <Switch
-                      id="display-time-mode"
-                      checked={displayTime}
-                      onCheckedChange={toggleDisplayTime}
-                    />
-                  </div>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setIsProfileModalOpen(true)}>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile / Token Claims</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setIsVersionModalOpen(true)}>
-                  <GitCommit className="mr-2 h-4 w-4" />
-                  <span>Version Info</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setIsStatusModalOpen(true)}>
-                  <Info className="mr-2 h-4 w-4" />
-                  <span>Backend Services</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleRunWizard}>
-                  <PlaySquare className="mr-2 h-4 w-4" />
-                  <span>Run Setup Wizard</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Logout</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </div>
+            )}
           </div>
         </header>
 
-        {isWizardMode ? (
-          <div className="flex-1 overflow-y-auto">
-            {children}
-          </div>
-        ) : (
-          <div className="flex flex-1 overflow-hidden">
-            <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
-              <SidebarHeader className="p-4">
-                <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                  <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
-                    <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
+        {isAuthenticated() ? (
+          isWizardMode ? (
+            <div className="flex-1 overflow-y-auto">
+              <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
+                <SidebarHeader className="p-4">
+                  <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+                    <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
+                      <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
+                    </div>
+                    <Image
+                      src={LogoFullBlue}
+                      height={30}
+                      width={140}
+                      alt="LamassuIoT Logo"
+                      className="group-data-[collapsible=icon]:hidden dark:hidden"
+                    />
+                    <Image
+                      src={LogoFullWhite}
+                      height={30}
+                      width={140}
+                      alt="LamassuIoT Logo"
+                      className="group-data-[collapsible=icon]:hidden hidden dark:block"
+                    />
+                    <Image
+                      src={LogoBlue}
+                      height={30}
+                      width={30}
+                      alt="LamassuIoT Logo"
+                      className="hidden group-data-[collapsible=icon]:block"
+                    />
                   </div>
-                  <Image
-                    src={LogoFullBlue}
-                    height={30}
-                    width={140}
-                    alt="LamassuIoT Logo"
-                    className="group-data-[collapsible=icon]:hidden dark:hidden"
-                  />
-                  <Image
-                    src={LogoFullWhite}
-                    height={30}
-                    width={140}
-                    alt="LamassuIoT Logo"
-                    className="group-data-[collapsible=icon]:hidden hidden dark:block"
-                  />
-                  <Image
-                    src={LogoBlue}
-                    height={30}
-                    width={30}
-                    alt="LamassuIoT Logo"
-                    className="hidden group-data-[collapsible=icon]:block"
-                  />
-                </div>
-              </SidebarHeader>
-              <SidebarContent className="p-2">
-                <SidebarMenu>
-                  {navigationConfig.map((group, groupIndex) => {
-                    if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
-                      return null;
-                    }
+                </SidebarHeader>
+                <SidebarContent className="p-2">
+                  <SidebarMenu>
+                    {navigationConfig.map((group, groupIndex) => {
+                      if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                        return null;
+                      }
 
-                    const filteredItems = group.items.filter(item =>
-                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
-                    );
+                      const filteredItems = group.items.filter(item =>
+                        !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
+                      );
 
-                    if (filteredItems.length === 0) {
-                      return null;
-                    }
+                      if (filteredItems.length === 0) {
+                        return null;
+                      }
 
-                    return (
-                      <React.Fragment key={group.label || `group-${groupIndex}`}>
-                        {group.label && (
-                          <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
-                            {group.label}
-                          </SidebarGroupLabel>
-                        )}
-                        {filteredItems.map(item => (
-                          <SidebarMenuItem key={item.href}>
-                            <SidebarMenuButton
-                              asChild
-                              isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
-                              tooltip={{ children: item.label, side: 'right', align: 'center' }}
-                            >
-                              <Link href={item.href} className="flex items-center w-full justify-start">
-                                <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
-                                <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
-                              </Link>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
-                      </React.Fragment>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarContent>
-              <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
-                <CustomSidebarToggle />
-                <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                      return (
+                        <React.Fragment key={group.label || `group-${groupIndex}`}>
+                          {group.label && (
+                            <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0">
+                              {group.label}
+                            </SidebarGroupLabel>
+                          )}
+                          {filteredItems.map(item => (
+                            <SidebarMenuItem key={item.href}>
+                              <SidebarMenuButton
+                                asChild
+                                isActive={
+                                  item.href === '/kms/keys'
+                                    ? pathname === '/kms/keys' || (pathname.startsWith('/kms/keys/') && !pathname.startsWith('/kms/keys/sym-keys'))
+                                    : pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')
+                                }
+                                tooltip={{ children: item.label, side: 'right', align: 'center' }}
+                              >
+                                <Link href={item.href} className="flex items-center w-full justify-start">
+                                  <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
+                                  <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarContent>
+                <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
+                  <CustomSidebarToggle />
+                  <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
 
-                </div>
-              </SidebarFooter>
-            </Sidebar>
+                  </div>
+                </SidebarFooter>
+              </Sidebar>
 
-            <SidebarInset className="flex-1 overflow-y-auto flex flex-col">
-              <div className="flex-1 p-4 md:p-6 pb-8 md:pb-12">
+              <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
+                {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
                 {children}
-              </div>
-              <CustomFooter />
-            </SidebarInset>
+              </SidebarInset>
+            </div>
+          ) : (
+            <div className="flex flex-1 overflow-hidden">
+              <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
+                <SidebarHeader className="p-4">
+                  <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+                    <div className="secondary-logo-container group-data-[collapsible=icon]:hidden">
+                      <div className="secondary-logo h-[30px] w-auto aspect-[200/60]" />
+                    </div>
+                    <Image
+                      src={LogoFullBlue}
+                      height={30}
+                      width={140}
+                      alt="LamassuIoT Logo"
+                      className="group-data-[collapsible=icon]:hidden dark:hidden"
+                    />
+                    <Image
+                      src={LogoFullWhite}
+                      height={30}
+                      width={140}
+                      alt="LamassuIoT Logo"
+                      className="group-data-[collapsible=icon]:hidden hidden dark:block"
+                    />
+                    <Image
+                      src={LogoBlue}
+                      height={30}
+                      width={30}
+                      alt="LamassuIoT Logo"
+                      className="hidden group-data-[collapsible=icon]:block"
+                    />
+                  </div>
+                </SidebarHeader>
+                <SidebarContent className="p-2">
+                  <SidebarMenu>
+                    {navigationConfig.map((group, groupIndex) => {
+                      if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
+                        return null;
+                      }
+
+                      const filteredItems = group.items.filter(item =>
+                        !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
+                      );
+
+                      if (filteredItems.length === 0) {
+                        return null;
+                      }
+
+                      return (
+                        <React.Fragment key={group.label || `group-${groupIndex}`}>
+                          {group.label && (
+                            <SidebarGroupLabel className="px-2 pt-2 group-data-[collapsible=icon]:pt-0 group-data-[collapsible=icon]:hidden">
+                              {group.label}
+                            </SidebarGroupLabel>
+                          )}
+                          {filteredItems.map(item => (
+                            <SidebarMenuItem key={item.href}>
+                              <SidebarMenuButton
+                                asChild
+                                isActive={isNavItemActive(item.href, pathname)}
+                                tooltip={{ children: item.label, side: 'right', align: 'center' }}
+                              >
+                                <Link href={item.href} className="flex items-center w-full justify-start">
+                                  <item.icon className="mr-2 h-5 w-5 flex-shrink-0" />
+                                  <span className="group-data-[collapsible=icon]:hidden whitespace-nowrap">{item.label}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarContent>
+                <SidebarFooter className="p-2 pb-4 mt-auto border-t border-sidebar-border">
+                  <CustomSidebarToggle />
+                  <div className="w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+
+                  </div>
+                </SidebarFooter>
+              </Sidebar>
+
+              <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
+                {breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
+                {children}
+                <CustomFooter />
+              </SidebarInset>
+            </div>
+          )
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+            <Image
+              src={LogoBlue}
+              height={75}
+              width={75}
+              alt="LamassuIoT Logo"
+              className="lamassu-logo-theme-filter"
+            />
+            <h1 className="text-3xl font-bold mt-3 mb-3">Welcome to LamassuIoT</h1>
+            <p className="text-lg text-muted-foreground mb-8 max-w-md">
+              Securely manage your X.509 certificates and IoT device identities. Please log in to access the system.
+            </p>
+            <Button onClick={login} size="lg" className="px-8 py-6 text-lg">
+              <LogIn className="mr-2 h-5 w-5" /> Login with Lamassu Identity
+            </Button>
           </div>
         )}
       </div>
@@ -541,19 +674,16 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
 
 
 const InnerLayout = ({ children }: { children: React.ReactNode }) => {
-  const { isLoading: authIsLoading, isLoggedIn, user } = useAuth();
+  const { isLoading: authIsLoading, user } = useAuth();
   const [clientMounted, setClientMounted] = React.useState(false);
   const pathname = usePathname();
-  const authenticatedAppKey = isLoggedIn
-    ? `${user?.profile.iss ?? 'unknown'}:${user?.profile.sub ?? 'unknown'}`
-    : 'anonymous';
 
   // State to determine if the wizard should be shown
   const [isWizardMode, setIsWizardMode] = useState(false);
   const [isCheckingSystem, setIsCheckingSystem] = useState(true);
 
   const checkSystemStatus = useCallback(async () => {
-    if (!isLoggedIn) {
+    if (!user?.access_token) {
       setIsCheckingSystem(false);
       return;
     }
@@ -583,7 +713,7 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     }
 
     try {
-      const stats = await fetchCaStatsSummary();
+      const stats = await fetchCaStatsSummary(user.access_token);
       if (stats.cas.total === 0) {
         setIsWizardMode(true);
       } else {
@@ -597,18 +727,18 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setIsCheckingSystem(false);
     }
-  }, [isLoggedIn, pathname]);
+  }, [user?.access_token, pathname]);
 
   useEffect(() => {
     setClientMounted(true);
-    if (!authIsLoading && isLoggedIn) {
+    if (!authIsLoading && user) {
       checkSystemStatus();
-    } else if (!authIsLoading && !isLoggedIn) {
+    } else if (!authIsLoading && !user) {
       // If not authenticated, not in wizard mode and not checking
       setIsWizardMode(false);
       setIsCheckingSystem(false);
     }
-  }, [authenticatedAppKey, authIsLoading, checkSystemStatus, isLoggedIn]);
+  }, [authIsLoading, user, checkSystemStatus]);
 
 
   const isCallbackPage =
@@ -628,15 +758,11 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     return <LoadingState />;
   }
 
-  if (!isLoggedIn) {
-    return <UnauthenticatedLayoutContent />;
-  }
-
   if (isWizardMode) {
-    return <MainLayoutContent key={`${authenticatedAppKey}:wizard`} isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
+    return <MainLayoutContent isWizardMode={true}><InitializationWizard /></MainLayoutContent>;
   }
 
-  return <MainLayoutContent key={authenticatedAppKey}>{children}</MainLayoutContent>;
+  return <MainLayoutContent>{children}</MainLayoutContent>;
 };
 
 
@@ -660,12 +786,14 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ConfigProvider>
           <AuthProvider>
-            <IdentifierDisplayProvider>
-              <React.Suspense fallback={<LoadingState />}>
-                <InnerLayout>{children}</InnerLayout>
-              </React.Suspense>
-              <ThemedToaster offset={{ top: 40 }} />
-            </IdentifierDisplayProvider>
+            <QueryClientProvider>
+              <IdentifierDisplayProvider>
+                <React.Suspense fallback={<LoadingState />}>
+                  <InnerLayout>{children}</InnerLayout>
+                </React.Suspense>
+                <Toaster />
+              </IdentifierDisplayProvider>
+            </QueryClientProvider>
           </AuthProvider>
         </ConfigProvider>
       </body>

@@ -19,6 +19,10 @@ window.lamassuConfig = {
     // This should be the root of your API gateway or load balancer.
     // Example: "https://api.yourdomain.com"
     LAMASSU_API: `${LAMASSU_API}`,
+    
+    // (Optional) Base URL for Updates and SymKMS API services
+    // Both /updates/v1 and /symkms/v1 paths will be appended to this base URL
+    LAMASSU_UPDATES_API: `${LAMASSU_UPDATES_API}`,
   
     // --- Authentication (OIDC) ---
     // Set to `false` to disable OIDC authentication and use a mock user for development.
@@ -31,21 +35,11 @@ window.lamassuConfig = {
     LAMASSU_AUTH_AUTHORITY: `${OIDC_AUTHORITY}`,
     
     // The OIDC client ID registered with your provider for this frontend application.
-    LAMASSU_AUTH_CLIENT_ID: "${OIDC_CLIENT_ID}",
+    LAMASSU_AUTH_CLIENT_ID: `${OIDC_CLIENT_ID}`,
 
     // --- UI Customization ---
     // Set to true to enable loading of a custom footer from /public/footer.html
     LAMASSU_FOOTER_ENABLED: ${UI_FOOTER_ENABLED},
-    
-    TOAST_POSITION: "top-center",
-
-    // Date format used throughout the UI (date-fns format string).
-    // Default: "dd/MM/yyyy HH:mm"
-    DISPLAY_DATE_FORMAT: "dd/MM/yyyy HH:mm",
-
-    // Date+time format used when the "Display Time" option is enabled.
-    // Default: "dd/MM/yyyy HH:mm:ss"
-    DISPLAY_DATE_AND_TIME_FORMAT: "dd/MM/yyyy HH:mm:ss",
   
     // A comma-separated list of available connector instances for platform integrations.
     // This allows the UI to present a list of possible integrations to the user.

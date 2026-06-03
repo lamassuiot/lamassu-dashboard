@@ -22,6 +22,12 @@ window.lamassuConfig = {
     // LAMASSU_API: "https://localhost:8443/api",
     LAMASSU_API: "http://localhost:8080/api",
 
+    // (Optional) Base URL for Updates and SymKMS API services
+    // Both /updates/v1 and /symkms/v1 paths will be appended to this base URL
+    // If not provided, will default to LAMASSU_API
+    LAMASSU_UPDATES_API: "http://localhost:10090",
+
+
     // (Optional) An override URL for public-facing endpoints like VA (OCSP/CRL) and EST.
     // If not provided, these endpoints will be based on the LAMASSU_API value.
     // Useful if validation/enrollment services are hosted on a separate public domain.
@@ -30,7 +36,7 @@ window.lamassuConfig = {
     // --- Authentication (OIDC) ---
     // Set to `false` to disable OIDC authentication and use a mock user for development.
     // In a production environment, this should always be `true`.
-    LAMASSU_AUTH_ENABLED: true,
+    LAMASSU_AUTH_ENABLED: false,
   
     // The OIDC provider's URL. All OIDC endpoints (.well-known, authorization, token)
     // are relative to this authority.
@@ -43,17 +49,6 @@ window.lamassuConfig = {
     // --- UI Customization ---
     // Set to true to enable loading of a custom footer from /public/footer.html
     LAMASSU_FOOTER_ENABLED: false,
-
-    // Default position for sileo notifications.
-    TOAST_POSITION: "top-center",
-
-    // Date format used throughout the UI (date-fns format string).
-    // Default: "dd/MM/yyyy HH:mm"
-    DISPLAY_DATE_FORMAT: "dd/MM/yyyy HH:mm",
-
-    // Date+time format used when the "Display Time" option is enabled.
-    // Default: "dd/MM/yyyy HH:mm:ss"
-    DISPLAY_DATE_AND_TIME_FORMAT: "dd/MM/yyyy HH:mm:ss",
   
     // A comma-separated list of available connector instances for platform integrations.
     // This allows the UI to present a list of possible integrations to the user.
