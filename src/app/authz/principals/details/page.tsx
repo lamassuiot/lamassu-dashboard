@@ -69,6 +69,10 @@ import type { Principal, Policy } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { cn } from '@/lib/utils';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import dynamic from 'next/dynamic';
+
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
 function PrincipalDetailsContent() {
   const router = useRouter();
@@ -92,6 +96,7 @@ function PrincipalDetailsContent() {
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const monacoTheme = useMonacoTheme();
 
   useEffect(() => {
     if (principalId) loadPrincipalDetails();
@@ -561,9 +566,22 @@ function PrincipalDetailsContent() {
 
         {/* Raw JSON Tab */}
         <TabsContent value="raw" className="mt-6">
-          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[600px] text-xs">
-            {JSON.stringify(principal, null, 2)}
-          </pre>
+          <div className="rounded-md border overflow-hidden">
+            <MonacoEditor
+              height="500px"
+              language="json"
+              value={JSON.stringify(principal, null, 2)}
+              theme={monacoTheme}
+              options={{
+                readOnly: true,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                fontSize: 13,
+                wordWrap: 'on',
+                automaticLayout: true,
+              }}
+            />
+          </div>
         </TabsContent>
       </Tabs>
 

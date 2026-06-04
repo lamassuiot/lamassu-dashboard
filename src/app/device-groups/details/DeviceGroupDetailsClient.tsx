@@ -40,7 +40,6 @@ import { CompactGroupStats } from '@/components/device-groups/CompactGroupStats'
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 
 export default function DeviceGroupDetailsClient() {
   const searchParams = useSearchParams();
@@ -142,7 +141,6 @@ export default function DeviceGroupDetailsClient() {
   }
 
   const filterCount = group.criteria?.length ?? 0;
-  const dateFormat = getDisplayDateFormat(); // used by DateDisplay
 
   return (
     <BreadcrumbPage
@@ -281,13 +279,13 @@ export default function DeviceGroupDetailsClient() {
                   <div className="py-3">
                     <p className="text-xs font-medium text-muted-foreground">Created</p>
                     <div className="mt-1">
-                      <DateDisplay date={group.created_at} formatString={dateFormat} showRelative className="text-sm font-medium" />
+                      <DateDisplay date={group.created_at} showRelative className="text-sm font-medium" />
                     </div>
                   </div>
                   <div className="py-3 last:pb-0">
                     <p className="text-xs font-medium text-muted-foreground">Last Updated</p>
                     <div className="mt-1">
-                      <DateDisplay date={group.updated_at} formatString={dateFormat} showRelative className="text-sm font-medium" />
+                      <DateDisplay date={group.updated_at} showRelative className="text-sm font-medium" />
                     </div>
                   </div>
                 </div>

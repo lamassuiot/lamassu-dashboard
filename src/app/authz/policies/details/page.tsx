@@ -55,6 +55,10 @@ import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import type { Policy, PolicyStats, ColumnFilter, FilterOperator, RelationRule } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import dynamic from 'next/dynamic';
+
+const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -152,6 +156,7 @@ function PolicyDetailsContent() {
   const [copiedId, setCopiedId] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const monacoTheme = useMonacoTheme();
 
   useEffect(() => {
     if (policyId) loadPolicyDetails();
@@ -418,9 +423,22 @@ function PolicyDetailsContent() {
         </TabsContent>
 
         <TabsContent value="raw" className="mt-6">
-          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[600px] text-xs">
-            {JSON.stringify(policy, null, 2)}
-          </pre>
+          <div className="rounded-md border overflow-hidden">
+            <MonacoEditor
+              height="500px"
+              language="json"
+              value={JSON.stringify(policy, null, 2)}
+              theme={monacoTheme}
+              options={{
+                readOnly: true,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                fontSize: 13,
+                wordWrap: 'on',
+                automaticLayout: true,
+              }}
+            />
+          </div>
         </TabsContent>
       </Tabs>
 

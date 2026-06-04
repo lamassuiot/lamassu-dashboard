@@ -12,7 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CaHierarchyPathNode } from '@/components/ca/details/CaHierarchyPathNode';
 import { getCaDisplayName, fetchSigningProfiles, type ApiSigningProfile, updateCaDefaultProfileId } from '@/lib/ca-data';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
@@ -180,7 +179,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Revoked on:</span>
-                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} formatString={getDisplayDateFormat()} showRelative={true} />
+                <DateDisplay date={caDetails.rawApiData.certificate.revocation_timestamp} showRelative={true} />
               </div>
             </AlertDescription>
           </Alert>
@@ -444,7 +443,7 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium opacity-80">Revoked on:</span>
-                <DateDisplay date={certDetails.revocationTimestamp} formatString={getDisplayDateFormat()} showRelative={false} />
+                <DateDisplay date={certDetails.revocationTimestamp} showRelative={false} />
               </div>
             </AlertDescription>
           </Alert>
@@ -474,8 +473,8 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
                 }
               />
               <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={certDetails.serialNumber} />} />
-              <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} formatString={getDisplayDateFormat()} />} />
-              <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} formatString={getDisplayDateFormat()} highlightExpired />} className="last:pb-0" />
+              <DetailInfoRow label="Valid From" value={<DateDisplay date={certDetails.validFrom} />} />
+              <DetailInfoRow label="Valid To" value={<DateDisplay date={certDetails.validTo} highlightExpired />} className="last:pb-0" />
             </DetailInfoRows>
           </div>
         </div>
