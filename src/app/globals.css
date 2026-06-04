@@ -392,53 +392,10 @@
   }
 }
 
-.vis-item {
-  border-color: hsl(var(--primary)) !important;
-  background-color: white !important;
-  padding: 0 !important;
-}
-
-.dark .vis-item {
-  background-color: hsl(var(--card)) !important;
-}
-
-.vis-item-content {
-  padding: 0 !important;
-}
-
-.vis-item.vis-box {
-  border-radius: 10px !important;
-}
-
-.vis-timeline {
-  @apply rounded-lg bg-card;
-  border: none !important;
-  background: rgba(255, 255, 255, 0.85) !important;
-}
-
-.dark .vis-timeline {
-  background: rgba(0, 0, 0, 0.6) !important;
-}
-
-.vis-panel.vis-bottom {
-  border-top: 1px solid white !important;
-}
-
-.vis-time-axis .vis-grid.vis-minor {
-  border-color: #888 !important;
-}
-
-.vis-time-axis .vis-grid.vis-major {
-  border-color: #333 !important;
-}
-
-.vis-text {
-  color: #888 !important;
-}
-
+/* "today" marker */
 .vis-custom-time.now-marker {
-  width: 2px;
-  background-color: hsl(var(--primary)) !important;
+  width: 1px;
+  background-color: hsl(var(--destructive) / 0.6) !important;
   z-index: 10;
 }
 
@@ -451,75 +408,95 @@
     @apply bg-input/50;
   }
 
-  /* Vis-timeline custom styles */
+  /* ── vis-timeline ─────────────────────────────────────────── */
 
-  .vis-item {
-    border-color: transparent !important;
+  /* Strip the library container entirely — the Card wrapper owns borders/bg/radius */
+  .vis-timeline {
+    border: none !important;
     background-color: transparent !important;
+    font-family: inherit !important;
+    overflow: hidden;
+  }
+
+  .vis-panel.vis-background,
+  .vis-center,
+  .vis-panel.vis-top,
+  .vis-panel.vis-left,
+  .vis-panel.vis-right {
+    background-color: transparent !important;
+  }
+
+  /* Strip ALL default box/item chrome — our card component handles its own look */
+  .vis-item,
+  .vis-item.vis-box,
+  .vis-item.vis-selected,
+  .vis-item:hover {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
     padding: 0 !important;
-  }
-
-  .vis-item.vis-point {
-    @apply border-2;
-  }
-
-  .vis-item.vis-selected {
-    /* Selection is handled by the card's hover/focus states */
+    outline: none !important;
   }
 
   .vis-item .vis-item-content {
-    @apply p-0;
-  }
-
-  /* Custom classes for timeline item status, applied to the card inside */
-  /*
-  .vis-item.item-active [data-ca-visualizer-card="true"] {
-    background-color: hsl(var(--chart-2) / 0.3);
-    border-color: hsl(var(--chart-2) / 0.8);
-  }
-  .vis-item.item-expired [data-ca-visualizer-card="true"] {
-    background-color: hsl(var(--chart-3) / 0.3);
-    border-color: hsl(var(--chart-3) / 0.8);
-  }
-  .vis-item.item-revoked [data-ca-visualizer-card="true"] {
-    background-color: hsl(var(--chart-4) / 0.3);
-    border-color: hsl(var(--chart-4) / 0.8);
-  }
-  */
-
-  .vis-panel.vis-background,
-  .vis-center {
-    background-color: hsl(var(--card));
-  }
-
-  .vis-time-axis .vis-grid.vis-major {
-    border-color: hsl(var(--border));
-  }
-
-  .vis-time-axis .vis-grid.vis-minor {
-    border-color: hsl(var(--border) / 0.5);
-  }
-
-  .vis-time-axis .vis-text {
-    color: hsl(var(--muted-foreground));
-  }
-
-  /* Current time marker */
-  .vis-item {
-    border-color: transparent !important;
-    background-color: transparent !important;
     padding: 0 !important;
   }
 
-  /* Restore connecting line and dot that vis-timeline adds as .vis-item siblings */
-  .vis-item.vis-line {
-    border-left-color: hsl(var(--primary) / 0.5) !important;
-    border-left-width: 2px !important;
+  /* Connecting line — parent prefix forces higher specificity than the strip rule */
+  .vis-timeline .vis-item.vis-line {
+    border-top: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    border-left-width: 1px !important;
+    border-left-style: solid !important;
+    border-left-color: hsl(var(--border)) !important;
+    background: transparent !important;
   }
 
-  .vis-item.vis-dot {
+  /* Axis dot */
+  .vis-timeline .vis-item.vis-dot {
+    border-width: 5px !important;
+    border-style: solid !important;
+    border-radius: 50% !important;
     border-color: hsl(var(--primary)) !important;
-    border-width: 4px !important;
+    background: transparent !important;
+  }
+
+  /* Status-colored lines */
+  .vis-timeline .vis-item.item-active.vis-line  { border-left-color: #22c55e !important; }
+  .vis-timeline .vis-item.item-expired.vis-line { border-left-color: #fb923c !important; }
+  .vis-timeline .vis-item.item-revoked.vis-line { border-left-color: hsl(var(--destructive)) !important; }
+
+  /* Status-colored dots */
+  .vis-timeline .vis-item.item-active.vis-dot  { border-color: #22c55e !important; }
+  .vis-timeline .vis-item.item-expired.vis-dot { border-color: #fb923c !important; }
+  .vis-timeline .vis-item.item-revoked.vis-dot { border-color: hsl(var(--destructive)) !important; }
+
+  /* Grid lines: barely-there */
+  .vis-time-axis .vis-grid.vis-major {
+    border-color: hsl(var(--border)) !important;
+  }
+  .vis-time-axis .vis-grid.vis-minor {
+    border-color: hsl(var(--border) / 0.35) !important;
+  }
+
+  /* Axis labels */
+  .vis-time-axis .vis-text {
+    color: hsl(var(--muted-foreground)) !important;
+    font-size: 11px !important;
+    font-family: inherit !important;
+    font-weight: 400 !important;
+  }
+
+  /* Axis bottom line */
+  .vis-panel.vis-bottom {
+    border-top: 1px solid hsl(var(--border)) !important;
+  }
+
+  /* Remove any focus ring vis adds */
+  .vis-timeline:focus,
+  .vis-item:focus {
+    outline: none !important;
   }
 
   /* Group labels */

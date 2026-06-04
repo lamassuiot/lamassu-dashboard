@@ -1,4 +1,3 @@
-
 'use client';
 
 import type React from 'react';
@@ -8,8 +7,6 @@ import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
-import { Badge } from '@/components/ui/badge';
-import { CardAction, CardDescription, CardHeader } from '@/components/ui/card';
 
 interface CaVisualizerCardProps {
   ca: CA;
@@ -18,65 +15,70 @@ interface CaVisualizerCardProps {
   allCryptoEngines?: ApiCryptoEngine[];
 }
 
-const getStatusInfo = (ca: CA): { expiryText: string; label: string; variant: 'active' | 'expired' | 'revoked' } => {
+type StatusVariant = 'active' | 'expired' | 'revoked';
+
+const getStatus = (ca: CA): { label: string; expiryText: string; variant: StatusVariant } => {
   const expiryDate = parseISO(ca.expires);
-  if (ca.status === 'revoked') {
-    return { expiryText: 'Revoked', label: 'Revoked', variant: 'revoked' };
-  }
-  if (isPast(expiryDate)) {
-    return { expiryText: `Expired ${formatDistanceToNowStrict(expiryDate)} ago`, label: 'Expired', variant: 'expired' };
-  }
-  return { expiryText: `Expires in ${formatDistanceToNowStrict(expiryDate)}`, label: 'Active', variant: 'active' };
+  if (ca.status === 'revoked') return { label: 'Revoked', expiryText: 'Revoked', variant: 'revoked' };
+  if (isPast(expiryDate)) return { label: 'Expired', expiryText: `Expired ${formatDistanceToNowStrict(expiryDate)} ago`, variant: 'expired' };
+  return { label: 'Active', expiryText: `Expires in ${formatDistanceToNowStrict(expiryDate)}`, variant: 'active' };
 };
 
-const statusBadgeClasses: Record<'active' | 'expired' | 'revoked', string> = {
-  active: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-  expired: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
-  revoked: '',
+const accentBar: Record<StatusVariant, string> = {
+  active:  'bg-emerald-500',
+  expired: 'bg-orange-400',
+  revoked: 'bg-destructive',
+};
+
+const labelColor: Record<StatusVariant, string> = {
+  active:  'text-emerald-700 dark:text-emerald-400',
+  expired: 'text-orange-600 dark:text-orange-400',
+  revoked: 'text-destructive',
 };
 
 export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, className, onClick, allCryptoEngines }) => {
-  const { expiryText, label, variant } = getStatusInfo(ca);
+  const { label, expiryText, variant } = getStatus(ca);
 
-  let iconNode: React.ReactNode;
+  let icon: React.ReactNode;
   if (ca.kmsKeyId) {
     const engine = allCryptoEngines?.find(e => e.id === ca.kmsKeyId);
-    iconNode = engine
-      ? <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4" />
-      : <KeyRound className="h-4 w-4 text-primary" />;
+    icon = engine
+      ? <CryptoEngineViewer engine={engine} iconOnly className="h-3.5 w-3.5" />
+      : <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />;
   } else {
-    iconNode = <Landmark className="h-4 w-4 text-primary" />;
+    icon = <Landmark className="h-3.5 w-3.5 text-muted-foreground" />;
   }
 
   const Comp = onClick ? 'button' : 'div';
 
   return (
     <Comp
-      data-slot="card"
-      data-size="sm"
       data-ca-visualizer-card="true"
       {...(onClick ? { type: 'button' as const, onClick: () => onClick(ca), 'aria-label': `Select ${ca.name}` } : {})}
       className={cn(
-        'group/card flex flex-col gap-4 overflow-hidden rounded-[min(var(--radius-4xl),24px)] bg-card text-sm text-card-foreground shadow-sm ring-1 ring-foreground/5 dark:ring-foreground/10 w-full text-left py-4',
-        onClick && 'cursor-pointer transition-[box-shadow,ring] hover:shadow-md hover:ring-primary/25',
+        'relative flex items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-card pl-3.5 pr-3 py-2.5 text-left shadow-sm w-full',
+        onClick && 'cursor-pointer transition-colors hover:bg-muted/40',
         className
       )}
     >
-      <CardHeader>
-        <div className="flex items-center gap-2.5 min-w-0">
-          {iconNode}
-          <span className="truncate text-sm font-medium leading-none">{ca.name}</span>
-        </div>
-        <CardAction>
-          <Badge
-            variant={variant === 'revoked' ? 'destructive' : 'outline'}
-            className={statusBadgeClasses[variant]}
-          >
-            {label}
-          </Badge>
-        </CardAction>
-        <CardDescription className="truncate text-xs">{expiryText}</CardDescription>
-      </CardHeader>
+      {/* Status accent bar */}
+      <span className={cn('absolute inset-y-0 left-0 w-[3px]', accentBar[variant])} />
+
+      {/* Icon */}
+      <div className="mt-0.5 shrink-0 rounded-md border border-border/60 bg-muted/60 p-1">
+        {icon}
+      </div>
+
+      {/* Text */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium leading-snug text-foreground">{ca.name}</p>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{expiryText}</p>
+      </div>
+
+      {/* Status label */}
+      <span className={cn('mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide', labelColor[variant])}>
+        {label}
+      </span>
     </Comp>
   );
 };
