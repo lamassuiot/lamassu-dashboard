@@ -521,8 +521,8 @@ export default function CertificateAuthorityDetailsClient() {
                 </Button>
               ) : (
                 <Button
-                  variant="default"
-                  className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                  variant="destructive"
+                  className="gap-2"
                   onClick={handleDeleteCA}
                   disabled={isDeleting}
                 >
