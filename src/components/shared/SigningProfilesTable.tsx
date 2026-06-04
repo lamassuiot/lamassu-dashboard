@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import { MoreVertical, Edit, Trash2, Users, ChevronsUpDown, ArrowUpZA, ArrowDown
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import type { ProfileSortConfig, SortableProfileColumn } from '@/app/signing-profiles/page';
 import { cn } from '@/lib/utils';
-import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 
 interface SigningProfilesTableProps {
   profiles: ApiSigningProfile[];
@@ -26,6 +25,7 @@ interface SigningProfilesTableProps {
   onEdit: (profileId: string) => void;
   onDelete: (profile: ApiSigningProfile) => void;
   onViewUsage: (profile: ApiSigningProfile) => void;
+  columnVisibility: Record<string, boolean>;
 }
 
 const validityToString = (validity: ApiSigningProfile['validity']): string => {
@@ -67,40 +67,9 @@ const SortableTableHeader: React.FC<{
 };
 
 
-export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ profiles, sortConfig, requestSort, onEdit, onDelete, onViewUsage }) => {
-  // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
-    name: true,
-    description: true,
-    validity: true,
-    policies: true,
-    usages: true,
-  });
-
-  const columns: ColumnConfig[] = [
-    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
-    { id: 'description', label: 'Description', visible: columnVisibility.description },
-    { id: 'validity', label: 'Validity', visible: columnVisibility.validity },
-    { id: 'policies', label: 'Policies', visible: columnVisibility.policies },
-    { id: 'usages', label: 'Usages', visible: columnVisibility.usages },
-  ];
-
-  const handleColumnToggle = (columnId: string) => {
-    setColumnVisibility((prev) => ({
-      ...prev,
-      [columnId]: !prev[columnId],
-    }));
-  };
-
+export const SigningProfilesTable: React.FC<SigningProfilesTableProps> = ({ profiles, sortConfig, requestSort, onEdit, onDelete, onViewUsage, columnVisibility }) => {
   return (
-    <div className="w-full space-y-4">
-      <div className="flex justify-end mb-2">
-        <ColumnSelector
-          columns={columns}
-          onColumnToggle={handleColumnToggle}
-          align="end"
-        />
-      </div>
+    <div className="w-full">
       <div className="overflow-x-auto">
         <Table>
         <TableHeader>

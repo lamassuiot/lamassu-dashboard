@@ -27,6 +27,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
 import { CAsUsingProfileModal } from '@/components/shared/CAsUsingProfileModal';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ColumnSelector } from '@/components/ui/column-selector';
 
 export type SortableProfileColumn = 'name';
 export type SortDirection = 'asc' | 'desc';
@@ -56,6 +57,27 @@ export default function SigningProfilesPage() {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<ProfileSortConfig | null>({ column: 'name', direction: 'asc' });
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    name: true,
+    description: true,
+    validity: true,
+    policies: true,
+    usages: true,
+  });
+
+  const profileColumns = [
+    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
+    { id: 'description', label: 'Description', visible: columnVisibility.description },
+    { id: 'validity', label: 'Validity', visible: columnVisibility.validity },
+    { id: 'policies', label: 'Policies', visible: columnVisibility.policies },
+    { id: 'usages', label: 'Usages', visible: columnVisibility.usages },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
+  };
 
   // State for deletion
   const [profileToDelete, setProfileToDelete] = useState<ApiSigningProfile | null>(null);
@@ -260,16 +282,19 @@ export default function SigningProfilesPage() {
                     />
                 </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
                 <ToggleGroup
                     type="single"
                     value={viewMode}
                     onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
-                    variant="secondary"
+                    variant="outline"
                 >
                     <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
                     <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
                 </ToggleGroup>
+                {viewMode === 'list' && (
+                    <ColumnSelector columns={profileColumns} onColumnToggle={handleColumnToggle} align="end" />
+                )}
             </div>
        </div>
 
@@ -295,13 +320,14 @@ export default function SigningProfilesPage() {
               ))}
             </div>
           ) : (
-             <SigningProfilesTable 
-                profiles={profiles} 
+             <SigningProfilesTable
+                profiles={profiles}
                 sortConfig={sortConfig}
                 requestSort={requestSort}
-                onEdit={handleEditProfile} 
-                onDelete={handleDeleteProfileClick} 
+                onEdit={handleEditProfile}
+                onDelete={handleDeleteProfileClick}
                 onViewUsage={handleViewUsageClick}
+                columnVisibility={columnVisibility}
             />
           )
       ) : (

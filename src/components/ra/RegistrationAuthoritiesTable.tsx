@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { parseISO, isPast, formatDistanceToNowStrict } from 'date-fns';
-import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
+import type { ColumnConfig } from '@/components/ui/column-selector';
 
 interface SortConfig {
   column: SortableColumn;
@@ -39,6 +39,7 @@ interface RegistrationAuthoritiesTableProps {
   onDelete: (ra: ApiRaItem) => void;
   sortConfig: SortConfig | null;
   requestSort: (column: SortableColumn) => void;
+  columnVisibility: Record<string, boolean>;
 }
 
 const SortableTableHeader: React.FC<{
@@ -87,44 +88,12 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
   onDelete,
   sortConfig,
   requestSort,
+  columnVisibility,
 }) => {
   const router = useRouter();
 
-  // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
-    icon: true,
-    name: true,
-    registrationMode: true,
-    enrollmentCA: true,
-    authMode: true,
-    createdAt: true,
-  });
-
-  const columns: ColumnConfig[] = [
-    { id: 'icon', label: 'Icon', visible: columnVisibility.icon },
-    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
-    { id: 'registrationMode', label: 'Registration Mode', visible: columnVisibility.registrationMode },
-    { id: 'enrollmentCA', label: 'Enrollment CA', visible: columnVisibility.enrollmentCA },
-    { id: 'authMode', label: 'Auth Mode', visible: columnVisibility.authMode },
-    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
-  ];
-
-  const handleColumnToggle = (columnId: string) => {
-    setColumnVisibility((prev) => ({
-      ...prev,
-      [columnId]: !prev[columnId],
-    }));
-  };
-
   return (
-    <div className="w-full space-y-4">
-      <div className="flex justify-end mb-2">
-        <ColumnSelector
-          columns={columns}
-          onColumnToggle={handleColumnToggle}
-          align="end"
-        />
-      </div>
+    <div className="w-full">
       <div className="overflow-x-auto">
         <Table>
         <TableHeader>

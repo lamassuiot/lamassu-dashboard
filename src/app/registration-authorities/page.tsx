@@ -29,6 +29,7 @@ import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
 import { EstCaCertsPanel } from '@/components/shared/EstCaCertsPanel';
 import { fetchRegistrationAuthorities, updateRaMetadata, type ApiRaItem, deleteRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
+import { ColumnSelector } from '@/components/ui/column-selector';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -94,6 +95,29 @@ export default function RegistrationAuthoritiesPage() {
   // State for delete dialog
   const [raToDelete, setRaToDelete] = useState<ApiRaItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    icon: true,
+    name: true,
+    registrationMode: true,
+    enrollmentCA: true,
+    authMode: true,
+    createdAt: true,
+  });
+
+  const raColumns = [
+    { id: 'icon', label: 'Icon', visible: columnVisibility.icon },
+    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
+    { id: 'registrationMode', label: 'Registration Mode', visible: columnVisibility.registrationMode },
+    { id: 'enrollmentCA', label: 'Enrollment CA', visible: columnVisibility.enrollmentCA },
+    { id: 'authMode', label: 'Auth Mode', visible: columnVisibility.authMode },
+    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
+  };
 
   useEffect(() => {
     setIsClientMounted(true);
@@ -358,6 +382,7 @@ export default function RegistrationAuthoritiesPage() {
             )}
            </div>
         </div>
+        <ColumnSelector columns={raColumns} onColumnToggle={handleColumnToggle} align="end" />
       </div>
 
         <div>
@@ -392,6 +417,7 @@ export default function RegistrationAuthoritiesPage() {
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
+            columnVisibility={columnVisibility}
           />
         )}
 
