@@ -1,24 +1,17 @@
 'use client';
 
-import Link from 'next/link';
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, FileText, X, RefreshCw } from 'lucide-react';
+import { Loader2, X, RefreshCw } from 'lucide-react';
 import type { CA } from '@/lib/ca-data';
 import type { CertificateData } from '@/types/certificate';
 import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
+import { CertificateCard } from '@/components/shared/CertificateCard';
 import { DurationInput } from '@/components/shared/DurationInput';
-import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { cn } from '@/lib/utils';
 import type { VAConfig } from '@/lib/va-api';
-
-function getCommonName(subjectOrIssuer: string | undefined): string {
-  if (!subjectOrIssuer) return '';
-  const cnMatch = subjectOrIssuer.match(/CN=([^,]+)/i);
-  return cnMatch ? cnMatch[1].trim() : subjectOrIssuer;
-}
 
 interface VaSettingsCardProps {
   config: VAConfig;
@@ -76,73 +69,12 @@ export function VaSettingsCard({
             Certificate whose public key corresponds to the SubjectKeyIdentifier in generated CRLs.
           </p>
           {selectedCertificateSignerDisplay ? (
-            <div className="rounded-md border bg-muted/20">
-              <div className="flex items-start gap-3 p-3">
-                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1 space-y-1">
-                  {selectedCertificateSignerDisplay.serialNumber &&
-                  selectedCertificateSignerDisplay.serialNumber !== 'Unknown' ? (
-                    <Button
-                      variant="link"
-                      className="h-auto min-w-0 justify-start truncate p-0 text-left text-sm font-medium"
-                      asChild
-                    >
-                      <Link
-                        href={`/certificates/details?certificateId=${encodeURIComponent(selectedCertificateSignerDisplay.serialNumber)}`}
-                        title={
-                          selectedCertificateSignerDisplay.subject ||
-                          `View certificate ${selectedCertificateSignerDisplay.serialNumber}`
-                        }
-                      >
-                        {getCommonName(selectedCertificateSignerDisplay.subject) ||
-                          selectedCertificateSignerDisplay.subject}
-                      </Link>
-                    </Button>
-                  ) : (
-                    <p
-                      className="truncate text-sm font-medium text-foreground"
-                      title={selectedCertificateSignerDisplay.subject}
-                    >
-                      {getCommonName(selectedCertificateSignerDisplay.subject) ||
-                        selectedCertificateSignerDisplay.subject}
-                    </p>
-                  )}
-                  <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-[72px_minmax(0,1fr)]">
-                    {selectedCertificateSignerDisplay.serialNumber && (
-                      <>
-                        <span className="text-muted-foreground/80">Serial</span>
-                        <IdentifierDisplay
-                          value={selectedCertificateSignerDisplay.serialNumber}
-                          className="min-w-0 truncate font-mono text-xs text-muted-foreground"
-                        />
-                      </>
-                    )}
-                    {selectedCertificateSignerDisplay.issuer && (
-                      <>
-                        <span className="text-muted-foreground/80">Issuer</span>
-                        {selectedCertificateSignerDisplay.issuerCaId ? (
-                          <Button
-                            variant="link"
-                           
-                            className="h-auto min-w-0 justify-start truncate p-0 text-xs font-normal"
-                            asChild
-                          >
-                            <Link
-                              href={`/certificate-authorities/details?caId=${encodeURIComponent(selectedCertificateSignerDisplay.issuerCaId)}`}
-                              title={`View CA ${selectedCertificateSignerDisplay.issuerCaId}`}
-                            >
-                              {selectedCertificateSignerDisplay.issuerCaId}
-                            </Link>
-                          </Button>
-                        ) : (
-                          <span className="min-w-0 truncate" title={selectedCertificateSignerDisplay.issuer}>
-                            {getCommonName(selectedCertificateSignerDisplay.issuer)}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
+            <CertificateCard
+              name={selectedCertificateSignerDisplay.subject ?? ''}
+              serialNumber={selectedCertificateSignerDisplay.serialNumber}
+              issuer={selectedCertificateSignerDisplay.issuer}
+              issuerCaId={selectedCertificateSignerDisplay.issuerCaId}
+              topRight={
                 <Button
                   type="button"
                   variant="ghost"
@@ -154,19 +86,18 @@ export function VaSettingsCard({
                   <X className="h-4 w-4" />
                   <span className="sr-only">Clear CRL signer certificate</span>
                 </Button>
-              </div>
-              <div className="border-t px-3 py-2">
+              }
+              footer={
                 <Button
                   type="button"
                   variant="secondary"
-                 
                   onClick={() => onCertificateSignerModalOpenChange(true)}
                   disabled={isSubmitting}
                 >
                   Change certificate
                 </Button>
-              </div>
-            </div>
+              }
+            />
           ) : (
             <Button
               id="va-crlSigner"

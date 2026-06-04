@@ -185,8 +185,6 @@ export default function DeviceDetailsClient() {
     }
     return 10;
   });
-  const [timelineCurrentPage, setTimelineCurrentPage] = useState(1);
-  const [timelineBookmarks, setTimelineBookmarks] = useState<string[]>(['']);
   const [isSseConnected, setIsSseConnected] = useState(false);
   const sseControllerRef = useRef<AbortController | null>(null);
   const sseEventBufferRef = useRef<ApiDeviceEventItem[]>([]);
@@ -326,9 +324,6 @@ export default function DeviceDetailsClient() {
   const handleTimelineModeChange = useCallback((mode: TimelineMode) => {
     setTimelineMode(mode);
     localStorage.setItem(TIMELINE_MODE_STORAGE_KEY, mode);
-    // Reset pagination state on mode change
-    setTimelineCurrentPage(1);
-    setTimelineBookmarks(['']);
     setTimelineRawEvents([]);
     setTimelineEvents([]);
     setTimelineNextBookmark(null);
@@ -338,8 +333,7 @@ export default function DeviceDetailsClient() {
   const handleTimelinePageSizeChange = useCallback((size: number) => {
     setTimelinePageSize(size);
     localStorage.setItem(TIMELINE_PAGE_SIZE_STORAGE_KEY, String(size));
-    setTimelineCurrentPage(1);
-    setTimelineBookmarks(['']);
+    setTimelineRawEvents([]);
     setTimelineNextBookmark(null);
   }, []);
 
@@ -430,9 +424,8 @@ export default function DeviceDetailsClient() {
 
     if (timelineMode === 'realtime') return; // SSE handles its own data
 
-    const currentBookmark = timelineBookmarks[timelineCurrentPage - 1] || '';
-    fetchTimelinePage(currentBookmark);
-  }, [device, deviceId, user?.access_token, timelineMode, timelineCurrentPage, timelinePageSize, timelineBookmarks, fetchTimelinePage]);
+    fetchTimelinePage();
+  }, [device, deviceId, user?.access_token, timelineMode, timelinePageSize, fetchTimelinePage]);
 
   // Polling effect
   useEffect(() => {
@@ -444,8 +437,7 @@ export default function DeviceDetailsClient() {
     if (timelineMode !== 'polling' || !device || !deviceId || !user?.access_token) return;
 
     pollingTimerRef.current = setInterval(() => {
-      const currentBookmark = timelineBookmarks[timelineCurrentPage - 1] || '';
-      fetchTimelinePage(currentBookmark);
+      fetchTimelinePage();
     }, pollingInterval * 1000);
 
     return () => {
@@ -454,20 +446,8 @@ export default function DeviceDetailsClient() {
         pollingTimerRef.current = null;
       }
     };
-  }, [timelineMode, pollingInterval, device, deviceId, user?.access_token, timelineCurrentPage, timelineBookmarks, fetchTimelinePage]);
+  }, [timelineMode, pollingInterval, device, deviceId, user?.access_token, fetchTimelinePage]);
 
-  const handleTimelineNextPage = useCallback(() => {
-    if (!timelineNextBookmark) return;
-    setTimelineBookmarks(prev => {
-      const base = prev.slice(0, timelineCurrentPage);
-      return [...base, timelineNextBookmark];
-    });
-    setTimelineCurrentPage(p => p + 1);
-  }, [timelineNextBookmark, timelineCurrentPage]);
-
-  const handleTimelinePrevPage = useCallback(() => {
-    setTimelineCurrentPage(p => Math.max(1, p - 1));
-  }, []);
 
   // SSE real-time event stream — first loads initial page, then streams new events
   useEffect(() => {
@@ -973,7 +953,7 @@ export default function DeviceDetailsClient() {
       const result = await fetchDeviceEventsPaginated({
         deviceId,
         accessToken: user.access_token,
-        limit: TIMELINE_EVENTS_PAGE_SIZE,
+        limit: timelinePageSize,
         bookmark: timelineNextBookmark,
       });
 
@@ -983,13 +963,13 @@ export default function DeviceDetailsClient() {
       setHasMoreTimelineEvents(result.hasMore);
     } catch (err: any) {
       sileo.error({
-        title: 'Failed to load more timeline events',
+        title: 'Failed to load more events',
         description: err?.message || 'Please try again.',
       });
     } finally {
       setIsLoadingMoreTimelineEvents(false);
     }
-  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark]);
+  }, [deviceId, user?.access_token, isLoadingMoreTimelineEvents, timelineNextBookmark, timelinePageSize]);
 
   const totalHistoryPages = Math.ceil(fullCertificateIdentityList.length / historyPageSize);
 
@@ -1130,7 +1110,7 @@ export default function DeviceDetailsClient() {
           </TabsList>
         </div>
 
-        <div className="mt-4 pb-6">
+        <div className="mt-2 pb-6">
           <TabsContent value="information" className="mt-0">
             <div className="grid gap-4 lg:grid-cols-2">
               <DetailPanel title="Device Details">
@@ -1210,139 +1190,96 @@ export default function DeviceDetailsClient() {
           </TabsContent>
 
         <TabsContent value="timeline" className="mt-0">
-          <div className="mb-6 border-b pb-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-3">
+          {/* ── Toolbar ─────────────────────────────────────────────────── */}
+          <div className="-mt-1 mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b pb-3">
+            {/* Left: Mode + adjacent context controls */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Mode</span>
+                <ToggleGroup
+                  type="single"
+                  value={timelineMode}
+                  onValueChange={(value) => { if (value) handleTimelineModeChange(value as TimelineMode); }}
+                  variant="default"
+                  aria-label="Timeline update mode"
+                  className={TIMELINE_TOGGLE_GROUP_CLASSNAME}
+                >
+                  <ToggleGroupItem value="paginated" aria-label="Manual mode" title="Manual — fetch on demand" className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, timelineMode === 'paginated' ? 'gap-1.5 px-3' : 'w-9 p-0')}>
+                    <CloudOff className="h-4 w-4 shrink-0" />
+                    {timelineMode === 'paginated' && <span className="text-xs">Manual</span>}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="polling" aria-label="Polling mode" title="Polling — auto-refresh on an interval" className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, timelineMode === 'polling' ? 'gap-1.5 px-3' : 'w-9 p-0')}>
+                    <Timer className="h-4 w-4 shrink-0" />
+                    {timelineMode === 'polling' && <span className="text-xs">Polling</span>}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="realtime" aria-label="Live mode" title="Live — real-time event stream" className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, timelineMode === 'realtime' ? 'gap-1.5 px-3' : 'w-9 p-0')}>
+                    <Activity className="h-4 w-4 shrink-0" />
+                    {timelineMode === 'realtime' && <span className="text-xs">Live</span>}
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+
+              {/* Polling interval — right of mode */}
+              {timelineMode === 'polling' && (
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm text-muted-foreground whitespace-nowrap">Updates:</Label>
+                  <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Every</span>
                   <ToggleGroup
                     type="single"
-                    value={timelineMode}
-                    onValueChange={(value) => {
-                      if (value) handleTimelineModeChange(value as TimelineMode);
-                    }}
+                    value={String(pollingInterval)}
+                    onValueChange={(value) => { if (value) handlePollingIntervalChange(Number(value)); }}
                     variant="default"
-                    aria-label="Timeline update mode"
+                    aria-label="Polling interval"
                     className={TIMELINE_TOGGLE_GROUP_CLASSNAME}
                   >
-                    <ToggleGroupItem
-                      value="paginated"
-                      aria-label="Offline mode"
-                      title="Offline mode"
-                      className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, "w-9 p-0")}
-                    >
-                      <CloudOff className="h-4 w-4" />
-                      <span className="sr-only">Offline</span>
-                    </ToggleGroupItem>
-                    <ToggleGroupItem
-                      value="polling"
-                      aria-label="Polling mode"
-                      title="Polling mode"
-                      className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, "w-9 p-0")}
-                    >
-                      <Timer className="h-4 w-4" />
-                      <span className="sr-only">Polling</span>
-                    </ToggleGroupItem>
-                    <ToggleGroupItem
-                      value="realtime"
-                      aria-label="Live mode"
-                      title="Live mode"
-                      className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, "w-9 p-0")}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      <span className="sr-only">Live</span>
-                    </ToggleGroupItem>
+                    {POLLING_INTERVAL_OPTIONS.map((opt) => (
+                      <ToggleGroupItem key={opt.value} value={String(opt.value)} aria-label={`Refresh every ${opt.label}`} className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, "min-w-11")}>
+                        {opt.label}
+                      </ToggleGroupItem>
+                    ))}
                   </ToggleGroup>
                 </div>
+              )}
 
-                {(timelineMode === 'paginated' || timelineMode === 'polling') && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-                    <ToggleGroup
-                      type="single"
-                      value={String(timelinePageSize)}
-                      onValueChange={(value) => {
-                        if (value) handleTimelinePageSizeChange(Number(value));
-                      }}
-                      variant="default"
-                      aria-label="Timeline page size"
-                      className={TIMELINE_TOGGLE_GROUP_CLASSNAME}
-                    >
-                      {PAGE_SIZE_OPTIONS.map((size) => (
-                        <ToggleGroupItem
-                          key={size}
-                          value={String(size)}
-                          aria-label={`Show ${size} timeline events per page`}
-                          className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, "min-w-10")}
-                        >
-                          {size}
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  </div>
-                )}
-
-                {timelineMode === 'polling' && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm text-muted-foreground whitespace-nowrap">Interval:</Label>
-                    <ToggleGroup
-                      type="single"
-                      value={String(pollingInterval)}
-                      onValueChange={(value) => {
-                        if (value) handlePollingIntervalChange(Number(value));
-                      }}
-                      variant="default"
-                      aria-label="Timeline polling interval"
-                      className={TIMELINE_TOGGLE_GROUP_CLASSNAME}
-                    >
-                      {POLLING_INTERVAL_OPTIONS.map((option) => (
-                        <ToggleGroupItem
-                          key={option.value}
-                          value={String(option.value)}
-                          aria-label={`Refresh every ${option.label}`}
-                          className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, "min-w-12")}
-                        >
-                          {option.label}
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                {timelineMode === 'realtime' && (
-                  <div className="flex items-center gap-1.5">
-                    <span className={cn("inline-block h-2 w-2 rounded-full", isSseConnected ? "bg-green-500 animate-pulse" : "bg-destructive")} />
-                    {isSseConnected ? 'Live connected' : 'Live disconnected'}
-                  </div>
-                )}
-
-                {timelineMode === 'polling' && (
-                  <div className="flex items-center gap-1.5">
-                    <RefreshCw className={cn("h-3 w-3", isTimelineLoading && "animate-spin")} />
-                    Refreshing every {pollingInterval}s
-                  </div>
-                )}
-
-                {timelineMode === 'paginated' && (
-                  <div className="flex items-center gap-1.5">
-                    <CloudOff className="h-3.5 w-3.5" />
-                    Manual pages
-                  </div>
-                )}
-              </div>
+              {/* Live connection status — right of mode */}
+              {timelineMode === 'realtime' && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={cn('h-1.5 w-1.5 rounded-full', isSseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-destructive')} />
+                  <span>{isSseConnected ? 'Connected' : 'Disconnected'}</span>
+                </div>
+              )}
             </div>
+
+            {/* Right: Per page */}
+            {(timelineMode === 'paginated' || timelineMode === 'polling') && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Per page</span>
+                <ToggleGroup
+                  type="single"
+                  value={String(timelinePageSize)}
+                  onValueChange={(value) => { if (value) handleTimelinePageSizeChange(Number(value)); }}
+                  variant="default"
+                  aria-label="Timeline page size"
+                  className={TIMELINE_TOGGLE_GROUP_CLASSNAME}
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <ToggleGroupItem key={size} value={String(size)} aria-label={`Show ${size} events`} className={cn(ACTIVE_TIMELINE_TOGGLE_ITEM_CLASSNAME, "min-w-9")}>
+                      {size}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
+            )}
           </div>
 
+          {/* ── Event list ──────────────────────────────────────────────── */}
           {isTimelineLoading && timelineEvents.length === 0 ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-2 text-muted-foreground">Loading events...</p>
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <p className="text-sm">Fetching events…</p>
             </div>
           ) : timelineEvents.length > 0 ? (
             <>
-              <ul className="space-y-0">
+              <ul className="list-none">
                 {timelineEvents.map((event, index) => (
                   <TimelineEventItem
                     key={event.id}
@@ -1354,34 +1291,27 @@ export default function DeviceDetailsClient() {
                 ))}
               </ul>
 
-              {/* Paginated / Polling: page navigation */}
-              {(timelineMode === 'paginated' || timelineMode === 'polling') && (
-                <div className="flex justify-between items-center mt-4">
-                  <span className="text-sm text-muted-foreground">Page {timelineCurrentPage}</span>
-                  <div className="flex items-center gap-2">
-                    <Button onClick={handleTimelinePrevPage} disabled={timelineCurrentPage === 1} variant="outline" size="sm">
-                      <ChevronLeft className="mr-1 h-4 w-4" /> Previous
-                    </Button>
-                    <Button onClick={handleTimelineNextPage} disabled={!timelineNextBookmark} variant="outline" size="sm">
-                      Next <ChevronRight className="ml-1 h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Real-time: load more (older events) */}
-              {timelineMode === 'realtime' && hasMoreTimelineEvents && (
-                <div className="flex justify-center mt-4">
-                  <Button onClick={handleLoadMoreTimeline} variant="outline" size="sm" disabled={isTimelineLoading || isLoadingMoreTimelineEvents}>
-                    {isLoadingMoreTimelineEvents ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Load more events
+              {/* Load more — all modes */}
+              {hasMoreTimelineEvents && (
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    onClick={handleLoadMoreTimeline}
+                    variant="outline"
+                    size="sm"
+                    disabled={isTimelineLoading || isLoadingMoreTimelineEvents}
+                    className="h-7 gap-1.5 text-xs"
+                  >
+                    {isLoadingMoreTimelineEvents && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Load more
                   </Button>
                 </div>
               )}
             </>
           ) : (
-            <div className="rounded-xl border bg-card shadow-sm px-5 py-12 text-center text-muted-foreground">
-              No events recorded for this device.
+            <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16">
+              <Clock className="h-8 w-8 text-muted-foreground/25" />
+              <p className="text-sm font-medium text-muted-foreground">No events recorded</p>
+              <p className="text-xs text-muted-foreground/60">Events will appear here as the device operates</p>
             </div>
           )}
         </TabsContent>
