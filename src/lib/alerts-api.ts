@@ -2,7 +2,7 @@
 
 'use client'; // This can be a client-side library function
 
-import { get_ALERTS_API_BASE_URL } from './api-domains';
+import { get_ALERTS_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 
 export interface ApiAlertEventData {
@@ -68,113 +68,38 @@ export interface SubscriptionPayload {
 }
 
 
-export async function fetchLatestAlerts(accessToken: string, params?: URLSearchParams): Promise<ApiPaginatedResponse<ApiAlertEvent>> {
-  const query = params && params.toString().length > 0 ? `?${params.toString()}` : '';
-  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/events/latest${query}`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to fetch alerts. HTTP error ${response.status}`;
-    try {
-      errorJson = await response.json();
-      if (errorJson && errorJson.message) {
-        errorMessage = `Failed to fetch alerts: ${errorJson.message}`;
-      }
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for alerts:", e);
-    }
-    throw new Error(errorMessage);
-  }
-
-  const data: ApiPaginatedResponse<ApiAlertEvent> = await response.json();
-  return { ...data, list: data.list ?? [] };
+export async function fetchLatestAlerts(): Promise<ApiAlertEvent[]> {
+  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/events/latest`);
+  const data = await handleApiError<{ list: ApiAlertEvent[] }>(response, 'Failed to fetch alerts');
+  return data?.list ?? [];
 }
 
 export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
   const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions`);
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to fetch subscriptions. HTTP error ${response.status}`;
-     try {
-      errorJson = await response.json();
-      if (errorJson && errorJson.message) {
-        errorMessage = `Failed to fetch subscriptions: ${errorJson.message}`;
-      }
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for subscriptions:", e);
-    }
-    throw new Error(errorMessage);
-  }
-
-  const data: ApiSubscription[] = await response.json();
-  return data;
+  return handleApiError(response, 'Failed to fetch subscriptions');
 }
 
 export async function subscribeToAlert(payload: SubscriptionPayload): Promise<void> {
   const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscribe`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to subscribe. Status: ${response.status}`;
-    try {
-      errorJson = await response.json();
-      errorMessage = `Subscription failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for subscription:", e);
-    }
-    throw new Error(errorMessage);
-  }
+  await handleApiError(response, 'Failed to subscribe');
 }
 
 export async function updateSubscription(subscriptionId: string, payload: SubscriptionPayload): Promise<void> {
   const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions/${subscriptionId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to update subscription. Status: ${response.status}`;
-    try {
-      errorJson = await response.json();
-      errorMessage = `Update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for subscription update:", e);
-    }
-    throw new Error(errorMessage);
-  }
+  await handleApiError(response, 'Failed to update subscription');
 }
 
 export async function unsubscribeFromAlert(subscriptionId: string): Promise<void> {
   const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/unsubscribe/${subscriptionId}`, {
     method: 'POST',
   });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to unsubscribe. HTTP error ${response.status}`;
-    try {
-      errorJson = await response.json();
-      if (errorJson && errorJson.message) {
-        errorMessage = `Failed to unsubscribe: ${errorJson.message}`;
-      }
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for unsubscribe:", e);
-    }
-    throw new Error(errorMessage);
-  }
+  await handleApiError(response, 'Failed to unsubscribe');
 }

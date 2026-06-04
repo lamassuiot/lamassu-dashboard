@@ -154,18 +154,7 @@ export async function createOrUpdateRa(
         body: JSON.stringify(payload)
     });
 
-    if (!response.ok) {
-        let errorJson;
-        const defaultMessage = `Failed to ${isEditMode ? 'update' : 'create'} RA. Status: ${response.status}`;
-        let errorMessage = defaultMessage;
-        try {
-            errorJson = await response.json();
-            errorMessage = `RA ${isEditMode ? 'update' : 'creation'} failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for RA creation/update:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, `Failed to ${isEditMode ? 'update' : 'create'} RA`);
 }
 
 
@@ -180,9 +169,7 @@ export async function bindIdentityToDevice(deviceId: string, certificateSerialNu
             certificate_serial_number: certificateSerialNumber
         })
     });
-    if (!response.ok) {
-        await handleApiError(response, 'Failed to assign identity');
-    }
+    await handleApiError(response, 'Failed to assign identity');
 }
 
 
@@ -235,7 +222,5 @@ export async function deleteRa(raId: string): Promise<void> {
     const response = await apiFetch(url, {
         method: 'DELETE',
     });
-    if (!response.ok) {
-        await handleApiError(response, 'Failed to delete RA');
-    }
+    await handleApiError(response, 'Failed to delete RA');
 }

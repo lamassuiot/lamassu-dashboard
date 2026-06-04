@@ -144,9 +144,7 @@ export async function decommissionDevice(deviceId: string): Promise<void> {
     const response = await apiFetch(url, {
         method: 'DELETE',
     });
-    if (!response.ok) {
-        await handleApiError(response, 'Failed to decommission device');
-    }
+    await handleApiError(response, 'Failed to decommission device');
 }
 
 export async function registerDevice(payload: any): Promise<void> {
@@ -158,9 +156,7 @@ export async function registerDevice(payload: any): Promise<void> {
         },
         body: JSON.stringify(payload),
     });
-     if (!response.ok) {
-        await handleApiError(response, 'Failed to register device');
-    }
+    await handleApiError(response, 'Failed to register device');
 }
 
 export async function fetchDeviceStats(): Promise<DeviceStats> {
@@ -177,9 +173,7 @@ export async function updateDeviceMetadata(deviceId: string, patchOperations: Pa
     body: JSON.stringify({ patches: patchOperations }),
   });
 
-  if (!response.ok) {
-    await handleApiError(response, 'Failed to update device metadata');
-  }
+  await handleApiError(response, 'Failed to update device metadata');
 }
 
 export async function deleteDevice(deviceId: string): Promise<void> {
@@ -187,9 +181,7 @@ export async function deleteDevice(deviceId: string): Promise<void> {
     const response = await apiFetch(url, {
         method: 'DELETE',
     });
-    if (!response.ok) {
-        await handleApiError(response, 'Failed to delete device');
-    }
+    await handleApiError(response, 'Failed to delete device');
 }
 
 /**

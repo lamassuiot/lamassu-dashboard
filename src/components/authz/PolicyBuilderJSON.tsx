@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Textarea } from '@/components/ui/textarea';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import Editor from '@monaco-editor/react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import type { Rule } from '@/types/authz';
 
 interface PolicyBuilderJSONProps {
@@ -12,19 +13,33 @@ interface PolicyBuilderJSONProps {
   error?: string | null;
 }
 
+const MIN_HEIGHT = 200;
+const DEFAULT_HEIGHT = 400;
+
 export function PolicyBuilderJSON({ rules, onChange, error }: PolicyBuilderJSONProps) {
   const [jsonText, setJsonText] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(true);
+  const [editorHeight, setEditorHeight] = useState(DEFAULT_HEIGHT);
+  const isSyncingFromProps = useRef(false);
+  const dragStartY = useRef<number | null>(null);
+  const dragStartHeight = useRef(DEFAULT_HEIGHT);
+  const monacoTheme = useMonacoTheme();
 
   useEffect(() => {
+    isSyncingFromProps.current = true;
     setJsonText(JSON.stringify(rules, null, 2));
   }, [rules]);
 
-  const handleChange = (value: string) => {
-    setJsonText(value);
+  const handleChange = (value: string | undefined) => {
+    if (isSyncingFromProps.current) {
+      isSyncingFromProps.current = false;
+      return;
+    }
+    const text = value ?? '';
+    setJsonText(text);
     try {
-      const parsed = JSON.parse(value);
+      const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) {
         setJsonError('Rules must be an array');
         setIsValid(false);
@@ -39,8 +54,27 @@ export function PolicyBuilderJSON({ rules, onChange, error }: PolicyBuilderJSONP
     }
   };
 
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    dragStartY.current = e.clientY;
+    dragStartHeight.current = editorHeight;
+    e.preventDefault();
+
+    const onMove = (ev: MouseEvent) => {
+      if (dragStartY.current === null) return;
+      const delta = ev.clientY - dragStartY.current;
+      setEditorHeight(Math.max(MIN_HEIGHT, dragStartHeight.current + delta));
+    };
+    const onUp = () => {
+      dragStartY.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [editorHeight]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -62,37 +96,32 @@ export function PolicyBuilderJSON({ rules, onChange, error }: PolicyBuilderJSONP
         </Alert>
       )}
 
-      <Textarea
-        value={jsonText}
-        onChange={(e) => handleChange(e.target.value)}
-        className="font-mono text-sm min-h-[400px]"
-        placeholder="Enter policy rules as JSON array"
-      />
+      <div className="rounded-md border overflow-hidden" style={{ height: editorHeight }}>
+        <Editor
+          height={editorHeight}
+          language="json"
+          value={jsonText}
+          theme={monacoTheme}
+          onChange={handleChange}
+          options={{
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            fontSize: 13,
+            tabSize: 2,
+            wordWrap: 'on',
+            formatOnPaste: true,
+            formatOnType: true,
+            automaticLayout: true,
+          }}
+        />
+      </div>
 
-      <div className="text-xs text-muted-foreground">
-        <p className="font-semibold mb-1">Example:</p>
-        <pre className="bg-muted p-2 rounded">
-{`[
-  {
-    "namespace": "pki",
-    "schemaName": "devmanager",
-    "entityType": "device",
-    "actions": ["read", "write"],
-    "relations": [
-      {
-        "to": {
-          "schemaName": "dmsmanager",
-          "entityType": "dms"
-        },
-        "via": "parent",
-        "actions": ["read"],
-        "relations": []
-      }
-    ],
-    "directGrants": ["user123"]
-  }
-]`}
-        </pre>
+      <div
+        className="flex h-2 cursor-ns-resize items-center justify-center rounded-b-md"
+        onMouseDown={handleDragStart}
+        title="Drag to resize"
+      >
+        <div className="h-1 w-12 rounded-full bg-border" />
       </div>
     </div>
   );

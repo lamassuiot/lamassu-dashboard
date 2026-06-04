@@ -2,16 +2,18 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, AlertCircle, ArrowLeft, Save } from 'lucide-react';
 import { getPolicy, updatePolicy } from '@/lib/authz-api';
 import type { Rule } from '@/types/authz';
 import { PolicyBuilder } from '@/components/authz/PolicyBuilder';
 import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 function EditPolicyContent() {
   const router = useRouter();
@@ -29,9 +31,7 @@ function EditPolicyContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (policyId) {
-      loadPolicy();
-    }
+    if (policyId) loadPolicy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [policyId]);
 
@@ -82,10 +82,6 @@ function EditPolicyContent() {
     }
   };
 
-  const handleCancel = () => {
-    router.back();
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -109,88 +105,118 @@ function EditPolicyContent() {
     );
   }
 
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Policies', href: '/authz/policies' },
+    ...(policyId
+      ? [{ label: formData.name || 'Details', href: `/authz/policies/details?policyId=${policyId}` }]
+      : []),
+    { label: 'Edit' },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={handleCancel}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Edit Policy</h1>
-          <p className="text-muted-foreground mt-2">
-            Modify authorization policy rules using JSON, forms, or visual flow diagram
-          </p>
+    <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
+      <div className="w-[80%] mx-auto space-y-5 mb-8">
+
+        <div className="space-y-0">
+
+          {/* ── Page header ── */}
+          <div className="pb-8 border-b">
+            <h1 className="text-2xl font-bold">Edit Policy</h1>
+            <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+              Update the authorization policy and its access rules.
+            </p>
+          </div>
+
+          {error && (
+            <div className="pt-6">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          {/* ── Identity ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Identity</p>
+              <p className="text-sm text-muted-foreground mt-1">Name and describe this policy.</p>
+            </div>
+            <div className="space-y-4 lg:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name">
+                    Policy Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="name"
+                    placeholder="e.g., IoT Device Read Access"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="id">Policy ID</Label>
+                  <Input
+                    id="id"
+                    value={formData.id}
+                    readOnly
+                    className="bg-muted/50 font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Describe the purpose and scope of this policy"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                  disabled={submitting}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* ── Rules ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Access Rules</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Configure the conditions and permissions granted by this policy.
+              </p>
+            </div>
+            <div className="lg:col-span-2">
+              <PolicyBuilder
+                rules={formData.rules}
+                onChange={(rules) => setFormData({ ...formData, rules: normalizePolicyRules(rules) })}
+                error={error}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex justify-end pt-6">
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+              ) : (
+                <><Save className="mr-2 h-4 w-4" /> Save Changes</>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Policy Details</CardTitle>
-          <CardDescription>
-            Update basic information about this policy
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="id">Policy ID</Label>
-            <Input
-              id="id"
-              value={formData.id}
-              disabled
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="name">Policy Name *</Label>
-            <Input
-              id="name"
-              placeholder="Enter policy name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Input
-              id="description"
-              placeholder="Enter policy description"
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <PolicyBuilder
-        rules={formData.rules}
-        onChange={(rules) => setFormData({ ...formData, rules: normalizePolicyRules(rules) })}
-        error={error}
-      />
-
-      <div className="flex items-center justify-end gap-4">
-        <Button
-          variant="outline"
-          onClick={handleCancel}
-          disabled={submitting}
-        >
-          Cancel
-        </Button>
-        <Button onClick={handleSubmit} disabled={submitting}>
-          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save Changes
-        </Button>
-      </div>
-    </div>
+    </BreadcrumbPage>
   );
 }
 

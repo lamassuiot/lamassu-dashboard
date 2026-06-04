@@ -2,29 +2,28 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  ArrowLeft,
   Loader2,
   AlertCircle,
   Edit,
   Trash2,
-  Shield,
+  ScrollText,
   MoreVertical,
   Copy,
   Check,
   FileJson,
-  ChevronDown,
-  ChevronUp,
-  ChevronRight,
-  Zap,
-  GitBranch,
-  CheckCircle2,
-  ArrowRight,
   Info,
 } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   AlertDialog,
@@ -43,196 +42,99 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  pageTabsListClass,
+  pageTabsTriggerClass,
+} from '@/components/ui/tabs';
 import { getPolicy, getPolicyStats, deletePolicy } from '@/lib/authz-api';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
-import type { Policy, PolicyStats, RelationRule } from '@/types/authz';
+import type { Policy, PolicyStats, ColumnFilter, FilterOperator, RelationRule } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { normalizeEntityAddress } from '@/lib/policy-format';
+import { cn } from '@/lib/utils';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const splitEntityDisplay = (rule: any): { schema: string; entity: string } => {
-  const addr = normalizeEntityAddress({ schemaName: rule?.schemaName, entityType: rule?.entityType });
-  return { schema: addr.schemaName, entity: addr.entityType };
+const FILTER_OP_LABEL: Record<FilterOperator, string> = {
+  eq: '=', neq: '≠', gt: '>', gte: '≥', lt: '<', lte: '≤', in: 'in', like: '~',
 };
 
-const getRelationEntityDisplay = (relation: RelationRule): { schema: string; entity: string } => {
-  const addr = normalizeEntityAddress(relation.to);
-  return { schema: addr.schemaName, entity: addr.entityType };
-};
-
-/** Color-code action badges by semantic intent. */
-const getActionClassName = (action: string): string => {
-  if (action === '*') {
-    return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800';
-  }
-  const lower = action.toLowerCase();
-  if (['read', 'list', 'get', 'view', 'describe', 'download'].some((w) => lower.includes(w))) {
-    return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800';
-  }
-  if (['create', 'write', 'update', 'issue', 'add', 'import', 'sign', 'enroll'].some((w) => lower.includes(w))) {
-    return 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800';
-  }
-  if (['delete', 'revoke', 'remove', 'purge', 'decommission'].some((w) => lower.includes(w))) {
-    return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800';
-  }
-  return '';
-};
+const formatFilterValue = (value: ColumnFilter['value']): string =>
+  Array.isArray(value) ? value.join(', ') : String(value);
 
 // ─── ActionBadge ─────────────────────────────────────────────────────────────
 
 function ActionBadge({ action }: { action: string }) {
   return (
-    <span
-      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-mono font-medium ${getActionClassName(action)}`}
-    >
+    <span className="inline-flex items-center rounded border bg-muted px-1.5 py-0.5 text-[11px] font-mono font-medium text-foreground">
       {action === '*' ? '* (all)' : action}
     </span>
   );
 }
 
-// ─── EntitySlug ──────────────────────────────────────────────────────────────
+// ─── FilterChip ──────────────────────────────────────────────────────────────
 
-function EntitySlug({ schema, entity }: { schema: string; entity: string }) {
+function FilterChip({ filter }: { filter: ColumnFilter }) {
   return (
-    <span className="inline-flex items-center gap-1 font-mono text-xs">
-      <span className="text-muted-foreground">{schema || '""'}</span>
-      <span className="text-muted-foreground/40">/</span>
-      <span className="font-semibold text-foreground">{entity || '""'}</span>
-    </span>
-  );
-}
-
-// ─── RelationRow ─────────────────────────────────────────────────────────────
-
-function RelationRow({ relation, depth = 0 }: { relation: RelationRule; depth?: number }) {
-  const { schema, entity } = getRelationEntityDisplay(relation);
-  const hasNested = relation.relations && relation.relations.length > 0;
-
-  return (
-    <div style={{ paddingLeft: depth * 20 }}>
-      <div className="flex items-start gap-3 py-1.5 text-xs">
-        {depth > 0 && <span className="text-muted-foreground/40 shrink-0 select-none mt-0.5">└─</span>}
-        <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
-          <span className="uppercase tracking-wide font-medium text-[10px]">via</span>
-          <code className="rounded bg-primary/10 text-primary px-1.5 py-0.5 font-mono font-semibold text-[11px]">
-            {relation.via}
-          </code>
-          <ArrowRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-          <EntitySlug schema={schema} entity={entity} />
-        </div>
-        {relation.actions && relation.actions.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {relation.actions.map((action, i) => (
-              <ActionBadge key={i} action={action} />
-            ))}
-          </div>
-        )}
-      </div>
-      {hasNested && relation.relations!.map((nested, i) => (
-        <RelationRow key={i} relation={nested} depth={depth + 1} />
-      ))}
+    <div className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1">
+      <code className="text-[11px] font-mono font-medium">{filter.column}</code>
+      <span className="text-[11px] font-mono text-muted-foreground">{FILTER_OP_LABEL[filter.operator] ?? filter.operator}</span>
+      <code className="text-[11px] font-mono text-foreground">{formatFilterValue(filter.value)}</code>
     </div>
   );
 }
 
-// ─── RuleRow ─────────────────────────────────────────────────────────────────
+// ─── Relation rows ───────────────────────────────────────────────────────────
 
-function RuleRow({ rule, index }: { rule: any; index: number }) {
-  const [expanded, setExpanded] = useState(true);
-  const { schema, entity } = splitEntityDisplay(rule);
-  const namespace: string | undefined = rule.namespace || undefined;
-  const actionCount = rule.actions?.length || 0;
-  const directGrantCount = rule.directGrants?.length || 0;
-  const relationCount = rule.relations?.length || 0;
+function resolveRelationTarget(to: RelationRule['to']): { schema: string; entity: string } {
+  if (typeof to === 'string') return { schema: '', entity: to };
+  return { schema: to.schemaName || '', entity: to.entityType || '' };
+}
 
-  const summary: string[] = [];
-  if (actionCount > 0) summary.push(`${actionCount} ${actionCount === 1 ? 'action' : 'actions'}`);
-  if (directGrantCount > 0) summary.push(`${directGrantCount} grant${directGrantCount > 1 ? 's' : ''}`);
-  if (relationCount > 0) summary.push(`${relationCount} relation${relationCount > 1 ? 's' : ''}`);
-
+function RelationRows({ relations, depth = 1 }: { relations: RelationRule[]; depth?: number }) {
   return (
-    <div className="border-b last:border-b-0">
-      {/* Rule header row */}
-      <button
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors group"
-        onClick={() => setExpanded((v) => !v)}
-        type="button"
-      >
-        <ChevronRight
-          className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
-        />
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground ring-1 ring-border">
-          {index + 1}
-        </span>
-        <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-          {namespace && (
-            <Badge variant="outline" className="font-mono text-[10px] py-0 px-1.5 h-4 text-muted-foreground">
-              {namespace}
-            </Badge>
-          )}
-          <EntitySlug schema={schema} entity={entity} />
-        </div>
-        <span className="text-[11px] text-muted-foreground shrink-0 ml-auto pl-3">{summary.join(' · ')}</span>
-      </button>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="px-10 pb-4 space-y-3">
-
-          {/* Direct Actions */}
-          <div className="flex items-start gap-2">
-            <div className="flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[110px]">
-              <Zap className="h-3 w-3 text-muted-foreground" />
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Actions</span>
-            </div>
-            {actionCount === 0 ? (
-              <span className="text-xs text-muted-foreground/60 italic">none</span>
-            ) : (
-              <div className="flex flex-wrap gap-1">
-                {rule.actions.map((action: string, i: number) => (
-                  <ActionBadge key={i} action={action} />
-                ))}
-              </div>
+    <>
+      {relations.map((rel, i) => {
+        const { schema, entity } = resolveRelationTarget(rel.to);
+        return (
+          <>
+            <TableRow key={i} className="hover:bg-transparent align-top bg-muted/20">
+              <TableCell className="py-2">
+                <span className="inline-flex items-center gap-1 font-mono text-sm" style={{ paddingLeft: depth * 16 }}>
+                  <span className="text-muted-foreground/30 text-xs shrink-0">↳</span>
+                  {schema && (
+                    <>
+                      <span className="text-muted-foreground">{schema}</span>
+                      <span className="text-muted-foreground/40">›</span>
+                    </>
+                  )}
+                  <span className="font-medium">{entity || '—'}</span>
+                </span>
+              </TableCell>
+              <TableCell className="py-2">
+                {rel.actions.length === 0 ? (
+                  <span className="text-xs text-muted-foreground/60 italic">None</span>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {rel.actions.map((action, j) => <ActionBadge key={j} action={action} />)}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="py-2">
+                <code className="text-[11px] font-mono text-muted-foreground">via {rel.via}</code>
+              </TableCell>
+              <TableCell className="py-2" />
+            </TableRow>
+            {rel.relations && rel.relations.length > 0 && (
+              <RelationRows relations={rel.relations} depth={depth + 1} />
             )}
-          </div>
-
-          {/* Direct Grants */}
-          {directGrantCount > 0 && (
-            <div className="flex items-start gap-2">
-              <div className="flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[110px]">
-                <CheckCircle2 className="h-3 w-3 text-muted-foreground" />
-                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Grants</span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {rule.directGrants.map((grant: string, i: number) => (
-                  <Badge key={i} variant="secondary" className="font-mono text-[11px] py-0 px-1.5 h-5">
-                    {grant}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Relations */}
-          {relationCount > 0 && (
-            <div className="flex items-start gap-2">
-              <div className="flex items-center gap-1.5 shrink-0 mt-0.5 min-w-[110px]">
-                <GitBranch className="h-3 w-3 text-muted-foreground" />
-                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Relations</span>
-              </div>
-              <div className="space-y-0.5">
-                {rule.relations.map((relation: RelationRule, i: number) => (
-                  <RelationRow key={i} relation={relation} />
-                ))}
-              </div>
-            </div>
-          )}
-
-        </div>
-      )}
-    </div>
+          </>
+        );
+      })}
+    </>
   );
 }
 
@@ -248,15 +150,11 @@ function PolicyDetailsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
-  const [jsonExpanded, setJsonExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (policyId) {
-      loadPolicyDetails();
-    }
+    if (policyId) loadPolicyDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [policyId]);
 
@@ -300,8 +198,9 @@ function PolicyDetailsContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center flex-1 p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">Loading Policy...</p>
       </div>
     );
   }
@@ -314,7 +213,6 @@ function PolicyDetailsContent() {
           <AlertDescription>{error || 'Policy not found'}</AlertDescription>
         </Alert>
         <Button variant="outline" onClick={() => router.push('/authz/policies')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Policies
         </Button>
       </div>
@@ -323,27 +221,41 @@ function PolicyDetailsContent() {
 
   return (
     <div className="space-y-5">
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       <DetailBreadcrumbRow
         items={[
           { label: 'Home', href: '/' },
-          { label: 'Authorization', href: '/authz/policies' },
-          {
-            label: (
-              <Badge variant="default" className="text-xs">
-                {policy.name}
-              </Badge>
-            ),
-          },
+          { label: 'Policies', href: '/authz/policies' },
+          { label: policy.name },
         ]}
-        actions={
-          <div className="flex items-center gap-2">
+      />
+
+      {/* Identity + Actions + Info strip */}
+      <div>
+        <div className="flex items-start justify-between gap-4 min-w-0 pb-4 border-b">
+          <div className="flex items-start gap-4 min-w-0 flex-1">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 bg-primary/10 border-primary/20 text-primary">
+              <ScrollText className="h-6 w-6" />
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight truncate">{policy.name}</h1>
+
+              <div className="flex items-center gap-1.5">
+                <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono text-muted-foreground">
+                  {policy.id}
+                </code>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(policy.id)}>
+                  {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                </Button>
+              </div>
+
+              {policy.description && (
+                <p className="text-sm text-muted-foreground max-w-2xl">{policy.description}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -359,199 +271,155 @@ function PolicyDetailsContent() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Policy
+                <DropdownMenuItem onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}>
+                  <Edit className="mr-2 h-4 w-4" /> Edit Policy
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="text-destructive"
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
                   onClick={() => setDeleteDialogOpen(true)}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Policy
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete Policy
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        }
-      />
+        </div>
 
-      {/* Header card */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className="h-1 w-full bg-primary" />
-        <div className="p-6">
-          {/* Hero content */}
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-start gap-3 min-w-0">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
-                <Shield className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-2xl font-semibold tracking-tight truncate">{policy.name}</h1>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono text-muted-foreground">
-                    {policy.id}
-                  </code>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => copyToClipboard(policy.id)}
-                  >
-                    {copiedId ? (
-                      <Check className="h-3 w-3 text-green-600" />
-                    ) : (
-                      <Copy className="h-3 w-3" />
-                    )}
-                  </Button>
-                </div>
-                {policy.description && (
-                  <p className="mt-2 text-sm text-muted-foreground max-w-2xl">{policy.description}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Summary stats */}
-            <div className="grid grid-cols-3 gap-6 xl:min-w-[480px] xl:border-l xl:pl-6">
-              <div className="text-center">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Rules</p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight">{policy.rules.length}</p>
-                <p className="text-xs text-muted-foreground">{policy.rules.length === 1 ? 'rule defined' : 'rules defined'}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Principals</p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight">
-                  {stats ? stats.principalCount : '—'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {stats ? (stats.principalCount === 1 ? 'assigned' : 'assigned') : 'loading…'}
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Last Modified</p>
-                <div className="mt-1">
-                  {stats?.lastModified ? (
-                    <DateDisplay
-                      date={stats.lastModified}
-                      formatString="MMM dd, yyyy"
-                      className="text-sm font-semibold"
-                      highlightExpired={false}
-                    />
-                  ) : (
-                    <span className="text-2xl font-semibold tracking-tight">—</span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">modification date</p>
-              </div>
-            </div>
+        {/* Info strip */}
+        <div className="flex divide-x pt-3 pb-3 border-b">
+          <div className="pr-6">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rules</p>
+            <p className="text-sm mt-0.5">{policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'}</p>
           </div>
+          <div className="px-6">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Principals</p>
+            <p className="text-sm mt-0.5">{stats ? stats.principalCount : '—'}</p>
+          </div>
+          {stats?.lastModified && (
+            <div className="pl-6">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Modified</p>
+              <DateDisplay date={stats.lastModified} formatString="MMM dd, yyyy" className="text-sm mt-0.5" highlightExpired={false} />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="border-b">
-          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
-            <TabsTrigger
-              value="overview"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
+      <Tabs defaultValue="overview" className="w-full">
+        <div className="border-b overflow-x-auto overflow-y-hidden">
+          <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
+            <TabsTrigger value="overview" className={pageTabsTriggerClass}>
               <Info className="h-4 w-4" />
               Overview
             </TabsTrigger>
-            <TabsTrigger
-              value="raw"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none gap-2 data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
+            <TabsTrigger value="raw" className={pageTabsTriggerClass}>
               <FileJson className="h-4 w-4" />
               Raw JSON
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <div className="mt-6">
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="mt-0 space-y-5">
-            {/* Policy Rules */}
-            <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
-              {/* List header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Policy Rules</span>
+        <TabsContent value="overview" className="mt-6">
+          {policy.rules.length === 0 ? (
+            <div className="rounded-xl border bg-card p-12 text-center space-y-3">
+              <div className="flex justify-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <ScrollText className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'}
-                </span>
               </div>
-
-              {policy.rules.length === 0 ? (
-                <div className="p-12 text-center space-y-3">
-                  <div className="flex justify-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                      <Shield className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="font-medium">No rules defined</p>
-                    <p className="text-sm text-muted-foreground mt-1">This policy has no rules configured</p>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  {policy.rules.map((rule, index) => (
-                    <RuleRow key={index} rule={rule} index={index} />
-                  ))}
-                </div>
-              )}
+              <div>
+                <p className="font-medium">No rules defined</p>
+                <p className="text-sm text-muted-foreground mt-1">This policy has no rules configured</p>
+              </div>
             </div>
-          </TabsContent>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[18%] text-[11px] uppercase tracking-wider font-medium">Service</TableHead>
+                  <TableHead className="w-[28%] text-[11px] uppercase tracking-wider font-medium">Access Level</TableHead>
+                  <TableHead className="w-[22%] text-[11px] uppercase tracking-wider font-medium">Resources</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-medium">Request Conditions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+              {policy.rules.map((rule, index) => {
+                const namespace = rule.namespace || '';
+                const schema = rule.schemaName || '';
+                const entity = rule.entityType || '';
+                const actions = rule.actions ?? [];
+                const directGrants = rule.directGrants ?? [];
+                const columnFilters = rule.columnFilters ?? [];
+                const relations = rule.relations ?? [];
 
-          {/* Raw JSON Tab */}
-          <TabsContent value="raw" className="mt-0">
-            <Card className="overflow-hidden rounded-xl shadow-sm">
-              <CardHeader className="border-b py-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center text-lg">
-                      <FileJson className="mr-3 h-5 w-5 text-primary" />
-                      Complete Policy Definition
-                    </CardTitle>
-                    <CardDescription>Raw JSON representation of this policy</CardDescription>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setJsonExpanded(!jsonExpanded)}
-                    className="gap-1.5"
-                  >
-                    {jsonExpanded ? (
-                      <>
-                        <ChevronUp className="h-4 w-4" />
-                        Collapse
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-4 w-4" />
-                        Expand
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardHeader>
-              {jsonExpanded && (
-                <CardContent className="p-6">
-                  <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[600px] text-xs">
-                    {JSON.stringify(policy, null, 2)}
-                  </pre>
-                </CardContent>
-              )}
-            </Card>
-          </TabsContent>
-        </div>
+                return (
+                  <>
+                        <TableRow key={index} className="hover:bg-transparent align-top">
+                          <TableCell className="py-3">
+                            <span className="inline-flex items-center gap-1 font-mono text-sm flex-wrap">
+                              {namespace && <>
+                                <span className="text-muted-foreground">{namespace}</span>
+                                <span className="text-muted-foreground/40">›</span>
+                              </>}
+                              <span className="text-muted-foreground">{schema || '—'}</span>
+                              <span className="text-muted-foreground/40">›</span>
+                              <span className="font-medium">{entity || '—'}</span>
+                            </span>
+                          </TableCell>
+
+                          <TableCell className="py-3">
+                            {actions.length === 0 ? (
+                              <span className="text-xs text-muted-foreground/60 italic">None</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {actions.map((action, i) => (
+                                  <ActionBadge key={i} action={action} />
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="py-3">
+                            {directGrants.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {directGrants.map((grant, i) => (
+                                  <Badge key={i} variant="secondary" className="font-mono text-[11px]">
+                                    {grant}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/60">All</span>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="py-3">
+                            {columnFilters.length === 0 ? (
+                              <span className="text-xs text-muted-foreground/60 italic">None</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {columnFilters.map((filter, i) => (
+                                  <FilterChip key={i} filter={filter} />
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                    {relations.length > 0 && <RelationRows relations={relations} />}
+                  </>
+                );
+              })}
+              </TableBody>
+            </Table>
+          )}
+        </TabsContent>
+
+        <TabsContent value="raw" className="mt-6">
+          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-[600px] text-xs">
+            {JSON.stringify(policy, null, 2)}
+          </pre>
+        </TabsContent>
       </Tabs>
 
       {/* Delete Policy Dialog */}
@@ -560,8 +428,7 @@ function PolicyDetailsContent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Policy</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the policy &quot;{policy.name}&quot;?
-              This action cannot be undone.
+              Are you sure you want to delete &quot;{policy.name}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -581,8 +448,8 @@ export default function PolicyDetailsPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center justify-center flex-1 p-8">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         </div>
       }
     >

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -11,6 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,179 +29,216 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Loader2, AlertCircle, Eye, ScrollText } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  PlusCircle,
+  RefreshCw,
+  MoreVertical,
+  Eye,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  Loader2,
+  ScrollText,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { listPolicies, deletePolicy } from '@/lib/authz-api';
 import type { Policy } from '@/types/authz';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export default function PoliciesPage() {
   const router = useRouter();
+
   const [policies, setPolicies] = useState<Policy[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+
+  const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const loadPolicies = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await listPolicies();
+      setPolicies(data.policies);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load policies');
+      setPolicies([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadPolicies();
-  }, []);
-
-  const loadPolicies = async () => {
-    try {
-      setLoading(true);
-      const data = await listPolicies();
-      setPolicies(data.policies);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load policies');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreatePolicy = () => {
-    router.push('/authz/policies/new');
-  };
+  }, [loadPolicies]);
 
   const handleDelete = async () => {
-    if (!selectedPolicy) return;
+    if (!policyToDelete) return;
+    setIsDeleting(true);
     try {
-      setSubmitting(true);
-      await deletePolicy(selectedPolicy.id);
-      setDeleteDialogOpen(false);
-      setSelectedPolicy(null);
-      loadPolicies();
+      await deletePolicy(policyToDelete.id);
+      setPolicies(prev => prev.filter(p => p.id !== policyToDelete.id));
+      setIsDeleteDialogOpen(false);
+      setPolicyToDelete(null);
     } catch (err: any) {
       setError(err.message || 'Failed to delete policy');
     } finally {
-      setSubmitting(false);
+      setIsDeleting(false);
     }
   };
 
-  const handleViewDetails = (policy: Policy) => {
-    router.push(`/authz/policies/details?policyId=${policy.id}`);
-  };
-
-  if (loading) {
+  if (isLoading && policies.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center flex-1 p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">Loading Policies...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <ScrollText className="h-5 w-5 text-primary" />
+    <BreadcrumbPage
+      className="space-y-6 pb-8"
+      items={[{ label: 'Home', href: '/' }, { label: 'Authorization', href: '/authz' }, { label: 'Policies' }]}
+    >
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <ScrollText className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Authorization Policies</h1>
-            <p className="text-muted-foreground mt-0.5 text-sm">Manage access control policies and rules</p>
+            <h1 className="text-2xl font-headline font-semibold">Authorization Policies</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage access control policies and rules.
+            </p>
           </div>
         </div>
-        <Button onClick={handleCreatePolicy} className="shrink-0">
-          <Plus className="mr-2 h-4 w-4" />
-          Create Policy
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" onClick={loadPolicies} disabled={isLoading}>
+            <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} /> Refresh
+          </Button>
+          <Button onClick={() => router.push('/authz/policies/new')}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Create Policy
+          </Button>
+        </div>
       </div>
 
       {error && (
         <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error Loading Data</AlertTitle>
+          <AlertDescription>
+            {error}{' '}
+            <Button variant="link" onClick={loadPolicies} className="p-0 h-auto">
+              Try again?
+            </Button>
+          </AlertDescription>
         </Alert>
       )}
 
-      <div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Rules</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {policies.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  No policies found. Create your first policy to get started.
-                </TableCell>
-              </TableRow>
-            ) : (
-              policies.map((policy) => (
-                <TableRow key={policy.id}>
-                  <TableCell>
-                    <div className="space-y-1">
+      {!isLoading && !error && policies.length === 0 ? (
+        <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
+          <h3 className="text-lg font-semibold text-muted-foreground">No Policies Found</h3>
+          <p className="text-sm text-muted-foreground">
+            No authorization policies have been created yet.
+          </p>
+          <Button onClick={() => router.push('/authz/policies/new')} className="mt-4">
+            <PlusCircle className="mr-2 h-4 w-4" /> Create Policy
+          </Button>
+        </div>
+      ) : (
+        <div className={cn('space-y-4', isLoading && 'opacity-50 pointer-events-none')}>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Rules</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {policies.map((policy) => (
+                  <TableRow key={policy.id}>
+                    <TableCell className="font-medium">
                       <button
-                        onClick={() => handleViewDetails(policy)}
-                        className="font-medium text-left hover:underline focus:underline"
+                        onClick={() => router.push(`/authz/policies/details?policyId=${policy.id}`)}
+                        className="text-left text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline"
                       >
                         {policy.name}
                       </button>
-                      <p className="text-sm text-muted-foreground font-mono">{policy.id}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-md truncate">
-                    {policy.description}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleViewDetails(policy)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedPolicy(policy);
-                          setDeleteDialogOpen(true);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                      <p className="text-xs text-muted-foreground font-mono mt-0.5">{policy.id}</p>
+                    </TableCell>
+                    <TableCell>
+                      {policy.description ? (
+                        <p className="text-sm text-muted-foreground line-clamp-2 max-w-xs">{policy.description}</p>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">
+                        {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Policy Actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => router.push(`/authz/policies/details?policyId=${policy.id}`)}
+                          >
+                            <Eye className="mr-2 h-4 w-4" /> View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => { setPolicyToDelete(policy); setIsDeleteDialogOpen(true); }}
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { setIsDeleteDialogOpen(open); if (!open) setPolicyToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Policy</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the policy &quot;{selectedPolicy?.name}&quot;?
-              This action cannot be undone.
+              Are you sure you want to delete &quot;{policyToDelete?.name}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }

@@ -2,16 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, AlertCircle, ScrollText } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, AlertCircle, PlusCircle } from 'lucide-react';
 import { createPolicy } from '@/lib/authz-api';
 import type { Rule } from '@/types/authz';
 import { PolicyBuilder } from '@/components/authz/PolicyBuilder';
 import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export default function NewPolicyPage() {
   const router = useRouter();
@@ -53,91 +55,118 @@ export default function NewPolicyPage() {
     }
   };
 
-  const handleCancel = () => {
-    router.push('/authz/policies');
-  };
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Policies', href: '/authz/policies' },
+    { label: 'New' },
+  ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="-ml-1 shrink-0" onClick={handleCancel}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-            <ScrollText className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">Create New Policy</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Define an authorization policy with access rules
+    <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
+      <div className="w-[80%] mx-auto space-y-5 mb-8">
+
+        <div className="space-y-0">
+
+          {/* ── Page header ── */}
+          <div className="pb-8 border-b">
+            <h1 className="text-2xl font-bold">Create New Policy</h1>
+            <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+              Define an authorization policy with access rules.
             </p>
+          </div>
+
+          {error && (
+            <div className="pt-6">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          {/* ── Identity ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Identity</p>
+              <p className="text-sm text-muted-foreground mt-1">Name and describe this policy.</p>
+            </div>
+            <div className="space-y-4 lg:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name">
+                    Policy Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="name"
+                    placeholder="e.g., IoT Device Read Access"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    disabled={submitting}
+                  />
+                  {!formData.name.trim() && (
+                    <p className="text-xs text-destructive">Policy name is required.</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="id">Policy ID (auto-generated)</Label>
+                  <Input
+                    id="id"
+                    value={formData.id}
+                    readOnly
+                    className="bg-muted/50 font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">Auto-generated unique identifier.</p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Describe the purpose and scope of this policy"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                  disabled={submitting}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* ── Rules ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Access Rules</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Configure the conditions and permissions granted by this policy.
+              </p>
+            </div>
+            <div className="lg:col-span-2">
+              <PolicyBuilder
+                rules={formData.rules}
+                onChange={(rules) => setFormData({ ...formData, rules: normalizePolicyRules(rules) })}
+                error={error}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex justify-end pt-6">
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</>
+              ) : (
+                <><PlusCircle className="mr-2 h-4 w-4" /> Create Policy</>
+              )}
+            </Button>
           </div>
         </div>
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Card className="overflow-hidden rounded-xl shadow-sm">
-        <CardHeader className="border-b py-4">
-          <CardTitle className="flex items-center text-lg">
-            <ScrollText className="mr-3 h-5 w-5 text-primary" />
-            Policy Details
-          </CardTitle>
-          <CardDescription>Provide basic information about this policy</CardDescription>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="divide-y">
-            <div className="pb-5 space-y-1.5">
-              <Label htmlFor="name" className="text-sm">
-                Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                placeholder="e.g. IoT Device Read Access"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="pt-5 space-y-1.5">
-              <Label htmlFor="description" className="text-sm">Description</Label>
-              <Input
-                id="description"
-                placeholder="Describe the purpose and scope of this policy"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <PolicyBuilder
-        rules={formData.rules}
-        onChange={(rules) => setFormData({ ...formData, rules: normalizePolicyRules(rules) })}
-        error={error}
-      />
-
-      <div className="flex justify-end gap-3 pt-1">
-        <Button variant="outline" onClick={handleCancel} disabled={submitting}>
-          Cancel
-        </Button>
-        <Button onClick={handleSubmit} disabled={submitting}>
-          {submitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating…
-            </>
-          ) : (
-            'Create Policy'
-          )}
-        </Button>
-      </div>
-    </div>
+    </BreadcrumbPage>
   );
 }

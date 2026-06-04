@@ -708,7 +708,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
               <AccordionItem
                 key={index}
                 value={`rule-${index}`}
-                className="overflow-hidden rounded-xl border bg-card shadow-sm"
+                className="rounded-lg border bg-card"
               >
                 <AccordionTrigger className="hover:no-underline px-4 py-3.5 gap-3 hover:bg-muted/30 transition-colors [&>svg]:shrink-0">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
