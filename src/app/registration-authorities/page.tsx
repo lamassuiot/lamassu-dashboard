@@ -480,13 +480,16 @@ export default function RegistrationAuthoritiesPage() {
       <MetadataViewerModal
         isOpen={isMetadataModalOpen}
         onOpenChange={setIsMetadataModalOpen}
-        title={`Metadata for ${selectedRaForMetadata?.name}`}
-        description={`Raw metadata object associated with the Registration Authority.`}
+        title={`Metadata — ${selectedRaForMetadata?.name}`}
+        description="Raw metadata object associated with this Registration Authority."
         data={selectedRaForMetadata?.metadata || null}
         isEditable={true}
         itemId={selectedRaForMetadata?.id}
         onSave={handleUpdateRaMetadata}
         onUpdateSuccess={handleRefresh}
+        presentation="sheet"
+        useMonacoViewer={true}
+        sheetContentClassName="data-[side=right]:w-1/2 data-[side=right]:sm:max-w-none"
       />
       <AlertDialog open={!!raToDelete} onOpenChange={(open) => !open && setRaToDelete(null)}>
         <AlertDialogContent>

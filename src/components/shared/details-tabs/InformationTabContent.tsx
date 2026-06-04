@@ -26,6 +26,7 @@ import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRow
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
+import { differenceInDays, isPast, parseISO } from 'date-fns';
 
 
 interface CaStats {
@@ -191,14 +192,52 @@ export const InformationTabContent: React.FC<InformationTabContentProps> = ({
             <p className="font-semibold">General Information</p>
             <p className="text-sm text-muted-foreground mt-1">Identity, issuer, lifecycle, and serial details for this authority.</p>
           </div>
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-4">
             <DetailInfoRows>
               <DetailInfoRow label="Full Name" value={caDetails.name} className="first:pt-0" />
               <DetailInfoRow label="CA ID" value={<IdentifierDisplay value={caDetails.id} />} />
               <DetailInfoRow label="Issuer" value={getCaDisplayName(caDetails.issuer, caSpecific.allCAsForLinking)} />
-              <DetailInfoRow label="Expires On" value={<DateDisplay date={caDetails.expires} formatString={getDisplayDateFormat()} highlightExpired />} />
               <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={caDetails.serialNumber} />} className="last:pb-0" />
             </DetailInfoRows>
+
+            {/* Validity Period */}
+            {(() => {
+              const validFrom = caDetails.rawApiData?.certificate.valid_from;
+              const validTo = caDetails.expires;
+              if (!validFrom || !validTo) return null;
+              try {
+                const from = parseISO(validFrom).getTime();
+                const to = parseISO(validTo).getTime();
+                const now = Date.now();
+                const percent = Math.min(100, Math.max(0, Math.round(((now - from) / (to - from)) * 100)));
+                const daysLeft = differenceInDays(to, now);
+                const expired = isPast(parseISO(validTo));
+                const barColor = expired ? 'bg-destructive' : daysLeft <= 30 ? 'bg-amber-500' : percent >= 75 ? 'bg-amber-400' : 'bg-primary';
+                const labelColor = expired ? 'text-destructive' : daysLeft <= 30 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground';
+                const remaining = expired ? 'Expired' : daysLeft === 0 ? 'Expires today' : `${daysLeft}d remaining`;
+                return (
+                  <div className="space-y-2 pt-3 border-t">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Validity Period</span>
+                      <span className={cn('text-xs font-semibold tabular-nums', labelColor)}>{remaining}</span>
+                    </div>
+                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div className={cn('h-full rounded-full transition-all', barColor)} style={{ width: `${percent}%` }} />
+                    </div>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">From</p>
+                        <DateDisplay date={validFrom} className="text-xs" />
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">To</p>
+                        <DateDisplay date={validTo} highlightExpired className="text-xs items-end" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              } catch { return null; }
+            })()}
           </div>
         </div>
 

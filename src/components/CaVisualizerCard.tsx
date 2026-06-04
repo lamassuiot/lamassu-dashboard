@@ -43,10 +43,10 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
   if (ca.kmsKeyId) {
     const engine = allCryptoEngines?.find(e => e.id === ca.kmsKeyId);
     icon = engine
-      ? <CryptoEngineViewer engine={engine} iconOnly className="h-3.5 w-3.5" />
-      : <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />;
+      ? <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4" />
+      : <KeyRound className="h-4 w-4 text-muted-foreground" />;
   } else {
-    icon = <Landmark className="h-3.5 w-3.5 text-muted-foreground" />;
+    icon = <Landmark className="h-4 w-4 text-muted-foreground" />;
   }
 
   const Comp = onClick ? 'button' : 'div';
@@ -65,7 +65,7 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
       <span className={cn('absolute inset-y-0 left-0 w-[3px]', accentBar[variant])} />
 
       {/* Icon */}
-      <div className="mt-0.5 shrink-0 rounded-md border border-border/60 bg-muted/60 p-1">
+      <div className="mt-0.5 shrink-0">
         {icon}
       </div>
 

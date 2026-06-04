@@ -392,11 +392,16 @@
   }
 }
 
-/* "today" marker */
+/* "today" marker — target both the bar and its child handle */
+.vis-custom-time,
 .vis-custom-time.now-marker {
-  width: 1px;
-  background-color: hsl(var(--destructive) / 0.6) !important;
-  z-index: 10;
+  width: 2px !important;
+  background-color: hsl(var(--primary)) !important;
+  opacity: 1 !important;
+  z-index: 10 !important;
+}
+.vis-custom-time > .vis-custom-time-marker {
+  display: none;
 }
 
 @layer components {
@@ -415,7 +420,6 @@
     border: none !important;
     background-color: transparent !important;
     font-family: inherit !important;
-    overflow: hidden;
   }
 
   .vis-panel.vis-background,
