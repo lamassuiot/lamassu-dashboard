@@ -3,8 +3,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Check, FileText, Key, Info, Copy } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Check, Key, Copy } from "lucide-react";
 import { CodeBlock } from "@/components/shared/CodeBlock";
 import { sileo } from '@/lib/toast';
 
@@ -83,68 +83,61 @@ export const KmsPublicKeyPemTabContent: React.FC<KmsPublicKeyPemTabContentProps>
 
   if (!publicKeyPem) {
     return (
-      <Card className="overflow-hidden rounded-xl border-dashed shadow-sm">
-        <CardContent className="flex flex-col items-center justify-center">
-          <Key className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-lg font-medium text-muted-foreground mb-2">No Public Key Available</p>
-          <p className="text-sm text-muted-foreground text-center">
-            No public key PEM data is available for this item.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-12 text-center">
+        <Key className="h-10 w-10 text-muted-foreground/40 mb-3" />
+        <p className="text-sm font-medium text-muted-foreground">No public key PEM data available.</p>
+      </div>
     );
   }
 
   return (
-    <div className="grid gap-6">
-      <Card className="overflow-hidden rounded-xl shadow-sm">
-        <CardHeader className="border-b py-4">
-          <CardTitle className="flex items-center text-lg">
-            <Info className="mr-3 h-5 w-5 text-primary" />
-            Key Information
-          </CardTitle>
-          <CardDescription>Public key metadata and fingerprints</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {keyFingerprint && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">SHA256 Fingerprint</p>
-              <div className="relative rounded-md border bg-background px-4 py-3">
-                <code className="block pr-10 text-xs leading-relaxed text-foreground break-all">
-                  {keyFingerprint.sha256}
-                </code>
-                <Button
-                  onClick={handleCopySha256}
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
-                  title="Copy fingerprint"
-                >
-                  {sha256Copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                </Button>
+    <div>
+      {keyFingerprint && (
+        <>
+          <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10 first:pt-0">
+            <div>
+              <p className="font-semibold">Key Information</p>
+              <p className="mt-1 text-sm text-muted-foreground">Public key metadata and fingerprints.</p>
+            </div>
+            <div className="lg:col-span-2">
+              <div className="divide-y">
+                <div className="py-3 first:pt-0 last:pb-0">
+                  <p className="text-xs font-medium text-muted-foreground">SHA256 Fingerprint</p>
+                  <div className="relative mt-2 rounded-md border bg-muted/30 px-3 py-2.5">
+                    <code className="block pr-10 break-all text-xs font-mono text-foreground/80">
+                      {keyFingerprint.sha256}
+                    </code>
+                    <Button
+                      onClick={handleCopySha256}
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                    >
+                      {sha256Copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+          <Separator />
+        </>
+      )}
 
-      <Card className="overflow-hidden rounded-xl shadow-sm">
-        <CardHeader className="border-b py-4">
-          <CardTitle className="flex items-center text-lg">
-            <FileText className="mr-3 h-5 w-5 text-primary" />
-            Public Key PEM
-          </CardTitle>
-          <CardDescription>Complete PEM-encoded public key data</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
+        <div>
+          <p className="font-semibold">Public Key PEM</p>
+          <p className="mt-1 text-sm text-muted-foreground">Complete PEM-encoded public key data.</p>
+        </div>
+        <div className="lg:col-span-2">
           <CodeBlock
             content={publicKeyPem.replace(/\\n/g, '\n')}
             showDownload={true}
             downloadFilename={`${itemName}-public-key.pem`}
             downloadMimeType="application/x-pem-file"
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };

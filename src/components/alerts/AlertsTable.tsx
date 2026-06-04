@@ -140,7 +140,7 @@ export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscription
                   <div className="flex items-center justify-end gap-2">
                     {event.type.toLowerCase().startsWith('audit.') && (
                       <Button
-                        size="sm"
+                       
                         variant="secondary"
                         onClick={(e) => handleViewAuditUserClick(e, event)}
                       >
@@ -148,8 +148,8 @@ export const AlertsTable: React.FC<AlertsTableProps> = ({ events, onSubscription
                       </Button>
                     )}
                     <Button
-                      size="sm"
-                      variant="outline"
+                     
+                      variant="secondary"
                       onClick={(e) => handleSubscribeClick(e, event)}
                     >
                       Subscribe

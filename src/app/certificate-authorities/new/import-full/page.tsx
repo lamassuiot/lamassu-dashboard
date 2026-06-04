@@ -24,6 +24,7 @@ import { importCa, type ImportCaPayload, fetchSigningProfiles, type ApiSigningPr
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -189,9 +190,16 @@ export default function CreateCaImportFullPage() {
     setProfileMode('reuse');
   };
 
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Certificate Authorities', href: '/certificate-authorities' },
+    { label: 'New', href: '/certificate-authorities/new' },
+    { label: 'Import' },
+  ];
+
   return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+    <BreadcrumbPage items={breadcrumbItems} className="w-full space-y-6 mb-8">
+      <Button variant="secondary" onClick={() => router.push('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
@@ -320,13 +328,13 @@ export default function CreateCaImportFullPage() {
             </Card>
 
             <div className="flex justify-end pt-4">
-              <Button type="submit" size="lg" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
                 Import Full Certification Authority
               </Button>
             </div>
           </form>
         </div>
-    </div>
+    </BreadcrumbPage>
   );
 }

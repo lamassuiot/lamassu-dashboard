@@ -533,7 +533,7 @@ export const InitializationWizard: React.FC = () => {
                             Perform an end-to-end test to ensure the system is working correctly. This will create and then clean up a temporary test profile, CA, RA, and device.
                         </p>
                         <div className="flex justify-center items-center gap-4 mt-8">
-                             <Button onClick={handleRunTest} size="lg" className="px-8 py-6 text-lg" disabled={isTestRunning || availableEngines.length === 0}>
+                             <Button onClick={handleRunTest} className="px-8 py-6 text-lg" disabled={isTestRunning || availableEngines.length === 0}>
                                 {isTestRunning ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <ShieldCheck className="mr-2 h-5 w-5"/>}
                                 {isTestRunning ? 'Test in Progress...' : 'Run Test'}
                             </Button>
@@ -651,7 +651,7 @@ export const InitializationWizard: React.FC = () => {
                 </div>
                 <div className="mt-8 flex justify-between items-center">
                     {currentStep > 1 ? (
-                        <Button variant="outline" onClick={handleBack} disabled={isTestRunning}>
+                        <Button variant="secondary" onClick={handleBack} disabled={isTestRunning}>
                             <ArrowLeft className="mr-2 h-4 w-4"/>
                             Back
                         </Button>
@@ -695,7 +695,7 @@ const ActionItem: React.FC<ActionItemProps> =
             <h3 className="font-semibold">{title}</h3>
             <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button onClick={onClick} size="sm" className="self-center" disabled={isWorking}>
+        <Button onClick={onClick} className="self-center" disabled={isWorking}>
             {isWorking && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
             {buttonText}
         </Button>

@@ -363,7 +363,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                     <Input id="deviceId" value={deviceId} onChange={e => setDeviceId(e.target.value)} placeholder="e.g., test-1, sensor-12345" disabled={!!initialDeviceId}/>
                                     <Button
                                         type="button"
-                                        variant="outline"
+                                        variant="secondary"
                                         size="icon"
                                         onClick={() => setDeviceId(crypto.randomUUID())}
                                         title="Generate random GUID"
@@ -479,7 +479,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                                     <Button
                                         id="bootstrap-signer"
                                         type="button"
-                                        variant="outline"
+                                        variant="secondary"
                                         className="w-full justify-between font-normal"
                                         onClick={() => setIsCaSelectorOpen(true)}
                                         disabled={isLoadingDependencies}
@@ -606,7 +606,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
                         <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                         <div className="flex space-x-2">
                             {step > 1 && (
-                                <Button variant="outline" onClick={handleBack} disabled={isGenerating}>
+                                <Button variant="secondary" onClick={handleBack} disabled={isGenerating}>
                                     <ArrowLeft className="mr-2 h-4 w-4"/>Back
                                 </Button>
                             )}
@@ -641,7 +641,7 @@ export const EstEnrollModal: React.FC<EstEnrollModalProps> = ({
 
     return (
         <Sheet open={isOpen} onOpenChange={onOpenChange}>
-            <SheetContent side="right" className={cn("w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col", className)}>
+            <SheetContent side="right" className={cn("w-full p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-[50vw] flex flex-col", className)}>
                 <SheetHeader className="sr-only">
                     <SheetTitle>EST Enroll</SheetTitle>
                     <SheetDescription>

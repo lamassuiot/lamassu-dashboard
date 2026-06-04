@@ -1,11 +1,11 @@
-/* 
-  Lamassu IoT - Alternate Theme
+/*
+  Lamassu IoT - Orange Theme (Tailwind v4 compatible)
   - Light Theme: Charcoal header, white content, orange accents.
   - Dark Theme: Very dark gray background, orange accents.
 */
 
 :root {
-  --header-height: 3rem; /* h-14 */
+  --header-height: 3rem;
   --secondary-logo-display: flex;
   --secondary-logo-url: url('/themes/orange/lks.png');
 }
@@ -15,44 +15,57 @@
 /* ------------------------- */
 
 :root:not(.dark) {
-  --background: 0 0% 100%;                  /* #ffffff White */
-  --foreground: 240 10% 3.9%;              /* #0a0a0a Near Black */
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(240 10% 3.9%);
 
-  --card: 0 0% 100%;                       /* #ffffff White */
-  --card-foreground: 240 10% 3.9%;         /* #0a0a0a Near Black */
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(240 10% 3.9%);
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(240 10% 3.9%);
 
-  --primary: 16 100% 67%;                  /* #ff7f50 Coral Orange */
-  --primary-foreground: 0 0% 100%;         /* White */
+  --primary: hsl(16 100% 67%);                /* #ff7f50 Coral Orange */
+  --primary-foreground: hsl(0 0% 100%);
 
-  --secondary: 240 4.8% 95.9%;             /* #f4f4f5 Cool Gray 100 */
-  --secondary-foreground: 240 5.9% 10%;    /* #18181b Cool Gray 900 */
+  --secondary: hsl(240 4.8% 95.9%);
+  --secondary-foreground: hsl(240 5.9% 10%);
 
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
+  --muted: hsl(240 4.8% 95.9%);
+  --muted-foreground: hsl(240 3.8% 46.1%);
 
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
+  --accent: hsl(240 4.8% 95.9%);
+  --accent-foreground: hsl(240 5.9% 10%);
 
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
+  --destructive: hsl(0 84.2% 60.2%);
+  --destructive-foreground: hsl(0 0% 98%);
 
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 16 100% 67%;                     /* Coral Orange for focus */
+  --border: hsl(240 5.9% 90%);
+  --input: hsl(240 5.9% 90%);
+  --ring: hsl(16 100% 67%);
 
-  /* Header & Sidebar Overrides */
-  --header-background: 240 10% 3.9%;       /* #0a0a0a Near Black */
-  --header-foreground: 0 0% 98%;           /* #fafafa Near White */
-  --sidebar-background: 240 4.8% 95.9%;    /* #f4f4f5 Cool Gray 100 */
-  --sidebar-foreground: 240 5.9% 10%;     /* #18181b Cool Gray 900 */
-  --sidebar-primary: 16 100% 67%;
-  --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 240 5.9% 90%;
-  --sidebar-accent-foreground: 240 5.9% 10%;
-  --sidebar-border: 240 5.9% 90%;
+  --radius: 0.5rem;
+
+  /* Header — bare HSL triplet: used via hsl(var(--header-background)) in @theme */
+  --header-background: 240 10% 3.9%;
+  --header-foreground: 0 0% 98%;
+
+  /* Sidebar */
+  --sidebar: hsl(240 4.8% 95.9%);
+  --sidebar-background: hsl(240 4.8% 95.9%);
+  --sidebar-foreground: hsl(240 5.9% 10%);
+  --sidebar-primary: hsl(16 100% 67%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 5.9% 90%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(240 5.9% 90%);
+  --sidebar-ring: hsl(16 100% 67%);
+
+  /* Charts */
+  --chart-1: hsl(16 100% 67%);
+  --chart-2: hsl(150 70% 70%);
+  --chart-3: hsl(30 80% 55%);
+  --chart-4: hsl(0 70% 60%);
+  --chart-5: hsl(260 70% 70%);
 }
 
 
@@ -60,48 +73,87 @@
 /* --- DARK THEME (NIGHT) --- */
 /* -------------------------- */
 
-.dark {
-  --background: 240 5.9% 10%;              /* #18181b Cool Gray 900 */
-  --foreground: 0 0% 98%;                  /* #fafafa Near White */
+:root.dark {
+  --background: hsl(240 5.9% 10%);
+  --foreground: hsl(0 0% 98%);
 
-  --card: 240 5.2% 13%;                    /* #1f1f22 Slightly Lighter Dark */
-  --card-foreground: 0 0% 98%;             /* #fafafa Near White */
+  --card: hsl(240 5.2% 13%);
+  --card-foreground: hsl(0 0% 98%);
 
-  --popover: 240 5.9% 10%;
-  --popover-foreground: 0 0% 98%;
+  --popover: hsl(240 5.9% 10%);
+  --popover-foreground: hsl(0 0% 98%);
 
-  --primary: 16 100% 67%;                  /* #ff7f50 Coral Orange */
-  --primary-foreground: 0 0% 98%;         /* White */
+  --primary: hsl(16 100% 67%);               /* #ff7f50 Coral Orange */
+  --primary-foreground: hsl(0 0% 98%);
 
-  --secondary: 240 3.7% 15.9%;             /* #27272a Dark Gray */
-  --secondary-foreground: 0 0% 98%;
+  --secondary: hsl(240 3.7% 15.9%);
+  --secondary-foreground: hsl(0 0% 98%);
 
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
+  --muted: hsl(240 3.7% 15.9%);
+  --muted-foreground: hsl(240 5% 64.9%);
 
-  --accent: 240 3.7% 15.9%;
-  --accent-foreground: 0 0% 98%;
+  --accent: hsl(240 3.7% 15.9%);
+  --accent-foreground: hsl(0 0% 98%);
 
-  --destructive: 0 72.2% 50.6%;
-  --destructive-foreground: 0 0% 98%;
+  --destructive: hsl(0 72.2% 50.6%);
+  --destructive-foreground: hsl(0 0% 98%);
 
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --ring: 16 100% 67%;                     /* Coral Orange for focus */
-  
-  /* Header & Sidebar Overrides */
-  --header-background: 240 10% 3.9%;       /* #0a0a0a Near Black */
-  --header-foreground: 0 0% 98%;           /* #fafafa Near White */
-  --sidebar-background: 240 5.9% 10%;      /* #18181b Cool Gray 900 */
-  --sidebar-foreground: 0 0% 98%;          /* #fafafa Near White */
-  --sidebar-primary: 16 100% 67%;
-  --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 240 3.7% 15.9%;
-  --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-border: 240 3.7% 15.9%;
+  --border: hsl(240 3.7% 15.9%);
+  --input: hsl(240 3.7% 15.9%);
+  --ring: hsl(16 100% 67%);
+
+  /* Header — bare HSL triplet: used via hsl(var(--header-background)) in @theme */
+  --header-background: 240 10% 3.9%;
+  --header-foreground: 0 0% 98%;
+
+  /* Sidebar */
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-background: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(0 0% 98%);
+  --sidebar-primary: hsl(16 100% 67%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(0 0% 98%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(16 100% 67%);
+
+  /* Charts */
+  --chart-1: hsl(16 100% 67%);
+  --chart-2: hsl(150 70% 65%);
+  --chart-3: hsl(30 80% 60%);
+  --chart-4: hsl(0 70% 65%);
+  --chart-5: hsl(260 70% 75%);
+
+  /* Direct Tailwind color token overrides */
+  --color-background: hsl(240 5.9% 10%);
+  --color-foreground: hsl(0 0% 98%);
+  --color-card: hsl(240 5.2% 13%);
+  --color-card-foreground: hsl(0 0% 98%);
+  --color-popover: hsl(240 5.9% 10%);
+  --color-popover-foreground: hsl(0 0% 98%);
+  --color-primary: hsl(16 100% 67%);
+  --color-primary-foreground: hsl(0 0% 98%);
+  --color-secondary: hsl(240 3.7% 15.9%);
+  --color-secondary-foreground: hsl(0 0% 98%);
+  --color-muted: hsl(240 3.7% 15.9%);
+  --color-muted-foreground: hsl(240 5% 64.9%);
+  --color-accent: hsl(240 3.7% 15.9%);
+  --color-accent-foreground: hsl(0 0% 98%);
+  --color-destructive: hsl(0 72.2% 50.6%);
+  --color-border: hsl(240 3.7% 15.9%);
+  --color-input: hsl(240 3.7% 15.9%);
+  --color-ring: hsl(16 100% 67%);
+  --color-sidebar: hsl(240 5.9% 10%);
+  --color-sidebar-foreground: hsl(0 0% 98%);
+  --color-sidebar-primary: hsl(16 100% 67%);
+  --color-sidebar-primary-foreground: hsl(0 0% 98%);
+  --color-sidebar-accent: hsl(240 3.7% 15.9%);
+  --color-sidebar-accent-foreground: hsl(0 0% 98%);
+  --color-sidebar-border: hsl(240 3.7% 15.9%);
+  --color-sidebar-ring: hsl(16 100% 67%);
 }
 
 .lamassu-logo-theme-filter {
-  /* For light theme: change blue SVG to #ff7f50 Coral Orange */
+  /* Change blue SVG to #ff7f50 Coral Orange */
   filter: invert(66%) sepia(81%) saturate(749%) hue-rotate(320deg) brightness(101%) contrast(101%);
 }

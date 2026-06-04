@@ -3,26 +3,24 @@ import { FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/
 import { Switch } from '@/components/ui/switch';
 import { CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Constants for better maintainability
-const SECTION_HEADER_STYLES = "border-b py-4";
-const SECTION_TITLE_STYLES = "flex items-center text-lg";
 const SWITCH_ITEM_STYLES = "flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background";
 
-// Helper component for section headers
 export const SectionHeader: React.FC<{
   icon: React.ElementType;
   title: string;
   description?: string;
   action?: React.ReactNode;
 }> = ({ icon: Icon, title, description, action }) => (
-  <CardHeader className={SECTION_HEADER_STYLES}>
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0 flex-1">
-        <CardTitle className={SECTION_TITLE_STYLES}>
-          <Icon className="mr-3 h-5 w-5 text-primary" />
-          {title}
-        </CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
+  <CardHeader>
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 flex-1 items-start gap-2.5">
+        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10">
+          <Icon className="h-3.5 w-3.5 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <CardTitle className="text-sm font-semibold leading-none">{title}</CardTitle>
+          {description ? <CardDescription className="text-xs">{description}</CardDescription> : null}
+        </div>
       </div>
       {action}
     </div>

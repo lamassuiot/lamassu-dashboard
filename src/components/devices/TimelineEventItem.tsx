@@ -209,8 +209,8 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
               {/* Action button */}
               {isOnHold ? (
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
+                 
                   className="h-7 shrink-0 gap-1.5 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-950"
                   onClick={() => onReactivate(cert)}
                 >
@@ -219,8 +219,8 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
                 </Button>
               ) : !isRevoked ? (
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
+                 
                   className="h-7 shrink-0 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/5"
                   onClick={() => onRevoke(cert)}
                 >

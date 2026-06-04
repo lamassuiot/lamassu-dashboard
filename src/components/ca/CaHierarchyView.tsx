@@ -55,6 +55,15 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
 
   return (
     <div className="w-full h-[calc(100vh-200px)] border rounded-md relative overflow-hidden flex flex-col">
+      {/* Fix for react-organizational-chart pseudo-element lines with Tailwind v4 reset */}
+      <style>{`
+        .ca-hierarchy-tree ul::before,
+        .ca-hierarchy-tree li::before,
+        .ca-hierarchy-tree li::after {
+          content: '' !important;
+          position: absolute !important;
+        }
+      `}</style>
       <div className="flex-grow relative">
         <TransformWrapper
           initialScale={1}
@@ -66,26 +75,26 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
           {({ zoomIn, zoomOut, resetTransform, ...rest }) => (
             <>
               <div className="absolute top-2 left-2 z-10 space-x-1">
-                <Button variant="outline" size="icon" onClick={() => zoomIn()} title="Zoom In">
+                <Button variant="secondary" size="icon" onClick={() => zoomIn()} title="Zoom In">
                   <ZoomIn className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => zoomOut()} title="Zoom Out">
+                <Button variant="secondary" size="icon" onClick={() => zoomOut()} title="Zoom Out">
                   <ZoomOut className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => resetTransform()} title="Reset View">
+                <Button variant="secondary" size="icon" onClick={() => resetTransform()} title="Reset View">
                   <RotateCcw className="h-4 w-4" />
                 </Button>
               </div>
               <TransformComponent
                 wrapperStyle={{ width: '100%', height: '100%' }}
-                contentStyle={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '60px 20px 20px 20px' }} 
+                contentStyle={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '60px 20px 20px 20px' }}
               >
-                <div className="flex flex-row items-start space-x-12">
+                <div className="ca-hierarchy-tree flex flex-row items-start space-x-12">
                   {cas.map((rootCa) => (
                     <Tree
                       key={rootCa.id}
                       lineWidth={'3px'}
-                      lineColor={'hsl(var(--primary))'} 
+                      lineColor={'hsl(var(--primary))'}
                       lineBorderRadius={'5px'}
                       label={
                         <CaVisualizerCard

@@ -84,7 +84,7 @@ const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
     default:
       badgeClass = "bg-muted text-muted-foreground border-border";
   }
-  return <Badge variant="outline" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
+  return <Badge variant="secondary" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
 };
 
 const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string; }> = ({ type, iconColor, bgColor }) => {
@@ -384,7 +384,7 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {device.tags && device.tags.length > 0 ? (
-                              device.tags.map((tag: string) => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)
+                              device.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)
                             ) : (
                               <span className="text-muted-foreground text-xs">No tags</span>
                             )}
@@ -433,10 +433,10 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
               </Select>
             </div>
             <div className="flex items-center space-x-2">
-              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline" size="sm">
+              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
                 <ChevronLeft className="mr-1 h-4 w-4" /> Previous
               </Button>
-              <Button onClick={handleNextPage} disabled={isLoading || !(currentPageIndex < bookmarkHistory.length - 1 || nextBookmark)} variant="outline" size="sm">
+              <Button onClick={handleNextPage} disabled={isLoading || !(currentPageIndex < bookmarkHistory.length - 1 || nextBookmark)} variant="secondary">
                 Next <ChevronRight className="ml-1 h-4 w-4" />
               </Button>
             </div>

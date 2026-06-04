@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Landmark, FileText, Users, Router } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,80 +19,46 @@ interface SummaryStatsCardProps {
   isLoading: boolean;
 }
 
-const StatItem: React.FC<{
-  value: number | null;
-  label: string;
-  href: string;
-  isLoading: boolean;
-  icon: React.ElementType;
-}> = ({ value, label, href, isLoading, icon: Icon }) => {
-  const router = useRouter();
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      router.push(href);
-    }
-  };
-
-  return (
-    <Card
-      role="button"
-      tabIndex={0}
-      className="bg-[--homepage-card-background] text-primary-foreground hover:bg-[--homepage-card-background]/90 transition-colors cursor-pointer p-4 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background shadow-lg"
-      onClick={() => router.push(href)}
-      onKeyDown={handleKeyDown}
-    >
-      <div className="flex items-center space-x-4">
-        <div className="p-3 rounded-full bg-primary-foreground/10">
-          <Icon className="h-6 w-6 text-primary-foreground/80" />
-        </div>
-        <div>
-          {isLoading ? (
-            <Skeleton className="h-7 w-12 bg-primary-foreground/20 mb-1" />
-          ) : (
-            <p className="text-2xl font-bold">{value ?? '—'}</p>
-          )}
-          <p className="text-sm text-primary-foreground/90">{label}</p>
-        </div>
-      </div>
-    </Card>
-  );
-};
-
+const statItems = [
+  { key: 'certificates' as const, label: 'Issued Certificates',      href: '/certificates',              icon: FileText },
+  { key: 'cas' as const,          label: 'Certification Authorities', href: '/certificate-authorities',   icon: Landmark },
+  { key: 'ras' as const,          label: 'Registration Authorities',  href: '/registration-authorities', icon: Users    },
+  { key: 'devices' as const,      label: 'Managed Devices',           href: '/devices',                  icon: Router   },
+];
 
 export const SummaryStatsCard: React.FC<SummaryStatsCardProps> = ({ stats, isLoading }) => {
+  const router = useRouter();
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-       <StatItem
-        value={stats.certificates}
-        label="Issued Certificates"
-        href="/certificates"
-        isLoading={isLoading}
-        icon={FileText}
-      />
-      <StatItem
-        value={stats.cas}
-        label="Certification Authorities"
-        href="/certificate-authorities"
-        isLoading={isLoading}
-        icon={Landmark}
-      />
-      <StatItem
-        value={stats.ras}
-        label="Registration Authorities"
-        href="/registration-authorities"
-        isLoading={isLoading}
-        icon={Users}
-      />
-      <StatItem
-        value={stats.devices}
-        label="Managed Devices"
-        href="/devices"
-        isLoading={isLoading}
-        icon={Router}
-      />
+      {statItems.map(({ key, label, href, icon: Icon }) => (
+        <Card
+          key={key}
+          role="button"
+          tabIndex={0}
+          onClick={() => router.push(href)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(href); } }}
+          className="cursor-pointer transition-colors hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          <CardContent className="px-4 py-2.5">
+            <div className="flex items-center gap-3">
+              <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+                <Icon className="h-4 w-4 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+                <p className="truncate text-xs text-muted-foreground">{label}</p>
+                {isLoading ? (
+                  <Skeleton className="h-5 w-9 shrink-0" />
+                ) : (
+                  <p className="text-xl font-semibold tabular-nums leading-none text-primary shrink-0">
+                    {stats[key]?.toLocaleString() ?? '—'}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 };

@@ -4,7 +4,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { CertificateList } from '@/components/CertificateList';
-import { CertificateDetailsModal } from '@/components/CertificateDetailsModal';
+import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout';
+import { CertificateDetailPanel } from '@/components/shared/CertificateDetailPanel';
 import type { CertificateData } from '@/types/certificate';
 import { FileText, Loader2 as Loader2Icon, AlertCircle as AlertCircleIcon, RefreshCw, PlusCircle, Upload, KeyRound } from 'lucide-react';
 import { fetchAndProcessCAs, type CA, findCaById } from '@/lib/ca-data';
@@ -20,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ColumnSelector } from '@/components/ui/column-selector';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime';
 export type SortDirection = 'asc' | 'desc';
@@ -31,14 +33,20 @@ export interface CertSortConfig {
 
 const CertificatesPageSkeleton = () => (
   <div className="w-full space-y-6 pb-8">
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-      <div className="flex items-center space-x-3">
-        <FileText className="h-8 w-8 text-primary" />
-        <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
+    <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+          <FileText className="h-8 w-8 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
+          <p className="text-sm text-muted-foreground mt-1">Browse, import, and manage all X.509 certificates issued through the PKI.</p>
+        </div>
       </div>
-      <div className="flex items-center space-x-2 self-start sm:self-center">
-        <Skeleton className="h-10 w-32" />
-        <Skeleton className="h-10 w-44" />
+      <div className="flex items-center gap-2 shrink-0">
+        <Skeleton className="h-9 w-9 sm:w-32" />
+        <Skeleton className="h-9 w-9 sm:w-44" />
+        <Skeleton className="h-9 w-9 sm:w-36" />
       </div>
     </div>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
@@ -84,7 +92,6 @@ export default function CertificatesPage() {
   } = usePaginatedCertificateFetcher();
   
   const [selectedCertificate, setSelectedCertificate] = useState<CertificateData | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const [caSelectorMode, setCaSelectorMode] = useState<'issue' | 'filter'>('filter');
   // Column visibility (lifted from CertificateList so ColumnSelector can live in the filter bar)
@@ -179,8 +186,9 @@ export default function CertificatesPage() {
   };
 
   const handleInspectCertificate = (certificate: CertificateData) => {
-    setSelectedCertificate(certificate);
-    setIsModalOpen(true);
+    setSelectedCertificate(prev =>
+      prev?.serialNumber === certificate.serialNumber ? null : certificate
+    );
   };
   
   const handleCaSelectedForFilter = (ca: CA) => {
@@ -215,24 +223,43 @@ export default function CertificatesPage() {
   }
   
   return (
-    <div className="w-full space-y-6 pb-8">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
+    <MasterDetailLayout
+      isDetailOpen={!!selectedCertificate}
+      onClose={() => setSelectedCertificate(null)}
+      detailTitle={selectedCertificate ? <span className="font-mono text-xs">{selectedCertificate.serialNumber}</span> : null}
+      detailSubtitle={selectedCertificate?.subject}
+      detailActions={
+        selectedCertificate ? (
+          <Button variant="ghost" className="h-7 text-xs" onClick={() => router.push(`/certificates/details?certificateId=${selectedCertificate.serialNumber}`)}>
+            Open full page →
+          </Button>
+        ) : null
+      }
+      detail={selectedCertificate ? <CertificateDetailPanel certificate={selectedCertificate} /> : null}
+      list={
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Certificates'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
             <FileText className="h-8 w-8 text-primary" />
+          </div>
+          <div>
             <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
+            <p className="text-sm text-muted-foreground mt-1">Browse, import, and manage all X.509 certificates issued through the PKI.</p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2 self-start sm:self-center">
-            <Button onClick={refreshCertificates} variant="secondary" disabled={isLoadingApi && certificates.length > 0}>
-                <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && certificates.length > 0 && "animate-spin")} /> Refresh List
+        <div className="flex items-center gap-2 shrink-0">
+            <Button onClick={() => router.push('/certificates/import')} variant="secondary" title="Import Certificate">
+                <Upload className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Import Certificate</span>
             </Button>
-            <Button onClick={() => router.push('/certificates/import')} variant="secondary">
-                <Upload className="mr-2 h-4 w-4" /> Import Certificate
+            <Button onClick={() => router.push('/certificates/create')} variant="secondary" title="Create KeyPair & Certificate">
+                <KeyRound className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Create KeyPair &amp; Certificate</span>
             </Button>
-            <Button onClick={() => router.push('/certificates/create')} variant="secondary">
-                <KeyRound className="mr-2 h-4 w-4" /> Create KeyPair &amp; Certificate
-            </Button>
-            <Button onClick={() => handleOpenCaSelector('issue')} variant="default">
-                <PlusCircle className="mr-2 h-4 w-4" /> Issue Certificate
+            <Button onClick={() => handleOpenCaSelector('issue')} variant="default" title="Issue Certificate">
+                <PlusCircle className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Issue Certificate</span>
             </Button>
         </div>
       </div>
@@ -245,21 +272,35 @@ export default function CertificatesPage() {
         onClearCaFilter={() => setCaIdFilter(null)}
         disabled={isLoadingApi}
         isLoadingCAs={isLoadingCAs}
+        inlineActions
+        basicFieldsClassName="grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_180px_auto]"
         actions={
-          <ColumnSelector
-            columns={[
-              { id: 'commonName',     label: 'Common Name',      visible: columnVisibility.commonName,     disabled: true },
-              { id: 'certificateAuthority', label: 'CA',         visible: columnVisibility.certificateAuthority },
-              { id: 'serialNumber',   label: 'Serial Number',    visible: columnVisibility.serialNumber },
-              { id: 'issuer',         label: 'CA Issuer',        visible: columnVisibility.issuer },
-              { id: 'validFrom',      label: 'Valid From',       visible: columnVisibility.validFrom },
-              { id: 'expires',        label: 'Expires',          visible: columnVisibility.expires },
-              { id: 'status',         label: 'Status',           visible: columnVisibility.status },
-              { id: 'revocationTime', label: 'Revocation Time',  visible: columnVisibility.revocationTime },
-            ]}
-            onColumnToggle={handleColumnToggle}
-            align="end"
-          />
+          <>
+            <ColumnSelector
+              columns={[
+                { id: 'commonName',     label: 'Common Name',      visible: columnVisibility.commonName,     disabled: true },
+                { id: 'certificateAuthority', label: 'CA',         visible: columnVisibility.certificateAuthority },
+                { id: 'serialNumber',   label: 'Serial Number',    visible: columnVisibility.serialNumber },
+                { id: 'issuer',         label: 'CA Issuer',        visible: columnVisibility.issuer },
+                { id: 'validFrom',      label: 'Valid From',       visible: columnVisibility.validFrom },
+                { id: 'expires',        label: 'Expires',          visible: columnVisibility.expires },
+                { id: 'status',         label: 'Status',           visible: columnVisibility.status },
+                { id: 'revocationTime', label: 'Revocation Time',  visible: columnVisibility.revocationTime },
+              ]}
+              onColumnToggle={handleColumnToggle}
+              align="end"
+            />
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={refreshCertificates}
+              disabled={isLoadingApi}
+              title="Refresh"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isLoadingApi && certificates.length > 0 && "animate-spin")} />
+            </Button>
+          </>
         }
       />
 
@@ -316,7 +357,6 @@ export default function CertificatesPage() {
         />
       )}
 
-      <CertificateDetailsModal certificate={selectedCertificate} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       <CaSelectorModal 
         isOpen={isCaSelectorOpen} 
         onOpenChange={setIsCaSelectorOpen} 
@@ -329,8 +369,11 @@ export default function CertificatesPage() {
         errorCAs={errorCAs} 
         loadCAsAction={loadPageDependencies} 
         onCaSelected={caSelectorMode === 'issue' ? handleCaSelectedForIssuance : handleCaSelectedForFilter}
+        useSheet={caSelectorMode === 'issue'}
         allCryptoEngines={allCryptoEngines}
       />
-    </div>
+    </BreadcrumbPage>
+      }
+    />
   );
 }

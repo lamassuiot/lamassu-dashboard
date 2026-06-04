@@ -293,7 +293,7 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
               {AVAILABLE_ICONS.map(({ name, IconComponent }) => (
                 <Button
                   key={name}
-                  variant="outline"
+                  variant="secondary"
                   className={cn(
                     "flex flex-col items-center justify-center h-24 p-2 space-y-1 text-center transition-colors",
                     currentSelectedIconName === name && "ring-2 ring-primary ring-offset-2"
@@ -324,8 +324,8 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
                     <p className="text-sm font-medium">Customize Colors</p>
                     <Button
                         type="button"
-                        variant="outline"
-                        size="sm"
+                        variant="secondary"
+                       
                         onClick={handleInvert}
                     >
                         <LucideIcons.ArrowLeftRight className="mr-2 h-4 w-4" />
@@ -379,7 +379,7 @@ export const DeviceIconSelectorModal: React.FC<DeviceIconSelectorModalProps> = (
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline">Close</Button>
+            <Button type="button" variant="secondary">Close</Button>
           </DialogClose>
         </DialogFooter>
       </DialogContent>

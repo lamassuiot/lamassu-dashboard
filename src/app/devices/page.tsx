@@ -24,6 +24,7 @@ import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { DeviceFilterBar } from '@/components/shared/filters/DeviceFilterBar';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { appendSingleOrMultiFilter } from '@/lib/api-filter-utils';
 import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
 
@@ -82,7 +83,7 @@ export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
     default:
       badgeClass = "bg-muted text-muted-foreground border-border";
   }
-  return <Badge variant="outline" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
+  return <Badge variant="secondary" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
 };
 
 export const mapApiIconToIconType = (apiIcon: string): string => {
@@ -394,15 +395,20 @@ export default function DevicesPage() {
   const hasActiveFilters = debouncedSearchTerm || debouncedTagSearchTerm || statusFilters.length > 0 || dmsOwnerFilter || createdAtFilter.date;
 
   return (
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-        <div className="flex items-center space-x-3">
-          <div className={cn("p-1.5 rounded-md inline-flex items-center justify-center")} style={{ backgroundColor: '#F0F8FF' }}>
-            <Router className={cn("h-8 w-8")} style={{ color: '#0f67ff' }} />
+    <BreadcrumbPage items={[{label:'Home',href:'/'}, {label:'Devices'}]} className="space-y-6 w-full pb-8">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <Router className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-headline font-semibold">Managed Devices</h1>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Managed Devices</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Overview of all registered IoT devices, their status, and associated groups.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 shrink-0">
           <Button onClick={handleRefresh} variant="secondary" disabled={isLoadingApi}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingApi && "animate-spin")} /> Refresh
           </Button>
@@ -411,9 +417,6 @@ export default function DevicesPage() {
           </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Overview of all registered IoT devices, their status, and associated groups.
-      </p>
 
       <DeviceFilterBar
         searchTerm={searchTerm}
@@ -534,7 +537,7 @@ export default function DevicesPage() {
                       {columnVisibility.tags && (
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {device.tags.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
+                            {device.tags.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
                           </div>
                         </TableCell>
                       )}
@@ -592,14 +595,14 @@ export default function DevicesPage() {
                   <Button
                       onClick={handlePreviousPage}
                       disabled={isLoadingApi || currentPageIndex === 0}
-                      variant="outline"
+                      variant="secondary"
                   >
                       <ChevronLeft className="mr-2 h-4 w-4" /> Previous
                   </Button>
                   <Button
                       onClick={handleNextPage}
                       disabled={isLoadingApi || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
-                      variant="outline"
+                      variant="secondary"
                   >
                       Next <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -630,6 +633,6 @@ export default function DevicesPage() {
         onOpenChange={setIsRegisterModalOpen}
         onDeviceRegistered={handleDeviceRegistered}
       />
-    </div>
+    </BreadcrumbPage>
   );
 }

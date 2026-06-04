@@ -8,7 +8,8 @@ import { Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
-import { MetadataViewerModal } from './MetadataViewerModal';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { SectionHeader } from '@/components/shared/FormComponents';
 
@@ -127,12 +128,12 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
           action={
             <div className="flex flex-wrap items-center justify-end gap-2">
               {profile.sign_as_ca && (
-                <Badge variant="outline" className="rounded-md text-foreground/75">
+                <Badge variant="secondary" className="rounded-md text-foreground/75">
                   CA
                 </Badge>
               )}
               {profile.crypto_enforcement?.enabled && (
-                <Badge variant="outline" className="rounded-md text-foreground/75">
+                <Badge variant="secondary" className="rounded-md text-foreground/75">
                   Crypto enforcement
                 </Badge>
               )}
@@ -173,20 +174,20 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
                   <div className="flex flex-wrap gap-2">
                     {allowedKeyTypes.length > 0 ? (
                       allowedKeyTypes.map((keyType) => (
-                        <Badge key={keyType} variant="outline" className="rounded-md text-foreground/75">
+                        <Badge key={keyType} variant="secondary" className="rounded-md text-foreground/75">
                           {keyType}
                         </Badge>
                       ))
                     ) : (
-                      <Badge variant="outline" className="rounded-md text-foreground/75">
+                      <Badge variant="secondary" className="rounded-md text-foreground/75">
                         No key types allowed
                       </Badge>
                     )}
-                    <Badge variant="outline" className="rounded-md text-foreground/75">
+                    <Badge variant="secondary" className="rounded-md text-foreground/75">
                       <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
                       {profile.sign_as_ca ? 'Can issue CA certificates' : 'Leaf certificates only'}
                     </Badge>
-                    <Badge variant="outline" className="rounded-md text-foreground/75">
+                    <Badge variant="secondary" className="rounded-md text-foreground/75">
                       <Clock className="mr-1.5 h-3.5 w-3.5" />
                       {validityLabel}
                     </Badge>
@@ -200,11 +201,11 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
         {onEdit && onDelete && (
           <CardFooter className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/70 bg-muted/10 px-6 py-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setIsDetailsModalOpen(true)}>
+              <Button variant="secondary" onClick={() => setIsDetailsModalOpen(true)}>
                 <Eye className="mr-1.5 h-3.5 w-3.5" /> View Raw
               </Button>
               {onViewUsage && (
-                <Button variant="outline" size="sm" onClick={onViewUsage}>
+                <Button variant="secondary" onClick={onViewUsage}>
                   <Users className="mr-1.5 h-3.5 w-3.5" /> View Usage
                 </Button>
               )}
@@ -212,14 +213,14 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="destructive"
-                size="sm"
+               
                 onClick={onDelete}
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
               </Button>
               <Button
-                variant="outline"
-                size="sm"
+                variant="secondary"
+               
                 onClick={onEdit}
               >
                 <Edit className="mr-1.5 h-3.5 w-3.5" /> Edit
@@ -228,13 +229,17 @@ export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profil
           </CardFooter>
         )}
       </Card>
-      <MetadataViewerModal
-        isOpen={isDetailsModalOpen}
-        onOpenChange={setIsDetailsModalOpen}
-        title={`Raw Profile Data: ${profile.name}`}
-        data={profile}
-        isEditable={false}
-      />
+      <Sheet open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
+        <SheetContent side="right" className="!w-[33vw] sm:!max-w-none flex flex-col p-0">
+          <SheetHeader className="border-b px-6 py-5">
+            <SheetTitle>Raw Profile Data</SheetTitle>
+            <SheetDescription>{profile.name}</SheetDescription>
+          </SheetHeader>
+          <ScrollArea className="flex-1 px-6 py-4">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all">{JSON.stringify(profile, null, 2)}</pre>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
     </>
   );
 };

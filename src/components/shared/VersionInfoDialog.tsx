@@ -91,7 +91,7 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Build Number</span>
-                    <Badge variant="outline" className="font-mono text-xs">
+                    <Badge variant="secondary" className="font-mono text-xs">
                       #{versionInfo.buildNumber}
                     </Badge>
                   </div>
@@ -167,7 +167,7 @@ export const VersionInfoDialog: React.FC<VersionInfoDialogProps> = ({
               <span>Lamassu PKI Dashboard</span>
             </div>
             <DialogClose asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="secondary">
                 Close
               </Button>
             </DialogClose>

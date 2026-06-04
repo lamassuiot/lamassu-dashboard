@@ -1,8 +1,7 @@
-
 'use client';
 
 import type React from 'react';
-import { Landmark, KeyRound, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Landmark, KeyRound } from 'lucide-react';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
 import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
@@ -16,86 +15,70 @@ interface CaVisualizerCardProps {
   allCryptoEngines?: ApiCryptoEngine[];
 }
 
-const StatusIcon: React.FC<{ status: CA['status']; expires: string }> = ({ status, expires }) => {
-  const expiryDate = parseISO(expires);
-  if (status === 'revoked') {
-    return <XCircle className="h-5 w-5 text-destructive" title="Status: Revoked" />;
-  }
-  if (isPast(expiryDate)) {
-    return <AlertTriangle className="h-5 w-5 text-orange-500" title="Status: Expired" />;
-  }
-  return <CheckCircle className="h-5 w-5 text-green-500" title="Status: Active" />;
-};
+type StatusVariant = 'active' | 'expired' | 'revoked';
 
-const getStatusAndExpiryText = (ca: CA): { text: string; isCritical: boolean } => {
+const getStatus = (ca: CA): { label: string; expiryText: string; variant: StatusVariant } => {
   const expiryDate = parseISO(ca.expires);
-  const isExpired = isPast(expiryDate);
-
-  if (ca.status === 'revoked') {
-    return { text: 'Revoked', isCritical: true };
-  }
-  if (isExpired) {
-    return { text: `Expired ${formatDistanceToNowStrict(expiryDate)} ago`, isCritical: true };
-  }
-  return { text: `Expires in ${formatDistanceToNowStrict(expiryDate)}`, isCritical: false };
+  if (ca.status === 'revoked') return { label: 'Revoked', expiryText: 'Revoked', variant: 'revoked' };
+  if (isPast(expiryDate)) return { label: 'Expired', expiryText: `Expired ${formatDistanceToNowStrict(expiryDate)} ago`, variant: 'expired' };
+  return { label: 'Active', expiryText: `Expires in ${formatDistanceToNowStrict(expiryDate)}`, variant: 'active' };
 };
 
+const accentBar: Record<StatusVariant, string> = {
+  active:  'bg-emerald-500',
+  expired: 'bg-orange-400',
+  revoked: 'bg-destructive',
+};
+
+const labelColor: Record<StatusVariant, string> = {
+  active:  'text-emerald-700 dark:text-emerald-400',
+  expired: 'text-orange-600 dark:text-orange-400',
+  revoked: 'text-destructive',
+};
 
 export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, className, onClick, allCryptoEngines }) => {
+  const { label, expiryText, variant } = getStatus(ca);
 
-  const cardBaseClasses = "rounded-lg border bg-primary/5 dark:bg-primary/10 border-blue-800/40 dark:border-blue-300/40 shadow-sm transition-shadow w-full";
-  const clickableClasses = onClick ? "hover:shadow-md hover:bg-primary/10 dark:hover:bg-primary/20 cursor-pointer" : "";
-
-  let IconComponent: React.ReactNode;
+  let icon: React.ReactNode;
   if (ca.kmsKeyId) {
     const engine = allCryptoEngines?.find(e => e.id === ca.kmsKeyId);
-    if (engine) {
-      IconComponent = <CryptoEngineViewer engine={engine} iconOnly className="h-6 w-6 flex-shrink-0" />;
-    } else {
-      IconComponent = <KeyRound className={cn("h-6 w-6 flex-shrink-0", "text-primary")} />;
-    }
+    icon = engine
+      ? <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4" />
+      : <KeyRound className="h-4 w-4 text-muted-foreground" />;
   } else {
-    IconComponent = <Landmark className={cn("h-6 w-6 flex-shrink-0", "text-primary")} />;
+    icon = <Landmark className="h-4 w-4 text-muted-foreground" />;
   }
 
-  const { text: statusText, isCritical } = getStatusAndExpiryText(ca);
-
-  const cardInnerContent = (
-    <div className={cn("flex items-center p-3")}>
-      <div className="p-2 flex-shrink-0 border-r border-border/50 pr-3 mr-3">
-        {IconComponent}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 truncate" title={ca.name}>
-          {ca.name}
-        </p>
-        <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")} title={statusText}>
-          {statusText}
-        </p>
-      </div>
-      <div className="flex-shrink-0 border-l border-border/50 pl-3 ml-3">
-        <StatusIcon status={ca.status} expires={ca.expires} />
-      </div>
-    </div>
-  );
-
-  if (onClick) {
-    return (
-      <button
-        data-ca-visualizer-card="true"
-        type="button"
-        onClick={() => onClick(ca)}
-        className={cn(cardBaseClasses, clickableClasses, className, "text-left")}
-        aria-label={`View details for ${ca.name}`}
-      >
-        {cardInnerContent}
-      </button>
-    );
-  }
+  const Comp = onClick ? 'button' : 'div';
 
   return (
-    <div data-ca-visualizer-card="true" className={cn(cardBaseClasses, className)}>
-      {cardInnerContent}
-    </div>
+    <Comp
+      data-ca-visualizer-card="true"
+      {...(onClick ? { type: 'button' as const, onClick: () => onClick(ca), 'aria-label': `Select ${ca.name}` } : {})}
+      className={cn(
+        'relative flex items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-card pl-3.5 pr-3 py-2.5 text-left shadow-sm w-full',
+        onClick && 'cursor-pointer transition-colors hover:bg-muted/40',
+        className
+      )}
+    >
+      {/* Status accent bar */}
+      <span className={cn('absolute inset-y-0 left-0 w-[3px]', accentBar[variant])} />
+
+      {/* Icon */}
+      <div className="mt-0.5 shrink-0">
+        {icon}
+      </div>
+
+      {/* Text */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium leading-snug text-foreground">{ca.name}</p>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{expiryText}</p>
+      </div>
+
+      {/* Status label */}
+      <span className={cn('mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide', labelColor[variant])}>
+        {label}
+      </span>
+    </Comp>
   );
 };

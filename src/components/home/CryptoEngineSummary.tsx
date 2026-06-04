@@ -46,7 +46,7 @@ export const CryptoEngineSummary: React.FC = () => {
                             Available engines for key management and operations.
                         </CardDescription>
                     </div>
-                    <Button variant="outline" size="icon" onClick={fetchEngines} disabled={isLoading}>
+                    <Button variant="secondary" size="icon" onClick={fetchEngines} disabled={isLoading}>
                         <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
                     </Button>
                 </div>

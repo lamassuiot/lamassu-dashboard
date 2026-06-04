@@ -12,9 +12,9 @@ import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2,
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
+import { Separator } from '@/components/ui/separator';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { formatISO, add, format } from 'date-fns';
@@ -23,7 +23,6 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
-import { SectionHeader } from '@/components/shared/FormComponents';
 import { CardSelector } from '@/components/shared/CardSelector';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,6 +31,7 @@ import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -443,283 +443,296 @@ export default function CreateCaGeneratePage() {
     setProfileMode('reuse');
   };
 
-  return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
-      </Button>
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Certificate Authorities', href: '/certificate-authorities' },
+    { label: 'New', href: '/certificate-authorities/new' },
+    { label: 'Generate' },
+  ];
 
-      <div className="space-y-6">
-        <div className="flex items-center space-x-3">
-          <KeyRound className="h-8 w-8 text-primary" />
+  return (
+    <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
+      <div className="w-[80%] mx-auto space-y-5 mb-8">
+      <div className="flex justify-end mb-4">
+        <Button variant="ghost" onClick={() => router.push('/certificate-authorities/new')} className="text-muted-foreground hover:text-foreground">
+          Change creation method <ArrowLeft className="ml-1.5 h-3.5 w-3.5 rotate-180" />
+        </Button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-0">
+
+        {/* ── Page header ── */}
+        <div className="pb-8 border-b">
+          <h1 className="text-2xl font-bold">Create New Certification Authority</h1>
+          <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+            Provision a new Root or Intermediate CA. A new cryptographic key pair will be generated and managed by LamassuIoT.
+          </p>
+        </div>
+
+        {/* ── Key Pair Generation ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
           <div>
-            <h1 className="text-2xl font-headline font-semibold">
-              Create New Certification Authority (New Key Pair)
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Provision a new Root or Intermediate Certification Authority. A new cryptographic key pair will be generated and managed by LamassuIoT.
-            </p>
+            <p className="font-semibold">Key Pair Generation</p>
+            <p className="text-sm text-muted-foreground mt-1">Select the crypto engine and algorithm for the new key pair.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label>Crypto Engine</Label>
+              <CryptoEngineSelector value={cryptoEngineId} onValueChange={setCryptoEngineId} disabled={isSubmitting} />
+              <p className="text-xs text-muted-foreground">Hardware or software engine that will manage this key.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="keyType">Key Type</Label>
+                <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
+                  <SelectTrigger id="keyType"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {selectedEngine?.supported_key_types.map(kt => (
+                      <SelectItem key={kt.type} value={kt.type}>{kt.type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Algorithm family (RSA or ECDSA).</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="keySpec">{keySpecLabel}</Label>
+                <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
+                  <SelectTrigger id="keySpec"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Bit length or curve for the selected algorithm.</p>
+              </div>
+            </div>
           </div>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-8">
-            <Card>
-              <SectionHeader icon={KeyRound} title="KMS: New Key Pair Generation settings" />
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="cryptoEngine">Crypto Engine</Label>
-                  <CryptoEngineSelector
-                    value={cryptoEngineId}
-                    onValueChange={setCryptoEngineId}
-                    disabled={isSubmitting}
-                    className="mt-1"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="keyType">Key Type</Label>
-                    <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
-                      <SelectTrigger id="keyType"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {selectedEngine?.supported_key_types.map(kt => (
-                          <SelectItem key={kt.type} value={kt.type}>{kt.type}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="keySpec">{keySpecLabel}</Label>
-                    <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
-                      <SelectTrigger id="keySpec"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <SectionHeader
-                icon={Shield}
-                title="CA Certificate Profile"
-                description="Optionally specify an issuance profile for the CA's own certificate. This is different from the default issuance profile used when issuing certificates."
-              />
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <CardSelector
-                    label="Profile Mode"
-                    value={caProfileMode}
-                    onChange={(v) => setCaProfileMode(v as 'none' | 'reuse' | 'inline')}
-                    disabled={isSubmitting}
-                    columns={3}
-                    options={[
-                      { value: 'none', label: 'No Profile', description: 'Use default settings', icon: Settings },
-                      { value: 'reuse', label: 'Reuse Profile', description: 'Select existing profile', icon: BookText },
-                      { value: 'inline', label: 'Define Inline', description: 'One-time profile definition', icon: Settings },
-                    ]}
-                  />
+        <Separator />
 
-                  {caProfileMode === 'reuse' && (
-                    <div className="space-y-4 pt-4 border-t">
-                      <div className="space-y-2">
-                        <Label htmlFor="ca-profile-select">CA Certificate Issuance Profile</Label>
-                        <Select 
-                          value={selectedCaProfileId || ''} 
-                          onValueChange={(v) => setSelectedCaProfileId(v)}
-                          disabled={isLoadingDependencies || isSubmitting}
-                        >
-                          <SelectTrigger id="ca-profile-select" className="w-full md:w-1/2">
-                            <SelectValue placeholder="Select a profile..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableProfiles.length > 0 ? (
-                              availableProfiles.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="none" disabled>No profiles available</SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {caProfileWarning && (
-                        <Alert variant="warning">
-                          <AlertTriangle className="h-4 w-4" />
-                          <AlertDescription>{caProfileWarning}</AlertDescription>
-                        </Alert>
-                      )}
-                      {selectedCaProfileId && availableProfiles.find(p => p.id === selectedCaProfileId) && (
-                        <div className="pt-2">
-                          <IssuanceProfileCard profile={availableProfiles.find(p => p.id === selectedCaProfileId)!} />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {caProfileMode === 'inline' && (
-                    <div className="pt-4 border-t space-y-4">
-                      <Alert>
-                        <Info className="h-4 w-4" />
-                        <AlertDescription>
-                          This is a simplified inline profile for the CA certificate. Subject values are taken from the CA creation form, and &quot;Sign as CA&quot; is automatically enabled.
-                        </AlertDescription>
-                      </Alert>
-                      <Form {...caProfileForm}>
-                        <div className="space-y-4">
-                          <SimplifiedInlineProfileForm form={caProfileForm} />
-                        </div>
-                      </Form>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <SectionHeader icon={Settings} title="CA Settings" />
-              <CardContent className="space-y-4">
-                <CardSelector
-                  label="CA Type"
-                  value={caType}
-                  onChange={handleCaTypeChange}
-                  disabled={isSubmitting}
-                  options={[
-                    { value: 'root', label: 'Root CA', description: 'Self-signed trust anchor. Top of the certificate chain.', icon: Shield },
-                    { value: 'intermediate', label: 'Intermediate CA', description: 'Signed by a parent CA. Issues end-entity certificates.', icon: BookText },
-                  ]}
-                />
-                {caType === 'intermediate' && (
-                  <>
-                    <div>
-                      <Label htmlFor="parentCa">Parent Certification Authority</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsParentCaModalOpen(true)}
-                        className="w-full justify-start text-left font-normal mt-1"
-                        id="parentCa"
-                        disabled={isLoadingDependencies || isSubmitting}
-                      >
-                        {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
-                      </Button>
-                      {selectedParentCa && (
-                        <div className="mt-2">
-                          <CaVisualizerCard ca={selectedParentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
-                        </div>
-                      )}
-                      {!selectedParentCa && <p className="text-xs text-destructive mt-1">A parent Certification Authority must be selected for intermediate CAs.</p>}
-                    </div>
-                  </>
+        {/* ── CA Settings ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">CA Settings</p>
+            <p className="text-sm text-muted-foreground mt-1">Define the CA type, identity, and chain relationship.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <CardSelector
+              label="CA Type"
+              value={caType}
+              onChange={handleCaTypeChange}
+              disabled={isSubmitting}
+              options={[
+                { value: 'root', label: 'Root CA', description: 'Self-signed trust anchor. Top of the certificate chain.', icon: Shield },
+                { value: 'intermediate', label: 'Intermediate CA', description: 'Signed by a parent CA. Issues end-entity certificates.', icon: BookText },
+              ]}
+            />
+            {caType === 'intermediate' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="parentCa">Parent Certification Authority</Label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsParentCaModalOpen(true)}
+                  className="w-full justify-start text-left font-normal"
+                  id="parentCa"
+                  disabled={isLoadingDependencies || isSubmitting}
+                >
+                  {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : "Select Parent Certification Authority..."}
+                </Button>
+                {selectedParentCa && (
+                  <CaVisualizerCard ca={selectedParentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
                 )}
-                {caType === 'root' && (
-                  <div>
-                    <Label htmlFor="issuerName">Issuer</Label>
-                    <Input id="issuerName" value="Self-signed" disabled className="mt-1 bg-muted/50" />
-                    <p className="text-xs text-muted-foreground mt-1">Root CAs are self-signed.</p>
-                  </div>
-                )}
-                <div>
-                  <Label htmlFor="caId">Certification Authority ID (generated)</Label>
-                  <Input id="caId" value={caId} readOnly className="mt-1 bg-muted/50" />
-                </div>
-                <div>
-                  <Label htmlFor="caName">Certification Authority Name (Subject Common Name)</Label>
-                  <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required className="mt-1" disabled={isSubmitting} />
-                  {!caName.trim() && <p className="text-xs text-destructive mt-1">Certification Authority Name (Common Name) cannot be empty.</p>}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <SectionHeader icon={Info} title="Subject Distinguished Name (DN)" />
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="country">Country (C)</Label>
-                    <Input id="country" value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g., US (2-letter code)" maxLength={2} className="mt-1" disabled={isSubmitting} />
-                  </div>
-                  <div>
-                    <Label htmlFor="stateProvince">State / Province (ST)</Label>
-                    <Input id="stateProvince" value={stateProvince} onChange={e => setStateProvince(e.target.value)} placeholder="e.g., California" className="mt-1" disabled={isSubmitting} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="locality">Locality (L)</Label>
-                    <Input id="locality" value={locality} onChange={e => setLocality(e.target.value)} placeholder="e.g., San Francisco" className="mt-1" disabled={isSubmitting} />
-                  </div>
-                  <div>
-                    <Label htmlFor="organization">Organization (O)</Label>
-                    <Input id="organization" value={organization} onChange={e => setOrganization(e.target.value)} placeholder="e.g., LamassuIoT Corp" className="mt-1" disabled={isSubmitting} />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="organizationalUnit">Organizational Unit (OU)</Label>
-                  <Input id="organizationalUnit" value={organizationalUnit} onChange={e => setOrganizationalUnit(e.target.value)} placeholder="e.g., Secure Devices Division" className="mt-1" disabled={isSubmitting} />
-                </div>
-                <p className="text-xs text-muted-foreground">The "Certification Authority Name" entered in CA Settings will be used as the Common Name (CN) for the subject.</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <SectionHeader icon={CalendarDays} title="Expiration Settings" />
-              <CardContent className="space-y-4">
-                {effectiveCaValidity ? (
-                  <div className="space-y-4">
-                    <Alert>
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        The CA certificate expiration is determined by the selected CA Certificate Profile.
-                      </AlertDescription>
-                    </Alert>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Validity Period</Label>
-                        <Input value={effectiveCaValidity.description} readOnly className="bg-muted/50" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Expiration Date</Label>
-                        <Input value={effectiveCaValidity.date || 'Calculated at creation'} readOnly className="bg-muted/50" />
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      The expiration settings from the CA Certificate Profile will be applied to this CA certificate.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <ExpirationInput idPrefix="ca-exp" label="CA Certificate Expiration" value={caExpiration} onValueChange={setCaExpiration} />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <SectionHeader icon={Shield} title="Default Issuance Profile" />
-              <CardContent>
-                <SigningProfileSelector
-                  profileMode={profileMode}
-                  onProfileModeChange={setProfileMode}
-                  availableProfiles={availableProfiles}
-                  isLoadingProfiles={isLoadingDependencies}
-                  selectedProfileId={selectedProfileId}
-                  onProfileIdChange={setSelectedProfileId}
-                  inlineModeEnabled={false}
-                  createModeEnabled={true}
-                  onProfileCreated={handleProfileCreated}
-                />
-              </CardContent>
-            </Card>
-
-            <div className="flex justify-end pt-4">
-              <Button type="submit" size="lg" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
-                {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
-              </Button>
+                {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
+              </div>
+            )}
+            {caType === 'root' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="issuerName">Issuer</Label>
+                <Input id="issuerName" value="Self-signed" disabled className="bg-muted/50" />
+                <p className="text-xs text-muted-foreground">Root CAs are self-signed.</p>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="caId">CA ID (auto-generated)</Label>
+              <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
             </div>
-          </form>
+            <div className="space-y-1.5">
+              <Label htmlFor="caName">CA Name (Common Name)</Label>
+              <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
+              {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}
+            </div>
+          </div>
         </div>
+
+        <Separator />
+
+        {/* ── Subject DN ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Subject Distinguished Name</p>
+            <p className="text-sm text-muted-foreground mt-1">Optional X.509 subject fields. The CA Name above becomes the Common Name (CN).</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="country">Country (C)</Label>
+                <Input id="country" value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g., US" maxLength={2} disabled={isSubmitting} />
+                <p className="text-xs text-muted-foreground">2-letter ISO country code.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="stateProvince">State / Province (ST)</Label>
+                <Input id="stateProvince" value={stateProvince} onChange={e => setStateProvince(e.target.value)} placeholder="e.g., California" disabled={isSubmitting} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="locality">Locality (L)</Label>
+                <Input id="locality" value={locality} onChange={e => setLocality(e.target.value)} placeholder="e.g., San Francisco" disabled={isSubmitting} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="organization">Organization (O)</Label>
+                <Input id="organization" value={organization} onChange={e => setOrganization(e.target.value)} placeholder="e.g., LamassuIoT Corp" disabled={isSubmitting} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="organizationalUnit">Organizational Unit (OU)</Label>
+              <Input id="organizationalUnit" value={organizationalUnit} onChange={e => setOrganizationalUnit(e.target.value)} placeholder="e.g., Secure Devices Division" disabled={isSubmitting} />
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── CA Certificate Profile ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">CA Certificate Profile</p>
+            <p className="text-sm text-muted-foreground mt-1">Optionally specify an issuance profile for the CA's own certificate. Different from the default issuance profile.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <CardSelector
+              label="Profile Mode"
+              value={caProfileMode}
+              onChange={(v) => setCaProfileMode(v as 'none' | 'reuse' | 'inline')}
+              disabled={isSubmitting}
+              columns={3}
+              options={[
+                { value: 'none', label: 'No Profile', description: 'Use default settings', icon: Settings },
+                { value: 'reuse', label: 'Reuse Profile', description: 'Select existing profile', icon: BookText },
+                { value: 'inline', label: 'Define Inline', description: 'One-time profile definition', icon: Settings },
+              ]}
+            />
+            {caProfileMode === 'reuse' && (
+              <div className="space-y-4 pt-4 border-t">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ca-profile-select">CA Certificate Issuance Profile</Label>
+                  <Select value={selectedCaProfileId || ''} onValueChange={(v) => setSelectedCaProfileId(v)} disabled={isLoadingDependencies || isSubmitting}>
+                    <SelectTrigger id="ca-profile-select" className="w-full md:w-1/2">
+                      <SelectValue placeholder="Select a profile..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableProfiles.length > 0
+                        ? availableProfiles.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)
+                        : <SelectItem value="none" disabled>No profiles available</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {caProfileWarning && (
+                  <Alert variant="warning">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{caProfileWarning}</AlertDescription>
+                  </Alert>
+                )}
+                {selectedCaProfileId && availableProfiles.find(p => p.id === selectedCaProfileId) && (
+                  <IssuanceProfileCard profile={availableProfiles.find(p => p.id === selectedCaProfileId)!} />
+                )}
+              </div>
+            )}
+            {caProfileMode === 'inline' && (
+              <div className="pt-4 border-t space-y-4">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    Simplified inline profile for the CA certificate. Subject values come from the CA creation form, and &quot;Sign as CA&quot; is automatically enabled.
+                  </AlertDescription>
+                </Alert>
+                <Form {...caProfileForm}>
+                  <div className="space-y-4">
+                    <SimplifiedInlineProfileForm form={caProfileForm} />
+                  </div>
+                </Form>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── Expiration ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Expiration</p>
+            <p className="text-sm text-muted-foreground mt-1">Define when the CA certificate expires. Overridden by the CA Certificate Profile when one is selected.</p>
+          </div>
+          <div className="lg:col-span-2">
+            {effectiveCaValidity ? (
+              <div className="space-y-4">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>The CA certificate expiration is determined by the selected CA Certificate Profile.</AlertDescription>
+                </Alert>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Validity Period</Label>
+                    <Input value={effectiveCaValidity.description} readOnly className="bg-muted/50" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Expiration Date</Label>
+                    <Input value={effectiveCaValidity.date || 'Calculated at creation'} readOnly className="bg-muted/50" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ExpirationInput idPrefix="ca-exp" label="CA Certificate Expiration" value={caExpiration} onValueChange={setCaExpiration} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── Default Issuance Profile ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Default Issuance Profile</p>
+            <p className="text-sm text-muted-foreground mt-1">Select or create the profile used by default when this CA issues certificates.</p>
+          </div>
+          <div className="lg:col-span-2">
+            <SigningProfileSelector
+              profileMode={profileMode}
+              onProfileModeChange={setProfileMode}
+              availableProfiles={availableProfiles}
+              isLoadingProfiles={isLoadingDependencies}
+              selectedProfileId={selectedProfileId}
+              onProfileIdChange={setSelectedProfileId}
+              inlineModeEnabled={false}
+              createModeEnabled={true}
+              onProfileCreated={handleProfileCreated}
+            />
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="flex justify-end pt-6">
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+            {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
+          </Button>
+        </div>
+      </form>
 
       <CaSelectorModal
         isOpen={isParentCaModalOpen}
@@ -734,6 +747,7 @@ export default function CreateCaGeneratePage() {
         currentSelectedCaId={selectedParentCa?.id}
         allCryptoEngines={allCryptoEngines}
       />
-    </div>
+      </div>
+    </BreadcrumbPage>
   );
 }

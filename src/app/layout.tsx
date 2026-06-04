@@ -10,7 +10,7 @@ import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   SidebarProvider,
   Sidebar,
@@ -25,13 +25,13 @@ import {
   useSidebar,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { jwtDecode } from 'jwt-decode';
@@ -62,6 +62,10 @@ import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
+import { Roboto, Inter } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 
 interface DecodedAccessToken {
@@ -70,25 +74,6 @@ interface DecodedAccessToken {
   };
 }
 
-const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
-  'certificates': "Certificates",
-  'certificate-authorities': "Certification Authorities",
-  'signing-profiles': "Issuance Profiles",
-  'registration-authorities': "Registration Authorities",
-  'verification-authorities': "Verification Authorities",
-  'new': "New",
-  'details': "Details",
-  'issue-certificate': "Issue Certificate",
-  'kms': "KMS",
-  'keys': "Keys",
-  'devices': "Devices",
-  'device-groups': "Device Groups",
-  'integrations': "Platform Integrations",
-  'crypto-engines': "Crypto Engines",
-  'alerts': "Alerts",
-  'tools': "Tools",
-  'certificate-viewer': "Certificate Viewer",
-};
 
 interface NavItem {
   href: string;
@@ -140,43 +125,6 @@ const navigationConfig: NavGroup[] = [
     ],
   },
 ];
-
-function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): BreadcrumbItem[] {
-  const pathSegments = pathname.split('/').filter(segment => segment);
-  const breadcrumbItems: BreadcrumbItem[] = [{ label: 'Home', href: '/' }];
-
-  if (pathname === '/') {
-    return [{ label: 'Home' }];
-  }
-
-  let currentHref = '';
-
-  for (let i = 0; i < pathSegments.length; i++) {
-    const segment = pathSegments[i];
-    let label = PATH_SEGMENT_TO_LABEL_MAP[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
-
-    currentHref += `/${segment}`;
-    const isLastSegment = i === pathSegments.length - 1;
-    let hrefWithQuery = currentHref;
-
-    if (segment === 'details') {
-      if (queryParams.get('caId')) hrefWithQuery += `?caId=${queryParams.get('caId')}`;
-      else if (queryParams.get('certificateId')) hrefWithQuery += `?certificateId=${queryParams.get('certificateId')}`;
-      else if (queryParams.get('keyId')) hrefWithQuery += `?keyId=${queryParams.get('keyId')}`;
-      else if (queryParams.get('deviceId')) hrefWithQuery += `?deviceId=${queryParams.get('deviceId')}`;
-    } else if (segment === 'issue-certificate' && queryParams.get('caId')) {
-      hrefWithQuery += `?caId=${queryParams.get('caId')}`;
-    }
-
-
-    if (isLastSegment) {
-      breadcrumbItems.push({ label });
-    } else {
-      breadcrumbItems.push({ label, href: hrefWithQuery });
-    }
-  }
-  return breadcrumbItems;
-}
 
 
 const LoadingState = () => (
@@ -255,7 +203,7 @@ const UnauthenticatedLayoutContent = () => {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button variant="ghost" size="sm" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
+          <Button variant="ghost" onClick={login} className="text-header-foreground hover:bg-header/80 hover:text-header-foreground">
             <LogIn className="mr-0 sm:mr-2 h-4 w-4" /> <span className="hidden sm:inline">Login</span>
           </Button>
         </div>
@@ -273,7 +221,7 @@ const UnauthenticatedLayoutContent = () => {
         <p className="text-lg text-muted-foreground mb-8 max-w-md">
           Securely manage your X.509 certificates and IoT device identities. Please log in to access the system.
         </p>
-        <Button onClick={login} size="lg" className="px-8 py-6 text-lg">
+        <Button onClick={login} className="px-8 py-6 text-lg">
           <LogIn className="mr-2 h-5 w-5" /> Login with Lamassu Identity
         </Button>
       </div>
@@ -285,22 +233,11 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
-  const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
-  const showGlobalBreadcrumbs =
-    !pathname.startsWith('/certificate-authorities/details') &&
-    !pathname.startsWith('/certificates/details') &&
-    !pathname.startsWith('/kms/keys/details') &&
-    !pathname.startsWith('/signing-profiles/edit') &&
-    !(pathname.startsWith('/registration-authorities/new') && !!searchParams.get('raId')) &&
-    !pathname.startsWith('/verification-authorities') &&
-    !pathname.startsWith('/devices/details') &&
-    !pathname.startsWith('/device-groups/details');
   let userRoles: string[] = [];
   if (user?.access_token) {
     try {
@@ -324,6 +261,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   };
 
   return (
+    <TooltipProvider>
     <SidebarProvider defaultOpen>
       <div className="flex flex-col h-screen bg-background text-foreground w-full">
         <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header text-header-foreground px-4 md:px-6 sticky top-0 z-30">
@@ -519,9 +457,10 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               </SidebarFooter>
             </Sidebar>
 
-            <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
-              {showGlobalBreadcrumbs && breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
-              {children}
+            <SidebarInset className="flex-1 overflow-y-auto flex flex-col">
+              <div className="flex-1 p-4 md:p-6 pb-8 md:pb-12">
+                {children}
+              </div>
               <CustomFooter />
             </SidebarInset>
           </div>
@@ -567,6 +506,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       <BackendStatusDialog isOpen={isStatusModalOpen} onOpenChange={setIsStatusModalOpen} />
       <VersionInfoDialog isOpen={isVersionModalOpen} onOpenChange={setIsVersionModalOpen} versionInfo={VERSION_INFO} />
     </SidebarProvider>
+    </TooltipProvider>
   );
 };
 
@@ -677,7 +617,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", inter.variable)}>
       <head>
         <Script src="/config.js" strategy="beforeInteractive" />
         <title>LamassuIoT Certificate Manager</title>

@@ -106,7 +106,7 @@ export const CaTableView: React.FC<CaTableViewProps> = ({ cas, router, allCrypto
 
                 {/* Status */}
                 <TableCell>
-                  <Badge variant="outline" className={cn('text-xs capitalize', STATUS_STYLES[ca.status])}>
+                  <Badge variant="secondary" className={cn('text-xs capitalize', STATUS_STYLES[ca.status])}>
                     {ca.status}
                   </Badge>
                 </TableCell>
@@ -176,7 +176,7 @@ export const CaTableView: React.FC<CaTableViewProps> = ({ cas, router, allCrypto
                   <div className="flex justify-end gap-1">
                     <Button
                       variant="ghost"
-                      size="sm"
+                     
                       className="h-7 px-2"
                       onClick={() => router.push(`/certificate-authorities/details?caId=${ca.id}`)}
                       title="Details"
@@ -185,7 +185,7 @@ export const CaTableView: React.FC<CaTableViewProps> = ({ cas, router, allCrypto
                     </Button>
                     <Button
                       variant="ghost"
-                      size="sm"
+                     
                       className="h-7 px-2"
                       onClick={() => router.push(`/certificate-authorities/issue-certificate?caId=${ca.id}`)}
                       title="Issue Certificate"

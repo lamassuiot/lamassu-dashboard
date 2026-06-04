@@ -101,7 +101,7 @@ export const BackendStatusCheck: React.FC = () => {
                             Health and version information for core backend services.
                         </CardDescription>
                     </div>
-                     <Button variant="outline" size="icon" onClick={fetchStatuses} disabled={isLoading}>
+                     <Button variant="secondary" size="icon" onClick={fetchStatuses} disabled={isLoading}>
                         <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
                      </Button>
                 </div>

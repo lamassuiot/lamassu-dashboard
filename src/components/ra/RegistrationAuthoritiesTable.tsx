@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,8 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { CaVisualizerCard } from '@/components/CaVisualizerCard';
-import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
+import { parseISO, isPast, formatDistanceToNowStrict } from 'date-fns';
+import type { ColumnConfig } from '@/components/ui/column-selector';
 
 interface SortConfig {
   column: SortableColumn;
@@ -39,6 +39,7 @@ interface RegistrationAuthoritiesTableProps {
   onDelete: (ra: ApiRaItem) => void;
   sortConfig: SortConfig | null;
   requestSort: (column: SortableColumn) => void;
+  columnVisibility: Record<string, boolean>;
 }
 
 const SortableTableHeader: React.FC<{
@@ -87,44 +88,12 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
   onDelete,
   sortConfig,
   requestSort,
+  columnVisibility,
 }) => {
   const router = useRouter();
 
-  // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
-    icon: true,
-    name: true,
-    registrationMode: true,
-    enrollmentCA: true,
-    authMode: true,
-    createdAt: true,
-  });
-
-  const columns: ColumnConfig[] = [
-    { id: 'icon', label: 'Icon', visible: columnVisibility.icon },
-    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
-    { id: 'registrationMode', label: 'Registration Mode', visible: columnVisibility.registrationMode },
-    { id: 'enrollmentCA', label: 'Enrollment CA', visible: columnVisibility.enrollmentCA },
-    { id: 'authMode', label: 'Auth Mode', visible: columnVisibility.authMode },
-    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
-  ];
-
-  const handleColumnToggle = (columnId: string) => {
-    setColumnVisibility((prev) => ({
-      ...prev,
-      [columnId]: !prev[columnId],
-    }));
-  };
-
   return (
-    <div className="w-full space-y-4">
-      <div className="flex justify-end mb-2">
-        <ColumnSelector
-          columns={columns}
-          onColumnToggle={handleColumnToggle}
-          align="end"
-        />
-      </div>
+    <div className="w-full">
       <div className="overflow-x-auto">
         <Table>
         <TableHeader>
@@ -186,20 +155,34 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                 <TableCell className="max-w-[280px]">
                   {(() => {
                     const ca = findCaById(ra.settings.enrollment_settings.enrollment_ca, allCAs);
-                    return ca ? (
-                      <CaVisualizerCard 
-                        ca={ca} 
-                        allCryptoEngines={allCryptoEngines}
-                      onClick={(selectedCa) => router.push(`/certificate-authorities/details?caId=${selectedCa.id}`)}
-                      className="min-w-0 !bg-transparent !border-0 !shadow-none hover:!bg-muted/50"
-                    />
-                  ) : (
-                    <span className="text-muted-foreground text-sm">
-                      CA not found: {ra.settings.enrollment_settings.enrollment_ca}
-                    </span>
-                  );
-                })()}
-              </TableCell>
+                    if (!ca) return <span className="text-muted-foreground text-sm">—</span>;
+                    const expiryDate = parseISO(ca.expires);
+                    const isRevoked = ca.status === 'revoked';
+                    const isExpired = !isRevoked && isPast(expiryDate);
+                    const statusLabel = isRevoked ? 'Revoked' : isExpired ? 'Expired' : 'Active';
+                    const statusClass = isRevoked
+                      ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20'
+                      : isExpired
+                      ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20'
+                      : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
+                    const expiryText = isRevoked ? null : isExpired
+                      ? `Expired ${formatDistanceToNowStrict(expiryDate)} ago`
+                      : `Expires in ${formatDistanceToNowStrict(expiryDate)}`;
+                    return (
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/certificate-authorities/details?caId=${ca.id}`)}
+                          className="text-sm font-medium text-primary hover:underline truncate"
+                        >
+                          {ca.name}
+                        </button>
+                        <Badge variant="secondary" className={`shrink-0 text-xs ${statusClass}`}>{statusLabel}</Badge>
+                        {expiryText && <span className="text-xs text-muted-foreground shrink-0">{expiryText}</span>}
+                      </div>
+                    );
+                  })()}
+                </TableCell>
               )}
               {columnVisibility.authMode && (
                 <TableCell className="hidden lg:table-cell">
@@ -219,7 +202,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                       <span className="sr-only">More actions</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuItem onClick={() => onEdit(ra.id)}>
                       <Edit className="mr-2 h-4 w-4" />
                       <span>Edit</span>
@@ -239,7 +222,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                         <span>EST (RFC-7030)</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuPortal>
-                        <DropdownMenuSubContent>
+                        <DropdownMenuSubContent className="w-48">
                           <DropdownMenuItem onClick={() => onOpenEnrollModal(ra)}>
                             <span>Enroll...</span>
                           </DropdownMenuItem>

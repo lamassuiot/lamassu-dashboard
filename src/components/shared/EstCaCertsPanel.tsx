@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CodeBlock } from '@/components/shared/CodeBlock';
@@ -74,7 +73,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className={cn('w-full p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl flex flex-col', className)}>
+      <SheetContent side="right" className={cn('p-0 flex flex-col', className)} style={{ width: '50vw', maxWidth: '50vw' }}>
         <SheetHeader className="border-b px-6 py-5 text-left">
           <SheetTitle className="flex items-center">
             <FileText className="mr-2 h-5 w-5 text-primary" />
@@ -106,10 +105,10 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
               <TabsContent value="pem" className="mt-4 h-[calc(100%-3rem)]">
                 <ScrollArea className="h-full pr-2">
                   <div className="space-y-3">
-                    <Alert>
-                      <AlertDescription>Obtain CA certs using cURL</AlertDescription>
-                      <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPem}</pre>
-                    </Alert>
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Obtain CA certs using cURL</p>
+                      <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPem}</pre>
+                    </div>
                     <CodeBlock content={pemCerts} />
                   </div>
                 </ScrollArea>
@@ -118,10 +117,10 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
               <TabsContent value="pkcs7" className="mt-4 h-[calc(100%-3rem)]">
                 <ScrollArea className="h-full pr-2">
                   <div className="space-y-3">
-                    <Alert>
-                      <AlertDescription>Obtain CA certs using cURL</AlertDescription>
-                      <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPkcs7}</pre>
-                    </Alert>
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Obtain CA certs using cURL</p>
+                      <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{curlPkcs7}</pre>
+                    </div>
                     <CodeBlock content={pkcs7Certs} />
                   </div>
                 </ScrollArea>
@@ -131,7 +130,7 @@ export const EstCaCertsPanel: React.FC<EstCaCertsPanelProps> = ({
         </div>
 
         <SheetFooter className="border-t px-6 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>Close</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
