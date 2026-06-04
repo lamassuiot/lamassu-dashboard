@@ -185,7 +185,7 @@ export function VaSettingsCard({
           )}
         </div>
 
-        <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+        <div className="flex flex-row items-center justify-between gap-3">
           <div className="space-y-0.5">
             <Label htmlFor="va-regenerateOnRevoke" className="flex items-center">
               <RefreshCw className="mr-2 h-4 w-4 text-muted-foreground" />

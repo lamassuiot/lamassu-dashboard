@@ -146,7 +146,7 @@ export default function DeviceGroupDetailsClient() {
 
   return (
     <BreadcrumbPage
-      className="space-y-5"
+      className="space-y-2"
       items={[
           { label: 'Home', href: '/' },
           { label: 'Device Groups', href: '/device-groups' },
@@ -173,16 +173,16 @@ export default function DeviceGroupDetailsClient() {
     >
 
       {/* Hero */}
-      <div className="pb-5">
-        <div className="flex items-start gap-4">
+      <div className="pb-0.5">
+        <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/5">
             <Users className="h-6 w-6 text-primary" />
           </div>
 
-          <div className="min-w-0 space-y-2">
+          <div className="min-w-0 space-y-1">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">{group.name}</h1>
-              <div className="mt-1 flex items-center gap-1.5">
+              <div className="mt-0.5 flex items-center gap-1.5">
                 <span className="text-xs font-medium text-muted-foreground">ID</span>
                 <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
                   {group.id}
