@@ -27,6 +27,8 @@ export interface Policy {
   name: string;
   description: string;
   rules: Rule[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Principal Auth Config Types

@@ -296,12 +296,14 @@ function PolicyDetailsContent() {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Principals</p>
             <p className="text-sm mt-0.5">{stats ? stats.principalCount : '—'}</p>
           </div>
-          {stats?.lastModified && (
-            <div className="pl-6">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Modified</p>
-              <DateDisplay date={stats.lastModified} formatString="MMM dd, yyyy" className="text-sm mt-0.5" highlightExpired={false} />
-            </div>
-          )}
+          <div className="px-6">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</p>
+            <DateDisplay date={policy.createdAt} className="text-sm mt-0.5" />
+          </div>
+          <div className="pl-6">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Updated</p>
+            <DateDisplay date={policy.updatedAt} className="text-sm mt-0.5" />
+          </div>
         </div>
       </div>
 

@@ -156,7 +156,6 @@ const navigationConfig: NavGroup[] = [
     items: [
       { href: '/authz/principals', label: 'Principals', icon: UserCheck },
       { href: '/authz/policies', label: 'Policies', icon: Lock },
-      { href: '/authz/schema', label: 'Schema', icon: Network },
       { href: '/authz/test', label: 'Authorization Test', icon: TestTube2 },
     ],
   },

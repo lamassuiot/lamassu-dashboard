@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -45,6 +44,7 @@ import { cn } from '@/lib/utils';
 import { listPolicies, deletePolicy } from '@/lib/authz-api';
 import type { Policy } from '@/types/authz';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DateDisplay } from '@/components/shared/DateDisplay';
 
 export default function PoliciesPage() {
   const router = useRouter();
@@ -157,7 +157,8 @@ export default function PoliciesPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Rules</TableHead>
+                  <TableHead className="text-center">Created</TableHead>
+                  <TableHead className="text-center">Updated</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -180,10 +181,11 @@ export default function PoliciesPage() {
                         <span className="text-sm text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="text-xs">
-                        {policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'}
-                      </Badge>
+                    <TableCell className="text-center">
+                      <DateDisplay date={policy.createdAt} showRelative className="items-center" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <DateDisplay date={policy.updatedAt} showRelative className="items-center" />
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
