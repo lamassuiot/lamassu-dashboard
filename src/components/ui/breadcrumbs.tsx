@@ -23,9 +23,7 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
     <nav
       aria-label="Breadcrumb"
       className={cn(
-        // escape SidebarInset p-4/p-6 on all sides to go edge-to-edge at top
-        '-mx-4 md:-mx-6 -mt-4 md:-mt-6',
-        'flex h-9 items-center overflow-hidden border-b bg-background px-4 md:px-6 mb-4',
+        'flex h-9 items-center border-b bg-background mb-4',
         className
       )}
     >

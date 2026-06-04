@@ -525,9 +525,11 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               </SidebarFooter>
             </Sidebar>
 
-            <SidebarInset className="flex-1 overflow-y-auto p-4 md:p-6 pb-8 md:pb-12">
-              {showGlobalBreadcrumbs && breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} />}
-              {children}
+            <SidebarInset className="flex-1 overflow-y-auto flex flex-col">
+              {showGlobalBreadcrumbs && breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} className="px-4 md:px-6" />}
+              <div className="flex-1 p-4 md:p-6 pb-8 md:pb-12">
+                {children}
+              </div>
               <CustomFooter />
             </SidebarInset>
           </div>

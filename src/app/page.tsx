@@ -525,7 +525,7 @@ export default function HomePage() {
           <p className="font-medium">Unable to load dashboard</p>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">{error}</p>
-        <Button className="mt-4" onClick={loadDashboard} variant="outline">
+        <Button className="mt-4" onClick={loadDashboard} variant="secondary">
           <RefreshCw className="mr-2 h-4 w-4" />
           Retry
         </Button>
@@ -591,19 +591,19 @@ export default function HomePage() {
               Create CA
             </a>
           </Button>
-          <Button variant="outline" className="gap-2" asChild>
+          <Button variant="secondary" className="gap-2" asChild>
             <a href="/certificates/create">
               <FilePlus className="h-4 w-4" />
               Issue Certificate
             </a>
           </Button>
-          <Button variant="outline" className="gap-2" asChild>
+          <Button variant="secondary" className="gap-2" asChild>
             <a href="/registration-authorities/new">
               <Wifi className="h-4 w-4" />
               Enroll Device
             </a>
           </Button>
-          <Button variant="outline" className="gap-2" asChild>
+          <Button variant="secondary" className="gap-2" asChild>
             <a href="/certificates">
               <FileBadge className="h-4 w-4" />
               View CRLs
