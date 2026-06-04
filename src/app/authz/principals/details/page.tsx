@@ -451,11 +451,11 @@ function PrincipalDetailsContent() {
         <div className="flex divide-x pt-3 pb-3 border-b">
           <div className="pr-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</p>
-            <DateDisplay date={principal.createdAt} formatString="MMM dd, yyyy" className="text-sm mt-0.5" highlightExpired={false} />
+            <DateDisplay date={principal.createdAt} className="text-sm mt-0.5" highlightExpired={false} />
           </div>
           <div className="px-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Updated</p>
-            <DateDisplay date={principal.updatedAt} formatString="MMM dd, yyyy" className="text-sm mt-0.5" highlightExpired={false} />
+            <DateDisplay date={principal.updatedAt} className="text-sm mt-0.5" highlightExpired={false} />
           </div>
           <div className="pl-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Assigned Policies</p>
@@ -543,7 +543,6 @@ function PrincipalDetailsContent() {
                     <TableCell>
                       <DateDisplay
                         date={grantedPolicy.grantedAt}
-                        formatString="MMM dd, yyyy"
                         className="text-xs text-muted-foreground"
                         highlightExpired={false}
                       />
