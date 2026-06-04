@@ -407,63 +407,6 @@ export default function CertificateAuthorityDetailsClient() {
           ),
         },
       ]}
-      actions={
-          <div className="flex items-center gap-2">
-            {isCaOnHold ? (
-              <Button variant="secondary" className="gap-2" onClick={handleReactivateCA}>
-                <ShieldAlert className="h-4 w-4" /> Re-activate
-              </Button>
-            ) : caDetails.status !== 'revoked' ? (
-              <Button
-                variant="secondary"
-               
-                className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-                onClick={handleCARevocation}
-                disabled={isRevoking}
-              >
-                {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
-                {isRevoking ? 'Revoking…' : 'Revoke'}
-              </Button>
-            ) : (
-              <Button
-                variant="default"
-                className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-                onClick={handleDeleteCA}
-                disabled={isDeleting}
-              >
-                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                {isDeleting ? 'Deleting…' : 'Delete'}
-              </Button>
-            )}
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" className="px-2.5">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
-                  <Shield className="mr-2 h-4 w-4" />
-                  Validation Authority
-                </DropdownMenuItem>
-                {caDetails.status !== 'revoked' && (
-                  <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Reissue CA
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
-                  disabled={!caIsActive}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Issue Certificate
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        }
       >
 
       {/* ── Hero + Tabs (flush, no space-y gap between them) ── */}
@@ -557,10 +500,67 @@ export default function CertificateAuthorityDetailsClient() {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="xl:flex-1 xl:pl-6 xl:border-l">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Issued Certificates</p>
-            <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
+          {/* Actions + Stats */}
+          <div className="flex flex-col gap-4 xl:flex-1 xl:pl-6 xl:border-l">
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 xl:justify-end">
+              {isCaOnHold ? (
+                <Button variant="secondary" className="gap-2" onClick={handleReactivateCA}>
+                  <ShieldAlert className="h-4 w-4" /> Re-activate
+                </Button>
+              ) : caDetails.status !== 'revoked' ? (
+                <Button
+                  variant="secondary"
+                  className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+                  onClick={handleCARevocation}
+                  disabled={isRevoking}
+                >
+                  {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+                  {isRevoking ? 'Revoking…' : 'Revoke'}
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                  onClick={handleDeleteCA}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  {isDeleting ? 'Deleting…' : 'Delete'}
+                </Button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" className="px-2.5">
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onClick={() => setActiveTab('validation-authority')}>
+                    <Shield className="mr-2 h-4 w-4" /> Validation Authority
+                  </DropdownMenuItem>
+                  {caDetails.status !== 'revoked' && (
+                    <DropdownMenuItem onClick={handleReissueCA} disabled={isReissuing}>
+                      <RefreshCw className="mr-2 h-4 w-4" /> Reissue CA
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => routerHook.push(`/certificate-authorities/issue-certificate?caId=${caDetails.id}`)}
+                    disabled={!caIsActive}
+                  >
+                    <FileText className="mr-2 h-4 w-4" /> Issue Certificate
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Stats */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Issued Certificates</p>
+              <CaStatsDisplay stats={caStats} isLoading={isLoadingStats} error={errorStats} />
+            </div>
+
           </div>
 
         </div>

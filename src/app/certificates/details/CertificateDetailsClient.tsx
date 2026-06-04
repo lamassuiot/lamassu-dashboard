@@ -435,46 +435,6 @@ export default function CertificateDetailsClient() { // Renamed component
           ),
         },
       ]}
-      actions={
-        <div className="flex items-center gap-2">
-          {isOnHold ? (
-            <Button variant="secondary" className="gap-2" onClick={handleReactivate}>
-              <ShieldCheck className="h-4 w-4" /> Re-activate
-            </Button>
-          ) : statusText !== 'REVOKED' ? (
-            <Button
-              variant="secondary"
-
-              className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-              onClick={handleOpenRevokeModal}
-              disabled={isRevoking}
-            >
-              {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
-              {isRevoking ? 'Revoking…' : 'Revoke'}
-            </Button>
-          ) : null}
-
-          {canDelete && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" className="px-2.5">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => setIsDeleteModalOpen(true)}
-                  disabled={isDeleting}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Certificate
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      }
     >
 
       <div className="flex flex-col">
@@ -550,9 +510,49 @@ export default function CertificateDetailsClient() { // Renamed component
             </div>
           </div>
 
-          {/* Validity timeline */}
+          {/* Actions + Validity */}
           {validityInfo && (
-            <div className="xl:flex-1 xl:pl-6 xl:border-l rounded-lg border bg-muted/30 px-4 py-3 space-y-2 xl:rounded-none xl:border-0 xl:border-l xl:bg-transparent xl:px-0 xl:pl-6">
+            <div className="flex flex-col gap-4 xl:flex-1 xl:pl-6 xl:border-l">
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 xl:justify-end">
+                {isOnHold ? (
+                  <Button variant="secondary" className="gap-2" onClick={handleReactivate}>
+                    <ShieldCheck className="h-4 w-4" /> Re-activate
+                  </Button>
+                ) : statusText !== 'REVOKED' ? (
+                  <Button
+                    variant="secondary"
+                    className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+                    onClick={handleOpenRevokeModal}
+                    disabled={isRevoking}
+                  >
+                    {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+                    {isRevoking ? 'Revoking…' : 'Revoke'}
+                  </Button>
+                ) : null}
+                {canDelete && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" className="px-2.5">
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setIsDeleteModalOpen(true)}
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Certificate
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+
+              {/* Validity timeline */}
+              <div className="rounded-lg border bg-muted/30 px-4 py-3 space-y-2 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-0">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Validity Period</span>
                 <span className={cn(
@@ -599,6 +599,7 @@ export default function CertificateDetailsClient() { // Renamed component
                   <DateDisplay date={certificateDetails.validTo} highlightExpired className="text-xs items-end" />
                 </div>
               </div>
+            </div>
             </div>
           )}
 
