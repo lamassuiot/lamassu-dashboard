@@ -39,6 +39,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
         {cas.map(ca => (
           <div
             key={`vis-item-for-${ca.id}`}
+            style={{ width: '220px' }}
             ref={el => {
               if (el) {
                 hiddenItemsRef.current.set(ca.id, el);
@@ -160,26 +161,23 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
   return (
     <>
       {hiddenItemElements}
-      <Card ref={cardRef} className={cn("flex h-full w-full flex-col bg-[--homepage-card-background] text-primary-foreground shadow-lg", isFullscreen && "fixed inset-0 z-50")}>
-        <CardHeader className="flex flex-row items-start justify-between">
+      <Card ref={cardRef} className={cn("flex h-full w-full flex-col", isFullscreen && "fixed inset-0 z-50")}>
+        <CardHeader className="flex flex-row items-start justify-between pb-3">
           <div>
-            <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
-            <CardDescription className="text-primary-foreground/80">
+            <CardTitle className="text-base font-semibold">Certification Authority Expiry Timeline</CardTitle>
+            <CardDescription>
               Visual timeline of Certification Authority expiry dates. Click an item to view details.
             </CardDescription>
           </div>
-           <div className="flex items-center space-x-2">
-            <div className="hidden sm:flex items-center space-x-1 rounded-md bg-primary-foreground/10 p-1">
-                <Button variant="ghost" onClick={() => handleZoom('3m')} className="h-7 px-2 text-xs text-primary-foreground/80 hover:bg-primary-foreground/20 hover:text-primary-foreground">3m</Button>
-                <Button variant="ghost" onClick={() => handleZoom('1y')} className="h-7 px-2 text-xs text-primary-foreground/80 hover:bg-primary-foreground/20 hover:text-primary-foreground">1y</Button>
-                <Button variant="ghost" onClick={() => handleZoom('5y')} className="h-7 px-2 text-xs text-primary-foreground/80 hover:bg-primary-foreground/20 hover:text-primary-foreground">5y</Button>
-                <Button variant="ghost" onClick={() => handleZoom('10y')} className="h-7 px-2 text-xs text-primary-foreground/80 hover:bg-primary-foreground/20 hover:text-primary-foreground">10y</Button>
-                <Button variant="ghost" onClick={() => handleZoom('25y')} className="h-7 px-2 text-xs text-primary-foreground/80 hover:bg-primary-foreground/20 hover:text-primary-foreground">25y</Button>
-                <Button variant="ghost" onClick={() => handleZoom('50y')} className="h-7 px-2 text-xs text-primary-foreground/80 hover:bg-primary-foreground/20 hover:text-primary-foreground">50y</Button>
+          <div className="flex items-center gap-1.5">
+            <div className="hidden sm:flex items-center gap-0.5 rounded-md bg-muted p-1">
+              {['3m','1y','5y','10y','25y','50y'].map(z => (
+                <Button key={z} variant="ghost" onClick={() => handleZoom(z as any)} className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground">{z}</Button>
+              ))}
             </div>
-            <Button variant="ghost" size="icon" onClick={handleFullscreenToggle} className="text-primary-foreground hover:bg-primary-foreground/20 focus-visible:ring-primary-foreground">
-                {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-                <span className="sr-only">Toggle Fullscreen</span>
+            <Button variant="ghost" size="icon" onClick={handleFullscreenToggle} className="h-8 w-8 text-muted-foreground hover:text-foreground">
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              <span className="sr-only">Toggle Fullscreen</span>
             </Button>
           </div>
         </CardHeader>

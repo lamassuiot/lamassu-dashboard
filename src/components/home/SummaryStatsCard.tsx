@@ -38,19 +38,19 @@ export const SummaryStatsCard: React.FC<SummaryStatsCardProps> = ({ stats, isLoa
           tabIndex={0}
           onClick={() => router.push(href)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(href); } }}
-          className="cursor-pointer transition-all hover:shadow-md hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          className="cursor-pointer transition-colors hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
           <CardContent className="p-5">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 rounded-xl bg-primary/10 p-2.5">
+            <div className="flex items-center gap-3">
+              <div className="shrink-0 rounded-md bg-primary/10 p-2">
                 <Icon className="h-5 w-5 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+                <p className="truncate text-xs text-muted-foreground">{label}</p>
                 {isLoading ? (
-                  <Skeleton className="mt-1.5 h-8 w-16" />
+                  <Skeleton className="mt-1 h-7 w-12" />
                 ) : (
-                  <p className="mt-0.5 text-3xl font-bold tabular-nums leading-none">
+                  <p className="mt-0.5 text-2xl font-semibold tabular-nums leading-none">
                     {stats[key]?.toLocaleString() ?? '—'}
                   </p>
                 )}

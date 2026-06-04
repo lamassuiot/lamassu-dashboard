@@ -511,6 +511,17 @@
     padding: 0 !important;
   }
 
+  /* Restore connecting line and dot that vis-timeline adds as .vis-item siblings */
+  .vis-item.vis-line {
+    border-left-color: hsl(var(--primary) / 0.5) !important;
+    border-left-width: 2px !important;
+  }
+
+  .vis-item.vis-dot {
+    border-color: hsl(var(--primary)) !important;
+    border-width: 4px !important;
+  }
+
   /* Group labels */
   .vis-labelset .vis-label {
     @apply font-semibold;

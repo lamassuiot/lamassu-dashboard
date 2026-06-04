@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Loader2 } from 'lucide-react';
 import { fetchDeviceStats } from '@/lib/devices-api';
 
@@ -14,7 +14,7 @@ interface ChartData {
 }
 
 const statusConfig: { [key: string]: { label: string; color: string } } = {
-  ACTIVE:           { label: 'Active',           color: '#22c55e' },
+  ACTIVE:           { label: 'Active',           color: 'rgb(34, 197, 94)' },
   NO_IDENTITY:      { label: 'No Identity',       color: '#3b82f6' },
   DECOMMISSIONED:   { label: 'Decommissioned',    color: '#9ca3af' },
   EXPIRING_SOON:    { label: 'Expiring Soon',     color: '#f97316' },
@@ -23,16 +23,21 @@ const statusConfig: { [key: string]: { label: string; color: string } } = {
   EXPIRED:          { label: 'Expired',           color: '#8b5cf6' },
 };
 
-const CustomTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.length) return null;
-  const { name, value } = payload[0].payload;
+const renderLegend = (props: any) => {
+  const { payload } = props;
   return (
-    <div className="rounded-lg border bg-popover px-3 py-2 text-sm shadow-md">
-      <p className="font-medium">{name}</p>
-      <p className="text-muted-foreground">{value.toLocaleString()} devices</p>
-    </div>
+    <ul className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1 mt-4">
+      {payload.map((entry: any, index: number) => (
+        <li key={`item-${index}`} className="flex items-center space-x-1.5">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+          <span className="text-xs text-muted-foreground">{entry.value}</span>
+        </li>
+      ))}
+    </ul>
   );
 };
+
+const RADIAN = Math.PI / 180;
 
 export function DeviceStatusChartCard() {
   const [chartData, setChartData] = useState<ChartData[] | null>(null);
@@ -56,83 +61,106 @@ export function DeviceStatusChartCard() {
             .filter(d => d.value > 0),
         );
       } catch (err: any) {
-        setError(err.message ?? 'Failed to load device status.');
+        setError(err.message ?? 'Failed to load device status data.');
       } finally {
         setIsLoading(false);
       }
     })();
   }, []);
 
+  const renderCustomizedLabel = (props: any) => {
+    const { cx, cy, midAngle, outerRadius, fill, percent } = props;
+    if (percent < 0.05) return null;
+    const sin = Math.sin(-RADIAN * midAngle);
+    const cos = Math.cos(-RADIAN * midAngle);
+    const sx = cx + outerRadius * cos;
+    const sy = cy + outerRadius * sin;
+    const mx = cx + (outerRadius + 15) * cos;
+    const my = cy + (outerRadius + 15) * sin;
+    const ex = mx + (cos >= 0 ? 1 : -1) * 12;
+    const ey = my;
+    const textAnchor = cos >= 0 ? 'start' : 'end';
+    return (
+      <g>
+        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke="currentColor" strokeOpacity={0.4} fill="none" />
+        <circle cx={sx} cy={sy} r={2} fill={fill} stroke="none" />
+        <text x={ex + (cos >= 0 ? 1 : -1) * 4} y={ey} textAnchor={textAnchor} fill="currentColor" dy=".35em" className="text-xs font-medium fill-muted-foreground">
+          {`${(percent * 100).toFixed(0)}%`}
+        </text>
+      </g>
+    );
+  };
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const { name, value } = payload[0].payload;
+    return (
+      <div className="rounded-lg border bg-popover p-2.5 text-sm text-popover-foreground shadow-md">
+        <p className="font-bold">{`${name}: ${value}`}</p>
+      </div>
+    );
+  };
+
   return (
     <Card className="flex h-full w-full flex-col">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Device Status</CardTitle>
-        <CardDescription>Current status distribution across all managed devices.</CardDescription>
+        <CardTitle className="text-base font-semibold">Device Status Overview</CardTitle>
+        <CardDescription>A summary of all managed devices by their current status.</CardDescription>
       </CardHeader>
 
-      <CardContent className="flex flex-1 flex-col">
+      <CardContent className="flex-1">
         {isLoading && (
-          <div className="flex h-64 flex-col items-center justify-center gap-2 text-muted-foreground">
+          <div className="flex h-[320px] flex-col items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="h-8 w-8 animate-spin" />
-            <span className="text-sm">Loading…</span>
+            <span className="text-sm">Loading chart data…</span>
           </div>
         )}
 
         {!isLoading && error && (
-          <div className="flex h-64 items-center justify-center">
-            <p className="text-sm text-destructive">{error}</p>
+          <div className="flex h-[320px] items-center justify-center">
+            <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">Error: {error}</p>
           </div>
         )}
 
         {!isLoading && !error && chartData && chartData.length > 0 && (
-          <>
-            {/* Donut */}
-            <div className="relative h-52 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%" cy="50%"
-                    innerRadius="60%" outerRadius="82%"
-                    dataKey="value"
-                    strokeWidth={2}
-                    stroke="hsl(var(--card))"
-                  >
-                    {chartData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+          <div className="relative h-[320px] w-full">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%" cy="50%"
+                  labelLine={false}
+                  label={renderCustomizedLabel}
+                  outerRadius="85%"
+                  innerRadius="65%"
+                  dataKey="value"
+                  stroke="hsl(var(--card))"
+                  strokeWidth={2}
+                >
+                  {chartData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend content={renderLegend} verticalAlign="bottom" />
+              </PieChart>
+            </ResponsiveContainer>
 
-              {/* Centre label */}
-              {totalDevices !== null && (
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold tabular-nums">{totalDevices.toLocaleString()}</span>
-                  <span className="text-xs text-muted-foreground">Total</span>
-                </div>
-              )}
-            </div>
-
-            {/* Legend */}
-            <div className="mt-4 space-y-1.5">
-              {chartData.map(item => (
-                <div key={item.name} className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="truncate text-xs text-muted-foreground">{item.name}</span>
-                  </div>
-                  <span className="text-xs font-semibold tabular-nums">{item.value.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          </>
+            {totalDevices !== null && (
+              <div
+                className="pointer-events-none absolute left-1/2 flex flex-col items-center justify-center"
+                style={{ top: 'calc(50% - 15px)', transform: 'translateX(-50%) translateY(-50%)' }}
+              >
+                <span className="text-3xl font-bold tabular-nums">{totalDevices}</span>
+                <span className="text-xs text-muted-foreground">Total Devices</span>
+              </div>
+            )}
+          </div>
         )}
 
         {!isLoading && !error && (!chartData || chartData.length === 0) && (
-          <div className="flex h-64 items-center justify-center">
-            <p className="text-sm text-muted-foreground">No device data available.</p>
+          <div className="flex h-[320px] items-center justify-center">
+            <p className="text-sm text-muted-foreground">No device data available to display.</p>
           </div>
         )}
       </CardContent>
