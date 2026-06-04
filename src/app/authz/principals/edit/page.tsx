@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,14 +15,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Loader2, AlertCircle, Info, Plus, Trash2 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { ArrowLeft, Loader2, AlertCircle, Info, Plus, Trash2, ShieldCheck } from 'lucide-react';
 import { getPrincipal, updatePrincipal } from '@/lib/authz-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
-import {
-  normalizeX509AuthConfig,
-} from '@/lib/x509-auth-config';
+import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import type {
   Principal,
   PrincipalType,
@@ -81,9 +80,7 @@ function EditPrincipalContent() {
   }, [isAuthenticated, user?.access_token]);
 
   const handleOpenCaSelector = async () => {
-    if (allCAs.length === 0) {
-      await loadCAs();
-    }
+    if (allCAs.length === 0) await loadCAs();
     setIsCaSelectorOpen(true);
   };
 
@@ -94,9 +91,7 @@ function EditPrincipalContent() {
 
   useEffect(() => {
     const recalculateCaTrustValue = async () => {
-      if (!selectedCa) {
-        return;
-      }
+      if (!selectedCa) return;
 
       if (caTrustIdentityType === 'authority_key_id') {
         setCaTrustValue((selectedCa.authorityKeyId || '').trim());
@@ -117,21 +112,13 @@ function EditPrincipalContent() {
   }, [caTrustIdentityType, selectedCa]);
 
   const deriveCaTrustValue = async (): Promise<string> => {
-    if (!selectedCa) {
-      return caTrustValue.trim();
-    }
-
-    if (caTrustIdentityType === 'authority_key_id') {
-      return (selectedCa.authorityKeyId || '').trim();
-    }
-
+    if (!selectedCa) return caTrustValue.trim();
+    if (caTrustIdentityType === 'authority_key_id') return (selectedCa.authorityKeyId || '').trim();
     return caTrustValue.trim();
   };
 
   useEffect(() => {
-    if (principalId) {
-      loadPrincipal();
-    }
+    if (principalId) loadPrincipal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [principalId]);
 
@@ -253,24 +240,11 @@ function EditPrincipalContent() {
           },
           match_mode: matchMode,
         };
-
-        if (matchMode === 'serial_and_ca') {
-          authConfig.serial_number = serialNumber;
-        }
-
-        if (matchMode === 'cn_and_ca') {
-          authConfig.subject_cn = subjectCn;
-        }
+        if (matchMode === 'serial_and_ca') authConfig.serial_number = serialNumber;
+        if (matchMode === 'cn_and_ca') authConfig.subject_cn = subjectCn;
       }
 
-      const updatePayload: any = {
-        name,
-        description: description.trim(),
-        active,
-        authConfig,
-      };
-
-      await updatePrincipal(principalId, updatePayload);
+      await updatePrincipal(principalId, { name, description: description.trim(), active, authConfig });
       router.push(`/authz/principals/details?principalId=${principalId}`);
     } catch (err: any) {
       setError(err.message || 'Failed to update principal');
@@ -280,165 +254,204 @@ function EditPrincipalContent() {
   };
 
   const renderOidcForm = () => (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-medium">Claims</h3>
-            <p className="text-sm text-muted-foreground">
-              Define claim conditions for principal identification
-            </p>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={handleAddClaim}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Claim
-          </Button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-muted-foreground">
+          Define claim conditions used to match the JWT of an incoming authentication request.
+        </p>
+        <Button type="button" variant="outline" size="sm" onClick={handleAddClaim} className="shrink-0" disabled={submitting}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Add Claim
+        </Button>
+      </div>
 
-        {claims.length === 0 && (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              No claims configured. Add at least one claim to identify this principal.
-            </AlertDescription>
-          </Alert>
-        )}
+      {claims.length === 0 && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleAddClaim}
+          disabled={submitting}
+          className="h-auto w-full flex-col gap-2 border-dashed py-6"
+        >
+          <Plus className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Add your first claim condition</span>
+          <span className="text-xs text-muted-foreground">At least one claim is required to identify this principal</span>
+        </Button>
+      )}
 
+      <div className="space-y-3">
         {claims.map((claim, index) => (
-          <Card key={index}>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <h4 className="text-sm font-medium">Claim {index + 1}</h4>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveClaim(index)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+          <div key={index} className="rounded-lg border bg-card">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium">Claim condition {index + 1}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleRemoveClaim(index)}
+                  disabled={submitting}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">
+                    Claim Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    placeholder="sub, email, groups"
+                    value={claim.claim}
+                    onChange={(e) => handleUpdateClaim(index, 'claim', e.target.value)}
+                    required
+                    disabled={submitting}
+                    className="font-mono text-sm"
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Claim Name <span className="text-destructive">*</span></Label>
-                    <Input
-                      placeholder="sub, email, groups..."
-                      value={claim.claim}
-                      onChange={(e) => handleUpdateClaim(index, 'claim', e.target.value)}
-                      required
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Operator</Label>
+                  <Select
+                    value={claim.operator}
+                    onValueChange={(value: 'equals' | 'contains' | 'matches') =>
+                      handleUpdateClaim(index, 'operator', value)
+                    }
+                    disabled={submitting}
+                  >
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="equals">Equals</SelectItem>
+                      <SelectItem value="contains">Contains</SelectItem>
+                      <SelectItem value="matches">Matches (Regex)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  <div className="space-y-2">
-                    <Label>Operator</Label>
-                    <Select
-                      value={claim.operator}
-                      onValueChange={(value: 'equals' | 'contains' | 'matches') =>
-                        handleUpdateClaim(index, 'operator', value)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="equals">Equals</SelectItem>
-                        <SelectItem value="contains">Contains</SelectItem>
-                        <SelectItem value="matches">Matches (Regex)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Value <span className="text-destructive">*</span></Label>
-                    <Input
-                      placeholder={
-                        claim.operator === 'matches'
-                          ? '^[a-z]+@example\\.com$'
-                          : 'Claim value...'
-                      }
-                      value={claim.value}
-                      onChange={(e) => handleUpdateClaim(index, 'value', e.target.value)}
-                      required
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">
+                    Value <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    placeholder={claim.operator === 'matches' ? '^[a-z]+@example\\.com$' : 'Claim value'}
+                    value={claim.value}
+                    onChange={(e) => handleUpdateClaim(index, 'value', e.target.value)}
+                    required
+                    disabled={submitting}
+                    className="font-mono text-sm"
+                  />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+
+              {claim.operator === 'matches' && (
+                <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  Regex pattern. Ensure it is valid before saving.
+                </p>
+              )}
+            </div>
+          </div>
         ))}
       </div>
     </div>
   );
 
   const renderX509Form = () => (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="caTrustIdentityType">
-          CA Identity Type <span className="text-destructive">*</span>
-        </Label>
-        <Select
-          value={caTrustIdentityType}
-          onValueChange={(value: X509CaTrustIdentityType) => setCaTrustIdentityType(value)}
-        >
-          <SelectTrigger id="caTrustIdentityType">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="fingerprint">Fingerprint (SHA-256)</SelectItem>
-            <SelectItem value="authority_key_id">Authority Key Identifier (AKI)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="ca-selector-button">
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-sm">
           Certification Authority <span className="text-destructive">*</span>
         </Label>
         <Button
-          id="ca-selector-button"
           type="button"
           variant="outline"
-          className="w-full justify-start text-left font-normal"
           onClick={handleOpenCaSelector}
+          className="h-auto w-full justify-start py-3 text-left font-normal"
+          disabled={submitting}
         >
-          {selectedCa ? selectedCa.name : 'Select Certification Authority'}
+          {selectedCa ? (
+            <span className="flex min-w-0 items-center gap-3">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">{selectedCa.name}</span>
+                {caTrustValue && (
+                  <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
+                    {caTrustValue}
+                  </span>
+                )}
+              </span>
+            </span>
+          ) : caTrustValue ? (
+            <span className="flex min-w-0 items-center gap-3">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">CA configured</span>
+                <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
+                  {caTrustValue}
+                </span>
+              </span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-3 text-muted-foreground">
+              <Plus className="h-4 w-4 shrink-0" />
+              <span className="text-sm font-medium">Select a Certification Authority</span>
+            </span>
+          )}
         </Button>
-        {(caTrustValue || selectedCa) && (
-          <p className="text-xs text-muted-foreground break-all">
-            {caTrustIdentityType === 'fingerprint'
-              ? `SHA-256: ${caTrustValue || 'Not available for selected CA'}`
-              : `AKI: ${selectedCa?.authorityKeyId || caTrustValue}`}
-          </p>
-        )}
-        <p className="text-sm text-muted-foreground">
-          {caTrustIdentityType === 'fingerprint'
-            ? 'The SHA-256 fingerprint of the DER-encoded CA certificate'
-            : 'The Authority Key Identifier (AKI) of the trusted CA'}
-        </p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="matchMode">Match Mode</Label>
-        <Select
-          value={matchMode}
-          onValueChange={(value: X509AuthConfig['match_mode']) => setMatchMode(value)}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="any_from_ca">Any from CA</SelectItem>
-            <SelectItem value="serial_and_ca">Serial Number + CA</SelectItem>
-            <SelectItem value="cn_and_ca">Common Name (CN) + CA</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="caTrustIdentityType" className="text-sm">
+            CA Identity Type <span className="text-destructive">*</span>
+          </Label>
+          <Select
+            value={caTrustIdentityType}
+            onValueChange={(value: X509CaTrustIdentityType) => setCaTrustIdentityType(value)}
+            disabled={submitting}
+          >
+            <SelectTrigger id="caTrustIdentityType">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fingerprint">Fingerprint (SHA-256)</SelectItem>
+              <SelectItem value="authority_key_id">Authority Key Identifier (AKI)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">How the trusted CA is identified for certificate matching.</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="matchMode" className="text-sm">Match Mode</Label>
+          <Select
+            value={matchMode}
+            onValueChange={(value: X509AuthConfig['match_mode']) => setMatchMode(value)}
+            disabled={submitting}
+          >
+            <SelectTrigger id="matchMode">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any_from_ca">Any from CA</SelectItem>
+              <SelectItem value="serial_and_ca">Serial Number + CA</SelectItem>
+              <SelectItem value="cn_and_ca">Common Name (CN) + CA</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {matchMode === 'any_from_ca' && 'Trust any certificate issued by the specified CA.'}
+            {matchMode === 'serial_and_ca' && 'Match a specific certificate by serial number and issuing CA.'}
+            {matchMode === 'cn_and_ca' && 'Match certificates by Common Name pattern. Wildcards such as *.example.com are supported.'}
+          </p>
+        </div>
       </div>
 
       {matchMode === 'serial_and_ca' && (
-        <div className="space-y-2">
-          <Label htmlFor="serialNumber">
+        <div className="space-y-1.5">
+          <Label htmlFor="serialNumber" className="text-sm">
             Serial Number <span className="text-destructive">*</span>
           </Label>
           <Input
@@ -447,13 +460,16 @@ function EditPrincipalContent() {
             value={serialNumber}
             onChange={(e) => setSerialNumber(e.target.value)}
             required
+            disabled={submitting}
+            className="font-mono text-sm"
           />
+          <p className="text-xs text-muted-foreground">Certificate serial number in colon-separated hex format.</p>
         </div>
       )}
 
       {matchMode === 'cn_and_ca' && (
-        <div className="space-y-2">
-          <Label htmlFor="subjectCn">
+        <div className="space-y-1.5">
+          <Label htmlFor="subjectCn" className="text-sm">
             Subject Common Name (CN) <span className="text-destructive">*</span>
           </Label>
           <Input
@@ -462,7 +478,13 @@ function EditPrincipalContent() {
             value={subjectCn}
             onChange={(e) => setSubjectCn(e.target.value)}
             required
+            disabled={submitting}
+            className="font-mono text-sm"
           />
+          <p className="text-xs text-muted-foreground">
+            Use <code className="rounded bg-muted px-1 py-0.5 text-xs">*</code> for wildcard matching, e.g.{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">*.sensors.example.com</code>
+          </p>
         </div>
       )}
     </div>
@@ -491,56 +513,67 @@ function EditPrincipalContent() {
     );
   }
 
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Principals', href: '/authz/principals' },
+    ...(principalId
+      ? [{ label: principal?.name || 'Details', href: `/authz/principals/details?principalId=${principalId}` }]
+      : []),
+    { label: 'Edit' },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Edit Principal</h1>
-          <p className="text-muted-foreground mt-2">
-            Update principal details and authentication configuration
-          </p>
-        </div>
-      </div>
+    <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
+      <div className="w-[80%] mx-auto space-y-5 mb-8">
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+        <form onSubmit={handleSubmit} className="space-y-0">
 
-      <form onSubmit={handleSubmit}>
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>
-                Configure the fundamental properties of this principal
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">
-                  Principal Name <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  placeholder="Principal name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
+          {/* ── Page header ── */}
+          <div className="pb-8 border-b">
+            <h1 className="text-2xl font-bold">Edit Principal</h1>
+            <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+              Update the authentication identity and configuration.
+            </p>
+          </div>
+
+          {error && (
+            <div className="pt-6">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          {/* ── Identity ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Identity</p>
+              <p className="text-sm text-muted-foreground mt-1">Name and describe this principal.</p>
+            </div>
+            <div className="space-y-4 lg:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name">
+                    Principal Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="name"
+                    placeholder="Principal name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="id">Principal ID</Label>
+                  <Input id="id" value={principal?.id || ''} readOnly className="bg-muted/50 font-mono text-xs" />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="id">Principal ID</Label>
-                <Input id="id" value={principal?.id || ''} disabled />
-              </div>
-
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
@@ -548,55 +581,77 @@ function EditPrincipalContent() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
+                  disabled={submitting}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* ── Authentication Method ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Authentication Method</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                The authentication type cannot be changed after creation.
+              </p>
+            </div>
+            <div className="space-y-6 lg:col-span-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="type" className="text-sm">Principal Type</Label>
+                <Input
+                  id="type"
+                  value={type === 'oidc' ? 'OIDC (OpenID Connect)' : 'X.509 Certificate'}
+                  readOnly
+                  className="bg-muted/50"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="type">Principal Type</Label>
-                <Select value={type} onValueChange={(value: PrincipalType) => setType(value)} disabled>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="oidc">OIDC (OpenID Connect)</SelectItem>
-                    <SelectItem value="x509">X.509 Certificate</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="space-y-4 border-t pt-4">
+                {type === 'oidc' && renderOidcForm()}
+                {type === 'x509' && renderX509Form()}
               </div>
+            </div>
+          </div>
 
-              <div className="flex items-center space-x-2">
-                <Switch id="active" checked={active} onCheckedChange={setActive} />
-                <Label htmlFor="active" className="cursor-pointer">
-                  Active
-                </Label>
+          <Separator />
+
+          {/* ── Activation ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Activation</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Inactive principals are blocked from authenticating.
+              </p>
+            </div>
+            <div className="lg:col-span-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="active" className="cursor-pointer font-medium">Active</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Enable or disable this principal's ability to authenticate.
+                  </p>
+                </div>
+                <Switch id="active" checked={active} onCheckedChange={setActive} disabled={submitting} />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Authentication Configuration</CardTitle>
-              <CardDescription>
-                Configure how this principal will be authenticated
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {type === 'oidc' && renderOidcForm()}
-              {type === 'x509' && renderX509Form()}
-            </CardContent>
-          </Card>
+          <Separator />
 
-          <div className="flex justify-end gap-4">
-            <Button type="button" variant="outline" onClick={() => router.back()} disabled={submitting}>
-              Cancel
-            </Button>
+          <div className="flex justify-end pt-6">
             <Button type="submit" disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Changes
+              {submitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+              ) : (
+                'Save Changes'
+              )}
             </Button>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
 
       <CaSelectorModal
         isOpen={isCaSelectorOpen}
@@ -611,7 +666,7 @@ function EditPrincipalContent() {
         currentSelectedCaId={selectedCa?.id}
         isAuthLoading={isAuthLoading}
       />
-    </div>
+    </BreadcrumbPage>
   );
 }
 

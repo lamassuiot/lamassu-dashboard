@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,7 +15,6 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import {
-  ArrowLeft,
   Plus,
   PlusCircle,
   Trash2,
@@ -26,16 +24,17 @@ import {
   ShieldCheck,
   UserCheck,
   UserCog,
-  Settings2,
   Lock,
+  Settings2,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import { createPrincipal } from '@/lib/authz-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
-import { SectionHeader } from '@/components/shared/FormComponents';
 import { CardSelector, type CardSelectorOption } from '@/components/shared/CardSelector';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import type {
   PrincipalType,
   ClaimCondition,
@@ -129,9 +128,7 @@ export default function NewPrincipalPage() {
 
   useEffect(() => {
     const recalculateCaTrustValue = async () => {
-      if (!selectedCa) {
-        return;
-      }
+      if (!selectedCa) return;
 
       if (caTrustIdentityType === 'authority_key_id') {
         setCaTrustValue((selectedCa.authorityKeyId || '').trim());
@@ -152,14 +149,8 @@ export default function NewPrincipalPage() {
   }, [caTrustIdentityType, selectedCa]);
 
   const deriveCaTrustValue = async (): Promise<string> => {
-    if (!selectedCa) {
-      return caTrustValue.trim();
-    }
-
-    if (caTrustIdentityType === 'authority_key_id') {
-      return (selectedCa.authorityKeyId || '').trim();
-    }
-
+    if (!selectedCa) return caTrustValue.trim();
+    if (caTrustIdentityType === 'authority_key_id') return (selectedCa.authorityKeyId || '').trim();
     return caTrustValue.trim();
   };
 
@@ -241,24 +232,11 @@ export default function NewPrincipalPage() {
           },
           match_mode: matchMode,
         };
-        if (matchMode === 'serial_and_ca') {
-          authConfig.serial_number = serialNumber;
-        }
-        if (matchMode === 'cn_and_ca') {
-          authConfig.subject_cn = subjectCn;
-        }
+        if (matchMode === 'serial_and_ca') authConfig.serial_number = serialNumber;
+        if (matchMode === 'cn_and_ca') authConfig.subject_cn = subjectCn;
       }
 
-      const principalData: any = {
-        id: principalId,
-        name,
-        description: description.trim(),
-        type,
-        authConfig,
-        active,
-      };
-
-      await createPrincipal(principalData);
+      await createPrincipal({ id: principalId, name, description: description.trim(), type, authConfig, active });
       router.push('/authz/principals');
     } catch (err: any) {
       setError(err.message || 'Failed to create principal');
@@ -297,9 +275,7 @@ export default function NewPrincipalPage() {
           <div key={index} className="rounded-lg border bg-card">
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">
-                  Claim condition {index + 1}
-                </span>
+                <span className="text-sm font-medium">Claim condition {index + 1}</span>
                 <Button
                   type="button"
                   variant="ghost"
@@ -419,7 +395,7 @@ export default function NewPrincipalPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
+        <div className="space-y-1.5">
           <Label htmlFor="caTrustIdentityType" className="text-sm">
             CA Identity Type <span className="text-destructive">*</span>
           </Label>
@@ -428,7 +404,7 @@ export default function NewPrincipalPage() {
             onValueChange={(value: X509CaTrustIdentityType) => setCaTrustIdentityType(value)}
             disabled={submitting}
           >
-            <SelectTrigger id="caTrustIdentityType" className="mt-1">
+            <SelectTrigger id="caTrustIdentityType">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -436,19 +412,17 @@ export default function NewPrincipalPage() {
               <SelectItem value="authority_key_id">Authority Key Identifier (AKI)</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1">
-            Select how the trusted CA is identified for certificate matching.
-          </p>
+          <p className="text-xs text-muted-foreground">How the trusted CA is identified for certificate matching.</p>
         </div>
 
-        <div>
+        <div className="space-y-1.5">
           <Label htmlFor="matchMode" className="text-sm">Match Mode</Label>
           <Select
             value={matchMode}
             onValueChange={(value: X509AuthConfig['match_mode']) => setMatchMode(value)}
             disabled={submitting}
           >
-            <SelectTrigger id="matchMode" className="mt-1">
+            <SelectTrigger id="matchMode">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -457,7 +431,7 @@ export default function NewPrincipalPage() {
               <SelectItem value="cn_and_ca">Common Name (CN) + CA</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground">
             {matchMode === 'any_from_ca' && 'Trust any certificate issued by the specified CA.'}
             {matchMode === 'serial_and_ca' && 'Match a specific certificate by serial number and issuing CA.'}
             {matchMode === 'cn_and_ca' && 'Match certificates by Common Name pattern. Wildcards such as *.example.com are supported.'}
@@ -466,19 +440,19 @@ export default function NewPrincipalPage() {
       </div>
 
       {selectedCa && caTrustValue && (
-        <div>
+        <div className="space-y-1.5">
           <Label htmlFor="caTrustValue" className="text-sm">Derived CA Trust Value</Label>
           <Input
             id="caTrustValue"
             value={caTrustValue}
             readOnly
-            className="mt-1 bg-muted/50 font-mono text-xs"
+            className="bg-muted/50 font-mono text-xs"
           />
         </div>
       )}
 
       {matchMode === 'serial_and_ca' && (
-        <div>
+        <div className="space-y-1.5">
           <Label htmlFor="serialNumber" className="text-sm">
             Serial Number <span className="text-destructive">*</span>
           </Label>
@@ -489,16 +463,14 @@ export default function NewPrincipalPage() {
             onChange={(e) => setSerialNumber(e.target.value)}
             required
             disabled={submitting}
-            className="mt-1 font-mono text-sm"
+            className="font-mono text-sm"
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Certificate serial number in colon-separated hex format.
-          </p>
+          <p className="text-xs text-muted-foreground">Certificate serial number in colon-separated hex format.</p>
         </div>
       )}
 
       {matchMode === 'cn_and_ca' && (
-        <div>
+        <div className="space-y-1.5">
           <Label htmlFor="subjectCn" className="text-sm">
             Subject Common Name (CN) <span className="text-destructive">*</span>
           </Label>
@@ -509,11 +481,10 @@ export default function NewPrincipalPage() {
             onChange={(e) => setSubjectCn(e.target.value)}
             required
             disabled={submitting}
-            className="mt-1 font-mono text-sm"
+            className="font-mono text-sm"
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Use <code className="rounded bg-muted px-1 py-0.5 text-xs">*</code> for wildcard
-            matching, for example{' '}
+          <p className="text-xs text-muted-foreground">
+            Use <code className="rounded bg-muted px-1 py-0.5 text-xs">*</code> for wildcard matching, e.g.{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">*.sensors.example.com</code>
           </p>
         </div>
@@ -521,36 +492,44 @@ export default function NewPrincipalPage() {
     </div>
   );
 
-  return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/authz/principals')}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Principals
-      </Button>
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Principals', href: '/authz/principals' },
+    { label: 'New' },
+  ];
 
-      <div className="space-y-6">
-        <div className="flex items-center space-x-3">
-          <UserCog className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Create New Principal</h1>
-            <p className="text-sm text-muted-foreground mt-1">
+  return (
+    <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
+      <div className="w-[80%] mx-auto space-y-5 mb-8">
+
+        <form onSubmit={handleSubmit} className="space-y-0">
+
+          {/* ── Page header ── */}
+          <div className="pb-8 border-b">
+            <h1 className="text-2xl font-bold">Create New Principal</h1>
+            <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
               Add an authentication identity to the authorization system.
             </p>
           </div>
-        </div>
 
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+          {error && (
+            <div className="pt-6">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <Card>
-            <SectionHeader icon={UserCog} title="Principal Settings" />
-            <CardContent className="space-y-4">
+          {/* ── Identity ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Identity</p>
+              <p className="text-sm text-muted-foreground mt-1">Name and describe this principal.</p>
+            </div>
+            <div className="space-y-4 lg:col-span-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+                <div className="space-y-1.5">
                   <Label htmlFor="name">
                     Principal Name <span className="text-destructive">*</span>
                   </Label>
@@ -561,26 +540,25 @@ export default function NewPrincipalPage() {
                     onChange={(e) => setName(e.target.value)}
                     required
                     disabled={submitting}
-                    className="mt-1"
                   />
                   {!name.trim() && (
-                    <p className="text-xs text-destructive mt-1">Principal name is required.</p>
+                    <p className="text-xs text-destructive">Principal name is required.</p>
                   )}
                 </div>
 
-                <div>
-                  <Label htmlFor="id">Principal ID (generated)</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="id">Principal ID (auto-generated)</Label>
                   <Input
                     id="id"
                     value={principalId}
                     readOnly
-                    className="mt-1 bg-muted/50 font-mono text-xs"
+                    className="bg-muted/50 font-mono text-xs"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Auto-generated unique identifier.</p>
+                  <p className="text-xs text-muted-foreground">Auto-generated unique identifier.</p>
                 </div>
               </div>
 
-              <div>
+              <div className="space-y-1.5">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
@@ -589,19 +567,23 @@ export default function NewPrincipalPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                   disabled={submitting}
-                  className="mt-1 resize-none"
+                  className="resize-none"
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <SectionHeader
-              icon={Lock}
-              title="Authentication Method"
-              description="Configure how incoming requests are matched to this principal."
-            />
-            <CardContent className="space-y-6">
+          <Separator />
+
+          {/* ── Authentication Method ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Authentication Method</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Configure how incoming requests are matched to this principal.
+              </p>
+            </div>
+            <div className="space-y-6 lg:col-span-2">
               <CardSelector
                 label="Principal Type"
                 value={type}
@@ -618,52 +600,46 @@ export default function NewPrincipalPage() {
                   ) : (
                     <ShieldCheck className="h-4 w-4 text-primary" />
                   )}
-                  <h2 className="text-sm font-medium">{PRINCIPAL_TYPE_LABEL[type]} Configuration</h2>
+                  <p className="text-sm font-medium">{PRINCIPAL_TYPE_LABEL[type]} Configuration</p>
                 </div>
 
                 {type === 'oidc' && renderOidcForm()}
                 {type === 'x509' && renderX509Form()}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <SectionHeader icon={Settings2} title="Activation" />
-            <CardContent>
-              <div className="flex items-center justify-between rounded-lg border p-3 bg-background">
+          <Separator />
+
+          {/* ── Activation ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Activation</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Inactive principals are blocked from authenticating.
+              </p>
+            </div>
+            <div className="lg:col-span-2">
+              <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="active" className="cursor-pointer">
-                    Active
-                  </Label>
+                  <Label htmlFor="active" className="cursor-pointer font-medium">Active</Label>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Inactive principals are blocked from authenticating.
+                    Enable or disable this principal's ability to authenticate.
                   </p>
                 </div>
                 <Switch id="active" checked={active} onCheckedChange={setActive} disabled={submitting} />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push('/authz/principals')}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" size="lg" disabled={submitting}>
+          <Separator />
+
+          <div className="flex justify-end pt-6">
+            <Button type="submit" disabled={submitting}>
               {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Creating...
-                </>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</>
               ) : (
-                <>
-                  <PlusCircle className="mr-2 h-5 w-5" />
-                  Create Principal
-                </>
+                <><PlusCircle className="mr-2 h-4 w-4" /> Create Principal</>
               )}
             </Button>
           </div>
@@ -682,6 +658,6 @@ export default function NewPrincipalPage() {
         onCaSelected={handleCaSelected}
         currentSelectedCaId={selectedCa?.id}
       />
-    </div>
+    </BreadcrumbPage>
   );
 }

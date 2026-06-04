@@ -25,7 +25,6 @@ import { fetchDeviceById } from '@/lib/devices-api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { parseISO, differenceInDays, isPast } from 'date-fns';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
@@ -442,20 +441,7 @@ export default function CertificateDetailsClient() { // Renamed component
     : 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400';
 
   return (
-    <BreadcrumbPage
-      className="space-y-5"
-      items={[
-        { label: 'Home', href: '/' },
-        { label: 'Certificates', href: '/certificates' },
-        {
-          label: (
-            <Badge variant="default" className="max-w-[320px] truncate text-xs">
-              {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
-            </Badge>
-          ),
-        },
-      ]}
-    >
+    <div className="space-y-5">
 
       <DetailBreadcrumbRow
         items={[
@@ -655,8 +641,6 @@ export default function CertificateDetailsClient() { // Renamed component
             </div>
           )}
 
-        </div>
-
         {/* Issuer + chain strip */}
         <div className="flex items-center gap-8 pt-1 border-t">
           <div className="py-3">
@@ -680,8 +664,6 @@ export default function CertificateDetailsClient() { // Renamed component
             <p className="mt-1 text-sm text-foreground">{certificateChainForVisualizer.length + 1} certificate{certificateChainForVisualizer.length + 1 !== 1 ? 's' : ''}</p>
           </div>
         </div>
-
-      </div>
 
       <div className="border-t" />
 
@@ -750,7 +732,6 @@ export default function CertificateDetailsClient() { // Renamed component
           </TabsContent>
         </div>
       </Tabs>
-      </div>
 
       {certificateToRevoke && (
         <RevocationModal
@@ -792,6 +773,6 @@ export default function CertificateDetailsClient() { // Renamed component
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </BreadcrumbPage>
+    </div>
   );
 }
