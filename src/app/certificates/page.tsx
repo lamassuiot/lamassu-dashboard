@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ColumnSelector } from '@/components/ui/column-selector';
 import { CertificateFilterBar } from '@/components/shared/filters/CertificateFilterBar';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export type SortableCertColumn = 'commonName' | 'serialNumber' | 'expires' | 'status' | 'validFrom' | 'revocationTime';
 export type SortDirection = 'asc' | 'desc';
@@ -32,12 +33,17 @@ export interface CertSortConfig {
 
 const CertificatesPageSkeleton = () => (
   <div className="w-full space-y-6 pb-8">
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-      <div className="flex items-center space-x-3">
-        <FileText className="h-8 w-8 text-primary" />
-        <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
+    <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+          <FileText className="h-8 w-8 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
+          <p className="text-sm text-muted-foreground mt-1">Browse, import, and manage all X.509 certificates issued through the PKI.</p>
+        </div>
       </div>
-      <div className="flex items-center gap-2 self-start sm:self-center">
+      <div className="flex items-center gap-2 shrink-0">
         <Skeleton className="h-9 w-9 sm:w-32" />
         <Skeleton className="h-9 w-9 sm:w-44" />
         <Skeleton className="h-9 w-9 sm:w-36" />
@@ -231,13 +237,18 @@ export default function CertificatesPage() {
       }
       detail={selectedCertificate ? <CertificateDetailPanel certificate={selectedCertificate} /> : null}
       list={
-    <div className="w-full space-y-6 pb-8">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Certificates'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
             <FileText className="h-8 w-8 text-primary" />
+          </div>
+          <div>
             <h1 className="text-2xl font-headline font-semibold">Issued Certificates</h1>
+            <p className="text-sm text-muted-foreground mt-1">Browse, import, and manage all X.509 certificates issued through the PKI.</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-center">
+        <div className="flex items-center gap-2 shrink-0">
             <Button onClick={() => router.push('/certificates/import')} variant="secondary" title="Import Certificate">
                 <Upload className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Import Certificate</span>
@@ -361,7 +372,7 @@ export default function CertificatesPage() {
         useSheet={caSelectorMode === 'issue'}
         allCryptoEngines={allCryptoEngines}
       />
-    </div>
+    </BreadcrumbPage>
       }
     />
   );

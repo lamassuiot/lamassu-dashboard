@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, KeyRound, Check } from "lucide-react";
@@ -11,7 +11,6 @@ import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface KmsKeySelectorProps {
   value?: string; // Selected key ID (pkcs11_uri)
@@ -113,23 +112,25 @@ export function KmsKeySelector({
         )}
       </Button>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Select KMS Key</DialogTitle>
-            <DialogDescription>
+      <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <SheetContent side="right" className="data-[side=right]:w-1/2 data-[side=right]:sm:max-w-none flex flex-col">
+          <SheetHeader>
+            <SheetTitle>Select KMS Key</SheetTitle>
+            <SheetDescription>
               Choose an existing key from the Key Management Service
               {requirePrivateKey && " (showing only keys with private key available)"}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="px-6 py-4">
             <Input
               placeholder="Search by name or key ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
 
+          <div className="flex-1 overflow-y-auto px-6">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -137,9 +138,7 @@ export function KmsKeySelector({
             ) : error ? (
               <div className="text-center py-8 text-destructive">
                 <p>{error}</p>
-                <Button variant="secondary" onClick={loadKeys} className="mt-4">
-                  Retry
-                </Button>
+                <Button variant="secondary" onClick={loadKeys} className="mt-4">Retry</Button>
               </div>
             ) : filteredKeys.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
@@ -147,72 +146,53 @@ export function KmsKeySelector({
                 <p>No KMS keys found</p>
               </div>
             ) : (
-              <ScrollArea className="h-[400px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Strength</TableHead>
-                      <TableHead>Crypto Engine</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredKeys.map((key) => {
-                      const engine = allCryptoEngines.find(e => e.id === key.engine_id);
-                      const isSelected = value === key.pkcs11_uri;
-                      
-                      return (
-                        <TableRow 
-                          key={key.pkcs11_uri}
-                          className={isSelected ? "bg-muted/50" : ""}
-                        >
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {key.name}
-                              {isSelected && <Check className="h-4 w-4 text-primary" />}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="text-xs">
-                              {key.algorithm} {key.size}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <KeyStrengthIndicator 
-                              algorithm={key.algorithm} 
-                              size={String(key.size)} 
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {engine ? (
-                              <CryptoEngineViewer engine={engine} />
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">
-                                {key.engine_id}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant={isSelected ? "default" : "outline"}
-                             
-                              onClick={() => handleSelectKey(key)}
-                            >
-                              {isSelected ? 'Selected' : 'Select'}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Strength</TableHead>
+                    <TableHead>Crypto Engine</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredKeys.map((key) => {
+                    const engine = allCryptoEngines.find(e => e.id === key.engine_id);
+                    const isSelected = value === key.pkcs11_uri;
+                    return (
+                      <TableRow
+                        key={key.pkcs11_uri}
+                        onClick={() => handleSelectKey(key)}
+                        className={`cursor-pointer ${isSelected ? "bg-primary/5" : "hover:bg-muted/50"}`}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                            {key.name}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs">{key.algorithm} {key.size}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <KeyStrengthIndicator algorithm={key.algorithm} size={String(key.size)} />
+                        </TableCell>
+                        <TableCell>
+                          {engine ? (
+                            <CryptoEngineViewer engine={engine} />
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">{key.engine_id}</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

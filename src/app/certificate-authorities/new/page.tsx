@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, KeyRound, UploadCloud, FileText, ChevronRight } from "lucide-react";
 import { cn } from '@/lib/utils';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 interface CreationOption {
   id: string;
@@ -84,7 +85,7 @@ export default function CreateCaHubPage() {
   const selectedOption = allOptions.find(o => o.id === selectedId);
 
   return (
-    <div className="w-full flex flex-col gap-8 mb-12">
+    <BreadcrumbPage className="flex flex-col gap-8 mb-12" items={[ {label:'Home',href:'/'}, {label:'Certificate Authorities',href:'/certificate-authorities'}, {label:'New'} ]}>
       <Button
         variant="ghost"
        
@@ -199,6 +200,6 @@ export default function CreateCaHubPage() {
           <ChevronRight className="ml-1.5 h-4 w-4" />
         </Button>
       </div>
-    </div>
+    </BreadcrumbPage>
   );
 }

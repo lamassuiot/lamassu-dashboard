@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -101,8 +102,15 @@ export default function CreateCaImportPublicPage() {
     }
   };
 
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Certificate Authorities', href: '/certificate-authorities' },
+    { label: 'New', href: '/certificate-authorities/new' },
+    { label: 'Import' },
+  ];
+
   return (
-    <div className="w-full space-y-6 mb-8">
+    <BreadcrumbPage items={breadcrumbItems} className="w-full space-y-6 mb-8">
       <Button variant="secondary" onClick={() => router.push('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
@@ -169,6 +177,6 @@ export default function CreateCaImportPublicPage() {
           </div>
         </form>
       </div>
-    </div>
+    </BreadcrumbPage>
   );
 }

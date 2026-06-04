@@ -10,7 +10,7 @@ import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   SidebarProvider,
   Sidebar,
@@ -32,7 +32,6 @@ import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/Iden
 import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { jwtDecode } from 'jwt-decode';
@@ -75,25 +74,6 @@ interface DecodedAccessToken {
   };
 }
 
-const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
-  'certificates': "Certificates",
-  'certificate-authorities': "Certification Authorities",
-  'signing-profiles': "Issuance Profiles",
-  'registration-authorities': "Registration Authorities",
-  'verification-authorities': "Verification Authorities",
-  'new': "New",
-  'details': "Details",
-  'issue-certificate': "Issue Certificate",
-  'kms': "KMS",
-  'keys': "Keys",
-  'devices': "Devices",
-  'device-groups': "Device Groups",
-  'integrations': "Platform Integrations",
-  'crypto-engines': "Crypto Engines",
-  'alerts': "Alerts",
-  'tools': "Tools",
-  'certificate-viewer': "Certificate Viewer",
-};
 
 interface NavItem {
   href: string;
@@ -145,43 +125,6 @@ const navigationConfig: NavGroup[] = [
     ],
   },
 ];
-
-function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): BreadcrumbItem[] {
-  const pathSegments = pathname.split('/').filter(segment => segment);
-  const breadcrumbItems: BreadcrumbItem[] = [{ label: 'Home', href: '/' }];
-
-  if (pathname === '/') {
-    return [{ label: 'Home' }];
-  }
-
-  let currentHref = '';
-
-  for (let i = 0; i < pathSegments.length; i++) {
-    const segment = pathSegments[i];
-    let label = PATH_SEGMENT_TO_LABEL_MAP[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
-
-    currentHref += `/${segment}`;
-    const isLastSegment = i === pathSegments.length - 1;
-    let hrefWithQuery = currentHref;
-
-    if (segment === 'details') {
-      if (queryParams.get('caId')) hrefWithQuery += `?caId=${queryParams.get('caId')}`;
-      else if (queryParams.get('certificateId')) hrefWithQuery += `?certificateId=${queryParams.get('certificateId')}`;
-      else if (queryParams.get('keyId')) hrefWithQuery += `?keyId=${queryParams.get('keyId')}`;
-      else if (queryParams.get('deviceId')) hrefWithQuery += `?deviceId=${queryParams.get('deviceId')}`;
-    } else if (segment === 'issue-certificate' && queryParams.get('caId')) {
-      hrefWithQuery += `?caId=${queryParams.get('caId')}`;
-    }
-
-
-    if (isLastSegment) {
-      breadcrumbItems.push({ label });
-    } else {
-      breadcrumbItems.push({ label, href: hrefWithQuery });
-    }
-  }
-  return breadcrumbItems;
-}
 
 
 const LoadingState = () => (
@@ -290,22 +233,11 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
-  const breadcrumbItems = generateBreadcrumbs(pathname, searchParams);
-  const showGlobalBreadcrumbs =
-    !pathname.startsWith('/certificate-authorities/details') &&
-    !pathname.startsWith('/certificates/details') &&
-    !pathname.startsWith('/kms/keys/details') &&
-    !pathname.startsWith('/signing-profiles/edit') &&
-    !(pathname.startsWith('/registration-authorities/new') && !!searchParams.get('raId')) &&
-    !pathname.startsWith('/verification-authorities') &&
-    !pathname.startsWith('/devices/details') &&
-    !pathname.startsWith('/device-groups/details');
   let userRoles: string[] = [];
   if (user?.access_token) {
     try {
@@ -526,7 +458,6 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
             </Sidebar>
 
             <SidebarInset className="flex-1 overflow-y-auto flex flex-col">
-              {showGlobalBreadcrumbs && breadcrumbItems.length > 1 && <Breadcrumbs items={breadcrumbItems} className="px-4 md:px-6" />}
               <div className="flex-1 p-4 md:p-6 pb-8 md:pb-12">
                 {children}
               </div>

@@ -25,10 +25,10 @@ import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTab
 import { parseISO, isPast } from 'date-fns';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CaStatsDisplay } from '@/components/ca/details/CaStatsDisplay';
-import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
+import { CryptoEngineViewer, getEngineIconStyle } from '@/components/shared/CryptoEngineViewer';
 import { IssuedCertificatesTab } from '@/components/ca/details/IssuedCertificatesTab';
 import { ValidationAuthorityTab } from '@/components/ca/details/ValidationAuthorityTab';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
 interface CaStats {
@@ -390,26 +390,24 @@ export default function CertificateAuthorityDetailsClient() {
     : 'bg-amber-500';
 
   return (
-    <div className="w-full space-y-5">
-
-      {/* ── Breadcrumb + actions row ── */}
-      <DetailBreadcrumbRow
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Certificate Authorities', href: '/certificate-authorities' },
-          ...caPathToRoot.slice(0, -1).map((ca) => ({
-            label: ca.name,
-            href: `/certificate-authorities/details?caId=${ca.id}`,
-          })),
-          {
-            label: (
-              <Badge variant="default" className="text-xs">
-                {caDetails.name}
-              </Badge>
-            ),
-          },
-        ]}
-        actions={
+    <BreadcrumbPage
+      className="space-y-5"
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'Certificate Authorities', href: '/certificate-authorities' },
+        ...caPathToRoot.slice(0, -1).map((ca) => ({
+          label: ca.name,
+          href: `/certificate-authorities/details?caId=${ca.id}`,
+        })),
+        {
+          label: (
+            <Badge variant="default" className="text-xs">
+              {caDetails.name}
+            </Badge>
+          ),
+        },
+      ]}
+      actions={
           <div className="flex items-center gap-2">
             {isCaOnHold ? (
               <Button variant="secondary" className="gap-2" onClick={handleReactivateCA}>
@@ -466,7 +464,7 @@ export default function CertificateAuthorityDetailsClient() {
             </DropdownMenu>
           </div>
         }
-      />
+      >
 
       {/* ── Hero + Tabs (flush, no space-y gap between them) ── */}
       <div className="flex flex-col">
@@ -477,12 +475,19 @@ export default function CertificateAuthorityDetailsClient() {
 
           {/* Identity */}
           <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden">
-              {cryptoEngine
-                ? <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
-                : <ShieldCheck className={cn('h-7 w-7', caIsActive ? 'text-primary' : caDetails.status === 'revoked' ? 'text-destructive' : 'text-amber-500')} />
-              }
-            </div>
+            {cryptoEngine ? (
+              <div className={cn(
+                'relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border',
+                getEngineIconStyle(cryptoEngine.type).border,
+                getEngineIconStyle(cryptoEngine.type).bg,
+              )}>
+                <CryptoEngineViewer engine={cryptoEngine} iconOnly className="h-full w-full" />
+              </div>
+            ) : (
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
+                <ShieldCheck className={cn('h-7 w-7', caIsActive ? 'text-primary' : caDetails.status === 'revoked' ? 'text-destructive' : 'text-amber-500')} />
+              </div>
+            )}
 
             <div className="min-w-0 space-y-2">
               <div>
@@ -688,6 +693,6 @@ export default function CertificateAuthorityDetailsClient() {
           isReissuing={isReissuing}
         />
       )}
-    </div>
+    </BreadcrumbPage>
   );
 }

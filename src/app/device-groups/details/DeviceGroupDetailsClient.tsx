@@ -38,7 +38,7 @@ import type { DeviceGroup } from '@/types/device-group';
 import { FilterCriteriaDisplay } from '@/components/device-groups/FilterCriteriaDisplay';
 import { CompactGroupStats } from '@/components/device-groups/CompactGroupStats';
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
 
@@ -145,14 +145,14 @@ export default function DeviceGroupDetailsClient() {
   const dateFormat = getDisplayDateFormat(); // used by DateDisplay
 
   return (
-    <div className="w-full space-y-5">
-      <DetailBreadcrumbRow
-        items={[
+    <BreadcrumbPage
+      className="space-y-5"
+      items={[
           { label: 'Home', href: '/' },
           { label: 'Device Groups', href: '/device-groups' },
           { label: 'Details' },
         ]}
-        actions={
+      actions={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={fetchGroupData} disabled={isLoading}>
               <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} /> Refresh
@@ -162,7 +162,7 @@ export default function DeviceGroupDetailsClient() {
             </Button>
             <Button
               variant="secondary"
-             
+
               className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
               onClick={() => setDeleteDialogOpen(true)}
             >
@@ -170,7 +170,7 @@ export default function DeviceGroupDetailsClient() {
             </Button>
           </div>
         }
-      />
+    >
 
       {/* Hero */}
       <div className="pb-5">
@@ -380,6 +380,6 @@ export default function DeviceGroupDetailsClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }

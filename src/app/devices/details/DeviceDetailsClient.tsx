@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap, Copy, Check, Tag } from 'lucide-react';
-import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/app/devices/page';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap, Copy, Check } from 'lucide-react';
+import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/page';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
@@ -22,12 +22,11 @@ import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { sileo } from '@/lib/toast';
 import { RevocationModal } from '@/components/shared/RevocationModal';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
@@ -48,6 +47,40 @@ interface CertificateHistoryEntry {
   validFrom: string;
   validTo: string;
   lifespan: string;
+}
+
+function DetailPanel({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border bg-card">
+      <div className="border-b px-4 py-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      <dl className="divide-y px-4">
+        {children}
+      </dl>
+    </section>
+  );
+}
+
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-1 py-2.5 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-sm">{children}</dd>
+    </div>
+  );
 }
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -633,92 +666,79 @@ export default function DeviceDetailsClient() {
   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
 
   return (
-    <div className="w-full space-y-5">
-      <DetailBreadcrumbRow
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Devices', href: '/devices' },
-          { label: 'Details' },
-        ]}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
-            {availableIntegrations.length > 0 && (
-              <Button variant="secondary" onClick={() => setIsForceUpdateModalOpen(true)}>
-                <Zap className="mr-2 h-4 w-4" /> Force Update
-              </Button>
-            )}
+    <BreadcrumbPage
+      className="space-y-4"
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'Devices', href: '/devices' },
+        { label: 'Details' },
+      ]}
+    >
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex items-start gap-4">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+            style={{ backgroundColor: bgColor || '#F0F8FF' }}
+          >
+            <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
+          </div>
+
+          <div className="min-w-0 space-y-2">
+            <div>
+              <h1 className="truncate text-2xl font-semibold tracking-tight" title={device.id}>{device.id}</h1>
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">ID</span>
+                <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs">
+                  {device.id}
+                </code>
+                <Button
+                  variant="ghost"
+                  className="h-6 w-6 shrink-0 p-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(device.id);
+                    setCopiedId(true);
+                    setTimeout(() => setCopiedId(false), 2000);
+                  }}
+                >
+                  {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          <Button variant="secondary" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+          {availableIntegrations.length > 0 && (
+            <Button variant="secondary" onClick={() => setIsForceUpdateModalOpen(true)}>
+              <Zap className="mr-2 h-4 w-4" /> Force Update
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+            onClick={() => setIsDecommissionModalOpen(true)}
+            disabled={device.status === 'DECOMMISSIONED'}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Decommission
+          </Button>
+          {device.status === 'DECOMMISSIONED' && (
             <Button
               variant="secondary"
-             
-              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-              onClick={() => setIsDecommissionModalOpen(true)}
-              disabled={device.status === 'DECOMMISSIONED'}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setIsDeleteModalOpen(true)}
+              disabled={isDeleting}
             >
-              <Trash2 className="mr-2 h-4 w-4" /> Decommission
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              {isDeleting ? 'Deleting...' : 'Permanently Delete'}
             </Button>
-            {device.status === 'DECOMMISSIONED' && (
-              <Button
-                variant="secondary"
-               
-                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setIsDeleteModalOpen(true)}
-                disabled={isDeleting}
-              >
-                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                {isDeleting ? 'Deleting...' : 'Permanently Delete'}
-              </Button>
-            )}
-            <Button onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
-            </Button>
-          </div>
-        }
-      />
-
-      {/* ── Hero ── */}
-      <div className="pb-5">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-
-          {/* Identity */}
-          <div className="flex items-start gap-4">
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg overflow-hidden"
-              style={{ backgroundColor: bgColor || '#F0F8FF' }}
-            >
-              <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
-            </div>
-
-            <div className="min-w-0 space-y-2">
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight truncate" title={device.id}>{device.id}</h1>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">ID</span>
-                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
-                    {device.id}
-                  </code>
-                  <Button
-                    variant="ghost"
-                   
-                    className="h-6 w-6 p-0 shrink-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(device.id);
-                      setCopiedId(true);
-                      setTimeout(() => setCopiedId(false), 2000);
-                    }}
-                  >
-                    {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
-                  </Button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
+          )}
+          <Button onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
+          </Button>
         </div>
       </div>
 
-      {/* ── Tabs ── */}
       <Tabs defaultValue="information" className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={cn(pageTabsListClass, "min-w-max")}>
@@ -740,104 +760,84 @@ export default function DeviceDetailsClient() {
           </TabsList>
         </div>
 
-        <div className="mt-6 pb-6">
-        <TabsContent value="information" className="mt-0">
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Device Details */}
-            <div className="rounded-lg border bg-card p-5 space-y-4">
-              <h3 className="text-sm font-semibold">Device Details</h3>
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Device ID</Label>
-                  <Input readOnly value={device.id} className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Status</Label>
+        <div className="mt-4 pb-6">
+          <TabsContent value="information" className="mt-0">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <DetailPanel title="Device Details">
+                <DetailRow label="Device ID">
+                  <code className="block truncate font-mono text-xs" title={device.id}>{device.id}</code>
+                </DetailRow>
+                <DetailRow label="Status">
                   <ApiStatusBadge status={device.status} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Created</Label>
-                  <div className="h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm flex items-center gap-1.5">
+                </DetailRow>
+                <DetailRow label="Created">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <span>{format(parseISO(device.creation_timestamp), getDisplayDateFormat())}</span>
                     <span className="text-muted-foreground text-xs">({formatDistanceToNowStrict(parseISO(device.creation_timestamp))} ago)</span>
                   </div>
-                </div>
+                </DetailRow>
                 {device.dms_owner && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Registration Authority</Label>
-                    <div className="h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm flex items-center">
-                      <a
-                        href={`/registration-authorities/details?raId=${device.dms_owner}`}
-                        className="text-primary hover:underline truncate"
-                      >
-                        {device.dms_owner}
-                      </a>
-                    </div>
-                  </div>
+                  <DetailRow label="Registration Authority">
+                    <a
+                      href={`/registration-authorities/details?raId=${device.dms_owner}`}
+                      className="block truncate text-primary hover:underline"
+                    >
+                      {device.dms_owner}
+                    </a>
+                  </DetailRow>
                 )}
                 {(device.tags?.length ?? 0) > 0 && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Tags</Label>
-                    <Input readOnly value={device.tags.join(', ')} />
-                  </div>
+                  <DetailRow label="Tags">
+                    <span className="block truncate" title={device.tags.join(', ')}>{device.tags.join(', ')}</span>
+                  </DetailRow>
                 )}
-              </div>
-            </div>
+              </DetailPanel>
 
-            {/* Identity */}
-            <div className="rounded-lg border bg-card p-5 space-y-4">
-              <h3 className="text-sm font-semibold">Identity</h3>
-              {device.identity ? (
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Status</Label>
-                    <ApiStatusBadge status={device.identity.status} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Type</Label>
-                    <Input readOnly value={device.identity.type} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Active Certificate</Label>
-                    <div className="h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm flex items-center">
+              <DetailPanel title="Identity">
+                {device.identity ? (
+                  <>
+                    <DetailRow label="Status">
+                      <ApiStatusBadge status={device.identity.status} />
+                    </DetailRow>
+                    <DetailRow label="Type">
+                      {device.identity.type}
+                    </DetailRow>
+                    <DetailRow label="Active Certificate">
                       {device.identity.versions[device.identity.active_version] ? (
                         <a
                           href={`/certificates/details?certificateId=${device.identity.versions[device.identity.active_version]}`}
-                          className="text-primary hover:underline truncate font-mono text-xs"
+                          className="block truncate font-mono text-xs text-primary hover:underline"
                         >
                           {device.identity.versions[device.identity.active_version]}
                         </a>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
-                    </div>
+                    </DetailRow>
+                    <DetailRow label="Total Versions">
+                      {Object.keys(device.identity.versions).length}
+                    </DetailRow>
+                    {device.identity.expiration_date && (
+                      <DetailRow label="Certificate Expiration">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span>{format(parseISO(device.identity.expiration_date), getDisplayDateFormat())}</span>
+                          <span className="text-muted-foreground text-xs">({formatDistanceToNowStrict(parseISO(device.identity.expiration_date))})</span>
+                        </div>
+                      </DetailRow>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between gap-3 py-3">
+                    <p className="text-sm text-muted-foreground">No identity assigned to this device.</p>
+                    <Button variant="secondary" onClick={() => setIsAssignIdentityModalOpen(true)}>
+                      <PlusCircle className="mr-2 h-3.5 w-3.5" />
+                      Assign Identity
+                    </Button>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Total Versions</Label>
-                    <Input readOnly value={Object.keys(device.identity.versions).length} />
-                  </div>
-                  {device.identity.expiration_date && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Certificate Expiration</Label>
-                      <div className="h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm flex items-center gap-1.5">
-                        <span>{format(parseISO(device.identity.expiration_date), getDisplayDateFormat())}</span>
-                        <span className="text-muted-foreground text-xs">({formatDistanceToNowStrict(parseISO(device.identity.expiration_date))})</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-start gap-3 pt-2">
-                  <p className="text-sm text-muted-foreground">No identity assigned to this device.</p>
-                  <Button variant="secondary" onClick={() => setIsAssignIdentityModalOpen(true)}>
-                    <PlusCircle className="mr-2 h-3.5 w-3.5" />
-                    Assign Identity
-                  </Button>
-                </div>
-              )}
+                )}
+              </DetailPanel>
             </div>
-          </div>
-        </TabsContent>
+          </TabsContent>
 
         <TabsContent value="timeline" className="mt-0">
           {timelineEvents.length > 0 ? (
@@ -1065,8 +1065,6 @@ export default function DeviceDetailsClient() {
         setActiveIntegration={setActiveIntegration}
         isUpdating={isForcingUpdate}
       />
-    </div>
+    </BreadcrumbPage>
   );
 }
-
-    

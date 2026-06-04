@@ -25,7 +25,7 @@ import { fetchDeviceById } from '@/lib/devices-api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { parseISO, differenceInDays, isPast } from 'date-fns';
 
@@ -422,61 +422,60 @@ export default function CertificateDetailsClient() { // Renamed component
     : 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400';
 
   return (
-    <div className="w-full space-y-5">
+    <BreadcrumbPage
+      className="space-y-5"
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'Certificates', href: '/certificates' },
+        {
+          label: (
+            <Badge variant="default" className="max-w-[320px] truncate text-xs">
+              {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
+            </Badge>
+          ),
+        },
+      ]}
+      actions={
+        <div className="flex items-center gap-2">
+          {isOnHold ? (
+            <Button variant="secondary" className="gap-2" onClick={handleReactivate}>
+              <ShieldCheck className="h-4 w-4" /> Re-activate
+            </Button>
+          ) : statusText !== 'REVOKED' ? (
+            <Button
+              variant="secondary"
 
-      <DetailBreadcrumbRow
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Certificates', href: '/certificates' },
-          {
-            label: (
-              <Badge variant="default" className="max-w-[320px] truncate text-xs">
-                {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
-              </Badge>
-            ),
-          },
-        ]}
-        actions={
-          <div className="flex items-center gap-2">
-            {isOnHold ? (
-              <Button variant="secondary" className="gap-2" onClick={handleReactivate}>
-                <ShieldCheck className="h-4 w-4" /> Re-activate
-              </Button>
-            ) : statusText !== 'REVOKED' ? (
-              <Button
-                variant="secondary"
-               
-                className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-                onClick={handleOpenRevokeModal}
-                disabled={isRevoking}
-              >
-                {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
-                {isRevoking ? 'Revoking…' : 'Revoke'}
-              </Button>
-            ) : null}
+              className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+              onClick={handleOpenRevokeModal}
+              disabled={isRevoking}
+            >
+              {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+              {isRevoking ? 'Revoking…' : 'Revoke'}
+            </Button>
+          ) : null}
 
-            {canDelete && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" className="px-2.5">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => setIsDeleteModalOpen(true)}
-                    disabled={isDeleting}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Certificate
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        }
-      />
+          {canDelete && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" className="px-2.5">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Certificate
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      }
+    >
 
       <div className="flex flex-col">
 
@@ -740,6 +739,6 @@ export default function CertificateDetailsClient() { // Renamed component
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }

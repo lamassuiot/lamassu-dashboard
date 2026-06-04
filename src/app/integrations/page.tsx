@@ -30,6 +30,7 @@ import {
 import Image from 'next/image';
 import AwsIcon from '../aws.svg';
 import AwsIconWhite from '../aws-white.svg';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
 export const IntegrationIcon: React.FC<{ type: DiscoveredIntegration['type'] }> = ({ type }) => {
@@ -112,12 +113,14 @@ export default function IntegrationsPage() {
 
   return (
     <>
-    <div className="space-y-5 w-full pb-8">
+    <BreadcrumbPage className="space-y-5 pb-8" items={[ {label:'Home',href:'/'}, {label:'Platform Integrations'} ]}>
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Blocks className="h-8 w-8 text-primary" />
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <Blocks className="h-8 w-8 text-primary" />
+          </div>
           <div>
             <h1 className="text-2xl font-headline font-semibold">Platform Integrations</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -223,7 +226,7 @@ export default function IntegrationsPage() {
           </Button>
         </div>
       )}
-    </div>
+    </BreadcrumbPage>
 
     <AlertDialog open={!!integrationToDelete} onOpenChange={(open) => !open && setIntegrationToDelete(null)}>
         <AlertDialogContent>

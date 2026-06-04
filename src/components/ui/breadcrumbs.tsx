@@ -23,11 +23,11 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
     <nav
       aria-label="Breadcrumb"
       className={cn(
-        'flex h-9 items-center border-b bg-background mb-4',
+        'flex h-9 shrink-0 items-center border-b bg-background mb-4',
         className
       )}
     >
-      <ol className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+      <ol className="flex w-full min-w-0 items-center gap-1 text-xs text-muted-foreground">
         {items.map((item, index) => {
           const isLast = index === items.length - 1;
           return (

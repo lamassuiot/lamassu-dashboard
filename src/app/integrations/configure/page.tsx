@@ -11,6 +11,7 @@ import Image from 'next/image';
 import { AwsIotIntegrationTab } from '@/components/ra/AwsIotIntegrationTab';
 import { fetchRaById, type ApiRaItem, createOrUpdateRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import AwsIcon from '../../aws.svg';
 import AwsIconWhite from '../../aws-white.svg';
 
@@ -130,6 +131,7 @@ export default function ConfigureIntegrationPage() {
     }
 
     return (
+        <BreadcrumbPage items={[{label:'Home',href:'/'},{label:'Platform Integrations',href:'/integrations'},{label:'Configure'}]} className="space-y-5 pb-8">
         <div className="mx-auto mb-8 w-[80%]">
             <div className="mb-6 flex justify-end">
                 <div className="flex items-center gap-2">
@@ -193,5 +195,6 @@ export default function ConfigureIntegrationPage() {
                 onUpdateSuccess={fetchRaDetails}
             />
         </div>
+        </BreadcrumbPage>
     );
 }

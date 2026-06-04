@@ -26,7 +26,7 @@ import { sileo } from '@/lib/toast';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { createOrUpdateRa, fetchRaById, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
 const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];
@@ -442,32 +442,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   ];
   const SelectedDeviceIcon = getLucideIconByName(selectedDeviceIconName);
 
-  return (
-    <div className="w-[80%] mx-auto mb-8">
-
-      {/* ── Nav ── */}
-      {isEditMode ? (
-        <DetailBreadcrumbRow
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Registration Authorities', href: '/registration-authorities' },
-            { label: <Badge variant="default" className="text-xs">{raName || raId || 'Edit'}</Badge> },
-          ]}
-          actions={
-            <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
-            </Button>
-          }
-          className="mb-6"
-        />
-      ) : (
-        <div className="flex justify-end mb-4">
-          <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
-          </Button>
-        </div>
-      )}
-
+  const formContent = (
+    <>
       {/* ── Edit hero ── */}
       {isEditMode && (
         <div className="pb-6 mb-6 border-b">
@@ -993,6 +969,39 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         initialBgColor={selectedDeviceIconBgColor}
         onColorsChange={({ iconColor, bgColor }) => { setSelectedDeviceIconColor(iconColor); setSelectedDeviceIconBgColor(bgColor); }}
       />
+    </>
+  );
+
+  if (isEditMode) {
+    return (
+      <BreadcrumbPage
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Registration Authorities', href: '/registration-authorities' },
+          { label: <Badge variant="default" className="text-xs">{raName || raId || 'Edit'}</Badge> },
+        ]}
+        actions={
+          <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
+          </Button>
+        }
+        className="space-y-5"
+      >
+        <div className="w-[80%] mx-auto mb-8">
+          {formContent}
+        </div>
+      </BreadcrumbPage>
+    );
+  }
+
+  return (
+    <div className="w-[80%] mx-auto mb-8">
+      <div className="flex justify-end mb-4">
+        <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
+        </Button>
+      </div>
+      {formContent}
     </div>
   );
 }

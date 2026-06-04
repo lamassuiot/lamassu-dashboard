@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import {
   CheckCircle2,
   CheckSquare,
@@ -123,14 +124,14 @@ export default function CryptoEnginesPage() {
   }
 
   return (
-    <div className="w-full space-y-5 pb-8">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Crypto Engines' }]} className="w-full space-y-5 pb-8">
 
       {/* ── Hero ── */}
       <div className="border-b pb-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Cpu className="h-6 w-6" />
+            <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+              <Cpu className="h-8 w-8 text-primary" />
             </div>
             <div className="min-w-0 space-y-2">
               <div className="flex items-center gap-3">
@@ -198,6 +199,6 @@ export default function CryptoEnginesPage() {
         </div>
       )}
 
-    </div>
+    </BreadcrumbPage>
   );
 }

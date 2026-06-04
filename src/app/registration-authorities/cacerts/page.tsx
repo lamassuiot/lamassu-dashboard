@@ -12,6 +12,7 @@ import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
 import { CodeBlock } from '@/components/shared/CodeBlock';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { fetchEstCaCerts } from '@/lib/est-api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -119,7 +120,7 @@ export default function EstCaCertsPage() {
     }
     
     return (
-        <div className="space-y-6 w-full pb-12">
+        <BreadcrumbPage className="space-y-6 pb-12" items={[ {label:'Home',href:'/'}, {label:'Registration Authorities',href:'/registration-authorities'}, {label:'CA Certificates'} ]}>
             <Button variant="secondary" onClick={() => router.back()}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
@@ -216,6 +217,6 @@ export default function EstCaCertsPage() {
                     </div>
                 </div>
             )}
-        </div>
+        </BreadcrumbPage>
     );
 }

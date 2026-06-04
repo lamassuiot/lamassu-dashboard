@@ -22,6 +22,7 @@ import { SigningProfileForm, signingProfileSchema, type SigningProfileFormValues
 import { Form } from '@/components/ui/form';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 const getValidityLabel = (profile: ApiSigningProfile) => {
   if (!profile.validity) return 'Not specified';
@@ -204,7 +205,7 @@ export default function EditSigningProfilePage() {
     : 'N/A';
 
   return (
-    <div className="mb-8 w-full space-y-6">
+    <BreadcrumbPage items={[{label:'Home',href:'/'},{label:'Issuance Profiles',href:'/signing-profiles'},{label:'Edit'}]} className="mb-8 w-full space-y-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <SplitPanelLayout
@@ -277,6 +278,6 @@ export default function EditSigningProfilePage() {
           </SplitPanelLayout>
         </form>
       </Form>
-    </div>
+    </BreadcrumbPage>
   );
 }

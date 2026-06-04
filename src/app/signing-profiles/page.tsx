@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
 import { CAsUsingProfileModal } from '@/components/shared/CAsUsingProfileModal';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export type SortableProfileColumn = 'name';
 export type SortDirection = 'asc' | 'desc';
@@ -222,24 +223,28 @@ export default function SigningProfilesPage() {
 
   return (
     <>
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <ScrollTextIcon className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Issuance Profiles</h1>
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Issuance Profiles'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <ScrollTextIcon className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Issuance Profiles</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage templates that define how certificates are signed, including duration, subject attributes, and extensions.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-            <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
-                <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
-            </Button>
-            <Button onClick={handleCreateNewProfile}>
+        <div className="flex items-center space-x-2 shrink-0">
+          <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
+            <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
+          </Button>
+          <Button onClick={handleCreateNewProfile}>
             <PlusCircle className="mr-2 h-4 w-4" /> Create New Profile
-            </Button>
+          </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Manage templates that define how certificates are signed, including duration, subject attributes, and extensions.
-      </p>
 
        <div className="flex flex-col sm:flex-row gap-4 items-end mb-4">
             <div className="flex-grow w-full space-y-1.5">
@@ -338,7 +343,7 @@ export default function SigningProfilesPage() {
               </div>
           </div>
       )}
-    </div>
+    </BreadcrumbPage>
 
     <AlertDialog open={!!profileToDelete} onOpenChange={(open) => !open && setProfileToDelete(null)}>
         <AlertDialogContent>

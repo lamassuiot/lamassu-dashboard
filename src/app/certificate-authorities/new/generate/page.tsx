@@ -31,6 +31,7 @@ import { Form } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -442,8 +443,16 @@ export default function CreateCaGeneratePage() {
     setProfileMode('reuse');
   };
 
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Certificate Authorities', href: '/certificate-authorities' },
+    { label: 'New', href: '/certificate-authorities/new' },
+    { label: 'Generate' },
+  ];
+
   return (
-    <div className="w-[80%] mx-auto mb-8">
+    <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
+      <div className="w-[80%] mx-auto space-y-5 mb-8">
       <div className="flex justify-end mb-4">
         <Button variant="ghost" onClick={() => router.push('/certificate-authorities/new')} className="text-muted-foreground hover:text-foreground">
           Change creation method <ArrowLeft className="ml-1.5 h-3.5 w-3.5 rotate-180" />
@@ -738,6 +747,7 @@ export default function CreateCaGeneratePage() {
         currentSelectedCaId={selectedParentCa?.id}
         allCryptoEngines={allCryptoEngines}
       />
-    </div>
+      </div>
+    </BreadcrumbPage>
   );
 }

@@ -13,6 +13,7 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { sileo } from '@/lib/toast';
 import { fetchRaById, updateRaMetadata } from '@/lib/dms-api';
 import { DmsSelector } from '@/components/shared/DmsSelector';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export default function CreateIntegrationPage() {
   const router = useRouter();
@@ -82,18 +83,8 @@ export default function CreateIntegrationPage() {
   };
 
   return (
+    <BreadcrumbPage items={[ {label:'Home',href:'/'}, {label:'Platform Integrations',href:'/integrations'}, {label:'New'} ]} className="space-y-5 pb-8">
     <div className="mx-auto w-[80%] pb-8">
-      <div className="mb-6 flex justify-end">
-        <Button
-          variant="ghost"
-         
-          onClick={() => router.push('/integrations')}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to Integrations
-        </Button>
-      </div>
-
       <div className="mb-2">
         <h1 className="text-2xl font-semibold tracking-tight">Register New Integration</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
@@ -174,5 +165,6 @@ export default function CreateIntegrationPage() {
         </div>
       </form>
     </div>
+    </BreadcrumbPage>
   );
 }

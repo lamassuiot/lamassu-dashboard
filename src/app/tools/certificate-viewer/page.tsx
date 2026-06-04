@@ -25,6 +25,7 @@ import { format as formatDate, parseISO, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
 // --- Zlint Types and Interfaces ---
@@ -456,7 +457,7 @@ export default function CertificateViewerPage() {
   const accordionTriggerStyle = "text-md font-medium bg-muted/30 hover:bg-muted/40 data-[state=open]:bg-muted/50 px-4 py-3 rounded-md";
 
   return (
-    <>
+    <BreadcrumbPage items={[{label:'Home',href:'/'}, {label:'Tools'}, {label:'Certificate Viewer'}]} className="space-y-5 pb-8">
       <div className="space-y-6 w-full pb-8">
         <div className="flex items-center space-x-3">
           <Binary className="h-8 w-8 text-primary" />
@@ -733,6 +734,6 @@ export default function CertificateViewerPage() {
               issuerCertificate={issuerForOcsp}
           />
        )}
-    </>
+    </BreadcrumbPage>
   );
 }

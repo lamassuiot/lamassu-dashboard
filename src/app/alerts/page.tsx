@@ -13,6 +13,7 @@ import { AlertsTable } from '@/components/alerts/AlertsTable';
 import { sileo } from '@/lib/toast';
 import { SubscribeToAlertModal } from '@/components/alerts/SubscribeToAlertModal';
 import { SubscriptionDetailsModal } from '@/components/alerts/SubscriptionDetailsModal';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { AuditUserInfoPanel } from '@/components/alerts/AuditUserInfoPanel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -325,21 +326,25 @@ export default function AlertsPage() {
 
   return (
     <>
-    <div className="w-full space-y-6 pb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <Info className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Alerts</h1>
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Alerts'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <Info className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Alerts</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Monitor and get notified when operations are requested to the PKI.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 shrink-0">
           <Button onClick={loadAlertsData} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Monitor and get notified when operations are requested to the PKI.
-      </p>
 
       <div className="flex flex-col lg:flex-row lg:items-end gap-4">
           <div className="w-full lg:w-auto lg:min-w-[240px] space-y-1.5">
@@ -469,7 +474,7 @@ export default function AlertsPage() {
             </div>
           )}
       </SplitPanelLayout>
-    </div>
+    </BreadcrumbPage>
     <AuditUserInfoPanel
       isOpen={rightPanelMode === 'audit-user'}
       onOpenChange={(isOpen) => { if (!isOpen) handleCloseRightPanel(); }}

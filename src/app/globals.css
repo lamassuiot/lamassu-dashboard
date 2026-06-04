@@ -443,6 +443,13 @@
 }
 
 @layer components {
+  [data-slot="dropdown-menu-content"] {
+    @apply min-w-48;
+  }
+
+  [data-slot="table-header"] {
+    @apply bg-input/50;
+  }
 
   /* Vis-timeline custom styles */
 

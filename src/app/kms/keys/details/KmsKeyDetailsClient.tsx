@@ -38,7 +38,7 @@ import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { MetadataTabContent } from '@/components/shared/details-tabs/MetadataTabContent';
 
 interface KmsKeyDetailed {
@@ -729,36 +729,36 @@ export default function KmsKeyDetailsClient() {
     },
   ];
   return (
-    <div className="w-full space-y-5">
-      <DetailBreadcrumbRow
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'KMS', href: '/kms' },
-          { label: 'Keys', href: '/kms/keys' },
-          {
-            label: (
-              <Badge variant="default" className="text-xs">
-                {keyDetails.alias}
-              </Badge>
-            ),
-          },
-        ]}
-        actions={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary" className="px-2.5">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem disabled>
-                <Delete className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
-      />
+    <BreadcrumbPage
+      className="space-y-5"
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'KMS', href: '/kms' },
+        { label: 'Keys', href: '/kms/keys' },
+        {
+          label: (
+            <Badge variant="default" className="text-xs">
+              {keyDetails.alias}
+            </Badge>
+          ),
+        },
+      ]}
+      actions={
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="secondary" className="px-2.5">
+              <Settings className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem disabled>
+              <Delete className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      }
+    >
 
       {/* ── Hero ── */}
       <div className="border-b pb-6">
@@ -1390,6 +1390,6 @@ export default function KmsKeyDetailsClient() {
           </TabsContent>
         </div>
       </Tabs>
-    </div>
+    </BreadcrumbPage>
   );
 }

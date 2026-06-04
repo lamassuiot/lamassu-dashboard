@@ -68,10 +68,10 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
   } else if (ca.kmsKeyId) {
     const engine = allCryptoEngines.find(e => e.id === ca.kmsKeyId);
     iconNode = engine
-      ? <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4" />
-      : <KeyRound className="h-4 w-4 text-primary" />;
+      ? <CryptoEngineViewer engine={engine} iconOnly className="h-6 w-6" />
+      : <KeyRound className="h-6 w-6 text-primary" />;
   } else {
-    iconNode = <HardDrive className="h-4 w-4 text-primary" />;
+    iconNode = <HardDrive className="h-6 w-6 text-primary" />;
   }
 
   const handleToggleOpen = (e: React.MouseEvent) => {
@@ -112,7 +112,7 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
           ) : null}
         </div>
 
-        <div className="flex h-4 w-4 shrink-0 items-center justify-center">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center">
           {iconNode}
         </div>
 

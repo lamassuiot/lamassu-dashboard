@@ -22,7 +22,7 @@ import { downloadFile } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { VaSettingsCard } from '@/components/shared/VaSettingsCard';
 
 
@@ -266,9 +266,7 @@ export function VerificationAuthoritiesClient() {
   ] : [];
 
   return (
-    <div className="space-y-6 w-full pb-8">
-      <DetailBreadcrumbRow
-        items={[
+    <BreadcrumbPage className="space-y-6 pb-8" items={[
           { label: 'Home', href: '/' },
           { label: 'Verification Authorities', href: '/verification-authorities' },
           selectedCaForConfig ? {
@@ -278,8 +276,7 @@ export function VerificationAuthoritiesClient() {
               </Badge>
             ),
           } : { label: 'Configuration' },
-        ]}
-      />
+        ]}>
 
       {selectedCaForConfig ? (
         <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
@@ -468,6 +465,6 @@ export function VerificationAuthoritiesClient() {
             </div>
           )}
       </div>
-    </div>
+    </BreadcrumbPage>
   );
 }

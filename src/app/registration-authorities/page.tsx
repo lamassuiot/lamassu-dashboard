@@ -3,6 +3,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -294,24 +295,28 @@ export default function RegistrationAuthoritiesPage() {
 
   return (
     <>
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <ClipboardCheck className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Registration Authorities</h1>
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Registration Authorities'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <ClipboardCheck className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Registration Authorities</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage policies for device enrollment and certificate issuance.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-           <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
-                <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
-            </Button>
-            <Button variant="default" onClick={handleCreateNewRAClick}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
-            </Button>
+        <div className="flex items-center space-x-2 shrink-0">
+          <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
+            <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
+          </Button>
+          <Button variant="default" onClick={handleCreateNewRAClick}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
+          </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Manage policies for device enrollment and certificate issuance.
-      </p>
 
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-grow w-full space-y-1.5">
@@ -417,7 +422,7 @@ export default function RegistrationAuthoritiesPage() {
         )}
         </div>
 
-    </div>
+    </BreadcrumbPage>
     <EstEnrollModal
         isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
         onOpenChange={handleEstPanelOpenChange}

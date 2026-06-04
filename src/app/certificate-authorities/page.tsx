@@ -17,6 +17,7 @@ import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import type { CaStatusFilter, CaTypeFilter } from '@/lib/ca-utils';
 import { filterCaList } from '@/lib/ca-utils';
 import { cn } from '@/lib/utils';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
 const CaFilesystemView = dynamic(() => 
@@ -155,21 +156,23 @@ export default function CertificateAuthoritiesPage() {
   }
 
   return (
-    <div className="space-y-6 w-full pb-8">
-      <div className="p-0"> 
-        <div className="p-0"> 
-          <div className="flex items-center justify-between mb-2"> 
-            <div className="flex items-center space-x-3">
-              <Landmark className="h-8 w-8 text-primary" />
-              <h1 className="text-2xl font-headline font-semibold">Certification Authorities</h1> 
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button variant="default" onClick={handleCreateNewCAClick}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Create New CA
-              </Button>
-            </div>
+    <BreadcrumbPage items={[{label:'Home',href:'/'},{label:'Certification Authorities'}]} className="space-y-6 w-full pb-8">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <Landmark className="h-8 w-8 text-primary" />
           </div>
-          <p className="text-sm text-muted-foreground mb-4">Manage your Certification Authority configurations and trust stores.</p> 
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Certification Authorities</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage your Certification Authority configurations and trust stores.</p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2 shrink-0">
+          <Button variant="default" onClick={handleCreateNewCAClick}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Create New CA
+          </Button>
+        </div>
+      </div>
 
           <div
             className="grid items-end gap-3 mb-4 grid-cols-1 md:grid-cols-[minmax(180px,var(--col1))_minmax(210px,350px)_minmax(210px,350px)_auto]"
@@ -243,8 +246,7 @@ export default function CertificateAuthoritiesPage() {
               </div>
             </div>
           </div>
-        </div>
-        <div className="pt-6"> 
+      <div className="pt-6">
           {(errorCas || (viewMode === 'list' && errorCryptoEngines)) && (
             <Alert variant="destructive">
               <AlertCircleIcon className="h-4 w-4" />
@@ -278,7 +280,6 @@ export default function CertificateAuthoritiesPage() {
             )
           )}
         </div>
-      </div>
-    </div>
+    </BreadcrumbPage>
   );
 }

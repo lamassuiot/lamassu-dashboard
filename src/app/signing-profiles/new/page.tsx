@@ -20,6 +20,7 @@ import { SigningProfileForm, signingProfileSchema, type SigningProfileFormValues
 import { Form } from '@/components/ui/form';
 import { Stepper } from '@/components/shared/Stepper';
 import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
 const templateMetadata = [
@@ -113,7 +114,7 @@ export default function CreateSigningProfilePage() {
   const selectedTemplate = templateMetadata.find((template) => template.id === selectedTemplateId) ?? templateMetadata[0];
 
   return (
-    <div className="mb-8 w-full space-y-6">
+    <BreadcrumbPage className="space-y-6 mb-8" items={[ {label:'Home',href:'/'}, {label:'Issuance Profiles',href:'/signing-profiles'}, {label:'New'} ]}>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           {view === 'template' ? (
@@ -284,6 +285,6 @@ export default function CreateSigningProfilePage() {
           )}
         </form>
       </Form>
-    </div>
+    </BreadcrumbPage>
   );
 }
