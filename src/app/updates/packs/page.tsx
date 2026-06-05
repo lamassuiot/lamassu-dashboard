@@ -32,17 +32,17 @@ export default function UpdatePacksPage() {
   const { user } = useAuth();
   const { availableDms } = useDms();
   const queryClient = useQueryClient();
-  const [packToDelete, setPackToDelete] = React.useState<(UpdatePack & { dmsId: string; dmsName: string }) | null>(null);
+  const [packToDelete, setPackToDelete] = React.useState<(UpdatePack & { groupId: string; groupName: string }) | null>(null);
 
   // Fetch all update packs from all DMS instances
-  const { data: allUpdatePacks = [], isLoading, error } = useQuery<(UpdatePack & { dmsId: string; dmsName: string })[], Error>({
+  const { data: allUpdatePacks = [], isLoading, error } = useQuery<(UpdatePack & { groupId: string; groupName: string })[], Error>({
     queryKey: ['allUpdatePacks'],
     queryFn: async ({ signal }) => {
       if (!user?.access_token || availableDms.length === 0) return [];
 
       const allPacksPromises = availableDms.map(dms =>
-        fetchUpdatePacks({ dmsId: dms.id, accessToken: user.access_token! }, { pageSize: 50 }, { signal })
-          .then(response => response.list.map(pack => ({ ...pack, dmsId: dms.id, dmsName: dms.name })))
+        fetchUpdatePacks({ groupId: dms.id, accessToken: user.access_token! }, { pageSize: 50 }, { signal })
+          .then(response => response.list.map(pack => ({ ...pack, groupId: dms.id, groupName: dms.name })))
           .catch(() => []) // Return empty array on error for this DMS
       );
 
@@ -53,8 +53,8 @@ export default function UpdatePacksPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (pack: UpdatePack & { dmsId: string; dmsName: string }) => 
-      deleteUpdatePackApi({ dmsId: pack.dmsId, packName: pack.name, accessToken: user!.access_token! }),
+    mutationFn: (pack: UpdatePack & { groupId: string; groupName: string }) => 
+      deleteUpdatePackApi({ groupId: pack.groupId, packName: pack.name, accessToken: user!.access_token! }),
     onSuccess: (data, pack) => {
       toast({
         title: "Update Pack Deleted",
@@ -74,12 +74,12 @@ export default function UpdatePacksPage() {
     }
   });
 
-  const handlePackClick = (pack: UpdatePack & { dmsId: string; dmsName: string }) => {
-    router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&dmsId=${pack.dmsId}`);
+  const handlePackClick = (pack: UpdatePack & { groupId: string; groupName: string }) => {
+    router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&groupId=${pack.groupId}`);
   };
 
-  const handleRowClick = (pack: UpdatePack & { dmsId: string; dmsName: string }) => {
-    router.push(`/updates?packName=${encodeURIComponent(pack.name)}&dmsId=${pack.dmsId}`);
+  const handleRowClick = (pack: UpdatePack & { groupId: string; groupName: string }) => {
+    router.push(`/updates?packName=${encodeURIComponent(pack.name)}&groupId=${pack.groupId}`);
   };
 
   const handleDeleteConfirm = () => {
@@ -123,7 +123,7 @@ export default function UpdatePacksPage() {
         <div>
           <h2 className="text-xl font-semibold">All Update Packs</h2>
           <p className="text-muted-foreground">
-            A list of all firmware update packs across all Device Management Systems.
+            A list of all firmware update packs across all Device Groups.
           </p>
         </div>
         {isLoading ? (
@@ -144,7 +144,7 @@ export default function UpdatePacksPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>DMS</TableHead>
+                    <TableHead>Group</TableHead>
                     <TableHead>Name & Version</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Type</TableHead>
@@ -163,14 +163,14 @@ export default function UpdatePacksPage() {
                   ) : (
                     allUpdatePacks.map((pack) => (
                       <TableRow
-                        key={`${pack.dmsId}-${pack.id}`}
+                        key={`${pack.groupId}-${pack.id}`}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => handleRowClick(pack)}
                       >
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-medium">{pack.dmsName}</span>
-                            <span className="text-xs text-muted-foreground">{pack.dmsId}</span>
+                            <span className="font-medium">{pack.groupName}</span>
+                            <span className="text-xs text-muted-foreground">{pack.groupId}</span>
                           </div>
                         </TableCell>
                         <TableCell>

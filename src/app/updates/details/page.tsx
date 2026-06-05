@@ -61,11 +61,11 @@ function extractWfxEligibleTransitions(workflow?: DeviceJob['workflow']): WfxTra
 // Component to display phased workflow states with device counts
 interface PhasedWorkflowStatesProps {
   launch: LaunchItem;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
 }
 
-function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStatesProps) {
+function PhasedWorkflowStates({ launch, groupId, accessToken }: PhasedWorkflowStatesProps) {
   const queryClient = useQueryClient();
   const [isTransitioning, setIsTransitioning] = React.useState<string | null>(null);
   
@@ -78,9 +78,9 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
   ]));
   
   const { data: jobs, isLoading, refetch } = useQuery<DeviceJob[], Error>({
-    queryKey: ['phasedWorkflowStates', dmsId, launch.id, ...allDeviceIdsForQuery],
+    queryKey: ['phasedWorkflowStates', groupId, launch.id, ...allDeviceIdsForQuery],
     queryFn: ({ signal }) => fetchAllDeviceJobs({ 
-      dmsId, 
+      groupId, 
       deviceIds: allDeviceIdsForQuery, 
       accessToken: accessToken!,
       targetLaunchId: launch.id,
@@ -232,8 +232,8 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
 
       // Refresh data
       refetch();
-      queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', dmsId, launch.id] });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', groupId, launch.id] });
+      queryClient.invalidateQueries({ queryKey: ['currentLaunches', groupId] });
     } catch (error) {
       // Ignore AbortError - can happen due to React strict mode or navigation
       if (error instanceof Error && error.name === 'AbortError') {
@@ -398,29 +398,29 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken }: PhasedWorkflowStat
 }
 
 interface DeviceJobStatusRowProps {
-  dmsId: string;
+  groupId: string;
   deviceId: string;
   targetLaunchId: string;
   accessToken: string | null;
   onTransitionComplete?: () => void;
 }
 
-function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken, onTransitionComplete }: DeviceJobStatusRowProps) {
+function DeviceJobStatusRow({ groupId, deviceId, targetLaunchId, accessToken, onTransitionComplete }: DeviceJobStatusRowProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
 
   const { data: jobs, isLoading, error, refetch } = useQuery<DeviceJob[], Error>({
-    queryKey: ['deviceJobs', dmsId, deviceId, targetLaunchId],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ dmsId, deviceIds: [deviceId], accessToken: accessToken!, targetLaunchId }, { signal }),
+    queryKey: ['deviceJobs', groupId, deviceId, targetLaunchId],
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: [deviceId], accessToken: accessToken!, targetLaunchId }, { signal }),
     enabled: !!accessToken,
     refetchInterval: 5000, // Poll every 5 seconds for active devices
   });
 
   // Fetch active launches to check if this device is currently executing
   const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
-    queryKey: ['activeLaunches', dmsId],
-    queryFn: ({ signal }) => fetchCurrentLaunches({ dmsId, accessToken: accessToken! }, { signal }),
+    queryKey: ['activeLaunches', groupId],
+    queryFn: ({ signal }) => fetchCurrentLaunches({ groupId, accessToken: accessToken! }, { signal }),
     enabled: !!accessToken,
     refetchInterval: 5000,
   });
@@ -462,8 +462,8 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken, onTr
           description: `Device transitioned to ${currentWfxTransition.to}`,
         });
         refetch();
-        queryClient.invalidateQueries({ queryKey: ['phasedWorkflowStates', dmsId, targetLaunchId] });
-        queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', dmsId, targetLaunchId] });
+        queryClient.invalidateQueries({ queryKey: ['phasedWorkflowStates', groupId, targetLaunchId] });
+        queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', groupId, targetLaunchId] });
         onTransitionComplete?.();
       }
 
@@ -517,7 +517,7 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken, onTr
         <TableCell className="font-mono py-2">
           <span 
             className="cursor-pointer hover:underline text-primary"
-            onClick={() => router.push(`/devices/details?deviceId=${deviceId}&dmsId=${dmsId}`)}
+            onClick={() => router.push(`/devices/details?deviceId=${deviceId}&groupId=${groupId}`)}
           >
             {deviceId}
           </span>
@@ -572,7 +572,7 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken, onTr
       <TableCell className="font-mono py-2">
         <span 
           className="cursor-pointer hover:underline text-primary"
-          onClick={() => router.push(`/devices/details?deviceId=${deviceId}&dmsId=${dmsId}`)}
+          onClick={() => router.push(`/devices/details?deviceId=${deviceId}&groupId=${groupId}`)}
         >
           {deviceId}
         </span>
@@ -669,7 +669,7 @@ function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken, onTr
         <Button
           variant="outline"
           size="sm"
-          onClick={() => router.push(`/devices/details?deviceId=${deviceId}&dmsId=${dmsId}&jobId=${relevantJob.id}&tab=timeline`)}
+          onClick={() => router.push(`/devices/details?deviceId=${deviceId}&groupId=${groupId}&jobId=${relevantJob.id}&tab=timeline`)}
         >
           <Eye className="h-4 w-4 mr-1" />
           Workflow
@@ -689,12 +689,12 @@ export default function LaunchDetailsPage() {
   const { user } = useAuth();
   const { availableDms } = useDms();
 
-  const dmsId = searchParams.get('dmsId');
+  const groupId = searchParams.get('groupId');
   const launchId = searchParams.get('launchId');
 
   // Find the DMS name
-  const dms = availableDms.find(d => d.id === dmsId);
-  const dmsName = dms?.name || dmsId;
+  const dms = availableDms.find(d => d.id === groupId);
+  const groupName = dms?.name || groupId;
 
   // Calculate polling interval: aggressive for 30 seconds after execution, then normal
   const now = Date.now();
@@ -704,29 +704,29 @@ export default function LaunchDetailsPage() {
 
   // Fetch the specific launch
   const { data: launchItem, isLoading, error } = useQuery<LaunchItem, Error>({
-    queryKey: ['launch', dmsId, launchId],
+    queryKey: ['launch', groupId, launchId],
     queryFn: async ({ signal }) => {
-      if (!user?.access_token || !dmsId || !launchId) {
+      if (!user?.access_token || !groupId || !launchId) {
         throw new Error('Missing required parameters');
       }
 
-      const launch = await fetchLaunchDetails({ dmsId, accessToken: user.access_token, launchId }, { signal });
+      const launch = await fetchLaunchDetails({ groupId, accessToken: user.access_token, launchId }, { signal });
       
       if (!launch) {
         throw new Error('Launch not found');
       }
       
-      return { ...launch, dmsName, dms_id: dmsId };
+      return { ...launch, groupName, dms_id: groupId };
     },
-    enabled: !!user?.access_token && !!dmsId && !!launchId,
+    enabled: !!user?.access_token && !!groupId && !!launchId,
     refetchInterval: pollingInterval,
   });
 
   // Fetch active launches - MUST be called before any conditional returns
   const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
-    queryKey: ['activeLaunches', dmsId],
-  queryFn: ({ signal }) => fetchCurrentLaunches({ dmsId, accessToken: user?.access_token! }, { signal }),
-    enabled: !!user?.access_token && !!dmsId,
+    queryKey: ['activeLaunches', groupId],
+  queryFn: ({ signal }) => fetchCurrentLaunches({ groupId, accessToken: user?.access_token! }, { signal }),
+    enabled: !!user?.access_token && !!groupId,
     refetchInterval: pollingInterval,
   });
 
@@ -737,9 +737,9 @@ export default function LaunchDetailsPage() {
     try {
       const allDeviceIds = Array.from(new Set([...launchItem.devices_with_job, ...launchItem.devices_without_job]));
       allDeviceIds.forEach(deviceId => {
-        queryClient.invalidateQueries({ queryKey: ['deviceJobs', dmsId, deviceId, launchItem.id] });
+        queryClient.invalidateQueries({ queryKey: ['deviceJobs', groupId, deviceId, launchItem.id] });
       });
-      queryClient.invalidateQueries({ queryKey: ['launchJobStats', dmsId, launchItem.id, ...launchItem.devices_with_job] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStats', groupId, launchItem.id, ...launchItem.devices_with_job] });
       await queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
 
       toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for launch: ${launchItem.name}`});
@@ -848,7 +848,7 @@ export default function LaunchDetailsPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">DMS</label>
-              <p className="text-sm">{dmsName} ({dmsId})</p>
+              <p className="text-sm">{groupName} ({groupId})</p>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">Execution Date</label>
@@ -877,7 +877,7 @@ export default function LaunchDetailsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/updates/launch/${launchItem.id}/strategy?dms=${dmsId}`)}
+              onClick={() => router.push(`/updates/launch/${launchItem.id}/strategy?dms=${groupId}`)}
               className="gap-2"
             >
               <Pencil className="h-4 w-4" />
@@ -894,7 +894,7 @@ export default function LaunchDetailsPage() {
                     setIsExecuting(true);
                     setExecutionStartTime(Date.now());
 
-                    const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchItem.id}/rollout`, {
+                    const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchItem.id}/rollout`, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
@@ -912,8 +912,8 @@ export default function LaunchDetailsPage() {
                     });
 
                     // Refresh the launch data aggressively
-                    queryClient.invalidateQueries({ queryKey: ['launch', dmsId, launchId] });
-                    queryClient.invalidateQueries({ queryKey: ['activeLaunches', dmsId] });
+                    queryClient.invalidateQueries({ queryKey: ['launch', groupId, launchId] });
+                    queryClient.invalidateQueries({ queryKey: ['activeLaunches', groupId] });
 
                     // Stop aggressive polling after 30 seconds
                     setTimeout(() => {
@@ -1044,7 +1044,7 @@ export default function LaunchDetailsPage() {
           </p>
           <PhasedWorkflowStates
             launch={launchItem}
-            dmsId={dmsId!}
+            groupId={groupId!}
             accessToken={user?.access_token || null}
           />
         </div>
@@ -1077,7 +1077,7 @@ export default function LaunchDetailsPage() {
                 {allDeviceIdsWithActive.map(deviceId => (
                   <DeviceJobStatusRow
                     key={deviceId}
-                    dmsId={dmsId!}
+                    groupId={groupId!}
                     deviceId={deviceId}
                     targetLaunchId={launchItem.id}
                     accessToken={user?.access_token || null}

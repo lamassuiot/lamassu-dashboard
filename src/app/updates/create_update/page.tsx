@@ -118,7 +118,7 @@ function ExistingUpdatePacks({
   }, [data]);
 
   const deleteMutation = useMutation({
-    mutationFn: (packName: string) => deleteUpdatePackApi({ dmsId: selectedDms!.id, packName, accessToken: user!.access_token! }),
+    mutationFn: (packName: string) => deleteUpdatePackApi({ groupId: selectedDms!.id, packName, accessToken: user!.access_token! }),
     onSuccess: (data, packName) => {
       toast({
         title: "Update Pack Deleted",
@@ -206,7 +206,7 @@ function ExistingUpdatePacks({
                   <TableRow 
                     key={pack.id} 
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&dmsId=${selectedDms?.id}`)}
+                    onClick={() => router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&groupId=${selectedDms?.id}`)}
                   >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -215,7 +215,7 @@ function ExistingUpdatePacks({
                           className="text-primary hover:text-primary/80 underline cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&dmsId=${selectedDms?.id}`);
+                            router.push(`/updates/pack-details?packName=${encodeURIComponent(pack.name)}&groupId=${selectedDms?.id}`);
                           }}
                         >
                           {pack.name}
@@ -246,7 +246,7 @@ function ExistingUpdatePacks({
           </Table>
         ) : (
           <p className="text-muted-foreground text-center py-4">
-            No update packs found for DMS ID: {selectedDms?.id}.
+            No update packs found for Device Group: {selectedDms?.id}.
           </p>
         )}
       </div>
@@ -292,7 +292,7 @@ export default function UpdatePacksPage() {
 
   const { data: fetchedUpdatePacks, error: fetchError, isLoading: isFetching, refetch } = useQuery<UpdatePack[], Error>({
     queryKey: ['updatePacks', selectedDms?.id],
-    queryFn: () => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }).then(res => res.list),
+    queryFn: () => fetchUpdatePacks({ groupId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }).then(res => res.list),
     enabled: !!selectedDms && !!user?.access_token,
     select: (data) => { 
       return data.map(pack => {
@@ -328,7 +328,7 @@ export default function UpdatePacksPage() {
   if (!selectedDms) {
     return (
         <div className="flex items-center justify-center p-8">
-            <p className="text-muted-foreground">Please select a Device Management System above to manage update packs.</p>
+            <p className="text-muted-foreground">Please select a Device Group above to manage update packs.</p>
         </div>
     );
   }

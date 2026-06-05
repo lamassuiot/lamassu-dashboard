@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchUpdatePacks, fetchArtifacts, fetchUpdatePackDescriptor, fetchDmsDevices, getPerDeviceSwuDownloadUrl, fetchUpdatePackVersions, downloadSwuVersion, fetchArtifactCatalog, downloadArtifact } from '@/lib/iot-api';
+import { fetchUpdatePacks, fetchArtifacts, fetchUpdatePackDescriptor, fetchGroupDevices, getPerDeviceSwuDownloadUrl, fetchUpdatePackVersions, downloadSwuVersion, fetchArtifactCatalog, downloadArtifact } from '@/lib/iot-api';
 import { fetchKmsKey, type ApiKmsKey } from '@/lib/kms-data';
 import { cn, formatBytes, isValidSemver } from '@/lib/utils';
 import type { DeviceListApiResponse, UpdatePackVersion, Artifact } from '@/types/iot';
@@ -31,32 +31,32 @@ export default function UpdatePackDetailsPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   
-  const dmsId = searchParams.get('dmsId');
+  const groupId = searchParams.get('groupId');
   const packName = searchParams.get('packName');
 
   // Fetch all update packs for this DMS
   const { data: updatePacksResponse, isLoading } = useQuery<UpdatePacksResponse, Error>({
-    queryKey: ['updatePacks', dmsId],
-    queryFn: () => fetchUpdatePacks({ dmsId: dmsId!, accessToken: user!.access_token! }, { pageSize: 50 }),
-    enabled: !!dmsId && !!user?.access_token,
+    queryKey: ['updatePacks', groupId],
+    queryFn: () => fetchUpdatePacks({ groupId: groupId!, accessToken: user!.access_token! }, { pageSize: 50 }),
+    enabled: !!groupId && !!user?.access_token,
   });
 
   const updatePacks = updatePacksResponse?.list || [];
 
   // Fetch artifacts for the specific pack
   const { data: artifacts = [], isLoading: artifactsLoading } = useQuery<string[], Error>({
-    queryKey: ['updatePackArtifacts', dmsId, packName],
-    queryFn: () => fetchArtifacts({ dmsId: dmsId!, packName: packName!, accessToken: user!.access_token! }),
-    enabled: !!dmsId && !!packName && !!user?.access_token,
+    queryKey: ['updatePackArtifacts', groupId, packName],
+    queryFn: () => fetchArtifacts({ groupId: groupId!, packName: packName!, accessToken: user!.access_token! }),
+    enabled: !!groupId && !!packName && !!user?.access_token,
     staleTime: 0, // Always refetch
     refetchOnMount: true,
   });
 
   // Fetch descriptor for the specific pack
   const { data: descriptorContent, isLoading: descriptorLoading } = useQuery<string, Error>({
-    queryKey: ['updatePackDescriptor', dmsId, packName],
-    queryFn: () => fetchUpdatePackDescriptor({ dmsId: dmsId!, packName: packName!, accessToken: user!.access_token! }),
-    enabled: !!dmsId && !!packName && !!user?.access_token,
+    queryKey: ['updatePackDescriptor', groupId, packName],
+    queryFn: () => fetchUpdatePackDescriptor({ groupId: groupId!, packName: packName!, accessToken: user!.access_token! }),
+    enabled: !!groupId && !!packName && !!user?.access_token,
     staleTime: 0, // Always refetch
     refetchOnMount: true,
   });
@@ -74,17 +74,17 @@ export default function UpdatePackDetailsPage() {
   // Fetch devices for per-device download (only when encryption_mode is 'per-device')
   const isPerDevice = updatePack?.encryption_mode === 'per-device';
   const { data: dmsDevicesResponse, isLoading: devicesLoading } = useQuery<DeviceListApiResponse, Error>({
-    queryKey: ['dmsDevices', dmsId],
-    queryFn: () => fetchDmsDevices({ dmsId: dmsId!, accessToken: user!.access_token! }),
-    enabled: !!dmsId && !!user?.access_token && isPerDevice,
+    queryKey: ['dmsDevices', groupId],
+    queryFn: () => fetchGroupDevices({ groupId: groupId!, accessToken: user!.access_token! }),
+    enabled: !!groupId && !!user?.access_token && isPerDevice,
   });
   const dmsDevices = dmsDevicesResponse?.list || [];
 
   // Fetch recorded version snapshots for this pack
   const { data: versionsResponse } = useQuery<{ list: UpdatePackVersion[]; next: string | null }, Error>({
-    queryKey: ['updatePackVersions', dmsId, packName],
-    queryFn: () => fetchUpdatePackVersions({ dmsId: dmsId!, packName: packName!, accessToken: user!.access_token! }),
-    enabled: !!dmsId && !!packName && !!user?.access_token,
+    queryKey: ['updatePackVersions', groupId, packName],
+    queryFn: () => fetchUpdatePackVersions({ groupId: groupId!, packName: packName!, accessToken: user!.access_token! }),
+    enabled: !!groupId && !!packName && !!user?.access_token,
   });
   const packVersions: UpdatePackVersion[] = versionsResponse?.list || [];
 
@@ -92,9 +92,9 @@ export default function UpdatePackDetailsPage() {
 
   // Artifact catalog
   const { data: catalogArtifacts = [], isLoading: catalogLoading, refetch: refetchCatalog } = useQuery<Artifact[], Error>({
-    queryKey: ['artifactCatalog', dmsId, packName],
-    queryFn: () => fetchArtifactCatalog({ dmsId: dmsId!, packName: packName!, accessToken: user!.access_token! }),
-    enabled: !!dmsId && !!packName && !!user?.access_token,
+    queryKey: ['artifactCatalog', groupId, packName],
+    queryFn: () => fetchArtifactCatalog({ groupId: groupId!, packName: packName!, accessToken: user!.access_token! }),
+    enabled: !!groupId && !!packName && !!user?.access_token,
   });
 
   // Upload artifact state
@@ -107,7 +107,7 @@ export default function UpdatePackDetailsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleArtifactUpload = async () => {
-    if (!uploadFile || !dmsId || !packName || !user?.access_token) return;
+    if (!uploadFile || !groupId || !packName || !user?.access_token) return;
     if (!isValidSemver(uploadVersion)) {
       toast({ title: 'Invalid version', description: 'Version must be in X.Y.Z format (e.g. 1.2.3).', variant: 'destructive' });
       return;
@@ -119,7 +119,7 @@ export default function UpdatePackDetailsPage() {
       const name = uploadArtifactName.trim() || uploadFile.name.replace(/\.[^/.]+$/, '');
       formData.append('artifact_name', name);
       formData.append('version', uploadVersion.trim());
-      const res = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/artifact/upload`, {
+      const res = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifact/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${user.access_token}` },
         body: formData,
@@ -134,7 +134,7 @@ export default function UpdatePackDetailsPage() {
       setUploadVersion('');
       setIsUploadOpen(false);
       refetchCatalog();
-      queryClient.invalidateQueries({ queryKey: ['updatePackArtifacts', dmsId, packName] });
+      queryClient.invalidateQueries({ queryKey: ['updatePackArtifacts', groupId, packName] });
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -143,9 +143,9 @@ export default function UpdatePackDetailsPage() {
   };
 
   const handleDownloadVersion = async (version: number) => {
-    if (!dmsId || !packName || !user?.access_token) return;
+    if (!groupId || !packName || !user?.access_token) return;
     try {
-      const blob = await downloadSwuVersion({ dmsId, packName, version, accessToken: user.access_token });
+      const blob = await downloadSwuVersion({ groupId, packName, version, accessToken: user.access_token });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -184,9 +184,9 @@ export default function UpdatePackDetailsPage() {
   };
 
   const handlePerDeviceDownload = async (deviceId: string) => {
-    if (!dmsId || !packName || !user?.access_token) return;
+    if (!groupId || !packName || !user?.access_token) return;
     try {
-      const url = getPerDeviceSwuDownloadUrl(dmsId, packName, deviceId);
+      const url = getPerDeviceSwuDownloadUrl(groupId, packName, deviceId);
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${user.access_token}` },
       });
@@ -234,7 +234,7 @@ export default function UpdatePackDetailsPage() {
 
   const handleDownloadArtifact = async (fileName: string) => {
     try {
-      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/artifacts/${fileName}`, {
+      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifacts/${fileName}`, {
         headers: { 'Authorization': `Bearer ${user!.access_token!}` },
       });
 

@@ -66,13 +66,22 @@ export async function fetchCryptoEngines(accessToken: string): Promise<ApiCrypto
     return enginesData;
 }
 
-export async function fetchKmsKeys(accessToken: string, params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
+// Overloaded: fetchKmsKeys(accessToken, params) or legacy fetchKmsKeys(params) (no auth header).
+export async function fetchKmsKeys(accessTokenOrParams: string | URLSearchParams, params?: URLSearchParams): Promise<ApiKmsKeyListResponse> {
+    let accessToken: string | undefined;
+    let queryParams: URLSearchParams;
+    if (typeof accessTokenOrParams === 'string') {
+        accessToken = accessTokenOrParams;
+        queryParams = params ?? new URLSearchParams();
+    } else {
+        queryParams = accessTokenOrParams;
+    }
     const url = new URL(`${get_KMS_API_BASE_URL()}/keys`);
-    params.forEach((value, key) => url.searchParams.append(key, value));
-    
-    const response = await fetch(url.toString(), {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    queryParams.forEach((value, key) => url.searchParams.append(key, value));
+
+    const headers: Record<string, string> = {};
+    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+    const response = await fetch(url.toString(), { headers });
     if (!response.ok) {
         let errorJson;
         let errorMessage = `Failed to fetch KMS keys. HTTP error ${response.status}`;
@@ -232,6 +241,27 @@ export async function updateKeyAliases(keyId: string, patches: PatchOperation[],
             errorMessage = `Alias update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
         } catch (e) {
             console.error("Failed to parse error response as JSON for alias update:", e);
+        }
+        throw new Error(errorMessage);
+    }
+}
+
+export async function updateKeyMetadata(keyId: string, patches: PatchOperation[], accessToken?: string): Promise<void> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/metadata`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(patches),
+    });
+    if (!response.ok) {
+        let errorJson;
+        let errorMessage = `Failed to update key metadata. Status: ${response.status}`;
+        try {
+            errorJson = await response.json();
+            errorMessage = `Metadata update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
+        } catch (e) {
+            console.error("Failed to parse error response as JSON for metadata update:", e);
         }
         throw new Error(errorMessage);
     }

@@ -15,7 +15,7 @@ export default function CreateUpdatePackPage() {
   const searchParams = useSearchParams();
   const { selectedDms, setSelectedDms, availableDms } = useDms();
 
-  const dmsIdParam = searchParams.get('dmsId');
+  const dmsIdParam = searchParams.get('groupId');
   const mode = searchParams.get('mode');
   const basePackId = searchParams.get('basePackId');
 
@@ -24,12 +24,12 @@ export default function CreateUpdatePackPage() {
   useEffect(() => {
     if (mode === 'update' && basePackId) {
       const qs = new URLSearchParams({ basePackId });
-      if (dmsIdParam) qs.set('dmsId', dmsIdParam);
+      if (dmsIdParam) qs.set('groupId', dmsIdParam);
       router.replace(`/updates/create-version?${qs.toString()}`);
     }
   }, [mode, basePackId, dmsIdParam, router]);
 
-  // Switch DMS if dmsId param is provided and different from current
+  // Switch DMS if groupId param is provided and different from current
   useEffect(() => {
     if (dmsIdParam && availableDms.length > 0 && selectedDms?.id !== dmsIdParam) {
       const target = availableDms.find(d => d.id === dmsIdParam);
@@ -50,7 +50,7 @@ export default function CreateUpdatePackPage() {
   if (!selectedDms) {
     return (
       <div className="flex items-center justify-center p-8">
-        <p className="text-muted-foreground">Please select a Device Management System above to manage update packs.</p>
+        <p className="text-muted-foreground">Please select a Device Group above to manage update packs.</p>
       </div>
     );
   }

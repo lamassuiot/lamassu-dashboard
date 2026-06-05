@@ -68,7 +68,7 @@ interface UpdatePackWithStatus extends UpdatePack {
   errorRate: number;
   rolloutProgress: number;
   targetTags: string[];
-  dmsId: string;
+  groupId: string;
   dmsName: string;
   hasLaunchForCurrentVersion: boolean;
   hasActiveLaunch: boolean; // Has a launch with devices without jobs
@@ -86,16 +86,16 @@ const formatWorkflowType = (workflowType?: ApiGlobalStrategy['workflow_type']) =
 // Global strategy display component removed - strategy is now per-launch only
 
 interface DeviceJobStatusRowProps {
-  dmsId: string;
+  groupId: string;
   deviceId: string;
   targetLaunchId: string;
   accessToken: string | null;
 }
 
-function DeviceJobStatusRow({ dmsId, deviceId, targetLaunchId, accessToken }: DeviceJobStatusRowProps) {
+function DeviceJobStatusRow({ groupId, deviceId, targetLaunchId, accessToken }: DeviceJobStatusRowProps) {
   const { data: jobs, isLoading, error } = useQuery<DeviceJob[], Error>({
-    queryKey: ['deviceJobs', dmsId, deviceId, targetLaunchId],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ dmsId, deviceIds: [deviceId], accessToken: accessToken!, targetLaunchId }, { signal }),
+    queryKey: ['deviceJobs', groupId, deviceId, targetLaunchId],
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: [deviceId], accessToken: accessToken!, targetLaunchId }, { signal }),
     enabled: !!accessToken,
   });
 
@@ -178,9 +178,9 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
   const [isRefreshingJobs, setIsRefreshingJobs] = React.useState(false);
   const { user } = useAuth();
   const { selectedDms } = useDms();
-  const dmsId = selectedDms?.id;
+  const groupId = selectedDms?.id;
 
-  if (!launchItem || !dmsId) return null;
+  if (!launchItem || !groupId) return null;
 
   const allDeviceIds = Array.from(new Set([...launchItem.devices_with_job, ...launchItem.devices_without_job]));
 
@@ -190,10 +190,10 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
     toast({ title: "Refreshing Job Statuses...", description: `For launch: ${launchItem.name}` });
     try {
       allDeviceIds.forEach(deviceId => {
-        queryClient.invalidateQueries({ queryKey: ['deviceJobs', dmsId, deviceId, launchItem.id] });
+        queryClient.invalidateQueries({ queryKey: ['deviceJobs', groupId, deviceId, launchItem.id] });
       });
-      queryClient.invalidateQueries({ queryKey: ['launchJobStats', dmsId, launchItem.id, ...launchItem.devices_with_job] });
-      await queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStats', groupId, launchItem.id, ...launchItem.devices_with_job] });
+      await queryClient.invalidateQueries({ queryKey: ['currentLaunches', groupId] });
 
       toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for launch: ${launchItem.name}`});
     } catch (error) {
@@ -243,7 +243,7 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
                   size="sm"
                   onClick={() => {
                     // Navigate to strategy edit page
-                    window.location.href = `/updates/launch/${launchItem.id}/strategy?dms=${dmsId}`;
+                    window.location.href = `/updates/launch/${launchItem.id}/strategy?dms=${groupId}`;
                   }}
                   className="gap-2"
                 >
@@ -334,7 +334,7 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
                       {allDeviceIds.map(deviceId => (
                         <DeviceJobStatusRow
                           key={deviceId}
-                          dmsId={dmsId}
+                          groupId={groupId}
                           deviceId={deviceId}
                           targetLaunchId={launchItem.id}
                           accessToken={user?.access_token || null}
@@ -361,17 +361,17 @@ function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: 
 
 interface LaunchNameCellProps {
   launch: LaunchItem;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
   onClick?: () => void;
 }
 
-function LaunchNameCell({ launch, dmsId, accessToken, onClick }: LaunchNameCellProps) {
+function LaunchNameCell({ launch, groupId, accessToken, onClick }: LaunchNameCellProps) {
   const firstDeviceIdWithJob = launch.devices_with_job[0];
 
   const { data: jobs, isLoading: isLoadingJobVersion, isFetched: isJobVersionFetched } = useQuery<DeviceJob[], Error>({
-    queryKey: ['deviceJobsForVersion', dmsId, firstDeviceIdWithJob, launch.id],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ dmsId, deviceIds: [firstDeviceIdWithJob!], accessToken: accessToken!, targetLaunchId: launch.id }, { signal }),
+    queryKey: ['deviceJobsForVersion', groupId, firstDeviceIdWithJob, launch.id],
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: [firstDeviceIdWithJob!], accessToken: accessToken!, targetLaunchId: launch.id }, { signal }),
     enabled: !!firstDeviceIdWithJob && !!accessToken,
   });
 
@@ -411,16 +411,16 @@ function LaunchNameCell({ launch, dmsId, accessToken, onClick }: LaunchNameCellP
 
 
 interface JobExecutionProgressCellProps {
-  dmsId: string;
+  groupId: string;
   launchItem: LaunchItem;
   accessToken: string | null;
 }
 
-function JobExecutionProgressCell({ dmsId, launchItem, accessToken }: JobExecutionProgressCellProps) {
+function JobExecutionProgressCell({ groupId, launchItem, accessToken }: JobExecutionProgressCellProps) {
   // Fetch active launches to get devices currently executing
   const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
-    queryKey: ['activeLaunches', dmsId],
-  queryFn: ({ signal }) => fetchCurrentLaunches({ dmsId, accessToken: accessToken! }, { signal }),
+    queryKey: ['activeLaunches', groupId],
+  queryFn: ({ signal }) => fetchCurrentLaunches({ groupId, accessToken: accessToken! }, { signal }),
     enabled: !!accessToken,
   });
 
@@ -440,8 +440,8 @@ function JobExecutionProgressCell({ dmsId, launchItem, accessToken }: JobExecuti
   const totalDevicesInLaunch = allDeviceIdsWithActive.length;
 
   const { data: allJobs, isLoading, error } = useQuery<DeviceJob[], Error>({
-    queryKey: ['launchJobStats', dmsId, launchItem.id, ...launchItem.devices_with_job],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ dmsId, deviceIds: launchItem.devices_with_job, accessToken: accessToken!, targetLaunchId: launchItem.id }, { signal }),
+    queryKey: ['launchJobStats', groupId, launchItem.id, ...launchItem.devices_with_job],
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: launchItem.devices_with_job, accessToken: accessToken!, targetLaunchId: launchItem.id }, { signal }),
     enabled: launchItem.devices_with_job.length > 0 && !!accessToken,
   });
 
@@ -557,31 +557,33 @@ function JobExecutionProgressCell({ dmsId, launchItem, accessToken }: JobExecuti
             <div className="flex h-2 w-full rounded-full overflow-hidden bg-muted shadow-inner">
               {completedPercent > 0 && (
                 <div
-                  className="h-full bg-yellow-500 relative z-0"
+                  className="h-full bg-primary relative z-0 transition-all duration-500"
                   style={{ width: `${completedPercent}%` }}
                 />
               )}
               {activePercent > 0 && completedCount < totalDevicesInLaunch && (
                 <div
-                  className="h-full bg-yellow-500 animate-pulse relative z-10"
+                  className="h-full bg-amber-400 dark:bg-amber-500 relative z-10 overflow-hidden transition-all duration-500"
                   style={{ width: `${activePercent}%` }}
-                />
+                >
+                  <div className="absolute top-0 h-full w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-sweep" />
+                </div>
               )}
               {pendingPercent > 0 && (completedCount + activeFromJobsCount + failedCount) < totalDevicesInLaunch && (
                 <div
-                  className="h-full bg-yellow-400 animate-pulse relative z-10"
+                  className="h-full bg-amber-200 dark:bg-amber-700/50 relative z-10 transition-all duration-500"
                   style={{ width: `${pendingPercent}%` }}
                 />
               )}
               {failedPercent > 0 && (
                 <div
-                  className="h-full bg-destructive relative z-0"
+                  className="h-full bg-destructive relative z-0 transition-all duration-500"
                   style={{ width: `${failedPercent}%` }}
                 />
               )}
               {notStartedOrUnassignedPercent > 0 && (
                 <div
-                  className={`h-full ${pendingAssignedCount > 0 ? 'bg-muted/80' : 'bg-muted'}`}
+                  className={`h-full transition-all duration-500 ${pendingAssignedCount > 0 ? 'bg-muted/80' : 'bg-muted'}`}
                   style={{ width: `${notStartedOrUnassignedPercent}%` }}
                 />
               )}
@@ -602,7 +604,7 @@ function JobExecutionProgressCell({ dmsId, launchItem, accessToken }: JobExecuti
 
 interface LaunchTableProps {
   launches: LaunchItem[];
-  dmsId: string;
+  groupId: string;
   itemRolloutMutation: UseMutationResult<any, Error, string, unknown>;
   openDetailsDialog: (launch: LaunchItem) => void;
   showExecuteButton: boolean;
@@ -617,7 +619,7 @@ interface LaunchTableProps {
 
 function LaunchTable({
   launches,
-  dmsId,
+  groupId,
   itemRolloutMutation,
   openDetailsDialog,
   showExecuteButton,
@@ -663,11 +665,11 @@ function LaunchTable({
           {launches.map(l => (
             <TableRow key={l.id}>
               <TableCell className="font-medium">
-                <LaunchNameCell launch={l} dmsId={dmsId} accessToken={user?.access_token || null} />
+                <LaunchNameCell launch={l} groupId={groupId} accessToken={user?.access_token || null} />
               </TableCell>
               <TableCell>
                 <LaunchProgressCell
-                  dmsId={dmsId}
+                  groupId={groupId}
                   launch={l}
                   accessToken={user?.access_token || null}
                   startedLaunches={startedLaunches}
@@ -706,7 +708,7 @@ function LaunchTable({
                 })()}
               </TableCell>
               <TableCell>
-                <JobExecutionProgressCell dmsId={dmsId} launchItem={l} accessToken={user?.access_token || null} />
+                <JobExecutionProgressCell groupId={groupId} launchItem={l} accessToken={user?.access_token || null} />
               </TableCell>
               <TableCell className="text-xs">
                 {(() => {
@@ -788,19 +790,19 @@ function getStatusVariant(status: UpdatePackWithStatus['status']): 'default' | '
 // Component to calculate real-time status for a single launch
 interface LaunchStatusCellProps {
   launch: LaunchItem;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
   startedLaunches?: Set<string>;
   startedLaunchTotals?: Map<string, number>;
 }
 
-function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, startedLaunchTotals }: LaunchStatusCellProps) {
+function LaunchStatusCell({ launch, groupId, accessToken, startedLaunches, startedLaunchTotals }: LaunchStatusCellProps) {
   // Fetch job statuses for all devices in this launch
   // Use fetchAllDeviceJobs to handle pagination and find jobs for older launches
   const { data: jobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['launchJobStatuses', dmsId, launch.id, ...launch.devices_with_job],
+    queryKey: ['launchJobStatuses', groupId, launch.id, ...launch.devices_with_job],
     queryFn: ({ signal }) => fetchAllDeviceJobs({ 
-      dmsId, 
+      groupId, 
       deviceIds: launch.devices_with_job, 
       accessToken: accessToken!,
       targetLaunchId: launch.id, // Stop fetching once we find jobs for this launch
@@ -811,8 +813,8 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
 
   // Fetch active launches to get devices currently executing
   const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
-    queryKey: ['activeLaunches', dmsId],
-  queryFn: ({ signal }) => fetchCurrentLaunches({ dmsId, accessToken: accessToken! }, { signal }),
+    queryKey: ['activeLaunches', groupId],
+  queryFn: ({ signal }) => fetchCurrentLaunches({ groupId, accessToken: accessToken! }, { signal }),
     enabled: !!accessToken,
   });
 
@@ -1016,7 +1018,7 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 border border-yellow-400 text-yellow-600 rounded-full animate-pulse cursor-help">
+              <div className="flex items-center justify-center w-6 h-6 bg-amber-100 dark:bg-amber-900/40 border border-amber-400 text-amber-600 dark:text-amber-400 rounded-full cursor-help ring-2 ring-amber-400/30 animate-pulse">
                 <AlertTriangle className="h-3.5 w-3.5" />
               </div>
             </TooltipTrigger>
@@ -1034,7 +1036,7 @@ function LaunchStatusCell({ launch, dmsId, accessToken, startedLaunches, started
 // Component to calculate real-time progress for a single launch
 interface LaunchProgressCellProps {
   launch: LaunchItem;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
   startedLaunches?: Set<string>;
   startedLaunchTotals?: Map<string, number>;
@@ -1042,12 +1044,12 @@ interface LaunchProgressCellProps {
   clearStartedLaunch?: (launchId: string) => void;
 }
 
-function LaunchProgressCell({ launch, dmsId, accessToken, startedLaunches, startedLaunchTotals, updateLaunchTotal, clearStartedLaunch }: LaunchProgressCellProps) {
+function LaunchProgressCell({ launch, groupId, accessToken, startedLaunches, startedLaunchTotals, updateLaunchTotal, clearStartedLaunch }: LaunchProgressCellProps) {
   const queryClient = useQueryClient();
   const { data: jobs } = useQuery<DeviceJob[], Error>({
-    queryKey: ['launchJobStatuses', dmsId, launch.id, ...launch.devices_with_job],
+    queryKey: ['launchJobStatuses', groupId, launch.id, ...launch.devices_with_job],
     queryFn: ({ signal }) => fetchAllDeviceJobs({ 
-      dmsId, 
+      groupId, 
       deviceIds: launch.devices_with_job, 
       accessToken: accessToken!,
       targetLaunchId: launch.id,
@@ -1058,8 +1060,8 @@ function LaunchProgressCell({ launch, dmsId, accessToken, startedLaunches, start
 
   // Fetch active launches to get devices currently executing
   const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
-    queryKey: ['activeLaunches', dmsId],
-  queryFn: ({ signal }) => fetchCurrentLaunches({ dmsId, accessToken: accessToken! }, { signal }),
+    queryKey: ['activeLaunches', groupId],
+  queryFn: ({ signal }) => fetchCurrentLaunches({ groupId, accessToken: accessToken! }, { signal }),
     enabled: !!accessToken,
   });
 
@@ -1148,11 +1150,11 @@ function LaunchProgressCell({ launch, dmsId, accessToken, startedLaunches, start
   if (startedLaunches && startedLaunches.has(launch.id) && (processedCount >= displayTotal || cappedCompletedCount >= displayTotal)) {
       if (clearStartedLaunch) clearStartedLaunch(launch.id);
       // Invalidate queries to ensure UI updates properly when launch completes
-      queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', dmsId, launch.id] });
-      queryClient.invalidateQueries({ queryKey: ['activeLaunches', dmsId] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', groupId, launch.id] });
+      queryClient.invalidateQueries({ queryKey: ['activeLaunches', groupId] });
       queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
     }
-  }, [processedCount, displayTotal, activeCount, startedLaunches, clearStartedLaunch, launch.id, dmsId, queryClient]);
+  }, [processedCount, displayTotal, activeCount, startedLaunches, clearStartedLaunch, launch.id, groupId, queryClient]);
 
   return (
     <div className="flex items-center gap-2">
@@ -1177,16 +1179,14 @@ function LaunchProgressCell({ launch, dmsId, accessToken, startedLaunches, start
             <div className="absolute inset-0 bg-white/10 animate-pulse" />
           </div>
         )}
-        {/* Active layer on top: animated gradient with shimmer */}
+        {/* Active layer: amber base with a sweeping highlight to show devices are running */}
         {activePercent > 0 && cappedCompletedCount < displayTotal && (
           <div
-            className="absolute top-0 h-full bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 z-10 transition-all duration-700 ease-in-out overflow-hidden shadow-sm"
+            className="absolute top-0 h-full bg-amber-400 dark:bg-amber-500 z-10 transition-all duration-700 ease-in-out overflow-hidden"
             style={{ left: `${completedPercent + failedPercent}%`, width: `${activePercent}%` }}
           >
-            {/* Animated shimmer/progress stripe effect */}
-            <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.4)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px] animate-[shimmer_1s_linear_infinite]" />
-            {/* Subtle pulse */}
-            <div className="absolute inset-0 bg-white/20 animate-pulse" />
+            {/* Sweeping light to signal continuous activity */}
+            <div className="absolute top-0 h-full w-1/3 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-sweep" />
           </div>
         )}
         {/* Remaining/pending background */}
@@ -1208,15 +1208,15 @@ function LaunchProgressCell({ launch, dmsId, accessToken, startedLaunches, start
 // Component to calculate error rate for a single launch
 interface LaunchErrorRateCellProps {
   launch: LaunchItem;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
 }
 
-function LaunchErrorRateCell({ launch, dmsId, accessToken }: LaunchErrorRateCellProps) {
+function LaunchErrorRateCell({ launch, groupId, accessToken }: LaunchErrorRateCellProps) {
   const { data: jobs } = useQuery<DeviceJob[], Error>({
-    queryKey: ['launchJobStatuses', dmsId, launch.id, ...launch.devices_with_job],
+    queryKey: ['launchJobStatuses', groupId, launch.id, ...launch.devices_with_job],
     queryFn: ({ signal }) => fetchAllDeviceJobs({ 
-      dmsId, 
+      groupId, 
       deviceIds: launch.devices_with_job, 
       accessToken: accessToken!,
       targetLaunchId: launch.id,
@@ -1251,11 +1251,11 @@ function LaunchErrorRateCell({ launch, dmsId, accessToken }: LaunchErrorRateCell
 // Component to calculate real-time status for a pack by fetching job statuses
 interface UpdatePackStatusCellProps {
   pack: UpdatePackWithStatus;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
 }
 
-function UpdatePackStatusCell({ pack, dmsId, accessToken }: UpdatePackStatusCellProps) {
+function UpdatePackStatusCell({ pack, groupId, accessToken }: UpdatePackStatusCellProps) {
   // Collect all device IDs that have jobs across all launches for this pack
   const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
   
@@ -1264,14 +1264,14 @@ function UpdatePackStatusCell({ pack, dmsId, accessToken }: UpdatePackStatusCell
   
   // Fetch job statuses for all devices - use pagination to find jobs for all launches
   const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['packJobStatuses', dmsId, pack.id, ...allDeviceIdsWithJobs],
+    queryKey: ['packJobStatuses', groupId, pack.id, ...allDeviceIdsWithJobs],
     queryFn: async ({ signal }) => {
       // For pack-level queries, we need to find jobs for any of the pack's launches
       // Fetch with pagination, stopping when we find jobs for each launch
       const jobs: DeviceJob[] = [];
       for (const deviceId of allDeviceIdsWithJobs) {
         const deviceJobs = await fetchAllDeviceJobs({ 
-          dmsId, 
+          groupId, 
           deviceIds: [deviceId], 
           accessToken: accessToken!,
         }, { signal });
@@ -1393,7 +1393,7 @@ function UpdatePackStatusCell({ pack, dmsId, accessToken }: UpdatePackStatusCell
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 border border-yellow-400 text-yellow-600 rounded-full animate-pulse cursor-help">
+              <div className="flex items-center justify-center w-6 h-6 bg-amber-100 dark:bg-amber-900/40 border border-amber-400 text-amber-600 dark:text-amber-400 rounded-full cursor-help ring-2 ring-amber-400/30 animate-pulse">
                 <AlertTriangle className="h-3.5 w-3.5" />
               </div>
             </TooltipTrigger>
@@ -1411,21 +1411,21 @@ function UpdatePackStatusCell({ pack, dmsId, accessToken }: UpdatePackStatusCell
 // Component to show real-time progress based on actual job execution
 interface UpdatePackProgressCellProps {
   pack: UpdatePackWithStatus;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
 }
 
-function UpdatePackProgressCell({ pack, dmsId, accessToken }: UpdatePackProgressCellProps) {
+function UpdatePackProgressCell({ pack, groupId, accessToken }: UpdatePackProgressCellProps) {
   const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
   const launchIds = pack.launches.map(l => l.id);
   
   const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['packJobStatuses', dmsId, pack.id, ...allDeviceIdsWithJobs],
+    queryKey: ['packJobStatuses', groupId, pack.id, ...allDeviceIdsWithJobs],
     queryFn: async ({ signal }) => {
       const jobs: DeviceJob[] = [];
       for (const deviceId of allDeviceIdsWithJobs) {
         const deviceJobs = await fetchAllDeviceJobs({ 
-          dmsId, 
+          groupId, 
           deviceIds: [deviceId], 
           accessToken: accessToken!,
         }, { signal });
@@ -1439,8 +1439,8 @@ function UpdatePackProgressCell({ pack, dmsId, accessToken }: UpdatePackProgress
 
   // Fetch active launches to get devices currently executing
   const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
-    queryKey: ['activeLaunches', dmsId],
-  queryFn: ({ signal }) => fetchCurrentLaunches({ dmsId, accessToken: accessToken! }, { signal }),
+    queryKey: ['activeLaunches', groupId],
+  queryFn: ({ signal }) => fetchCurrentLaunches({ groupId, accessToken: accessToken! }, { signal }),
     enabled: !!accessToken,
   });
 
@@ -1550,21 +1550,21 @@ function UpdatePackProgressCell({ pack, dmsId, accessToken }: UpdatePackProgress
 // Component to show real-time error rate
 interface UpdatePackErrorRateCellProps {
   pack: UpdatePackWithStatus;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
 }
 
-function UpdatePackErrorRateCell({ pack, dmsId, accessToken }: UpdatePackErrorRateCellProps) {
+function UpdatePackErrorRateCell({ pack, groupId, accessToken }: UpdatePackErrorRateCellProps) {
   const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
   const launchIds = pack.launches.map(l => l.id);
   
   const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['packJobStatuses', dmsId, pack.id, ...allDeviceIdsWithJobs],
+    queryKey: ['packJobStatuses', groupId, pack.id, ...allDeviceIdsWithJobs],
     queryFn: async ({ signal }) => {
       const jobs: DeviceJob[] = [];
       for (const deviceId of allDeviceIdsWithJobs) {
         const deviceJobs = await fetchAllDeviceJobs({ 
-          dmsId, 
+          groupId, 
           deviceIds: [deviceId], 
           accessToken: accessToken!,
         }, { signal });
@@ -1661,12 +1661,12 @@ function extractWfxEligibleTransitions(workflow?: DeviceJob['workflow']): WfxTra
 // Component to display phased workflow states with device counts
 interface PhasedWorkflowStatesProps {
   launch: LaunchItem;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
   startStoredLaunch?: (launchId: string) => void;
 }
 
-function PhasedWorkflowStates({ launch, dmsId, accessToken, startStoredLaunch }: PhasedWorkflowStatesProps) {
+function PhasedWorkflowStates({ launch, groupId, accessToken, startStoredLaunch }: PhasedWorkflowStatesProps) {
   const queryClient = useQueryClient();
   const [isTransitioning, setIsTransitioning] = React.useState<string | null>(null);
   
@@ -1679,9 +1679,9 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken, startStoredLaunch }:
   ]));
   
   const { data: jobs, isLoading, refetch } = useQuery<DeviceJob[], Error>({
-    queryKey: ['phasedWorkflowStates', dmsId, launch.id, ...allDeviceIdsForQuery],
+    queryKey: ['phasedWorkflowStates', groupId, launch.id, ...allDeviceIdsForQuery],
     queryFn: ({ signal }) => fetchAllDeviceJobs({ 
-      dmsId, 
+      groupId, 
       deviceIds: allDeviceIdsForQuery, 
       accessToken: accessToken!,
       targetLaunchId: launch.id,
@@ -1832,9 +1832,9 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken, startStoredLaunch }:
       
       // Refresh data
       refetch();
-      queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', dmsId, launch.id] });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
-      queryClient.invalidateQueries({ queryKey: ['activeLaunches', dmsId] });
+      queryClient.invalidateQueries({ queryKey: ['launchJobStatuses', groupId, launch.id] });
+      queryClient.invalidateQueries({ queryKey: ['currentLaunches', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['activeLaunches', groupId] });
       queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
     } catch (error) {
       toast({
@@ -1961,7 +1961,7 @@ function PhasedWorkflowStates({ launch, dmsId, accessToken, startStoredLaunch }:
 // Component for individual launch row with workflow type indicator and expandable phased states
 interface LaunchRowWithWorkflowStatesProps {
   launch: LaunchItem;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
   startedLaunches?: Set<string>;
   startedLaunchTotals?: Map<string, number>;
@@ -1978,7 +1978,7 @@ interface LaunchRowWithWorkflowStatesProps {
 
 function LaunchRowWithWorkflowStates({
   launch,
-  dmsId,
+  groupId,
   accessToken,
   startedLaunches,
   startedLaunchTotals,
@@ -2079,7 +2079,7 @@ function LaunchRowWithWorkflowStates({
           <div className="md:col-span-2">
             <LaunchStatusCell 
               launch={launch}
-              dmsId={dmsId}
+              groupId={groupId}
               accessToken={accessToken}
               startedLaunches={startedLaunches}
               startedLaunchTotals={startedLaunchTotals}
@@ -2089,7 +2089,7 @@ function LaunchRowWithWorkflowStates({
           <div className="md:col-span-3">
             <LaunchProgressCell
               launch={launch}
-              dmsId={dmsId}
+              groupId={groupId}
               accessToken={accessToken}
               startedLaunches={startedLaunches}
               startedLaunchTotals={startedLaunchTotals}
@@ -2235,7 +2235,7 @@ function LaunchRowWithWorkflowStates({
       {isPhased && isPhasedExpanded && (
         <PhasedWorkflowStates
           launch={launch}
-          dmsId={dmsId}
+          groupId={groupId}
           accessToken={accessToken}
           startStoredLaunch={startStoredLaunch}
         />
@@ -2247,10 +2247,10 @@ function LaunchRowWithWorkflowStates({
 // Component for grouped update pack view with launches
 interface UpdatePackGroupProps {
   pack: UpdatePackWithStatus;
-  dmsId: string;
+  groupId: string;
   accessToken: string | null;
-  onNewLaunch: (packId: string, packName: string, version: number, dmsId?: string) => void;
-  onNewVersion: (packId: string, dmsId?: string) => void;
+  onNewLaunch: (packId: string, packName: string, version: number, groupId?: string) => void;
+  onNewVersion: (packId: string, groupId?: string) => void;
   onViewLaunchDetails: (launch: LaunchItem) => void;
   startedLaunches?: Set<string>;
   startedLaunchTotals?: Map<string, number>;
@@ -2259,7 +2259,7 @@ interface UpdatePackGroupProps {
   clearStartedLaunch?: (launchId: string) => void;
 }
 
-function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, onViewLaunchDetails, startedLaunches, startedLaunchTotals, startStoredLaunch, updateLaunchTotal, clearStartedLaunch }: UpdatePackGroupProps) {
+function UpdatePackGroup({ pack, groupId, accessToken, onNewLaunch, onNewVersion, onViewLaunchDetails, startedLaunches, startedLaunchTotals, startStoredLaunch, updateLaunchTotal, clearStartedLaunch }: UpdatePackGroupProps) {
   const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [localStartedLaunches, setLocalStartedLaunches] = React.useState<Set<string>>(new Set());
@@ -2276,7 +2276,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
   // DISABLED: pack.launches already contains the launches from the parent query
   // Fetching again causes issues with matching since we don't know if update_pack_id stores UUID or name
   const { data: launchesData, isLoading: isLoadingLaunches } = useQuery({
-    queryKey: ['packLaunches', pack.name, pack.version, dmsId, launchesPageSize, launchesBookmark],
+    queryKey: ['packLaunches', pack.name, pack.version, groupId, launchesPageSize, launchesBookmark],
     queryFn: async () => {
       // Return null to disable this query - we'll use pack.launches instead
       return null;
@@ -2325,7 +2325,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
   const { mutate: cancelAutoMutate, isPending: isCancellingAuto } = useMutation({
     mutationFn: ({ launchId, workflowType }: { launchId: string; workflowType?: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased' }) => 
       updateLaunchStrategy({
-        dmsId,
+        groupId,
         launchId,
         strategyData: { 
           auto: false,
@@ -2342,7 +2342,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
         description: "Launch has been switched to manual mode. You can change this in launch details." 
       });
       queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', dmsId] });
+      queryClient.invalidateQueries({ queryKey: ['currentLaunches', groupId] });
       setCancelAutoLaunch(null);
     },
     onError: (err: Error) => {
@@ -2382,7 +2382,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
     }
     
     try {
-      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/rollout`, {
+      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/rollout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2402,10 +2402,10 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
       // Immediately refetch all relevant queries to show updated status and progress
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['allLaunches'] }),
-        queryClient.refetchQueries({ queryKey: ['activeLaunches', dmsId] }),
-        queryClient.refetchQueries({ queryKey: ['launchJobStatuses', dmsId, launchId] }),
-        queryClient.refetchQueries({ queryKey: ['launchJobStats', dmsId, launchId] }),
-        queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', dmsId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['activeLaunches', groupId] }),
+        queryClient.refetchQueries({ queryKey: ['launchJobStatuses', groupId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['launchJobStats', groupId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', groupId, launchId] }),
       ]);
 
     } catch (error) {
@@ -2450,7 +2450,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Package className="h-5 w-5 text-primary" />
-                  <Link href={`/updates/pack-details?dmsId=${dmsId}&packName=${encodeURIComponent(pack.name)}`}>
+                  <Link href={`/updates/pack-details?groupId=${groupId}&packName=${encodeURIComponent(pack.name)}`}>
                     <h3 className="text-lg font-semibold hover:text-primary cursor-pointer transition-colors">{pack.name}</h3>
                   </Link>
                   <Badge variant="secondary" className="font-medium">v{pack.version}</Badge>
@@ -2490,7 +2490,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
               <Button
                 size="sm"
                 variant="default"
-                onClick={() => onNewLaunch(pack.id, pack.name, pack.version, dmsId)}
+                onClick={() => onNewLaunch(pack.id, pack.name, pack.version, groupId)}
                 className="gap-2 bg-primary hover:bg-primary/90"
               >
                 <PlayCircle className="h-4 w-4" />
@@ -2530,7 +2530,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onNewVersion(pack.id, dmsId)}
+                onClick={() => onNewVersion(pack.id, groupId)}
                 className="gap-2"
               >
                 <PlusCircle className="h-4 w-4" />
@@ -2551,7 +2551,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
                 Create a new launch to start deploying version {pack.version} to your devices.
               </p>
               <Button
-                onClick={() => onNewLaunch(pack.id, pack.name, pack.version, dmsId)}
+                onClick={() => onNewLaunch(pack.id, pack.name, pack.version, groupId)}
                 disabled={!pack.uri}
                 className={`bg-primary hover:bg-primary/90 ${!pack.uri ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
               >
@@ -2584,7 +2584,7 @@ function UpdatePackGroup({ pack, dmsId, accessToken, onNewLaunch, onNewVersion, 
                   <LaunchRowWithWorkflowStates
                     key={launch.id}
                     launch={launch}
-                    dmsId={dmsId}
+                    groupId={groupId}
                     accessToken={accessToken}
                     startedLaunches={startedLaunches}
                     startedLaunchTotals={startedLaunchTotals}
@@ -2672,7 +2672,7 @@ export default function UpdatesPage() {
   const [selectedPackForLaunch, setSelectedPackForLaunch] = React.useState<string | null>(null);
   // Get filter parameters from URL
   const packNameFilter = searchParams.get('packName');
-  const dmsIdFilter = searchParams.get('dmsId');
+  const dmsIdFilter = searchParams.get('groupId');
 
   const [startedLaunches, setStartedLaunches] = React.useState<Set<string>>(new Set());
   const [startedLaunchTotals, setStartedLaunchTotals] = React.useState<Map<string, number>>(new Map());
@@ -2694,8 +2694,8 @@ export default function UpdatesPage() {
       
       const promises = availableDms.map(async dms => {
         try {
-          const res = await fetchUpdatePacks({ dmsId: dms.id, accessToken: user.access_token! }, { pageSize: 100 });
-          return res.list.map(p => ({ ...p, dmsId: dms.id, dmsName: dms.name }));
+          const res = await fetchUpdatePacks({ groupId: dms.id, accessToken: user.access_token! }, { pageSize: 100 });
+          return res.list.map(p => ({ ...p, groupId: dms.id, dmsName: dms.name }));
         } catch (e) {
           console.error(`Failed to fetch packs for DMS ${dms.id}`, e);
           return [];
@@ -2711,14 +2711,14 @@ export default function UpdatesPage() {
   // Fetch update packs for strategy configuration
   const { data: updatePacksResponse2, isLoading: isLoadingUpdatePacks } = useQuery({
     queryKey: ['updatePacks', selectedDms?.id],
-    queryFn: ({ signal }) => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }, { signal }),
+    queryFn: ({ signal }) => fetchUpdatePacks({ groupId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }, { signal }),
     enabled: !!selectedDms?.id && !!user?.access_token,
   });
   
   // Use packs from the global cache if available for the selected DMS to avoid loading states when switching
   const updatePacks = React.useMemo(() => {
     if (selectedDms && allDmsUpdatePacks.length > 0) {
-      const filtered = allDmsUpdatePacks.filter((p: any) => p.dmsId === selectedDms.id);
+      const filtered = allDmsUpdatePacks.filter((p: any) => p.groupId === selectedDms.id);
       if (filtered.length > 0) return filtered;
     }
     return updatePacksResponse2?.list || [];
@@ -2731,7 +2731,7 @@ export default function UpdatesPage() {
         throw new Error('No DMS selected');
       }
       return createLaunch({
-        dmsId: selectedDms.id,
+        groupId: selectedDms.id,
         accessToken: user!.access_token!,
         launchData
       });
@@ -2803,7 +2803,7 @@ export default function UpdatesPage() {
       // If we have a pack filter, fetch all launches
       if (packNameFilter) {
         const allLaunchesPromises = dmsToQuery.map(dms => 
-          fetchAllLaunches({ dmsId: dms.id, accessToken: user.access_token! })
+          fetchAllLaunches({ groupId: dms.id, accessToken: user.access_token! })
             .then(launches => launches.map(launch => ({ ...launch, dmsName: dms.name })))
             .catch(() => []) // Return empty array on error for this DMS
         );
@@ -2827,14 +2827,14 @@ export default function UpdatesPage() {
         // Fetch update packs for this DMS
         try {
           const packsResponse = await fetchUpdatePacks({ 
-            dmsId: dms.id, 
+            groupId: dms.id, 
             accessToken: user.access_token! 
           }, { pageSize: 50 });
           
           // For each pack, fetch the latest 5 launches
           const packLaunchPromises = packsResponse.list.map(pack =>
             fetchLaunchesByUpdatePack({
-              dmsId: dms.id,
+              groupId: dms.id,
               accessToken: user.access_token!,
               updatePackId: pack.id,
               pageSize: 5,
@@ -2861,9 +2861,9 @@ export default function UpdatesPage() {
   });
 
   const itemRolloutMutation = useMutation({
-    mutationFn: ({ dmsId, launchId }: { dmsId: string; launchId: string }) => 
-      triggerItemRollout({ dmsId, launchId, accessToken: user!.access_token! }),
-    onSuccess: async (data, { dmsId, launchId }) => {
+    mutationFn: ({ groupId, launchId }: { groupId: string; launchId: string }) => 
+      triggerItemRollout({ groupId, launchId, accessToken: user!.access_token! }),
+    onSuccess: async (data, { groupId, launchId }) => {
       toast({ title: "Rollout Triggered", description: data.message || `Rollout for item ${launchId} started.` });
       
       const launch = allLaunches.find(l => l.id === launchId);
@@ -2877,10 +2877,10 @@ export default function UpdatesPage() {
       // Immediately refetch to show updated status and progress
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['allLaunches'] }),
-        queryClient.refetchQueries({ queryKey: ['activeLaunches', dmsId] }),
-        queryClient.refetchQueries({ queryKey: ['launchJobStatuses', dmsId, launchId] }),
-        queryClient.refetchQueries({ queryKey: ['launchJobStats', dmsId, launchId] }),
-        queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', dmsId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['activeLaunches', groupId] }),
+        queryClient.refetchQueries({ queryKey: ['launchJobStatuses', groupId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['launchJobStats', groupId, launchId] }),
+        queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', groupId, launchId] }),
       ]);
     },
     onError: (err: Error, { launchId }) => {
@@ -2917,13 +2917,13 @@ export default function UpdatesPage() {
     // Initialize with all update packs (these are active packs)
     allDmsUpdatePacks.forEach((pack: any) => {
       // Filter by DMS
-      if (filterDmsId !== 'all' && pack.dmsId !== filterDmsId) return;
+      if (filterDmsId !== 'all' && pack.groupId !== filterDmsId) return;
 
-      const key = `${pack.dmsId}-${pack.name}-${pack.version}`;
+      const key = `${pack.groupId}-${pack.name}-${pack.version}`;
       if (!packsMap.has(key)) {
         packsMap.set(key, {
           ...pack,
-          // dmsId and dmsName are already in pack object
+          // groupId and dmsName are already in pack object
           launches: [],
           totalDevices: 0,
           devicesWithJob: 0,
@@ -2943,7 +2943,7 @@ export default function UpdatesPage() {
     // Add launches to their respective packs
     allLaunches.forEach(launch => {
       // Filter by DMS
-      if (filterDmsId !== 'all' && launch.dms_id !== filterDmsId) return;
+      if (filterDmsId !== 'all' && launch.group_id !== filterDmsId) return;
 
       // Match launch to pack using update_pack_id
       // update_pack_id should match the pack's name or id
@@ -2953,13 +2953,13 @@ export default function UpdatesPage() {
         // Try matching by name (most common) or by id
         const nameMatches = p.name?.toLowerCase() === launch.update_pack_id?.toLowerCase();
         const idMatches = p.id === launch.update_pack_id;
-        const dmsMatches = p.dmsId === launch.dms_id;
+        const dmsMatches = p.groupId === launch.group_id;
         return dmsMatches && (nameMatches || idMatches);
       });
       
       if (!matchedPack) return; // Skip if we can't find the pack
       
-      const key = `${launch.dms_id}-${matchedPack.name}-${matchedPack.version}`;
+      const key = `${launch.group_id}-${matchedPack.name}-${matchedPack.version}`;
       let packWithStatus = packsMap.get(key);
       
       if (!packWithStatus) {
@@ -3017,10 +3017,10 @@ export default function UpdatesPage() {
     };
   }, [allLaunches, allDmsUpdatePacks, filterDmsId, packNameFilter, user]);
 
-  const handleNewLaunch = (packId: string, packName: string, version: number, dmsId?: string) => {
-    // If dmsId is provided and different from currently selected, update selectedDms
-    if (dmsId && dmsId !== selectedDms?.id) {
-      const newDms = availableDms.find(d => d.id === dmsId);
+  const handleNewLaunch = (packId: string, packName: string, version: number, groupId?: string) => {
+    // If groupId is provided and different from currently selected, update selectedDms
+    if (groupId && groupId !== selectedDms?.id) {
+      const newDms = availableDms.find(d => d.id === groupId);
       if (newDms) {
         setSelectedDms(newDms);
       }
@@ -3030,23 +3030,23 @@ export default function UpdatesPage() {
     setIsStrategyDialogOpen(true);
   };
 
-  const handleNewVersion = (packId: string, dmsId?: string) => {
-    // If dmsId is provided and different from currently selected, update selectedDms
-    if (dmsId && dmsId !== selectedDms?.id) {
-      const newDms = availableDms.find(d => d.id === dmsId);
+  const handleNewVersion = (packId: string, groupId?: string) => {
+    // If groupId is provided and different from currently selected, update selectedDms
+    if (groupId && groupId !== selectedDms?.id) {
+      const newDms = availableDms.find(d => d.id === groupId);
       if (newDms) {
         setSelectedDms(newDms);
       }
     }
     let url = `/updates/create-version?basePackId=${encodeURIComponent(packId)}`;
-    if (dmsId) {
-      url += `&dmsId=${encodeURIComponent(dmsId)}`;
+    if (groupId) {
+      url += `&groupId=${encodeURIComponent(groupId)}`;
     }
     router.push(url);
   };
 
   const handleViewLaunchDetails = (launch: LaunchItem) => {
-    router.push(`/updates/details?dmsId=${launch.dms_id}&launchId=${launch.id}`);
+    router.push(`/updates/details?groupId=${launch.group_id}&launchId=${launch.id}`);
   };
 
   const updateLaunchTotal = React.useCallback((launchId: string, total: number) => {
@@ -3151,7 +3151,7 @@ export default function UpdatesPage() {
             <p className="text-muted-foreground">
               {packNameFilter 
                 ? 'A list of all firmware update launches for this pack.'
-                : 'View all update packs and their launches across Device Management Systems.'
+                : 'View all update packs and their launches across Device Groups.'
               }
             </p>
           </div>
@@ -3195,9 +3195,9 @@ export default function UpdatesPage() {
                   <div className="space-y-4">
                     {groupedLaunches.activePacks.map((pack) => (
                       <UpdatePackGroup
-                        key={`${pack.dmsId}-${pack.name}-${pack.version}`}
+                        key={`${pack.groupId}-${pack.name}-${pack.version}`}
                         pack={pack}
-                        dmsId={pack.dmsId}
+                        groupId={pack.groupId}
                         accessToken={user?.access_token || null}
                         onNewLaunch={handleNewLaunch}
                         onNewVersion={handleNewVersion}
@@ -3226,9 +3226,9 @@ export default function UpdatesPage() {
                     </div>
                     {groupedLaunches.removedPacks.map((pack) => (
                       <UpdatePackGroup
-                        key={`${pack.dmsId}-${pack.name}-${pack.version}`}
+                        key={`${pack.groupId}-${pack.name}-${pack.version}`}
                         pack={pack}
-                        dmsId={pack.dmsId}
+                        groupId={pack.groupId}
                         accessToken={user?.access_token || null}
                         onNewLaunch={handleNewLaunch}
                         onNewVersion={handleNewVersion}
@@ -3271,9 +3271,9 @@ export default function UpdatesPage() {
                   ) : (
                     allLaunches.map((launch) => (
                       <TableRow 
-                        key={`${launch.dms_id}-${launch.id}`}
+                        key={`${launch.group_id}-${launch.id}`}
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => router.push(`/updates/details?dmsId=${launch.dms_id}&launchId=${launch.id}`)}
+                        onClick={() => router.push(`/updates/details?groupId=${launch.group_id}&launchId=${launch.id}`)}
                       >
                         <TableCell>
                           <Button
@@ -3282,7 +3282,7 @@ export default function UpdatesPage() {
                             className="p-0 h-auto font-medium text-primary hover:underline"
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/updates/details?dmsId=${launch.dms_id}&launchId=${launch.id}`);
+                              router.push(`/updates/details?groupId=${launch.group_id}&launchId=${launch.id}`);
                             }}
                           >
                             Launch - {launch.id.slice(-4)}
@@ -3291,17 +3291,17 @@ export default function UpdatesPage() {
                         <TableCell>
                           <LaunchNameCell 
                             launch={launch} 
-                            dmsId={launch.dms_id} 
+                            groupId={launch.group_id} 
                             accessToken={user?.access_token || null}
                             onClick={() => {
-                              router.push(`/updates/pack-details?dmsId=${launch.dms_id}&packName=${encodeURIComponent(launch.name)}`);
+                              router.push(`/updates/pack-details?groupId=${launch.group_id}&packName=${encodeURIComponent(launch.name)}`);
                             }}
                           />
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-medium">{launch.dmsName}</span>
-                            <span className="text-xs text-muted-foreground">{launch.dms_id}</span>
+                            <span className="text-xs text-muted-foreground">{launch.group_id}</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -3313,7 +3313,7 @@ export default function UpdatesPage() {
                           <div className="flex items-center gap-2">
                             <LaunchStatusCell 
                               launch={launch}
-                              dmsId={launch.dms_id}
+                              groupId={launch.group_id}
                               accessToken={user?.access_token || null}
                               startedLaunches={startedLaunches}
                               startedLaunchTotals={startedLaunchTotals}
@@ -3326,7 +3326,7 @@ export default function UpdatesPage() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   itemRolloutMutation.mutate({ 
-                                    dmsId: launch.dms_id, 
+                                    groupId: launch.group_id, 
                                     launchId: launch.id 
                                   });
                                 }}
@@ -3339,14 +3339,14 @@ export default function UpdatesPage() {
                         <TableCell>
                           <LaunchProgressCell
                             launch={launch}
-                            dmsId={launch.dms_id}
+                            groupId={launch.group_id}
                             accessToken={user?.access_token || null}
                           />
                         </TableCell>
                         <TableCell>
                           <LaunchErrorRateCell
                             launch={launch}
-                            dmsId={launch.dms_id}
+                            groupId={launch.group_id}
                             accessToken={user?.access_token || null}
                           />
                         </TableCell>
@@ -3359,7 +3359,7 @@ export default function UpdatesPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem 
-                                onClick={() => router.push(`/updates/details?dmsId=${launch.dms_id}&launchId=${launch.id}`)}
+                                onClick={() => router.push(`/updates/details?groupId=${launch.group_id}&launchId=${launch.id}`)}
                               >
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Launch Details
@@ -3367,7 +3367,7 @@ export default function UpdatesPage() {
                               <DropdownMenuItem
                                 onClick={() => {
                                   itemRolloutMutation.mutate({ 
-                                    dmsId: launch.dms_id, 
+                                    groupId: launch.group_id, 
                                     launchId: launch.id 
                                   });
                                 }}

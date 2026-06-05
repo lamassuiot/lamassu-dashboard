@@ -99,9 +99,9 @@ export const DmsSelector: React.FC<DmsSelectorProps> = ({
     }
   };
 
-  const handleSelect = (dmsId: string) => {
-    const selectedDms = dmsOptions.find((dms) => dms.id === dmsId);
-    onChange(dmsId, selectedDms);
+  const handleSelect = (groupId: string) => {
+    const selectedDms = dmsOptions.find((dms) => dms.id === groupId);
+    onChange(groupId, selectedDms);
     setIsOpen(false);
   };
 

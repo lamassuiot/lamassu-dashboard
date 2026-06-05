@@ -31,7 +31,7 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Upload, Lock, PlaySquare, Package, Layers, ClipboardList, Workflow } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Upload, Lock, PlaySquare, Package, Boxes, ClipboardList, Workflow } from 'lucide-react';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -143,7 +143,7 @@ const navigationConfig: NavGroup[] = [
     label: 'IoT',
     items: [
       { href: '/devices', label: 'Devices', icon: Router },
-      { href: '/device-groups', label: 'Device Groups', icon: Layers },
+      { href: '/device-groups', label: 'Device Groups', icon: Boxes },
       { href: '/firmware-inventory', label: 'Firmware Inventory', icon: Cpu },
       { href: '/device-inventory', label: 'Device Key Inventory', icon: Package },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },

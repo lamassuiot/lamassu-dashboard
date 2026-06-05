@@ -1,15 +1,21 @@
 
 'use client';
 
+// DmsContext — now backed by Lamassu IoT Device Groups.
+// The name "DmsContext"/"useDms"/"selectedDms" is kept for API compatibility with all
+// consuming components; internally it fetches and stores device groups. Device groups
+// are the universal fleet-targeting mechanism: an update pack is scoped to a group,
+// and a campaign targets every device whose criteria match that group.
+
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import type { DmsInfo } from '@/types/iot';
+import type { GroupInfo } from '@/types/iot';
 import { useAuth } from './AuthContext';
-import { fetchAllRegistrationAuthorities } from '@/lib/dms-api';
+import { getDeviceGroups } from '@/lib/device-groups-api';
 
 interface DmsContextType {
-  availableDms: DmsInfo[];
-  selectedDms: DmsInfo | null;
-  setSelectedDms: (dms: DmsInfo | null) => void;
+  availableDms: GroupInfo[];      // all device groups the user can select from
+  selectedDms: GroupInfo | null;  // currently selected group (used as "DMS" in pack/launch scope)
+  setSelectedDms: (dms: GroupInfo | null) => void;
   isLoading: boolean;
   error: string | null;
   refetchDms: () => void;
@@ -19,32 +25,36 @@ const DmsContext = createContext<DmsContextType | undefined>(undefined);
 
 export function DmsProvider({ children }: { children: ReactNode }) {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const [availableDms, setAvailableDms] = useState<DmsInfo[]>([]);
-  const [selectedDms, setSelectedDms] = useState<DmsInfo | null>(null);
+  const [availableDms, setAvailableDms] = useState<GroupInfo[]>([]);
+  const [selectedDms, setSelectedDms] = useState<GroupInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDms = useCallback(async () => {
     if (!isAuthenticated() || !user?.access_token) {
-      if (!authLoading) setError("User not authenticated.");
+      if (!authLoading) setError('User not authenticated.');
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      const dmsList = await fetchAllRegistrationAuthorities(user.access_token);
-      setAvailableDms(dmsList);
-      if (dmsList.length > 0) {
-        // Set default selection to the first DMS if none is selected
-        if (!selectedDms || !dmsList.some(d => d.id === selectedDms.id)) {
-            setSelectedDms(dmsList[0]);
+      // Device groups act as the fleet-targeting scopes ("DMSes") for the OTA service.
+      const resp = await getDeviceGroups({ pageSize: 100 } as any);
+      const groups: GroupInfo[] = (resp.list ?? []).map((g: any) => ({
+        id: g.id,
+        name: g.name,
+      }));
+      setAvailableDms(groups);
+      if (groups.length > 0) {
+        if (!selectedDms || !groups.some(g => g.id === selectedDms.id)) {
+          setSelectedDms(groups[0]);
         }
       } else {
         setSelectedDms(null);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch DMS list.');
+      setError(err.message || 'Failed to fetch device groups.');
       setAvailableDms([]);
       setSelectedDms(null);
     } finally {
@@ -56,7 +66,7 @@ export function DmsProvider({ children }: { children: ReactNode }) {
     if (!authLoading) {
       fetchDms();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
 
   const value = {

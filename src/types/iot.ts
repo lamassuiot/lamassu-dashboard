@@ -31,7 +31,7 @@ export interface UpdateStrategy {
 export interface ApiCreateUpdatePackPayload {
   name: string;
   version: number;
-  dms_id: string; // dms_id is part of the payload to the external API
+  group_id: string; // dms_id is part of the payload to the external API
   type: string;
   allow_previous_version_download?: boolean; // enable downloading previous (snapshotted) versions
 }
@@ -76,7 +76,7 @@ export interface PackArtifactRef {
   update_pack_id: string;
   pack_name: string;
   pack_version: number;
-  dms_id: string;
+  group_id: string;
 }
 
 // A first-class, globally-identified software component (binary tagged with name + version).
@@ -99,7 +99,7 @@ export interface Artifact {
 export interface UpdatePackVersion {
   id: string;
   update_pack_id: string;
-  dms_id: string;
+  group_id: string;
   name: string;
   version: number;
   uri?: string;
@@ -166,7 +166,7 @@ export interface NotifyDeviceArtifactPayload {
 
 export interface LaunchItem {
   id: string;
-  dms_id: string;
+  group_id: string;
   name: string;
   exec_date: string; // ISO Date string
   devices_with_job: string[];
@@ -189,7 +189,7 @@ export interface LaunchListResponse {
 }
 
 export interface ApiGlobalStrategy {
-  dms_id: string;
+  group_id: string;
   workflow_type: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
   rollout_type: 'numeric' | 'percentage';
   rollout_value: number;
@@ -266,15 +266,15 @@ export interface DeviceJobListResponse {
 }
 
 // Type for DMS items fetched from Lamassu API
-export interface DmsInfo {
+export interface GroupInfo {
   id: string;
   name: string;
 }
 
 // Type for the Lamassu DMS list API response
-export interface DmsListResponse {
+export interface GroupListResponse {
   next: string | null;
-  list: DmsInfo[] | null;
+  list: GroupInfo[] | null;
 }
 
 
