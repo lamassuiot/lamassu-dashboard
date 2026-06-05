@@ -11,8 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, PlusCircle, Cpu, HelpCircle, Settings, Key, Server, PackageCheck, AlertTriangle, Loader2, Tag as TagIconLucide, Edit, X } from "lucide-react";
-import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
+import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningProfile, type CA } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
@@ -93,6 +92,24 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [validationCAs, setValidationCAs] = useState<CA[]>([]);
   const [allowExpiredAuth, setAllowExpiredAuth] = useState(true);
   const [chainValidationLevel, setChainValidationLevel] = useState(-1);
+
+  // Re-enrollment authentication state
+  const [reEnrollmentAuthMode, setReEnrollmentAuthMode] = useState('Client Certificate');
+  const [allowExpiredReAuth, setAllowExpiredReAuth] = useState(true);
+  const [reChainValidationLevel, setReChainValidationLevel] = useState(-1);
+
+  const [reWebhookName, setReWebhookName] = useState('');
+  const [reWebhookUrl, setReWebhookUrl] = useState('');
+  const [reWebhookMethod, setReWebhookMethod] = useState('POST');
+  const [reWebhookValidateServerCert, setReWebhookValidateServerCert] = useState(true);
+  const [reWebhookLogLevel, setReWebhookLogLevel] = useState('Info');
+  const [reWebhookAuthMode, setReWebhookAuthMode] = useState('No Auth');
+  const [reWebhookApiKey, setReWebhookApiKey] = useState('');
+  const [reWebhookApiKeyHeader, setReWebhookApiKeyHeader] = useState('X-API-Key');
+
+  const [reOidcClientId, setReOidcClientId] = useState('');
+  const [reOidcClientSecret, setReOidcClientSecret] = useState('');
+  const [reOidcWellKnownUrl, setReOidcWellKnownUrl] = useState('');
   
   // Webhook state
   const [webhookName, setWebhookName] = useState('');
@@ -115,6 +132,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [allowedRenewalDelta, setAllowedRenewalDelta] = useState('100d');
   const [preventiveRenewalDelta, setPreventiveRenewalDelta] = useState('31d');
   const [criticalRenewalDelta, setCriticalRenewalDelta] = useState('7d');
+  const [reEnrollmentValidationCAs, setReEnrollmentValidationCAs] = useState<CA[]>([]);
   const [additionalValidationCAs, setAdditionalValidationCAs] = useState<CA[]>([]);
   const [enableKeyGeneration, setEnableKeyGeneration] = useState(false);
   const [serverKeygenType, setServerKeygenType] = useState('RSA');
@@ -130,6 +148,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [isDeviceIconModalOpen, setIsDeviceIconModalOpen] = useState(false);
   const [isEnrollmentCaModalOpen, setIsEnrollmentCaModalOpen] = useState(false);
   const [isValidationCaModalOpen, setIsValidationCaModalOpen] = useState(false);
+  const [isReEnrollmentValidationCaModalOpen, setIsReEnrollmentValidationCaModalOpen] = useState(false);
   const [isAdditionalValidationCaModalOpen, setIsAdditionalValidationCaModalOpen] = useState(false);
   const [isManagedCaModalOpen, setIsManagedCaModalOpen] = useState(false);
   const [availableCAsForSelection, setAvailableCAsForSelection] = useState<CA[]>([]);
@@ -250,6 +269,43 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setCriticalRenewalDelta(reenrollment_settings.critical_delta);
         setAdditionalValidationCAs(reenrollment_settings.additional_validation_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
 
+        const reAuthSettings = reenrollment_settings.est_rfc7030_settings;
+        if (reAuthSettings) {
+          const authModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth', 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK': 'Client Certificate + Webhook' };
+          const currentReAuthMode = authModeMap[reAuthSettings.auth_mode] || 'Client Certificate';
+          setReEnrollmentAuthMode(currentReAuthMode);
+
+          if ((currentReAuthMode === 'Client Certificate' || currentReAuthMode === 'Client Certificate + Webhook') && reAuthSettings.client_certificate_settings) {
+            setReChainValidationLevel(reAuthSettings.client_certificate_settings.chain_level_validation);
+            setAllowExpiredReAuth(reAuthSettings.client_certificate_settings.allow_expired);
+            setReEnrollmentValidationCAs(reAuthSettings.client_certificate_settings.validation_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
+          }
+
+          if ((currentReAuthMode === 'External Webhook' || currentReAuthMode === 'Client Certificate + Webhook') && reAuthSettings.external_webhook_settings) {
+            const webhookSettings = reAuthSettings.external_webhook_settings;
+            setReWebhookName(webhookSettings.name || '');
+            setReWebhookUrl(webhookSettings.url || '');
+            setReWebhookMethod(webhookSettings.method || 'POST');
+            setReWebhookValidateServerCert(webhookSettings.config.validate_server_cert ?? false);
+            setReWebhookLogLevel(webhookSettings.config.log_level || 'Info');
+
+            const apiWebhookAuthMode = webhookSettings.config.auth_mode;
+            let uiWebhookAuthMode = 'No Auth';
+            if (apiWebhookAuthMode === 'OIDC') uiWebhookAuthMode = 'OIDC';
+            if (apiWebhookAuthMode === 'API_KEY') uiWebhookAuthMode = 'API Key';
+            setReWebhookAuthMode(uiWebhookAuthMode);
+
+            if (uiWebhookAuthMode === 'API Key' && webhookSettings.config.apikey) {
+              setReWebhookApiKey(webhookSettings.config.apikey.key || '');
+              setReWebhookApiKeyHeader(webhookSettings.config.apikey.header || 'X-API-Key');
+            } else if (uiWebhookAuthMode === 'OIDC' && webhookSettings.config.oidc) {
+              setReOidcClientId(webhookSettings.config.oidc.client_id || '');
+              setReOidcClientSecret(webhookSettings.config.oidc.client_secret || '');
+              setReOidcWellKnownUrl(webhookSettings.config.oidc.well_known || '');
+            }
+          }
+        }
+
         setEnableKeyGeneration(server_keygen_settings.enabled);
         if (server_keygen_settings.enabled && server_keygen_settings.key) {
             setServerKeygenType(server_keygen_settings.key.type);
@@ -336,6 +392,45 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         };
     }
 
+      const reEnrollmentEstSettings: any = {
+        auth_mode: authModeMapping[reEnrollmentAuthMode as keyof typeof authModeMapping],
+      };
+
+      if (reEnrollmentAuthMode === 'Client Certificate' || reEnrollmentAuthMode === 'Client Certificate + Webhook') {
+        reEnrollmentEstSettings.client_certificate_settings = {
+          chain_level_validation: reChainValidationLevel,
+          validation_cas: reEnrollmentValidationCAs.map(ca => ca.id),
+          allow_expired: allowExpiredReAuth,
+        };
+      }
+
+      if (reEnrollmentAuthMode === 'External Webhook' || reEnrollmentAuthMode === 'Client Certificate + Webhook') {
+        const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
+        const reWebhookConfig: any = {
+          validate_server_cert: reWebhookValidateServerCert,
+          log_level: reWebhookLogLevel,
+          auth_mode: webhookAuthModeMapping[reWebhookAuthMode],
+        };
+        if (reWebhookAuthMode === 'API Key') {
+          reWebhookConfig.apikey = {
+            key: reWebhookApiKey,
+            header: reWebhookApiKeyHeader,
+          };
+        } else if (reWebhookAuthMode === 'OIDC') {
+          reWebhookConfig.oidc = {
+            client_id: reOidcClientId,
+            client_secret: reOidcClientSecret,
+            well_known: reOidcWellKnownUrl,
+          };
+        }
+        reEnrollmentEstSettings.external_webhook_settings = {
+          name: reWebhookName,
+          url: reWebhookUrl,
+          method: reWebhookMethod,
+          config: reWebhookConfig,
+        };
+      }
+
 
     let keySettings;
     if (enableKeyGeneration) {
@@ -370,6 +465,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           preventive_delta: preventiveRenewalDelta,
           reenrollment_delta: allowedRenewalDelta,
           additional_validation_cas: additionalValidationCAs.map(ca => ca.id),
+          est_rfc7030_settings: reEnrollmentEstSettings,
         },
         server_keygen_settings: {
           enabled: enableKeyGeneration,
@@ -418,6 +514,17 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const handleRemoveAdditionalValidationCa = (caId: string) => {
     setAdditionalValidationCAs(prev => prev.filter(vca => vca.id !== caId));
+  }
+
+  const handleAddReEnrollmentValidationCa = (ca: CA) => {
+    if (!reEnrollmentValidationCAs.some(vca => vca.id === ca.id)) {
+      setReEnrollmentValidationCAs(prev => [...prev, ca]);
+    }
+    setIsReEnrollmentValidationCaModalOpen(false);
+  }
+
+  const handleRemoveReEnrollmentValidationCa = (caId: string) => {
+    setReEnrollmentValidationCAs(prev => prev.filter(vca => vca.id !== caId));
   }
 
   const handleAddManagedCa = (ca: CA) => {
@@ -851,26 +958,169 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   <DurationInput id="allowedRenewalDelta" label="Allowed Renewal Delta" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Max time after expiry a cert can be renewed."/>
                   <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry to start allowing renewals."/>
                   <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when renewal is critical."/>
+
                   <div>
                     <Label htmlFor="additionalValidationCAs">Additional Validation CAs (for re-enrollment)</Label>
                     <div className="mt-2 space-y-2">
-                            {additionalValidationCAs.length > 0 ? (
-                                additionalValidationCAs.map(ca => (
-                                    <div key={ca.id} className="flex items-center gap-2 group">
-                                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}>
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-sm text-muted-foreground italic text-center p-2">No additional validation CAs selected.</p>
-                            )}
-                        </div>
-                        <Button type="button" variant="outline" size="sm" onClick={() => setIsAdditionalValidationCaModalOpen(true)} className="mt-2">
-                           <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
-                        </Button>
+                      {additionalValidationCAs.length > 0 ? (
+                        additionalValidationCAs.map(ca => (
+                          <div key={ca.id} className="flex items-center gap-2 group">
+                            <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic text-center p-2">No additional validation CAs selected.</p>
+                      )}
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setIsAdditionalValidationCaModalOpen(true)} className="mt-2">
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
+                    </Button>
                   </div>
+
+                  <div>
+                    <Label htmlFor="reEnrollmentAuthMode">Re-Enrollment Authentication Mode</Label>
+                    <Select value={reEnrollmentAuthMode} onValueChange={setReEnrollmentAuthMode}>
+                      <SelectTrigger id="reEnrollmentAuthMode" className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Client Certificate">Client Certificate</SelectItem>
+                        <SelectItem value="External Webhook">External Webhook</SelectItem>
+                        <SelectItem value="Client Certificate + Webhook">Client Certificate + Webhook</SelectItem>
+                        <SelectItem value="No Auth">No Auth</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(reEnrollmentAuthMode === 'Client Certificate' || reEnrollmentAuthMode === 'Client Certificate + Webhook') && (
+                    <div className="space-y-4 pt-2 border-t mt-4">
+                      <h4 className="font-medium text-md text-muted-foreground pt-2">Client Certificate Re-Enrollment Auth Settings</h4>
+                      <div>
+                        <Label htmlFor="reEnrollmentValidationCAs">Validation CAs</Label>
+                        <div className="mt-2 space-y-2">
+                          {reEnrollmentValidationCAs.length > 0 ? (
+                            reEnrollmentValidationCAs.map(ca => (
+                              <div key={ca.id} className="flex items-center gap-2 group">
+                                <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveReEnrollmentValidationCa(ca.id)}>
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic text-center p-2">No validation CAs selected.</p>
+                          )}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setIsReEnrollmentValidationCaModalOpen(true)} className="mt-2">
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Validation CA
+                        </Button>
+                      </div>
+                      <div className="flex items-center space-x-2 pt-2">
+                        <Switch id="allowExpiredReAuth" checked={allowExpiredReAuth} onCheckedChange={setAllowExpiredReAuth} />
+                        <Label htmlFor="allowExpiredReAuth">Allow Authenticating Expired Certificates</Label>
+                      </div>
+                      <div>
+                        <Label htmlFor="reChainValidationLevel" className="flex items-center">
+                          Chain Validation Level
+                          <TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent><p>-1 equals full chain validation.</p></TooltipContent></Tooltip></TooltipProvider>
+                        </Label>
+                        <Input id="reChainValidationLevel" type="number" value={reChainValidationLevel} onChange={(e) => setReChainValidationLevel(Number.parseInt(e.target.value))} className="mt-1" />
+                      </div>
+                    </div>
+                  )}
+
+                  {(reEnrollmentAuthMode === 'External Webhook' || reEnrollmentAuthMode === 'Client Certificate + Webhook') && (
+                    <div className="space-y-4 pt-2 border-t mt-4">
+                      <h4 className="font-medium text-md text-muted-foreground pt-2">Webhook Re-Enrollment Auth Settings</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="reWebhookName">Webhook Name</Label>
+                          <Input id="reWebhookName" value={reWebhookName} onChange={(e) => setReWebhookName(e.target.value)} placeholder="e.g., ReEnrollmentValidationFunc" className="mt-1" />
+                        </div>
+                        <div>
+                          <Label htmlFor="reWebhookUrl">Webhook URL</Label>
+                          <Input id="reWebhookUrl" value={reWebhookUrl} onChange={(e) => setReWebhookUrl(e.target.value)} placeholder="http://localhost:8080/verify-reenrollment" className="mt-1" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="reWebhookMethod">HTTP Method</Label>
+                          <Select value={reWebhookMethod} onValueChange={setReWebhookMethod}>
+                            <SelectTrigger id="reWebhookMethod" className="mt-1"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="POST">POST</SelectItem>
+                              <SelectItem value="PUT">PUT</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="reWebhookLogLevel">Log Level</Label>
+                          <Select value={reWebhookLogLevel} onValueChange={setReWebhookLogLevel}>
+                            <SelectTrigger id="reWebhookLogLevel" className="mt-1"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Info">Info</SelectItem>
+                              <SelectItem value="Debug">Debug</SelectItem>
+                              <SelectItem value="Warn">Warn</SelectItem>
+                              <SelectItem value="Error">Error</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-background">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="reWebhookValidateServerCert" className="flex items-center">
+                            <Server className="mr-2 h-4 w-4 text-muted-foreground" />
+                            Validate Server Certificate
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Verify the TLS certificate of the webhook endpoint.
+                          </p>
+                        </div>
+                        <Switch id="reWebhookValidateServerCert" checked={reWebhookValidateServerCert} onCheckedChange={setReWebhookValidateServerCert} />
+                      </div>
+                      <div>
+                        <Label htmlFor="reWebhookAuthMode">Auth Mode</Label>
+                        <Select value={reWebhookAuthMode} onValueChange={setReWebhookAuthMode}>
+                          <SelectTrigger id="reWebhookAuthMode" className="mt-1"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="No Auth">No Auth</SelectItem>
+                            <SelectItem value="OIDC">OIDC</SelectItem>
+                            <SelectItem value="API Key">API Key</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {reWebhookAuthMode === 'API Key' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="reWebhookApiKey">API Key</Label>
+                            <Input id="reWebhookApiKey" type="password" value={reWebhookApiKey} onChange={e => setReWebhookApiKey(e.target.value)} placeholder="Enter API Key" className="mt-1"/>
+                          </div>
+                          <div>
+                            <Label htmlFor="reWebhookApiKeyHeader">Header Name</Label>
+                            <Input id="reWebhookApiKeyHeader" value={reWebhookApiKeyHeader} onChange={e => setReWebhookApiKeyHeader(e.target.value)} placeholder="X-API-Key" className="mt-1"/>
+                          </div>
+                        </div>
+                      )}
+                      {reWebhookAuthMode === 'OIDC' && (
+                        <div className="space-y-4 pt-2 border-t mt-4">
+                          <h5 className="font-medium text-sm text-muted-foreground pt-2">OIDC Settings</h5>
+                          <div>
+                            <Label htmlFor="reOidcClientId">Client ID</Label>
+                            <Input id="reOidcClientId" value={reOidcClientId} onChange={e => setReOidcClientId(e.target.value)} placeholder="Enter OIDC Client ID" className="mt-1"/>
+                          </div>
+                          <div>
+                            <Label htmlFor="reOidcClientSecret">Client Secret</Label>
+                            <Input id="reOidcClientSecret" type="password" value={reOidcClientSecret} onChange={e => setReOidcClientSecret(e.target.value)} placeholder="Enter OIDC Client Secret" className="mt-1"/>
+                          </div>
+                          <div>
+                            <Label htmlFor="reOidcWellKnownUrl">Well-Known URL</Label>
+                            <Input id="reOidcWellKnownUrl" value={reOidcWellKnownUrl} onChange={e => setReOidcWellKnownUrl(e.target.value)} placeholder="https://your-issuer.com/.well-known/openid-configuration" className="mt-1"/>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
               </SettingsCard>
 
               <SettingsCard
@@ -960,6 +1210,18 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         errorCAs={errorDependencies} 
         loadCAsAction={loadDependencies} 
         onCaSelected={handleAddValidationCa}
+        allCryptoEngines={allCryptoEngines}
+      />
+      <CaSelectorModal
+        isOpen={isReEnrollmentValidationCaModalOpen}
+        onOpenChange={setIsReEnrollmentValidationCaModalOpen}
+        title="Add Re-Enrollment Validation CA"
+        description="Select a CA to add to the re-enrollment validation list."
+        availableCAs={availableCAsForSelection}
+        isLoadingCAs={isLoadingDependencies}
+        errorCAs={errorDependencies}
+        loadCAsAction={loadDependencies}
+        onCaSelected={handleAddReEnrollmentValidationCa}
         allCryptoEngines={allCryptoEngines}
       />
       <CaSelectorModal

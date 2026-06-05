@@ -62,6 +62,7 @@ export interface ApiRaSettings {
         preventive_delta: string;
         reenrollment_delta: string;
         additional_validation_cas: string[];
+        est_rfc7030_settings?: ApiRaEstSettings;
     };
     server_keygen_settings: {
         enabled: boolean;
