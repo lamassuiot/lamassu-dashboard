@@ -46,32 +46,32 @@ export function LaunchStrategyClient({ params }: LaunchStrategyClientProps) {
   const queryClient = useQueryClient();
 
   const launchId = resolvedParams.launchId;
-  const dmsId = searchParams.get('dms');
+  const groupId = searchParams.get('dms');
 
   // Fetch launch details to get current strategy
   const { data: launch, isLoading: isLoadingLaunch, error: launchError } = useQuery<LaunchItem, Error>({
-    queryKey: ['launchStrategy', dmsId, launchId],
+    queryKey: ['launchStrategy', groupId, launchId],
     queryFn: () => fetchLaunchStrategy({
-      dmsId: dmsId!,
+      groupId: groupId!,
       launchId: launchId!,
       accessToken: user!.access_token!
     }),
-    enabled: !!dmsId && !!launchId && !!user?.access_token,
+    enabled: !!groupId && !!launchId && !!user?.access_token,
   });
 
   // Fetch update packs to display pack names
   const { data: updatePacks } = useQuery<UpdatePack[], Error>({
-    queryKey: ['updatePacks', dmsId],
+    queryKey: ['updatePacks', groupId],
     queryFn: () => fetchUpdatePacks({
-      dmsId: dmsId!,
+      groupId: groupId!,
       accessToken: user!.access_token!
     }, { pageSize: 50 }).then(res => res.list),
-    enabled: !!dmsId && !!user?.access_token,
+    enabled: !!groupId && !!user?.access_token,
   });
 
   const strategyMutation = useMutation({
     mutationFn: (strategyData: Partial<ApiGlobalStrategy>) => updateLaunchStrategy({
-      dmsId: dmsId!,
+      groupId: groupId!,
       launchId: launchId!,
       strategyData,
       accessToken: user!.access_token!
@@ -81,9 +81,9 @@ export function LaunchStrategyClient({ params }: LaunchStrategyClientProps) {
         title: "Strategy Updated",
         description: "The launch strategy has been successfully updated."
       });
-      queryClient.invalidateQueries({ queryKey: ['launchStrategy', dmsId, launchId] });
+      queryClient.invalidateQueries({ queryKey: ['launchStrategy', groupId, launchId] });
       queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
-      router.push(`/updates/details?dmsId=${dmsId}&launchId=${launchId}`);
+      router.push(`/updates/details?groupId=${groupId}&launchId=${launchId}`);
     },
     onError: (err: Error) => {
       toast({
@@ -180,7 +180,7 @@ export function LaunchStrategyClient({ params }: LaunchStrategyClientProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push(`/updates/details?dmsId=${dmsId}&launchId=${launchId}`)}
+            onClick={() => router.push(`/updates/details?groupId=${groupId}&launchId=${launchId}`)}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />

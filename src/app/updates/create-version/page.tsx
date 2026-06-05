@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import type { UpdatePack } from '@/types/iot';
 
 // Dedicated "create a new version of an existing update pack" page. Brand-new packs are created at
-// /updates/create. A base pack may be preselected via ?basePackId=… (and ?dmsId=…); otherwise the
+// /updates/create. A base pack may be preselected via ?basePackId=… (and ?groupId=…); otherwise the
 // operator picks one from the in-form selector.
 export default function CreateUpdatePackVersionPage() {
   const router = useRouter();
@@ -22,9 +22,9 @@ export default function CreateUpdatePackVersionPage() {
   const { user } = useAuth();
 
   const basePackId = searchParams.get('basePackId');
-  const dmsIdParam = searchParams.get('dmsId');
+  const dmsIdParam = searchParams.get('groupId');
 
-  // Switch DMS if dmsId param is provided and different from current
+  // Switch DMS if groupId param is provided and different from current
   useEffect(() => {
     if (dmsIdParam && availableDms.length > 0 && selectedDms?.id !== dmsIdParam) {
       const target = availableDms.find(d => d.id === dmsIdParam);
@@ -32,12 +32,12 @@ export default function CreateUpdatePackVersionPage() {
     }
   }, [dmsIdParam, availableDms, selectedDms, setSelectedDms]);
 
-  // NOTE: queryKey ['updatePacks', dmsId] is shared with the pack-details page, which caches the
+  // NOTE: queryKey ['updatePacks', groupId] is shared with the pack-details page, which caches the
   // FULL {list,next} response. We return the same shape here and normalize to an array via select,
   // so a cache hit from either page yields a consistent array (and never the bare object).
   const { data: fetchedUpdatePacks = [] } = useQuery<any, Error, UpdatePack[]>({
     queryKey: ['updatePacks', selectedDms?.id],
-    queryFn: () => fetchUpdatePacks({ dmsId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }),
+    queryFn: () => fetchUpdatePacks({ groupId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }),
     enabled: !!selectedDms && !!user?.access_token,
     select: (data) => (Array.isArray(data) ? data : (data?.list || [])),
   });
@@ -75,7 +75,7 @@ export default function CreateUpdatePackVersionPage() {
   if (!selectedDms) {
     return (
       <div className="flex items-center justify-center p-8">
-        <p className="text-muted-foreground">Please select a Device Management System above to manage update packs.</p>
+        <p className="text-muted-foreground">Please select a Device Group above to manage update packs.</p>
       </div>
     );
   }

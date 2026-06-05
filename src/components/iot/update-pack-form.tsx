@@ -65,7 +65,7 @@ const updatePackFormSchema = z.object({
     .regex(/^[^\s]+$/, "Pack name cannot contain spaces. Use underscores instead.")
     .transform(val => val.replace(/\s+/g, '_')),
   version: z.coerce.number().int().positive("Version must be a positive integer."),
-  dmsId: z.string().min(1, "Please select a Device Management System."),
+  groupId: z.string().min(1, "Please select a Device Group."),
   type: z.enum(["rawfile", "firmware", "other"]),
   signingAlgorithm: z.string().optional(),
   signingKeyId: z.string().optional(),
@@ -178,12 +178,12 @@ export function UpdatePackForm({
 
   // Fetch artifact catalog for the selected base pack (newVersion mode) so Step 2 can show selections
   const basePack = safeBasePacks.find(p => p.id === selectedBasePackIdProp);
-  const catalogDmsId = selectedDms?.id || '';
+  const catalogGroupId = selectedDms?.id || '';
   const catalogPackName = basePack?.name || '';
   const { data: catalogArtifacts = [] } = useQuery<Artifact[]>({
-    queryKey: ['artifactCatalog', catalogDmsId, catalogPackName],
-    queryFn: () => fetchArtifactCatalog({ dmsId: catalogDmsId, packName: catalogPackName, accessToken: user!.access_token! }),
-    enabled: !!catalogDmsId && !!catalogPackName && !!user?.access_token,
+    queryKey: ['artifactCatalog', catalogGroupId, catalogPackName],
+    queryFn: () => fetchArtifactCatalog({ groupId: catalogGroupId, packName: catalogPackName, accessToken: user!.access_token! }),
+    enabled: !!catalogGroupId && !!catalogPackName && !!user?.access_token,
   });
 
   // The GLOBAL artifact pool — every previously-uploaded artifact is selectable here, not just the
@@ -236,7 +236,7 @@ export function UpdatePackForm({
     defaultValues: { 
       name: "", 
       version: 1, 
-      dmsId: selectedDms?.id || "",
+      groupId: selectedDms?.id || "",
       type: "rawfile",
       signingAlgorithm: "none",
       encryptionMode: "none",
@@ -276,7 +276,7 @@ export function UpdatePackForm({
       form.reset({
         name: initialPackData?.name || "",
         version: initialPackData?.version || 1,
-        dmsId: dmsIdValue,
+        groupId: dmsIdValue,
         type: typeValue,
         signingAlgorithm: "none",
         encryptionMode: "none",
@@ -291,7 +291,7 @@ export function UpdatePackForm({
         form.reset({
           name: initialPackData.name,
           version: initialPackData.version,
-          dmsId: dmsIdValue,
+          groupId: dmsIdValue,
           type: typeValue,
           signingAlgorithm: "none",
           encryptionMode: "none",
@@ -305,7 +305,7 @@ export function UpdatePackForm({
         form.reset({
           name: "",
           version: 0,
-          dmsId: dmsIdValue,
+          groupId: dmsIdValue,
           type: "rawfile",
           signingAlgorithm: "none",
           encryptionMode: "none",
@@ -320,7 +320,7 @@ export function UpdatePackForm({
       form.reset({
         name: initialPackData.name,
         version: initialPackData.version,
-        dmsId: dmsIdValue,
+        groupId: dmsIdValue,
         type: typeValue,
         signingAlgorithm: "none",
         encryptionMode: "none",
@@ -334,12 +334,12 @@ export function UpdatePackForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formModeActual, initialPackData, form.reset]);
 
-  // Keep the form's dmsId synced to the active DMS (the one the base-pack list is loaded for). The
-  // page can switch DMS after mount (e.g. via a ?dmsId= deep link), and form.reset() doesn't carry
-  // dmsId — without this, a new-version build could target the wrong DMS and fail "pack not found".
+  // Keep the form's groupId synced to the active DMS (the one the base-pack list is loaded for). The
+  // page can switch DMS after mount (e.g. via a ?groupId= deep link), and form.reset() doesn't carry
+  // groupId — without this, a new-version build could target the wrong DMS and fail "pack not found".
   useEffect(() => {
     if (selectedDms?.id) {
-      form.setValue('dmsId', selectedDms.id, { shouldValidate: true });
+      form.setValue('groupId', selectedDms.id, { shouldValidate: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDms?.id]);
@@ -759,14 +759,14 @@ export function UpdatePackForm({
     setOverallProgress(0);
 
     const formData = form.getValues();
-    const selectedDmsForPack = availableDms.find(dms => dms.id === formData.dmsId);
+    const selectedDmsForPack = availableDms.find(dms => dms.id === formData.groupId);
     
     if (!selectedDmsForPack) {
-        setGenerationError("No Device Management System is selected.");
+        setGenerationError("No Device Group is selected.");
         setIsProcessingSwu(false);
         return;
     }
-    const dmsId = selectedDmsForPack.id;
+    const groupId = selectedDmsForPack.id;
 
     const isValid = await form.trigger();
     if (!isValid) {
@@ -817,7 +817,7 @@ export function UpdatePackForm({
 
       if (formModeActual === 'newVersion' && selectedBasePackIdProp) {
         const basePackNameForApi = safeBasePacks.find(p => p.id === selectedBasePackIdProp)?.name || apiPackName;
-        createPackResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${basePackNameForApi}/new`, {
+        createPackResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${basePackNameForApi}/new`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.access_token}` },
         });
@@ -826,10 +826,10 @@ export function UpdatePackForm({
           name: packDetails.name,
           version: packDetails.version,
           type: packDetails.type,
-          dms_id: dmsId,
+          group_id: groupId,
           allow_previous_version_download: (packDetails as any).allowPreviousVersionDownload || false,
         };
-        createPackResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks`, {
+        createPackResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.access_token}` },
           body: JSON.stringify(createPayload),
@@ -864,7 +864,7 @@ export function UpdatePackForm({
         binaryFormData.append('artifact_name', meta.artifactName || defaultArtifactName(file.name));
         binaryFormData.append('version', meta.version || '');
 
-        const uploadBinaryResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
+        const uploadBinaryResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${user.access_token}` },
           body: binaryFormData,
@@ -916,7 +916,7 @@ export function UpdatePackForm({
         
         const descriptorFormData = new FormData();
         descriptorFormData.append('file', descriptorToUpload);
-        const uploadDescriptorResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
+        const uploadDescriptorResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${user.access_token}` },
           body: descriptorFormData,
@@ -1054,7 +1054,7 @@ export function UpdatePackForm({
         }
       }
       
-      const generateSwuResponse = await fetch(`${updatesApiBaseUrl}/dms/${dmsId}/updatepacks/${targetPackNameForFilesAndSwu}/swu?user_id=${encodeURIComponent(user.profile.sub)}`, {
+      const generateSwuResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/swu?user_id=${encodeURIComponent(user.profile.sub)}`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${user.access_token}`,
@@ -1162,10 +1162,10 @@ export function UpdatePackForm({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
-                  name="dmsId"
+                  name="groupId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Device Management System</FormLabel>
+                      <FormLabel>Device Group</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         value={field.value}
@@ -1173,7 +1173,7 @@ export function UpdatePackForm({
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select DMS" />
+                            <SelectValue placeholder="Select Device Group" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -1186,8 +1186,8 @@ export function UpdatePackForm({
                       </Select>
                       <FormDescription>
                         {formModeActual === 'newVersion' 
-                          ? "DMS is locked when creating a new version of an existing pack." 
-                          : "Select the DMS where this update pack will be created."}
+                          ? "Device Group is locked when creating a new version of an existing pack." 
+                          : "Select the Device Group that will receive this update pack."}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

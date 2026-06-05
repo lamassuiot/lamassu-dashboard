@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, KeyRound, Check } from "lucide-react";
 import { fetchKmsKeys, type ApiKmsKey } from '@/lib/kms-data';
+import { useAuth } from '@/contexts/AuthContext';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { KeyStrengthIndicator } from '@/components/shared/KeyStrengthIndicator';
@@ -36,6 +37,7 @@ export function KmsKeySelector({
   'aria-invalid': ariaInvalid,
   'aria-describedby': ariaDescribedBy,
 }: KmsKeySelectorProps) {
+  const { user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [keys, setKeys] = useState<ApiKmsKey[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,6 +48,7 @@ export function KmsKeySelector({
   const selectedEngine = selectedKey ? allCryptoEngines.find(e => e.id === selectedKey.engine_id) : null;
 
   const loadKeys = useCallback(async () => {
+    if (!user?.access_token) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -55,7 +58,7 @@ export function KmsKeySelector({
         params.append('engine_id', filterEngineId);
       }
 
-      const response = await fetchKmsKeys(params);
+      const response = await fetchKmsKeys(user.access_token, params);
       let filteredKeys = response.list || [];
       
       if (requirePrivateKey) {

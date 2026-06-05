@@ -7,7 +7,7 @@ import type { UpdatePack, ApiGlobalStrategy, LaunchItem, DeviceJob, LaunchListRe
 
 
 export interface ApiParams {
-    dmsId: string;
+    groupId: string;
     accessToken: string;
 }
 
@@ -28,7 +28,7 @@ export interface UpdatePacksResponse {
 }
 
 export async function fetchUpdatePacks(
-  { dmsId, accessToken }: ApiParams, 
+  { groupId, accessToken }: ApiParams, 
   options?: FetchUpdatePacksOptions,
   opts?: ApiCallOptions
 ): Promise<UpdatePacksResponse> {
@@ -38,7 +38,7 @@ export async function fetchUpdatePacks(
   if (options?.sortBy) params.set('sort_by', options.sortBy);
   if (options?.sortMode) params.set('sort_mode', options.sortMode);
   
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks${params.toString() ? '?' + params.toString() : ''}`;
   
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -53,13 +53,13 @@ export async function fetchUpdatePacks(
 }
 
 // Legacy function for backward compatibility
-export async function fetchUpdatePacksLegacy({ dmsId, accessToken }: ApiParams, opts?: ApiCallOptions): Promise<UpdatePack[]> {
-  const response = await fetchUpdatePacks({ dmsId, accessToken }, { pageSize: 50 }, opts);
+export async function fetchUpdatePacksLegacy({ groupId, accessToken }: ApiParams, opts?: ApiCallOptions): Promise<UpdatePack[]> {
+  const response = await fetchUpdatePacks({ groupId, accessToken }, { pageSize: 50 }, opts);
   return response.list;
 }
 
-export async function deleteUpdatePackApi({ dmsId, packName, accessToken }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<any> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}`, {
+export async function deleteUpdatePackApi({ groupId, packName, accessToken }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<any> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}`, {
     method: 'DELETE',
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
@@ -67,8 +67,8 @@ export async function deleteUpdatePackApi({ dmsId, packName, accessToken }: ApiP
   return handleApiError(response, `Failed to delete pack ${packName}`);
 }
 
-export async function fetchArtifacts({ dmsId, packName, accessToken }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<string[]> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/artifacts`, {
+export async function fetchArtifacts({ groupId, packName, accessToken }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<string[]> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifacts`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
@@ -101,8 +101,8 @@ export async function fetchArtifacts({ dmsId, packName, accessToken }: ApiParams
   }
 }
 
-export async function fetchUpdatePackDescriptor({ dmsId, packName, accessToken }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<string> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/descriptor`, {
+export async function fetchUpdatePackDescriptor({ groupId, packName, accessToken }: ApiParams & { packName: string }, opts?: ApiCallOptions): Promise<string> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/descriptor`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
@@ -128,12 +128,12 @@ export async function fetchUpdatePackDescriptor({ dmsId, packName, accessToken }
 // Global strategy endpoints removed - no longer supported by backend
 // Strategy is now configured per-launch only
 
-export async function fetchCurrentLaunches({ dmsId, accessToken, limit, bookmark }: ApiParams & { limit?: number; bookmark?: string }, opts?: ApiCallOptions): Promise<LaunchListResponse> {
+export async function fetchCurrentLaunches({ groupId, accessToken, limit, bookmark }: ApiParams & { limit?: number; bookmark?: string }, opts?: ApiCallOptions): Promise<LaunchListResponse> {
   const params = new URLSearchParams();
   if (limit) params.set('limit', limit.toString());
   if (bookmark) params.set('bookmark', bookmark);
   
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch${params.toString() ? '?' + params.toString() : ''}`;
 
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -160,7 +160,7 @@ export async function fetchCurrentLaunches({ dmsId, accessToken, limit, bookmark
   };
 }
 
-export async function fetchLaunchDetails({ dmsId, accessToken, launchId }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<LaunchItem | null> {
+export async function fetchLaunchDetails({ groupId, accessToken, launchId }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<LaunchItem | null> {
   let bookmark: string | undefined = undefined;
   let hasMore = true;
   let iterations = 0;
@@ -168,7 +168,7 @@ export async function fetchLaunchDetails({ dmsId, accessToken, launchId }: ApiPa
 
   while (hasMore && iterations < maxIterations) {
     iterations++;
-    const response: LaunchListResponse = await fetchCurrentLaunches({ dmsId, accessToken, limit: 20, bookmark }, opts);
+    const response: LaunchListResponse = await fetchCurrentLaunches({ groupId, accessToken, limit: 20, bookmark }, opts);
     
     if (response.list) {
       const found = response.list.find(l => l.id === launchId);
@@ -182,7 +182,7 @@ export async function fetchLaunchDetails({ dmsId, accessToken, launchId }: ApiPa
   return null;
 }
 
-export async function fetchAllLaunches({ dmsId, accessToken }: ApiParams, opts?: ApiCallOptions): Promise<LaunchItem[]> {
+export async function fetchAllLaunches({ groupId, accessToken }: ApiParams, opts?: ApiCallOptions): Promise<LaunchItem[]> {
   const allLaunches: LaunchItem[] = [];
   let bookmark: string | undefined = undefined;
   let hasMore = true;
@@ -191,7 +191,7 @@ export async function fetchAllLaunches({ dmsId, accessToken }: ApiParams, opts?:
 
   while (hasMore && iterations < maxIterations) {
     iterations++;
-    const response: LaunchListResponse = await fetchCurrentLaunches({ dmsId, accessToken, limit: 20, bookmark }, opts);
+    const response: LaunchListResponse = await fetchCurrentLaunches({ groupId, accessToken, limit: 20, bookmark }, opts);
     
     if (response.list) {
       allLaunches.push(...response.list);
@@ -206,7 +206,7 @@ export async function fetchAllLaunches({ dmsId, accessToken }: ApiParams, opts?:
 
 // Fetch launches filtered by update pack ID
 export async function fetchLaunchesByUpdatePack({
-  dmsId,
+  groupId,
   accessToken,
   updatePackId,
   pageSize = 50,
@@ -227,7 +227,7 @@ export async function fetchLaunchesByUpdatePack({
   if (bookmark) params.set('bookmark', bookmark);
   params.set('filter', `update_pack_id[eq]${updatePackId}`);
   
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch?${params.toString()}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch?${params.toString()}`;
   
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -284,8 +284,8 @@ export interface CreateLaunchPayload {
   auto?: boolean;
 }
 
-export async function createLaunch({ dmsId, accessToken, launchData }: ApiParams & { launchData: CreateLaunchPayload }, opts?: ApiCallOptions): Promise<any> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch`, {
+export async function createLaunch({ groupId, accessToken, launchData }: ApiParams & { launchData: CreateLaunchPayload }, opts?: ApiCallOptions): Promise<any> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch`, {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
@@ -300,8 +300,8 @@ export async function createLaunch({ dmsId, accessToken, launchData }: ApiParams
 // Deprecated: Use createLaunch instead
 export const triggerGlobalLaunchApi = createLaunch;
 
-export async function triggerItemRollout({ dmsId, launchId, accessToken }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<any> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/rollout`, {
+export async function triggerItemRollout({ groupId, launchId, accessToken }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<any> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/rollout`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
@@ -316,12 +316,12 @@ export interface PaginatedJobsResponse {
   hasMore: boolean;
 }
 
-export async function fetchDeviceJobsForLaunch({ dmsId, deviceIds, accessToken }: ApiParams & { deviceIds: string[] }, opts?: ApiCallOptions): Promise<DeviceJob[]> {
+export async function fetchDeviceJobsForLaunch({ groupId, deviceIds, accessToken }: ApiParams & { deviceIds: string[] }, opts?: ApiCallOptions): Promise<DeviceJob[]> {
   if (!deviceIds || deviceIds.length === 0) {
     return [];
   }
   const jobPromises = deviceIds.map(deviceId =>
-    fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/device/${deviceId}/jobs`, {
+    fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/device/${deviceId}/jobs`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
       signal: opts?.signal ?? undefined,
     })
@@ -340,7 +340,7 @@ export async function fetchDeviceJobsForLaunch({ dmsId, deviceIds, accessToken }
 
 // Paginated version for single device - supports fetching more jobs
 export async function fetchDeviceJobsPaginated({ 
-  dmsId, 
+  groupId, 
   deviceId, 
   accessToken, 
   limit = 10, 
@@ -350,7 +350,7 @@ export async function fetchDeviceJobsPaginated({
   if (limit) params.set('limit', limit.toString());
   if (bookmark) params.set('bookmark', bookmark);
   
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/device/${deviceId}/jobs${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/device/${deviceId}/jobs${params.toString() ? '?' + params.toString() : ''}`;
   
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -369,7 +369,7 @@ export async function fetchDeviceJobsPaginated({
 // Fetch ALL jobs for devices (handles pagination automatically)
 // Use this when you need to get jobs for older launches that may not be in the last 10
 export async function fetchAllDeviceJobs({ 
-  dmsId, 
+  groupId, 
   deviceIds, 
   accessToken,
   targetLaunchId, // Optional: stop fetching once we find jobs for this launch
@@ -396,7 +396,7 @@ export async function fetchAllDeviceJobs({
 
       try {
         const response = await fetch(
-          `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/device/${deviceId}/jobs?${params.toString()}`,
+          `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/device/${deviceId}/jobs?${params.toString()}`,
           {
             headers: { 'Authorization': `Bearer ${accessToken}` },
             signal: opts?.signal ?? undefined,
@@ -440,16 +440,16 @@ export async function fetchAllDeviceJobs({
 }
 
 // Launch-specific strategy operations (new routes)
-export async function fetchLaunchStrategy({ dmsId, launchId, accessToken }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<LaunchItem> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/strategy`, {
+export async function fetchLaunchStrategy({ groupId, launchId, accessToken }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<LaunchItem> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/strategy`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
   return handleApiError(response, `Failed to fetch strategy for launch ${launchId}`);
 }
 
-export async function updateLaunchStrategy({ dmsId, launchId, strategyData, accessToken }: ApiParams & { launchId: string; strategyData: Partial<ApiGlobalStrategy> }, opts?: ApiCallOptions): Promise<LaunchItem> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/launch/${launchId}/strategy`, {
+export async function updateLaunchStrategy({ groupId, launchId, strategyData, accessToken }: ApiParams & { launchId: string; strategyData: Partial<ApiGlobalStrategy> }, opts?: ApiCallOptions): Promise<LaunchItem> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/strategy`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -524,35 +524,35 @@ export async function transitionJobs(
  * Fetch devices belonging to a DMS (for per-device SWU downloads).
  * GET /v1/dms/:dmsID/devices
  */
-export async function fetchDmsDevices(
-  { dmsId, accessToken }: ApiParams,
+export async function fetchGroupDevices(
+  { groupId, accessToken }: ApiParams,
   opts?: ApiCallOptions
 ): Promise<DeviceListApiResponse> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/devices`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/devices`;
 
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
-  return handleApiError(response, `Failed to fetch devices for DMS ${dmsId}`);
+  return handleApiError(response, `Failed to fetch devices for DMS ${groupId}`);
 }
 
 /**
  * Get the per-device SWU download URL.
  * GET /v1/dms/:dmsID/updatepacks/:name/swu/download/:deviceID
  */
-export function getPerDeviceSwuDownloadUrl(dmsId: string, packName: string, deviceId: string): string {
-  return `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/swu/download/${encodeURIComponent(deviceId)}`;
+export function getPerDeviceSwuDownloadUrl(groupId: string, packName: string, deviceId: string): string {
+  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/swu/download/${encodeURIComponent(deviceId)}`;
 }
 
 /**
  * Download a per-device SWU file.
  */
 export async function downloadPerDeviceSwu(
-  { dmsId, packName, deviceId, accessToken }: ApiParams & { packName: string; deviceId: string },
+  { groupId, packName, deviceId, accessToken }: ApiParams & { packName: string; deviceId: string },
   opts?: ApiCallOptions
 ): Promise<Blob> {
-  const url = getPerDeviceSwuDownloadUrl(dmsId, packName, deviceId);
+  const url = getPerDeviceSwuDownloadUrl(groupId, packName, deviceId);
 
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -573,10 +573,10 @@ export async function downloadPerDeviceSwu(
  * GET /v1/dms/:dmsID/updatepacks/:name/artifact-catalog
  */
 export async function fetchArtifactCatalog(
-  { dmsId, packName, accessToken }: ApiParams & { packName: string },
+  { groupId, packName, accessToken }: ApiParams & { packName: string },
   opts?: ApiCallOptions
 ): Promise<Artifact[]> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/artifact-catalog`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifact-catalog`;
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
@@ -680,10 +680,10 @@ export async function deleteArtifact(
  * GET /v1/dms/:dmsID/updatepacks/:name/versions
  */
 export async function fetchUpdatePackVersions(
-  { dmsId, packName, accessToken }: ApiParams & { packName: string },
+  { groupId, packName, accessToken }: ApiParams & { packName: string },
   opts?: ApiCallOptions
 ): Promise<{ list: UpdatePackVersion[]; next: string | null }> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/versions`;
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/versions`;
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
@@ -697,16 +697,16 @@ export async function fetchUpdatePackVersions(
  * Previous versions require the pack's allow_previous_version_download flag to be enabled.
  * GET /v1/dms/:dmsID/updatepacks/:name/swu/download/version/:version
  */
-export function getSwuVersionDownloadUrl(dmsId: string, packName: string, version: number | string): string {
-  return `${get_CLIENT_UPDATES_API_BASE_URL()}/dms/${dmsId}/updatepacks/${packName}/swu/download/version/${encodeURIComponent(String(version))}`;
+export function getSwuVersionDownloadUrl(groupId: string, packName: string, version: number | string): string {
+  return `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/swu/download/version/${encodeURIComponent(String(version))}`;
 }
 
 /** Download a specific version of an update pack's SWU. */
 export async function downloadSwuVersion(
-  { dmsId, packName, version, accessToken }: ApiParams & { packName: string; version: number | string },
+  { groupId, packName, version, accessToken }: ApiParams & { packName: string; version: number | string },
   opts?: ApiCallOptions
 ): Promise<Blob> {
-  const response = await fetch(getSwuVersionDownloadUrl(dmsId, packName, version), {
+  const response = await fetch(getSwuVersionDownloadUrl(groupId, packName, version), {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
