@@ -12,7 +12,7 @@ import type { SchemaDefinition } from '@/types/authz';
 
 interface NestedRuleConfig {
   sourceEntity: string;
-  targetEntity: string;
+  target_entity: string;
   relationName: string;
   enabled: boolean;
   actions: string[];
@@ -26,30 +26,30 @@ interface SchemaEntityNodeProps {
     isReadOnly?: boolean;
     isInRuleTree?: boolean;
     actions?: string[];
-    directGrants?: string[];
+    direct_grants?: string[];
     nestedRules?: NestedRuleConfig[];
-    onUpdate?: (data: { actions: string[]; directGrants: string[] }) => void;
-    onNestedRuleUpdate?: (sourceEntity: string, targetEntity: string, relationName: string, data: { enabled: boolean; actions: string[] }) => void;
+    onUpdate?: (data: { actions: string[]; direct_grants: string[] }) => void;
+    onNestedRuleUpdate?: (sourceEntity: string, target_entity: string, relationName: string, data: { enabled: boolean; actions: string[] }) => void;
   };
 }
 
 export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
   const { schema, isStartingEntity, isPolicyNode, isReadOnly, isInRuleTree = false, onUpdate, onNestedRuleUpdate, nestedRules = [] } = data;
   const [selectedActions, setSelectedActions] = React.useState<string[]>(data.actions || []);
-  const [ids, setIds] = React.useState<string[]>(data.directGrants || []);
+  const [ids, setIds] = React.useState<string[]>(data.direct_grants || []);
   const [newId, setNewId] = React.useState('');
 
   React.useEffect(() => {
     setSelectedActions(data.actions || []);
-    setIds(data.directGrants || []);
-  }, [data.actions, data.directGrants]);
+    setIds(data.direct_grants || []);
+  }, [data.actions, data.direct_grants]);
   
   const relations = Object.values(schema.relations);
-  const hasAtomicActions = schema.atomicActions && schema.atomicActions.length > 0;
-  const hasGlobalActions = schema.globalActions && schema.globalActions.length > 0;
+  const hasAtomicActions = schema.atomic_actions && schema.atomic_actions.length > 0;
+  const hasGlobalActions = schema.global_actions && schema.global_actions.length > 0;
   const availableActions = [
-    ...(schema.atomicActions || []),
-    ...(schema.globalActions || []),
+    ...(schema.atomic_actions || []),
+    ...(schema.global_actions || []),
   ];
 
   const toggleAction = (action: string) => {
@@ -58,7 +58,7 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
       ? selectedActions.filter((a) => a !== action)
       : [...selectedActions, action];
     setSelectedActions(newActions);
-    onUpdate?.({ actions: newActions, directGrants: ids });
+    onUpdate?.({ actions: newActions, direct_grants: ids });
   };
 
   const addId = () => {
@@ -67,14 +67,14 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
     const newIds = [...ids, newId.trim()];
     setIds(newIds);
     setNewId('');
-    onUpdate?.({ actions: selectedActions, directGrants: newIds });
+    onUpdate?.({ actions: selectedActions, direct_grants: newIds });
   };
 
   const removeId = (id: string) => {
     if (isReadOnly) return;
     const newIds = ids.filter((i) => i !== id);
     setIds(newIds);
-    onUpdate?.({ actions: selectedActions, directGrants: newIds });
+    onUpdate?.({ actions: selectedActions, direct_grants: newIds });
   };
 
   const borderColor = isStartingEntity
@@ -104,7 +104,7 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className={`h-5 w-5 ${iconColor}`} />
-            <CardTitle className="text-base font-bold">{schema.entityType}</CardTitle>
+            <CardTitle className="text-base font-bold">{schema.entity_type}</CardTitle>
           </div>
           <div className="flex items-center gap-1">
             {isStartingEntity && (
@@ -118,10 +118,10 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
           </div>
         </div>
         <div className="text-xs text-muted-foreground mt-1">
-          <div>Table: <code className="bg-muted px-1 rounded">{schema.tableName}</code></div>
+          <div>Table: <code className="bg-muted px-1 rounded">{schema.table_name}</code></div>
           <div className="flex items-center gap-1 mt-1">
             <Key className="h-3 w-3" />
-            PK: <code className="bg-muted px-1 rounded">{schema.primaryKey}</code>
+            PK: <code className="bg-muted px-1 rounded">{schema.primary_key}</code>
           </div>
         </div>
       </CardHeader>
@@ -210,7 +210,7 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
                 >
                   <span className="font-medium">{relation.name}</span>
                   <Badge variant="outline" className="text-xs">
-                    → {relation.targetEntity}
+                    → {relation.target_entity}
                   </Badge>
                 </div>
               ))}
@@ -225,14 +225,14 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
               <div>
                 <div className="text-xs font-semibold mb-1">Atomic Actions:</div>
                 <div className="flex flex-wrap gap-1">
-                  {schema.atomicActions!.slice(0, 3).map((action: string, idx: number) => (
+                  {schema.atomic_actions!.slice(0, 3).map((action: string, idx: number) => (
                     <Badge key={idx} variant="secondary" className="text-xs">
                       {action}
                     </Badge>
                   ))}
-                  {schema.atomicActions!.length > 3 && (
+                  {schema.atomic_actions!.length > 3 && (
                     <Badge variant="secondary" className="text-xs">
-                      +{schema.atomicActions!.length - 3}
+                      +{schema.atomic_actions!.length - 3}
                     </Badge>
                   )}
                 </div>
@@ -242,14 +242,14 @@ export const SchemaEntityNode = memo(({ data }: SchemaEntityNodeProps) => {
               <div>
                 <div className="text-xs font-semibold mb-1">Global Actions:</div>
                 <div className="flex flex-wrap gap-1">
-                  {schema.globalActions!.slice(0, 3).map((action: string, idx: number) => (
+                  {schema.global_actions!.slice(0, 3).map((action: string, idx: number) => (
                     <Badge key={idx} variant="outline" className="text-xs">
                       {action}
                     </Badge>
                   ))}
-                  {schema.globalActions!.length > 3 && (
+                  {schema.global_actions!.length > 3 && (
                     <Badge variant="outline" className="text-xs">
-                      +{schema.globalActions!.length - 3}
+                      +{schema.global_actions!.length - 3}
                     </Badge>
                   )}
                 </div>

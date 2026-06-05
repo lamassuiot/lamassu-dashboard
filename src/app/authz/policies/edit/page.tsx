@@ -18,7 +18,7 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 function EditPolicyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const policyId = searchParams.get('policyId');
+  const policy_id = searchParams.get('policy_id');
 
   const [formData, setFormData] = useState({
     id: '',
@@ -31,15 +31,15 @@ function EditPolicyContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (policyId) loadPolicy();
+    if (policy_id) loadPolicy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [policyId]);
+  }, [policy_id]);
 
   const loadPolicy = async () => {
-    if (!policyId) return;
+    if (!policy_id) return;
     try {
       setLoading(true);
-      const policy = await getPolicy(policyId);
+      const policy = await getPolicy(policy_id);
       setFormData({
         id: policy.id,
         name: policy.name,
@@ -74,7 +74,7 @@ function EditPolicyContent() {
         description: formData.description,
         rules: normalizePolicyRules(formData.rules),
       });
-      router.push(`/authz/policies/details?policyId=${formData.id}`);
+      router.push(`/authz/policies/details?policy_id=${formData.id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to update policy');
     } finally {
@@ -108,8 +108,8 @@ function EditPolicyContent() {
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
     { label: 'Policies', href: '/authz/policies' },
-    ...(policyId
-      ? [{ label: formData.name || 'Details', href: `/authz/policies/details?policyId=${policyId}` }]
+    ...(policy_id
+      ? [{ label: formData.name || 'Details', href: `/authz/policies/details?policy_id=${policy_id}` }]
       : []),
     { label: 'Edit' },
   ];

@@ -51,12 +51,12 @@ import { cn } from '@/lib/utils';
 // Encoding helpers for the merged entity selector
 // ─────────────────────────────────────────────────────────────────────────────
 const SEP = '|||';
-const encodeEntity = (schemaName: string, entityType: string) =>
-  `${schemaName}${SEP}${entityType}`;
-const decodeEntity = (encoded: string): { schemaName: string; entityType: string } => {
+const encodeEntity = (schema_name: string, entity_type: string) =>
+  `${schema_name}${SEP}${entity_type}`;
+const decodeEntity = (encoded: string): { schema_name: string; entity_type: string } => {
   const idx = encoded.indexOf(SEP);
-  if (idx < 0) return { schemaName: '', entityType: encoded };
-  return { schemaName: encoded.slice(0, idx), entityType: encoded.slice(idx + SEP.length) };
+  if (idx < 0) return { schema_name: '', entity_type: encoded };
+  return { schema_name: encoded.slice(0, idx), entity_type: encoded.slice(idx + SEP.length) };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -89,10 +89,10 @@ const OPERATOR_SQL: Record<FilterOperator, string> = {
 // ─────────────────────────────────────────────────────────────────────────────
 interface EntitySelectorProps {
   schemas: SchemaDefinition[];
-  schemaName: string;
-  entityType: string;
+  schema_name: string;
+  entity_type: string;
   namespace?: string;
-  onSelect: (schemaName: string, entityType: string, namespace?: string) => void;
+  onSelect: (schema_name: string, entity_type: string, namespace?: string) => void;
   includeWildcard?: boolean;
   placeholder?: string;
   error?: string;
@@ -101,8 +101,8 @@ interface EntitySelectorProps {
 
 function EntitySelector({
   schemas,
-  schemaName,
-  entityType,
+  schema_name,
+  entity_type,
   namespace,
   onSelect,
   includeWildcard = false,
@@ -117,7 +117,7 @@ function EntitySelector({
   const filteredSchemas = filterByParentEntityType
     ? schemas.filter((s) =>
         Object.values(s.relations || {}).some(
-          (r) => r.targetEntity === filterByParentEntityType
+          (r) => r.target_entity === filterByParentEntityType
         )
       )
     : schemas;
@@ -127,40 +127,40 @@ function EntitySelector({
       if (!query) return true;
       const q = query.toLowerCase();
       return (
-        s.entityType.toLowerCase().includes(q) ||
-        s.schemaName.toLowerCase().includes(q) ||
+        s.entity_type.toLowerCase().includes(q) ||
+        s.schema_name.toLowerCase().includes(q) ||
         (s.namespace || '').toLowerCase().includes(q)
       );
     })
     .sort((a, b) => {
       const nsCmp = (a.namespace || 'other').localeCompare(b.namespace || 'other');
       if (nsCmp !== 0) return nsCmp;
-      return a.schemaName.localeCompare(b.schemaName) || a.entityType.localeCompare(b.entityType);
+      return a.schema_name.localeCompare(b.schema_name) || a.entity_type.localeCompare(b.entity_type);
     });
 
-  // Group by namespace → schemaName
+  // Group by namespace → schema_name
   const namespaceGroups = options.reduce<Record<string, Record<string, SchemaDefinition[]>>>(
     (acc, s) => {
       const ns = s.namespace || 'other';
       if (!acc[ns]) acc[ns] = {};
-      if (!acc[ns][s.schemaName]) acc[ns][s.schemaName] = [];
-      acc[ns][s.schemaName].push(s);
+      if (!acc[ns][s.schema_name]) acc[ns][s.schema_name] = [];
+      acc[ns][s.schema_name].push(s);
       return acc;
     },
     {}
   );
 
-  const selectedValue = schemaName && entityType ? encodeEntity(schemaName, entityType) : '';
+  const selectedValue = schema_name && entity_type ? encodeEntity(schema_name, entity_type) : '';
   const selectedSchema = schemas.find(
-    (s) => s.schemaName === schemaName && s.entityType === entityType
+    (s) => s.schema_name === schema_name && s.entity_type === entity_type
   );
-  const isWildcard = schemaName === '*' && entityType === '*';
+  const isWildcard = schema_name === '*' && entity_type === '*';
 
-  const displayLabel = isWildcard ? '* (all entities)' : entityType || placeholder;
+  const displayLabel = isWildcard ? '* (all entities)' : entity_type || placeholder;
   const displaySub = selectedSchema
-    ? [selectedSchema.namespace, selectedSchema.schemaName].filter(Boolean).join(' · ')
-    : schemaName && schemaName !== '*'
-      ? schemaName
+    ? [selectedSchema.namespace, selectedSchema.schema_name].filter(Boolean).join(' · ')
+    : schema_name && schema_name !== '*'
+      ? schema_name
       : undefined;
 
   useEffect(() => {
@@ -175,7 +175,7 @@ function EntitySelector({
   }, [open]);
 
   const choose = (enc: string, ns?: string) => {
-    const { schemaName: sn, entityType: et } = decodeEntity(enc);
+    const { schema_name: sn, entity_type: et } = decodeEntity(enc);
     onSelect(sn, et, ns);
     setOpen(false);
     setQuery('');
@@ -279,7 +279,7 @@ function EntitySelector({
                 {/* Rows per namespace */}
                 {Object.entries(schemaGroups).flatMap(([, items]) =>
                   items.map((s) => {
-                    const enc = encodeEntity(s.schemaName, s.entityType);
+                    const enc = encodeEntity(s.schema_name, s.entity_type);
                     const isSelected = selectedValue === enc;
                     return (
                       <button
@@ -299,7 +299,7 @@ function EntitySelector({
                             <span className="h-3 w-3 shrink-0" />
                           )}
                           <span className="text-xs text-muted-foreground font-mono truncate">
-                            {s.schemaName}
+                            {s.schema_name}
                           </span>
                         </span>
                         <span
@@ -308,7 +308,7 @@ function EntitySelector({
                             isSelected ? 'font-semibold text-foreground' : 'font-medium'
                           )}
                         >
-                          {s.entityType}
+                          {s.entity_type}
                         </span>
                       </button>
                     );
@@ -328,8 +328,8 @@ function EntitySelector({
 // ActionSelector — checkbox list grouped by atomic / global actions
 // ─────────────────────────────────────────────────────────────────────────────
 interface ActionSelectorProps {
-  atomicActions: string[];
-  globalActions: string[];
+  atomic_actions: string[];
+  global_actions: string[];
   extraActions?: string[]; // already-selected actions not found in schema
   selected: string[];
   onToggle: (action: string) => void;
@@ -337,8 +337,8 @@ interface ActionSelectorProps {
 }
 
 function ActionSelector({
-  atomicActions,
-  globalActions,
+  atomic_actions,
+  global_actions,
   extraActions = [],
   selected,
   onToggle,
@@ -380,8 +380,8 @@ function ActionSelector({
     );
   };
 
-  const hasAtomic = atomicActions.length > 0;
-  const hasGlobal = globalActions.length > 0;
+  const hasAtomic = atomic_actions.length > 0;
+  const hasGlobal = global_actions.length > 0;
   const hasExtra = extraActions.length > 0;
 
   return (
@@ -397,7 +397,7 @@ function ActionSelector({
             Atomic
           </p>
           <div className="grid grid-cols-2 gap-0.5">
-            {atomicActions.map((a) => renderRow(a))}
+            {atomic_actions.map((a) => renderRow(a))}
           </div>
         </div>
       )}
@@ -407,7 +407,7 @@ function ActionSelector({
             Global
           </p>
           <div className="grid grid-cols-2 gap-0.5">
-            {globalActions.map((a) => renderRow(a))}
+            {global_actions.map((a) => renderRow(a))}
           </div>
         </div>
       )}
@@ -638,7 +638,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
     const newIndex = rules.length;
     onChange([
       ...rules,
-      { namespace: '', schemaName: '', entityType: '', actions: [], relations: [], directGrants: [] },
+      { namespace: '', schema_name: '', entity_type: '', actions: [], relations: [], direct_grants: [] },
     ]);
     setOpenAccordionValue(`rule-${newIndex}`);
   };
@@ -689,14 +689,14 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
           onValueChange={setOpenAccordionValue}
         >
           {rules.map((rule, index) => {
-            const hasEntity = !!(rule.schemaName && rule.entityType);
+            const hasEntity = !!(rule.schema_name && rule.entity_type);
             const hasActions = rule.actions.length > 0;
             const hasRelations = rule.relations.length > 0;
-            const hasGrants = (rule.directGrants?.length ?? 0) > 0;
-            const hasFilters = (rule.columnFilters?.length ?? 0) > 0;
+            const hasGrants = (rule.direct_grants?.length ?? 0) > 0;
+            const hasFilters = (rule.column_filters?.length ?? 0) > 0;
             const entityLabel = hasEntity ? null : 'New Rule';
-            const schemaDisplay = rule.schemaName || '';
-            const entityDisplay = rule.entityType || '';
+            const schemaDisplay = rule.schema_name || '';
+            const entityDisplay = rule.entity_type || '';
 
             const statusColor = !hasEntity
               ? 'bg-muted-foreground/30'
@@ -755,13 +755,13 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                       {hasGrants && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
                           <User className="h-2.5 w-2.5" />
-                          {rule.directGrants!.length}
+                          {rule.direct_grants!.length}
                         </Badge>
                       )}
                       {hasFilters && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
                           <SlidersHorizontal className="h-2.5 w-2.5" />
-                          {rule.columnFilters!.length}
+                          {rule.column_filters!.length}
                         </Badge>
                       )}
                     </div>
@@ -811,21 +811,21 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
   const [grantInput, setGrantInput] = useState('');
 
   const selectedEntityAddress: EntityAddress = normalizeEntityAddress({
-    schemaName: rule.schemaName,
-    entityType: rule.entityType,
+    schema_name: rule.schema_name,
+    entity_type: rule.entity_type,
   });
   const selectedSchema = findSchemaByAddress(schemas, selectedEntityAddress);
   const isWildcardRule =
-    selectedEntityAddress.schemaName.includes('*') || selectedEntityAddress.entityType.includes('*');
+    selectedEntityAddress.schema_name.includes('*') || selectedEntityAddress.entity_type.includes('*');
 
-  const atomicActions = selectedSchema?.atomicActions || [];
-  const globalActions = selectedSchema?.globalActions || [];
+  const atomic_actions = selectedSchema?.atomic_actions || [];
+  const global_actions = selectedSchema?.global_actions || [];
   // Actions already in the rule but not in the schema (e.g. from manual edits)
   const extraActions = rule.actions.filter(
-    (a) => a !== '*' && !atomicActions.includes(a) && !globalActions.includes(a)
+    (a) => a !== '*' && !atomic_actions.includes(a) && !global_actions.includes(a)
   );
 
-  const hasAnyActions = atomicActions.length > 0 || globalActions.length > 0 || extraActions.length > 0 || isWildcardRule;
+  const hasAnyActions = atomic_actions.length > 0 || global_actions.length > 0 || extraActions.length > 0 || isWildcardRule;
 
   const toggleAction = (action: string) => {
     const newActions = rule.actions.includes(action)
@@ -836,14 +836,14 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
 
   const addGrant = () => {
     const val = grantInput.trim();
-    if (val && !rule.directGrants?.includes(val)) {
-      onChange({ ...rule, directGrants: [...(rule.directGrants || []), val], columnFilters: [] });
+    if (val && !rule.direct_grants?.includes(val)) {
+      onChange({ ...rule, direct_grants: [...(rule.direct_grants || []), val], column_filters: [] });
       setGrantInput('');
     }
   };
 
   const removeGrant = (grant: string) => {
-    onChange({ ...rule, directGrants: rule.directGrants?.filter((g) => g !== grant) || [] });
+    onChange({ ...rule, direct_grants: rule.direct_grants?.filter((g) => g !== grant) || [] });
   };
 
   const addRelation = () => {
@@ -851,7 +851,7 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
       ...rule,
       relations: [
         ...rule.relations,
-        { to: { schemaName: '', entityType: '' }, via: '', actions: [], relations: [] },
+        { to: { schema_name: '', entity_type: '' }, via: '', actions: [], relations: [] },
       ],
     });
   };
@@ -875,22 +875,22 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
       : 'eq';
     onChange({
       ...rule,
-      directGrants: [],
-      columnFilters: [
-        ...(rule.columnFilters || []),
+      direct_grants: [],
+      column_filters: [
+        ...(rule.column_filters || []),
         { column: firstField?.column ?? '', type: firstField?.type, operator: firstOp, value: '' },
       ],
     });
   };
 
   const updateColumnFilter = (index: number, updated: ColumnFilter) => {
-    const next = [...(rule.columnFilters || [])];
+    const next = [...(rule.column_filters || [])];
     next[index] = updated;
-    onChange({ ...rule, columnFilters: next });
+    onChange({ ...rule, column_filters: next });
   };
 
   const deleteColumnFilter = (index: number) => {
-    onChange({ ...rule, columnFilters: (rule.columnFilters || []).filter((_, i) => i !== index) });
+    onChange({ ...rule, column_filters: (rule.column_filters || []).filter((_, i) => i !== index) });
   };
 
   return (
@@ -903,22 +903,22 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
       >
         <EntitySelector
           schemas={schemas}
-          schemaName={rule.schemaName}
-          entityType={rule.entityType}
+          schema_name={rule.schema_name}
+          entity_type={rule.entity_type}
           namespace={rule.namespace}
           includeWildcard
           placeholder={loadingSchemas ? 'Loading schemas…' : 'Select entity type…'}
           onSelect={(sn, et, ns) => {
-            const schema = findSchemaByAddress(schemas, { schemaName: sn, entityType: et });
+            const schema = findSchemaByAddress(schemas, { schema_name: sn, entity_type: et });
             onChange({
               ...rule,
-              schemaName: sn,
-              entityType: et,
+              schema_name: sn,
+              entity_type: et,
               namespace: ns ?? schema?.namespace ?? rule.namespace,
               actions: [],
             });
           }}
-          error={!rule.schemaName || !rule.entityType ? 'Required' : undefined}
+          error={!rule.schema_name || !rule.entity_type ? 'Required' : undefined}
         />
       </RuleSection>
 
@@ -927,24 +927,24 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
         icon={<Zap />}
         title="Allowed Actions"
         description={
-          !rule.schemaName || !rule.entityType
+          !rule.schema_name || !rule.entity_type
             ? 'Select an entity first to see available actions'
             : !hasAnyActions
               ? 'No actions available for this entity type'
               : 'Select the actions this rule permits'
         }
       >
-        {rule.schemaName && rule.entityType && hasAnyActions && (
+        {rule.schema_name && rule.entity_type && hasAnyActions && (
           <ActionSelector
-            atomicActions={atomicActions}
-            globalActions={globalActions}
+            atomic_actions={atomic_actions}
+            global_actions={global_actions}
             extraActions={extraActions}
             selected={rule.actions}
             onToggle={toggleAction}
             includeWildcard={isWildcardRule}
           />
         )}
-        {rule.actions.length === 0 && rule.schemaName && rule.entityType && hasAnyActions && (
+        {rule.actions.length === 0 && rule.schema_name && rule.entity_type && hasAnyActions && (
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
             No actions selected — this rule will not grant any access
           </p>
@@ -964,13 +964,13 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
             </Button>
           }
         >
-          {(rule.columnFilters?.length ?? 0) === 0 ? (
+          {(rule.column_filters?.length ?? 0) === 0 ? (
             <p className="text-xs text-muted-foreground italic">
               No filters — access applies to all rows.
             </p>
           ) : (
             <div className="space-y-2">
-              {rule.columnFilters!.map((filter, index) => (
+              {rule.column_filters!.map((filter, index) => (
                 <ColumnFilterRow
                   key={index}
                   filter={filter}
@@ -988,10 +988,10 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
       {(() => {
         const hasAtomicSelected =
           rule.actions.includes('*') ||
-          rule.actions.some((a) => atomicActions.includes(a));
-        const hasNoGrants = (rule.directGrants?.length ?? 0) === 0;
+          rule.actions.some((a) => atomic_actions.includes(a));
+        const hasNoGrants = (rule.direct_grants?.length ?? 0) === 0;
         const showAtomicWarning = hasAtomicSelected && hasNoGrants;
-        const blockedByFilters = (rule.columnFilters?.length ?? 0) > 0;
+        const blockedByFilters = (rule.column_filters?.length ?? 0) > 0;
 
         return (
           <RuleSection
@@ -1032,9 +1032,9 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
                       <Plus className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {(rule.directGrants?.length ?? 0) > 0 && (
+                  {(rule.direct_grants?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {rule.directGrants!.map((grant) => (
+                      {rule.direct_grants!.map((grant) => (
                         <span
                           key={grant}
                           className="inline-flex items-center gap-1 rounded-full border bg-secondary/50 px-2.5 py-0.5 text-xs font-mono text-secondary-foreground"
@@ -1089,7 +1089,7 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
                 onDelete={() => deleteRelation(index)}
                 depth={0}
                 schemas={schemas}
-                parentEntity={{ schemaName: rule.schemaName, entityType: rule.entityType }}
+                parentEntity={{ schema_name: rule.schema_name, entity_type: rule.entity_type }}
               />
             ))}
           </div>
@@ -1132,36 +1132,36 @@ function RelationEditor({
   schemas,
   parentEntity,
 }: RelationEditorProps) {
-  const normalizedParentEntityType = parentEntity.entityType;
+  const normalizedParentEntityType = parentEntity.entity_type;
 
   const entitiesPointingToParent = schemas.filter((schema) =>
-    Object.values(schema.relations || {}).some((rel) => rel.targetEntity === normalizedParentEntityType)
+    Object.values(schema.relations || {}).some((rel) => rel.target_entity === normalizedParentEntityType)
   );
   const availableTargetEntities = entitiesPointingToParent.map((schema) => ({
-    schemaName: schema.schemaName,
-    entityType: schema.entityType,
+    schema_name: schema.schema_name,
+    entity_type: schema.entity_type,
     relations: Object.values(schema.relations || {}).filter(
-      (rel) => rel.targetEntity === normalizedParentEntityType
+      (rel) => rel.target_entity === normalizedParentEntityType
     ),
   }));
 
   const selectedTargetAddress = normalizeEntityAddress(relation.to);
   const selectedTargetSchema = findSchemaByAddress(schemas, selectedTargetAddress);
   const selectedTargetQualified = toQualifiedEntityType(selectedTargetAddress);
-  const hasSchemaWildcard = selectedTargetAddress.schemaName.includes('*');
-  const hasEntityWildcard = selectedTargetAddress.entityType.includes('*');
+  const hasSchemaWildcard = selectedTargetAddress.schema_name.includes('*');
+  const hasEntityWildcard = selectedTargetAddress.entity_type.includes('*');
   const hasViaWildcard = relation.via.includes('*');
 
-  const atomicActions = selectedTargetSchema?.atomicActions || [];
-  const globalActions = selectedTargetSchema?.globalActions || [];
+  const atomic_actions = selectedTargetSchema?.atomic_actions || [];
+  const global_actions = selectedTargetSchema?.global_actions || [];
   const extraActions = relation.actions.filter(
-    (a) => a !== '*' && !atomicActions.includes(a) && !globalActions.includes(a)
+    (a) => a !== '*' && !atomic_actions.includes(a) && !global_actions.includes(a)
   );
 
   const targetEntityData = availableTargetEntities.find(
     (e) =>
-      e.schemaName === selectedTargetAddress.schemaName &&
-      e.entityType === selectedTargetSchema?.entityType
+      e.schema_name === selectedTargetAddress.schema_name &&
+      e.entity_type === selectedTargetSchema?.entity_type
   );
   const relationsForTarget = targetEntityData ? targetEntityData.relations : [];
 
@@ -1213,10 +1213,10 @@ function RelationEditor({
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <ChevronRight className="h-3 w-3" />
           {depth === 0 ? 'Relation' : `Nested relation (level ${depth})`}
-          {selectedTargetAddress.entityType && (
+          {selectedTargetAddress.entity_type && (
             <>
               <span className="text-muted-foreground/40 mx-0.5">·</span>
-              <span className="font-mono text-foreground">{selectedTargetAddress.entityType}</span>
+              <span className="font-mono text-foreground">{selectedTargetAddress.entity_type}</span>
               {relation.via && (
                 <>
                   <span className="text-muted-foreground/40 mx-0.5">via</span>
@@ -1250,17 +1250,17 @@ function RelationEditor({
                 <Label className="text-xs text-muted-foreground">Target entity *</Label>
                 <EntitySelector
                   schemas={schemas}
-                  schemaName={selectedTargetAddress.schemaName}
-                  entityType={selectedTargetAddress.entityType}
+                  schema_name={selectedTargetAddress.schema_name}
+                  entity_type={selectedTargetAddress.entity_type}
                   filterByParentEntityType={normalizedParentEntityType}
                   placeholder="Select target…"
                   onSelect={(sn, et) =>
-                    onChange({ ...relation, to: { schemaName: sn, entityType: et }, via: '', actions: [] })
+                    onChange({ ...relation, to: { schema_name: sn, entity_type: et }, via: '', actions: [] })
                   }
                   error={
                     hasSchemaWildcard || hasEntityWildcard
                       ? 'Wildcards not allowed here'
-                      : !selectedTargetAddress.schemaName || !selectedTargetAddress.entityType
+                      : !selectedTargetAddress.schema_name || !selectedTargetAddress.entity_type
                         ? 'Required'
                         : undefined
                   }
@@ -1268,7 +1268,7 @@ function RelationEditor({
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Via relation *</Label>
-                {!selectedTargetAddress.entityType ? (
+                {!selectedTargetAddress.entity_type ? (
                   <div className="h-9 flex items-center px-3 text-xs text-muted-foreground italic border rounded-md bg-muted/30">
                     Select target first
                   </div>
@@ -1300,16 +1300,16 @@ function RelationEditor({
             {/* Actions */}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Allowed actions *</Label>
-              {!selectedTargetAddress.entityType ? (
+              {!selectedTargetAddress.entity_type ? (
                 <p className="text-xs text-muted-foreground italic">Select target entity first</p>
-              ) : atomicActions.length === 0 && globalActions.length === 0 && extraActions.length === 0 ? (
+              ) : atomic_actions.length === 0 && global_actions.length === 0 && extraActions.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">
                   No actions for {selectedTargetQualified}
                 </p>
               ) : (
                 <ActionSelector
-                  atomicActions={atomicActions}
-                  globalActions={[]}
+                  atomic_actions={atomic_actions}
+                  global_actions={[]}
                   extraActions={extraActions}
                   selected={relation.actions}
                   onToggle={toggleAction}

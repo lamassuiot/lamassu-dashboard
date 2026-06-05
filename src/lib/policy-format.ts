@@ -10,14 +10,14 @@ const splitQualifiedEntity = (value: string): EntityAddress => {
   const splitAt = trimmed.indexOf('.');
   if (splitAt <= 0 || splitAt === trimmed.length - 1) {
     return {
-      schemaName: '',
-      entityType: trimmed,
+      schema_name: '',
+      entity_type: trimmed,
     };
   }
 
   return {
-    schemaName: trimmed.slice(0, splitAt),
-    entityType: trimmed.slice(splitAt + 1),
+    schema_name: trimmed.slice(0, splitAt),
+    entity_type: trimmed.slice(splitAt + 1),
   };
 };
 
@@ -27,32 +27,32 @@ export const normalizeEntityAddress = (value: unknown): EntityAddress => {
   }
 
   if (value && typeof value === 'object') {
-    const schemaNameRaw = (value as any).schemaName;
-    const entityTypeRaw = (value as any).entityType;
+    const schemaNameRaw = (value as any).schema_name;
+    const entityTypeRaw = (value as any).entity_type;
 
-    const schemaName = typeof schemaNameRaw === 'string' ? schemaNameRaw.trim() : '';
-    const entityType = typeof entityTypeRaw === 'string' ? entityTypeRaw.trim() : '';
+    const schema_name = typeof schemaNameRaw === 'string' ? schemaNameRaw.trim() : '';
+    const entity_type = typeof entityTypeRaw === 'string' ? entityTypeRaw.trim() : '';
 
-    if (!schemaName && entityType.includes('.')) {
-      return splitQualifiedEntity(entityType);
+    if (!schema_name && entity_type.includes('.')) {
+      return splitQualifiedEntity(entity_type);
     }
 
     return {
-      schemaName,
-      entityType,
+      schema_name,
+      entity_type,
     };
   }
 
   return {
-    schemaName: '',
-    entityType: '',
+    schema_name: '',
+    entity_type: '',
   };
 };
 
 export const toQualifiedEntityType = (address: EntityAddress): string => {
-  if (!address.schemaName) return address.entityType;
-  if (!address.entityType) return address.schemaName;
-  return `${address.schemaName}.${address.entityType}`;
+  if (!address.schema_name) return address.entity_type;
+  if (!address.entity_type) return address.schema_name;
+  return `${address.schema_name}.${address.entity_type}`;
 };
 
 const normalizeRelation = (value: unknown): RelationRule => {
@@ -72,22 +72,22 @@ export const normalizeRule = (value: unknown): Rule => {
   const rule = (value || {}) as any;
 
   const normalizedRuleEntity = normalizeEntityAddress(
-    typeof rule.entityType === 'string' && !rule.schemaName
-      ? rule.entityType
-      : { schemaName: rule.schemaName, entityType: rule.entityType }
+    typeof rule.entity_type === 'string' && !rule.schema_name
+      ? rule.entity_type
+      : { schema_name: rule.schema_name, entity_type: rule.entity_type }
   );
 
   return {
     namespace: typeof rule.namespace === 'string' ? rule.namespace : '',
-    schemaName: normalizedRuleEntity.schemaName,
-    entityType: normalizedRuleEntity.entityType,
+    schema_name: normalizedRuleEntity.schema_name,
+    entity_type: normalizedRuleEntity.entity_type,
     actions: Array.isArray(rule.actions) ? rule.actions.filter((a: unknown) => typeof a === 'string') : [],
     relations: Array.isArray(rule.relations) ? rule.relations.map((relation: unknown) => normalizeRelation(relation)) : [],
-    directGrants: Array.isArray(rule.directGrants)
-      ? rule.directGrants.filter((g: unknown) => typeof g === 'string')
+    direct_grants: Array.isArray(rule.direct_grants)
+      ? rule.direct_grants.filter((g: unknown) => typeof g === 'string')
       : [],
-    ...(Array.isArray(rule.columnFilters) && rule.columnFilters.length > 0
-      ? { columnFilters: rule.columnFilters }
+    ...(Array.isArray(rule.column_filters) && rule.column_filters.length > 0
+      ? { column_filters: rule.column_filters }
       : {}),
   };
 };
@@ -99,7 +99,7 @@ export const normalizePolicyRules = (rules: unknown): Rule[] => {
 
 export const findSchemaByAddress = (schemas: SchemaDefinition[], address: EntityAddress) => {
   return schemas.find(
-    (schema) => schema.schemaName === address.schemaName && schema.entityType === address.entityType
+    (schema) => schema.schema_name === address.schema_name && schema.entity_type === address.entity_type
   );
 };
 
@@ -115,17 +115,17 @@ const collectRelationWildcardErrors = (
     const relationPath = `${pathPrefix}.relations[${index}]`;
     const normalizedTarget = normalizeEntityAddress(relation.to);
 
-    if (hasWildcard(normalizedTarget.schemaName)) {
+    if (hasWildcard(normalizedTarget.schema_name)) {
       errors.push({
-        path: `${relationPath}.to.schemaName`,
-        message: `Rule relation field to.schemaName cannot contain * (${relationPath}.to.schemaName).`,
+        path: `${relationPath}.to.schema_name`,
+        message: `Rule relation field to.schema_name cannot contain * (${relationPath}.to.schema_name).`,
       });
     }
 
-    if (hasWildcard(normalizedTarget.entityType)) {
+    if (hasWildcard(normalizedTarget.entity_type)) {
       errors.push({
-        path: `${relationPath}.to.entityType`,
-        message: `Rule relation field to.entityType cannot contain * (${relationPath}.to.entityType).`,
+        path: `${relationPath}.to.entity_type`,
+        message: `Rule relation field to.entity_type cannot contain * (${relationPath}.to.entity_type).`,
       });
     }
 

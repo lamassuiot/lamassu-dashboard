@@ -14,7 +14,7 @@ interface NestedRuleNodeProps {
   data: {
     relationName: string;
     sourceEntity: string;
-    targetEntity: string;
+    target_entity: string;
     targetSchema?: SchemaDefinition;
     enabled: boolean;
     actions: string[];
@@ -27,7 +27,7 @@ export const NestedRuleNode = memo(({ data }: NestedRuleNodeProps) => {
   const {
     relationName,
     sourceEntity,
-    targetEntity,
+    target_entity,
     targetSchema,
     enabled,
     actions,
@@ -46,8 +46,8 @@ export const NestedRuleNode = memo(({ data }: NestedRuleNodeProps) => {
 
   const availableActions = targetSchema
     ? [
-        ...(targetSchema.atomicActions || []),
-        ...(targetSchema.globalActions || []),
+        ...(targetSchema.atomic_actions || []),
+        ...(targetSchema.global_actions || []),
       ]
     : [];
 
@@ -82,7 +82,7 @@ export const NestedRuleNode = memo(({ data }: NestedRuleNodeProps) => {
         <div className="text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <Badge variant="outline" className="text-xs">
-              {targetEntity}
+              {target_entity}
             </Badge>
             <span>→</span>
             <Badge variant="outline" className="text-xs">

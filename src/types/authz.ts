@@ -1,18 +1,18 @@
 // Authorization & Security Type Definitions
 
 export interface EntityAddress {
-  schemaName: string;
-  entityType: string;
+  schema_name: string;
+  entity_type: string;
 }
 
 export interface Rule {
   namespace?: string;
-  schemaName: string;
-  entityType: string;
+  schema_name: string;
+  entity_type: string;
   actions: string[];
   relations: RelationRule[];
-  directGrants?: string[];
-  columnFilters?: ColumnFilter[];
+  direct_grants?: string[];
+  column_filters?: ColumnFilter[];
 }
 
 export interface RelationRule {
@@ -27,8 +27,8 @@ export interface Policy {
   name: string;
   description: string;
   rules: Rule[];
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Principal Auth Config Types
@@ -69,17 +69,17 @@ export interface Principal {
   name: string;
   description?: string;
   type: PrincipalType;
-  authConfig: AuthConfig;
+  auth_config: AuthConfig;
   active: boolean;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PolicyGrant {
-  principalId: string;
-  policyId: string;
-  policyName: string;
-  grantedAt: string;
+  principal_id: string;
+  policy_id: string;
+  policy_name: string;
+  granted_at: string;
 }
 
 export type FilterableFieldType = 'string' | 'int' | 'float' | 'bool' | 'timestamp' | 'jsonb';
@@ -98,15 +98,15 @@ export interface ColumnFilter {
 }
 
 export interface SchemaDefinition {
-  entityType: string;
-  schemaName: string;
-  tableName: string;
-  primaryKey: string;
+  entity_type: string;
+  schema_name: string;
+  table_name: string;
+  primary_key: string;
   relations: Record<string, RelationConfig>;
-  atomicActions?: string[]; // actions requiring entity ID: read, write, delete, etc.
-  globalActions?: string[]; // actions not requiring entity ID: create, list, etc.
+  atomic_actions?: string[]; // actions requiring entity ID: read, write, delete, etc.
+  global_actions?: string[]; // actions not requiring entity ID: create, list, etc.
   filterable?: FilterableField[]; // columns available for column-filter conditions
-  configSchema?: string; // authorization namespace set during loading (e.g. "pki", "iot")
+  config_schema?: string; // authorization namespace set during loading (e.g. "pki", "iot")
   namespace?: string; // frontend-derived namespace key from grouped schema response
 }
 
@@ -116,89 +116,89 @@ export interface GroupedSchemas {
 
 export interface RelationConfig {
   name: string;
-  targetEntity: string;
-  foreignKey: string;
+  target_entity: string;
+  foreign_key: string;
 }
 
 export interface PolicyStats {
   id: string;
   name: string;
-  ruleCount: number;
-  principalCount: number;
-  sizeBytes?: number;
-  lastModified?: string;
+  rule_count: number;
+  principal_count: number;
+  size_bytes?: number;
+  last_modified?: string;
 }
 
-/** entityKey sent in requests: plain string (single-PK shorthand) or explicit column map. Omit for global actions. */
+/** entity_key sent in requests: plain string (single-PK shorthand) or explicit column map. Omit for global actions. */
 export type FlexEntityKey = string | Record<string, string>;
 
 export interface AuthorizeRequest {
-  principalId: string;
+  principal_id: string;
   namespace: string;
-  schemaName: string;
+  schema_name: string;
   action: string;
-  entityType: string;
-  entityKey?: FlexEntityKey;
+  entity_type: string;
+  entity_key?: FlexEntityKey;
 }
 
 export interface AuthorizeResponse {
   allowed: boolean;
-  principalId: string;
+  principal_id: string;
   namespace: string;
-  schemaName: string;
+  schema_name: string;
   action: string;
-  entityType: string;
-  entityKey: Record<string, string>;
+  entity_type: string;
+  entity_key: Record<string, string>;
 }
 
 export interface FilterRequest {
-  principalId: string;
+  principal_id: string;
   namespace: string;
-  schemaName: string;
-  entityType: string;
+  schema_name: string;
+  entity_type: string;
 }
 
 export interface FilterResponse {
   namespace: string;
-  schemaName: string;
-  entityType: string;
-  filterQuery: string;
+  schema_name: string;
+  entity_type: string;
+  filter_query: string;
 }
 
 export interface MatchAndAuthorizeRequest {
-  authMaterial: any; // API key, JWT, or certificate data
-  authType:  'oidc' | 'x509';
+  auth_material: any; // API key, JWT, or certificate data
+  auth_type:  'oidc' | 'x509';
   namespace: string;
-  schemaName: string;
+  schema_name: string;
   action: string;
-  entityType: string;
-  entityKey?: FlexEntityKey;
+  entity_type: string;
+  entity_key?: FlexEntityKey;
 }
 
 export interface MatchAndAuthorizeResponse {
   allowed: boolean;
   namespace: string;
-  schemaName: string;
-  entityType: string;
-  entityKey: Record<string, string>;
+  schema_name: string;
+  entity_type: string;
+  entity_key: Record<string, string>;
   action: string;
-  matchedPrincipals: string[];
+  matched_principals: string[];
 }
 
 export interface MatchAndGetFilterRequest {
-  authMaterial: any; // API key, JWT, or certificate data
-  authType:  'oidc' | 'x509';
+  auth_material: any; // API key, JWT, or certificate data
+  auth_type:  'oidc' | 'x509';
   namespace: string;
-  schemaName: string;
-  entityType: string;
+  schema_name: string;
+  entity_type: string;
 }
 
 export interface MatchAndGetFilterResponse {
   namespace: string;
-  schemaName: string;
-  entityType: string;
-  filterQuery: string;
-  matchedPrincipals: string[];
+  schema_name: string;
+  entity_type: string;
+  filter_query: string;
+  matched_principals: string[];
 }
 
 export interface GetCapabilitiesRequest {
@@ -215,8 +215,8 @@ export interface CapabilitiesResponse {
 }
 
 export interface MatchAndGetCapabilitiesRequest {
-  authType:  'oidc' | 'x509';
-  authMaterial: any;
+  auth_type:  'oidc' | 'x509';
+  auth_material: any;
 }
 
 export interface MatchAndGetCapabilitiesResponse {
@@ -247,8 +247,8 @@ export interface CheckEntityTypeActionsResponse {
 
 // Match-variant: resolve principal from auth material first
 export interface MatchAndCheckEntityTypeActionsRequest {
-  authType:  'oidc' | 'x509';
-  authMaterial: any;
+  auth_type:  'oidc' | 'x509';
+  auth_material: any;
   namespace: string;
   schema_name: string;
   entity_type: string;
@@ -262,6 +262,84 @@ export interface MatchAndCheckEntityTypeActionsResponse extends CheckEntityTypeA
 export interface ErrorResponse {
   error: string;
   details?: Record<string, string>;
+}
+
+// ===========================
+// List / Filter / Sort params
+// ===========================
+
+export type SortMode = 'asc' | 'desc';
+
+export type PrincipalSortField =
+  | 'id'
+  | 'name'
+  | 'description'
+  | 'type'
+  | 'active'
+  | 'created_at'
+  | 'updated_at';
+
+export type PolicySortField =
+  | 'id'
+  | 'name'
+  | 'description'
+  | 'created_at'
+  | 'updated_at';
+
+export interface DateFilterValue {
+  operator: 'after' | 'before' | 'equal';
+  value: string; // ISO date string, e.g. "2025-01-01" or "2025-01-01T00:00:00"
+}
+
+export interface PrincipalFilters {
+  id?: string;
+  name?: string;
+  description?: string;
+  /** Single value uses `[equal]`; array uses `[in]`. */
+  type?: string | string[];
+  active?: boolean;
+  /** JSONPath expression applied to auth_config, e.g. `$.claims[0].claim`. */
+  auth_config?: string;
+  created_at?: DateFilterValue;
+  updated_at?: DateFilterValue;
+}
+
+export interface PolicyFilters {
+  id?: string;
+  name?: string;
+  description?: string;
+  /** JSONPath expression applied to rules, e.g. `$.actions[*]`. */
+  rules?: string;
+  created_at?: DateFilterValue;
+  updated_at?: DateFilterValue;
+}
+
+export interface ListPrincipalsParams {
+  pageSize?: number;
+  bookmark?: string;
+  sortBy?: PrincipalSortField;
+  sortMode?: SortMode;
+  filters?: PrincipalFilters;
+}
+
+export interface ListPoliciesParams {
+  pageSize?: number;
+  bookmark?: string;
+  sortBy?: PolicySortField;
+  sortMode?: SortMode;
+  filters?: PolicyFilters;
+}
+
+export interface ListPrincipalsResponse {
+  principals: Principal[];
+  count: number;
+  next?: string | null;
+}
+
+export interface ListPoliciesResponse {
+  policies: Policy[];
+  count: number;
+  next?: string | null;
 }
 
 // ===========================

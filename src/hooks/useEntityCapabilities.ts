@@ -36,11 +36,11 @@ export interface UseEntityCapabilitiesResult {
   isLoading: boolean;
   error: string | null;
   /**
-   * Returns true if the current principal can perform `action` on the entity identified by `entityKey`.
+   * Returns true if the current principal can perform `action` on the entity identified by `entity_key`.
    * Accepts the same FlexEntityKey as the query — plain string or column map.
    * Returns false during loading or when the entity has no matching allowed action.
    */
-  canPerform: (entityKey: FlexEntityKey, action: string) => boolean;
+  canPerform: (entity_key: FlexEntityKey, action: string) => boolean;
 }
 
 /**
@@ -125,8 +125,8 @@ export function useEntityCapabilities(
   }, [queriesKey, skip]);
 
   const canPerform = useCallback(
-    (entityKey: FlexEntityKey, action: string): boolean => {
-      const actions = actionsMap.get(serializeEntityKey(entityKey));
+    (entity_key: FlexEntityKey, action: string): boolean => {
+      const actions = actionsMap.get(serializeEntityKey(entity_key));
       if (!actions) return false;
       return actions.includes('*') || actions.includes(action);
     },

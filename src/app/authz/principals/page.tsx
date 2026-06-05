@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,17 +42,33 @@ import {
   UserCheck,
   CheckCircle,
   XCircle,
+  ChevronsUpDown,
+  ArrowDownAZ,
+  ArrowUpZA,
+  ArrowDown10,
+  ArrowUp01,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listPrincipals, deletePrincipal } from '@/lib/authz-api';
-import type { Principal, PrincipalType } from '@/types/authz';
+import type { DateFilterValue, Principal, PrincipalFilters, PrincipalType, PrincipalSortField } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import {
+  PrincipalFilterBar,
+  defaultPrincipalDateFilterValue,
+  type PrincipalActiveFilter,
+} from '@/components/shared/filters/PrincipalFilterBar';
+import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
 
 const PRINCIPAL_TYPE_LABEL: Record<PrincipalType, string> = {
   oidc: 'OIDC',
   x509: 'X.509',
 };
+
+type SortDirection = 'asc' | 'desc';
+interface SortConfig { column: PrincipalSortField; direction: SortDirection }
+
+const DATE_COLUMNS = new Set<PrincipalSortField>(['created_at', 'updated_at']);
 
 export default function PrincipalsPage() {
   const router = useRouter();
@@ -60,16 +76,72 @@ export default function PrincipalsPage() {
   const [principals, setPrincipals] = useState<Principal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'created_at', direction: 'desc' });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilters, setTypeFilters] = useState<PrincipalType[]>([]);
+  const [activeFilter, setActiveFilter] = useState<PrincipalActiveFilter>('ALL');
+  const [idFilter, setIdFilter] = useState('');
+  const [descriptionFilter, setDescriptionFilter] = useState('');
+  const [createdAtFilter, setCreatedAtFilter] = useState<GenericDateFilterValue>(defaultPrincipalDateFilterValue);
+  const [updatedAtFilter, setUpdatedAtFilter] = useState<GenericDateFilterValue>(defaultPrincipalDateFilterValue);
 
   const [principalToDelete, setPrincipalToDelete] = useState<Principal | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const toApiDateFilter = useCallback((filter: GenericDateFilterValue): DateFilterValue | undefined => {
+    if (!filter.date) return undefined;
+    const date = filter.date instanceof Date ? filter.date : new Date(filter.date);
+    if (Number.isNaN(date.getTime())) return undefined;
+
+    const operator = filter.operator === 'before'
+      ? 'before'
+      : filter.operator === 'equal'
+        ? 'equal'
+        : 'after';
+
+    return { operator, value: date.toISOString() };
+  }, []);
+
+  const filters = useMemo<PrincipalFilters>(() => {
+    const nextFilters: PrincipalFilters = {};
+    const trimmedSearchTerm = searchTerm.trim();
+    const trimmedIdFilter = idFilter.trim();
+    const trimmedDescriptionFilter = descriptionFilter.trim();
+    const createdAt = toApiDateFilter(createdAtFilter);
+    const updatedAt = toApiDateFilter(updatedAtFilter);
+
+    if (trimmedSearchTerm) nextFilters.name = trimmedSearchTerm;
+    if (typeFilters.length > 0) nextFilters.type = typeFilters;
+    if (activeFilter !== 'ALL') nextFilters.active = activeFilter === 'true';
+    if (trimmedIdFilter) nextFilters.id = trimmedIdFilter;
+    if (trimmedDescriptionFilter) nextFilters.description = trimmedDescriptionFilter;
+    if (createdAt) nextFilters.created_at = createdAt;
+    if (updatedAt) nextFilters.updated_at = updatedAt;
+
+    return nextFilters;
+  }, [
+    activeFilter,
+    createdAtFilter,
+    descriptionFilter,
+    idFilter,
+    searchTerm,
+    toApiDateFilter,
+    typeFilters,
+    updatedAtFilter,
+  ]);
+
+  const hasActiveFilters = Object.keys(filters).length > 0;
+
   const loadPrincipals = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await listPrincipals();
+      const data = await listPrincipals({
+        sortBy: sortConfig.column,
+        sortMode: sortConfig.direction,
+        ...(hasActiveFilters ? { filters } : {}),
+      });
       setPrincipals(data.principals);
     } catch (err: any) {
       setError(err.message || 'Failed to load principals');
@@ -77,11 +149,19 @@ export default function PrincipalsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [filters, hasActiveFilters, sortConfig]);
 
   useEffect(() => {
     loadPrincipals();
   }, [loadPrincipals]);
+
+  const requestSort = (column: PrincipalSortField) => {
+    setSortConfig(prev =>
+      prev.column === column
+        ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { column, direction: 'asc' }
+    );
+  };
 
   const handleDelete = async () => {
     if (!principalToDelete) return;
@@ -96,6 +176,50 @@ export default function PrincipalsPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const SortableHead = ({
+    column,
+    title,
+    className,
+    align = 'center',
+  }: {
+    column: PrincipalSortField;
+    title: string;
+    className?: string;
+    align?: 'left' | 'center' | 'right';
+  }) => {
+    const isDate = DATE_COLUMNS.has(column);
+    const active = sortConfig.column === column;
+    const Icon = active
+      ? (sortConfig.direction === 'asc' ? (isDate ? ArrowUp01 : ArrowUpZA) : (isDate ? ArrowDown10 : ArrowDownAZ))
+      : ChevronsUpDown;
+
+    const alignmentClassName =
+      align === 'left'
+        ? 'text-left'
+        : align === 'right'
+          ? 'text-right'
+          : 'text-center';
+
+    const alignmentContentClassName =
+      align === 'left'
+        ? 'justify-start'
+        : align === 'right'
+          ? 'justify-end'
+          : 'justify-center';
+
+    return (
+      <TableHead
+        className={cn('cursor-pointer select-none hover:bg-muted/60', alignmentClassName, className)}
+        onClick={() => requestSort(column)}
+      >
+        <div className={cn('flex items-center gap-1', alignmentContentClassName)}>
+          {title}
+          <Icon className={cn('h-4 w-4', active ? 'text-primary' : 'text-muted-foreground/50')} />
+        </div>
+      </TableHead>
+    );
   };
 
   if (isLoading && principals.length === 0) {
@@ -134,6 +258,24 @@ export default function PrincipalsPage() {
         </div>
       </div>
 
+      <PrincipalFilterBar
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        typeFilters={typeFilters}
+        onTypeFiltersChange={setTypeFilters}
+        activeFilter={activeFilter}
+        onActiveFilterChange={setActiveFilter}
+        idFilter={idFilter}
+        onIdFilterChange={setIdFilter}
+        descriptionFilter={descriptionFilter}
+        onDescriptionFilterChange={setDescriptionFilter}
+        createdAtFilter={createdAtFilter}
+        onCreatedAtFilterChange={setCreatedAtFilter}
+        updatedAtFilter={updatedAtFilter}
+        onUpdatedAtFilterChange={setUpdatedAtFilter}
+        disabled={isLoading}
+      />
+
       {error && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -149,13 +291,19 @@ export default function PrincipalsPage() {
 
       {!isLoading && !error && principals.length === 0 ? (
         <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-          <h3 className="text-lg font-semibold text-muted-foreground">No Principals Found</h3>
+          <h3 className="text-lg font-semibold text-muted-foreground">
+            {hasActiveFilters ? 'No Matching Principals' : 'No Principals Found'}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            No authentication principals have been created yet.
+            {hasActiveFilters
+              ? 'No authentication principals match the current filters.'
+              : 'No authentication principals have been created yet.'}
           </p>
-          <Button onClick={() => router.push('/authz/principals/new')} className="mt-4">
-            <PlusCircle className="mr-2 h-4 w-4" /> Create Principal
-          </Button>
+          {!hasActiveFilters && (
+            <Button onClick={() => router.push('/authz/principals/new')} className="mt-4">
+              <PlusCircle className="mr-2 h-4 w-4" /> Create Principal
+            </Button>
+          )}
         </div>
       ) : (
         <div className={cn('space-y-4', isLoading && 'opacity-50 pointer-events-none')}>
@@ -163,11 +311,11 @@ export default function PrincipalsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
+                  <SortableHead column="name" title="Principal" align="left" />
+                  <TableHead className="text-left">Description</TableHead>
+                  <SortableHead column="type" title="Type" align="left" />
+                  <SortableHead column="active" title="Status" align="left" />
+                  <SortableHead column="created_at" title="Created" align="left" />
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -176,7 +324,7 @@ export default function PrincipalsPage() {
                   <TableRow key={principal.id}>
                     <TableCell className="font-medium">
                       <button
-                        onClick={() => router.push(`/authz/principals/details?principalId=${principal.id}`)}
+                        onClick={() => router.push(`/authz/principals/details?principal_id=${principal.id}`)}
                         className="text-left text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline"
                       >
                         {principal.name}
@@ -206,7 +354,7 @@ export default function PrincipalsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <DateDisplay date={principal.createdAt} />
+                      <DateDisplay date={principal.created_at} />
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -218,12 +366,12 @@ export default function PrincipalsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => router.push(`/authz/principals/details?principalId=${principal.id}`)}
+                            onClick={() => router.push(`/authz/principals/details?principal_id=${principal.id}`)}
                           >
                             <Eye className="mr-2 h-4 w-4" /> View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => router.push(`/authz/principals/edit?principalId=${principal.id}`)}
+                            onClick={() => router.push(`/authz/principals/edit?principal_id=${principal.id}`)}
                           >
                             <Pencil className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>

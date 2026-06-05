@@ -58,7 +58,7 @@ export function SchemaFlowView({ schemas, error }: SchemaFlowViewProps) {
 
     // Create nodes for each schema
     const newNodes: Node[] = schemas.map((schema, index) => ({
-      id: schema.entityType,
+      id: schema.entity_type,
       type: 'schema',
       position: { x: 0, y: 0 }, // Will be repositioned by layout
       data: { schema },
@@ -69,12 +69,12 @@ export function SchemaFlowView({ schemas, error }: SchemaFlowViewProps) {
     schemas.forEach((schema) => {
       Object.entries(schema.relations).forEach(([key, relation]) => {
         // Check if target entity exists in schemas
-        const targetExists = schemas.some((s) => s.entityType === relation.targetEntity);
+        const targetExists = schemas.some((s) => s.entity_type === relation.target_entity);
         if (targetExists) {
           newEdges.push({
-            id: `${schema.entityType}-${relation.targetEntity}-${key}`,
-            source: schema.entityType,
-            target: relation.targetEntity,
+            id: `${schema.entity_type}-${relation.target_entity}-${key}`,
+            source: schema.entity_type,
+            target: relation.target_entity,
             sourceHandle: 'right',
             targetHandle: 'left',
             label: relation.name,

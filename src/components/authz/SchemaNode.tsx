@@ -16,8 +16,8 @@ interface SchemaNodeProps {
 export const SchemaNode = memo(({ data }: SchemaNodeProps) => {
   const schema = data.schema;
   const namespaceLabel = schema.namespace?.trim() || 'N/A';
-  const hasAtomicActions = schema.atomicActions && schema.atomicActions.length > 0;
-  const hasGlobalActions = schema.globalActions && schema.globalActions.length > 0;
+  const hasAtomicActions = schema.atomic_actions && schema.atomic_actions.length > 0;
+  const hasGlobalActions = schema.global_actions && schema.global_actions.length > 0;
   const relationCount = Object.keys(schema.relations).length;
 
   return (
@@ -26,14 +26,14 @@ export const SchemaNode = memo(({ data }: SchemaNodeProps) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">{schema.entityType}</CardTitle>
+            <CardTitle className="text-base">{schema.entity_type}</CardTitle>
           </div>
           <Badge variant="outline" className="text-xs">
-            {schema.tableName}
+            {schema.table_name}
           </Badge>
         </div>
         <div className="text-xs text-muted-foreground mt-1">
-          PK: <code className="bg-muted px-1 rounded">{schema.primaryKey}</code>
+          PK: <code className="bg-muted px-1 rounded">{schema.primary_key}</code>
         </div>
         <div className="text-xs text-muted-foreground mt-1">
           Namespace: <span className="font-medium text-foreground">{namespaceLabel}</span>
@@ -49,14 +49,14 @@ export const SchemaNode = memo(({ data }: SchemaNodeProps) => {
               Atomic Actions
             </div>
             <div className="flex flex-wrap gap-1">
-              {schema.atomicActions!.slice(0, 4).map((action: string, index: number) => (
+              {schema.atomic_actions!.slice(0, 4).map((action: string, index: number) => (
                 <Badge key={index} variant="secondary" className="text-xs">
                   {action}
                 </Badge>
               ))}
-              {schema.atomicActions!.length > 4 && (
+              {schema.atomic_actions!.length > 4 && (
                 <Badge variant="secondary" className="text-xs">
-                  +{schema.atomicActions!.length - 4}
+                  +{schema.atomic_actions!.length - 4}
                 </Badge>
               )}
             </div>
@@ -71,14 +71,14 @@ export const SchemaNode = memo(({ data }: SchemaNodeProps) => {
               Global Actions
             </div>
             <div className="flex flex-wrap gap-1">
-              {schema.globalActions!.slice(0, 4).map((action: string, index: number) => (
+              {schema.global_actions!.slice(0, 4).map((action: string, index: number) => (
                 <Badge key={index} variant="outline" className="text-xs">
                   {action}
                 </Badge>
               ))}
-              {schema.globalActions!.length > 4 && (
+              {schema.global_actions!.length > 4 && (
                 <Badge variant="outline" className="text-xs">
-                  +{schema.globalActions!.length - 4}
+                  +{schema.global_actions!.length - 4}
                 </Badge>
               )}
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
+import { useEffect, useState, Suspense, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +19,6 @@ import {
   Check,
   FileJson,
   Info,
-  Search,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -28,8 +27,8 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
+  SheetFooter,
 } from '@/components/ui/sheet';
-import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -63,13 +62,15 @@ import {
   pageTabsListClass,
   pageTabsTriggerClass,
 } from '@/components/ui/tabs';
-import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, searchPolicies, getPolicy, deletePrincipal } from '@/lib/authz-api';
+import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies, getPolicy, deletePrincipal } from '@/lib/authz-api';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
-import type { Principal, Policy } from '@/types/authz';
+import type { DateFilterValue, PolicyFilters, Principal, Policy } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
+import { PolicyFilterBar, defaultPolicyDateFilterValue } from '@/components/shared/filters/PolicyFilterBar';
+import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
 import dynamic from 'next/dynamic';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
@@ -77,7 +78,7 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false 
 function PrincipalDetailsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const principalId = searchParams.get('principalId');
+  const principal_id = searchParams.get('principal_id');
 
   const [principal, setPrincipal] = useState<Principal | null>(null);
   const [policies, setPolicies] = useState<any[]>([]);
@@ -87,29 +88,32 @@ function PrincipalDetailsContent() {
   const [grantDrawerOpen, setGrantDrawerOpen] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [policySearchQuery, setPolicySearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Policy[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [policyResults, setPolicyResults] = useState<Policy[]>([]);
+  const [policyResultsLoading, setPolicyResultsLoading] = useState(false);
+  const [policySearchTerm, setPolicySearchTerm] = useState('');
+  const [policyIdFilter, setPolicyIdFilter] = useState('');
+  const [policyDescriptionFilter, setPolicyDescriptionFilter] = useState('');
+  const [policyCreatedAtFilter, setPolicyCreatedAtFilter] = useState<GenericDateFilterValue>(defaultPolicyDateFilterValue);
+  const [policyUpdatedAtFilter, setPolicyUpdatedAtFilter] = useState<GenericDateFilterValue>(defaultPolicyDateFilterValue);
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>('');
   const [assigningPolicyId, setAssigningPolicyId] = useState<string | null>(null);
   const [selectedPolicyToRevoke, setSelectedPolicyToRevoke] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const monacoTheme = useMonacoTheme();
 
   useEffect(() => {
-    if (principalId) loadPrincipalDetails();
+    if (principal_id) loadPrincipalDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [principalId]);
+  }, [principal_id]);
 
   const loadPrincipalDetails = async () => {
-    if (!principalId) return;
+    if (!principal_id) return;
     try {
       setLoading(true);
       const [principalData, policiesData] = await Promise.all([
-        getPrincipal(principalId),
-        getPrincipalPolicies(principalId).catch(() => ({ policies: [] })),
+        getPrincipal(principal_id),
+        getPrincipalPolicies(principal_id).catch(() => ({ policies: [] })),
       ]);
       setPrincipal(principalData);
       setPolicies(policiesData.policies || []);
@@ -119,7 +123,7 @@ function PrincipalDetailsContent() {
         const enriched = await Promise.all(
           assignedPolicies.map(async (grantedPolicy) => {
             try {
-              const fullPolicy = await getPolicy(grantedPolicy.policyId);
+              const fullPolicy = await getPolicy(grantedPolicy.policy_id);
               return { grantedPolicy, fullPolicy };
             } catch {
               return { grantedPolicy, fullPolicy: null };
@@ -138,15 +142,14 @@ function PrincipalDetailsContent() {
     }
   };
 
-  const handleAssignPolicy = async (policyId: string) => {
-    if (!principalId || !policyId) return;
+  const handleAssignPolicy = async (policy_id: string) => {
+    if (!principal_id || !policy_id) return;
     try {
-      setAssigningPolicyId(policyId);
-      await grantPolicy(principalId, policyId);
+      setAssigningPolicyId(policy_id);
+      await grantPolicy(principal_id, policy_id);
       setGrantDrawerOpen(false);
-      setPolicySearchQuery('');
       setSelectedPolicyId('');
-      setSearchResults([]);
+      setPolicyResults([]);
       loadPrincipalDetails();
     } catch (err: any) {
       setError(err.message || 'Failed to grant policy');
@@ -155,32 +158,74 @@ function PrincipalDetailsContent() {
     }
   };
 
-  const runPolicySearch = useCallback(async (query: string) => {
-    setSearchLoading(true);
+  const toApiDateFilter = useCallback((filter: GenericDateFilterValue): DateFilterValue | undefined => {
+    if (!filter.date) return undefined;
+    const date = filter.date instanceof Date ? filter.date : new Date(filter.date);
+    if (Number.isNaN(date.getTime())) return undefined;
+
+    const operator = filter.operator === 'before'
+      ? 'before'
+      : filter.operator === 'equal'
+        ? 'equal'
+        : 'after';
+
+    return { operator, value: date.toISOString() };
+  }, []);
+
+  const policyFilters = useMemo<PolicyFilters>(() => {
+    const nextFilters: PolicyFilters = {};
+    const trimmedSearchTerm = policySearchTerm.trim();
+    const trimmedIdFilter = policyIdFilter.trim();
+    const trimmedDescriptionFilter = policyDescriptionFilter.trim();
+    const createdAt = toApiDateFilter(policyCreatedAtFilter);
+    const updatedAt = toApiDateFilter(policyUpdatedAtFilter);
+
+    if (trimmedSearchTerm) nextFilters.name = trimmedSearchTerm;
+    if (trimmedIdFilter) nextFilters.id = trimmedIdFilter;
+    if (trimmedDescriptionFilter) nextFilters.description = trimmedDescriptionFilter;
+    if (createdAt) nextFilters.created_at = createdAt;
+    if (updatedAt) nextFilters.updated_at = updatedAt;
+
+    return nextFilters;
+  }, [
+    policyCreatedAtFilter,
+    policyDescriptionFilter,
+    policyIdFilter,
+    policySearchTerm,
+    policyUpdatedAtFilter,
+    toApiDateFilter,
+  ]);
+
+  const loadAssignablePolicies = useCallback(async () => {
+    if (!grantDrawerOpen) return;
+
+    setPolicyResultsLoading(true);
     try {
-      const result = await searchPolicies(query);
-      const assignedIds = new Set(policies.map((p) => p.policyId));
-      setSearchResults((result.policies || []).filter((p) => !assignedIds.has(p.id)));
+      const result = await listPolicies({
+        sortBy: 'name',
+        sortMode: 'asc',
+        filters: policyFilters,
+      });
+      const assignedIds = new Set(policies.map((policy) => policy.policy_id));
+      const availablePolicies = (result.policies || []).filter((policy) => !assignedIds.has(policy.id));
+      setPolicyResults(availablePolicies);
+      setSelectedPolicyId((current) => availablePolicies.some((policy) => policy.id === current) ? current : '');
     } catch {
-      setSearchResults([]);
+      setPolicyResults([]);
     } finally {
-      setSearchLoading(false);
+      setPolicyResultsLoading(false);
     }
-  }, [policies]);
+  }, [grantDrawerOpen, policies, policyFilters]);
 
   useEffect(() => {
-    if (!grantDrawerOpen) return;
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    const delay = policySearchQuery === '' ? 0 : 250;
-    searchDebounceRef.current = setTimeout(() => runPolicySearch(policySearchQuery), delay);
-    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
-  }, [policySearchQuery, grantDrawerOpen, runPolicySearch]);
+    loadAssignablePolicies();
+  }, [loadAssignablePolicies]);
 
   const handleRevokePolicy = async () => {
-    if (!principalId || !selectedPolicyToRevoke) return;
+    if (!principal_id || !selectedPolicyToRevoke) return;
     try {
       setSubmitting(true);
-      await revokePolicy(principalId, selectedPolicyToRevoke.policyId);
+      await revokePolicy(principal_id, selectedPolicyToRevoke.policy_id);
       setRevokeDialogOpen(false);
       setSelectedPolicyToRevoke(null);
       loadPrincipalDetails();
@@ -192,10 +237,10 @@ function PrincipalDetailsContent() {
   };
 
   const handleDeletePrincipal = async () => {
-    if (!principalId) return;
+    if (!principal_id) return;
     try {
       setSubmitting(true);
-      await deletePrincipal(principalId);
+      await deletePrincipal(principal_id);
       router.push('/authz/principals');
     } catch (err: any) {
       setError(err.message || 'Failed to delete principal');
@@ -203,7 +248,7 @@ function PrincipalDetailsContent() {
     }
   };
 
-  const selectedPolicy = searchResults.find((p) => p.id === selectedPolicyId) ?? null;
+  const selectedPolicy = policyResults.find((p) => p.id === selectedPolicyId) ?? null;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -239,10 +284,10 @@ function PrincipalDetailsContent() {
     : 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400';
 
   const renderAuthConfig = () => {
-    const { authConfig, type } = principal;
+    const { auth_config, type } = principal;
 
     if (type === 'oidc') {
-      const oidcConfig = authConfig as any;
+      const oidcConfig = auth_config as any;
       return (
         <div className="divide-y">
           {oidcConfig.issuer && (
@@ -282,7 +327,7 @@ function PrincipalDetailsContent() {
     }
 
     if (type === 'x509') {
-      const x509Config = normalizeX509AuthConfig(authConfig);
+      const x509Config = normalizeX509AuthConfig(auth_config);
       return (
         <div className="divide-y">
           {(x509Config.ca_trust?.identity_type || x509Config.ca_trust?.value) && (
@@ -418,7 +463,7 @@ function PrincipalDetailsContent() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/authz/principals/edit?principalId=${principal.id}`)}
+              onClick={() => router.push(`/authz/principals/edit?principal_id=${principal.id}`)}
             >
               <Pencil className="mr-1.5 h-3.5 w-3.5" />
               Edit
@@ -431,7 +476,7 @@ function PrincipalDetailsContent() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  onClick={() => router.push(`/authz/principals/edit?principalId=${principal.id}`)}
+                  onClick={() => router.push(`/authz/principals/edit?principal_id=${principal.id}`)}
                 >
                   <Pencil className="mr-2 h-4 w-4" /> Edit Principal
                 </DropdownMenuItem>
@@ -451,11 +496,11 @@ function PrincipalDetailsContent() {
         <div className="flex divide-x pt-3 pb-3 border-b">
           <div className="pr-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</p>
-            <DateDisplay date={principal.createdAt} className="text-sm mt-0.5" highlightExpired={false} />
+            <DateDisplay date={principal.created_at} className="text-sm mt-0.5" highlightExpired={false} />
           </div>
           <div className="px-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Updated</p>
-            <DateDisplay date={principal.updatedAt} className="text-sm mt-0.5" highlightExpired={false} />
+            <DateDisplay date={principal.updated_at} className="text-sm mt-0.5" highlightExpired={false} />
           </div>
           <div className="pl-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Assigned Policies</p>
@@ -527,22 +572,22 @@ function PrincipalDetailsContent() {
               </TableHeader>
               <TableBody>
                 {enrichedPolicies.map(({ grantedPolicy, fullPolicy }) => (
-                  <TableRow key={grantedPolicy.policyId}>
+                  <TableRow key={grantedPolicy.policy_id}>
                     <TableCell className="font-medium">
                       <button
-                        onClick={() => router.push(`/authz/policies/details?policyId=${grantedPolicy.policyId}`)}
+                        onClick={() => router.push(`/authz/policies/details?policy_id=${grantedPolicy.policy_id}`)}
                         className="text-left text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline"
                       >
-                        {fullPolicy?.name || grantedPolicy.policyName}
+                        {fullPolicy?.name || grantedPolicy.policy_name}
                       </button>
                       {fullPolicy?.description && (
                         <p className="text-xs text-muted-foreground line-clamp-1 max-w-xs mt-0.5">{fullPolicy.description}</p>
                       )}
-                      <p className="text-xs text-muted-foreground font-mono mt-0.5">{grantedPolicy.policyId}</p>
+                      <p className="text-xs text-muted-foreground font-mono mt-0.5">{grantedPolicy.policy_id}</p>
                     </TableCell>
                     <TableCell>
                       <DateDisplay
-                        date={grantedPolicy.grantedAt}
+                        date={grantedPolicy.granted_at}
                         className="text-xs text-muted-foreground"
                         highlightExpired={false}
                       />
@@ -589,77 +634,124 @@ function PrincipalDetailsContent() {
         open={grantDrawerOpen}
         onOpenChange={(isOpen) => {
           setGrantDrawerOpen(isOpen);
-          if (!isOpen) { setPolicySearchQuery(''); setSelectedPolicyId(''); setSearchResults([]); }
+          if (!isOpen) {
+            setPolicySearchTerm('');
+            setPolicyIdFilter('');
+            setPolicyDescriptionFilter('');
+            setPolicyCreatedAtFilter(defaultPolicyDateFilterValue);
+            setPolicyUpdatedAtFilter(defaultPolicyDateFilterValue);
+            setSelectedPolicyId('');
+            setPolicyResults([]);
+          }
         }}
       >
-        <SheetContent side="right" className="flex flex-col gap-0 p-0 sm:max-w-[480px]">
-          <SheetHeader className="px-5 pt-5 pb-4 border-b shrink-0">
+        <SheetContent
+          side="right"
+          className="flex flex-col gap-0 p-0 data-[side=right]:sm:w-[50vw] data-[side=right]:sm:max-w-none"
+        >
+          <SheetHeader className="border-b px-6 py-5 shrink-0 text-left">
             <SheetTitle>Assign Policy</SheetTitle>
             <SheetDescription>Select a policy to grant to this principal.</SheetDescription>
           </SheetHeader>
 
-          <div className="px-4 py-3 border-b shrink-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                autoFocus
-                placeholder="Search policies…"
-                value={policySearchQuery}
-                onChange={(e) => { setPolicySearchQuery(e.target.value); setSelectedPolicyId(''); }}
-                className="pl-9 pr-8 h-9 text-sm"
-              />
-              {searchLoading && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              )}
-            </div>
+          <div className="border-b px-6 py-4 shrink-0">
+            <PolicyFilterBar
+              searchTerm={policySearchTerm}
+              onSearchTermChange={(value) => {
+                setPolicySearchTerm(value);
+                setSelectedPolicyId('');
+              }}
+              idFilter={policyIdFilter}
+              onIdFilterChange={(value) => {
+                setPolicyIdFilter(value);
+                setSelectedPolicyId('');
+              }}
+              descriptionFilter={policyDescriptionFilter}
+              onDescriptionFilterChange={(value) => {
+                setPolicyDescriptionFilter(value);
+                setSelectedPolicyId('');
+              }}
+              createdAtFilter={policyCreatedAtFilter}
+              onCreatedAtFilterChange={(value) => {
+                setPolicyCreatedAtFilter(value);
+                setSelectedPolicyId('');
+              }}
+              updatedAtFilter={policyUpdatedAtFilter}
+              onUpdatedAtFilterChange={(value) => {
+                setPolicyUpdatedAtFilter(value);
+                setSelectedPolicyId('');
+              }}
+              disabled={policyResultsLoading || !!assigningPolicyId}
+            />
           </div>
 
-          <div className="flex-1 overflow-y-auto min-h-0">
-            {searchLoading && searchResults.length === 0 ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="flex min-h-[280px] flex-1 flex-col overflow-hidden px-6 py-4">
+            {policyResultsLoading && policyResults.length === 0 ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
-            ) : searchResults.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+            ) : policyResults.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-center">
                 <p className="text-sm font-medium">No policies found</p>
-                {policySearchQuery.trim() !== '' && (
-                  <p className="text-xs text-muted-foreground mt-1">Try a different search term</p>
-                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {Object.keys(policyFilters).length > 0
+                    ? 'Try adjusting the filters.'
+                    : 'All available policies are already assigned or none exist yet.'}
+                </p>
               </div>
             ) : (
-              <ul className="divide-y">
-                {searchResults.map((policy) => {
-                  const isSelected = selectedPolicy?.id === policy.id;
-                  return (
-                    <li key={policy.id}>
-                      <button
-                        type="button"
-                        className="relative w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors disabled:opacity-50"
-                        onClick={() => setSelectedPolicyId(isSelected ? '' : policy.id)}
-                        disabled={!!assigningPolicyId}
-                      >
-                        {isSelected && <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" />}
-                        <div className="flex items-center justify-between gap-3 pl-1">
-                          <div className="min-w-0 flex-1">
-                            <p className={cn('text-sm font-medium truncate', isSelected && 'text-primary')}>
-                              {policy.name}
-                            </p>
-                            <p className="text-[11px] font-mono text-muted-foreground mt-0.5 truncate">{policy.id}</p>
-                            {policy.description && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{policy.description}</p>
+              <div className="overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {policyResults.map((policy) => {
+                      const isSelected = selectedPolicy?.id === policy.id;
+
+                      return (
+                        <TableRow
+                          key={policy.id}
+                          className={cn('cursor-pointer', isSelected && 'bg-primary/5')}
+                          onClick={() => setSelectedPolicyId(isSelected ? '' : policy.id)}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex min-w-0 items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className={cn('truncate', isSelected && 'text-primary')}>{policy.name}</div>
+                                <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{policy.id}</p>
+                              </div>
+                              {isSelected && <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {policy.description ? (
+                              <p className="line-clamp-2 text-sm text-muted-foreground">{policy.description}</p>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
                             )}
-                          </div>
-                          {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                          </TableCell>
+                          <TableCell>
+                            <DateDisplay date={policy.created_at} className="text-xs" highlightExpired={false} />
+                          </TableCell>
+                          <TableCell>
+                            <DateDisplay date={policy.updated_at} className="text-xs" highlightExpired={false} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </div>
 
-          <div className="border-t px-4 py-3 shrink-0 space-y-3">
+          <SheetFooter className="border-t px-6 py-4 shrink-0">
             {selectedPolicy && (
               <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
                 <Check className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -679,7 +771,7 @@ function PrincipalDetailsContent() {
                 Assign Policy
               </Button>
             </div>
-          </div>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
 
@@ -689,7 +781,7 @@ function PrincipalDetailsContent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke Policy</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to revoke &quot;{selectedPolicyToRevoke?.policyName}&quot; from this principal?
+              Are you sure you want to revoke &quot;{selectedPolicyToRevoke?.policy_name}&quot; from this principal?
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

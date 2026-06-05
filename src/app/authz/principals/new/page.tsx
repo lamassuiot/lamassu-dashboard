@@ -71,7 +71,7 @@ export default function NewPrincipalPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Basic principal fields
-  const [principalId, setPrincipalId] = useState('');
+  const [principal_id, setPrincipalId] = useState('');
   const [name, setName] = useState('');
   const [type, setType] = useState<SupportedPrincipalType>('oidc');
   const [active, setActive] = useState(true);
@@ -208,9 +208,9 @@ export default function NewPrincipalPage() {
     try {
       setSubmitting(true);
 
-      let authConfig: any = {};
+      let auth_config: any = {};
       if (type === 'oidc') {
-        authConfig = { claims };
+        auth_config = { claims };
       } else if (type === 'x509') {
         const selectedCaPem = selectedCa?.rawApiData?.certificate?.certificate;
         const resolvedCaTrustValue = await deriveCaTrustValue();
@@ -224,7 +224,7 @@ export default function NewPrincipalPage() {
           return;
         }
 
-        authConfig = {
+        auth_config = {
           ca_trust: {
             identity_type: caTrustIdentityType,
             value: resolvedCaTrustValue,
@@ -232,11 +232,11 @@ export default function NewPrincipalPage() {
           },
           match_mode: matchMode,
         };
-        if (matchMode === 'serial_and_ca') authConfig.serial_number = serialNumber;
-        if (matchMode === 'cn_and_ca') authConfig.subject_cn = subjectCn;
+        if (matchMode === 'serial_and_ca') auth_config.serial_number = serialNumber;
+        if (matchMode === 'cn_and_ca') auth_config.subject_cn = subjectCn;
       }
 
-      await createPrincipal({ id: principalId, name, description: description.trim(), type, authConfig, active });
+      await createPrincipal({ id: principal_id, name, description: description.trim(), type, auth_config, active });
       router.push('/authz/principals');
     } catch (err: any) {
       setError(err.message || 'Failed to create principal');
@@ -550,7 +550,7 @@ export default function NewPrincipalPage() {
                   <Label htmlFor="id">Principal ID (auto-generated)</Label>
                   <Input
                     id="id"
-                    value={principalId}
+                    value={principal_id}
                     readOnly
                     className="bg-muted/50 font-mono text-xs"
                   />

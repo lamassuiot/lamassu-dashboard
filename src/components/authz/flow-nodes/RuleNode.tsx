@@ -10,9 +10,9 @@ import { ShieldCheck, Trash2, Plus, X } from 'lucide-react';
 
 interface RuleNodeProps {
   data: {
-    entityType: string;
+    entity_type: string;
     actions: string[];
-    directGrants?: string[];
+    direct_grants?: string[];
     onUpdate: (data: any) => void;
     onDelete: () => void;
   };
@@ -38,9 +38,9 @@ export const RuleNode = memo(({ data }: RuleNodeProps) => {
   };
 
   const addGrant = () => {
-    if (grantInput.trim() && !data.directGrants?.includes(grantInput.trim())) {
+    if (grantInput.trim() && !data.direct_grants?.includes(grantInput.trim())) {
       data.onUpdate({
-        directGrants: [...(data.directGrants || []), grantInput.trim()],
+        direct_grants: [...(data.direct_grants || []), grantInput.trim()],
       });
       setGrantInput('');
     }
@@ -48,7 +48,7 @@ export const RuleNode = memo(({ data }: RuleNodeProps) => {
 
   const removeGrant = (grant: string) => {
     data.onUpdate({
-      directGrants: data.directGrants?.filter((g) => g !== grant) || [],
+      direct_grants: data.direct_grants?.filter((g) => g !== grant) || [],
     });
   };
 
@@ -58,7 +58,7 @@ export const RuleNode = memo(({ data }: RuleNodeProps) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
-            <CardTitle className="text-sm">Rule: {data.entityType}</CardTitle>
+            <CardTitle className="text-sm">Rule: {data.entity_type}</CardTitle>
           </div>
           <Button
             variant="ghost"
@@ -111,9 +111,9 @@ export const RuleNode = memo(({ data }: RuleNodeProps) => {
         {/* Direct Grants */}
         <div className="space-y-2">
           <div className="text-xs font-semibold">Direct Grants (Optional)</div>
-          {data.directGrants && data.directGrants.length > 0 && (
+          {data.direct_grants && data.direct_grants.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {data.directGrants.map((grant: string) => (
+              {data.direct_grants.map((grant: string) => (
                 <Badge
                   key={grant}
                   variant="outline"

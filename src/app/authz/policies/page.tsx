@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,12 +39,27 @@ import {
   AlertTriangle,
   Loader2,
   ScrollText,
+  ChevronsUpDown,
+  ArrowDownAZ,
+  ArrowUpZA,
+  ArrowDown10,
+  ArrowUp01,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listPolicies, deletePolicy } from '@/lib/authz-api';
-import type { Policy } from '@/types/authz';
+import type { DateFilterValue, Policy, PolicyFilters, PolicySortField } from '@/types/authz';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import {
+  PolicyFilterBar,
+  defaultPolicyDateFilterValue,
+} from '@/components/shared/filters/PolicyFilterBar';
+import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
+
+type SortDirection = 'asc' | 'desc';
+interface SortConfig { column: PolicySortField; direction: SortDirection }
+
+const DATE_COLUMNS = new Set<PolicySortField>(['created_at', 'updated_at']);
 
 export default function PoliciesPage() {
   const router = useRouter();
@@ -52,16 +67,66 @@ export default function PoliciesPage() {
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'created_at', direction: 'desc' });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [idFilter, setIdFilter] = useState('');
+  const [descriptionFilter, setDescriptionFilter] = useState('');
+  const [createdAtFilter, setCreatedAtFilter] = useState<GenericDateFilterValue>(defaultPolicyDateFilterValue);
+  const [updatedAtFilter, setUpdatedAtFilter] = useState<GenericDateFilterValue>(defaultPolicyDateFilterValue);
 
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const toApiDateFilter = useCallback((filter: GenericDateFilterValue): DateFilterValue | undefined => {
+    if (!filter.date) return undefined;
+    const date = filter.date instanceof Date ? filter.date : new Date(filter.date);
+    if (Number.isNaN(date.getTime())) return undefined;
+
+    const operator = filter.operator === 'before'
+      ? 'before'
+      : filter.operator === 'equal'
+        ? 'equal'
+        : 'after';
+
+    return { operator, value: date.toISOString() };
+  }, []);
+
+  const filters = useMemo<PolicyFilters>(() => {
+    const nextFilters: PolicyFilters = {};
+    const trimmedSearchTerm = searchTerm.trim();
+    const trimmedIdFilter = idFilter.trim();
+    const trimmedDescriptionFilter = descriptionFilter.trim();
+    const createdAt = toApiDateFilter(createdAtFilter);
+    const updatedAt = toApiDateFilter(updatedAtFilter);
+
+    if (trimmedSearchTerm) nextFilters.name = trimmedSearchTerm;
+    if (trimmedIdFilter) nextFilters.id = trimmedIdFilter;
+    if (trimmedDescriptionFilter) nextFilters.description = trimmedDescriptionFilter;
+    if (createdAt) nextFilters.created_at = createdAt;
+    if (updatedAt) nextFilters.updated_at = updatedAt;
+
+    return nextFilters;
+  }, [
+    createdAtFilter,
+    descriptionFilter,
+    idFilter,
+    searchTerm,
+    toApiDateFilter,
+    updatedAtFilter,
+  ]);
+
+  const hasActiveFilters = Object.keys(filters).length > 0;
+
   const loadPolicies = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await listPolicies();
+      const data = await listPolicies({
+        sortBy: sortConfig.column,
+        sortMode: sortConfig.direction,
+        ...(hasActiveFilters ? { filters } : {}),
+      });
       setPolicies(data.policies);
     } catch (err: any) {
       setError(err.message || 'Failed to load policies');
@@ -69,11 +134,19 @@ export default function PoliciesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [filters, hasActiveFilters, sortConfig]);
 
   useEffect(() => {
     loadPolicies();
   }, [loadPolicies]);
+
+  const requestSort = (column: PolicySortField) => {
+    setSortConfig(prev =>
+      prev.column === column
+        ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { column, direction: 'asc' }
+    );
+  };
 
   const handleDelete = async () => {
     if (!policyToDelete) return;
@@ -88,6 +161,25 @@ export default function PoliciesPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const SortableHead = ({ column, title, className }: { column: PolicySortField; title: string; className?: string }) => {
+    const isDate = DATE_COLUMNS.has(column);
+    const active = sortConfig.column === column;
+    const Icon = active
+      ? (sortConfig.direction === 'asc' ? (isDate ? ArrowUp01 : ArrowUpZA) : (isDate ? ArrowDown10 : ArrowDownAZ))
+      : ChevronsUpDown;
+    return (
+      <TableHead
+        className={cn('cursor-pointer select-none hover:bg-muted/60 text-center', className)}
+        onClick={() => requestSort(column)}
+      >
+        <div className="flex items-center justify-center gap-1">
+          {title}
+          <Icon className={cn('h-4 w-4', active ? 'text-primary' : 'text-muted-foreground/50')} />
+        </div>
+      </TableHead>
+    );
   };
 
   if (isLoading && policies.length === 0) {
@@ -126,6 +218,20 @@ export default function PoliciesPage() {
         </div>
       </div>
 
+      <PolicyFilterBar
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        idFilter={idFilter}
+        onIdFilterChange={setIdFilter}
+        descriptionFilter={descriptionFilter}
+        onDescriptionFilterChange={setDescriptionFilter}
+        createdAtFilter={createdAtFilter}
+        onCreatedAtFilterChange={setCreatedAtFilter}
+        updatedAtFilter={updatedAtFilter}
+        onUpdatedAtFilterChange={setUpdatedAtFilter}
+        disabled={isLoading}
+      />
+
       {error && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -141,13 +247,19 @@ export default function PoliciesPage() {
 
       {!isLoading && !error && policies.length === 0 ? (
         <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-          <h3 className="text-lg font-semibold text-muted-foreground">No Policies Found</h3>
+          <h3 className="text-lg font-semibold text-muted-foreground">
+            {hasActiveFilters ? 'No Matching Policies' : 'No Policies Found'}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            No authorization policies have been created yet.
+            {hasActiveFilters
+              ? 'No authorization policies match the current filters.'
+              : 'No authorization policies have been created yet.'}
           </p>
-          <Button onClick={() => router.push('/authz/policies/new')} className="mt-4">
-            <PlusCircle className="mr-2 h-4 w-4" /> Create Policy
-          </Button>
+          {!hasActiveFilters && (
+            <Button onClick={() => router.push('/authz/policies/new')} className="mt-4">
+              <PlusCircle className="mr-2 h-4 w-4" /> Create Policy
+            </Button>
+          )}
         </div>
       ) : (
         <div className={cn('space-y-4', isLoading && 'opacity-50 pointer-events-none')}>
@@ -155,11 +267,11 @@ export default function PoliciesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-center">Created</TableHead>
-                  <TableHead className="text-center">Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <SortableHead column="name" title="Name" />
+                  <TableHead className="text-center">Description</TableHead>
+                  <SortableHead column="created_at" title="Created" />
+                  <SortableHead column="updated_at" title="Updated" />
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -167,7 +279,7 @@ export default function PoliciesPage() {
                   <TableRow key={policy.id}>
                     <TableCell className="font-medium">
                       <button
-                        onClick={() => router.push(`/authz/policies/details?policyId=${policy.id}`)}
+                        onClick={() => router.push(`/authz/policies/details?policy_id=${policy.id}`)}
                         className="text-left text-primary hover:text-primary/80 transition-colors underline-offset-4 hover:underline"
                       >
                         {policy.name}
@@ -182,10 +294,10 @@ export default function PoliciesPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <DateDisplay date={policy.createdAt} showRelative className="items-center" />
+                      <DateDisplay date={policy.created_at} showRelative className="items-center" />
                     </TableCell>
                     <TableCell className="text-center">
-                      <DateDisplay date={policy.updatedAt} showRelative className="items-center" />
+                      <DateDisplay date={policy.updated_at} showRelative className="items-center" />
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -197,12 +309,12 @@ export default function PoliciesPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => router.push(`/authz/policies/details?policyId=${policy.id}`)}
+                            onClick={() => router.push(`/authz/policies/details?policy_id=${policy.id}`)}
                           >
                             <Eye className="mr-2 h-4 w-4" /> View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}
+                            onClick={() => router.push(`/authz/policies/edit?policy_id=${policy.id}`)}
                           >
                             <Pencil className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>

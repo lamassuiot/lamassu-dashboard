@@ -16,7 +16,7 @@ interface EntityTypeSelectorProps {
   onValueChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  valueMode?: 'entityType' | 'qualified';
+  valueMode?: 'entity_type' | 'qualified';
 }
 
 export function EntityTypeSelector({
@@ -26,7 +26,7 @@ export function EntityTypeSelector({
   onValueChange,
   placeholder = 'Select entity type',
   disabled = false,
-  valueMode = 'entityType',
+  valueMode = 'entity_type',
 }: EntityTypeSelectorProps) {
   const groupedSchemas = schemas.reduce<Record<string, SchemaDefinition[]>>((acc, schema) => {
     const namespace = schema.namespace || 'other';
@@ -39,8 +39,8 @@ export function EntityTypeSelector({
 
   const selectedSchema = schemas.find((s) =>
     valueMode === 'qualified'
-      ? `${s.schemaName}.${s.entityType}` === value
-      : s.entityType === value
+      ? `${s.schema_name}.${s.entity_type}` === value
+      : s.entity_type === value
   );
 
   return (
@@ -48,8 +48,8 @@ export function EntityTypeSelector({
       <SelectTrigger id={id}>
         {selectedSchema ? (
           <div className="flex flex-col gap-0 text-left min-w-0">
-            <span className="font-medium text-sm leading-tight truncate">{selectedSchema.entityType}</span>
-            <span className="text-[11px] text-muted-foreground leading-tight truncate">{selectedSchema.schemaName}</span>
+            <span className="font-medium text-sm leading-tight truncate">{selectedSchema.entity_type}</span>
+            <span className="text-[11px] text-muted-foreground leading-tight truncate">{selectedSchema.schema_name}</span>
           </div>
         ) : (
           <SelectValue placeholder={placeholder} />
@@ -64,18 +64,18 @@ export function EntityTypeSelector({
             {namespaceSchemas.map((schema) => {
               const itemValue =
                 valueMode === 'qualified'
-                  ? `${schema.schemaName}.${schema.entityType}`
-                  : schema.entityType;
+                  ? `${schema.schema_name}.${schema.entity_type}`
+                  : schema.entity_type;
               return (
                 <SelectItem
-                  key={`${schema.schemaName}.${schema.entityType}`}
+                  key={`${schema.schema_name}.${schema.entity_type}`}
                   value={itemValue}
                   textValue={itemValue}
                   className="pl-4 py-2"
                 >
                   <div className="flex flex-col gap-0.5 min-w-0">
-                    <span className="font-medium text-sm leading-tight">{schema.entityType}</span>
-                    <span className="text-[11px] text-muted-foreground leading-tight">{schema.schemaName}</span>
+                    <span className="font-medium text-sm leading-tight">{schema.entity_type}</span>
+                    <span className="text-[11px] text-muted-foreground leading-tight">{schema.schema_name}</span>
                   </div>
                 </SelectItem>
               );

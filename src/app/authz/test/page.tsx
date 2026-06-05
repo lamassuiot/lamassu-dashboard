@@ -49,52 +49,52 @@ export default function AuthorizationTestPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [matchMode, setMatchMode] = useState(false);
-  const [authCreds, setAuthCreds] = useState({ authType: 'x509' as 'oidc' | 'x509', value: '' });
+  const [authCreds, setAuthCreds] = useState({ auth_type: 'x509' as 'oidc' | 'x509', value: '' });
 
-  const [authorizeForm, setAuthorizeForm] = useState({ principalId: '', namespace: '', schemaName: '', action: '', entityType: '', entityKey: '' });
+  const [authorizeForm, setAuthorizeForm] = useState({ principal_id: '', namespace: '', schema_name: '', action: '', entity_type: '', entity_key: '' });
   const [authorizeResult, setAuthorizeResult] = useState<AuthorizeResponse | MatchAndAuthorizeResponse | null>(null);
 
-  const [filterForm, setFilterForm] = useState({ principalId: '', namespace: '', schemaName: '', entityType: '' });
+  const [filterForm, setFilterForm] = useState({ principal_id: '', namespace: '', schema_name: '', entity_type: '' });
   const [filterResult, setFilterResult] = useState<FilterResponse | MatchAndGetFilterResponse | null>(null);
 
-  const [globalCapsForm, setGlobalCapsForm] = useState({ principalId: '' });
+  const [globalCapsForm, setGlobalCapsForm] = useState({ principal_id: '' });
   const [globalCapsResult, setGlobalCapsResult] = useState<GlobalCapabilitiesResponse | MatchGlobalCapabilitiesResponse | null>(null);
 
-  const [entityCapsForm, setEntityCapsForm] = useState({ principalId: '' });
-  const [entityCapsQuery, setEntityCapsQuery] = useState({ namespace: '', schemaName: '', entityType: '', entityKey: '' });
+  const [entityCapsForm, setEntityCapsForm] = useState({ principal_id: '' });
+  const [entityCapsQuery, setEntityCapsQuery] = useState({ namespace: '', schema_name: '', entity_type: '', entity_key: '' });
   const [entityCapsResult, setEntityCapsResult] = useState<EntityCapabilitiesResponse | MatchEntityCapabilitiesResponse | null>(null);
 
   // ─── Helpers ─────────────────────────────────────────────────
 
-  const validateEntityTarget = (namespace: string, schemaName: string, entityType: string): string | null => {
-    const normalizedEntityType = entityType.trim();
+  const validateEntityTarget = (namespace: string, schema_name: string, entity_type: string): string | null => {
+    const normalizedEntityType = entity_type.trim();
     if (!namespace.trim()) return 'namespace is required';
-    if (!schemaName.trim()) return 'schemaName is required';
-    if (!normalizedEntityType) return 'entityType is required';
+    if (!schema_name.trim()) return 'schema_name is required';
+    if (!normalizedEntityType) return 'entity_type is required';
     if (normalizedEntityType.includes('.')) {
-      return 'entityType must be unqualified and must not contain a dot. Use schemaName separately.';
+      return 'entity_type must be unqualified and must not contain a dot. Use schema_name separately.';
     }
     return null;
   };
 
-  const setEntityTargetValidationErrorIfNeeded = (namespace: string, schemaName: string, entityType: string): boolean => {
-    const validationError = validateEntityTarget(namespace, schemaName, entityType);
+  const setEntityTargetValidationErrorIfNeeded = (namespace: string, schema_name: string, entity_type: string): boolean => {
+    const validationError = validateEntityTarget(namespace, schema_name, entity_type);
     if (!validationError) return false;
-    const trimmedEntityType = entityType.trim();
-    setError(trimmedEntityType.includes('.') ? `Invalid entityType "${trimmedEntityType}": ${validationError}` : validationError);
+    const trimmedEntityType = entity_type.trim();
+    setError(trimmedEntityType.includes('.') ? `Invalid entity_type "${trimmedEntityType}": ${validationError}` : validationError);
     return true;
   };
 
   const getSchemaOptionsForNamespace = (namespace: string) =>
-    Array.from(new Set(schemas.filter((s) => (s.namespace || '').trim() === namespace).map((s) => s.schemaName))).sort();
+    Array.from(new Set(schemas.filter((s) => (s.namespace || '').trim() === namespace).map((s) => s.schema_name))).sort();
 
-  const getEntityTypeOptions = (namespace: string, schemaName: string) =>
-    schemas.filter((s) => (s.namespace || '').trim() === namespace && s.schemaName === schemaName).map((s) => s.entityType).sort();
+  const getEntityTypeOptions = (namespace: string, schema_name: string) =>
+    schemas.filter((s) => (s.namespace || '').trim() === namespace && s.schema_name === schema_name).map((s) => s.entity_type).sort();
 
-  const getAvailableActions = (namespace: string, schemaName: string, entityType: string): string[] => {
-    const schema = schemas.find((s) => (s.namespace || '').trim() === namespace && s.schemaName === schemaName && s.entityType === entityType);
+  const getAvailableActions = (namespace: string, schema_name: string, entity_type: string): string[] => {
+    const schema = schemas.find((s) => (s.namespace || '').trim() === namespace && s.schema_name === schema_name && s.entity_type === entity_type);
     if (!schema) return [];
-    return [...(schema.atomicActions || []), ...(schema.globalActions || [])];
+    return [...(schema.atomic_actions || []), ...(schema.global_actions || [])];
   };
 
   const allNamespaces = Array.from(new Set(schemas.map((s) => (s.namespace || '').trim()).filter(Boolean))).sort();
@@ -138,16 +138,16 @@ export default function AuthorizationTestPage() {
     if (matchMode) {
       if (!authCreds.value || !authorizeForm.action) { setError('Auth material and action are required'); return; }
     } else {
-      if (!authorizeForm.principalId || !authorizeForm.action) { setError('Principal and action are required'); return; }
+      if (!authorizeForm.principal_id || !authorizeForm.action) { setError('Principal and action are required'); return; }
     }
-    if (setEntityTargetValidationErrorIfNeeded(authorizeForm.namespace, authorizeForm.schemaName, authorizeForm.entityType)) return;
+    if (setEntityTargetValidationErrorIfNeeded(authorizeForm.namespace, authorizeForm.schema_name, authorizeForm.entity_type)) return;
     try {
       setLoading(true); setError(null);
       if (matchMode) {
-        const entityKey = authorizeForm.entityKey ? parseFlexEntityKey(authorizeForm.entityKey) : undefined;
-        setAuthorizeResult(await matchAndAuthorize({ authMaterial: authCreds.value, authType: authCreds.authType, namespace: authorizeForm.namespace, schemaName: authorizeForm.schemaName, action: authorizeForm.action, entityType: authorizeForm.entityType, ...(entityKey !== undefined ? { entityKey } : {}) }));
+        const entity_key = authorizeForm.entity_key ? parseFlexEntityKey(authorizeForm.entity_key) : undefined;
+        setAuthorizeResult(await matchAndAuthorize({ auth_material: authCreds.value, auth_type: authCreds.auth_type, namespace: authorizeForm.namespace, schema_name: authorizeForm.schema_name, action: authorizeForm.action, entity_type: authorizeForm.entity_type, ...(entity_key !== undefined ? { entity_key } : {}) }));
       } else {
-        setAuthorizeResult(await authorize({ principalId: authorizeForm.principalId, namespace: authorizeForm.namespace, schemaName: authorizeForm.schemaName, action: authorizeForm.action, entityType: authorizeForm.entityType, ...(authorizeForm.entityKey ? { entityKey: parseFlexEntityKey(authorizeForm.entityKey) } : {}) }));
+        setAuthorizeResult(await authorize({ principal_id: authorizeForm.principal_id, namespace: authorizeForm.namespace, schema_name: authorizeForm.schema_name, action: authorizeForm.action, entity_type: authorizeForm.entity_type, ...(authorizeForm.entity_key ? { entity_key: parseFlexEntityKey(authorizeForm.entity_key) } : {}) }));
       }
     } catch (err: any) {
       setError(err.message || 'Authorization test failed'); setAuthorizeResult(null);
@@ -158,15 +158,15 @@ export default function AuthorizationTestPage() {
     if (matchMode) {
       if (!authCreds.value) { setError('Auth material is required'); return; }
     } else {
-      if (!filterForm.principalId) { setError('Principal is required'); return; }
+      if (!filterForm.principal_id) { setError('Principal is required'); return; }
     }
-    if (setEntityTargetValidationErrorIfNeeded(filterForm.namespace, filterForm.schemaName, filterForm.entityType)) return;
+    if (setEntityTargetValidationErrorIfNeeded(filterForm.namespace, filterForm.schema_name, filterForm.entity_type)) return;
     try {
       setLoading(true); setError(null);
       if (matchMode) {
-        setFilterResult(await matchAndGetFilter({ authMaterial: authCreds.value, authType: authCreds.authType, namespace: filterForm.namespace, schemaName: filterForm.schemaName, entityType: filterForm.entityType }));
+        setFilterResult(await matchAndGetFilter({ auth_material: authCreds.value, auth_type: authCreds.auth_type, namespace: filterForm.namespace, schema_name: filterForm.schema_name, entity_type: filterForm.entity_type }));
       } else {
-        setFilterResult(await getFilter({ principalId: filterForm.principalId, namespace: filterForm.namespace, schemaName: filterForm.schemaName, entityType: filterForm.entityType }));
+        setFilterResult(await getFilter({ principal_id: filterForm.principal_id, namespace: filterForm.namespace, schema_name: filterForm.schema_name, entity_type: filterForm.entity_type }));
       }
     } catch (err: any) {
       setError(err.message || 'Filter test failed'); setFilterResult(null);
@@ -177,14 +177,14 @@ export default function AuthorizationTestPage() {
     if (matchMode) {
       if (!authCreds.value) { setError('Auth material is required'); return; }
     } else {
-      if (!globalCapsForm.principalId) { setError('Principal ID is required'); return; }
+      if (!globalCapsForm.principal_id) { setError('Principal ID is required'); return; }
     }
     try {
       setLoading(true); setError(null);
       if (matchMode) {
-        setGlobalCapsResult(await matchAndGetGlobalCapabilities({ auth_type: authCreds.authType, auth_material: authCreds.value }));
+        setGlobalCapsResult(await matchAndGetGlobalCapabilities({ auth_type: authCreds.auth_type, auth_material: authCreds.value }));
       } else {
-        setGlobalCapsResult(await getGlobalCapabilities({ principal_id: globalCapsForm.principalId }));
+        setGlobalCapsResult(await getGlobalCapabilities({ principal_id: globalCapsForm.principal_id }));
       }
     } catch (err: any) {
       setError(err.message || 'Get global capabilities failed'); setGlobalCapsResult(null);
@@ -195,18 +195,18 @@ export default function AuthorizationTestPage() {
     if (matchMode) {
       if (!authCreds.value) { setError('Auth material is required'); return; }
     } else {
-      if (!entityCapsForm.principalId) { setError('Principal ID is required'); return; }
+      if (!entityCapsForm.principal_id) { setError('Principal ID is required'); return; }
     }
-    if (!entityCapsQuery.namespace || !entityCapsQuery.schemaName || !entityCapsQuery.entityType || !entityCapsQuery.entityKey) {
+    if (!entityCapsQuery.namespace || !entityCapsQuery.schema_name || !entityCapsQuery.entity_type || !entityCapsQuery.entity_key) {
       setError('Namespace, schema name, entity type, and entity key are all required'); return;
     }
     try {
       setLoading(true); setError(null);
-      const q = { namespace: entityCapsQuery.namespace, schema_name: entityCapsQuery.schemaName, entity_type: entityCapsQuery.entityType, entity_key: parseFlexEntityKey(entityCapsQuery.entityKey) };
+      const q = { namespace: entityCapsQuery.namespace, schema_name: entityCapsQuery.schema_name, entity_type: entityCapsQuery.entity_type, entity_key: parseFlexEntityKey(entityCapsQuery.entity_key) };
       if (matchMode) {
-        setEntityCapsResult(await matchAndGetEntityCapabilities({ auth_type: authCreds.authType, auth_material: authCreds.value, queries: [q] }));
+        setEntityCapsResult(await matchAndGetEntityCapabilities({ auth_type: authCreds.auth_type, auth_material: authCreds.value, queries: [q] }));
       } else {
-        setEntityCapsResult(await getEntityCapabilities({ principal_id: entityCapsForm.principalId, queries: [q] }));
+        setEntityCapsResult(await getEntityCapabilities({ principal_id: entityCapsForm.principal_id, queries: [q] }));
       }
     } catch (err: any) {
       setError(err.message || 'Get entity capabilities failed'); setEntityCapsResult(null);
@@ -215,15 +215,15 @@ export default function AuthorizationTestPage() {
 
   // ─── Shared render helpers ────────────────────────────────────
 
-  const renderIdentitySection = (principalId: string, onPrincipalChange: (v: string) => void, idPrefix: string) => {
+  const renderIdentitySection = (principal_id: string, onPrincipalChange: (v: string) => void, idPrefix: string) => {
     if (matchMode) {
       return (
         <>
           <div className="space-y-1.5">
             <Label htmlFor={`${idPrefix}-auth-type`}>Authentication Type</Label>
             <Select
-              value={authCreds.authType}
-              onValueChange={(v: 'oidc' | 'x509') => setAuthCreds({ ...authCreds, authType: v, value: '' })}
+              value={authCreds.auth_type}
+              onValueChange={(v: 'oidc' | 'x509') => setAuthCreds({ ...authCreds, auth_type: v, value: '' })}
             >
               <SelectTrigger id={`${idPrefix}-auth-type`}><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -234,11 +234,11 @@ export default function AuthorizationTestPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${idPrefix}-auth-value`}>
-              {authCreds.authType === 'x509' ? 'X.509 Certificate (PEM)' : 'JWT Token'}
+              {authCreds.auth_type === 'x509' ? 'X.509 Certificate (PEM)' : 'JWT Token'}
             </Label>
             <Textarea
               id={`${idPrefix}-auth-value`}
-              placeholder={authCreds.authType === 'x509' ? '-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----' : 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'}
+              placeholder={authCreds.auth_type === 'x509' ? '-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----' : 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'}
               value={authCreds.value}
               onChange={(e) => setAuthCreds({ ...authCreds, value: e.target.value })}
               className="font-mono text-xs min-h-[120px]"
@@ -250,7 +250,7 @@ export default function AuthorizationTestPage() {
     return (
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-principal`}>Principal</Label>
-        <Select value={principalId} onValueChange={onPrincipalChange}>
+        <Select value={principal_id} onValueChange={onPrincipalChange}>
           <SelectTrigger id={`${idPrefix}-principal`}><SelectValue placeholder="Select principal" /></SelectTrigger>
           <SelectContent>
             {principals.map((p) => (
@@ -346,39 +346,39 @@ export default function AuthorizationTestPage() {
                 <p className="font-semibold">Parameters</p>
                 <p className="text-sm text-muted-foreground mt-0.5">Configure the authorization test parameters</p>
               </div>
-              {renderIdentitySection(authorizeForm.principalId, (v) => setAuthorizeForm({ ...authorizeForm, principalId: v }), 'auth')}
+              {renderIdentitySection(authorizeForm.principal_id, (v) => setAuthorizeForm({ ...authorizeForm, principal_id: v }), 'auth')}
               <Separator />
               <div className="space-y-1.5">
                 <Label>Namespace</Label>
-                <Select value={authorizeForm.namespace} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, namespace: v, schemaName: '', entityType: '', action: '' })}>
+                <Select value={authorizeForm.namespace} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, namespace: v, schema_name: '', entity_type: '', action: '' })}>
                   <SelectTrigger><SelectValue placeholder="Select namespace" /></SelectTrigger>
                   <SelectContent>{allNamespaces.map((ns) => <SelectItem key={ns} value={ns}>{ns}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Schema Name</Label>
-                <Select value={authorizeForm.schemaName} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, schemaName: v, entityType: '', action: '' })} disabled={!authorizeForm.namespace}>
+                <Select value={authorizeForm.schema_name} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, schema_name: v, entity_type: '', action: '' })} disabled={!authorizeForm.namespace}>
                   <SelectTrigger><SelectValue placeholder="Select schema name" /></SelectTrigger>
                   <SelectContent>{getSchemaOptionsForNamespace(authorizeForm.namespace).map((sn) => <SelectItem key={sn} value={sn}>{sn}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Entity Type</Label>
-                <Select value={authorizeForm.entityType} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, entityType: v, action: '' })} disabled={!authorizeForm.namespace || !authorizeForm.schemaName}>
+                <Select value={authorizeForm.entity_type} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, entity_type: v, action: '' })} disabled={!authorizeForm.namespace || !authorizeForm.schema_name}>
                   <SelectTrigger><SelectValue placeholder="Select entity type" /></SelectTrigger>
-                  <SelectContent>{getEntityTypeOptions(authorizeForm.namespace, authorizeForm.schemaName).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
+                  <SelectContent>{getEntityTypeOptions(authorizeForm.namespace, authorizeForm.schema_name).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Action</Label>
-                <Select value={authorizeForm.action} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, action: v })} disabled={!authorizeForm.entityType}>
+                <Select value={authorizeForm.action} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, action: v })} disabled={!authorizeForm.entity_type}>
                   <SelectTrigger><SelectValue placeholder="Select action" /></SelectTrigger>
-                  <SelectContent>{getAvailableActions(authorizeForm.namespace, authorizeForm.schemaName, authorizeForm.entityType).map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+                  <SelectContent>{getAvailableActions(authorizeForm.namespace, authorizeForm.schema_name, authorizeForm.entity_type).map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>{matchMode ? 'Entity Key (optional — omit for global actions)' : 'Entity Key (omit for global actions)'}</Label>
-                <Input placeholder='device-42  or  {"device_id": "device-42"}' value={authorizeForm.entityKey} onChange={(e) => setAuthorizeForm({ ...authorizeForm, entityKey: e.target.value })} />
+                <Input placeholder='device-42  or  {"device_id": "device-42"}' value={authorizeForm.entity_key} onChange={(e) => setAuthorizeForm({ ...authorizeForm, entity_key: e.target.value })} />
               </div>
               <Separator />
               <div className="flex gap-2">
@@ -386,7 +386,7 @@ export default function AuthorizationTestPage() {
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                   Test Authorization
                 </Button>
-                <Button variant="outline" onClick={() => { setAuthorizeForm({ principalId: '', namespace: '', schemaName: '', action: '', entityType: '', entityKey: '' }); setAuthorizeResult(null); setError(null); }}>Reset</Button>
+                <Button variant="outline" onClick={() => { setAuthorizeForm({ principal_id: '', namespace: '', schema_name: '', action: '', entity_type: '', entity_key: '' }); setAuthorizeResult(null); setError(null); }}>Reset</Button>
               </div>
             </div>
 
@@ -411,15 +411,15 @@ export default function AuthorizationTestPage() {
                   </div>
                   <Separator />
                   <div className="space-y-3">
-                    {'matchedPrincipals' in authorizeResult
-                      ? renderMatchedPrincipals(authorizeResult.matchedPrincipals)
-                      : <ResultField label="Principal ID"><p className="text-sm font-mono">{authorizeResult.principalId}</p></ResultField>
+                    {'matched_principals' in authorizeResult
+                      ? renderMatchedPrincipals(authorizeResult.matched_principals)
+                      : <ResultField label="Principal ID"><p className="text-sm font-mono">{authorizeResult.principal_id}</p></ResultField>
                     }
                     <ResultField label="Action"><Badge>{authorizeResult.action}</Badge></ResultField>
                     <ResultField label="Namespace"><Badge variant="secondary">{authorizeResult.namespace}</Badge></ResultField>
-                    <ResultField label="Schema Name"><Badge variant="secondary">{authorizeResult.schemaName}</Badge></ResultField>
-                    <ResultField label="Entity Type"><Badge variant="outline">{authorizeResult.entityType}</Badge></ResultField>
-                    <ResultField label="Entity Key"><pre className="font-mono text-xs">{JSON.stringify(authorizeResult.entityKey, null, 2)}</pre></ResultField>
+                    <ResultField label="Schema Name"><Badge variant="secondary">{authorizeResult.schema_name}</Badge></ResultField>
+                    <ResultField label="Entity Type"><Badge variant="outline">{authorizeResult.entity_type}</Badge></ResultField>
+                    <ResultField label="Entity Key"><pre className="font-mono text-xs">{JSON.stringify(authorizeResult.entity_key, null, 2)}</pre></ResultField>
                   </div>
                   <Separator />
                   <details>
@@ -440,27 +440,27 @@ export default function AuthorizationTestPage() {
                 <p className="font-semibold">Parameters</p>
                 <p className="text-sm text-muted-foreground mt-0.5">Configure the filter test parameters</p>
               </div>
-              {renderIdentitySection(filterForm.principalId, (v) => setFilterForm({ ...filterForm, principalId: v }), 'filter')}
+              {renderIdentitySection(filterForm.principal_id, (v) => setFilterForm({ ...filterForm, principal_id: v }), 'filter')}
               <Separator />
               <div className="space-y-1.5">
                 <Label>Namespace</Label>
-                <Select value={filterForm.namespace} onValueChange={(v) => setFilterForm({ ...filterForm, namespace: v, schemaName: '', entityType: '' })}>
+                <Select value={filterForm.namespace} onValueChange={(v) => setFilterForm({ ...filterForm, namespace: v, schema_name: '', entity_type: '' })}>
                   <SelectTrigger><SelectValue placeholder="Select namespace" /></SelectTrigger>
                   <SelectContent>{allNamespaces.map((ns) => <SelectItem key={ns} value={ns}>{ns}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Schema Name</Label>
-                <Select value={filterForm.schemaName} onValueChange={(v) => setFilterForm({ ...filterForm, schemaName: v, entityType: '' })} disabled={!filterForm.namespace}>
+                <Select value={filterForm.schema_name} onValueChange={(v) => setFilterForm({ ...filterForm, schema_name: v, entity_type: '' })} disabled={!filterForm.namespace}>
                   <SelectTrigger><SelectValue placeholder="Select schema name" /></SelectTrigger>
                   <SelectContent>{getSchemaOptionsForNamespace(filterForm.namespace).map((sn) => <SelectItem key={sn} value={sn}>{sn}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Entity Type</Label>
-                <Select value={filterForm.entityType} onValueChange={(v) => setFilterForm({ ...filterForm, entityType: v })} disabled={!filterForm.namespace || !filterForm.schemaName}>
+                <Select value={filterForm.entity_type} onValueChange={(v) => setFilterForm({ ...filterForm, entity_type: v })} disabled={!filterForm.namespace || !filterForm.schema_name}>
                   <SelectTrigger><SelectValue placeholder="Select entity type" /></SelectTrigger>
-                  <SelectContent>{getEntityTypeOptions(filterForm.namespace, filterForm.schemaName).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
+                  <SelectContent>{getEntityTypeOptions(filterForm.namespace, filterForm.schema_name).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <Separator />
@@ -469,7 +469,7 @@ export default function AuthorizationTestPage() {
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
                   Get Filter
                 </Button>
-                <Button variant="outline" onClick={() => { setFilterForm({ principalId: '', namespace: '', schemaName: '', entityType: '' }); setFilterResult(null); setError(null); }}>Reset</Button>
+                <Button variant="outline" onClick={() => { setFilterForm({ principal_id: '', namespace: '', schema_name: '', entity_type: '' }); setFilterResult(null); setError(null); }}>Reset</Button>
               </div>
             </div>
 
@@ -477,18 +477,18 @@ export default function AuthorizationTestPage() {
               <p className="font-semibold">Result</p>
               {!filterResult ? <EmptyResult /> : (
                 <div className="space-y-4">
-                  {'matchedPrincipals' in filterResult && (
-                    <>{renderMatchedPrincipals(filterResult.matchedPrincipals)}<Separator /></>
+                  {'matched_principals' in filterResult && (
+                    <>{renderMatchedPrincipals(filterResult.matched_principals)}<Separator /></>
                   )}
                   <div className="space-y-3">
                     <ResultField label="Namespace"><Badge variant="secondary">{filterResult.namespace}</Badge></ResultField>
-                    <ResultField label="Schema Name"><Badge variant="secondary">{filterResult.schemaName}</Badge></ResultField>
-                    <ResultField label="Entity Type"><Badge variant="outline">{filterResult.entityType}</Badge></ResultField>
+                    <ResultField label="Schema Name"><Badge variant="secondary">{filterResult.schema_name}</Badge></ResultField>
+                    <ResultField label="Entity Type"><Badge variant="outline">{filterResult.entity_type}</Badge></ResultField>
                   </div>
                   <Separator />
                   <ResultField label="Filter Query">
                     <pre className="bg-muted/50 p-3 rounded-md overflow-auto text-xs font-mono mt-1">
-                      {filterResult.filterQuery || '(no filter — full access)'}
+                      {filterResult.filter_query || '(no filter — full access)'}
                     </pre>
                   </ResultField>
                   <Separator />
@@ -512,14 +512,14 @@ export default function AuthorizationTestPage() {
                   {matchMode ? 'Resolve the principal from auth material, then return allowed global actions' : 'Get all global actions allowed for a known principal across every entity type'}
                 </p>
               </div>
-              {renderIdentitySection(globalCapsForm.principalId, (v) => setGlobalCapsForm({ principalId: v }), 'gc')}
+              {renderIdentitySection(globalCapsForm.principal_id, (v) => setGlobalCapsForm({ principal_id: v }), 'gc')}
               <Separator />
               <div className="flex gap-2">
                 <Button onClick={handleGlobalCaps} disabled={loading} className="flex-1">
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                   Get Global Capabilities
                 </Button>
-                <Button variant="outline" onClick={() => { setGlobalCapsForm({ principalId: '' }); setGlobalCapsResult(null); setError(null); }}>Reset</Button>
+                <Button variant="outline" onClick={() => { setGlobalCapsForm({ principal_id: '' }); setGlobalCapsResult(null); setError(null); }}>Reset</Button>
               </div>
             </div>
 
@@ -563,32 +563,32 @@ export default function AuthorizationTestPage() {
                   {matchMode ? 'Resolve the principal from auth material, then return allowed actions on the entity' : 'Get allowed actions for a known principal on a specific entity'}
                 </p>
               </div>
-              {renderIdentitySection(entityCapsForm.principalId, (v) => setEntityCapsForm({ principalId: v }), 'ec')}
+              {renderIdentitySection(entityCapsForm.principal_id, (v) => setEntityCapsForm({ principal_id: v }), 'ec')}
               <Separator />
               <div className="space-y-1.5">
                 <Label>Namespace</Label>
-                <Select value={entityCapsQuery.namespace} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, namespace: v, schemaName: '', entityType: '' })}>
+                <Select value={entityCapsQuery.namespace} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, namespace: v, schema_name: '', entity_type: '' })}>
                   <SelectTrigger><SelectValue placeholder="Select namespace" /></SelectTrigger>
                   <SelectContent>{allNamespaces.map((ns) => <SelectItem key={ns} value={ns}>{ns}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Schema Name</Label>
-                <Select value={entityCapsQuery.schemaName} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, schemaName: v, entityType: '' })} disabled={!entityCapsQuery.namespace}>
+                <Select value={entityCapsQuery.schema_name} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, schema_name: v, entity_type: '' })} disabled={!entityCapsQuery.namespace}>
                   <SelectTrigger><SelectValue placeholder="Select schema name" /></SelectTrigger>
                   <SelectContent>{getSchemaOptionsForNamespace(entityCapsQuery.namespace).map((sn) => <SelectItem key={sn} value={sn}>{sn}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Entity Type</Label>
-                <Select value={entityCapsQuery.entityType} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, entityType: v })} disabled={!entityCapsQuery.namespace || !entityCapsQuery.schemaName}>
+                <Select value={entityCapsQuery.entity_type} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, entity_type: v })} disabled={!entityCapsQuery.namespace || !entityCapsQuery.schema_name}>
                   <SelectTrigger><SelectValue placeholder="Select entity type" /></SelectTrigger>
-                  <SelectContent>{getEntityTypeOptions(entityCapsQuery.namespace, entityCapsQuery.schemaName).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
+                  <SelectContent>{getEntityTypeOptions(entityCapsQuery.namespace, entityCapsQuery.schema_name).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Entity Key</Label>
-                <Input placeholder='device-42  or  {"device_id": "device-42"}' value={entityCapsQuery.entityKey} onChange={(e) => setEntityCapsQuery({ ...entityCapsQuery, entityKey: e.target.value })} />
+                <Input placeholder='device-42  or  {"device_id": "device-42"}' value={entityCapsQuery.entity_key} onChange={(e) => setEntityCapsQuery({ ...entityCapsQuery, entity_key: e.target.value })} />
               </div>
               <Separator />
               <div className="flex gap-2">
@@ -596,7 +596,7 @@ export default function AuthorizationTestPage() {
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                   Get Entity Capabilities
                 </Button>
-                <Button variant="outline" onClick={() => { setEntityCapsForm({ principalId: '' }); setEntityCapsQuery({ namespace: '', schemaName: '', entityType: '', entityKey: '' }); setEntityCapsResult(null); setError(null); }}>Reset</Button>
+                <Button variant="outline" onClick={() => { setEntityCapsForm({ principal_id: '' }); setEntityCapsQuery({ namespace: '', schema_name: '', entity_type: '', entity_key: '' }); setEntityCapsResult(null); setError(null); }}>Reset</Button>
               </div>
             </div>
 

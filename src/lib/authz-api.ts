@@ -22,6 +22,10 @@ import type {
   EntityCapabilitiesResponse,
   MatchEntityCapabilitiesRequest,
   MatchEntityCapabilitiesResponse,
+  ListPoliciesParams,
+  ListPoliciesResponse,
+  ListPrincipalsParams,
+  ListPrincipalsResponse,
 } from '@/types/authz';
 
 const getSelectedPrincipal = (): string => {
@@ -40,10 +44,58 @@ const getAuthzContextHeaders = (): HeadersInit => {
 };
 
 // ===========================
+// List query param builders
+// ===========================
+
+function applyPaginationAndSort(
+  params: URLSearchParams,
+  { pageSize, bookmark, sortBy, sortMode }: { pageSize?: number; bookmark?: string; sortBy?: string; sortMode?: string }
+) {
+  if (pageSize !== undefined) params.set('page_size', String(pageSize));
+  if (bookmark) params.set('bookmark', bookmark);
+  if (sortBy) params.set('sort_by', sortBy);
+  if (sortMode) params.set('sort_mode', sortMode);
+}
+
+function buildPrincipalFilterParams(params: URLSearchParams, filters: ListPrincipalsParams['filters']) {
+  if (!filters) return;
+  if (filters.id) params.append('filter', `id[contains_ignorecase]${filters.id}`);
+  if (filters.name) params.append('filter', `name[contains_ignorecase]${filters.name}`);
+  if (filters.description) params.append('filter', `description[contains_ignorecase]${filters.description}`);
+  if (filters.type !== undefined) {
+    if (Array.isArray(filters.type)) {
+      if (filters.type.length === 1) {
+        params.append('filter', `type[equal]${filters.type[0]}`);
+      } else if (filters.type.length > 1) {
+        params.append('filter', `type[in]${filters.type.join(',')}`);
+      }
+    } else {
+      params.append('filter', `type[equal]${filters.type}`);
+    }
+  }
+  if (filters.active !== undefined) {
+    params.append('filter', `active[equal]${filters.active}`);
+  }
+  if (filters.auth_config) params.append('filter', `auth_config[jsonpath]${filters.auth_config}`);
+  if (filters.created_at) params.append('filter', `created_at[${filters.created_at.operator}]${filters.created_at.value}`);
+  if (filters.updated_at) params.append('filter', `updated_at[${filters.updated_at.operator}]${filters.updated_at.value}`);
+}
+
+function buildPolicyFilterParams(params: URLSearchParams, filters: ListPoliciesParams['filters']) {
+  if (!filters) return;
+  if (filters.id) params.append('filter', `id[contains_ignorecase]${filters.id}`);
+  if (filters.name) params.append('filter', `name[contains_ignorecase]${filters.name}`);
+  if (filters.description) params.append('filter', `description[contains_ignorecase]${filters.description}`);
+  if (filters.rules) params.append('filter', `rules[jsonpath]${filters.rules}`);
+  if (filters.created_at) params.append('filter', `created_at[${filters.created_at.operator}]${filters.created_at.value}`);
+  if (filters.updated_at) params.append('filter', `updated_at[${filters.updated_at.operator}]${filters.updated_at.value}`);
+}
+
+// ===========================
 // Policy API Endpoints
 // ===========================
 
-export async function createPolicy(policy: Omit<Policy, 'id'> & { id: string }): Promise<Policy> {
+export async function createPolicy(policy: Omit<Policy, 'id' | 'created_at' | 'updated_at'> & { id: string }): Promise<Policy> {
   const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies`, {
     method: 'POST',
     headers: getAuthzContextHeaders(),
@@ -52,8 +104,11 @@ export async function createPolicy(policy: Omit<Policy, 'id'> & { id: string }):
   return handleApiError(response, 'Failed to create policy');
 }
 
-export async function listPolicies(): Promise<{ policies: Policy[]; count: number }> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies`, {
+export async function listPolicies(params: ListPoliciesParams = {}): Promise<ListPoliciesResponse> {
+  const url = new URL(`${get_AUTHZ_API_BASE_URL()}/policies`);
+  applyPaginationAndSort(url.searchParams, params);
+  buildPolicyFilterParams(url.searchParams, params.filters);
+  const response = await apiFetch(url.toString(), {
     headers: getAuthzContextHeaders(),
   });
   return handleApiError(response, 'Failed to list policies');
@@ -66,7 +121,7 @@ export async function getPolicy(id: string): Promise<Policy> {
   return handleApiError(response, `Failed to get policy ${id}`);
 }
 
-export async function updatePolicy(id: string, policy: Omit<Policy, 'id'>): Promise<Policy> {
+export async function updatePolicy(id: string, policy: Omit<Policy, 'id' | 'created_at' | 'updated_at'>): Promise<Policy> {
   const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/policies/${id}`, {
     method: 'PUT',
     headers: getAuthzContextHeaders(),
@@ -103,7 +158,7 @@ export async function searchPolicies(query: string): Promise<{ policies: Policy[
 // Principal API Endpoints
 // ===========================
 
-export async function createPrincipal(principal: Omit<Principal, 'createdAt' | 'updatedAt'>): Promise<Principal> {
+export async function createPrincipal(principal: Omit<Principal, 'created_at' | 'updated_at'>): Promise<Principal> {
   const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals`, {
     method: 'POST',
     headers: getAuthzContextHeaders(),
@@ -112,11 +167,10 @@ export async function createPrincipal(principal: Omit<Principal, 'createdAt' | '
   return handleApiError(response, 'Failed to create principal');
 }
 
-export async function listPrincipals(activeOnly = false): Promise<{ principals: Principal[]; count: number }> {
+export async function listPrincipals(params: ListPrincipalsParams = {}): Promise<ListPrincipalsResponse> {
   const url = new URL(`${get_AUTHZ_API_BASE_URL()}/principals`);
-  if (activeOnly) {
-    url.searchParams.append('activeOnly', 'true');
-  }
+  applyPaginationAndSort(url.searchParams, params);
+  buildPrincipalFilterParams(url.searchParams, params.filters);
   const response = await apiFetch(url.toString(), {
     headers: getAuthzContextHeaders(),
   });
@@ -154,21 +208,21 @@ export async function getPrincipalPolicies(id: string): Promise<{ policies: any[
   return handleApiError(response, `Failed to get policies for principal ${id}`);
 }
 
-export async function grantPolicy(principalId: string, policyId: string, grantedBy?: string): Promise<void> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${principalId}/policies`, {
+export async function grantPolicy(principal_id: string, policy_id: string, granted_by?: string): Promise<void> {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${principal_id}/policies`, {
     method: 'POST',
     headers: getAuthzContextHeaders(),
-    body: JSON.stringify({ policyId, grantedBy }),
+    body: JSON.stringify({ policy_id, granted_by }),
   });
-  await handleApiError(response, `Failed to grant policy ${policyId} to principal ${principalId}`);
+  await handleApiError(response, `Failed to grant policy ${policy_id} to principal ${principal_id}`);
 }
 
-export async function revokePolicy(principalId: string, policyId: string): Promise<void> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${principalId}/policies/${policyId}`, {
+export async function revokePolicy(principal_id: string, policy_id: string): Promise<void> {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${principal_id}/policies/${policy_id}`, {
     method: 'DELETE',
     headers: getAuthzContextHeaders(),
   });
-  await handleApiError(response, `Failed to revoke policy ${policyId} from principal ${principalId}`);
+  await handleApiError(response, `Failed to revoke policy ${policy_id} from principal ${principal_id}`);
 }
 
 // ===========================
@@ -219,17 +273,17 @@ export function findAmbiguousEntityTypes(schemas: SchemaDefinition[]): Map<strin
 
   schemas.forEach(schema => {
     const namespace = schema.namespace || 'default';
-    const existing = entityTypeMap.get(schema.entityType) || [];
+    const existing = entityTypeMap.get(schema.entity_type) || [];
     if (!existing.includes(namespace)) {
       existing.push(namespace);
-      entityTypeMap.set(schema.entityType, existing);
+      entityTypeMap.set(schema.entity_type, existing);
     }
   });
 
   const ambiguous = new Map<string, string[]>();
-  entityTypeMap.forEach((namespaces, entityType) => {
+  entityTypeMap.forEach((namespaces, entity_type) => {
     if (namespaces.length > 1) {
-      ambiguous.set(entityType, namespaces);
+      ambiguous.set(entity_type, namespaces);
     }
   });
 

@@ -8,9 +8,9 @@ import { Database, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface EntityNodeData {
-  entityType: string;
+  entity_type: string;
   actions: string[];
-  directGrants: string[];
+  direct_grants: string[];
   onUpdate: (data: any) => void;
   onDelete: () => void;
 }
@@ -22,7 +22,7 @@ export const EntityNode = memo(({ data }: NodeProps<EntityNodeData>) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-primary" />
-            <CardTitle className="text-sm">{data.entityType || 'Entity'}</CardTitle>
+            <CardTitle className="text-sm">{data.entity_type || 'Entity'}</CardTitle>
           </div>
           <Button
             variant="ghost"
@@ -50,11 +50,11 @@ export const EntityNode = memo(({ data }: NodeProps<EntityNodeData>) => {
           </div>
         </div>
 
-        {data.directGrants && data.directGrants.length > 0 && (
+        {data.direct_grants && data.direct_grants.length > 0 && (
           <div>
             <div className="text-xs text-muted-foreground mb-1">Direct Grants:</div>
             <div className="flex flex-wrap gap-1">
-              {data.directGrants.map((grant) => (
+              {data.direct_grants.map((grant) => (
                 <Badge key={grant} variant="outline" className="text-xs">
                   {grant}
                 </Badge>

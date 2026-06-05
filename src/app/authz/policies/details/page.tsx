@@ -95,7 +95,7 @@ function FilterChip({ filter }: { filter: ColumnFilter }) {
 
 function resolveRelationTarget(to: RelationRule['to']): { schema: string; entity: string } {
   if (typeof to === 'string') return { schema: '', entity: to };
-  return { schema: to.schemaName || '', entity: to.entityType || '' };
+  return { schema: to.schema_name || '', entity: to.entity_type || '' };
 }
 
 function RelationRows({ relations, depth = 1 }: { relations: RelationRule[]; depth?: number }) {
@@ -147,7 +147,7 @@ function RelationRows({ relations, depth = 1 }: { relations: RelationRule[]; dep
 function PolicyDetailsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const policyId = searchParams.get('policyId');
+  const policy_id = searchParams.get('policy_id');
 
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [stats, setStats] = useState<PolicyStats | null>(null);
@@ -159,17 +159,17 @@ function PolicyDetailsContent() {
   const monacoTheme = useMonacoTheme();
 
   useEffect(() => {
-    if (policyId) loadPolicyDetails();
+    if (policy_id) loadPolicyDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [policyId]);
+  }, [policy_id]);
 
   const loadPolicyDetails = async () => {
-    if (!policyId) return;
+    if (!policy_id) return;
     try {
       setLoading(true);
       const [policyData, statsData] = await Promise.all([
-        getPolicy(policyId),
-        getPolicyStats(policyId).catch(() => null),
+        getPolicy(policy_id),
+        getPolicyStats(policy_id).catch(() => null),
       ]);
       setPolicy(policyData);
       setStats(statsData);
@@ -264,7 +264,7 @@ function PolicyDetailsContent() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}
+              onClick={() => router.push(`/authz/policies/edit?policy_id=${policy.id}`)}
             >
               <Edit className="mr-1.5 h-3.5 w-3.5" />
               Edit
@@ -276,7 +276,7 @@ function PolicyDetailsContent() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => router.push(`/authz/policies/edit?policyId=${policy.id}`)}>
+                <DropdownMenuItem onClick={() => router.push(`/authz/policies/edit?policy_id=${policy.id}`)}>
                   <Edit className="mr-2 h-4 w-4" /> Edit Policy
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -299,15 +299,15 @@ function PolicyDetailsContent() {
           </div>
           <div className="px-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Principals</p>
-            <p className="text-sm mt-0.5">{stats ? stats.principalCount : '—'}</p>
+            <p className="text-sm mt-0.5">{stats ? stats.principal_count : '—'}</p>
           </div>
           <div className="px-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</p>
-            <DateDisplay date={policy.createdAt} className="text-sm mt-0.5" />
+            <DateDisplay date={policy.created_at} className="text-sm mt-0.5" />
           </div>
           <div className="pl-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Updated</p>
-            <DateDisplay date={policy.updatedAt} className="text-sm mt-0.5" />
+            <DateDisplay date={policy.updated_at} className="text-sm mt-0.5" />
           </div>
         </div>
       </div>
@@ -353,11 +353,11 @@ function PolicyDetailsContent() {
               <TableBody>
               {policy.rules.map((rule, index) => {
                 const namespace = rule.namespace || '';
-                const schema = rule.schemaName || '';
-                const entity = rule.entityType || '';
+                const schema = rule.schema_name || '';
+                const entity = rule.entity_type || '';
                 const actions = rule.actions ?? [];
-                const directGrants = rule.directGrants ?? [];
-                const columnFilters = rule.columnFilters ?? [];
+                const direct_grants = rule.direct_grants ?? [];
+                const column_filters = rule.column_filters ?? [];
                 const relations = rule.relations ?? [];
 
                 return (
@@ -388,9 +388,9 @@ function PolicyDetailsContent() {
                           </TableCell>
 
                           <TableCell className="py-3">
-                            {directGrants.length > 0 ? (
+                            {direct_grants.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
-                                {directGrants.map((grant, i) => (
+                                {direct_grants.map((grant, i) => (
                                   <Badge key={i} variant="secondary" className="font-mono text-[11px]">
                                     {grant}
                                   </Badge>
@@ -402,11 +402,11 @@ function PolicyDetailsContent() {
                           </TableCell>
 
                           <TableCell className="py-3">
-                            {columnFilters.length === 0 ? (
+                            {column_filters.length === 0 ? (
                               <span className="text-xs text-muted-foreground/60 italic">None</span>
                             ) : (
                               <div className="flex flex-wrap gap-1.5">
-                                {columnFilters.map((filter, i) => (
+                                {column_filters.map((filter, i) => (
                                   <FilterChip key={i} filter={filter} />
                                 ))}
                               </div>

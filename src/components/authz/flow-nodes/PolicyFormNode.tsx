@@ -16,26 +16,26 @@ interface PolicyFormNodeProps {
   data: {
     schema: SchemaDefinition;
     actions: string[];
-    directGrants: string[];
+    direct_grants: string[];
     nestedRules: Record<string, boolean>;
     onUpdate: (data: {
       actions: string[];
-      directGrants: string[];
+      direct_grants: string[];
       nestedRules: Record<string, boolean>;
     }) => void;
   };
 }
 
 export const PolicyFormNode = memo(({ data }: PolicyFormNodeProps) => {
-  const { schema, actions, directGrants, nestedRules, onUpdate } = data;
+  const { schema, actions, direct_grants, nestedRules, onUpdate } = data;
   const [newId, setNewId] = useState('');
   const [selectedActions, setSelectedActions] = useState<string[]>(actions || []);
-  const [ids, setIds] = useState<string[]>(directGrants || []);
+  const [ids, setIds] = useState<string[]>(direct_grants || []);
   const [nested, setNested] = useState<Record<string, boolean>>(nestedRules || {});
 
   const availableActions = [
-    ...(schema.atomicActions || []),
-    ...(schema.globalActions || []),
+    ...(schema.atomic_actions || []),
+    ...(schema.global_actions || []),
   ];
 
   const relations = Object.values(schema.relations || {});
@@ -45,7 +45,7 @@ export const PolicyFormNode = memo(({ data }: PolicyFormNodeProps) => {
       ? selectedActions.filter((a) => a !== action)
       : [...selectedActions, action];
     setSelectedActions(newActions);
-    onUpdate({ actions: newActions, directGrants: ids, nestedRules: nested });
+    onUpdate({ actions: newActions, direct_grants: ids, nestedRules: nested });
   };
 
   const addId = () => {
@@ -53,19 +53,19 @@ export const PolicyFormNode = memo(({ data }: PolicyFormNodeProps) => {
     const newIds = [...ids, newId.trim()];
     setIds(newIds);
     setNewId('');
-    onUpdate({ actions: selectedActions, directGrants: newIds, nestedRules: nested });
+    onUpdate({ actions: selectedActions, direct_grants: newIds, nestedRules: nested });
   };
 
   const removeId = (id: string) => {
     const newIds = ids.filter((i) => i !== id);
     setIds(newIds);
-    onUpdate({ actions: selectedActions, directGrants: newIds, nestedRules: nested });
+    onUpdate({ actions: selectedActions, direct_grants: newIds, nestedRules: nested });
   };
 
   const toggleNestedRule = (relationName: string) => {
     const newNested = { ...nested, [relationName]: !nested[relationName] };
     setNested(newNested);
-    onUpdate({ actions: selectedActions, directGrants: ids, nestedRules: newNested });
+    onUpdate({ actions: selectedActions, direct_grants: ids, nestedRules: newNested });
   };
 
   return (
@@ -79,7 +79,7 @@ export const PolicyFormNode = memo(({ data }: PolicyFormNodeProps) => {
             <CardTitle className="text-base font-bold">Policy Configuration</CardTitle>
           </div>
           <Badge variant="default" className="text-xs bg-green-600">
-            {schema.entityType}
+            {schema.entity_type}
           </Badge>
         </div>
       </CardHeader>
@@ -185,7 +185,7 @@ export const PolicyFormNode = memo(({ data }: PolicyFormNodeProps) => {
                       >
                         <span>{relation.name}</span>
                         <Badge variant="outline" className="text-xs">
-                          → {relation.targetEntity}
+                          → {relation.target_entity}
                         </Badge>
                       </label>
                     </div>

@@ -35,7 +35,7 @@ function EditPrincipalContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
-  const principalId = searchParams.get('principalId');
+  const principal_id = searchParams.get('principal_id');
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -118,16 +118,16 @@ function EditPrincipalContent() {
   };
 
   useEffect(() => {
-    if (principalId) loadPrincipal();
+    if (principal_id) loadPrincipal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [principalId]);
+  }, [principal_id]);
 
   const loadPrincipal = async () => {
-    if (!principalId) return;
+    if (!principal_id) return;
 
     try {
       setLoading(true);
-      const fetchedPrincipal = await getPrincipal(principalId);
+      const fetchedPrincipal = await getPrincipal(principal_id);
       setPrincipal(fetchedPrincipal);
 
       setName(fetchedPrincipal.name);
@@ -136,12 +136,12 @@ function EditPrincipalContent() {
       setDescription((fetchedPrincipal as any).description || '');
 
       if (fetchedPrincipal.type === 'oidc') {
-        const oidcClaims = (fetchedPrincipal.authConfig as any)?.claims;
+        const oidcClaims = (fetchedPrincipal.auth_config as any)?.claims;
         setClaims(Array.isArray(oidcClaims) ? oidcClaims : []);
       }
 
       if (fetchedPrincipal.type === 'x509') {
-        const x509Config = normalizeX509AuthConfig(fetchedPrincipal.authConfig);
+        const x509Config = normalizeX509AuthConfig(fetchedPrincipal.auth_config);
         setCaTrustIdentityType(x509Config.ca_trust.identity_type);
         setCaTrustValue(x509Config.ca_trust.value);
         setMatchMode(x509Config.match_mode);
@@ -175,7 +175,7 @@ function EditPrincipalContent() {
     e.preventDefault();
     setError(null);
 
-    if (!principalId || !principal) {
+    if (!principal_id || !principal) {
       setError('Principal ID is missing');
       return;
     }
@@ -216,9 +216,9 @@ function EditPrincipalContent() {
     try {
       setSubmitting(true);
 
-      let authConfig: any = principal.authConfig;
+      let auth_config: any = principal.auth_config;
       if (type === 'oidc') {
-        authConfig = { claims };
+        auth_config = { claims };
       } else if (type === 'x509') {
         const selectedCaPem = selectedCa?.rawApiData?.certificate?.certificate;
         const resolvedCaTrustValue = await deriveCaTrustValue();
@@ -232,7 +232,7 @@ function EditPrincipalContent() {
           return;
         }
 
-        authConfig = {
+        auth_config = {
           ca_trust: {
             identity_type: caTrustIdentityType,
             value: resolvedCaTrustValue,
@@ -240,12 +240,12 @@ function EditPrincipalContent() {
           },
           match_mode: matchMode,
         };
-        if (matchMode === 'serial_and_ca') authConfig.serial_number = serialNumber;
-        if (matchMode === 'cn_and_ca') authConfig.subject_cn = subjectCn;
+        if (matchMode === 'serial_and_ca') auth_config.serial_number = serialNumber;
+        if (matchMode === 'cn_and_ca') auth_config.subject_cn = subjectCn;
       }
 
-      await updatePrincipal(principalId, { name, description: description.trim(), active, authConfig });
-      router.push(`/authz/principals/details?principalId=${principalId}`);
+      await updatePrincipal(principal_id, { name, description: description.trim(), active, auth_config });
+      router.push(`/authz/principals/details?principal_id=${principal_id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to update principal');
     } finally {
@@ -516,8 +516,8 @@ function EditPrincipalContent() {
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
     { label: 'Principals', href: '/authz/principals' },
-    ...(principalId
-      ? [{ label: principal?.name || 'Details', href: `/authz/principals/details?principalId=${principalId}` }]
+    ...(principal_id
+      ? [{ label: principal?.name || 'Details', href: `/authz/principals/details?principal_id=${principal_id}` }]
       : []),
     { label: 'Edit' },
   ];

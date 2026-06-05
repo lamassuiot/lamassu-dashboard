@@ -17,7 +17,7 @@ import type { SchemaDefinition } from '@/types/authz';
 interface NestedRuleEdgeData {
   relationName: string;
   sourceEntity: string;
-  targetEntity: string;
+  target_entity: string;
   targetSchema?: SchemaDefinition;
   enabled: boolean;
   actions: string[];
@@ -57,7 +57,7 @@ export function NestedRuleEdge({
   const {
     relationName,
     sourceEntity,
-    targetEntity,
+    target_entity,
     targetSchema,
     enabled,
     actions = [],
@@ -67,8 +67,8 @@ export function NestedRuleEdge({
 
   const availableActions = targetSchema
     ? [
-        ...(targetSchema.atomicActions || []),
-        ...(targetSchema.globalActions || []),
+        ...(targetSchema.atomic_actions || []),
+        ...(targetSchema.global_actions || []),
       ]
     : [];
 
@@ -124,7 +124,7 @@ export function NestedRuleEdge({
               <div className="text-xs text-muted-foreground">
                 <div className="flex items-center gap-1 flex-wrap">
                   <span className="font-mono text-xs bg-white/50 dark:bg-black/20 px-1 rounded">
-                    {targetEntity}
+                    {target_entity}
                   </span>
                   <span>→</span>
                   <span className="font-mono text-xs bg-white/50 dark:bg-black/20 px-1 rounded">
