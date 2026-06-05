@@ -458,14 +458,14 @@ export default function NewPrincipalPage() {
           </Label>
           <Input
             id="serialNumber"
-            placeholder="1A:2B:3C:4D:5E:6F:7A:8B:9C:0D:1E:2F:3A:4B:5C:6D"
+            placeholder="1A2B3C4D5E6FF7A8B9C0D1E2F3A4B5C6D"
             value={serialNumber}
             onChange={(e) => setSerialNumber(e.target.value)}
             required
             disabled={submitting}
             className="font-mono text-sm"
           />
-          <p className="text-xs text-muted-foreground">Certificate serial number in colon-separated hex format.</p>
+            <p className="text-xs text-muted-foreground">Certificate serial number.</p>
         </div>
       )}
 

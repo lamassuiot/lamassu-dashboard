@@ -39,17 +39,13 @@ import {
   AlertTriangle,
   Loader2,
   ScrollText,
-  ChevronsUpDown,
-  ArrowDownAZ,
-  ArrowUpZA,
-  ArrowDown10,
-  ArrowUp01,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listPolicies, deletePolicy } from '@/lib/authz-api';
 import type { DateFilterValue, Policy, PolicyFilters, PolicySortField } from '@/types/authz';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import {
   PolicyFilterBar,
   defaultPolicyDateFilterValue,
@@ -163,25 +159,6 @@ export default function PoliciesPage() {
     }
   };
 
-  const SortableHead = ({ column, title, className }: { column: PolicySortField; title: string; className?: string }) => {
-    const isDate = DATE_COLUMNS.has(column);
-    const active = sortConfig.column === column;
-    const Icon = active
-      ? (sortConfig.direction === 'asc' ? (isDate ? ArrowUp01 : ArrowUpZA) : (isDate ? ArrowDown10 : ArrowDownAZ))
-      : ChevronsUpDown;
-    return (
-      <TableHead
-        className={cn('cursor-pointer select-none hover:bg-muted/60 text-center', className)}
-        onClick={() => requestSort(column)}
-      >
-        <div className="flex items-center justify-center gap-1">
-          {title}
-          <Icon className={cn('h-4 w-4', active ? 'text-primary' : 'text-muted-foreground/50')} />
-        </div>
-      </TableHead>
-    );
-  };
-
   if (isLoading && policies.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-8">
@@ -267,11 +244,32 @@ export default function PoliciesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableHead column="name" title="Name" />
-                  <TableHead className="text-center">Description</TableHead>
-                  <SortableHead column="created_at" title="Created" />
-                  <SortableHead column="updated_at" title="Updated" />
-                  <TableHead className="text-center">Actions</TableHead>
+                  <SortableTableHead
+                    column="name"
+                    title="Name"
+                    activeColumn={sortConfig.column}
+                    direction={sortConfig.direction}
+                    onSort={requestSort}
+                    align="left"
+                  />
+                  <TableHead>Description</TableHead>
+                  <SortableTableHead
+                    column="created_at"
+                    title="Created"
+                    activeColumn={sortConfig.column}
+                    direction={sortConfig.direction}
+                    onSort={requestSort}
+                    isDateColumn={DATE_COLUMNS.has('created_at')}
+                  />
+                  <SortableTableHead
+                    column="updated_at"
+                    title="Updated"
+                    activeColumn={sortConfig.column}
+                    direction={sortConfig.direction}
+                    onSort={requestSort}
+                    isDateColumn={DATE_COLUMNS.has('updated_at')}
+                  />
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

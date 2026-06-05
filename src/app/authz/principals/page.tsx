@@ -42,17 +42,13 @@ import {
   UserCheck,
   CheckCircle,
   XCircle,
-  ChevronsUpDown,
-  ArrowDownAZ,
-  ArrowUpZA,
-  ArrowDown10,
-  ArrowUp01,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listPrincipals, deletePrincipal } from '@/lib/authz-api';
 import type { DateFilterValue, Principal, PrincipalFilters, PrincipalType, PrincipalSortField } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { SortableTableHead } from '@/components/shared/SortableTableHead';
 import {
   PrincipalFilterBar,
   defaultPrincipalDateFilterValue,
@@ -178,50 +174,6 @@ export default function PrincipalsPage() {
     }
   };
 
-  const SortableHead = ({
-    column,
-    title,
-    className,
-    align = 'center',
-  }: {
-    column: PrincipalSortField;
-    title: string;
-    className?: string;
-    align?: 'left' | 'center' | 'right';
-  }) => {
-    const isDate = DATE_COLUMNS.has(column);
-    const active = sortConfig.column === column;
-    const Icon = active
-      ? (sortConfig.direction === 'asc' ? (isDate ? ArrowUp01 : ArrowUpZA) : (isDate ? ArrowDown10 : ArrowDownAZ))
-      : ChevronsUpDown;
-
-    const alignmentClassName =
-      align === 'left'
-        ? 'text-left'
-        : align === 'right'
-          ? 'text-right'
-          : 'text-center';
-
-    const alignmentContentClassName =
-      align === 'left'
-        ? 'justify-start'
-        : align === 'right'
-          ? 'justify-end'
-          : 'justify-center';
-
-    return (
-      <TableHead
-        className={cn('cursor-pointer select-none hover:bg-muted/60', alignmentClassName, className)}
-        onClick={() => requestSort(column)}
-      >
-        <div className={cn('flex items-center gap-1', alignmentContentClassName)}>
-          {title}
-          <Icon className={cn('h-4 w-4', active ? 'text-primary' : 'text-muted-foreground/50')} />
-        </div>
-      </TableHead>
-    );
-  };
-
   if (isLoading && principals.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 p-8">
@@ -311,11 +263,40 @@ export default function PrincipalsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableHead column="name" title="Principal" align="left" />
+                  <SortableTableHead
+                    column="name"
+                    title="Principal"
+                    activeColumn={sortConfig.column}
+                    direction={sortConfig.direction}
+                    onSort={requestSort}
+                    align="left"
+                  />
                   <TableHead className="text-left">Description</TableHead>
-                  <SortableHead column="type" title="Type" align="left" />
-                  <SortableHead column="active" title="Status" align="left" />
-                  <SortableHead column="created_at" title="Created" align="left" />
+                  <SortableTableHead
+                    column="type"
+                    title="Type"
+                    activeColumn={sortConfig.column}
+                    direction={sortConfig.direction}
+                    onSort={requestSort}
+                    align="left"
+                  />
+                  <SortableTableHead
+                    column="active"
+                    title="Status"
+                    activeColumn={sortConfig.column}
+                    direction={sortConfig.direction}
+                    onSort={requestSort}
+                    align="left"
+                  />
+                  <SortableTableHead
+                    column="created_at"
+                    title="Created"
+                    activeColumn={sortConfig.column}
+                    direction={sortConfig.direction}
+                    onSort={requestSort}
+                    align="left"
+                    isDateColumn={DATE_COLUMNS.has('created_at')}
+                  />
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

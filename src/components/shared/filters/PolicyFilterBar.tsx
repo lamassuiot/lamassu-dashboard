@@ -74,7 +74,7 @@ export function PolicyFilterBar({
       label: 'Name',
       placeholder: 'Search by policy name...',
       badgeKey: 'policy-name',
-      inputClassName: 'h-10 text-sm',
+      inputClassName: 'text-sm',
       changeTiming: 'timed',
       debounceMs: 500,
     }),
