@@ -28,18 +28,9 @@ import type {
   ListPrincipalsResponse,
 } from '@/types/authz';
 
-const getSelectedPrincipal = (): string => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('selectedPrincipal') || 'admin';
-  }
-  return 'admin';
-};
-
 const getAuthzContextHeaders = (): HeadersInit => {
-  const selectedPrincipal = getSelectedPrincipal();
   return {
     'Content-Type': 'application/json',
-    'X-Principal-ID': selectedPrincipal === 'admin' ? 'admin-mode' : selectedPrincipal,
   };
 };
 
