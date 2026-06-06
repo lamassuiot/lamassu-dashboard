@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -180,7 +180,7 @@ function EntitySelector({
           <button
             type="button"
             className={cn(
-              'flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap',
+              'flex h-10 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap',
               'transition-[color,box-shadow] duration-200 outline-none',
               'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30',
               'disabled:cursor-not-allowed disabled:opacity-50',
@@ -198,10 +198,9 @@ function EntitySelector({
                   {isWildcard ? (
                     <span className="font-sans text-sm italic text-muted-foreground">* · all entities</span>
                   ) : (
-                    <span className="truncate">
-                      <span className="text-muted-foreground/70">{selectedSchema?.schema_name ?? schema_name}</span>
-                      <span className="mx-1 text-muted-foreground/30">/</span>
-                      <span className="font-medium text-foreground">{entity_type}</span>
+                    <span className="flex flex-col min-w-0 truncate leading-tight">
+                      <span className="truncate font-medium text-foreground">{entity_type}</span>
+                      <span className="truncate font-sans text-[10px] text-muted-foreground">{selectedSchema?.schema_name ?? schema_name}</span>
                     </span>
                   )}
                 </span>
@@ -216,7 +215,7 @@ function EntitySelector({
         <PopoverContent
           align="start"
           sideOffset={4}
-          className="dark w-auto rounded-2xl p-0 gap-0 overflow-hidden bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/5"
+          className="w-auto rounded-2xl p-0 gap-0 overflow-hidden bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/5"
           style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '320px' }}
         >
           {/* Search */}
@@ -292,7 +291,7 @@ function EntitySelector({
                           type="button"
                           onClick={() => choose(enc)}
                           className={cn(
-                            'flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors',
+                            'group flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors',
                             isSelected
                               ? 'bg-accent text-accent-foreground'
                               : 'hover:bg-accent hover:text-accent-foreground'
@@ -313,7 +312,10 @@ function EntitySelector({
                             )}>
                               {s.entity_type}
                             </span>
-                            <span className="block font-mono text-[10px] leading-tight text-muted-foreground/60 truncate">
+                            <span className={cn(
+                              'block font-mono text-[10px] leading-tight truncate transition-colors',
+                              isSelected ? 'text-accent-foreground/60' : 'text-muted-foreground/60 group-hover:text-accent-foreground/60'
+                            )}>
                               {s.schema_name}
                             </span>
                           </span>
@@ -434,6 +436,72 @@ function ActionSelector({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TagInput — inline tag chip input
+// ─────────────────────────────────────────────────────────────────────────────
+interface TagInputProps {
+  values: string[];
+  onAdd: (value: string) => void;
+  onRemove: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+function TagInput({ values, onAdd, onRemove, placeholder, className }: TagInputProps) {
+  const [inputVal, setInputVal] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const commit = () => {
+    const val = inputVal.trim();
+    if (val && !values.includes(val)) onAdd(val);
+    setInputVal('');
+  };
+
+  return (
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-1 min-h-8 rounded-md border border-transparent bg-input/50 px-2 py-1 cursor-text',
+        'transition-[color,box-shadow] duration-200',
+        'focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30',
+        className
+      )}
+      onClick={() => inputRef.current?.focus()}
+    >
+      {values.map((v) => (
+        <span
+          key={v}
+          className="inline-flex items-center gap-0.5 rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground"
+        >
+          {v}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRemove(v); }}
+            className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        </span>
+      ))}
+      <input
+        ref={inputRef}
+        value={inputVal}
+        onChange={(e) => setInputVal(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ',') && inputVal.trim()) {
+            e.preventDefault();
+            commit();
+          } else if (e.key === 'Backspace' && !inputVal && values.length > 0) {
+            onRemove(values[values.length - 1]);
+          }
+        }}
+        onBlur={commit}
+        placeholder={values.length === 0 ? placeholder : ''}
+        className="flex-1 min-w-20 bg-transparent text-xs font-mono outline-none placeholder:text-muted-foreground/50"
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ColumnFilterRow — single column-filter condition editor
 // ─────────────────────────────────────────────────────────────────────────────
 interface ColumnFilterRowProps {
@@ -444,8 +512,6 @@ interface ColumnFilterRowProps {
 }
 
 function ColumnFilterRow({ filter, filterableFields, onChange, onDelete }: ColumnFilterRowProps) {
-  const [inInput, setInInput] = useState('');
-
   const fieldDef = filterableFields.find((f) => f.column === filter.column);
   const fieldType = fieldDef?.type;
   const availableOps = fieldType ? OPERATORS_BY_TYPE[fieldType] : ALL_OPERATORS;
@@ -465,13 +531,6 @@ function ColumnFilterRow({ filter, filterableFields, onChange, onDelete }: Colum
     const goingIn = operator === 'in';
     const value = wasIn && !goingIn ? '' : !wasIn && goingIn ? [] : filter.value;
     onChange({ ...filter, operator, value });
-  };
-
-  const addInValue = () => {
-    const val = inInput.trim();
-    if (!val || inValues.includes(val)) return;
-    onChange({ ...filter, value: [...inValues, val] });
-    setInInput('');
   };
 
   return (
@@ -516,44 +575,12 @@ function ColumnFilterRow({ filter, filterableFields, onChange, onDelete }: Colum
       {/* Value */}
       <div className="min-w-0 flex-1">
         {isIn ? (
-          <div className="space-y-1">
-            <div className="flex gap-1">
-              <Input
-                value={inInput}
-                onChange={(e) => setInInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    addInValue();
-                  }
-                }}
-                placeholder="value, Enter to add…"
-                className="h-8 text-xs font-mono"
-              />
-              <Button onClick={addInValue} size="sm" variant="outline" className="h-8 w-8 p-0 shrink-0">
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
-            {inValues.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {inValues.map((v) => (
-                  <span
-                    key={v}
-                    className="inline-flex items-center gap-0.5 rounded-full border bg-secondary/50 px-2 py-0.5 text-[10px] font-mono"
-                  >
-                    {v}
-                    <button
-                      type="button"
-                      onClick={() => onChange({ ...filter, value: inValues.filter((x) => x !== v) })}
-                      className="ml-0.5 hover:text-destructive"
-                    >
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+          <TagInput
+            values={inValues}
+            onAdd={(v) => onChange({ ...filter, value: [...inValues, v] })}
+            onRemove={(v) => onChange({ ...filter, value: inValues.filter((x) => x !== v) })}
+            placeholder="value, Enter to add…"
+          />
         ) : (
           <Input
             value={typeof filter.value === 'string' || typeof filter.value === 'number' ? String(filter.value) : ''}
@@ -795,8 +822,6 @@ interface RuleEditorProps {
 }
 
 function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleEditorProps) {
-  const [grantInput, setGrantInput] = useState('');
-
   const selectedEntityAddress: EntityAddress = normalizeEntityAddress({
     schema_name: rule.schema_name,
     entity_type: rule.entity_type,
@@ -821,11 +846,9 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
     onChange({ ...rule, actions: newActions });
   };
 
-  const addGrant = () => {
-    const val = grantInput.trim();
-    if (val && !rule.direct_grants?.includes(val)) {
+  const addGrant = (val: string) => {
+    if (!rule.direct_grants?.includes(val)) {
       onChange({ ...rule, direct_grants: [...(rule.direct_grants || []), val], column_filters: [] });
-      setGrantInput('');
     }
   };
 
@@ -1002,42 +1025,12 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
                       </span>
                     </div>
                   )}
-                  <div className="flex gap-2">
-                    <Input
-                      value={grantInput}
-                      onChange={(e) => setGrantInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          addGrant();
-                        }
-                      }}
-                      placeholder="Enter a principal ID and press Enter…"
-                      className="h-8 text-sm font-mono"
-                    />
-                    <Button onClick={addGrant} size="sm" variant="outline" className="h-8 shrink-0">
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                  {(rule.direct_grants?.length ?? 0) > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {rule.direct_grants!.map((grant) => (
-                        <span
-                          key={grant}
-                          className="inline-flex items-center gap-1 rounded-full border bg-secondary/50 px-2.5 py-0.5 text-xs font-mono text-secondary-foreground"
-                        >
-                          {grant}
-                          <button
-                            type="button"
-                            onClick={() => removeGrant(grant)}
-                            className="ml-0.5 rounded-full hover:text-destructive transition-colors"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <TagInput
+                    values={rule.direct_grants ?? []}
+                    onAdd={addGrant}
+                    onRemove={removeGrant}
+                    placeholder="Principal ID, Enter to add…"
+                  />
                 </>
               )}
             </div>
