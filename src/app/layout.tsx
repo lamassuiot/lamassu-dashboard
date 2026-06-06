@@ -52,12 +52,10 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { BackendStatusDialog } from '@/components/shared/BackendStatusDialog';
 import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
@@ -331,6 +329,34 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
     }
   }
 
+  const profileClaims = (user?.profile ?? {}) as Record<string, unknown>;
+  const nowSecs = Math.floor(Date.now() / 1000);
+  const tokenExp = typeof profileClaims.exp === 'number' ? profileClaims.exp : undefined;
+  const tokenIat = typeof profileClaims.iat === 'number' ? profileClaims.iat : undefined;
+  const sessionValid = tokenExp !== undefined ? nowSecs < tokenExp : true;
+  const expiresInSecs = tokenExp !== undefined ? Math.max(0, tokenExp - nowSecs) : null;
+  const expiresInMins = expiresInSecs !== null ? Math.floor(expiresInSecs / 60) : null;
+  const formatTs = (ts: number) =>
+    new Date(ts * 1000).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+  const claimLabels: Record<string, string> = {
+    sub: 'Subject', iss: 'Issuer', aud: 'Audience', iat: 'Issued At',
+    exp: 'Expires', auth_time: 'Auth Time', name: 'Name', email: 'Email',
+    preferred_username: 'Username', given_name: 'Given Name',
+    family_name: 'Family Name', email_verified: 'Email Verified',
+  };
+  const tsClaimFields = new Set(['iat', 'exp', 'auth_time']);
+  const primaryClaimKeys = ['name', 'email', 'preferred_username', 'given_name', 'family_name', 'sub', 'iss', 'aud', 'iat', 'exp', 'auth_time'];
+  const extraClaimKeys = Object.keys(profileClaims).filter(k => !primaryClaimKeys.includes(k) && k !== 'picture');
+  const renderClaimValue = (key: string, val: unknown): string => {
+    if (tsClaimFields.has(key) && typeof val === 'number') return formatTs(val);
+    if (Array.isArray(val)) return val.join(', ');
+    if (val === null || val === undefined) return '';
+    return String(val);
+  };
+
   const handleRunWizard = () => {
     if (typeof document !== 'undefined') {
       // Clear completion cookie
@@ -554,36 +580,133 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       </div>
 
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>User Profile & Token Claims</DialogTitle>
-            <DialogDescription>
-              This is the decoded information from your ID and Access tokens.
-            </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-4">
-            <div>
-              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Assigned Roles</h4>
-              <div className="flex flex-wrap gap-2">
-                {userRoles.length > 0 ? (
-                  userRoles.map(role => <Badge key={role} variant="secondary">{role}</Badge>)
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">No roles found in access token.</p>
+
+          <div className="space-y-4 py-1">
+            {/* Identity */}
+            <div className="flex items-center gap-3">
+              {user?.profile.picture && !avatarError ? (
+                <img
+                  src={user.profile.picture}
+                  alt={user.profile.name || ''}
+                  referrerPolicy="no-referrer"
+                  className="h-12 w-12 rounded-full object-cover ring-2 ring-border shrink-0"
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center ring-2 ring-border shrink-0">
+                  <User className="h-6 w-6 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm truncate">
+                    {user?.profile.name || profileClaims['preferred_username'] as string || user?.profile.email}
+                  </span>
+                  <Badge
+                    variant={sessionValid ? 'default' : 'destructive'}
+                    className="text-[10px] px-1.5 py-0 h-4 shrink-0"
+                  >
+                    {sessionValid ? 'Active' : 'Expired'}
+                  </Badge>
+                </div>
+                {user?.profile.email && (
+                  <p className="text-xs text-muted-foreground truncate">{user.profile.email}</p>
                 )}
+                <p className="text-[10px] text-muted-foreground/50 font-mono truncate mt-0.5">{user?.profile.sub}</p>
               </div>
             </div>
+
             <Separator />
+
+            {/* Session */}
+            {(tokenIat || tokenExp) && (
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Session</p>
+                <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-xs">
+                  {tokenIat && (
+                    <>
+                      <span className="text-muted-foreground">Issued</span>
+                      <span className="font-mono">{formatTs(tokenIat)}</span>
+                    </>
+                  )}
+                  {tokenExp && (
+                    <>
+                      <span className="text-muted-foreground">Expires</span>
+                      <span className={cn(
+                        'font-mono',
+                        !sessionValid
+                          ? 'text-destructive'
+                          : expiresInMins !== null && expiresInMins < 10
+                            ? 'text-yellow-500 dark:text-yellow-400'
+                            : '',
+                      )}>
+                        {sessionValid && expiresInSecs !== null && expiresInSecs > 0
+                          ? `in ${expiresInMins}m ${expiresInSecs % 60}s  (${formatTs(tokenExp)})`
+                          : formatTs(tokenExp)}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Roles */}
             <div>
-              <h4 className="text-sm font-semibold text-muted-foreground mb-2">ID Token Claims</h4>
-              <ScrollArea className="h-60 w-full rounded-md border p-4 bg-muted/30">
-                <pre className="text-xs whitespace-pre-wrap break-all">
-                  {user ? JSON.stringify(user.profile, null, 2) : "No user profile data available."}
-                </pre>
-              </ScrollArea>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Assigned Roles</p>
+              <div className="flex flex-wrap gap-1.5">
+                {userRoles.length > 0
+                  ? userRoles.map(role => (
+                      <Badge key={role} variant="secondary" className="text-xs font-normal">
+                        {role}
+                      </Badge>
+                    ))
+                  : <span className="text-xs text-muted-foreground italic">No roles found in access token</span>
+                }
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Claims table */}
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">ID Token Claims</p>
+              <div className="rounded-md border divide-y">
+                {primaryClaimKeys
+                  .filter(k => k in profileClaims)
+                  .map(key => (
+                    <div key={key} className="flex items-baseline px-3 py-1.5 gap-3 text-xs">
+                      <span className="text-muted-foreground w-28 shrink-0">{claimLabels[key] || key}</span>
+                      <span className="font-mono break-all">{renderClaimValue(key, profileClaims[key])}</span>
+                    </div>
+                  ))}
+              </div>
+              {extraClaimKeys.length > 0 && (
+                <details className="mt-2 group">
+                  <summary className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none hover:text-foreground list-none py-1">
+                    <span className="inline-block transition-transform group-open:rotate-90">▶</span>
+                    {extraClaimKeys.length} additional {extraClaimKeys.length === 1 ? 'claim' : 'claims'}
+                  </summary>
+                  <div className="rounded-md border divide-y mt-1.5">
+                    {extraClaimKeys.map(key => (
+                      <div key={key} className="flex items-baseline px-3 py-1.5 gap-3 text-xs">
+                        <span className="text-muted-foreground/70 w-28 shrink-0 font-mono">{key}</span>
+                        <span className="font-mono break-all">{renderClaimValue(key, profileClaims[key])}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           </div>
+
           <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setIsProfileModalOpen(false)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setIsProfileModalOpen(false)}>
               Close
             </Button>
           </DialogFooter>
