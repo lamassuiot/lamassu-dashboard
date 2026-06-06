@@ -289,8 +289,6 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false);
 
   useEffect(() => {
-    setCapabilitiesLoaded(false);
-
     if (!user?.access_token) {
       setGlobalCapabilities(null);
       setCapabilitiesLoaded(true);

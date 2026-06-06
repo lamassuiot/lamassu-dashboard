@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -23,15 +25,15 @@ import {
   Plus,
   Trash2,
   AlertCircle,
-  ChevronRight,
   X,
-  Shield,
   Link2,
   User,
   Zap,
-  ChevronsUpDown,
+  ChevronDown,
   Check,
   SlidersHorizontal,
+  Search,
+  Shield,
 } from 'lucide-react';
 import type {
   EntityAddress,
@@ -112,7 +114,6 @@ function EntitySelector({
 }: EntitySelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const filteredSchemas = filterByParentEntityType
     ? schemas.filter((s) =>
@@ -163,17 +164,6 @@ function EntitySelector({
       ? schema_name
       : undefined;
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery('');
-      }
-    };
-    if (open) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
   const choose = (enc: string, ns?: string) => {
     const { schema_name: sn, entity_type: et } = decodeEntity(enc);
     onSelect(sn, et, ns);
@@ -184,141 +174,162 @@ function EntitySelector({
   const hasGroups = Object.keys(namespaceGroups).length > 0;
 
   return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          'flex h-9 w-full items-center justify-between rounded-md border bg-background px-3 py-2 text-sm ring-offset-background',
-          'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-          error ? 'border-destructive' : 'border-input hover:border-ring/60'
-        )}
-      >
-        <span className="flex items-center gap-2 min-w-0 flex-1">
-          {selectedValue ? (
-            <span className="flex flex-col min-w-0 text-left">
-              <span className="font-medium text-sm leading-tight truncate">{displayLabel}</span>
-              {displaySub && (
-                <span className="text-[10px] text-muted-foreground leading-tight truncate">
-                  {displaySub}
+    <div>
+      <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(''); }}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              'flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap',
+              'transition-[color,box-shadow] duration-200 outline-none',
+              'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              error && 'border-destructive ring-3 ring-destructive/20'
+            )}
+          >
+            <span className="flex-1 min-w-0 text-left">
+              {selectedValue ? (
+                <span className="flex items-center gap-1.5 font-mono text-sm">
+                  {!isWildcard && selectedSchema?.namespace && (
+                    <span className="shrink-0 rounded border bg-muted px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-muted-foreground">
+                      {selectedSchema.namespace}
+                    </span>
+                  )}
+                  {isWildcard ? (
+                    <span className="font-sans text-sm italic text-muted-foreground">* · all entities</span>
+                  ) : (
+                    <span className="truncate">
+                      <span className="text-muted-foreground/70">{selectedSchema?.schema_name ?? schema_name}</span>
+                      <span className="mx-1 text-muted-foreground/30">/</span>
+                      <span className="font-medium text-foreground">{entity_type}</span>
+                    </span>
+                  )}
                 </span>
+              ) : (
+                <span className="text-muted-foreground">{placeholder}</span>
               )}
             </span>
-          ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
-          )}
-        </span>
-        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground ml-2" />
-      </button>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground pointer-events-none" />
+          </button>
+        </PopoverTrigger>
 
-      {open && (
-        <div className="absolute z-50 mt-1 w-full min-w-[280px] rounded-md border bg-popover shadow-md">
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          className="dark w-auto rounded-2xl p-0 gap-0 overflow-hidden bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/5"
+          style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '320px' }}
+        >
           {/* Search */}
-          <div className="p-2 border-b">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
             <Input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search…"
-              className="h-7 text-xs"
+              placeholder="Filter entities…"
+              className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
 
-          <div className="max-h-72 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto p-1">
             {!hasGroups && (
-              <p className="px-3 py-4 text-center text-xs text-muted-foreground">No results</p>
+              <div className="px-4 py-6 text-center">
+                <p className="text-xs text-muted-foreground">
+                  {query ? `No entities matching "${query}"` : 'No entities available'}
+                </p>
+              </div>
             )}
 
-            {Object.entries(namespaceGroups).map(([ns, schemaGroups]) => (
-              <div key={ns} className="py-1">
-                {/* Namespace header */}
-                <div className="flex items-center gap-2 px-3 py-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 shrink-0">
-                    {ns}
-                  </span>
-                  <div className="flex-1 h-px bg-border/40" />
-                </div>
+            {Object.entries(namespaceGroups).map(([ns, schemaGroups]) => {
+              const allItems = Object.values(schemaGroups).flat();
+              return (
+                <div key={ns} className="mb-1 last:mb-0">
+                  {/* Namespace label */}
+                  <div className="px-2 py-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                      {ns}
+                    </span>
+                  </div>
 
-                {/* Column headers */}
-                <div className="grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] items-center px-3 pb-1 gap-2">
-                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/40 pl-5">
-                    Schema
-                  </span>
-                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/40">
-                    Entity Type
-                  </span>
-                </div>
-
-                {/* Wildcard row for this namespace */}
-                {includeWildcard && (
-                  <button
-                    type="button"
-                    onClick={() => choose(encodeEntity('*', '*'), ns)}
-                    className={cn(
-                      'grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] w-full items-center px-3 py-1.5 gap-2',
-                      'hover:bg-accent cursor-pointer transition-colors text-left',
-                      isWildcard && namespace === ns && 'bg-accent'
-                    )}
-                  >
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      {isWildcard && namespace === ns ? (
-                        <Check className="h-3 w-3 text-primary shrink-0" />
-                      ) : (
-                        <span className="h-3 w-3 shrink-0" />
+                  {/* Wildcard row — full width, outside the column grid */}
+                  {includeWildcard && (
+                    <button
+                      type="button"
+                      onClick={() => choose(encodeEntity('*', '*'), ns)}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors',
+                        'hover:bg-accent hover:text-accent-foreground',
+                        isWildcard && namespace === ns && 'bg-accent text-accent-foreground'
                       )}
-                      <span className="text-xs text-muted-foreground font-mono truncate">*</span>
-                    </span>
-                    <span className="text-sm font-medium truncate flex items-center gap-1.5">
-                      <span className="font-mono">*</span>
-                      <span className="text-xs text-muted-foreground italic">(all entities)</span>
-                    </span>
-                  </button>
-                )}
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-muted/40 font-mono text-[10px] font-bold text-muted-foreground">
+                        *
+                      </span>
+                      <span className="flex-1 text-xs italic text-muted-foreground">All entities</span>
+                      {isWildcard && namespace === ns && (
+                        <Check className="h-3 w-3 shrink-0 text-primary" />
+                      )}
+                    </button>
+                  )}
 
-                {/* Rows per namespace */}
-                {Object.entries(schemaGroups).flatMap(([, items]) =>
-                  items.map((s) => {
-                    const enc = encodeEntity(s.schema_name, s.entity_type);
-                    const isSelected = selectedValue === enc;
-                    return (
-                      <button
-                        key={enc}
-                        type="button"
-                        onClick={() => choose(enc)}
-                        className={cn(
-                          'grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] w-full items-center px-3 py-1.5 gap-2',
-                          'hover:bg-accent cursor-pointer transition-colors text-left',
-                          isSelected && 'bg-accent'
-                        )}
-                      >
-                        <span className="flex items-center gap-1.5 min-w-0">
-                          {isSelected ? (
-                            <Check className="h-3 w-3 text-primary shrink-0" />
-                          ) : (
-                            <span className="h-3 w-3 shrink-0" />
-                          )}
-                          <span className="text-xs text-muted-foreground font-mono truncate">
-                            {s.schema_name}
-                          </span>
-                        </span>
-                        <span
+                  {/* Entity grid — 2 columns per namespace */}
+                  <div className="grid grid-cols-2 gap-0.5">
+                    {allItems.map((s) => {
+                      const enc = encodeEntity(s.schema_name, s.entity_type);
+                      const isSelected = selectedValue === enc;
+                      return (
+                        <button
+                          key={enc}
+                          type="button"
+                          onClick={() => choose(enc)}
                           className={cn(
-                            'text-sm truncate',
-                            isSelected ? 'font-semibold text-foreground' : 'font-medium'
+                            'flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors',
+                            isSelected
+                              ? 'bg-accent text-accent-foreground'
+                              : 'hover:bg-accent hover:text-accent-foreground'
                           )}
                         >
-                          {s.entity_type}
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            ))}
+                          <span className={cn(
+                            'flex h-5 w-5 shrink-0 items-center justify-center rounded border font-mono text-[9px] font-bold uppercase',
+                            isSelected
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border bg-muted/40 text-muted-foreground'
+                          )}>
+                            {s.entity_type.charAt(0)}
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className={cn(
+                              'block text-xs leading-tight truncate',
+                              isSelected ? 'font-semibold' : 'font-medium'
+                            )}>
+                              {s.entity_type}
+                            </span>
+                            <span className="block font-mono text-[10px] leading-tight text-muted-foreground/60 truncate">
+                              {s.schema_name}
+                            </span>
+                          </span>
+                          {isSelected && (
+                            <Check className="h-3 w-3 shrink-0 text-primary" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
       {error && <p className="text-xs text-destructive mt-1">{error}</p>}
     </div>
   );
@@ -350,33 +361,30 @@ function ActionSelector({
     const isSelected = selected.includes(action);
     const disabled = isWild && !isWildOption;
     return (
-      <label
+      <div
         key={action}
-        className={cn(
-          'flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer select-none transition-colors text-sm',
-          disabled ? 'opacity-40 pointer-events-none' : 'hover:bg-accent',
-          isSelected && !disabled && 'bg-accent/70',
-        )}
+        className={cn('flex items-center gap-2 px-2.5 py-1', disabled && 'opacity-40')}
       >
-        <input
-          type="checkbox"
+        <Checkbox
           checked={isSelected}
-          onChange={() => onToggle(action)}
+          onCheckedChange={() => !disabled && onToggle(action)}
           disabled={disabled}
-          className="h-3.5 w-3.5 rounded accent-primary shrink-0"
+          className="size-3.5 shrink-0"
         />
         <span
           className={cn(
-            'font-mono text-xs',
-            isSelected ? 'font-semibold text-foreground' : 'text-muted-foreground'
+            'font-mono text-xs select-none',
+            disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+            isSelected ? 'text-foreground' : 'text-muted-foreground',
           )}
+          onClick={() => !disabled && onToggle(action)}
         >
           {action}
         </span>
         {isWildOption && (
-          <span className="text-[10px] text-muted-foreground italic">(all actions)</span>
+          <span className="text-[10px] text-muted-foreground/60">(all)</span>
         )}
-      </label>
+      </div>
     );
   };
 
@@ -393,7 +401,7 @@ function ActionSelector({
       )}
       {hasAtomic && (
         <div className="p-2 space-y-0.5">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Atomic
           </p>
           <div className="grid grid-cols-2 gap-0.5">
@@ -403,7 +411,7 @@ function ActionSelector({
       )}
       {hasGlobal && (
         <div className="p-2 space-y-0.5">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Global
           </p>
           <div className="grid grid-cols-2 gap-0.5">
@@ -413,7 +421,7 @@ function ActionSelector({
       )}
       {hasExtra && (
         <div className="p-2 space-y-0.5">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Other
           </p>
           <div className="grid grid-cols-2 gap-0.5">
@@ -573,7 +581,7 @@ function ColumnFilterRow({ filter, filterableFields, onChange, onDelete }: Colum
 // RuleSection — titled section within a rule editor
 // ─────────────────────────────────────────────────────────────────────────────
 function RuleSection({
-  icon,
+  icon: _,
   title,
   description,
   children,
@@ -586,22 +594,17 @@ function RuleSection({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="py-5 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted mt-0.5">
-            <span className="text-muted-foreground [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
-          </div>
-          <div>
-            <p className="text-sm font-semibold leading-tight">{title}</p>
-            {description && (
-              <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-            )}
-          </div>
+    <div className="py-4 space-y-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide">{title}</p>
+          {description && (
+            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          )}
         </div>
         {action}
       </div>
-      <div className="pl-[34px]">{children}</div>
+      {children}
     </div>
   );
 }
@@ -663,28 +666,14 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
       )}
 
       {rules.length === 0 ? (
-        <button
-          type="button"
-          onClick={addRule}
-          className="w-full rounded-xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-accent/20 transition-colors p-8 text-center group"
-        >
-          <div className="flex flex-col items-center gap-2.5 text-muted-foreground group-hover:text-foreground transition-colors">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted group-hover:bg-primary/10 transition-colors">
-              <Shield className="h-5 w-5 group-hover:text-primary transition-colors" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">No rules defined yet</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Click to add your first access rule
-              </p>
-            </div>
-          </div>
-        </button>
+        <div className="rounded-md border border-dashed px-4 py-6 text-center">
+          <p className="text-sm text-muted-foreground">No access rules defined</p>
+        </div>
       ) : (
         <Accordion
           type="single"
           collapsible
-          className="w-full space-y-2"
+          className="w-full space-y-2 border-0 rounded-none overflow-visible bg-transparent"
           value={openAccordionValue}
           onValueChange={setOpenAccordionValue}
         >
@@ -694,7 +683,6 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
             const hasRelations = rule.relations.length > 0;
             const hasGrants = (rule.direct_grants?.length ?? 0) > 0;
             const hasFilters = (rule.column_filters?.length ?? 0) > 0;
-            const entityLabel = hasEntity ? null : 'New Rule';
             const schemaDisplay = rule.schema_name || '';
             const entityDisplay = rule.entity_type || '';
 
@@ -705,61 +693,59 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                 : 'bg-green-500';
 
             return (
+              <div key={index} className="rounded-lg p-[2px] bg-gradient-to-br from-primary to-[#39ff14]">
               <AccordionItem
-                key={index}
                 value={`rule-${index}`}
-                className="rounded-lg border bg-card"
+                className="rounded-md bg-card border-0 w-full data-open:bg-card"
               >
-                <AccordionTrigger className="hover:no-underline px-4 py-3.5 gap-3 hover:bg-muted/30 transition-colors [&>svg]:shrink-0">
+                <AccordionTrigger className="hover:no-underline px-4 py-3 gap-3 [&>svg]:shrink-0 [&>svg]:size-3.5 [&>svg]:text-muted-foreground/40">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className={cn('h-2 w-2 rounded-full shrink-0', statusColor)} />
-                    <span className="text-xs font-bold tabular-nums text-muted-foreground/60 shrink-0 w-5 text-right">
-                      {index + 1}
+                    <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', statusColor)} />
+                    <span className="font-mono text-[10px] tabular-nums text-muted-foreground/40 shrink-0">
+                      {String(index + 1).padStart(2, '0')}
                     </span>
-                    <span className="flex items-center gap-1.5 min-w-0 flex-1 font-mono text-xs">
-                      {rule.namespace && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono shrink-0">
-                          {rule.namespace}
-                        </Badge>
-                      )}
-                      {entityLabel ? (
-                        <span className="text-sm text-muted-foreground italic font-sans font-normal">
-                          {entityLabel}
-                        </span>
+                    <span className="flex-1 min-w-0 font-mono text-xs">
+                      {!hasEntity ? (
+                        <span className="font-sans text-sm italic text-muted-foreground font-normal">Unconfigured</span>
                       ) : (
-                        <>
-                          <span className="text-muted-foreground">Schema:</span>
-                          <span className="font-semibold text-foreground truncate">{schemaDisplay}</span>
-                          <span className="text-muted-foreground/40">/</span>
-                          <span className="text-muted-foreground">Entity:</span>
-                          <span className="font-semibold text-foreground truncate">{entityDisplay}</span>
-                        </>
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {rule.namespace && (
+                            <span className="shrink-0 rounded border bg-muted px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-muted-foreground">
+                              {rule.namespace}
+                            </span>
+                          )}
+                          <span className="truncate">
+                            <span className="text-muted-foreground/70">{schemaDisplay}</span>
+                            <span className="mx-1 text-muted-foreground/30">/</span>
+                            <span className="font-medium text-foreground">{entityDisplay}</span>
+                          </span>
+                        </span>
                       )}
                     </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       {hasActions && (
                         <Badge
                           variant="default"
-                          className="text-[10px] px-1.5 py-0 bg-primary/90 gap-1"
+                          className="text-[10px] px-1.5 py-0 bg-primary/90 gap-1 rounded-sm"
                         >
                           <Zap className="h-2.5 w-2.5" />
                           {rule.actions.length}
                         </Badge>
                       )}
                       {hasRelations && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <Link2 className="h-2.5 w-2.5" />
                           {rule.relations.length}
                         </Badge>
                       )}
                       {hasGrants && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <User className="h-2.5 w-2.5" />
                           {rule.direct_grants!.length}
                         </Badge>
                       )}
                       {hasFilters && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <SlidersHorizontal className="h-2.5 w-2.5" />
                           {rule.column_filters!.length}
                         </Badge>
@@ -778,6 +764,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                   />
                 </AccordionContent>
               </AccordionItem>
+              </div>
             );
           })}
         </Accordion>
@@ -1195,24 +1182,17 @@ function RelationEditor({
 
   const noEntitiesAvailable = availableTargetEntities.length === 0;
 
-  const depthAccent = [
-    'border-l-sky-400 dark:border-l-sky-600',
-    'border-l-violet-400 dark:border-l-violet-600',
-    'border-l-emerald-400 dark:border-l-emerald-600',
-  ][Math.min(depth, 2)];
-
   return (
     <div
       className={cn(
-        'rounded-lg border bg-muted/20',
+        'rounded-md border bg-muted/20',
         depth > 0 && 'ml-4'
       )}
     >
       {/* Relation header */}
-      <div className={cn('flex items-center justify-between px-3 py-2 border-b border-l-2', depthAccent)}>
+      <div className="flex items-center justify-between px-3 py-2 border-b">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <ChevronRight className="h-3 w-3" />
-          {depth === 0 ? 'Relation' : `Nested relation (level ${depth})`}
+          {depth === 0 ? 'Relation' : `Nested (${depth + 1})`}
           {selectedTargetAddress.entity_type && (
             <>
               <span className="text-muted-foreground/40 mx-0.5">·</span>
@@ -1269,11 +1249,11 @@ function RelationEditor({
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Via relation *</Label>
                 {!selectedTargetAddress.entity_type ? (
-                  <div className="h-9 flex items-center px-3 text-xs text-muted-foreground italic border rounded-md bg-muted/30">
+                  <div className="h-8 flex items-center px-3 text-xs text-muted-foreground italic border border-transparent rounded-2xl bg-input/50">
                     Select target first
                   </div>
                 ) : relationsForTarget.length === 0 ? (
-                  <div className="h-9 flex items-center px-3 text-xs text-muted-foreground italic border rounded-md bg-muted/30">
+                  <div className="h-8 flex items-center px-3 text-xs text-muted-foreground italic border border-transparent rounded-2xl bg-input/50">
                     No relations to {selectedTargetQualified}
                   </div>
                 ) : (
