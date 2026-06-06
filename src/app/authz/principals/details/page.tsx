@@ -272,7 +272,7 @@ function PrincipalDetailsContent() {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error || 'Principal not found'}</AlertDescription>
         </Alert>
-        <Button variant="outline" onClick={() => router.push('/authz/principals')}>
+        <Button variant="secondary" onClick={() => router.push('/authz/principals')}>
           Back to Principals
         </Button>
       </div>
@@ -461,16 +461,15 @@ function PrincipalDetailsContent() {
 
           <div className="flex items-center gap-2 shrink-0">
             <Button
-              variant="outline"
-              size="sm"
+              variant="secondary"
               onClick={() => router.push(`/authz/principals/edit?principal_id=${principal.id}`)}
             >
-              <Pencil className="mr-1.5 h-3.5 w-3.5" />
+              <Pencil className="mr-2 h-4 w-4" />
               Edit
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-8 w-8">
+                <Button variant="secondary" size="icon">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -539,8 +538,8 @@ function PrincipalDetailsContent() {
         {/* Policies Tab */}
         <TabsContent value="policies" className="mt-6 space-y-4">
           <div className="flex items-center justify-end">
-            <Button size="sm" onClick={() => setGrantDrawerOpen(true)}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
+            <Button onClick={() => setGrantDrawerOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
               Assign Policy
             </Button>
           </div>
@@ -556,8 +555,8 @@ function PrincipalDetailsContent() {
               <p className="text-sm text-muted-foreground mt-1">
                 Assign a policy to grant permissions to this principal.
               </p>
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => setGrantDrawerOpen(true)}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
+              <Button variant="secondary" className="mt-4" onClick={() => setGrantDrawerOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
                 Assign First Policy
               </Button>
             </div>
@@ -595,10 +594,10 @@ function PrincipalDetailsContent() {
                     <TableCell className="text-right">
                       <Button
                         variant="secondary"
-                        size="sm"
+                        size="icon"
                         onClick={() => { setSelectedPolicyToRevoke(grantedPolicy); setRevokeDialogOpen(true); }}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -759,15 +758,14 @@ function PrincipalDetailsContent() {
               </div>
             )}
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={() => setGrantDrawerOpen(false)} disabled={!!assigningPolicyId}>
+              <Button variant="secondary" onClick={() => setGrantDrawerOpen(false)} disabled={!!assigningPolicyId}>
                 Cancel
               </Button>
               <Button
-                size="sm"
                 onClick={() => selectedPolicy && handleAssignPolicy(selectedPolicy.id)}
                 disabled={!selectedPolicy || !!assigningPolicyId}
               >
-                {assigningPolicyId && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                {assigningPolicyId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Assign Policy
               </Button>
             </div>

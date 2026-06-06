@@ -225,7 +225,7 @@ export default function AuthorizationTestPage() {
               value={authCreds.auth_type}
               onValueChange={(v: 'oidc' | 'x509') => setAuthCreds({ ...authCreds, auth_type: v, value: '' })}
             >
-              <SelectTrigger id={`${idPrefix}-auth-type`}><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`${idPrefix}-auth-type`} className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="x509">X.509 Certificate</SelectItem>
                 <SelectItem value="oidc">OIDC / JWT Token</SelectItem>
@@ -251,7 +251,7 @@ export default function AuthorizationTestPage() {
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-principal`}>Principal</Label>
         <Select value={principal_id} onValueChange={onPrincipalChange}>
-          <SelectTrigger id={`${idPrefix}-principal`}><SelectValue placeholder="Select principal" /></SelectTrigger>
+          <SelectTrigger id={`${idPrefix}-principal`} className="w-full"><SelectValue placeholder="Select principal" /></SelectTrigger>
           <SelectContent>
             {principals.map((p) => (
               <SelectItem key={p.id} value={p.id}>
@@ -388,28 +388,28 @@ export default function AuthorizationTestPage() {
               <div className="space-y-1.5">
                 <Label>Namespace</Label>
                 <Select value={authorizeForm.namespace} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, namespace: v, schema_name: '', entity_type: '', action: '' })}>
-                  <SelectTrigger><SelectValue placeholder="Select namespace" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select namespace" /></SelectTrigger>
                   <SelectContent>{allNamespaces.map((ns) => <SelectItem key={ns} value={ns}>{ns}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Schema Name</Label>
                 <Select value={authorizeForm.schema_name} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, schema_name: v, entity_type: '', action: '' })} disabled={!authorizeForm.namespace}>
-                  <SelectTrigger><SelectValue placeholder="Select schema name" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select schema name" /></SelectTrigger>
                   <SelectContent>{getSchemaOptionsForNamespace(authorizeForm.namespace).map((sn) => <SelectItem key={sn} value={sn}>{sn}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Entity Type</Label>
                 <Select value={authorizeForm.entity_type} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, entity_type: v, action: '' })} disabled={!authorizeForm.namespace || !authorizeForm.schema_name}>
-                  <SelectTrigger><SelectValue placeholder="Select entity type" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select entity type" /></SelectTrigger>
                   <SelectContent>{getEntityTypeOptions(authorizeForm.namespace, authorizeForm.schema_name).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Action</Label>
                 <Select value={authorizeForm.action} onValueChange={(v) => setAuthorizeForm({ ...authorizeForm, action: v })} disabled={!authorizeForm.entity_type}>
-                  <SelectTrigger><SelectValue placeholder="Select action" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select action" /></SelectTrigger>
                   <SelectContent>{getAvailableActions(authorizeForm.namespace, authorizeForm.schema_name, authorizeForm.entity_type).map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -418,13 +418,10 @@ export default function AuthorizationTestPage() {
                 <Input placeholder='device-42  or  {"device_id": "device-42"}' value={authorizeForm.entity_key} onChange={(e) => setAuthorizeForm({ ...authorizeForm, entity_key: e.target.value })} />
               </div>
               <Separator />
-              <div className="flex gap-2">
-                <Button onClick={handleAuthorize} disabled={loading} className="flex-1">
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                  Test Authorization
-                </Button>
-                <Button variant="outline" onClick={() => { setAuthorizeForm({ principal_id: '', namespace: '', schema_name: '', action: '', entity_type: '', entity_key: '' }); setAuthorizeResult(null); setError(null); }}>Reset</Button>
-              </div>
+              <Button onClick={handleAuthorize} disabled={loading}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                Test Authorization
+              </Button>
             </div>
 
             <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
@@ -467,32 +464,29 @@ export default function AuthorizationTestPage() {
               <div className="space-y-1.5">
                 <Label>Namespace</Label>
                 <Select value={filterForm.namespace} onValueChange={(v) => setFilterForm({ ...filterForm, namespace: v, schema_name: '', entity_type: '' })}>
-                  <SelectTrigger><SelectValue placeholder="Select namespace" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select namespace" /></SelectTrigger>
                   <SelectContent>{allNamespaces.map((ns) => <SelectItem key={ns} value={ns}>{ns}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Schema Name</Label>
                 <Select value={filterForm.schema_name} onValueChange={(v) => setFilterForm({ ...filterForm, schema_name: v, entity_type: '' })} disabled={!filterForm.namespace}>
-                  <SelectTrigger><SelectValue placeholder="Select schema name" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select schema name" /></SelectTrigger>
                   <SelectContent>{getSchemaOptionsForNamespace(filterForm.namespace).map((sn) => <SelectItem key={sn} value={sn}>{sn}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Entity Type</Label>
                 <Select value={filterForm.entity_type} onValueChange={(v) => setFilterForm({ ...filterForm, entity_type: v })} disabled={!filterForm.namespace || !filterForm.schema_name}>
-                  <SelectTrigger><SelectValue placeholder="Select entity type" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select entity type" /></SelectTrigger>
                   <SelectContent>{getEntityTypeOptions(filterForm.namespace, filterForm.schema_name).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <Separator />
-              <div className="flex gap-2">
-                <Button onClick={handleFilter} disabled={loading} className="flex-1">
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
-                  Get Filter
-                </Button>
-                <Button variant="outline" onClick={() => { setFilterForm({ principal_id: '', namespace: '', schema_name: '', entity_type: '' }); setFilterResult(null); setError(null); }}>Reset</Button>
-              </div>
+              <Button onClick={handleFilter} disabled={loading}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
+                Get Filter
+              </Button>
             </div>
 
             <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
@@ -534,13 +528,10 @@ export default function AuthorizationTestPage() {
               </div>
               {renderIdentitySection(globalCapsForm.principal_id, (v) => setGlobalCapsForm({ principal_id: v }), 'gc')}
               <Separator />
-              <div className="flex gap-2">
-                <Button onClick={handleGlobalCaps} disabled={loading} className="flex-1">
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                  Get Global Capabilities
-                </Button>
-                <Button variant="outline" onClick={() => { setGlobalCapsForm({ principal_id: '' }); setGlobalCapsResult(null); setError(null); }}>Reset</Button>
-              </div>
+              <Button onClick={handleGlobalCaps} disabled={loading}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                Get Global Capabilities
+              </Button>
             </div>
 
             <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
@@ -590,21 +581,21 @@ export default function AuthorizationTestPage() {
               <div className="space-y-1.5">
                 <Label>Namespace</Label>
                 <Select value={entityCapsQuery.namespace} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, namespace: v, schema_name: '', entity_type: '' })}>
-                  <SelectTrigger><SelectValue placeholder="Select namespace" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select namespace" /></SelectTrigger>
                   <SelectContent>{allNamespaces.map((ns) => <SelectItem key={ns} value={ns}>{ns}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Schema Name</Label>
                 <Select value={entityCapsQuery.schema_name} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, schema_name: v, entity_type: '' })} disabled={!entityCapsQuery.namespace}>
-                  <SelectTrigger><SelectValue placeholder="Select schema name" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select schema name" /></SelectTrigger>
                   <SelectContent>{getSchemaOptionsForNamespace(entityCapsQuery.namespace).map((sn) => <SelectItem key={sn} value={sn}>{sn}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Entity Type</Label>
                 <Select value={entityCapsQuery.entity_type} onValueChange={(v) => setEntityCapsQuery({ ...entityCapsQuery, entity_type: v })} disabled={!entityCapsQuery.namespace || !entityCapsQuery.schema_name}>
-                  <SelectTrigger><SelectValue placeholder="Select entity type" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select entity type" /></SelectTrigger>
                   <SelectContent>{getEntityTypeOptions(entityCapsQuery.namespace, entityCapsQuery.schema_name).map((et) => <SelectItem key={et} value={et}>{et}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -613,13 +604,10 @@ export default function AuthorizationTestPage() {
                 <Input placeholder='device-42  or  {"device_id": "device-42"}' value={entityCapsQuery.entity_key} onChange={(e) => setEntityCapsQuery({ ...entityCapsQuery, entity_key: e.target.value })} />
               </div>
               <Separator />
-              <div className="flex gap-2">
-                <Button onClick={handleEntityCaps} disabled={loading} className="flex-1">
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                  Get Entity Capabilities
-                </Button>
-                <Button variant="outline" onClick={() => { setEntityCapsForm({ principal_id: '' }); setEntityCapsQuery({ namespace: '', schema_name: '', entity_type: '', entity_key: '' }); setEntityCapsResult(null); setError(null); }}>Reset</Button>
-              </div>
+              <Button onClick={handleEntityCaps} disabled={loading}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                Get Entity Capabilities
+              </Button>
             </div>
 
             <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
