@@ -325,14 +325,15 @@ export default function PrincipalsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={principal.active ? 'default' : 'secondary'} className="text-xs">
-                        {principal.active ? (
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                        ) : (
-                          <XCircle className="h-3 w-3 mr-1" />
-                        )}
-                        {principal.active ? 'Active' : 'Inactive'}
-                      </Badge>
+                      {principal.active ? (
+                        <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800 text-xs">
+                          <CheckCircle className="h-3 w-3" /> Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1 text-xs">
+                          <XCircle className="h-3 w-3" /> Inactive
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <DateDisplay date={principal.created_at} />

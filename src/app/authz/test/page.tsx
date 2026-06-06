@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, AlertCircle, CheckCircle, XCircle, Play, Filter, ShieldCheck, Globe, Database, TestTube2 } from 'lucide-react';
+import { Loader2, AlertCircle, ShieldCheck, ShieldX, Play, Filter, Globe, Database, TestTube2, ChevronRight } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -213,7 +213,7 @@ export default function AuthorizationTestPage() {
     } finally { setLoading(false); }
   };
 
-  // ─── Shared render helpers ────────────────────────────────────
+  // ─── Render helpers ───────────────────────────────────────────
 
   const renderIdentitySection = (principal_id: string, onPrincipalChange: (v: string) => void, idPrefix: string) => {
     if (matchMode) {
@@ -265,27 +265,64 @@ export default function AuthorizationTestPage() {
     );
   };
 
-  const renderMatchedPrincipals = (ids: string[]) => (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Matched Principals</p>
-      <div className="flex flex-wrap gap-2">
-        {ids.length > 0
-          ? ids.map((p) => <Badge key={p} variant="secondary">{p}</Badge>)
-          : <span className="text-sm text-muted-foreground">No principals matched</span>}
+  const EmptyResult = () => (
+    <div className="flex flex-col items-center justify-center py-10 gap-2.5 text-muted-foreground">
+      <TestTube2 className="h-8 w-8 opacity-20" />
+      <span className="text-sm">Run a test to see results</span>
+    </div>
+  );
+
+  const FullResponse = ({ data }: { data: unknown }) => (
+    <details className="group rounded-md border overflow-hidden">
+      <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+        View full response
+      </summary>
+      <pre className="border-t bg-muted/40 px-4 py-3 overflow-auto text-xs">{JSON.stringify(data, null, 2)}</pre>
+    </details>
+  );
+
+  const DecisionBanner = ({ allowed, label, detail }: { allowed: boolean; label: string; detail: string }) => (
+    <div className={cn(
+      'flex items-center gap-3 rounded-md border-l-4 px-4 py-3',
+      allowed
+        ? 'border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20'
+        : 'border-l-red-500 bg-red-50/50 dark:bg-red-950/20',
+    )}>
+      {allowed
+        ? <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        : <ShieldX className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />}
+      <div>
+        <p className={cn(
+          'text-sm font-semibold leading-tight',
+          allowed ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300',
+        )}>{label}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{detail}</p>
       </div>
     </div>
   );
 
-  const EmptyResult = () => (
-    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-      Run a test to see results
-    </div>
+  const ResultTable = ({ rows }: { rows: { label: string; value: React.ReactNode }[] }) => (
+    <table className="w-full text-sm">
+      <tbody className="divide-y divide-border">
+        {rows.map(({ label, value }) => (
+          <tr key={label}>
+            <td className="py-2 pr-6 align-top text-xs font-medium text-muted-foreground w-28 whitespace-nowrap">{label}</td>
+            <td className="py-2 text-xs">{value}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 
-  const ResultField = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
-      {children}
+  const MatchedPrincipals = ({ ids }: { ids: string[] }) => (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground">Matched principals</p>
+      <div className="flex flex-wrap gap-1.5">
+        {ids.length > 0
+          ? ids.map((p) => <Badge key={p} variant="secondary" className="font-mono text-xs">{p}</Badge>)
+          : <span className="text-xs text-muted-foreground">None matched</span>}
+      </div>
     </div>
   );
 
@@ -306,10 +343,10 @@ export default function AuthorizationTestPage() {
             <p className="text-sm text-muted-foreground mt-1">Test authorization rules and policies.</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0 pt-1">
-          <span className={cn('text-sm font-medium', !matchMode ? 'text-foreground' : 'text-muted-foreground')}>Principal</span>
+        <div className="flex items-center gap-2.5 shrink-0 rounded-md border bg-card px-3 py-1.5">
+          <span className={cn('text-xs font-medium', !matchMode ? 'text-foreground' : 'text-muted-foreground')}>Principal</span>
           <Switch checked={matchMode} onCheckedChange={handleToggleMatchMode} id="match-mode-toggle" />
-          <span className={cn('text-sm font-medium', matchMode ? 'text-foreground' : 'text-muted-foreground')}>Match</span>
+          <span className={cn('text-xs font-medium', matchMode ? 'text-foreground' : 'text-muted-foreground')}>Match</span>
         </div>
       </div>
 
@@ -343,8 +380,8 @@ export default function AuthorizationTestPage() {
           <div className="grid gap-0 md:grid-cols-2 md:divide-x">
             <div className="space-y-4 md:pr-8">
               <div>
-                <p className="font-semibold">Parameters</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Configure the authorization test parameters</p>
+                <p className="text-sm font-semibold">Parameters</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Configure the authorization test parameters</p>
               </div>
               {renderIdentitySection(authorizeForm.principal_id, (v) => setAuthorizeForm({ ...authorizeForm, principal_id: v }), 'auth')}
               <Separator />
@@ -391,41 +428,26 @@ export default function AuthorizationTestPage() {
             </div>
 
             <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
-              <p className="font-semibold">Result</p>
+              <p className="text-sm font-semibold">Result</p>
               {!authorizeResult ? <EmptyResult /> : (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-center py-6">
-                    {authorizeResult.allowed ? (
-                      <div className="text-center">
-                        <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-3" />
-                        <h3 className="text-xl font-bold text-green-600">Allowed</h3>
-                        <p className="text-sm text-muted-foreground mt-1">Authorization successful</p>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <XCircle className="h-16 w-16 text-red-600 mx-auto mb-3" />
-                        <h3 className="text-xl font-bold text-red-600">Denied</h3>
-                        <p className="text-sm text-muted-foreground mt-1">Authorization failed</p>
-                      </div>
-                    )}
-                  </div>
-                  <Separator />
-                  <div className="space-y-3">
-                    {'matched_principals' in authorizeResult
-                      ? renderMatchedPrincipals(authorizeResult.matched_principals)
-                      : <ResultField label="Principal ID"><p className="text-sm font-mono">{authorizeResult.principal_id}</p></ResultField>
-                    }
-                    <ResultField label="Action"><Badge>{authorizeResult.action}</Badge></ResultField>
-                    <ResultField label="Namespace"><Badge variant="secondary">{authorizeResult.namespace}</Badge></ResultField>
-                    <ResultField label="Schema Name"><Badge variant="secondary">{authorizeResult.schema_name}</Badge></ResultField>
-                    <ResultField label="Entity Type"><Badge variant="outline">{authorizeResult.entity_type}</Badge></ResultField>
-                    <ResultField label="Entity Key"><pre className="font-mono text-xs">{JSON.stringify(authorizeResult.entity_key, null, 2)}</pre></ResultField>
-                  </div>
-                  <Separator />
-                  <details>
-                    <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">View full response</summary>
-                    <pre className="mt-3 bg-muted/50 p-4 rounded-md overflow-auto text-xs">{JSON.stringify(authorizeResult, null, 2)}</pre>
-                  </details>
+                  <DecisionBanner
+                    allowed={authorizeResult.allowed}
+                    label={authorizeResult.allowed ? 'Access Allowed' : 'Access Denied'}
+                    detail={authorizeResult.allowed ? 'The principal is authorized to perform this action.' : 'The principal is not authorized to perform this action.'}
+                  />
+                  {'matched_principals' in authorizeResult && (
+                    <MatchedPrincipals ids={authorizeResult.matched_principals} />
+                  )}
+                  <ResultTable rows={[
+                    ...('matched_principals' in authorizeResult ? [] : [{ label: 'Principal', value: <span className="font-mono">{authorizeResult.principal_id}</span> }]),
+                    { label: 'Action', value: <span className="font-mono font-medium">{authorizeResult.action}</span> },
+                    { label: 'Namespace', value: <span className="font-mono">{authorizeResult.namespace}</span> },
+                    { label: 'Schema', value: <span className="font-mono">{authorizeResult.schema_name}</span> },
+                    { label: 'Entity Type', value: <span className="font-mono">{authorizeResult.entity_type}</span> },
+                    ...(authorizeResult.entity_key !== undefined ? [{ label: 'Entity Key', value: <span className="font-mono">{JSON.stringify(authorizeResult.entity_key)}</span> }] : []),
+                  ]} />
+                  <FullResponse data={authorizeResult} />
                 </div>
               )}
             </div>
@@ -437,8 +459,8 @@ export default function AuthorizationTestPage() {
           <div className="grid gap-0 md:grid-cols-2 md:divide-x">
             <div className="space-y-4 md:pr-8">
               <div>
-                <p className="font-semibold">Parameters</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Configure the filter test parameters</p>
+                <p className="text-sm font-semibold">Parameters</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Configure the filter test parameters</p>
               </div>
               {renderIdentitySection(filterForm.principal_id, (v) => setFilterForm({ ...filterForm, principal_id: v }), 'filter')}
               <Separator />
@@ -474,28 +496,26 @@ export default function AuthorizationTestPage() {
             </div>
 
             <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
-              <p className="font-semibold">Result</p>
+              <p className="text-sm font-semibold">Result</p>
               {!filterResult ? <EmptyResult /> : (
                 <div className="space-y-4">
                   {'matched_principals' in filterResult && (
-                    <>{renderMatchedPrincipals(filterResult.matched_principals)}<Separator /></>
+                    <MatchedPrincipals ids={filterResult.matched_principals} />
                   )}
-                  <div className="space-y-3">
-                    <ResultField label="Namespace"><Badge variant="secondary">{filterResult.namespace}</Badge></ResultField>
-                    <ResultField label="Schema Name"><Badge variant="secondary">{filterResult.schema_name}</Badge></ResultField>
-                    <ResultField label="Entity Type"><Badge variant="outline">{filterResult.entity_type}</Badge></ResultField>
-                  </div>
-                  <Separator />
-                  <ResultField label="Filter Query">
-                    <pre className="bg-muted/50 p-3 rounded-md overflow-auto text-xs font-mono mt-1">
-                      {filterResult.filter_query || '(no filter — full access)'}
-                    </pre>
-                  </ResultField>
-                  <Separator />
-                  <details>
-                    <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">View full response</summary>
-                    <pre className="mt-3 bg-muted/50 p-4 rounded-md overflow-auto text-xs">{JSON.stringify(filterResult, null, 2)}</pre>
-                  </details>
+                  <ResultTable rows={[
+                    { label: 'Namespace', value: <span className="font-mono">{filterResult.namespace}</span> },
+                    { label: 'Schema', value: <span className="font-mono">{filterResult.schema_name}</span> },
+                    { label: 'Entity Type', value: <span className="font-mono">{filterResult.entity_type}</span> },
+                    {
+                      label: 'Filter Query',
+                      value: (
+                        <pre className="rounded bg-muted/50 px-3 py-2 font-mono overflow-auto whitespace-pre-wrap leading-relaxed">
+                          {filterResult.filter_query || '(no filter — full access)'}
+                        </pre>
+                      ),
+                    },
+                  ]} />
+                  <FullResponse data={filterResult} />
                 </div>
               )}
             </div>
@@ -507,8 +527,8 @@ export default function AuthorizationTestPage() {
           <div className="grid gap-0 md:grid-cols-2 md:divide-x">
             <div className="space-y-4 md:pr-8">
               <div>
-                <p className="font-semibold">Global Capabilities</p>
-                <p className="text-sm text-muted-foreground mt-0.5">
+                <p className="text-sm font-semibold">Global Capabilities</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {matchMode ? 'Resolve the principal from auth material, then return allowed global actions' : 'Get all global actions allowed for a known principal across every entity type'}
                 </p>
               </div>
@@ -524,29 +544,31 @@ export default function AuthorizationTestPage() {
             </div>
 
             <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
-              <p className="font-semibold">Result</p>
+              <p className="text-sm font-semibold">Result</p>
               {!globalCapsResult ? <EmptyResult /> : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {'matched_principals' in globalCapsResult && (
-                    <>{renderMatchedPrincipals(globalCapsResult.matched_principals)}<Separator /></>
+                    <MatchedPrincipals ids={globalCapsResult.matched_principals} />
                   )}
                   {Object.keys(globalCapsResult.global_actions).length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">No global actions granted</p>
                   ) : (
-                    Object.entries(globalCapsResult.global_actions).map(([key, actions]) => (
-                      <div key={key} className="space-y-1.5">
-                        <p className="text-xs font-mono text-muted-foreground">{key}</p>
-                        <div className="flex flex-wrap gap-1">
-                          {actions.map((a) => <Badge key={a} variant="secondary" className="text-xs">{a}</Badge>)}
-                        </div>
-                        <Separator />
-                      </div>
-                    ))
+                    <table className="w-full text-sm">
+                      <tbody className="divide-y divide-border">
+                        {Object.entries(globalCapsResult.global_actions).map(([key, actions]) => (
+                          <tr key={key}>
+                            <td className="py-2.5 pr-6 align-top text-xs font-mono text-muted-foreground w-2/5">{key}</td>
+                            <td className="py-2.5">
+                              <div className="flex flex-wrap gap-1">
+                                {actions.map((a) => <Badge key={a} variant="secondary" className="font-mono text-xs">{a}</Badge>)}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   )}
-                  <details>
-                    <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">View full response</summary>
-                    <pre className="mt-3 bg-muted/50 p-4 rounded-md overflow-auto text-xs">{JSON.stringify(globalCapsResult, null, 2)}</pre>
-                  </details>
+                  <FullResponse data={globalCapsResult} />
                 </div>
               )}
             </div>
@@ -558,8 +580,8 @@ export default function AuthorizationTestPage() {
           <div className="grid gap-0 md:grid-cols-2 md:divide-x">
             <div className="space-y-4 md:pr-8">
               <div>
-                <p className="font-semibold">Entity Capabilities</p>
-                <p className="text-sm text-muted-foreground mt-0.5">
+                <p className="text-sm font-semibold">Entity Capabilities</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {matchMode ? 'Resolve the principal from auth material, then return allowed actions on the entity' : 'Get allowed actions for a known principal on a specific entity'}
                 </p>
               </div>
@@ -601,43 +623,48 @@ export default function AuthorizationTestPage() {
             </div>
 
             <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
-              <p className="font-semibold">Result</p>
+              <p className="text-sm font-semibold">Result</p>
               {!entityCapsResult ? <EmptyResult /> : (() => {
                 const r = entityCapsResult.results[0];
+                const hasAccess = !r.error && r.actions.length > 0;
+                const noAccess = !r.error && r.actions.length === 0;
                 return (
                   <div className="space-y-4">
                     {'matched_principals' in entityCapsResult && (
-                      <>{renderMatchedPrincipals(entityCapsResult.matched_principals)}<Separator /></>
+                      <MatchedPrincipals ids={entityCapsResult.matched_principals} />
                     )}
-                    <div className="space-y-3">
-                      <ResultField label="Namespace"><Badge variant="secondary">{r.namespace}</Badge></ResultField>
-                      <ResultField label="Schema Name"><Badge variant="secondary">{r.schema_name}</Badge></ResultField>
-                      <ResultField label="Entity Type"><Badge variant="outline">{r.entity_type}</Badge></ResultField>
-                      <ResultField label="Entity Key"><pre className="font-mono text-xs">{JSON.stringify(r.entity_key, null, 2)}</pre></ResultField>
-                    </div>
-                    <Separator />
-                    <ResultField label="Allowed Actions">
-                      <div className="mt-1">
-                        {r.error ? (
-                          <div className="flex items-center gap-2 rounded-lg border-l-4 border-l-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                            <AlertCircle className="h-4 w-4 shrink-0" /><span>{r.error}</span>
-                          </div>
-                        ) : r.actions.length === 0 ? (
-                          <div className="flex items-center gap-2 rounded-lg border-l-4 border-l-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                            <XCircle className="h-4 w-4 shrink-0" /><span>No access — this principal has no allowed actions on this entity.</span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-1">
-                            {r.actions.map((a) => <Badge key={a} variant="secondary">{a}</Badge>)}
-                          </div>
-                        )}
+                    {!r.error && (
+                      <DecisionBanner
+                        allowed={hasAccess}
+                        label={hasAccess ? `${r.actions.length} action${r.actions.length !== 1 ? 's' : ''} permitted` : 'No access'}
+                        detail={hasAccess ? 'This principal has access to the specified entity.' : 'This principal has no allowed actions on this entity.'}
+                      />
+                    )}
+                    {r.error && (
+                      <div className="flex items-start gap-3 rounded-md border-l-4 border-l-destructive bg-destructive/10 px-4 py-3">
+                        <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-destructive">Evaluation Error</p>
+                          <p className="text-xs text-destructive/80 mt-0.5">{r.error}</p>
+                        </div>
                       </div>
-                    </ResultField>
-                    <Separator />
-                    <details>
-                      <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors">View full response</summary>
-                      <pre className="mt-3 bg-muted/50 p-4 rounded-md overflow-auto text-xs">{JSON.stringify(entityCapsResult, null, 2)}</pre>
-                    </details>
+                    )}
+                    <ResultTable rows={[
+                      { label: 'Namespace', value: <span className="font-mono">{r.namespace}</span> },
+                      { label: 'Schema', value: <span className="font-mono">{r.schema_name}</span> },
+                      { label: 'Entity Type', value: <span className="font-mono">{r.entity_type}</span> },
+                      { label: 'Entity Key', value: <span className="font-mono">{JSON.stringify(r.entity_key)}</span> },
+                      ...(hasAccess ? [{
+                        label: 'Actions',
+                        value: (
+                          <div className="flex flex-wrap gap-1">
+                            {r.actions.map((a) => <Badge key={a} variant="secondary" className="font-mono text-xs">{a}</Badge>)}
+                          </div>
+                        ),
+                      }] : []),
+                      ...(noAccess ? [{ label: 'Actions', value: <span className="text-muted-foreground">None</span> }] : []),
+                    ]} />
+                    <FullResponse data={entityCapsResult} />
                   </div>
                 );
               })()}
