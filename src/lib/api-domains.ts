@@ -28,17 +28,7 @@ export const getPublicAPIUrl = (): string => {
 export const get_KMS_API_BASE_URL = () => `${getApiBaseUrl()}/kms/v1`;
 export const get_KMS_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/kms`;
 
-const getAuthzApiBaseUrl = (): string => {
-    if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_AUTHZ_API) {
-        return (window as any).lamassuConfig.LAMASSU_AUTHZ_API;
-    }
-    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-        return process.env.NEXT_PUBLIC_API_BASE_URL;
-    }
-    return '';
-};
-
-export const get_AUTHZ_API_BASE_URL = () => `${getAuthzApiBaseUrl()}/v1`;
+export const get_AUTHZ_API_BASE_URL = () => `${getApiBaseUrl()}/authz/v1`;
 
 export const get_CA_API_BASE_URL = () => `${getApiBaseUrl()}/ca/v1`;
 export const get_CA_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/ca`;
