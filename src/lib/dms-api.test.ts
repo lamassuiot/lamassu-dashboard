@@ -2,6 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from './test-utils/msw-server'
 import {
+  API_TO_UI_AUTH_MODE,
+  API_TO_UI_WEBHOOK_AUTH_MODE,
+  UI_TO_API_AUTH_MODE,
+  UI_TO_API_WEBHOOK_AUTH_MODE,
+  buildApiRaEstSettingsFromForm,
+  createDefaultRaAuthFormValues,
+  hydrateRaAuthFormValuesFromApi,
   fetchRegistrationAuthorities,
   fetchRaById,
   createOrUpdateRa,
@@ -13,6 +20,7 @@ import {
   deleteRaIntegration,
   type ApiRaListResponse,
   type ApiRaItem,
+  type ApiRaEstSettings,
   type RaCreationPayload,
 } from './dms-api'
 
@@ -532,8 +540,12 @@ describe('dms-api', () => {
               external_webhook_settings: {
                 name: 'combined-webhook',
                 url: 'https://auth.example.com/validate',
-                log_level: 'Info',
-                auth_mode: 'NO_AUTH',
+                method: 'POST',
+                config: {
+                  validate_server_cert: true,
+                  log_level: 'Info',
+                  auth_mode: 'NO_AUTH',
+                },
               },
             },
           },
@@ -585,10 +597,15 @@ describe('dms-api', () => {
               external_webhook_settings: {
                 name: 'my-webhook',
                 url: 'https://hooks.example.com/verify',
-                log_level: 'Info',
-                auth_mode: 'API_KEY',
-                api_key_auth: {
-                  key: 'super-secret-key',
+                method: 'POST',
+                config: {
+                  validate_server_cert: true,
+                  log_level: 'Info',
+                  auth_mode: 'API_KEY',
+                  apikey: {
+                    key: 'super-secret-key',
+                    header: 'X-API-Key',
+                  },
                 },
               },
             },
@@ -603,8 +620,8 @@ describe('dms-api', () => {
       expect(estSettings.client_certificate_settings).toBeDefined()
       expect(estSettings.client_certificate_settings.validation_cas).toEqual(['ca-1'])
       expect(estSettings.external_webhook_settings).toBeDefined()
-      expect(estSettings.external_webhook_settings.auth_mode).toBe('API_KEY')
-      expect(estSettings.external_webhook_settings.api_key_auth.key).toBe('super-secret-key')
+      expect(estSettings.external_webhook_settings.config.auth_mode).toBe('API_KEY')
+      expect(estSettings.external_webhook_settings.config.apikey.key).toBe('super-secret-key')
     })
 
     it('should create RA with combined auth mode and OIDC webhook', async () => {
@@ -635,12 +652,16 @@ describe('dms-api', () => {
               external_webhook_settings: {
                 name: 'oidc-webhook',
                 url: 'https://hooks.example.com/verify',
-                log_level: 'Debug',
-                auth_mode: 'OIDC',
-                oidc_auth: {
-                  client_id: 'my-client',
-                  client_secret: 'my-secret',
-                  well_known_url: 'https://idp.example.com/.well-known/openid-configuration',
+                method: 'POST',
+                config: {
+                  validate_server_cert: true,
+                  log_level: 'Debug',
+                  auth_mode: 'OIDC',
+                  oidc: {
+                    client_id: 'my-client',
+                    client_secret: 'my-secret',
+                    well_known: 'https://idp.example.com/.well-known/openid-configuration',
+                  },
                 },
               },
             },
@@ -653,8 +674,8 @@ describe('dms-api', () => {
       const estSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings
       expect(estSettings.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
       expect(estSettings.client_certificate_settings.chain_level_validation).toBe(1)
-      expect(estSettings.external_webhook_settings.auth_mode).toBe('OIDC')
-      expect(estSettings.external_webhook_settings.oidc_auth.client_id).toBe('my-client')
+      expect(estSettings.external_webhook_settings.config.auth_mode).toBe('OIDC')
+      expect(estSettings.external_webhook_settings.config.oidc.client_id).toBe('my-client')
     })
 
     it('should handle createOrUpdateRa error without JSON response', async () => {
@@ -838,6 +859,90 @@ describe('dms-api', () => {
       await expect(
         deleteRaIntegration('ra-123', 'nonexistent')
       ).rejects.toThrow('Integration key not found')
+    })
+  })
+
+  describe('RA auth helper functions', () => {
+    it('should return expected default auth form values', () => {
+      const defaults = createDefaultRaAuthFormValues()
+
+      expect(defaults.authMode).toBe('Client Certificate')
+      expect(defaults.validationCaIds).toEqual([])
+      expect(defaults.allowExpiredAuth).toBe(true)
+      expect(defaults.chainValidationLevel).toBe(-1)
+      expect(defaults.webhookMethod).toBe('POST')
+      expect(defaults.webhookAuthMode).toBe('No Auth')
+      expect(defaults.webhookApiKeyHeader).toBe('X-API-Key')
+    })
+
+    it('should hydrate UI auth form values from EST API settings', () => {
+      const estSettings: ApiRaEstSettings = {
+        auth_mode: 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK',
+        client_certificate_settings: {
+          chain_level_validation: 2,
+          validation_cas: ['ca-1', 'ca-2'],
+          allow_expired: false,
+        },
+        external_webhook_settings: {
+          name: 'combined-webhook',
+          url: 'https://hooks.example.com/verify',
+          method: 'PUT',
+          config: {
+            validate_server_cert: false,
+            log_level: 'Debug',
+            auth_mode: 'OIDC',
+            oidc: {
+              client_id: 'client-id',
+              client_secret: 'secret',
+              well_known: 'https://idp.example.com/.well-known/openid-configuration',
+            },
+          },
+        },
+      }
+
+      const hydrated = hydrateRaAuthFormValuesFromApi(estSettings)
+
+      expect(hydrated.authMode).toBe('Client Certificate + Webhook')
+      expect(hydrated.validationCaIds).toEqual(['ca-1', 'ca-2'])
+      expect(hydrated.allowExpiredAuth).toBe(false)
+      expect(hydrated.chainValidationLevel).toBe(2)
+      expect(hydrated.webhookName).toBe('combined-webhook')
+      expect(hydrated.webhookMethod).toBe('PUT')
+      expect(hydrated.webhookValidateServerCert).toBe(false)
+      expect(hydrated.webhookAuthMode).toBe('OIDC')
+      expect(hydrated.oidcClientId).toBe('client-id')
+    })
+
+    it('should build EST API settings from UI form values for API key webhook auth', () => {
+      const formValues = {
+        ...createDefaultRaAuthFormValues(),
+        authMode: 'External Webhook',
+        webhookName: 'api-key-webhook',
+        webhookUrl: 'https://hooks.example.com/verify',
+        webhookMethod: 'POST',
+        webhookValidateServerCert: true,
+        webhookLogLevel: 'Warn',
+        webhookAuthMode: 'API Key',
+        webhookApiKey: 'my-secret-key',
+        webhookApiKeyHeader: 'X-Custom-Api-Key',
+      } as const
+
+      const built = buildApiRaEstSettingsFromForm(formValues)
+
+      expect(built.auth_mode).toBe('EXTERNAL_WEBHOOK')
+      expect(built.client_certificate_settings).toBeUndefined()
+      expect(built.external_webhook_settings?.name).toBe('api-key-webhook')
+      expect(built.external_webhook_settings?.config.auth_mode).toBe('API_KEY')
+      expect(built.external_webhook_settings?.config.apikey?.key).toBe('my-secret-key')
+      expect(built.external_webhook_settings?.config.apikey?.header).toBe('X-Custom-Api-Key')
+      expect(built.external_webhook_settings?.config.log_level).toBe('Warn')
+    })
+
+    it('should map UI/API auth mode constants in both directions', () => {
+      expect(UI_TO_API_AUTH_MODE['Client Certificate']).toBe('CLIENT_CERTIFICATE')
+      expect(API_TO_UI_AUTH_MODE.CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK).toBe('Client Certificate + Webhook')
+      expect(UI_TO_API_WEBHOOK_AUTH_MODE['API Key']).toBe('API_KEY')
+      expect(API_TO_UI_WEBHOOK_AUTH_MODE.NO_AUTH).toBe('No Auth')
     })
   })
 })
