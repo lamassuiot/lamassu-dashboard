@@ -75,6 +75,7 @@ This is the curated list of UI building blocks that should be preferred before c
 | Issuance chain visualizer | `src/components/shared/IssuanceChainVisualizer.tsx` | Chain of trust and hierarchy presentation |
 | Certificate selector | `src/components/shared/CertificateSelectorModal.tsx` | Choosing certificates from the system |
 | CA selector | `src/components/shared/CaSelectorModal.tsx` | Choosing CAs from the system |
+| RA auth configuration section | `src/components/ra/RaAuthConfigurationSection.tsx` | Shared enrollment/re-enrollment auth mode, client cert, and webhook config UI |
 
 ## Shared modals and workflow components
 

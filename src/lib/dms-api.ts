@@ -3,6 +3,33 @@
 
 import { get_DMS_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
+import type { RaAuthFormValues, UiRaAuthMode, UiWebhookAuthMode } from '../types/ra-auth';
+
+export const UI_TO_API_AUTH_MODE: Record<UiRaAuthMode, string> = {
+    'Client Certificate': 'CLIENT_CERTIFICATE',
+    'External Webhook': 'EXTERNAL_WEBHOOK',
+    'No Auth': 'NONE',
+    'Client Certificate + Webhook': 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK',
+};
+
+export const API_TO_UI_AUTH_MODE: Record<string, UiRaAuthMode> = {
+    CLIENT_CERTIFICATE: 'Client Certificate',
+    EXTERNAL_WEBHOOK: 'External Webhook',
+    NONE: 'No Auth',
+    CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK: 'Client Certificate + Webhook',
+};
+
+export const UI_TO_API_WEBHOOK_AUTH_MODE: Record<UiWebhookAuthMode, string> = {
+    'No Auth': 'NO_AUTH',
+    OIDC: 'OIDC',
+    'API Key': 'API_KEY',
+};
+
+export const API_TO_UI_WEBHOOK_AUTH_MODE: Record<string, UiWebhookAuthMode> = {
+    NO_AUTH: 'No Auth',
+    OIDC: 'OIDC',
+    API_KEY: 'API Key',
+};
 
 // --- Interfaces ---
 
@@ -62,6 +89,7 @@ export interface ApiRaSettings {
         preventive_delta: string;
         reenrollment_delta: string;
         additional_validation_cas: string[];
+        est_rfc7030_settings?: ApiRaEstSettings;
     };
     server_keygen_settings: {
         enabled: boolean;
@@ -92,6 +120,101 @@ export interface RaCreationPayload {
     id: string;
     metadata: Record<string, any>;
     settings: ApiRaSettings;
+}
+
+export function createDefaultRaAuthFormValues(): RaAuthFormValues {
+    return {
+        authMode: 'Client Certificate',
+        validationCaIds: [],
+        allowExpiredAuth: true,
+        chainValidationLevel: -1,
+        webhookName: '',
+        webhookUrl: '',
+        webhookMethod: 'POST',
+        webhookValidateServerCert: true,
+        webhookLogLevel: 'Info',
+        webhookAuthMode: 'No Auth',
+        webhookApiKey: '',
+        webhookApiKeyHeader: 'X-API-Key',
+        oidcClientId: '',
+        oidcClientSecret: '',
+        oidcWellKnownUrl: '',
+    };
+}
+
+export function hydrateRaAuthFormValuesFromApi(estSettings?: ApiRaEstSettings): RaAuthFormValues {
+    const defaults = createDefaultRaAuthFormValues();
+    if (!estSettings) {
+        return defaults;
+    }
+
+    const authMode = API_TO_UI_AUTH_MODE[estSettings.auth_mode] || defaults.authMode;
+    const clientCert = estSettings.client_certificate_settings;
+    const webhook = estSettings.external_webhook_settings;
+    const webhookAuthMode = API_TO_UI_WEBHOOK_AUTH_MODE[webhook?.config.auth_mode || 'NO_AUTH'] || defaults.webhookAuthMode;
+
+    return {
+        ...defaults,
+        authMode,
+        validationCaIds: clientCert?.validation_cas || [],
+        allowExpiredAuth: clientCert?.allow_expired ?? defaults.allowExpiredAuth,
+        chainValidationLevel: clientCert?.chain_level_validation ?? defaults.chainValidationLevel,
+        webhookName: webhook?.name || defaults.webhookName,
+        webhookUrl: webhook?.url || defaults.webhookUrl,
+        webhookMethod: (webhook?.method as 'POST' | 'PUT') || defaults.webhookMethod,
+        webhookValidateServerCert: webhook?.config.validate_server_cert ?? defaults.webhookValidateServerCert,
+        webhookLogLevel: (webhook?.config.log_level as 'Info' | 'Debug' | 'Warn' | 'Error') || defaults.webhookLogLevel,
+        webhookAuthMode,
+        webhookApiKey: webhook?.config.apikey?.key || defaults.webhookApiKey,
+        webhookApiKeyHeader: webhook?.config.apikey?.header || defaults.webhookApiKeyHeader,
+        oidcClientId: webhook?.config.oidc?.client_id || defaults.oidcClientId,
+        oidcClientSecret: webhook?.config.oidc?.client_secret || defaults.oidcClientSecret,
+        oidcWellKnownUrl: webhook?.config.oidc?.well_known || defaults.oidcWellKnownUrl,
+    };
+}
+
+export function buildApiRaEstSettingsFromForm(values: RaAuthFormValues): ApiRaEstSettings {
+    const estSettings: ApiRaEstSettings = {
+        auth_mode: UI_TO_API_AUTH_MODE[values.authMode],
+    };
+
+    if (values.authMode === 'Client Certificate' || values.authMode === 'Client Certificate + Webhook') {
+        estSettings.client_certificate_settings = {
+            chain_level_validation: values.chainValidationLevel,
+            validation_cas: values.validationCaIds,
+            allow_expired: values.allowExpiredAuth,
+        };
+    }
+
+    if (values.authMode === 'External Webhook' || values.authMode === 'Client Certificate + Webhook') {
+        const config: ApiRaWebhookHttpClient = {
+            validate_server_cert: values.webhookValidateServerCert,
+            log_level: values.webhookLogLevel,
+            auth_mode: UI_TO_API_WEBHOOK_AUTH_MODE[values.webhookAuthMode],
+        };
+
+        if (values.webhookAuthMode === 'API Key') {
+            config.apikey = {
+                key: values.webhookApiKey,
+                header: values.webhookApiKeyHeader,
+            };
+        } else if (values.webhookAuthMode === 'OIDC') {
+            config.oidc = {
+                client_id: values.oidcClientId,
+                client_secret: values.oidcClientSecret,
+                well_known: values.oidcWellKnownUrl,
+            };
+        }
+
+        estSettings.external_webhook_settings = {
+            name: values.webhookName,
+            url: values.webhookUrl,
+            method: values.webhookMethod,
+            config,
+        };
+    }
+
+    return estSettings;
 }
 
 // --- API Functions ---
@@ -210,7 +333,7 @@ export async function deleteRaIntegration(raId: string, integrationKey: string):
     const currentRa = await fetchRaById(raId);
     
     // 2. Check if metadata and the key exist
-    if (!currentRa.metadata || !currentRa.metadata[integrationKey]) {
+    if (!currentRa.metadata?.[integrationKey]) {
         throw new Error("Integration key not found in RA metadata.");
     }
     
