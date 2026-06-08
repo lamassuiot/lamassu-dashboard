@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,17 @@ import {
   UserCheck,
   CheckCircle,
   XCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { listPrincipals, deletePrincipal } from '@/lib/authz-api';
 import type { DateFilterValue, Principal, PrincipalFilters, PrincipalType, PrincipalSortField } from '@/types/authz';
@@ -73,6 +83,11 @@ export default function PrincipalsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'created_at', direction: 'desc' });
+  const [pageSize, setPageSize] = useState<string>('25');
+  const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
+  const isInitialLoad = useRef(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilters, setTypeFilters] = useState<PrincipalType[]>([]);
   const [activeFilter, setActiveFilter] = useState<PrincipalActiveFilter>('ALL');
@@ -129,27 +144,40 @@ export default function PrincipalsPage() {
 
   const hasActiveFilters = Object.keys(filters).length > 0;
 
-  const loadPrincipals = useCallback(async () => {
+  const loadPrincipals = useCallback(async (bookmark: string | null) => {
     setIsLoading(true);
     setError(null);
     try {
       const data = await listPrincipals({
+        pageSize: Number(pageSize),
+        bookmark: bookmark ?? undefined,
         sortBy: sortConfig.column,
         sortMode: sortConfig.direction,
         ...(hasActiveFilters ? { filters } : {}),
       });
-      setPrincipals(data.principals);
+      setPrincipals(data.list);
+      setNextTokenFromApi(data.next || null);
     } catch (err: any) {
       setError(err.message || 'Failed to load principals');
       setPrincipals([]);
     } finally {
       setIsLoading(false);
     }
-  }, [filters, hasActiveFilters, sortConfig]);
+  }, [filters, hasActiveFilters, pageSize, sortConfig]);
 
   useEffect(() => {
-    loadPrincipals();
-  }, [loadPrincipals]);
+    if (!isInitialLoad.current) {
+      setCurrentPageIndex(0);
+      setBookmarkStack([null]);
+    }
+  }, [filters, pageSize, sortConfig]);
+
+  useEffect(() => {
+    if (bookmarkStack[currentPageIndex] !== undefined) {
+      loadPrincipals(bookmarkStack[currentPageIndex]);
+      if (isInitialLoad.current) isInitialLoad.current = false;
+    }
+  }, [bookmarkStack, currentPageIndex, loadPrincipals]);
 
   const requestSort = (column: PrincipalSortField) => {
     setSortConfig(prev =>
@@ -157,6 +185,26 @@ export default function PrincipalsPage() {
         ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
         : { column, direction: 'asc' }
     );
+  };
+
+  const handleNextPage = () => {
+    if (isLoading) return;
+    const nextIndex = currentPageIndex + 1;
+    if (nextIndex < bookmarkStack.length) {
+      setCurrentPageIndex(nextIndex);
+    } else if (nextTokenFromApi) {
+      setBookmarkStack(prev => [...prev.slice(0, currentPageIndex + 1), nextTokenFromApi]);
+      setCurrentPageIndex(currentPageIndex + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (isLoading || currentPageIndex === 0) return;
+    setCurrentPageIndex(prev => prev - 1);
+  };
+
+  const handleRefresh = () => {
+    loadPrincipals(bookmarkStack[currentPageIndex]);
   };
 
   const handleDelete = async () => {
@@ -201,7 +249,7 @@ export default function PrincipalsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="secondary" onClick={loadPrincipals} disabled={isLoading}>
+          <Button variant="secondary" onClick={handleRefresh} disabled={isLoading}>
             <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} /> Refresh
           </Button>
           <Button onClick={() => router.push('/authz/principals/new')}>
@@ -234,7 +282,7 @@ export default function PrincipalsPage() {
           <AlertTitle>Error Loading Data</AlertTitle>
           <AlertDescription>
             {error}{' '}
-            <Button variant="link" onClick={loadPrincipals} className="p-0 h-auto">
+            <Button variant="link" onClick={handleRefresh} className="p-0 h-auto">
               Try again?
             </Button>
           </AlertDescription>
@@ -371,6 +419,34 @@ export default function PrincipalsPage() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="principalPageSize" className="text-sm text-muted-foreground whitespace-nowrap">Page size:</Label>
+              <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading}>
+                <SelectTrigger id="principalPageSize" className="w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0}>
+                <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleNextPage}
+                disabled={isLoading || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
+              >
+                Next <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       )}

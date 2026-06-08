@@ -331,15 +331,30 @@ export interface ListPoliciesParams {
 }
 
 export interface ListPrincipalsResponse {
-  principals: Principal[];
-  count: number;
-  next?: string | null;
+  list: Principal[];
+  next: string;
 }
 
 export interface ListPoliciesResponse {
-  policies: Policy[];
-  count: number;
-  next?: string | null;
+  list: Policy[];
+  next: string;
+}
+
+export type PrincipalPolicySortField =
+  | 'policy_id'
+  | 'granted_at';
+
+export interface ListPrincipalPoliciesParams {
+  pageSize?: number;
+  bookmark?: string;
+  sortBy?: PrincipalPolicySortField;
+  sortMode?: SortMode;
+}
+
+export interface ListPrincipalPoliciesResponse {
+  principal_id: string;
+  list: PolicyGrant[];
+  next: string;
 }
 
 // ===========================

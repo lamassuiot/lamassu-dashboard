@@ -104,7 +104,7 @@ export default function AuthorizationTestPage() {
   const loadData = async () => {
     try {
       const [principalsData, schemasData] = await Promise.all([listPrincipals(), getSchemas()]);
-      setPrincipals(principalsData.principals);
+      setPrincipals(principalsData.list);
       setSchemas(schemasData);
     } catch (err: any) {
       setError(err.message || 'Failed to load data');

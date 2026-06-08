@@ -26,6 +26,8 @@ import type {
   ListPoliciesResponse,
   ListPrincipalsParams,
   ListPrincipalsResponse,
+  ListPrincipalPoliciesParams,
+  ListPrincipalPoliciesResponse,
 } from '@/types/authz';
 
 const getAuthzContextHeaders = (): HeadersInit => {
@@ -192,8 +194,10 @@ export async function deletePrincipal(id: string): Promise<void> {
   await handleApiError(response, `Failed to delete principal ${id}`);
 }
 
-export async function getPrincipalPolicies(id: string): Promise<{ policies: any[] }> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/principals/${id}/policies`, {
+export async function getPrincipalPolicies(id: string, params: ListPrincipalPoliciesParams = {}): Promise<ListPrincipalPoliciesResponse> {
+  const url = new URL(`${get_AUTHZ_API_BASE_URL()}/principals/${id}/policies`);
+  applyPaginationAndSort(url.searchParams, params);
+  const response = await apiFetch(url.toString(), {
     headers: getAuthzContextHeaders(),
   });
   return handleApiError(response, `Failed to get policies for principal ${id}`);

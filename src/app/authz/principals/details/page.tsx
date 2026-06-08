@@ -113,12 +113,12 @@ function PrincipalDetailsContent() {
       setLoading(true);
       const [principalData, policiesData] = await Promise.all([
         getPrincipal(principal_id),
-        getPrincipalPolicies(principal_id).catch(() => ({ policies: [] })),
+        getPrincipalPolicies(principal_id).catch(() => ({ principal_id, list: [], next: '' })),
       ]);
       setPrincipal(principalData);
-      setPolicies(policiesData.policies || []);
+      setPolicies(policiesData.list || []);
 
-      const assignedPolicies = policiesData.policies || [];
+      const assignedPolicies = policiesData.list || [];
       if (assignedPolicies.length > 0) {
         const enriched = await Promise.all(
           assignedPolicies.map(async (grantedPolicy) => {
@@ -207,7 +207,7 @@ function PrincipalDetailsContent() {
         filters: policyFilters,
       });
       const assignedIds = new Set(policies.map((policy) => policy.policy_id));
-      const availablePolicies = (result.policies || []).filter((policy) => !assignedIds.has(policy.id));
+      const availablePolicies = (result.list || []).filter((policy) => !assignedIds.has(policy.id));
       setPolicyResults(availablePolicies);
       setSelectedPolicyId((current) => availablePolicies.some((policy) => policy.id === current) ? current : '');
     } catch {

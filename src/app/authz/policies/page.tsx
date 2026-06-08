@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +39,17 @@ import {
   AlertTriangle,
   Loader2,
   ScrollText,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { listPolicies, deletePolicy } from '@/lib/authz-api';
 import type { DateFilterValue, Policy, PolicyFilters, PolicySortField } from '@/types/authz';
@@ -64,6 +74,11 @@ export default function PoliciesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'created_at', direction: 'desc' });
+  const [pageSize, setPageSize] = useState<string>('25');
+  const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
+  const isInitialLoad = useRef(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [idFilter, setIdFilter] = useState('');
   const [descriptionFilter, setDescriptionFilter] = useState('');
@@ -114,27 +129,40 @@ export default function PoliciesPage() {
 
   const hasActiveFilters = Object.keys(filters).length > 0;
 
-  const loadPolicies = useCallback(async () => {
+  const loadPolicies = useCallback(async (bookmark: string | null) => {
     setIsLoading(true);
     setError(null);
     try {
       const data = await listPolicies({
+        pageSize: Number(pageSize),
+        bookmark: bookmark ?? undefined,
         sortBy: sortConfig.column,
         sortMode: sortConfig.direction,
         ...(hasActiveFilters ? { filters } : {}),
       });
-      setPolicies(data.policies);
+      setPolicies(data.list);
+      setNextTokenFromApi(data.next || null);
     } catch (err: any) {
       setError(err.message || 'Failed to load policies');
       setPolicies([]);
     } finally {
       setIsLoading(false);
     }
-  }, [filters, hasActiveFilters, sortConfig]);
+  }, [filters, hasActiveFilters, pageSize, sortConfig]);
 
   useEffect(() => {
-    loadPolicies();
-  }, [loadPolicies]);
+    if (!isInitialLoad.current) {
+      setCurrentPageIndex(0);
+      setBookmarkStack([null]);
+    }
+  }, [filters, pageSize, sortConfig]);
+
+  useEffect(() => {
+    if (bookmarkStack[currentPageIndex] !== undefined) {
+      loadPolicies(bookmarkStack[currentPageIndex]);
+      if (isInitialLoad.current) isInitialLoad.current = false;
+    }
+  }, [bookmarkStack, currentPageIndex, loadPolicies]);
 
   const requestSort = (column: PolicySortField) => {
     setSortConfig(prev =>
@@ -142,6 +170,26 @@ export default function PoliciesPage() {
         ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
         : { column, direction: 'asc' }
     );
+  };
+
+  const handleNextPage = () => {
+    if (isLoading) return;
+    const nextIndex = currentPageIndex + 1;
+    if (nextIndex < bookmarkStack.length) {
+      setCurrentPageIndex(nextIndex);
+    } else if (nextTokenFromApi) {
+      setBookmarkStack(prev => [...prev.slice(0, currentPageIndex + 1), nextTokenFromApi]);
+      setCurrentPageIndex(currentPageIndex + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (isLoading || currentPageIndex === 0) return;
+    setCurrentPageIndex(prev => prev - 1);
+  };
+
+  const handleRefresh = () => {
+    loadPolicies(bookmarkStack[currentPageIndex]);
   };
 
   const handleDelete = async () => {
@@ -186,7 +234,7 @@ export default function PoliciesPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="secondary" onClick={loadPolicies} disabled={isLoading}>
+          <Button variant="secondary" onClick={handleRefresh} disabled={isLoading}>
             <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} /> Refresh
           </Button>
           <Button onClick={() => router.push('/authz/policies/new')}>
@@ -215,7 +263,7 @@ export default function PoliciesPage() {
           <AlertTitle>Error Loading Data</AlertTitle>
           <AlertDescription>
             {error}{' '}
-            <Button variant="link" onClick={loadPolicies} className="p-0 h-auto">
+            <Button variant="link" onClick={handleRefresh} className="p-0 h-auto">
               Try again?
             </Button>
           </AlertDescription>
@@ -330,6 +378,34 @@ export default function PoliciesPage() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="policyPageSize" className="text-sm text-muted-foreground whitespace-nowrap">Page size:</Label>
+              <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading}>
+                <SelectTrigger id="policyPageSize" className="w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0}>
+                <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleNextPage}
+                disabled={isLoading || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
+              >
+                Next <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       )}
