@@ -10,4 +10,3 @@ export { SchemaEntityNode } from './flow-nodes/SchemaEntityNode';
 export { NestedRuleNode } from './flow-nodes/NestedRuleNode';
 export { SchemaNode } from './SchemaNode';
 export { SchemaFlowView } from './SchemaFlowView';
-export { EntityActionGuard } from './EntityActionGuard';

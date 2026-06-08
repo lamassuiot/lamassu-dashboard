@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { CertificateList } from '@/components/CertificateList';
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout';
@@ -118,44 +118,49 @@ export default function CertificatesPage() {
   const [isLoadingCryptoEngines, setIsLoadingCryptoEngines] = useState(true);
   const [errorCryptoEngines, setErrorCryptoEngines] = useState<string | null>(null);
 
+  const casFetchedRef = useRef(false);
+  const enginesFetchedRef = useRef(false);
+
   const loadPageDependencies = useCallback(async () => {
-    if (!isClientMounted ) {
+    if (!isClientMounted) {
       return;
     }
-    
-    if(allCAs.length === 0) setIsLoadingCAs(true);
-    if(allCryptoEngines.length === 0) setIsLoadingCryptoEngines(true);
+
     setErrorCAs(null);
     setErrorCryptoEngines(null);
 
-    // Fetch CAs
-    if (allCAs.length === 0) { 
+    if (!casFetchedRef.current) {
+      casFetchedRef.current = true;
+      setIsLoadingCAs(true);
       try {
         const fetchedCAs = await fetchAndProcessCAs();
         setAllCAs(fetchedCAs);
       } catch (err: any) {
+        casFetchedRef.current = false;
         setErrorCAs(err.message || 'Failed to load CA list for linking.');
       } finally {
         setIsLoadingCAs(false);
       }
     } else {
-        setIsLoadingCAs(false);
+      setIsLoadingCAs(false);
     }
 
-    // Fetch Crypto Engines
-    if (allCryptoEngines.length === 0) {
-        try {
-            const enginesData = await fetchCryptoEngines();
-            setAllCryptoEngines(enginesData);
-        } catch (err: any) {
-            setErrorCryptoEngines(err.message || 'Failed to load Crypto Engines.');
-        } finally {
-            setIsLoadingCryptoEngines(false);
-        }
-    } else {
+    if (!enginesFetchedRef.current) {
+      enginesFetchedRef.current = true;
+      setIsLoadingCryptoEngines(true);
+      try {
+        const enginesData = await fetchCryptoEngines();
+        setAllCryptoEngines(enginesData);
+      } catch (err: any) {
+        enginesFetchedRef.current = false;
+        setErrorCryptoEngines(err.message || 'Failed to load Crypto Engines.');
+      } finally {
         setIsLoadingCryptoEngines(false);
+      }
+    } else {
+      setIsLoadingCryptoEngines(false);
     }
-  }, [allCAs.length, allCryptoEngines.length, isClientMounted]);
+  }, [isClientMounted]);
   
   useEffect(() => {
     loadPageDependencies();

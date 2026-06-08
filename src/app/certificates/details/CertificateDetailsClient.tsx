@@ -28,8 +28,6 @@ import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { parseISO, differenceInDays, isPast } from 'date-fns';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
-import { useEntityCapabilities } from '@/hooks/useEntityCapabilities';
-import { EntityActionGuard } from '@/components/authz/EntityActionGuard';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -93,24 +91,6 @@ export default function CertificateDetailsClient() { // Renamed component
   // State to determine if delete action is allowed
   const [canDelete, setCanDelete] = useState(false);
   const [, setIsCheckingUsage] = useState(true);
-
-  // Entity-level capability check for this certificate
-  const certCapabilityQueries = useMemo(
-    () =>
-      certificateDetails
-        ? [
-            {
-              namespace: 'pki',
-              schema_name: 'ca',
-              entity_type: 'certificate',
-              entity_key: certificateDetails.serialNumber.replace(/:/g, ''),
-            },
-          ]
-        : [],
-    [certificateDetails?.serialNumber],
-  );
-  const { canPerform: canPerformOnCert } = useEntityCapabilities(certCapabilityQueries);
-
 
   const fullChainPemString = useMemo(() => {
     if (certificateDetails && allCAs.length > 0) {
@@ -457,28 +437,20 @@ export default function CertificateDetailsClient() { // Renamed component
         ]}
         actions={
           isOnHold ? (
-            <EntityActionGuard
-              allowed={canPerformOnCert(certificateDetails.serialNumber.replace(/:/g, ''), 'status-update/revoke')}
-            >
-              <Button variant="outline" size="sm" onClick={handleReactivate}>
-                <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate
-              </Button>
-            </EntityActionGuard>
+            <Button variant="outline" size="sm" onClick={handleReactivate}>
+              <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate
+            </Button>
           ) : statusText !== 'REVOKED' ? (
-            <EntityActionGuard
-              allowed={canPerformOnCert(certificateDetails.serialNumber.replace(/:/g, ''), 'status-update/revoke')}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+              onClick={handleOpenRevokeModal}
+              disabled={isRevoking}
             >
-              <Button
-                variant="secondary"
-                size="sm"
-                className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-                onClick={handleOpenRevokeModal}
-                disabled={isRevoking}
-              >
-                {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                {isRevoking ? 'Revoking…' : 'Revoke'}
-              </Button>
-            </EntityActionGuard>
+              {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+              {isRevoking ? 'Revoking…' : 'Revoke'}
+            </Button>
           ) : null
         }
       />
