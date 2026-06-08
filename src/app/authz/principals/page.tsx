@@ -71,6 +71,11 @@ const PRINCIPAL_TYPE_LABEL: Record<PrincipalType, string> = {
   x509: 'X.509',
 };
 
+const PRINCIPAL_TYPE_CLASSES: Record<PrincipalType, string> = {
+  oidc: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800',
+  x509: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800',
+};
+
 type SortDirection = 'asc' | 'desc';
 interface SortConfig { column: PrincipalSortField; direction: SortDirection }
 
@@ -368,7 +373,7 @@ export default function PrincipalsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="outline" className={cn('text-xs', PRINCIPAL_TYPE_CLASSES[principal.type])}>
                         {PRINCIPAL_TYPE_LABEL[principal.type] ?? principal.type}
                       </Badge>
                     </TableCell>

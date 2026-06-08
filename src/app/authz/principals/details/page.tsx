@@ -64,7 +64,7 @@ import {
 } from '@/components/ui/tabs';
 import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies, getPolicy, deletePrincipal } from '@/lib/authz-api';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
-import type { DateFilterValue, PolicyFilters, Principal, Policy } from '@/types/authz';
+import type { DateFilterValue, PolicyFilters, Principal, Policy, PrincipalType } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { cn } from '@/lib/utils';
@@ -74,6 +74,16 @@ import type { GenericDateFilterValue } from '@/components/shared/filters/Generic
 import dynamic from 'next/dynamic';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
+
+const PRINCIPAL_TYPE_LABEL: Record<PrincipalType, string> = {
+  oidc: 'OIDC',
+  x509: 'X.509',
+};
+
+const PRINCIPAL_TYPE_CLASSES: Record<PrincipalType, string> = {
+  oidc: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800',
+  x509: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800',
+};
 
 function PrincipalDetailsContent() {
   const router = useRouter();
@@ -430,8 +440,8 @@ function PrincipalDetailsContent() {
               <h1 className="text-2xl font-semibold tracking-tight truncate">{principal.name}</h1>
 
               <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="secondary" className="text-xs font-mono uppercase">
-                  {principal.type}
+                <Badge variant="outline" className={cn('text-xs', PRINCIPAL_TYPE_CLASSES[principal.type])}>
+                  {PRINCIPAL_TYPE_LABEL[principal.type] ?? principal.type}
                 </Badge>
                 {principal.active ? (
                   <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800 text-xs">
