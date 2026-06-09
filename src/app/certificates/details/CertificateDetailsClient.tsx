@@ -435,28 +435,11 @@ export default function CertificateDetailsClient() { // Renamed component
             ),
           },
         ]}
-        actions={
-          isOnHold ? (
-            <Button variant="outline" size="sm" onClick={handleReactivate}>
-              <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate
-            </Button>
-          ) : statusText !== 'REVOKED' ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-              onClick={handleOpenRevokeModal}
-              disabled={isRevoking}
-            >
-              {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-              {isRevoking ? 'Revoking…' : 'Revoke'}
-            </Button>
-          ) : null
-        }
       />
 
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
           {/* Identity */}
-          <div className="flex items-start gap-4 min-w-0">
+          <div className="flex flex-1 items-start gap-4 min-w-0">
             <div className={cn(
               'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2',
               iconBoxClass
@@ -482,7 +465,7 @@ export default function CertificateDetailsClient() { // Renamed component
                   </code>
                   <Button
                     variant="ghost"
-                   
+
                     className="h-6 w-6 p-0 shrink-0"
                     onClick={() => {
                       navigator.clipboard.writeText(certificateDetails.serialNumber.replaceAll(/[:\-]/g, ''));
@@ -612,6 +595,7 @@ export default function CertificateDetailsClient() { // Renamed component
             </div>
             </div>
           )}
+          </div>
 
         {/* Issuer + chain strip */}
         <div className="flex items-center gap-8 pt-1 border-t">
