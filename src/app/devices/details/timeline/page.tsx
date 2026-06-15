@@ -179,7 +179,7 @@ export default function TimelinePage() {
         setTimelineRawEvents(prev => {
           const merged = [...batch, ...prev];
           merged.sort((a, b) => new Date(b.timestampStr).getTime() - new Date(a.timestampStr).getTime());
-          return merged;
+          return merged.slice(0, 500);
         });
       }, 500);
 

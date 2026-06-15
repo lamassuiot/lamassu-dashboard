@@ -123,8 +123,8 @@ export async function fetchDeviceEventsPaginated({
 
   const events = Array.isArray(data.list)
     ? data.list.map((event: any) => ({
-        id: event.id || `${event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || new Date().toISOString()}:${event.type || event.event_type || 'EVENT'}`,
-        timestampStr: event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || new Date().toISOString(),
+        id: event.id || `${event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || '1970-01-01T00:00:00.000Z'}:${event.type || event.event_type || 'EVENT'}`,
+        timestampStr: event.event_ts || event.timestampStr || event.timestamp || event.ts || event.time || event.created_at || '1970-01-01T00:00:00.000Z',
         type: event.type || event.event_type || 'EVENT',
         description: event.description || event.event_descriptions || '',
         data: event.structured_fields ?? event.data,
@@ -293,8 +293,8 @@ export function subscribeToDeviceEventsSSE({
               try {
                 const raw = JSON.parse(jsonStr);
                 const event: ApiDeviceEventItem = {
-                  id: raw.id || `${raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || new Date().toISOString()}:${raw.type || raw.event_type || 'EVENT'}`,
-                  timestampStr: raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || new Date().toISOString(),
+                  id: raw.id || `${raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || '1970-01-01T00:00:00.000Z'}:${raw.type || raw.event_type || 'EVENT'}`,
+                  timestampStr: raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || '1970-01-01T00:00:00.000Z',
                   type: normalizeSSEEventType(raw.type || raw.event_type || 'EVENT'),
                   description: raw.description || raw.event_descriptions || '',
                   data: raw.structured_fields ?? raw.data,
