@@ -131,7 +131,7 @@ export const RevocationModal: React.FC<RevocationModalProps> = ({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={isConfirming}>
+            <Button type="button" variant="secondary" disabled={isConfirming}>
               Cancel
             </Button>
           </DialogClose>

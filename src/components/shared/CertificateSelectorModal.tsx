@@ -510,7 +510,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                               <Button
                                 type="button"
                                 variant={isSelected ? "secondary" : "default"}
-                                size="sm"
+                               
                                 onClick={() => onCertificateSelected(cert)}
                               >
                                 {isSelected ? "Selected" : "Select"}
@@ -565,7 +565,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
 
             <SheetFooter className="mt-0">
               <SheetClose asChild>
-                <Button type="button" variant="outline">Cancel</Button>
+                <Button type="button" variant="secondary">Cancel</Button>
               </SheetClose>
             </SheetFooter>
           </div>

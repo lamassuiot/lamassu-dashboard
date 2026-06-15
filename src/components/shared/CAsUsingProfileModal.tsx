@@ -3,8 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,25 +18,21 @@ interface CAsUsingProfileModalProps {
   onOpenChange: (isOpen: boolean) => void;
   profileId: string;
   profileName: string;
-  onUsageLoaded?: (count: number) => void; // New callback prop
+  onUsageLoaded?: (count: number) => void;
 }
 
 const flattenCaTree = (cas: CA[]): CA[] => {
   const flatList: CA[] = [];
   function recurse(items: CA[]) {
     for (const item of items) {
-      // Add the parent but without its children to avoid duplication in the flat list
       const { children, ...rest } = item;
       flatList.push(rest as CA);
-      if (children) {
-        recurse(children);
-      }
+      if (children) recurse(children);
     }
   }
   recurse(cas);
   return flatList;
 };
-
 
 export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
   isOpen,
@@ -47,30 +42,26 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
   onUsageLoaded,
 }) => {
   const router = useRouter();
-  
+
   const [cas, setCas] = useState<CA[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
 
-
   const fetchCAs = useCallback(async () => {
-    if (!profileId || !isOpen ) {
-      return;
-    }
+    if (!profileId || !isOpen) return;
     setIsLoading(true);
     setError(null);
     setCas([]);
-
     try {
       const [casData, enginesData] = await Promise.all([
         fetchAndProcessCAs(`filter=profile_id[equal]${profileId}`),
-        fetchCryptoEngines() // Fetch engines for the visualizer cards
+        fetchCryptoEngines(),
       ]);
       const flatCas = flattenCaTree(casData);
       setCas(flatCas);
       setAllCryptoEngines(enginesData);
-      onUsageLoaded?.(flatCas.length); // Call the callback with the count
+      onUsageLoaded?.(flatCas.length);
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred while searching for CAs.');
     } finally {
@@ -88,16 +79,16 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md md:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>CAs Using Profile: {profileName}</DialogTitle>
-          <DialogDescription>
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="!w-[33vw] sm:!max-w-none flex flex-col p-0">
+        <SheetHeader className="border-b px-6 py-5">
+          <SheetTitle>CAs Using Profile: {profileName}</SheetTitle>
+          <SheetDescription>
             The following Certificate Authorities use this profile as their default for issuance.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="min-h-[20rem] my-4">
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-hidden px-6 py-4">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -110,8 +101,8 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : cas.length > 0 ? (
-            <ScrollArea className="h-80">
-              <div className="space-y-2 p-1">
+            <ScrollArea className="h-full">
+              <div className="space-y-2 pr-2">
                 {cas.map(ca => (
                   <CaVisualizerCard
                     key={ca.id}
@@ -129,13 +120,7 @@ export const CAsUsingProfileModal: React.FC<CAsUsingProfileModalProps> = ({
             </div>
           )}
         </div>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">Close</Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };

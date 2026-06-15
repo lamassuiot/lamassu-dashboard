@@ -204,7 +204,7 @@ export function MetadataFilterManager({
                 {item.name || item.filter}
                 <Button
                   variant="ghost"
-                  size="sm"
+                 
                   className="ml-1 h-4 w-4 p-0 hover:bg-transparent"
                   onClick={() => handleRemoveFilter(index)}
                   disabled={disabled}
@@ -243,7 +243,7 @@ export function MetadataFilterManager({
               <>
                 <Button
                   variant="default"
-                  size="sm"
+                 
                   className="h-7 px-2"
                   onClick={handleAddFilter}
                   disabled={disabled}
@@ -253,8 +253,8 @@ export function MetadataFilterManager({
                   Add
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="secondary"
+                 
                   className="h-7 px-2"
                   onClick={handleSaveCurrentFilter}
                   disabled={disabled}
@@ -268,7 +268,7 @@ export function MetadataFilterManager({
             {(value.length > 0 || currentInput) && (
               <Button
                 variant="ghost"
-                size="sm"
+               
                 className="h-7 w-7 p-0"
                 onClick={handleClearAll}
                 disabled={disabled}
@@ -281,7 +281,7 @@ export function MetadataFilterManager({
               <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="sm"
+                 
                   className="h-7 px-2"
                   disabled={disabled}
                   title="Manage saved filters"
@@ -294,8 +294,8 @@ export function MetadataFilterManager({
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-sm">Saved Filters</h4>
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant="secondary"
+                     
                       onClick={handleSaveCurrentFilter}
                       disabled={!currentInput.trim()}
                     >
@@ -327,7 +327,7 @@ export function MetadataFilterManager({
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <Button
                                 variant="ghost"
-                                size="sm"
+                               
                                 className="h-7 w-7 p-0"
                                 onClick={() => handleEditFilter(filter)}
                                 title="Edit filter"
@@ -336,7 +336,7 @@ export function MetadataFilterManager({
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="sm"
+                               
                                 className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                                 onClick={() => handleDeleteFilter(filter.id)}
                                 title="Delete filter"
@@ -350,7 +350,7 @@ export function MetadataFilterManager({
                           </code>
                           <Button
                             variant="default"
-                            size="sm"
+                           
                             className="w-full h-7 text-xs"
                             onClick={() => handleUseFilter(filter)}
                           >
@@ -414,7 +414,7 @@ export function MetadataFilterManager({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSaveDialogOpen(false)}>
+            <Button variant="secondary" onClick={() => setIsSaveDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleConfirmSave}>
@@ -472,7 +472,7 @@ export function MetadataFilterManager({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="secondary" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleConfirmEdit}>

@@ -108,9 +108,9 @@ export const ExpirationInput: React.FC<ExpirationInputProps> = ({
             <PopoverTrigger asChild>
               <Button
                 id={`${idPrefix}-date-picker`}
-                variant={"outline"}
+                variant="ghost"
                 className={cn(
-                  "w-full justify-start text-left font-normal",
+                  "h-8 w-full justify-start bg-input/50 px-2.5 text-left font-normal hover:bg-input/70",
                   !selectedDate && "text-muted-foreground"
                 )}
               >

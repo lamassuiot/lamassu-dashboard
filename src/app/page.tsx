@@ -141,29 +141,29 @@ export default function HomePage() {
       <div className="flex flex-col gap-8 xl:flex-row xl:items-stretch">
         <div className="min-w-0 flex-1">
           {anyTimelineLoading && !anyTimelineError ? (
-            <Card className="h-full w-full bg-card shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
+            <Card className="flex h-full w-full flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">Certification Authority Expiry Timeline</CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
-                <div className="flex h-[320px] items-center justify-center p-4">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="ml-3 text-muted-foreground">Loading Certification Authority timeline data...</p>
+                <div className="flex h-[320px] items-center justify-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Loading timeline data…</p>
                 </div>
               </CardContent>
             </Card>
           ) : anyTimelineError ? (
-            <Card className="h-full w-full bg-card shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold">Certification Authority Expiry Timeline</CardTitle>
+            <Card className="flex h-full w-full flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">Certification Authority Expiry Timeline</CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
-                <Alert variant="destructive" className="min-h-[320px]">
+                <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Error Loading Timeline Data</AlertTitle>
                   <AlertDescription>
                     {anyTimelineError}
-                    <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80 focus:text-destructive">Try again?</Button>
+                    <Button variant="link" onClick={loadInitialData} className="p-0 h-auto ml-1 text-destructive hover:text-destructive/80">Try again?</Button>
                   </AlertDescription>
                 </Alert>
               </CardContent>

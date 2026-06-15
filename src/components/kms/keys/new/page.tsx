@@ -172,7 +172,7 @@ export default function CreateKmsKeyPage() {
   if (!selectedMode) {
     return (
       <div className="w-full space-y-8 mb-8">
-        <Button variant="outline" onClick={() => router.push('/kms/keys')} className="mb-0">
+        <Button variant="secondary" onClick={() => router.push('/kms/keys')} className="mb-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
         <div className="text-center">
@@ -210,7 +210,7 @@ export default function CreateKmsKeyPage() {
   return (
     <div className="w-full space-y-6 mb-8">
       <div className="flex justify-between items-center">
-        <Button variant="outline" onClick={() => router.push('/kms/keys')}>
+        <Button variant="secondary" onClick={() => router.push('/kms/keys')}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to KMS Keys
         </Button>
         <Button variant="ghost" onClick={() => setSelectedMode(null)} className="text-primary hover:text-primary/80">
@@ -349,7 +349,7 @@ export default function CreateKmsKeyPage() {
             )}
 
             <div className="flex justify-end pt-4">
-              <Button type="submit" size="lg" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
                 {selectedMode === 'newKeyPair' ? 'Create Key Pair' : 
                  selectedMode === 'importKeyPair' ? 'Import Key Pair' :

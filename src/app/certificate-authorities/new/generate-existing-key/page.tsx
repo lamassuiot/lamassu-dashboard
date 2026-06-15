@@ -30,6 +30,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { add, format } from 'date-fns';
 import type { CreateSigningProfilePayload } from '@/lib/ca-data';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 
@@ -400,9 +401,16 @@ export default function CreateCaExistingKeyPage() {
     setProfileMode('reuse');
   };
 
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Certificate Authorities', href: '/certificate-authorities' },
+    { label: 'New', href: '/certificate-authorities/new' },
+    { label: 'Generate' },
+  ];
+
   return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+    <BreadcrumbPage items={breadcrumbItems} className="w-full space-y-6 mb-8">
+      <Button variant="secondary" onClick={() => router.push('/certificate-authorities/new')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
       </Button>
 
@@ -539,7 +547,7 @@ export default function CreateCaExistingKeyPage() {
                       <Label htmlFor="parentCa">Parent Certification Authority</Label>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => setIsParentCaModalOpen(true)}
                         className="w-full justify-start text-left font-normal mt-1"
                         id="parentCa"
@@ -657,7 +665,7 @@ export default function CreateCaExistingKeyPage() {
             </Card>
 
           <div className="flex justify-end pt-4">
-            <Button type="submit" size="lg" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
               {isSubmitting ? 'Creating...' : 'Create Certification Authority'}
             </Button>
@@ -678,6 +686,6 @@ export default function CreateCaExistingKeyPage() {
         currentSelectedCaId={selectedParentCa?.id}
         allCryptoEngines={allCryptoEngines}
       />
-    </div>
+    </BreadcrumbPage>
   );
 }

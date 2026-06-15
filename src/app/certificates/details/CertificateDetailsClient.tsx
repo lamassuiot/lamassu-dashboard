@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from "@/components/ui/button";
 import { FileText, ShieldAlert, Loader2, AlertTriangle, Layers, Code2, Info, ShieldCheck, Trash2, Settings, KeyRound, Copy, Check, ArrowLeft } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { sileo } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -25,7 +25,9 @@ import { fetchDeviceById } from '@/lib/devices-api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import { parseISO, differenceInDays, isPast } from 'date-fns';
 
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -97,6 +99,21 @@ export default function CertificateDetailsClient() { // Renamed component
     }
     return '';
   }, [certificateDetails, allCAs]);
+
+  const validityInfo = useMemo(() => {
+    if (!certificateDetails?.validFrom || !certificateDetails?.validTo) return null;
+    try {
+      const from = parseISO(certificateDetails.validFrom).getTime();
+      const to = parseISO(certificateDetails.validTo).getTime();
+      const now = Date.now();
+      const total = to - from;
+      const elapsed = now - from;
+      const percent = Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
+      const daysLeft = differenceInDays(to, now);
+      const expired = isPast(parseISO(certificateDetails.validTo));
+      return { percent, daysLeft, expired };
+    } catch { return null; }
+  }, [certificateDetails?.validFrom, certificateDetails?.validTo]);
 
   const certificateChainForVisualizer: CA[] = useMemo(() => {
     if (!certificateDetails || allCAs.length === 0) return [];
@@ -339,7 +356,7 @@ export default function CertificateDetailsClient() { // Renamed component
   if (errorCert || errorDependencies) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="secondary" onClick={() => routerHook.back()} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert variant="destructive">
@@ -357,7 +374,7 @@ export default function CertificateDetailsClient() { // Renamed component
       <div className="w-full space-y-6 flex flex-col items-center justify-center py-10">
         <FileText className="h-12 w-12 text-muted-foreground" />
         <p className="text-muted-foreground">Certificate with Serial Number "{certificateId || 'Unknown'}" not found or data is unavailable.</p>
-        <Button variant="outline" onClick={() => routerHook.push('/certificates')} className="mt-4">
+        <Button variant="secondary" onClick={() => routerHook.push('/certificates')} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Certificates List
         </Button>
       </div>
@@ -382,14 +399,9 @@ export default function CertificateDetailsClient() { // Renamed component
   }
 
   const isOnHold = certificateDetails.apiStatus?.toUpperCase() === 'REVOKED' && certificateDetails.revocationReason === 'CertificateHold';
-
-  const accentClass = statusText.includes('ACTIVE')
-    ? 'bg-primary'
-    : statusText.includes('REVOKED')
-    ? 'bg-destructive'
-    : statusText.includes('EXPIRED')
-    ? 'bg-amber-500'
-    : 'bg-muted';
+  const issuerDisplayName = certificateDetails.issuerCaId
+    ? findCaById(certificateDetails.issuerCaId, allCAs)?.name || certificateDetails.issuer
+    : certificateDetails.issuer;
 
   const statusDotClass = statusText.includes('ACTIVE')
     ? 'bg-emerald-500'
@@ -410,60 +422,46 @@ export default function CertificateDetailsClient() { // Renamed component
     : 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400';
 
   return (
-    <div className="w-full space-y-5">
+    <BreadcrumbPage
+      className="space-y-5"
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'Certificates', href: '/certificates' },
+        {
+          label: (
+            <Badge variant="default" className="max-w-[320px] truncate text-xs">
+              {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
+            </Badge>
+          ),
+        },
+      ]}
+    >
 
-      <DetailBreadcrumbRow
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Certificates', href: '/certificates' },
-          {
-            label: (
-              <Badge variant="default" className="max-w-[320px] truncate text-xs">
-                {getCertSubjectCommonName(certificateDetails.subject) || certificateDetails.serialNumber}
-              </Badge>
-            ),
-          },
-        ]}
-        actions={
-          isOnHold ? (
-            <Button variant="outline" size="sm" onClick={handleReactivate}>
-              <ShieldCheck className="mr-2 h-4 w-4" /> Re-activate
-            </Button>
-          ) : statusText !== 'REVOKED' ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-              onClick={handleOpenRevokeModal}
-              disabled={isRevoking}
-            >
-              {isRevoking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-              {isRevoking ? 'Revoking…' : 'Revoke'}
-            </Button>
-          ) : null
-        }
-      />
+      <div className="flex flex-col">
 
-      {/* Hero card */}
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className={cn('h-1 w-full', accentClass)} />
-        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 p-5">
+      {/* ── Hero ── */}
+      <div className="space-y-5">
+
+        {/* Identity + validity row */}
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-stretch">
+
           {/* Identity */}
           <div className="flex items-start gap-4 min-w-0">
             <div className={cn(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border',
+              'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2',
               iconBoxClass
             )}>
-              <FileText className="h-5 w-5" />
+              <FileText className="h-6 w-6" />
             </div>
-            <div className="min-w-0 space-y-2">
+
+            <div className="min-w-0 flex-1 space-y-2">
               <div>
-                <h1 className="text-xl font-semibold truncate" title={certificateDetails.subject}>
+                <h1 className="text-2xl font-semibold tracking-tight truncate" title={certificateDetails.subject}>
                   {getCertSubjectCommonName(certificateDetails.subject) || 'Certificate'}
                 </h1>
                 <div className="mt-1 flex items-center gap-1.5">
                   <span className="text-xs font-medium text-muted-foreground">SN</span>
-                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[320px]">
+                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">
                     {(() => {
                       const clean = certificateDetails.serialNumber.replaceAll(/[\s:-]/g, '');
                       if (identifierMode === 'with-separators') {
@@ -474,7 +472,7 @@ export default function CertificateDetailsClient() { // Renamed component
                   </code>
                   <Button
                     variant="ghost"
-                    size="sm"
+                   
                     className="h-6 w-6 p-0 shrink-0"
                     onClick={() => {
                       navigator.clipboard.writeText(certificateDetails.serialNumber.replaceAll(/[:\-]/g, ''));
@@ -487,79 +485,171 @@ export default function CertificateDetailsClient() { // Renamed component
                 </div>
               </div>
 
-              {/* Badge cluster */}
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Status pill */}
-                <div className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={cn(
+                  'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
                   statusPillClass
                 )}>
-                  <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass)} />
+                  <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', statusDotClass)} />
                   {statusText}
-                </div>
+                </span>
 
                 {statusText === 'REVOKED' && certificateDetails.revocationReason && (
-                  <Badge variant="outline" className="text-xs text-destructive border-destructive/30">
+                  <span className="inline-flex h-6 items-center rounded-md bg-destructive/10 px-2 text-xs text-destructive">
                     {certificateDetails.revocationReason}
-                  </Badge>
+                  </span>
                 )}
 
                 {certificateDetails.publicKeyAlgorithm && (
-                  <Badge variant="outline" className="text-xs gap-1">
-                    <KeyRound className="h-3 w-3" />
+                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    <KeyRound className="h-3 w-3 shrink-0" />
                     {certificateDetails.publicKeyAlgorithm}
-                  </Badge>
+                  </span>
                 )}
               </div>
             </div>
           </div>
 
-          {canDelete && (
-            <div className="flex items-center gap-2 shrink-0">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4" />
+          {/* Actions + Validity */}
+          {validityInfo && (
+            <div className="flex flex-col gap-4 xl:flex-1 xl:pl-6 xl:border-l">
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 xl:justify-end">
+                {isOnHold ? (
+                  <Button variant="secondary" className="gap-2" onClick={handleReactivate}>
+                    <ShieldCheck className="h-4 w-4" /> Re-activate
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => setIsDeleteModalOpen(true)}
-                    disabled={isDeleting}
+                ) : statusText !== 'REVOKED' ? (
+                  <Button
+                    variant="secondary"
+                    className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+                    onClick={handleOpenRevokeModal}
+                    disabled={isRevoking}
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Certificate
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+                    {isRevoking ? 'Revoking…' : 'Revoke'}
+                  </Button>
+                ) : null}
+                {canDelete && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" className="px-2.5">
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setIsDeleteModalOpen(true)}
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Certificate
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+
+              {/* Validity timeline */}
+              <div className="rounded-lg border bg-muted/30 px-4 py-3 space-y-2 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Validity Period</span>
+                <span className={cn(
+                  'text-xs font-semibold tabular-nums',
+                  validityInfo.expired
+                    ? 'text-destructive'
+                    : validityInfo.daysLeft <= 30
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-muted-foreground'
+                )}>
+                  {validityInfo.expired
+                    ? 'Expired'
+                    : validityInfo.daysLeft === 0
+                    ? 'Expires today'
+                    : `${validityInfo.daysLeft}d remaining`}
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    validityInfo.expired
+                      ? 'bg-destructive'
+                      : validityInfo.daysLeft <= 30
+                      ? 'bg-amber-500'
+                      : validityInfo.percent >= 75
+                      ? 'bg-amber-400'
+                      : 'bg-primary'
+                  )}
+                  style={{ width: `${validityInfo.percent}%` }}
+                />
+              </div>
+
+              {/* Date anchors */}
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">From</p>
+                  <DateDisplay date={certificateDetails.validFrom} className="text-xs" />
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">To</p>
+                  <DateDisplay date={certificateDetails.validTo} highlightExpired className="text-xs items-end" />
+                </div>
+              </div>
+            </div>
             </div>
           )}
+
         </div>
+
+        {/* Issuer + chain strip */}
+        <div className="flex items-center gap-8 pt-1 border-t">
+          <div className="py-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Issuer</p>
+            <div className="mt-1">
+              {certificateDetails.issuerCaId ? (
+                <button
+                  className="text-sm text-primary hover:underline text-left"
+                  onClick={() => routerHook.push(`/certificate-authorities/details?caId=${certificateDetails.issuerCaId}`)}
+                >
+                  {issuerDisplayName || 'Unknown'}
+                </button>
+              ) : (
+                <p className="text-sm text-foreground">{issuerDisplayName || 'Unknown'}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="py-3 border-l pl-8">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Chain</p>
+            <p className="mt-1 text-sm text-foreground">{certificateChainForVisualizer.length + 1} certificate{certificateChainForVisualizer.length + 1 !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+
       </div>
 
-      {/* Underline tabs */}
+      <div className="border-t" />
+
       <Tabs defaultValue="information" className="w-full">
-        <div className="border-b">
-          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
-            <TabsTrigger
-              value="information"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <Info className="mr-2 h-4 w-4" />Details
-            </TabsTrigger>
-            <TabsTrigger
-              value="pem"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <Code2 className="mr-2 h-4 w-4" />Certificate PEM
-            </TabsTrigger>
-            <TabsTrigger
-              value="metadata"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <Layers className="mr-2 h-4 w-4" />Metadata
-            </TabsTrigger>
+        <div className="border-b overflow-x-auto overflow-y-hidden">
+          <TabsList className={cn(pageTabsListClass, "min-w-max")}>
+            {([
+              { value: 'information', icon: Info, label: 'Information' },
+              { value: 'pem', icon: Code2, label: 'Certificate PEM' },
+              { value: 'metadata', icon: Layers, label: 'Metadata' },
+            ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className={pageTabsTriggerClass}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 
@@ -608,6 +698,7 @@ export default function CertificateDetailsClient() { // Renamed component
           </TabsContent>
         </div>
       </Tabs>
+      </div>
 
       {certificateToRevoke && (
         <RevocationModal
@@ -649,6 +740,6 @@ export default function CertificateDetailsClient() { // Renamed component
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }

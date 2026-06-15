@@ -150,7 +150,7 @@ export const BackendStatusDialog: React.FC<BackendStatusDialogProps> = ({ isOpen
                 
                 <DialogFooter>
                     <div className="w-full flex justify-between">
-                        <Button variant="outline" onClick={fetchStatuses} disabled={isLoading}>
+                        <Button variant="secondary" onClick={fetchStatuses} disabled={isLoading}>
                             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
                             Refresh
                         </Button>

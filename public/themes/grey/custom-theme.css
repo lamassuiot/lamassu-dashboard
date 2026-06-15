@@ -1,114 +1,161 @@
+/*
+  Lamassu IoT - Grey Theme — High Contrast Professional (Tailwind v4 compatible)
+*/
+
 :root {
-    /* sample2 Theme - High Contrast Professional */
-
-    /* Base Theme Colors */
-    --background: 240 5% 96%; /* Light Gray */
-    --foreground: 240 10% 4%; /* Near Black */
-
-    --primary: 240 10% 4%; /* Near Black for buttons */
-    --primary-foreground: 0 0% 98%; /* White text on black buttons */
-    
-    /* Header uses a light background */
-    --header-background: 0 0% 100%; /* White */
-    --header-foreground: 240 10% 4%;    /* Near Black text */
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    /* Standard ShadCN UI Colors (derived) */
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 240 10% 4%; 
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 4%;
-
-    --secondary: 240 5% 96%; /* Light Gray */
-    --secondary-foreground: 240 10% 4%;
-
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 240 10% 4%;
-
-    --radius: 0.5rem;
-    
-    /* Chart Colors - Can be adjusted to fit the new aesthetic */
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 40 80% 55%;
-    --chart-4: 0 70% 50%;
-    --chart-5: 280 60% 55%;
-
-    /* Sidebar - Dark theme */
-    --sidebar-background: 240 10% 12%; /* Dark Gray */
-    --sidebar-foreground: 0 0% 98%;    /* White text */
-    
-    --sidebar-primary: 0 0% 98%; /* White for active item background */
-    --sidebar-primary-foreground: 240 10% 4%; /* Black for active item text */
-    
-    --sidebar-accent: 240 10% 20%; /* Slightly lighter gray for hover */
-    --sidebar-accent-foreground: 0 0% 98%; /* White text on hover */
-    
-    --sidebar-border: 240 10% 25%;
-    --sidebar-ring: 0 0% 98%;
-
-    /* Secondary Logo Config */
-    --secondary-logo-url: url('https://placehold.co/120x40/ef4444/FFFFFF/png?text=SMPL');
-    --secondary-logo-display: flex;
+  --secondary-logo-url: url('https://placehold.co/120x40/ef4444/FFFFFF/png?text=SMPL');
+  --secondary-logo-display: flex;
 }
 
-.dark {
-    /* For dark mode, we can choose to keep the dark sidebar or invert it */
-    /* This example keeps the dark sidebar consistent across both modes */
-    --background: 240 10% 10%;
-    --foreground: 0 0% 98%;
+/* ------------------------- */
+/* --- LIGHT THEME (DAY) --- */
+/* ------------------------- */
 
-    --card: 240 10% 14%;
-    --card-foreground: 0 0% 98%;
+:root:not(.dark) {
+  --background: hsl(240 5% 96%);
+  --foreground: hsl(240 10% 4%);
 
-    --popover: 240 10% 12%;
-    --popover-foreground: 0 0% 98%;
-    
-    --primary: 0 0% 98%; /* White buttons in dark mode */
-    --primary-foreground: 240 10% 4%;
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(240 10% 4%);
 
-    --header-background: 240 10% 12%;
-    --header-foreground: 0 0% 98%;
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(240 10% 4%);
 
-    --secondary: 240 10% 18%;
-    --secondary-foreground: 0 0% 98%;
+  --primary: hsl(240 10% 4%);             /* Near Black */
+  --primary-foreground: hsl(0 0% 98%);
 
-    --muted: 240 10% 18%;
-    --muted-foreground: 240 4% 65%;
+  --secondary: hsl(240 5% 96%);
+  --secondary-foreground: hsl(240 10% 4%);
 
-    --border: 240 10% 25%;
-    --input: 240 10% 25%;
-    --ring: 0 0% 98%;
+  --muted: hsl(240 5% 96%);
+  --muted-foreground: hsl(240 4% 46%);
 
-    /* Sidebar remains the same in dark mode */
-    --sidebar-background: 240 10% 12%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 0 0% 98%;
-    --sidebar-primary-foreground: 240 10% 4%;
-    --sidebar-accent: 240 10% 20%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 240 10% 25%;
-    --sidebar-ring: 0 0% 98%;
+  --accent: hsl(210 40% 96.1%);
+  --accent-foreground: hsl(222.2 47.4% 11.2%);
+
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 98%);
+
+  --border: hsl(240 6% 90%);
+  --input: hsl(240 6% 90%);
+  --ring: hsl(240 10% 4%);
+
+  --radius: 0.5rem;
+
+  /* Header — bare HSL triplet: used via hsl(var(--header-background)) in @theme */
+  --header-background: 0 0% 100%;
+  --header-foreground: 240 10% 4%;
+
+  /* Sidebar — dark sidebar even in light mode */
+  --sidebar: hsl(240 10% 12%);
+  --sidebar-background: 240 10% 12%;
+  --sidebar-foreground: hsl(0 0% 98%);
+  --sidebar-primary: hsl(0 0% 98%);
+  --sidebar-primary-foreground: hsl(240 10% 4%);
+  --sidebar-accent: hsl(240 10% 20%);
+  --sidebar-accent-foreground: hsl(0 0% 98%);
+  --sidebar-border: hsl(240 10% 25%);
+  --sidebar-ring: hsl(0 0% 98%);
+
+  /* Charts */
+  --chart-1: hsl(220 70% 50%);
+  --chart-2: hsl(160 60% 45%);
+  --chart-3: hsl(40 80% 55%);
+  --chart-4: hsl(0 70% 50%);
+  --chart-5: hsl(280 60% 55%);
 }
 
-/* Invert Lamassu logo color to black for light header */
+/* -------------------------- */
+/* --- DARK THEME (NIGHT) --- */
+/* -------------------------- */
+
+:root.dark {
+  --background: hsl(240 10% 10%);
+  --foreground: hsl(0 0% 98%);
+
+  --card: hsl(240 10% 14%);
+  --card-foreground: hsl(0 0% 98%);
+
+  --popover: hsl(240 10% 12%);
+  --popover-foreground: hsl(0 0% 98%);
+
+  --primary: hsl(0 0% 98%);              /* White buttons in dark mode */
+  --primary-foreground: hsl(240 10% 4%);
+
+  --secondary: hsl(240 10% 18%);
+  --secondary-foreground: hsl(0 0% 98%);
+
+  --muted: hsl(240 10% 18%);
+  --muted-foreground: hsl(240 4% 65%);
+
+  --accent: hsl(240 10% 18%);
+  --accent-foreground: hsl(0 0% 98%);
+
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 98%);
+
+  --border: hsl(240 10% 25%);
+  --input: hsl(240 10% 25%);
+  --ring: hsl(0 0% 98%);
+
+  /* Header — bare HSL triplet */
+  --header-background: 240 10% 12%;
+  --header-foreground: 0 0% 98%;
+
+  /* Sidebar */
+  --sidebar: hsl(240 10% 12%);
+  --sidebar-background: 240 10% 12%;
+  --sidebar-foreground: hsl(0 0% 98%);
+  --sidebar-primary: hsl(0 0% 98%);
+  --sidebar-primary-foreground: hsl(240 10% 4%);
+  --sidebar-accent: hsl(240 10% 20%);
+  --sidebar-accent-foreground: hsl(0 0% 98%);
+  --sidebar-border: hsl(240 10% 25%);
+  --sidebar-ring: hsl(0 0% 98%);
+
+  /* Charts */
+  --chart-1: hsl(220 70% 60%);
+  --chart-2: hsl(160 60% 55%);
+  --chart-3: hsl(40 80% 60%);
+  --chart-4: hsl(0 70% 60%);
+  --chart-5: hsl(280 60% 65%);
+
+  /* Direct Tailwind color token overrides */
+  --color-background: hsl(240 10% 10%);
+  --color-foreground: hsl(0 0% 98%);
+  --color-card: hsl(240 10% 14%);
+  --color-card-foreground: hsl(0 0% 98%);
+  --color-popover: hsl(240 10% 12%);
+  --color-popover-foreground: hsl(0 0% 98%);
+  --color-primary: hsl(0 0% 98%);
+  --color-primary-foreground: hsl(240 10% 4%);
+  --color-secondary: hsl(240 10% 18%);
+  --color-secondary-foreground: hsl(0 0% 98%);
+  --color-muted: hsl(240 10% 18%);
+  --color-muted-foreground: hsl(240 4% 65%);
+  --color-accent: hsl(240 10% 18%);
+  --color-accent-foreground: hsl(0 0% 98%);
+  --color-destructive: hsl(0 84% 60%);
+  --color-border: hsl(240 10% 25%);
+  --color-input: hsl(240 10% 25%);
+  --color-ring: hsl(0 0% 98%);
+  --color-sidebar: hsl(240 10% 12%);
+  --color-sidebar-foreground: hsl(0 0% 98%);
+  --color-sidebar-primary: hsl(0 0% 98%);
+  --color-sidebar-primary-foreground: hsl(240 10% 4%);
+  --color-sidebar-accent: hsl(240 10% 20%);
+  --color-sidebar-accent-foreground: hsl(0 0% 98%);
+  --color-sidebar-border: hsl(240 10% 25%);
+  --color-sidebar-ring: hsl(0 0% 98%);
+}
+
+/* Invert Lamassu logo to black for light header */
 header img[alt="LamassuIoT Logo"] {
-    filter: invert(1) brightness(0);
+  filter: invert(1) brightness(0);
 }
 
-/* In dark mode, revert the filter to show the white logo */
 .dark header img[alt="LamassuIoT Logo"] {
-    filter: none;
+  filter: none;
 }
 
 header button[aria-label="Toggle theme"] svg {
@@ -120,6 +167,6 @@ header button[aria-label="Toggle theme"] svg {
 }
 
 .lamassu-logo-theme-filter {
-  /* For light theme: change SVG to near-black (hsl(240, 10%, 4%)) */
+  /* For light theme: change SVG to near-black */
   filter: invert(6%) sepia(10%) saturate(400%) hue-rotate(200deg) brightness(80%) contrast(110%);
 }

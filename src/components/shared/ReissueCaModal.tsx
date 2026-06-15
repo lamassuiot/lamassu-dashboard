@@ -396,7 +396,7 @@ export const ReissueCaModal: React.FC<ReissueCaModalProps> = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isReissuing}>
+          <Button variant="secondary" onClick={onClose} disabled={isReissuing}>
             Cancel
           </Button>
           <Button onClick={handleReissue} disabled={isReissuing || !canSubmit}>

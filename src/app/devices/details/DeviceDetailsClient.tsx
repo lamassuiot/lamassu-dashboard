@@ -5,10 +5,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation'; // Changed from useParams
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap } from 'lucide-react';
-import { DeviceIcon, StatusBadge as DeviceStatusBadge, mapApiIconToIconType } from '@/app/devices/page';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, ChevronRight, ChevronLeft, Trash2, Zap, Copy, Check } from 'lucide-react';
+import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/page';
 import { format, formatDistanceToNowStrict, parseISO, formatDistanceStrict } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
@@ -26,7 +26,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { fetchDeviceById, decommissionDevice, type ApiDevice, type ApiDeviceIdentity, updateDeviceMetadata, type PatchOperation, deleteDevice } from '@/lib/devices-api';
 import { bindIdentityToDevice, fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { discoverIntegrations, type DiscoveredIntegration } from '@/lib/integrations-api';
@@ -47,6 +47,40 @@ interface CertificateHistoryEntry {
   validFrom: string;
   validTo: string;
   lifespan: string;
+}
+
+function DetailPanel({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border bg-card">
+      <div className="border-b px-4 py-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      <dl className="divide-y px-4">
+        {children}
+      </dl>
+    </section>
+  );
+}
+
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-1 py-2.5 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center">
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-sm">{children}</dd>
+    </div>
+  );
 }
 
 const getCertSubjectCommonName = (subject: string): string => {
@@ -96,6 +130,8 @@ export default function DeviceDetailsClient() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  const [copiedId, setCopiedId] = useState(false);
+
   // State for integrations and force update
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
   const [availableIntegrations, setAvailableIntegrations] = useState<DiscoveredIntegration[]>([]);
@@ -599,7 +635,7 @@ export default function DeviceDetailsClient() {
   if (errorDevice) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="secondary" onClick={() => routerHook.back()} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert variant="destructive">
@@ -614,7 +650,7 @@ export default function DeviceDetailsClient() {
   if (!device) {
     return (
       <div className="w-full space-y-4 p-4">
-         <Button variant="outline" onClick={() => routerHook.back()} className="mb-4">
+         <Button variant="secondary" onClick={() => routerHook.back()} className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         <Alert>
@@ -630,119 +666,179 @@ export default function DeviceDetailsClient() {
   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
 
   return (
-    <div className="w-full space-y-5">
-      <DetailBreadcrumbRow
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Devices', href: '/devices' },
-          { label: 'Details' },
-        ]}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
-            {availableIntegrations.length > 0 && (
-              <Button variant="secondary" size="sm" onClick={() => setIsForceUpdateModalOpen(true)}>
-                <Zap className="mr-2 h-4 w-4" /> Force Update
-              </Button>
-            )}
+    <BreadcrumbPage
+      className="space-y-4"
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'Devices', href: '/devices' },
+        { label: 'Details' },
+      ]}
+    >
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex items-start gap-4">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+            style={{ backgroundColor: bgColor || '#F0F8FF' }}
+          >
+            <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
+          </div>
+
+          <div className="min-w-0 space-y-2">
+            <div>
+              <h1 className="truncate text-2xl font-semibold tracking-tight" title={device.id}>{device.id}</h1>
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">ID</span>
+                <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs">
+                  {device.id}
+                </code>
+                <Button
+                  variant="ghost"
+                  className="h-6 w-6 shrink-0 p-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(device.id);
+                    setCopiedId(true);
+                    setTimeout(() => setCopiedId(false), 2000);
+                  }}
+                >
+                  {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          <Button variant="secondary" onClick={fetchDeviceDetails}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
+          {availableIntegrations.length > 0 && (
+            <Button variant="secondary" onClick={() => setIsForceUpdateModalOpen(true)}>
+              <Zap className="mr-2 h-4 w-4" /> Force Update
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+            onClick={() => setIsDecommissionModalOpen(true)}
+            disabled={device.status === 'DECOMMISSIONED'}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Decommission
+          </Button>
+          {device.status === 'DECOMMISSIONED' && (
             <Button
               variant="secondary"
-              size="sm"
-              className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
-              onClick={() => setIsDecommissionModalOpen(true)}
-              disabled={device.status === 'DECOMMISSIONED'}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setIsDeleteModalOpen(true)}
+              disabled={isDeleting}
             >
-              <Trash2 className="mr-2 h-4 w-4" /> Decommission
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              {isDeleting ? 'Deleting...' : 'Permanently Delete'}
             </Button>
-            {device.status === 'DECOMMISSIONED' && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setIsDeleteModalOpen(true)}
-                disabled={isDeleting}
-              >
-                {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                {isDeleting ? 'Deleting...' : 'Permanently Delete'}
-              </Button>
-            )}
-            <Button size="sm" onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
-            </Button>
-          </div>
-        }
-      />
-
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className="h-1 w-full" style={{ backgroundColor: iconColor || '#0f67ff' }} />
-        <div className="flex flex-col gap-4 p-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <div className="shrink-0">
-              <DeviceIcon type={deviceIconType} iconColor={iconColor} bgColor={bgColor} />
-            </div>
-            <div className="min-w-0 space-y-2">
-              <div>
-                <h1 className="truncate text-xl font-semibold" title={device.id}>
-                  {device.id}
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Device details, identity lifecycle, and certificate history.
-                </p>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3 shrink-0" />
-                  <span>Created</span>
-                  <span className="text-border">·</span>
-                  <DateDisplay date={device.creation_timestamp} formatString={getDisplayDateFormat()} showRelative={true} className="text-xs" />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <DeviceStatusBadge status={device.status as any} />
-                {device.dms_owner ? (
-                  <Badge variant="outline" className="text-xs">
-                    Managed
-                  </Badge>
-                ) : null}
-                {device.identity ? (
-                  <Badge variant="outline" className="text-xs">
-                    Identity Assigned
-                  </Badge>
-                ) : null}
-                {device.tags?.map(tag => (
-                  <Badge key={tag} variant="secondary" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
+          )}
+          <Button onClick={() => setIsAssignIdentityModalOpen(true)} disabled={!!device.identity && device.identity.status !== 'REVOKED'}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Assign Identity
+          </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="certificatesHistory" className="w-full">
-        <div className="border-b">
-          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
-            <TabsTrigger
-              value="certificatesHistory"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <History className="mr-2 h-4 w-4" />Certificates History
-            </TabsTrigger>
-            <TabsTrigger
-              value="timeline"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <Clock className="mr-2 h-4 w-4" />Timeline
-            </TabsTrigger>
-            <TabsTrigger
-              value="metadata"
-              className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-            >
-              <SlidersHorizontal className="mr-2 h-4 w-4" />Metadata
-            </TabsTrigger>
+      <Tabs defaultValue="information" className="w-full">
+        <div className="border-b overflow-x-auto overflow-y-hidden">
+          <TabsList className={cn(pageTabsListClass, "min-w-max")}>
+            {([
+              { value: 'information', icon: Info, label: 'Information' },
+              { value: 'certificatesHistory', icon: History, label: 'Certificates History' },
+              { value: 'timeline', icon: Clock, label: 'Timeline' },
+              { value: 'metadata', icon: SlidersHorizontal, label: 'Metadata' },
+            ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className={pageTabsTriggerClass}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 
-        <div className="mt-6 pb-6">
+        <div className="mt-4 pb-6">
+          <TabsContent value="information" className="mt-0">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <DetailPanel title="Device Details">
+                <DetailRow label="Device ID">
+                  <code className="block truncate font-mono text-xs" title={device.id}>{device.id}</code>
+                </DetailRow>
+                <DetailRow label="Status">
+                  <ApiStatusBadge status={device.status} />
+                </DetailRow>
+                <DetailRow label="Created">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span>{format(parseISO(device.creation_timestamp), getDisplayDateFormat())}</span>
+                    <span className="text-muted-foreground text-xs">({formatDistanceToNowStrict(parseISO(device.creation_timestamp))} ago)</span>
+                  </div>
+                </DetailRow>
+                {device.dms_owner && (
+                  <DetailRow label="Registration Authority">
+                    <a
+                      href={`/registration-authorities/details?raId=${device.dms_owner}`}
+                      className="block truncate text-primary hover:underline"
+                    >
+                      {device.dms_owner}
+                    </a>
+                  </DetailRow>
+                )}
+                {(device.tags?.length ?? 0) > 0 && (
+                  <DetailRow label="Tags">
+                    <span className="block truncate" title={device.tags.join(', ')}>{device.tags.join(', ')}</span>
+                  </DetailRow>
+                )}
+              </DetailPanel>
+
+              <DetailPanel title="Identity">
+                {device.identity ? (
+                  <>
+                    <DetailRow label="Status">
+                      <ApiStatusBadge status={device.identity.status} />
+                    </DetailRow>
+                    <DetailRow label="Type">
+                      {device.identity.type}
+                    </DetailRow>
+                    <DetailRow label="Active Certificate">
+                      {device.identity.versions[device.identity.active_version] ? (
+                        <a
+                          href={`/certificates/details?certificateId=${device.identity.versions[device.identity.active_version]}`}
+                          className="block truncate font-mono text-xs text-primary hover:underline"
+                        >
+                          {device.identity.versions[device.identity.active_version]}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </DetailRow>
+                    <DetailRow label="Total Versions">
+                      {Object.keys(device.identity.versions).length}
+                    </DetailRow>
+                    {device.identity.expiration_date && (
+                      <DetailRow label="Certificate Expiration">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <span>{format(parseISO(device.identity.expiration_date), getDisplayDateFormat())}</span>
+                          <span className="text-muted-foreground text-xs">({formatDistanceToNowStrict(parseISO(device.identity.expiration_date))})</span>
+                        </div>
+                      </DetailRow>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between gap-3 py-3">
+                    <p className="text-sm text-muted-foreground">No identity assigned to this device.</p>
+                    <Button variant="secondary" onClick={() => setIsAssignIdentityModalOpen(true)}>
+                      <PlusCircle className="mr-2 h-3.5 w-3.5" />
+                      Assign Identity
+                    </Button>
+                  </div>
+                )}
+              </DetailPanel>
+            </div>
+          </TabsContent>
+
         <TabsContent value="timeline" className="mt-0">
           {timelineEvents.length > 0 ? (
             <>
@@ -759,7 +855,7 @@ export default function DeviceDetailsClient() {
               </ul>
               {allRawEvents.length > timelineDisplayCount && (
                 <div className="flex justify-center mt-2">
-                  <Button onClick={handleLoadMoreTimeline} variant="outline" size="sm" disabled={isTimelineLoading}>
+                  <Button onClick={handleLoadMoreTimeline} variant="secondary" disabled={isTimelineLoading}>
                     {isTimelineLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Load more events
                   </Button>
@@ -889,14 +985,14 @@ export default function DeviceDetailsClient() {
                         <Button
                             onClick={() => setHistoryCurrentPage(p => p - 1)}
                             disabled={isLoadingHistory || historyCurrentPage === 1}
-                            variant="outline" size="sm"
+                            variant="secondary"
                         >
                             <ChevronLeft className="mr-1 h-4 w-4" /> Previous
                         </Button>
                         <Button
                             onClick={() => setHistoryCurrentPage(p => p + 1)}
                             disabled={isLoadingHistory || historyCurrentPage >= totalHistoryPages}
-                            variant="outline" size="sm"
+                            variant="secondary"
                         >
                             Next <ChevronRight className="ml-1 h-4 w-4" />
                         </Button>
@@ -969,8 +1065,6 @@ export default function DeviceDetailsClient() {
         setActiveIntegration={setActiveIntegration}
         isUpdating={isForcingUpdate}
       />
-    </div>
+    </BreadcrumbPage>
   );
 }
-
-    

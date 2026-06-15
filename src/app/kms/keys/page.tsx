@@ -22,6 +22,7 @@ import { type MetadataFilter } from '@/components/shared/MetadataFilterManager';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { KMSFilterBar } from '@/components/shared/filters/KMSFilterBar';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 interface KmsKey {
   id: string;
@@ -241,13 +242,20 @@ export default function KmsKeysPage() {
 
 
   return (
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <KeyRound className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Key Management Service - Asymmetric Keys</h1>
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label: 'Home', href: '/'}, {label: 'KMS', href: '/kms'}, {label: 'Keys'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <KeyRound className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Key Management Service - Asymmetric Keys</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage asymmetric keys stored in the Key Management Service. These keys are used for signing, verification, and other cryptographic operations.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 shrink-0">
           <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
@@ -256,9 +264,6 @@ export default function KmsKeysPage() {
           </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Manage asymmetric keys stored in the Key Management Service. These keys are used for signing, verification, and other cryptographic operations.
-      </p>
 
       {error && (
         <Alert variant="destructive">
@@ -336,7 +341,7 @@ export default function KmsKeysPage() {
                         {engine ? (
                           <CryptoEngineViewer engine={engine} plainIcon />
                         ) : (
-                          <Badge variant="outline" className="text-xs font-normal bg-muted/40 border-muted-foreground/30">
+                          <Badge variant="secondary" className="text-xs font-normal bg-muted/40 border-muted-foreground/30">
                             {key.cryptoEngineId || 'N/A'}
                           </Badge>
                         )}
@@ -483,10 +488,10 @@ export default function KmsKeysPage() {
               </Select>
             </div>
             <div className="flex items-center space-x-2">
-              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
+              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
               </Button>
-              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
+              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="secondary">
                 Next <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
@@ -507,6 +512,6 @@ export default function KmsKeysPage() {
         />
       )}
 
-    </div>
+    </BreadcrumbPage>
   );
 }

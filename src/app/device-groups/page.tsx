@@ -13,6 +13,7 @@ import { getDeviceGroups, deleteDeviceGroup } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
 import { DeviceGroupsList } from '@/components/device-groups/DeviceGroupsList';
 import { buildDeviceGroupTree } from '@/lib/device-groups-utils';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export default function DeviceGroupsPage() {
   const [groups, setGroups] = useState<DeviceGroup[]>([]);
@@ -97,15 +98,20 @@ export default function DeviceGroupsPage() {
   const filteredHierarchicalGroups = buildDeviceGroupTree(filteredFlatGroups);
 
   return (
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-        <div className="flex items-center space-x-3">
-          <div className={cn("p-1.5 rounded-md inline-flex items-center justify-center")} style={{ backgroundColor: '#F0F8FF' }}>
-            <Layers className={cn("h-8 w-8")} style={{ color: '#0f67ff' }} />
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Device Groups'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <Layers className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-headline font-semibold">Device Groups</h1>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Device Groups</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Organize devices with dynamic filter-based groups and hierarchical structures.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 shrink-0">
           <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
           </Button>
@@ -117,9 +123,6 @@ export default function DeviceGroupsPage() {
           </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Organize devices with dynamic filter-based groups and hierarchical structures.
-      </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
         <div className="space-y-1">
@@ -180,6 +183,6 @@ export default function DeviceGroupsPage() {
           </Button>
         </div>
       )}
-    </div>
+    </BreadcrumbPage>
   );
 }

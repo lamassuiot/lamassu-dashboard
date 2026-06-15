@@ -11,11 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
-import { SectionHeader } from '@/components/shared/FormComponents';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Trash2, AlertCircle, Filter } from 'lucide-react';
+import { Plus, Trash2, AlertCircle } from 'lucide-react';
 import {
   FilterOperation,
   type DeviceFilterableField,
@@ -109,55 +107,47 @@ export function FilterExpressionBuilder({
   };
 
   return (
-    <Card>
-      <SectionHeader
-        icon={Filter}
-        title="Filter Criteria"
-        description="Define dynamic membership rules. All filters are combined with AND logic."
-      />
-      <CardContent className="space-y-4">
-        {criteria.length > 0 && (
-          <>
-            <div className="space-y-3">
-              {criteria.map((filter, index) => (
-                <FilterRow
-                  key={index}
-                  filter={filter}
-                  index={index}
-                  onUpdate={updateFilter}
-                  onRemove={removeFilter}
-                />
+    <div className="space-y-4">
+      {criteria.length > 0 && (
+        <>
+          <div className="space-y-3">
+            {criteria.map((filter, index) => (
+              <FilterRow
+                key={index}
+                filter={filter}
+                index={index}
+                onUpdate={updateFilter}
+                onRemove={removeFilter}
+              />
+            ))}
+          </div>
+
+          <div className="space-y-2 rounded-md border bg-muted/20 p-4">
+            <div className="text-sm font-medium">Filter Summary</div>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              {criteria.map((filter, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  {idx > 0 && <Badge variant="secondary">AND</Badge>}
+                  <span>{formatFilterCriteria(filter.field, filter.operand, filter.value)}</span>
+                </div>
               ))}
             </div>
+          </div>
+        </>
+      )}
 
-            {/* Human-readable summary */}
-            <div className="p-4 bg-muted rounded-lg space-y-2">
-              <div className="text-sm font-medium">Filter Summary</div>
-              <div className="text-sm text-muted-foreground space-y-1">
-                {criteria.map((filter, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    {idx > 0 && <Badge variant="outline">AND</Badge>}
-                    <span>{formatFilterCriteria(filter.field, filter.operand, filter.value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
+      {(validationError || error) && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{validationError || error}</AlertDescription>
+        </Alert>
+      )}
 
-        {(validationError || error) && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{validationError || error}</AlertDescription>
-          </Alert>
-        )}
-
-        <Button type="button" variant="secondary" onClick={addFilter} className="w-full">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Filter
-        </Button>
-      </CardContent>
-    </Card>
+      <Button type="button" variant="secondary" onClick={addFilter} className="w-full sm:w-auto">
+        <Plus className="mr-2 h-4 w-4" />
+        Add Filter
+      </Button>
+    </div>
   );
 }
 
@@ -175,8 +165,8 @@ function FilterRow({ filter, index, onUpdate, onRemove }: FilterRowProps) {
   const currentOperation = filter.operand ?? (availableOperators.length > 0 ? availableOperators[0] : 'eq');
 
   return (
-    <div className="flex gap-2 items-end">
-      <div className="flex-1 space-y-2">
+    <div className="grid gap-4 rounded-md border bg-background p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+      <div className="space-y-2">
         <Label htmlFor={`field-${index}`}>Field</Label>
         <Select
           value={filter.field}
@@ -195,7 +185,7 @@ function FilterRow({ filter, index, onUpdate, onRemove }: FilterRowProps) {
         </Select>
       </div>
 
-      <div className="flex-1 space-y-2">
+      <div className="space-y-2">
         <Label htmlFor={`operator-${index}`}>Operator</Label>
         <Select
           value={currentOperation}
@@ -214,7 +204,7 @@ function FilterRow({ filter, index, onUpdate, onRemove }: FilterRowProps) {
         </Select>
       </div>
 
-      <div className="flex-1 space-y-2">
+      <div className="space-y-2">
         <Label htmlFor={`value-${index}`}>Value</Label>
         {filter.field === 'status' ? (
           <Select
@@ -255,7 +245,7 @@ function FilterRow({ filter, index, onUpdate, onRemove }: FilterRowProps) {
         variant="ghost"
         size="icon"
         onClick={() => onRemove(index)}
-        className="flex-shrink-0"
+        className="shrink-0 lg:self-end"
       >
         <Trash2 className="h-4 w-4" />
         <span className="sr-only">Remove filter</span>

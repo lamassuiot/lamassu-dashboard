@@ -18,9 +18,13 @@ export function DetailBreadcrumbRow({
   breadcrumbClassName,
 }: DetailBreadcrumbRowProps) {
   return (
-    <div className={cn('flex items-center justify-between gap-4', className)}>
-      <Breadcrumbs items={items} className={cn('mb-0 min-w-0', breadcrumbClassName)} />
-      {actions ? <div className="shrink-0">{actions}</div> : null}
-    </div>
+    <>
+      <Breadcrumbs items={items} className={cn('-mx-4 md:-mx-6 -mt-4 md:-mt-6 px-4 md:px-6', breadcrumbClassName)} />
+      {actions && (
+        <div className={cn('flex items-center justify-end gap-2', className)}>
+          {actions}
+        </div>
+      )}
+    </>
   );
 }

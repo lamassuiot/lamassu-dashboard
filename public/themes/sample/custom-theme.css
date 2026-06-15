@@ -1,95 +1,170 @@
-/* 
-  Sample theme based on a high-contrast, modern UI screenshot.
-  This theme features a dark-on-light pattern for the main layout 
-  and a light-on-dark pattern for card elements.
+/*
+  Lamassu IoT - Sample Theme — High Contrast Modern (Tailwind v4 compatible)
+  Dark cards on a light background, red accent.
 */
+
 :root {
-  /* --- Secondary Logo --- */
   --secondary-logo-url: url('https://placehold.co/100x40/ef4444/ffffff.png?text=SAMPLE');
   --secondary-logo-display: flex;
 }
 
-/* --- Light Mode --- */
+/* ------------------------- */
+/* --- LIGHT THEME (DAY) --- */
+/* ------------------------- */
+
 :root:not(.dark) {
-  /* Layout: Light gray side/top bars on a white background */
-  --background: 0 0% 100%;                  /* Main content area: white */
-  --header-background: 220 13% 96%;         /* Top bar: light gray */
-  --sidebar-background: 220 13% 96%;        /* Sidebar: light gray */
-  --sidebar-foreground: 222 47% 11%;        /* Dark text for sidebar */
-  --header-foreground: 222 47% 11%;         /* Dark text for header */
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(222 47% 11%);
 
-  /* Cards: Dark cards with white text */
-  --homepage-card-background: rgb(30, 30, 30); /* Dark card background for homepage */
-  --card: rgb(30, 30, 30);                     /* Dark card background for other cards */
-  --card-foreground: 0 0% 100%;                /* White text for cards */
+  --card: rgb(30, 30, 30);               /* Dark card background */
+  --card-foreground: hsl(0 0% 100%);
 
-  /* Primary Accent: Red */
-  --primary: 0 84% 60%;                     /* Red for active elements */
-  --primary-foreground: 0 0% 98%;           /* White text on primary elements */
-  --sidebar-primary: 0 84% 60%;
-  --sidebar-primary-foreground: 0 0% 98%;
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(222 47% 11%);
 
-  /* Borders and Rings */
-  --border: 214 32% 91%;
-  --sidebar-border: 214 32% 88%;
-  --ring: 0 84% 60%;
+  --primary: hsl(0 84% 60%);            /* Red accent */
+  --primary-foreground: hsl(0 0% 98%);
 
-  /* Muted/Secondary colors */
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 20% 65%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
-  
-  --table-header-background: rgb(30, 30, 30); 
-  --table-header-foreground: hsl(0 0% 100%);
+  --secondary: hsl(210 40% 96%);
+  --secondary-foreground: hsl(222 47% 11%);
+
+  --muted: hsl(210 40% 96%);
+  --muted-foreground: hsl(215 20% 65%);
+
+  --accent: hsl(210 40% 96%);
+  --accent-foreground: hsl(222 47% 11%);
+
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 98%);
+
+  --border: hsl(214 32% 91%);
+  --input: hsl(214 32% 91%);
+  --ring: hsl(0 84% 60%);
+
+  --radius: 0.5rem;
+
+  /* Header — bare HSL triplet: used via hsl(var(--header-background)) in @theme */
+  --header-background: 220 13% 96%;
+  --header-foreground: 222 47% 11%;
+
+  /* Sidebar */
+  --sidebar: hsl(220 13% 96%);
+  --sidebar-background: 220 13% 96%;
+  --sidebar-foreground: hsl(222 47% 11%);
+  --sidebar-primary: hsl(0 84% 60%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(214 32% 88%);
+  --sidebar-accent-foreground: hsl(222 47% 11%);
+  --sidebar-border: hsl(214 32% 88%);
+  --sidebar-ring: hsl(0 84% 60%);
+
+  /* Charts */
+  --chart-1: hsl(0 84% 60%);
+  --chart-2: hsl(150 70% 70%);
+  --chart-3: hsl(30 80% 55%);
+  --chart-4: hsl(0 70% 60%);
+  --chart-5: hsl(260 70% 70%);
+
+  /* Homepage dark card */
+  --homepage-card-background: rgb(30, 30, 30);
 }
 
-/* --- Dark Mode --- */
-.dark {
-  /* Layout */
-  --background: 222 47% 11%;             /* Very dark blue/gray */
-  --header-background: 222 40% 15%;      /* Darker header */
-  --sidebar-background: 222 40% 15%;     /* Darker sidebar */
-  --sidebar-foreground: 210 40% 98%;     /* Light text */
-  --header-foreground: 210 40% 98%;      /* Light text */
+/* -------------------------- */
+/* --- DARK THEME (NIGHT) --- */
+/* -------------------------- */
 
-  /* Cards */
-  --homepage-card-background: rgb(30, 30, 30); /* Consistent dark cards */
+:root.dark {
+  --background: hsl(222 47% 11%);
+  --foreground: hsl(210 40% 98%);
+
   --card: rgb(30, 30, 30);
-  --card-foreground: 0 0% 100%;
+  --card-foreground: hsl(0 0% 100%);
 
-  /* Primary Accent: Red */
-  --primary: 0 72% 51%;
-  --primary-foreground: 0 86% 97%;
-  --sidebar-primary: 0 72% 51%;
-  --sidebar-primary-foreground: 0 86% 97%;
-  
-  /* Borders and Rings */
-  --border: 217 33% 17%;
-  --sidebar-border: 217 33% 17%;
-  --ring: 0 72% 51%;
+  --popover: hsl(222 40% 15%);
+  --popover-foreground: hsl(210 40% 98%);
 
-  /* Muted/Secondary colors */
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
-  --secondary: 217 33% 17%;
-  --secondary-foreground: 210 40% 98%;
+  --primary: hsl(0 72% 51%);            /* Red accent */
+  --primary-foreground: hsl(0 86% 97%);
+
+  --secondary: hsl(217 33% 17%);
+  --secondary-foreground: hsl(210 40% 98%);
+
+  --muted: hsl(217 33% 17%);
+  --muted-foreground: hsl(215 20% 65%);
+
+  --accent: hsl(217 33% 17%);
+  --accent-foreground: hsl(210 40% 98%);
+
+  --destructive: hsl(0 72% 51%);
+  --destructive-foreground: hsl(0 0% 98%);
+
+  --border: hsl(217 33% 17%);
+  --input: hsl(217 33% 17%);
+  --ring: hsl(0 72% 51%);
+
+  /* Header — bare HSL triplet */
+  --header-background: 222 40% 15%;
+  --header-foreground: 210 40% 98%;
+
+  /* Sidebar */
+  --sidebar: hsl(222 40% 15%);
+  --sidebar-background: 222 40% 15%;
+  --sidebar-foreground: hsl(210 40% 98%);
+  --sidebar-primary: hsl(0 72% 51%);
+  --sidebar-primary-foreground: hsl(0 86% 97%);
+  --sidebar-accent: hsl(217 33% 22%);
+  --sidebar-accent-foreground: hsl(210 40% 98%);
+  --sidebar-border: hsl(217 33% 17%);
+  --sidebar-ring: hsl(0 72% 51%);
+
+  /* Charts */
+  --chart-1: hsl(0 72% 51%);
+  --chart-2: hsl(150 70% 65%);
+  --chart-3: hsl(30 80% 60%);
+  --chart-4: hsl(0 70% 65%);
+  --chart-5: hsl(260 70% 75%);
+
+  /* Homepage dark card */
+  --homepage-card-background: rgb(30, 30, 30);
+
+  /* Direct Tailwind color token overrides */
+  --color-background: hsl(222 47% 11%);
+  --color-foreground: hsl(210 40% 98%);
+  --color-card: rgb(30, 30, 30);
+  --color-card-foreground: hsl(0 0% 100%);
+  --color-popover: hsl(222 40% 15%);
+  --color-popover-foreground: hsl(210 40% 98%);
+  --color-primary: hsl(0 72% 51%);
+  --color-primary-foreground: hsl(0 86% 97%);
+  --color-secondary: hsl(217 33% 17%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+  --color-muted: hsl(217 33% 17%);
+  --color-muted-foreground: hsl(215 20% 65%);
+  --color-accent: hsl(217 33% 17%);
+  --color-accent-foreground: hsl(210 40% 98%);
+  --color-destructive: hsl(0 72% 51%);
+  --color-border: hsl(217 33% 17%);
+  --color-input: hsl(217 33% 17%);
+  --color-ring: hsl(0 72% 51%);
+  --color-sidebar: hsl(222 40% 15%);
+  --color-sidebar-foreground: hsl(210 40% 98%);
+  --color-sidebar-primary: hsl(0 72% 51%);
+  --color-sidebar-primary-foreground: hsl(0 86% 97%);
+  --color-sidebar-accent: hsl(217 33% 22%);
+  --color-sidebar-accent-foreground: hsl(210 40% 98%);
+  --color-sidebar-border: hsl(217 33% 17%);
+  --color-sidebar-ring: hsl(0 72% 51%);
 }
-
-
-/* --- Logo Adjustments --- */
 
 /* Light theme specific logo color */
 header img[alt="LamassuIoT Logo"] {
   filter: invert(1) brightness(0) sepia(1) saturate(0) hue-rotate(0deg) brightness(0.2);
 }
 
-/* Dark theme specific logo color */
 .dark header img[alt="LamassuIoT Logo"] {
-  filter: none; /* Revert to the original white logo on dark theme */
+  filter: none;
 }
 
-/* In dark mode, ensure the secondary logo (if it's dark) is inverted to be white */
 .dark .secondary-logo {
   filter: invert(1) brightness(2);
 }
@@ -103,6 +178,6 @@ header button[aria-label="Toggle theme"] svg {
 }
 
 .lamassu-logo-theme-filter {
-  /* For light theme: change SVG to hsl(0, 84%, 60%) (vivid red) */
+  /* For light theme: change SVG to hsl(0, 84%, 60%) red */
   filter: invert(41%) sepia(97%) saturate(7497%) hue-rotate(349deg) brightness(101%) contrast(101%);
 }

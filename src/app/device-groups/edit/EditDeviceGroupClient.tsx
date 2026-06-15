@@ -73,7 +73,7 @@ export default function EditDeviceGroupClient() {
   if (error || !groupId) {
     return (
       <div className="w-full space-y-6 mb-8">
-        <Button variant="outline" onClick={() => router.push('/device-groups')}>
+        <Button variant="secondary" onClick={() => router.push('/device-groups')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Device Groups
         </Button>
         <div className="flex items-center space-x-3">
@@ -94,7 +94,7 @@ export default function EditDeviceGroupClient() {
   if (!group) {
     return (
       <div className="w-full space-y-6 mb-8">
-        <Button variant="outline" onClick={() => router.push('/device-groups')}>
+        <Button variant="secondary" onClick={() => router.push('/device-groups')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Device Groups
         </Button>
         <div className="flex items-center space-x-3">
@@ -114,7 +114,7 @@ export default function EditDeviceGroupClient() {
 
   return (
     <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push(`/device-groups/details?groupId=${group.id}`)}>
+      <Button variant="secondary" onClick={() => router.push(`/device-groups/details?groupId=${group.id}`)}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Group Details
       </Button>
 

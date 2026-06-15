@@ -48,7 +48,7 @@ export function CertificatePaginationControls({
   const navigationButtonSize = compact ? 'sm' : 'default';
 
   return (
-    <div className={cn('flex items-center justify-between', className)}>
+    <div className={cn('flex flex-wrap items-center justify-between gap-2', className)}>
       <div className="flex items-center gap-2">
         <Label htmlFor={pageSizeSelectId} className="text-sm text-muted-foreground whitespace-nowrap">
           {pageSizeLabel}
@@ -68,7 +68,7 @@ export function CertificatePaginationControls({
         {onRefresh && (
           <Button
             onClick={onRefresh}
-            variant="outline"
+            variant="secondary"
             size={compact ? 'icon' : 'default'}
             className={cn(compact && 'h-9 w-9')}
             disabled={isLoading}
@@ -85,7 +85,7 @@ export function CertificatePaginationControls({
         <Button
           onClick={onPreviousPage}
           disabled={isLoading || !canGoPrevious}
-          variant="outline"
+          variant="secondary"
           size={navigationButtonSize}
         >
           <ChevronLeft className={cn('h-4 w-4', !isIconNavigation && 'mr-2')} />
@@ -99,7 +99,7 @@ export function CertificatePaginationControls({
         <Button
           onClick={onNextPage}
           disabled={isLoading || !canGoNext}
-          variant="outline"
+          variant="secondary"
           size={navigationButtonSize}
         >
           {!isIconNavigation && 'Next'}

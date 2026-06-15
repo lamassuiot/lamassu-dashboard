@@ -26,6 +26,8 @@ import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SigningProfilesTable } from '@/components/shared/SigningProfilesTable';
 import { CAsUsingProfileModal } from '@/components/shared/CAsUsingProfileModal';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ColumnSelector } from '@/components/ui/column-selector';
 
 export type SortableProfileColumn = 'name';
 export type SortDirection = 'asc' | 'desc';
@@ -55,6 +57,27 @@ export default function SigningProfilesPage() {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<ProfileSortConfig | null>({ column: 'name', direction: 'asc' });
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    name: true,
+    description: true,
+    validity: true,
+    policies: true,
+    usages: true,
+  });
+
+  const profileColumns = [
+    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
+    { id: 'description', label: 'Description', visible: columnVisibility.description },
+    { id: 'validity', label: 'Validity', visible: columnVisibility.validity },
+    { id: 'policies', label: 'Policies', visible: columnVisibility.policies },
+    { id: 'usages', label: 'Usages', visible: columnVisibility.usages },
+  ];
+
+  const handleColumnToggle = (columnId: string) => {
+    setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
+  };
 
   // State for deletion
   const [profileToDelete, setProfileToDelete] = useState<ApiSigningProfile | null>(null);
@@ -222,24 +245,28 @@ export default function SigningProfilesPage() {
 
   return (
     <>
-    <div className="space-y-6 w-full pb-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <ScrollTextIcon className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Issuance Profiles</h1>
+    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Issuance Profiles'} ]}>
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+            <ScrollTextIcon className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Issuance Profiles</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage templates that define how certificates are signed, including duration, subject attributes, and extensions.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-            <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
-                <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
-            </Button>
-            <Button onClick={handleCreateNewProfile}>
+        <div className="flex items-center space-x-2 shrink-0">
+          <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
+            <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
+          </Button>
+          <Button onClick={handleCreateNewProfile}>
             <PlusCircle className="mr-2 h-4 w-4" /> Create New Profile
-            </Button>
+          </Button>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Manage templates that define how certificates are signed, including duration, subject attributes, and extensions.
-      </p>
 
        <div className="flex flex-col sm:flex-row gap-4 items-end mb-4">
             <div className="flex-grow w-full space-y-1.5">
@@ -255,7 +282,7 @@ export default function SigningProfilesPage() {
                     />
                 </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
                 <ToggleGroup
                     type="single"
                     value={viewMode}
@@ -265,6 +292,9 @@ export default function SigningProfilesPage() {
                     <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
                     <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
                 </ToggleGroup>
+                {viewMode === 'list' && (
+                    <ColumnSelector columns={profileColumns} onColumnToggle={handleColumnToggle} align="end" />
+                )}
             </div>
        </div>
 
@@ -290,13 +320,14 @@ export default function SigningProfilesPage() {
               ))}
             </div>
           ) : (
-             <SigningProfilesTable 
-                profiles={profiles} 
+             <SigningProfilesTable
+                profiles={profiles}
                 sortConfig={sortConfig}
                 requestSort={requestSort}
-                onEdit={handleEditProfile} 
-                onDelete={handleDeleteProfileClick} 
+                onEdit={handleEditProfile}
+                onDelete={handleDeleteProfileClick}
                 onViewUsage={handleViewUsageClick}
+                columnVisibility={columnVisibility}
             />
           )
       ) : (
@@ -329,16 +360,16 @@ export default function SigningProfilesPage() {
                 </Select>
               </div>
               <div className="flex items-center space-x-2">
-                  <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
+                  <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
                       <ChevronLeft className="mr-2 h-4 w-4" /> Previous
                   </Button>
-                  <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
+                  <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="secondary">
                       Next <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
               </div>
           </div>
       )}
-    </div>
+    </BreadcrumbPage>
 
     <AlertDialog open={!!profileToDelete} onOpenChange={(open) => !open && setProfileToDelete(null)}>
         <AlertDialogContent>
