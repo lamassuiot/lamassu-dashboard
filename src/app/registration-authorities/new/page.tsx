@@ -24,6 +24,8 @@ import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { createOrUpdateRa, fetchRaById, buildApiRaEstSettingsFromForm, createDefaultRaAuthFormValues, hydrateRaAuthFormValuesFromApi, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
+import type { RaAuthFormValues } from '@/types/ra-auth';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
@@ -66,6 +68,23 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [verifyCsrSignature, setVerifyCsrSignature] = useState(true);
   const [enrollmentAuthConfig, setEnrollmentAuthConfig] = useState<RaAuthFormValues>(createDefaultRaAuthFormValues());
   const [validationCAs, setValidationCAs] = useState<CA[]>([]);
+
+  // Derived fields from enrollmentAuthConfig
+  const { authMode, allowExpiredAuth, chainValidationLevel, webhookName, webhookUrl, webhookMethod, webhookLogLevel, webhookValidateServerCert, webhookAuthMode, webhookApiKey, webhookApiKeyHeader, oidcClientId, oidcClientSecret, oidcWellKnownUrl } = enrollmentAuthConfig;
+  const setAuthMode = (v: RaAuthFormValues['authMode']) => setEnrollmentAuthConfig(prev => ({ ...prev, authMode: v }));
+  const setAllowExpiredAuth = (v: boolean) => setEnrollmentAuthConfig(prev => ({ ...prev, allowExpiredAuth: v }));
+  const setChainValidationLevel = (v: number) => setEnrollmentAuthConfig(prev => ({ ...prev, chainValidationLevel: v }));
+  const setWebhookName = (v: string) => setEnrollmentAuthConfig(prev => ({ ...prev, webhookName: v }));
+  const setWebhookUrl = (v: string) => setEnrollmentAuthConfig(prev => ({ ...prev, webhookUrl: v }));
+  const setWebhookMethod = (v: RaAuthFormValues['webhookMethod']) => setEnrollmentAuthConfig(prev => ({ ...prev, webhookMethod: v }));
+  const setWebhookLogLevel = (v: RaAuthFormValues['webhookLogLevel']) => setEnrollmentAuthConfig(prev => ({ ...prev, webhookLogLevel: v }));
+  const setWebhookValidateServerCert = (v: boolean) => setEnrollmentAuthConfig(prev => ({ ...prev, webhookValidateServerCert: v }));
+  const setWebhookAuthMode = (v: RaAuthFormValues['webhookAuthMode']) => setEnrollmentAuthConfig(prev => ({ ...prev, webhookAuthMode: v }));
+  const setWebhookApiKey = (v: string) => setEnrollmentAuthConfig(prev => ({ ...prev, webhookApiKey: v }));
+  const setWebhookApiKeyHeader = (v: string) => setEnrollmentAuthConfig(prev => ({ ...prev, webhookApiKeyHeader: v }));
+  const setOidcClientId = (v: string) => setEnrollmentAuthConfig(prev => ({ ...prev, oidcClientId: v }));
+  const setOidcClientSecret = (v: string) => setEnrollmentAuthConfig(prev => ({ ...prev, oidcClientSecret: v }));
+  const setOidcWellKnownUrl = (v: string) => setEnrollmentAuthConfig(prev => ({ ...prev, oidcWellKnownUrl: v }));
 
   // Re-enrollment authentication state
   const [reEnrollmentAuthConfig, setReEnrollmentAuthConfig] = useState<RaAuthFormValues>(createDefaultRaAuthFormValues());
@@ -756,6 +775,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                }
+              </div>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5 flex-1">
