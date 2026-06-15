@@ -25,7 +25,8 @@ const formatAwsAction = (value: string) =>
     .join(' ');
 
 const parseShadowActionStates = (description?: string) => {
-  if (!description) return new Map<string, string>();
+  // Guard against ReDoS: legitimate action-state strings are short; reject anything implausibly long.
+  if (!description || description.length > 2_000) return new Map<string, string>();
 
   const matches = description.matchAll(/([A-Z_]+)\s+\(([^)]+)\)/g);
   const parsed = new Map<string, string>();
