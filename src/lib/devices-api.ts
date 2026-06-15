@@ -3,6 +3,26 @@
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 
+// Maps dot-notation SSE event types to the normalized REST API format
+const SSE_EVENT_TYPE_MAP: Record<string, string> = {
+  'device.created':          'CREATED',
+  'device.event.create':     'CREATED',
+  'device.status.update':    'STATUS-UPDATED',
+  'device.identity.update':  'STATUS-UPDATED',
+  'device.shadow.update':    'SHADOW-UPDATED',
+  'device.metadata.update':  'SHADOW-UPDATED',
+  'device.provisioned':      'PROVISIONED',
+  'device.identity.create':  'PROVISIONED',
+  'certificate.renewed':     'RENEWED',
+  'device.renewed':          'RENEWED',
+  'device.deleted':          'DELETED',
+  'device.error':            'ERROR',
+};
+
+function normalizeSSEEventType(raw: string): string {
+  return SSE_EVENT_TYPE_MAP[raw.toLowerCase()] ?? raw;
+}
+
 // Interfaces based on usage in components
 export interface ApiDeviceIdentity {
   status: string;
@@ -275,7 +295,7 @@ export function subscribeToDeviceEventsSSE({
                 const event: ApiDeviceEventItem = {
                   id: raw.id || `${raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || new Date().toISOString()}:${raw.type || raw.event_type || 'EVENT'}`,
                   timestampStr: raw.event_ts || raw.timestampStr || raw.timestamp || raw.ts || new Date().toISOString(),
-                  type: raw.type || raw.event_type || 'EVENT',
+                  type: normalizeSSEEventType(raw.type || raw.event_type || 'EVENT'),
                   description: raw.description || raw.event_descriptions || '',
                   data: raw.structured_fields ?? raw.data,
                   source: raw.source || 'device',

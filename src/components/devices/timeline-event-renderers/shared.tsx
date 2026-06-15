@@ -95,7 +95,7 @@ export const TimelineCertificatePanel: React.FC<{
   const isOnHold = isRevoked && certificate.revocationReason === 'CertificateHold';
 
   return (
-    <div className="mt-3">
+    <div className="mt-3 max-w-sm lg:max-w-md">
       <CertificateCard
         name={certificate.commonName}
         serialNumber={certificate.serialNumber}

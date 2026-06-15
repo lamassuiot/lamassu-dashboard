@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
-import { Loader2, Zap, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import type { ApiDevice } from '@/lib/devices-api';
 import type { ApiRaItem } from '@/lib/dms-api';
@@ -75,10 +75,7 @@ export const ForceUpdateModal: React.FC<ForceUpdateModalProps> = ({
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="data-[side=right]:w-1/3 data-[side=right]:sm:max-w-none">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
-            Force Device Update
-          </SheetTitle>
+          <SheetTitle>Force Device Update</SheetTitle>
           <SheetDescription>
             Trigger a manual update for the device's identity on the integrated platform.
           </SheetDescription>
