@@ -124,7 +124,7 @@ export const TimelineEventItem: React.FC<TimelineEventItemProps> = ({
     displayTime ? getDisplayDateAndTimeFormat() : getDisplayDateFormat(),
   );
 
-  const badgeClass = baseVisuals.badgeClass;
+  const badgeClass = visuals.badgeClass;
 
   return (
     <li className="relative flex gap-3">

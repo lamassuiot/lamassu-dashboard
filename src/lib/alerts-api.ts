@@ -23,7 +23,7 @@ export interface ApiAlertEvent {
 }
 
 export interface ApiPaginatedResponse<T> {
-  next: string;
+  next: string | null;
   list: T[];
 }
 

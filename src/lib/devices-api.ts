@@ -139,7 +139,7 @@ export async function fetchDeviceEventsPaginated({
   };
 }
 
-export async function decommissionDevice(deviceId: string, accessToken: string): Promise<void> {
+export async function decommissionDevice(deviceId: string): Promise<void> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/decommission`;
     const response = await apiFetch(url, {
         method: 'DELETE',

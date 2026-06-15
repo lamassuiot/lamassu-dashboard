@@ -192,7 +192,7 @@ export default function AlertsPage() {
 
 
   const loadAlertsData = useCallback(async () => {
-    
+    if (authLoading || !isLoggedIn || !user) return;
 
     setIsLoading(true);
     setError(null);
@@ -203,7 +203,7 @@ export default function AlertsPage() {
       }
 
       const [apiEventsResponse, apiSubscriptions] = await Promise.all([
-        fetchLatestAlerts(user!.access_token, alertsQueryParams),
+        fetchLatestAlerts(user.access_token, alertsQueryParams),
         fetchSystemSubscriptions(),
       ]);
       

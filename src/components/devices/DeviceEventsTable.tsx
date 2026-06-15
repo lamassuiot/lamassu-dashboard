@@ -48,14 +48,14 @@ function getEventBadge(eventType: string, rendererDisplay?: string) {
 }
 
 function hasExpandableContent(event: TimelineEventDisplayData): boolean {
-  return !!(
-    event.certificate ||
-    event.description ||
-    event.details ||
-    (event.structuredData !== null && event.structuredData !== undefined &&
-      typeof event.structuredData === 'object' &&
-      Object.keys(event.structuredData as object).length > 0)
+  const hasStructuredData = event.structuredData !== null && event.structuredData !== undefined && (
+    !Array.isArray(event.structuredData)
+      ? typeof event.structuredData === 'object'
+        ? Object.keys(event.structuredData as object).length > 0
+        : true
+      : (event.structuredData as unknown[]).length > 0
   );
+  return !!(event.certificate || event.description || event.details || hasStructuredData);
 }
 
 export const DeviceEventsTable: React.FC<DeviceEventsTableProps> = ({
