@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { fetchLatestAlerts, fetchSystemSubscriptions, unsubscribeFromAlert, type ApiSubscription } from '@/lib/alerts-api';
+import { useAuth } from '@/contexts/AuthContext';
 import { AlertsTable } from '@/components/alerts/AlertsTable';
 import { sileo } from '@/lib/toast';
 import { SubscribeToAlertModal } from '@/components/alerts/SubscribeToAlertModal';
@@ -54,6 +55,7 @@ const getEventCategory = (event: AlertEvent): EventCategoryFilter => {
 };
 
 export default function AlertsPage() {
+  const { user, isLoggedIn, isLoading: authLoading } = useAuth();
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [allSubscriptions, setAllSubscriptions] = useState<ApiSubscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,6 +72,8 @@ export default function AlertsPage() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [bookmarks, setBookmarks] = useState<string[]>(['']);
+  const [nextBookmark, setNextBookmark] = useState('');
 
   // State for the new subscription modal
   const [isSubscribeModalOpen, setIsSubscribeModalOpen] = useState(false);
@@ -184,15 +188,22 @@ export default function AlertsPage() {
     setRightPanelMode('subscription-details');
   };
 
+  const currentBookmark = useMemo(() => bookmarks[currentPage - 1] || '', [bookmarks, currentPage]);
+
 
   const loadAlertsData = useCallback(async () => {
-    
+    if (authLoading || !isLoggedIn || !user) return;
 
     setIsLoading(true);
     setError(null);
     try {
-      const [apiEvents, apiSubscriptions] = await Promise.all([
-        fetchLatestAlerts(),
+      const alertsQueryParams = new URLSearchParams({ page_size: String(pageSize) });
+      if (currentBookmark) {
+        alertsQueryParams.set('bookmark', currentBookmark);
+      }
+
+      const [apiEventsResponse, apiSubscriptions] = await Promise.all([
+        fetchLatestAlerts(user.access_token, alertsQueryParams),
         fetchSystemSubscriptions(),
       ]);
       
@@ -225,7 +236,7 @@ export default function AlertsPage() {
         subscriptionsMap.get(sub.event_type)?.push(subscriptionDisplay);
       }
 
-      const uiEvents = apiEvents.map((apiAlert): AlertEvent => ({
+      const uiEvents = apiEventsResponse.list.map((apiAlert): AlertEvent => ({
         id: apiAlert.event_types,
         type: apiAlert.event_types,
         lastSeen: apiAlert.seen_at,
@@ -235,12 +246,14 @@ export default function AlertsPage() {
       }));
 
       setEvents(uiEvents);
+      setNextBookmark(apiEventsResponse.next || '');
     } catch (e: any) {
       setError(e.message || "Failed to load alert events or subscriptions.");
+      setNextBookmark('');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user, isLoggedIn, authLoading, pageSize, currentBookmark]);
 
   useEffect(() => {
     loadAlertsData();
@@ -304,24 +317,27 @@ export default function AlertsPage() {
     return processedEvents;
   }, [events, filterText, showWithSubscriptionsOnly, sortConfig, eventCategoryFilter]);
 
-  const totalPages = useMemo(() => Math.ceil(filteredAndSortedEvents.length / pageSize), [filteredAndSortedEvents.length, pageSize]);
-  
-  const paginatedEvents = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredAndSortedEvents.slice(startIndex, startIndex + pageSize);
-  }, [filteredAndSortedEvents, currentPage, pageSize]);
+  const handleNextPage = () => {
+    if (!nextBookmark) {
+      return;
+    }
 
-  useEffect(() => {
-      if (currentPage > totalPages && totalPages > 0) {
-        setCurrentPage(totalPages);
-      } else if (totalPages === 0 && currentPage !== 1) {
-        setCurrentPage(1);
-      }
-  }, [totalPages, currentPage]);
+    setBookmarks((prev) => {
+      const base = prev.slice(0, currentPage);
+      return [...base, nextBookmark];
+    });
+    setCurrentPage((p) => p + 1);
+  };
 
   useEffect(() => {
     setCurrentPage(1);
+    setBookmarks(['']);
+    setNextBookmark('');
   }, [filterText, showWithSubscriptionsOnly, sortConfig, pageSize, eventCategoryFilter]);
+
+  const handlePreviousPage = () => {
+    setCurrentPage((p) => Math.max(1, p - 1));
+  };
 
 
   return (
@@ -430,7 +446,7 @@ export default function AlertsPage() {
           ) : filteredAndSortedEvents.length > 0 ? (
             <>
               <AlertsTable 
-                  events={paginatedEvents} 
+                  events={filteredAndSortedEvents} 
                   onSubscriptionClick={handleViewSubscriptionDetails} 
                   onSubscribe={handleOpenSubscribeModal}
                   onViewAuditUser={handleOpenAuditUserInfo}
@@ -454,12 +470,12 @@ export default function AlertsPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                     <span className="text-sm text-muted-foreground">
-                        Page {currentPage} of {totalPages > 0 ? totalPages : 1}
+                        Page {currentPage}
                     </span>
-                    <Button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} variant="secondary">
+                    <Button onClick={handlePreviousPage} disabled={currentPage === 1} variant="outline" size="sm">
                         <ChevronLeft className="mr-1 h-4 w-4" /> Previous
                     </Button>
-                    <Button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} variant="secondary">
+                    <Button onClick={handleNextPage} disabled={!nextBookmark} variant="outline" size="sm">
                         Next <ChevronRight className="ml-1 h-4 w-4" />
                     </Button>
                 </div>

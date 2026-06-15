@@ -331,7 +331,7 @@ export default function DevicesPage() {
   };
 
   const handleViewDetails = (deviceIdValue: string) => {
-    router.push(`/devices/details?deviceId=${deviceIdValue}`);
+    router.push(`/devices/details/information?deviceId=${deviceIdValue}`);
   };
 
   const handleDmsOwnerChange = (dmsId: string | null) => {

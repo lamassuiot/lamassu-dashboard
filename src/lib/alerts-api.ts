@@ -22,6 +22,11 @@ export interface ApiAlertEvent {
     counter: number;
 }
 
+export interface ApiPaginatedResponse<T> {
+  next: string | null;
+  list: T[];
+}
+
 export interface ApiSubscription {
     id: string;
     user_id: string;
@@ -63,8 +68,13 @@ export interface SubscriptionPayload {
 }
 
 
-export async function fetchLatestAlerts(): Promise<ApiAlertEvent[]> {
-  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/events/latest`);
+export async function fetchLatestAlerts(accessToken: string, params?: URLSearchParams): Promise<ApiPaginatedResponse<ApiAlertEvent>> {
+  const query = params && params.toString().length > 0 ? `?${params.toString()}` : '';
+  const response = await fetch(`${get_ALERTS_API_BASE_URL()}/events/latest${query}`, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+    },
+  });
 
   if (!response.ok) {
     let errorJson;
@@ -80,7 +90,7 @@ export async function fetchLatestAlerts(): Promise<ApiAlertEvent[]> {
     throw new Error(errorMessage);
   }
 
-  const data: ApiAlertEvent[] = await response.json();
+  const data: ApiPaginatedResponse<ApiAlertEvent> = await response.json();
   return data;
 }
 
