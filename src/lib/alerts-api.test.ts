@@ -8,6 +8,7 @@ import {
   updateSubscription,
   unsubscribeFromAlert,
   type ApiAlertEvent,
+  type ApiPaginatedResponse,
   type ApiSubscription,
   type SubscriptionPayload,
 } from './alerts-api'
@@ -34,18 +35,19 @@ describe('alerts-api', () => {
           counter: 1,
         },
       ]
+      const mockResponse: ApiPaginatedResponse<ApiAlertEvent> = { next: null, list: mockAlerts }
 
       server.use(
         http.get(`${ALERTS_API_BASE}/events/latest`, () => {
-          return HttpResponse.json(mockAlerts)
+          return HttpResponse.json(mockResponse)
         })
       )
 
       const result = await fetchLatestAlerts(MOCK_TOKEN)
 
-      expect(result).toEqual(mockAlerts)
-      expect(result).toHaveLength(1)
-      expect(result[0].event_types).toBe('certificate.expired')
+      expect(result).toEqual(mockResponse)
+      expect(result.list).toHaveLength(1)
+      expect(result.list[0].event_types).toBe('certificate.expired')
     })
 
     it('should handle fetch alerts error', async () => {
@@ -79,7 +81,7 @@ describe('alerts-api', () => {
       server.use(
         http.get(`${ALERTS_API_BASE}/events/latest`, ({ request }) => {
           capturedHeaders = request.headers
-          return HttpResponse.json([])
+          return HttpResponse.json({ next: null, list: [] })
         })
       )
 
@@ -112,7 +114,7 @@ describe('alerts-api', () => {
         })
       )
 
-      const result = await fetchSystemSubscriptions(MOCK_TOKEN)
+      const result = await fetchSystemSubscriptions()
 
       expect(result).toEqual(mockSubscriptions)
       expect(result).toHaveLength(1)
@@ -126,7 +128,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await expect(fetchSystemSubscriptions(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchSystemSubscriptions()).rejects.toThrow(
         'Failed to fetch subscriptions'
       )
     })
@@ -153,7 +155,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        subscribeToAlert(mockPayload, MOCK_TOKEN)
+        subscribeToAlert(mockPayload)
       ).resolves.toBeUndefined()
     })
 
@@ -167,7 +169,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await subscribeToAlert(mockPayload, MOCK_TOKEN)
+      await subscribeToAlert(mockPayload)
 
       expect(capturedBody).toEqual(mockPayload)
     })
@@ -183,7 +185,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        subscribeToAlert(mockPayload, MOCK_TOKEN)
+        subscribeToAlert(mockPayload)
       ).rejects.toThrow('Subscription failed')
     })
   })
@@ -208,7 +210,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        updateSubscription(subscriptionId, mockPayload, MOCK_TOKEN)
+        updateSubscription(subscriptionId, mockPayload)
       ).resolves.toBeUndefined()
     })
 
@@ -220,7 +222,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        updateSubscription(subscriptionId, mockPayload, MOCK_TOKEN)
+        updateSubscription(subscriptionId, mockPayload)
       ).rejects.toThrow('Failed to update subscription')
     })
   })
@@ -236,7 +238,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        unsubscribeFromAlert(subscriptionId, MOCK_TOKEN)
+        unsubscribeFromAlert(subscriptionId)
       ).resolves.toBeUndefined()
     })
 
@@ -248,7 +250,7 @@ describe('alerts-api', () => {
       )
 
       await expect(
-        unsubscribeFromAlert(subscriptionId, MOCK_TOKEN)
+        unsubscribeFromAlert(subscriptionId)
       ).rejects.toThrow('Failed to unsubscribe')
     })
   })
