@@ -57,7 +57,7 @@ describe('ca-utils', () => {
         id: 'ca-2',
         name: 'Root CA Revoked',
         status: 'revoked' as CaStatusFilter,
-        caType: 'IMPORTED',
+        caType: 'IMPORTED_WITH_KEY',
         level: 0,
         children: [],
       }),
@@ -132,25 +132,35 @@ describe('ca-utils', () => {
       expect(result[0].caType).toBe('MANAGED')
     })
 
-    it('should filter by type - IMPORTED only', () => {
+    it('should filter by type - IMPORTED_WITH_KEY only', () => {
       const result = filterCaList(mockCaTree, {
-        selectedTypes: ['IMPORTED'],
+        selectedTypes: ['IMPORTED_WITH_KEY'],
       })
 
       expect(result).toHaveLength(1)
       expect(result[0].id).toBe('ca-2')
-      expect(result[0].caType).toBe('IMPORTED')
+      expect(result[0].caType).toBe('IMPORTED_WITH_KEY')
     })
 
-    it('should filter by type - EXTERNAL only (maps to EXTERNAL_PUBLIC)', () => {
-      const result = filterCaList(mockCaTree, {
-        selectedTypes: ['EXTERNAL'],
+    it('should filter by type - IMPORTED_WITHOUT_KEY only', () => {
+      const treeWithImportedNoKey = [
+        ...mockCaTree,
+        makeCa({
+          id: 'ca-4',
+          name: 'Imported No Key CA',
+          status: 'active' as CaStatusFilter,
+          caType: 'IMPORTED_WITHOUT_KEY',
+          level: 0,
+          children: [],
+        }),
+      ]
+      const result = filterCaList(treeWithImportedNoKey, {
+        selectedTypes: ['IMPORTED_WITHOUT_KEY'],
       })
 
       expect(result).toHaveLength(1)
-      expect(result[0].id).toBe('ca-3')
-      expect(result[0].caType).toBe('EXTERNAL_PUBLIC')
-      expect(result[0].children).toHaveLength(1)
+      expect(result[0].id).toBe('ca-4')
+      expect(result[0].caType).toBe('IMPORTED_WITHOUT_KEY')
     })
 
     it('should filter by text - case insensitive match', () => {
@@ -195,12 +205,12 @@ describe('ca-utils', () => {
 
     it('should combine multiple type filters with OR logic', () => {
       const result = filterCaList(mockCaTree, {
-        selectedTypes: ['MANAGED', 'IMPORTED'],
+        selectedTypes: ['MANAGED', 'IMPORTED_WITH_KEY'],
       })
 
       expect(result).toHaveLength(2)
       expect(result.some(ca => ca.caType === 'MANAGED')).toBe(true)
-      expect(result.some(ca => ca.caType === 'IMPORTED')).toBe(true)
+      expect(result.some(ca => ca.caType === 'IMPORTED_WITH_KEY')).toBe(true)
     })
 
     it('should combine text, status, and type filters with AND logic', () => {
