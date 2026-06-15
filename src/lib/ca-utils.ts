@@ -3,7 +3,7 @@
 import type { CA } from './ca-data';
 
 export type CaStatusFilter = 'active' | 'expired' | 'revoked' | 'unknown';
-export type CaTypeFilter = 'MANAGED' | 'IMPORTED' | 'EXTERNAL';
+export type CaTypeFilter = 'MANAGED' | 'IMPORTED_WITH_KEY' | 'IMPORTED_WITHOUT_KEY';
 
 interface CaFilterOptions {
   filterText?: string;
@@ -31,14 +31,8 @@ export function filterCaList(caList: CA[], options: CaFilterOptions): CA[] {
       // Determine if the current CA node itself matches the filters.
       const matchesStatus = selectedStatuses.length > 0 ? selectedStatuses.includes(ca.status) : true;
       
-      const matchesType = selectedTypes.length > 0 
-        ? selectedTypes.some(type => {
-            if (type === 'EXTERNAL') {
-              // The "External" filter should ONLY catch public-only CAs.
-              return ca.caType === 'EXTERNAL_PUBLIC';
-            }
-            return ca.caType === type;
-          })
+      const matchesType = selectedTypes.length > 0
+        ? selectedTypes.some(type => ca.caType === type)
         : true;
 
       const matchesText = filterText ? ca.name.toLowerCase().includes(filterText.toLowerCase()) : true;
@@ -52,5 +46,5 @@ export function filterCaList(caList: CA[], options: CaFilterOptions): CA[] {
 
       return null;
     })
-    .filter((ca): ca is CA => ca !== null);
+    .filter(Boolean) as CA[];
 }

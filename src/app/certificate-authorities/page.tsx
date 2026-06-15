@@ -69,8 +69,8 @@ const STATUS_OPTIONS: { value: CaStatusFilter; label: string }[] = [
 
 const TYPE_OPTIONS: { value: CaTypeFilter, label: string; icon: React.ElementType }[] = [
     { value: 'MANAGED', label: 'Managed', icon: Landmark },
-    { value: 'IMPORTED', label: 'Imported', icon: UploadCloud },
-    { value: 'EXTERNAL', label: 'External', icon: FileText },
+    { value: 'IMPORTED_WITH_KEY', label: 'Imported with Key', icon: UploadCloud },
+    { value: 'IMPORTED_WITHOUT_KEY', label: 'Imported without Key', icon: UploadCloud },
 ];
 
 
