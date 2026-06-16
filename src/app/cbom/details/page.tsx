@@ -7,7 +7,7 @@ import { fetchCBOM, deleteCBOM, CBOMItem, runComplianceCheck, type QuantumSafeCo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode } from 'lucide-react';
+import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode, Info } from 'lucide-react';
 import {
   GraphCanvas,
   Sphere,
@@ -17,6 +17,7 @@ import {
   type NodeRendererProps,
 } from 'reagraph';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -63,12 +64,12 @@ function getCipherStrength(cs: string): CipherStrength {
   return 'unknown';
 }
 
-const cipherStrengthBadge: Record<CipherStrength, { label: string; className: string }> = {
-  recommended: { label: 'Recommended', className: 'bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30' },
-  secure:      { label: 'Secure',      className: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30' },
-  weak:        { label: 'Weak',        className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border border-yellow-500/30' },
-  insecure:    { label: 'Insecure',    className: 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30' },
-  unknown:     { label: 'Unknown',     className: 'bg-muted text-muted-foreground border border-border' },
+const cipherStrengthBadge: Record<CipherStrength, { label: string; className: string; short: string; compactClass: string }> = {
+  recommended: { label: 'Recommended', className: 'bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30',   short: 'R', compactClass: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' },
+  secure:      { label: 'Secure',      className: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30',      short: 'S', compactClass: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' },
+  weak:        { label: 'Weak',        className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border border-yellow-500/30', short: 'W', compactClass: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300' },
+  insecure:    { label: 'Insecure',    className: 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30',        short: 'I', compactClass: 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300' },
+  unknown:     { label: 'Unknown',     className: 'bg-muted text-muted-foreground border border-border',                           short: '?', compactClass: 'bg-muted text-muted-foreground' },
 };
 
 const networkDetailChipClass = 'rounded-full border border-border/70 bg-background px-2.5 py-1 font-mono text-xs text-foreground';
@@ -1654,10 +1655,11 @@ function CBOMDetailsContent() {
                             const order: CipherStrength[] = ['recommended', 'secure', 'weak', 'insecure', 'unknown'];
                             return (
                               <>
-                                <div className="flex flex-wrap gap-1 mb-1.5">
+                                <div className="flex items-center gap-2 mb-1.5">
                                   {order.filter((s) => counts[s] > 0).map((s) => (
-                                    <span key={s} className={`rounded px-2 py-0.5 text-xs font-semibold leading-none ${cipherStrengthBadge[s].className}`}>
-                                      {counts[s]} {cipherStrengthBadge[s].label}
+                                    <span key={s} className="flex items-center gap-0.5">
+                                      <span className="text-xs text-muted-foreground leading-none">{counts[s]}</span>
+                                      <span className={`rounded px-1.5 py-0.5 text-xs font-bold leading-none ${cipherStrengthBadge[s].compactClass}`}>{cipherStrengthBadge[s].short}</span>
                                     </span>
                                   ))}
                                 </div>
@@ -1827,21 +1829,35 @@ function CBOMDetailsContent() {
               </div>
             ) : (
               <div className="overflow-x-auto">
+                <TooltipProvider>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="whitespace-nowrap">Endpoint</TableHead>
-                      <TableHead className="whitespace-nowrap">Host (SNI)</TableHead>
-                      <TableHead className="whitespace-nowrap">TLS</TableHead>
-                      <TableHead className="whitespace-nowrap">PQC</TableHead>
-                      <TableHead className="whitespace-nowrap">Cipher Suite</TableHead>
-                      <TableHead className="whitespace-nowrap">Key Exchange Group</TableHead>
-                      <TableHead className="whitespace-nowrap">In-use Algorithms</TableHead>
-                      <TableHead className="whitespace-nowrap">Offered Suites</TableHead>
-                      <TableHead className="whitespace-nowrap">Supported Groups</TableHead>
-                      <TableHead className="whitespace-nowrap">Signature Algorithms</TableHead>
-                      <TableHead className="whitespace-nowrap">Auth / Certificate</TableHead>
-                      <TableHead className="whitespace-nowrap">Warning</TableHead>
+                      {([
+                        { label: 'Endpoint',             tip: 'IP address and port (ip:port) of the TLS server as observed in the traffic capture.' },
+                        { label: 'Host (SNI)',            tip: 'Server Name Indication sent by the client in the ClientHello, identifying the intended hostname.' },
+                        { label: 'TLS',                  tip: 'TLS protocol version negotiated for this connection.' },
+                        { label: 'PQC',                  tip: 'Post-Quantum Cryptography status. "PQC Ln" means a NIST-level-n quantum-safe KEM was used; "Classical" means no PQC.' },
+                        { label: 'Cipher Suite',         tip: 'Server-selected cipher suite (badge color = strength). Below: offered suite strength breakdown — count per category (R=Recommended, S=Secure, W=Weak, I=Insecure).' },
+                        { label: 'In-use Algorithms',    tip: 'Cryptographic primitives decomposed from the negotiated cipher suite (e.g. AES-256-GCM, ECDHE, SHA-384).' },
+                        { label: 'Supported Groups',     tip: 'Named groups advertised by the client in the supported_groups extension. The actually-used group is highlighted.' },
+                        { label: 'Signature Algorithms', tip: 'Signature schemes listed by the client in the signature_algorithms extension.' },
+                        { label: 'Auth / Certificate',   tip: 'Server certificate and authentication details observed during the handshake.' },
+                      ] as { label: string; tip: string }[]).map(({ label, tip }) => (
+                        <TableHead key={label} className="whitespace-nowrap">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-1 cursor-default">
+                                {label}
+                                <Info className="size-3 shrink-0 text-muted-foreground/40" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-[260px] text-center">
+                              {tip}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1908,68 +1924,42 @@ function CBOMDetailsContent() {
                               )}
                             </TableCell>
 
-                            {/* Negotiated cipher suite */}
+                            {/* Negotiated cipher suite + offered suites distribution */}
                             <TableCell className="min-w-[200px]">
                               {negotiatedCipherSuite ? (
-                                <div className="flex items-start gap-1.5 flex-col">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${csBadge.className}`}>
-                                      {csBadge.label}
-                                    </span>
-                                    <span className="font-mono text-xs">{negotiatedCipherSuite}</span>
-                                  </div>
+                                <div className="flex flex-col items-start gap-1.5">
+                                  <span className={`rounded px-2 py-0.5 font-mono text-xs font-semibold leading-none ${csBadge.className}`}>
+                                    {negotiatedCipherSuite}
+                                  </span>
                                   {offeredCipherSuites?.length ? (
-                                    <span className="text-[10px] text-muted-foreground/60">
-                                      {offeredCipherSuites.length} offered
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      {(['recommended', 'secure', 'weak', 'insecure', 'unknown'] as CipherStrength[])
+                                        .filter((s) => offeredSuiteCounts[s] > 0)
+                                        .map((s) => (
+                                          <span key={s} className="flex items-center gap-0.5">
+                                            <span className="text-[10px] text-muted-foreground leading-none">{offeredSuiteCounts[s]}</span>
+                                            <span className={`rounded px-1 py-0.5 text-[10px] font-bold leading-none ${cipherStrengthBadge[s].compactClass}`}>{cipherStrengthBadge[s].short}</span>
+                                          </span>
+                                        ))}
+                                    </div>
                                   ) : null}
                                 </div>
-                              ) : <span className="text-muted-foreground">—</span>}
-                            </TableCell>
-
-                            {/* Key exchange group — from key_share */}
-                            <TableCell>
-                              {negotiatedGroup ? (
-                                <span className="inline-flex items-center rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 font-mono text-xs text-cyan-700 dark:text-cyan-400 whitespace-nowrap">
-                                  {negotiatedGroup}
-                                </span>
                               ) : <span className="text-muted-foreground">—</span>}
                             </TableCell>
 
                             {/* Decomposed in-use algorithms from cryptoRefArray */}
                             <TableCell className="min-w-[140px]">
                               <div className="flex flex-wrap gap-1">
-                                {(negotiatedAlgorithms ?? []).map((alg) => {
-                                  const isPqc = (alg.nistQuantumSecurityLevel ?? 0) >= 1;
-                                  return (
-                                    <span
-                                      key={alg.name}
-                                      title={alg.primitive}
-                                      className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-xs whitespace-nowrap ${isPqc ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : 'border-border/70 bg-background text-foreground'}`}
-                                    >
-                                      {alg.name}
-                                    </span>
-                                  );
-                                })}
+                                {(negotiatedAlgorithms ?? []).map((alg) => (
+                                  <span
+                                    key={alg.name}
+                                    title={alg.primitive}
+                                    className="inline-flex items-center rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-xs whitespace-nowrap text-foreground"
+                                  >
+                                    {alg.name}
+                                  </span>
+                                ))}
                               </div>
-                            </TableCell>
-
-                            {/* Offered cipher suites — cipher_suites from ClientHello */}
-                            <TableCell className="min-w-[120px]">
-                              {offeredCipherSuites?.length ? (
-                                <div className="space-y-1">
-                                  <span className="text-xs font-medium">{offeredCipherSuites.length} suites</span>
-                                  <div className="flex flex-wrap gap-0.5">
-                                    {(['recommended', 'secure', 'weak', 'insecure'] as CipherStrength[])
-                                      .filter((s) => offeredSuiteCounts[s] > 0)
-                                      .map((s) => (
-                                        <span key={s} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${cipherStrengthBadge[s].className}`}>
-                                          {offeredSuiteCounts[s]} {cipherStrengthBadge[s].label}
-                                        </span>
-                                      ))}
-                                  </div>
-                                </div>
-                              ) : <span className="text-muted-foreground">—</span>}
                             </TableCell>
 
                             {/* Supported groups — supported_groups extension, negotiated one highlighted */}
@@ -1993,15 +1983,12 @@ function CBOMDetailsContent() {
                             {/* Signature algorithms — signature_algorithms extension from ClientHello */}
                             <TableCell className="min-w-[160px]">
                               {offeredSignatureAlgorithms?.length ? (
-                                <div className="space-y-1">
-                                  <span className="text-xs font-medium">{offeredSignatureAlgorithms.length} schemes</span>
-                                  <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
-                                    {offeredSignatureAlgorithms.map((alg) => (
-                                      <span key={alg} className="inline-flex items-center rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-xs whitespace-nowrap">
-                                        {alg}
-                                      </span>
-                                    ))}
-                                  </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {offeredSignatureAlgorithms.map((alg) => (
+                                    <span key={alg} className="inline-flex items-center rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-xs whitespace-nowrap">
+                                      {alg}
+                                    </span>
+                                  ))}
                                 </div>
                               ) : <span className="text-muted-foreground">—</span>}
                             </TableCell>
@@ -2023,20 +2010,12 @@ function CBOMDetailsContent() {
                               )}
                             </TableCell>
 
-                            {/* Warning advisory */}
-                            <TableCell className="max-w-[200px]">
-                              {warning ? (
-                                <div className="flex items-start gap-1">
-                                  <span className="shrink-0 text-amber-500">⚠</span>
-                                  <span className="text-xs text-amber-700 dark:text-amber-400 break-words">{warning}</span>
-                                </div>
-                              ) : <span className="text-muted-foreground">—</span>}
-                            </TableCell>
                           </TableRow>
                         );
                       })}
                   </TableBody>
                 </Table>
+                </TooltipProvider>
               </div>
             )
           ) : assetViewMode === 'file-tree' ? (
