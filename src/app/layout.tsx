@@ -31,7 +31,7 @@ import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Upload, Lock, PlaySquare, Package, Boxes, ClipboardList, Workflow } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, Lock, PlaySquare, Package, Boxes, Rocket, ClipboardList, Workflow } from 'lucide-react';
 import { Breadcrumbs, type BreadcrumbItem } from '@/components/ui/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -82,7 +82,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'registration-authorities': "Registration Authorities",
   'verification-authorities': "Verification Authorities",
   'device-inventory': "Device Key Inventory",
-  'firmware-inventory': "Firmware Inventory",
+  'package-inventory': "Package Inventory",
   'new': "New",
   'details': "Details",
   'issue-certificate': "Issue Certificate",
@@ -104,6 +104,7 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'launch_update': "Launch Update",
   'packs': "Update Packs",
   'pack-details': "Update Pack Details",
+  'launch': "Launch",
 };
 
 interface NavItem {
@@ -144,10 +145,10 @@ const navigationConfig: NavGroup[] = [
     items: [
       { href: '/devices', label: 'Devices', icon: Router },
       { href: '/device-groups', label: 'Device Groups', icon: Boxes },
-      { href: '/firmware-inventory', label: 'Firmware Inventory', icon: Cpu },
-      { href: '/device-inventory', label: 'Device Key Inventory', icon: Package },
+      { href: '/package-inventory', label: 'Package Inventory', icon: Package },
+      { href: '/device-inventory', label: 'Device Key Inventory', icon: KeyRound },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
-      { href: '/updates', label: 'Updates', icon: Upload }
+      { href: '/updates', label: 'Updates', icon: Rocket }
     ],
   },
   {
@@ -220,13 +221,12 @@ function generateBreadcrumbs(pathname: string, queryParams: URLSearchParams): Br
       hrefWithQuery += `?caId=${queryParams.get('caId')}`;
     } else if (segment === 'pack-details') {
       const packName = queryParams.get('packName');
-      const dmsId = queryParams.get('dmsId');
-      if (packName && dmsId) {
-        hrefWithQuery += `?packName=${packName}&dmsId=${dmsId}`;
-        breadcrumbItems.push({ label: 'Update Packs', href: '/updates/packs' });
-        if (packName) {
-          label = decodeURIComponent(packName);
-        }
+      const groupId = queryParams.get('groupId') || queryParams.get('dmsId');
+      if (packName) {
+        hrefWithQuery += `?packName=${packName}${groupId ? `&groupId=${groupId}` : ''}`;
+        // Packs live in the Package Inventory — insert it as an intermediate breadcrumb
+        breadcrumbItems.push({ label: 'Package Inventory', href: '/package-inventory' });
+        label = decodeURIComponent(packName);
       }
     }
 

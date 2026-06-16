@@ -15,6 +15,7 @@ import { DmsSelector, type DmsOption } from '@/components/shared/DmsSelector';
 import { Separator } from '../ui/separator';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { registerDevice } from '@/lib/devices-api';
+import { generateUUID } from '@/lib/utils';
 
 interface RegisterDeviceModalProps {
   isOpen: boolean;

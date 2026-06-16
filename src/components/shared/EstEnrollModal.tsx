@@ -29,6 +29,7 @@ import { Stepper } from './Stepper';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TLS_KEY_USAGES } from '@/lib/certificate-usage-options';
 import { CaSelectorModal } from './CaSelectorModal';
+import { generateUUID } from '@/lib/utils';
 
 // Re-defining RA type here to avoid complex imports, but ideally this would be shared
 interface ApiRaItem {

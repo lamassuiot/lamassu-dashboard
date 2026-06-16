@@ -1,20 +1,25 @@
 // src/app/updates/create-version/page.tsx
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, GitFork } from 'lucide-react';
-import { UpdatePackForm } from '@/components/iot/update-pack-form';
+import { ArrowLeft, GitFork, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useQuery } from '@tanstack/react-query';
-import { fetchUpdatePacks } from '@/lib/iot-api';
+import { fetchUpdatePacks, createUpdatePackVersion } from '@/lib/iot-api';
 import { useDms } from '@/contexts/DmsContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
+import { cn, isValidSemver, compareSemver } from '@/lib/utils';
 import type { UpdatePack } from '@/types/iot';
 
-// Dedicated "create a new version of an existing update pack" page. Brand-new packs are created at
-// /updates/create. A base pack may be preselected via ?basePackId=… (and ?groupId=…); otherwise the
-// operator picks one from the in-form selector.
+// Lightweight "create a new version of an existing pack" page. It just bumps the pack to a fresh
+// version and lands on the pack's details, where artifacts are uploaded and (for SWU packs) the SWU
+// is built. Brand-new packs are created at /updates/create.
 export default function CreateUpdatePackVersionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,9 +37,6 @@ export default function CreateUpdatePackVersionPage() {
     }
   }, [dmsIdParam, availableDms, selectedDms, setSelectedDms]);
 
-  // NOTE: queryKey ['updatePacks', groupId] is shared with the pack-details page, which caches the
-  // FULL {list,next} response. We return the same shape here and normalize to an array via select,
-  // so a cache hit from either page yields a consistent array (and never the bare object).
   const { data: fetchedUpdatePacks = [] } = useQuery<any, Error, UpdatePack[]>({
     queryKey: ['updatePacks', selectedDms?.id],
     queryFn: () => fetchUpdatePacks({ groupId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }),
@@ -42,34 +44,56 @@ export default function CreateUpdatePackVersionPage() {
     select: (data) => (Array.isArray(data) ? data : (data?.list || [])),
   });
 
-  const [packForForm, setPackForForm] = React.useState<UpdatePack | undefined>(undefined);
-  const [selectedBasePackId, setSelectedBasePackId] = React.useState<string | undefined>(undefined);
+  const [selectedBasePackId, setSelectedBasePackId] = useState<string | undefined>(undefined);
+  const [newVersion, setNewVersion] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
-  const buildNextVersion = (basePack: UpdatePack): UpdatePack => ({
-    ...basePack,
-    version: (Number(basePack.version) || 0) + 1,
-    id: '',
-    createdAt: new Date().toISOString(),
-    binaryFileName: undefined,
-    descriptorFileName: undefined,
-    descriptorContent: undefined,
-    uri: undefined,
-  });
+  const selectedPack = fetchedUpdatePacks.find(p => p.id === selectedBasePackId);
+
+  // Suggest the next version by bumping the current patch (x.y.z -> x.y.(z+1)); fallback to 1.0.0.
+  const suggestNextVersion = (current?: string): string => {
+    if (current && isValidSemver(current)) {
+      const [maj, min, pat] = current.split('.').map((n) => parseInt(n, 10));
+      return `${maj}.${min}.${pat + 1}`;
+    }
+    return '1.0.0';
+  };
 
   // Preselect the base pack from the query param once packs are loaded.
   useEffect(() => {
-    if (basePackId && fetchedUpdatePacks) {
-      const basePack = fetchedUpdatePacks.find(p => p.id === basePackId);
-      if (basePack) {
-        setSelectedBasePackId(basePack.id);
-        setPackForForm(buildNextVersion(basePack));
-      }
+    if (basePackId && fetchedUpdatePacks.find(p => p.id === basePackId)) {
+      setSelectedBasePackId(basePackId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basePackId, fetchedUpdatePacks]);
 
-  const handleSwuGenerated = () => {
-    router.push('/updates/create_update');
+  // Prefill a suggested next version whenever the selected pack changes.
+  useEffect(() => {
+    if (selectedPack) setNewVersion(suggestNextVersion(selectedPack.version));
+  }, [selectedBasePackId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const versionValid = isValidSemver(newVersion.trim());
+  const versionGreater = !!selectedPack && versionValid && (!isValidSemver(selectedPack.version) || compareSemver(newVersion.trim(), selectedPack.version) > 0);
+
+  const handleCreateVersion = async () => {
+    if (!selectedPack || !selectedDms || !user?.access_token) return;
+    if (!versionValid) {
+      toast({ title: 'Invalid version', description: 'Version must be semver (x.y.z).', variant: 'destructive' });
+      return;
+    }
+    if (!versionGreater) {
+      toast({ title: 'Version too low', description: `New version must be greater than the current v${selectedPack.version}.`, variant: 'destructive' });
+      return;
+    }
+    setIsCreating(true);
+    try {
+      await createUpdatePackVersion({ groupId: selectedDms.id, packName: selectedPack.name, accessToken: user.access_token, version: newVersion.trim() });
+      toast({ title: 'New version created', description: `${selectedPack.name} is now v${newVersion.trim()} — upload artifacts next.` });
+      router.push(`/updates/pack-details?groupId=${encodeURIComponent(selectedDms.id)}&packName=${encodeURIComponent(selectedPack.name)}`);
+    } catch (err: any) {
+      toast({ title: 'Failed to create version', description: err.message || 'An error occurred.', variant: 'destructive' });
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   if (!selectedDms) {
@@ -85,12 +109,7 @@ export default function CreateUpdatePackVersionPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push('/updates/create_update')}
-            className="flex items-center gap-2"
-          >
+          <Button variant="ghost" size="sm" onClick={() => router.push('/package-inventory')} className="flex items-center gap-2">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -98,26 +117,58 @@ export default function CreateUpdatePackVersionPage() {
               <GitFork className="h-8 w-8 text-primary" />
               New Version of an Existing Pack
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Home / Updates / Create / New Version
-            </p>
+            <p className="text-muted-foreground text-sm mt-1">Packs are managed in the Package Inventory.</p>
           </div>
         </div>
       </div>
 
-      {/* Form (new-version mode) */}
-      <UpdatePackForm
-        formModeActual="newVersion"
-        initialPackData={packForForm}
-        availableBasePacks={fetchedUpdatePacks || []}
-        selectedBasePackIdProp={selectedBasePackId}
-        onBasePackSelect={(id) => {
-          setSelectedBasePackId(id);
-          const basePack = (fetchedUpdatePacks || []).find(p => p.id === id);
-          setPackForForm(basePack ? buildNextVersion(basePack) : undefined);
-        }}
-        onSwuGenerated={handleSwuGenerated}
-      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Select a pack to version</CardTitle>
+          <CardDescription>
+            Creating a new version bumps the pack and clears its built SWU. You'll upload fresh artifacts and
+            (for SWU packs) build the SWU on the pack's page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Base pack</Label>
+            <Select value={selectedBasePackId} onValueChange={setSelectedBasePackId}>
+              <SelectTrigger><SelectValue placeholder="Select a pack" /></SelectTrigger>
+              <SelectContent>
+                {fetchedUpdatePacks.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name} (current v{p.version})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedPack && (
+            <div className="space-y-1.5">
+              <Label htmlFor="new-version">New version</Label>
+              <Input
+                id="new-version"
+                value={newVersion}
+                onChange={(e) => setNewVersion(e.target.value)}
+                placeholder="e.g. 1.1.0"
+                className={cn((newVersion && !versionValid) || (versionValid && !versionGreater) ? 'border-destructive focus-visible:ring-destructive' : '')}
+              />
+              <p className={cn('text-xs', (newVersion && !versionValid) || (versionValid && !versionGreater) ? 'text-destructive' : 'text-muted-foreground')}>
+                {newVersion && !versionValid
+                  ? 'Must be semver (x.y.z).'
+                  : versionValid && !versionGreater
+                    ? `Must be greater than the current v${selectedPack.version}.`
+                    : `Semver (x.y.z), greater than the current v${selectedPack.version}.`}
+              </p>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="border-t pt-6">
+          <Button onClick={handleCreateVersion} disabled={!selectedPack || isCreating || !versionGreater} className="ml-auto">
+            {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Create New Version
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

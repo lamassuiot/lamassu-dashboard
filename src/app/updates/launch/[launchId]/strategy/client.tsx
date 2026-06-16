@@ -102,7 +102,9 @@ export function LaunchStrategyClient({ params }: LaunchStrategyClientProps) {
       rollout_value: formData.rolloutValue,
       test_device_id: formData.testDeviceId || undefined,
       update_pack_id: launch.update_pack_id, // Keep current update pack
-      auto: formData.auto, // Pass the auto value directly from form
+      auto: formData.auto,
+      ...(formData.auto && formData.approvalThreshold != null ? { approval_threshold: formData.approvalThreshold } : {}),
+      ...(formData.auto && formData.errorThreshold != null ? { error_threshold: formData.errorThreshold } : {}),
     };
 
     // Remove undefined values but keep false booleans
@@ -170,6 +172,8 @@ export function LaunchStrategyClient({ params }: LaunchStrategyClientProps) {
     testDeviceId: launch.test_device_id,
     updatePackId: launch.update_pack_id,
     auto: launch.auto || false,
+    approvalThreshold: launch.approval_threshold,
+    errorThreshold: launch.error_threshold,
   };
 
   return (

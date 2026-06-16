@@ -4,19 +4,18 @@
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlayCircle, Settings2, Pencil, X, PackageCheck, AlertTriangle, AlertCircle, RefreshCw, Eye, Info, CheckCircle2, Check, Loader2, Clock, Package, Plus, MoreVertical, PlusCircle, ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, XCircle, Ban, Rocket, Zap, Layers, ArrowRight } from 'lucide-react';
-import type { UpdateStrategy, LaunchItem, ApiGlobalStrategy, UpdatePack, DeviceJob, LaunchListResponse } from '@/types/iot';
+import { PlayCircle, AlertTriangle, RefreshCw, Eye, CheckCircle2, Check, Loader2, Clock, Package, ArrowLeft, ChevronDown, ChevronRight, XCircle, Ban, Rocket, Zap, Layers, ArrowRight, History, Boxes } from 'lucide-react';
+import type { UpdateStrategy, LaunchItem, UpdatePack, DeviceJob, LaunchListResponse, PreconditionFailure } from '@/types/iot';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { UpdateStrategyForm } from '@/components/iot/update-strategy-form';
-import { useQuery, useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -28,21 +27,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { 
-  fetchUpdatePacks, 
-  fetchCurrentLaunches, 
+  fetchUpdatePacks,
+  fetchCurrentLaunches,
   createLaunch,
   type CreateLaunchPayload,
-  triggerItemRollout,
   fetchAllDeviceJobs,
   fetchAllLaunches,
   fetchLaunchesByUpdatePack,
@@ -57,307 +49,11 @@ interface LaunchItemWithDms extends LaunchItem {
   dmsName: string;
 }
 
-// Extended type to combine update pack with launch status
-interface UpdatePackWithStatus extends UpdatePack {
-  launches: LaunchItem[];
-  totalDevices: number;
-  devicesWithJob: number;
-  completedDevices: number;
-  failedDevices: number;
-  status: 'Rolling Out' | 'Completed' | 'Paused' | 'Failed' | 'Not Started' | 'Partial Completed';
-  errorRate: number;
-  rolloutProgress: number;
-  targetTags: string[];
-  groupId: string;
-  dmsName: string;
-  hasLaunchForCurrentVersion: boolean;
-  hasActiveLaunch: boolean; // Has a launch with devices without jobs
-  isRemoved?: boolean;
-}
+// Display status a launch can be in, derived from its devices' job states.
+type LaunchDisplayStatus = 'Rolling Out' | 'Completed' | 'Paused' | 'Failed' | 'Not Started' | 'Partial Completed';
 
-// Helper function to format workflow type
-const formatWorkflowType = (workflowType?: ApiGlobalStrategy['workflow_type']) => {
-  if (!workflowType) return 'N/A';
-  if (workflowType === 'wfx.workflow.dau.direct' || workflowType === 'direct') return 'Direct';
-  if (workflowType === 'wfx.workflow.dau.phased' || workflowType === 'wfx.workflow.phased' || workflowType === 'phased') return 'Phased';
-  return String(workflowType);
-};
+type LaunchWorkflowType = 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
 
-// Global strategy display component removed - strategy is now per-launch only
-
-interface DeviceJobStatusRowProps {
-  groupId: string;
-  deviceId: string;
-  targetLaunchId: string;
-  accessToken: string | null;
-}
-
-function DeviceJobStatusRow({ groupId, deviceId, targetLaunchId, accessToken }: DeviceJobStatusRowProps) {
-  const { data: jobs, isLoading, error } = useQuery<DeviceJob[], Error>({
-    queryKey: ['deviceJobs', groupId, deviceId, targetLaunchId],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: [deviceId], accessToken: accessToken!, targetLaunchId }, { signal }),
-    enabled: !!accessToken,
-  });
-
-  if (isLoading) {
-    return (
-      <TableRow>
-        <TableCell className="font-mono text-xs py-2">{deviceId}</TableCell>
-        <TableCell colSpan={6} className="text-muted-foreground py-2">
-          <div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading job status...</div>
-        </TableCell>
-      </TableRow>
-    );
-  }
-  if (error) {
-    return (
-      <TableRow>
-        <TableCell className="font-mono text-xs py-2">{deviceId}</TableCell>
-        <TableCell colSpan={6} className="text-destructive py-2">
-          <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Error: {error.message}</div>
-        </TableCell>
-      </TableRow>
-    );
-  }
-
-  const relevantJob = jobs?.find(job => job.definition.launchID === targetLaunchId);
-
-  if (!relevantJob) {
-    return (
-      <TableRow>
-        <TableCell className="font-mono text-xs py-2">{deviceId}</TableCell>
-        <TableCell colSpan={6} className="text-muted-foreground italic py-2">
-          No job associated with this launch.
-        </TableCell>
-      </TableRow>
-    );
-  }
-
-  const state = relevantJob.status.state;
-  let statusText = "In Progress";
-  let StatusIcon = Clock;
-  let iconColor = "text-yellow-500";
-
-  if (state === 'TERMINATED') {
-    statusText = 'Error';
-    StatusIcon = AlertTriangle;
-    iconColor = "text-destructive";
-  } else if (state === 'ACTIVATED' || state === 'INSTALLED') {
-    statusText = 'Finished';
-    StatusIcon = CheckCircle2;
-    iconColor = "text-primary";
-  }
-
-  return (
-    <TableRow className="text-xs">
-      <TableCell className="font-mono py-2">{deviceId}</TableCell>
-      <TableCell className="py-2">
-        <div className="flex items-center gap-1.5">
-          <StatusIcon className={`h-4 w-4 ${iconColor}`} />
-          <span className="font-medium">{statusText}</span>
-        </div>
-      </TableCell>
-      <TableCell className="py-2">
-        <Badge variant="outline" className="font-mono text-xs">{state}</Badge>
-      </TableCell>
-      <TableCell className="py-2 truncate w-[200px]">{relevantJob.definition.artifacts[0]?.name || 'N/A'}</TableCell>
-      <TableCell className="font-mono py-2">{relevantJob.id}</TableCell>
-      <TableCell className="py-2 text-muted-foreground">
-        {relevantJob.stime ? format(parseISO(relevantJob.stime), "Pp") : 'N/A'}
-      </TableCell>
-      <TableCell className="py-2 text-muted-foreground">
-        {relevantJob.mtime ? format(parseISO(relevantJob.mtime), "Pp") : 'N/A'}
-      </TableCell>
-    </TableRow>
-  );
-}
-
-
-function LaunchDetailDialog({ launchItem, isOpen, onOpenChange }: { launchItem: LaunchItem | null; isOpen: boolean; onOpenChange: (open: boolean) => void; }) {
-  const queryClient = useQueryClient();
-  const [isRefreshingJobs, setIsRefreshingJobs] = React.useState(false);
-  const { user } = useAuth();
-  const { selectedDms } = useDms();
-  const groupId = selectedDms?.id;
-
-  if (!launchItem || !groupId) return null;
-
-  const allDeviceIds = Array.from(new Set([...launchItem.devices_with_job, ...launchItem.devices_without_job]));
-
-  const handleRefreshJobs = async () => {
-    if (!launchItem) return;
-    setIsRefreshingJobs(true);
-    toast({ title: "Refreshing Job Statuses...", description: `For launch: ${launchItem.name}` });
-    try {
-      allDeviceIds.forEach(deviceId => {
-        queryClient.invalidateQueries({ queryKey: ['deviceJobs', groupId, deviceId, launchItem.id] });
-      });
-      queryClient.invalidateQueries({ queryKey: ['launchJobStats', groupId, launchItem.id, ...launchItem.devices_with_job] });
-      await queryClient.invalidateQueries({ queryKey: ['currentLaunches', groupId] });
-
-      toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for launch: ${launchItem.name}`});
-    } catch (error) {
-      toast({ variant: "destructive", title: "Refresh Failed", description: (error as Error).message });
-    } finally {
-      setIsRefreshingJobs(false);
-    }
-  };
-
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader className="flex-row items-center justify-between pr-6">
-          <div className="space-y-1.5">
-            <DialogTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" /> Launch Details: {launchItem.name}
-            </DialogTitle>
-            <DialogDescription>
-              ID: <span className="font-mono text-xs">{launchItem.id}</span>
-              <br />
-              Executed: {launchItem.exec_date ? format(parseISO(launchItem.exec_date), "PPpp") : 'N/A'}
-            </DialogDescription>
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleRefreshJobs}
-            disabled={isRefreshingJobs}
-            className="shrink-0"
-          >
-            {isRefreshingJobs ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            <span className="sr-only">Refresh Jobs</span>
-          </Button>
-        </DialogHeader>
-        <ScrollArea className="h-[calc(70vh-150px)] sm:h-[450px] pr-1">
-          <div className="space-y-6 py-2">
-            {/* Launch Strategy Configuration Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-sm flex items-center gap-2">
-                  <Settings2 className="h-4 w-4 text-primary" />
-                  Launch Strategy Configuration
-                </h4>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    // Navigate to strategy edit page
-                    window.location.href = `/updates/launch/${launchItem.id}/strategy?dms=${groupId}`;
-                  }}
-                  className="gap-2"
-                >
-                  <Pencil className="h-3 w-3" />
-                  Edit Strategy
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border bg-muted/30 p-4">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Workflow Type</p>
-                  <p className="text-sm font-medium">
-                    {launchItem.workflow_type === 'wfx.workflow.dau.direct' || launchItem.workflow_type === 'direct' ? 'Direct' : 
-                     launchItem.workflow_type === 'wfx.workflow.dau.phased' ? 'Phased Rollout' : 
-                     'Not Set'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Rollout Type</p>
-                  <p className="text-sm font-medium capitalize">
-                    {launchItem.rollout_type || 'Not Set'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Rollout Value</p>
-                  <p className="text-sm font-medium">
-                    {launchItem.rollout_value !== undefined ? 
-                      `${launchItem.rollout_value}${launchItem.rollout_type === 'percentage' ? '%' : ' devices'}` : 
-                      'Not Set'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Update Pack ID</p>
-                  <p className="text-sm font-medium font-mono text-xs break-all">
-                    {launchItem.update_pack_id || 'Not Set'}
-                    {launchItem.update_pack_id && (
-                      <Badge variant="secondary" className="ml-2">Immutable</Badge>
-                    )}
-                  </p>
-                </div>
-                {launchItem.test_device_id && (
-                  <div className="space-y-1 md:col-span-2">
-                    <p className="text-xs text-muted-foreground">Test Device ID</p>
-                    <p className="text-sm font-medium font-mono text-xs break-all">
-                      {launchItem.test_device_id}
-                    </p>
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Auto Mode</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">
-                      {launchItem.auto ? 'Automatic' : 'Manual'}
-                    </p>
-                    {launchItem.auto ? (
-                      <Badge variant="secondary" className="text-xs">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Rollout starts automatically
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs">
-                        <PlayCircle className="h-3 w-3 mr-1" />
-                        Manual rollout execution required
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Device Job Statuses Section */}
-            <div className="space-y-3">
-              <h4 className="font-semibold text-muted-foreground text-sm">Device Job Statuses:</h4>
-              {allDeviceIds.length > 0 ? (
-                <div className="relative w-full overflow-auto">
-                  <Table className="table-fixed">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[140px]">Device ID</TableHead>
-                        <TableHead className="w-[120px]">Status</TableHead>
-                        <TableHead className="w-[110px]">Job State</TableHead>
-                        <TableHead className="w-[200px]">Artifact</TableHead>
-                        <TableHead className="w-[150px]">Job ID</TableHead>
-                        <TableHead className="w-[130px]">Started</TableHead>
-                        <TableHead className="w-[130px]">Last Update</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {allDeviceIds.map(deviceId => (
-                        <DeviceJobStatusRow
-                          key={deviceId}
-                          groupId={groupId}
-                          deviceId={deviceId}
-                          targetLaunchId={launchItem.id}
-                          accessToken={user?.access_token || null}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">No devices associated with this launch.</p>
-              )}
-            </div>
-          </div>
-        </ScrollArea>
-        <DialogFooter className="mt-4">
-            <DialogClose asChild>
-                <Button type="button" variant="outline">Close</Button>
-            </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 interface LaunchNameCellProps {
   launch: LaunchItem;
@@ -405,386 +101,22 @@ function LaunchNameCell({ launch, groupId, accessToken, onClick }: LaunchNameCel
       {!showVersionSkeleton && versionToDisplay && (
         <Badge variant="secondary" className="text-xs">v{versionToDisplay}</Badge>
       )}
+      {launch.forced_preconditions === true && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700">
+                <AlertTriangle className="h-3 w-3" />
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Force-deployed to devices that did not meet prerequisites</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   );
-}
-
-
-interface JobExecutionProgressCellProps {
-  groupId: string;
-  launchItem: LaunchItem;
-  accessToken: string | null;
-}
-
-function JobExecutionProgressCell({ groupId, launchItem, accessToken }: JobExecutionProgressCellProps) {
-  // Fetch active launches to get devices currently executing
-  const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
-    queryKey: ['activeLaunches', groupId],
-  queryFn: ({ signal }) => fetchCurrentLaunches({ groupId, accessToken: accessToken! }, { signal }),
-    enabled: !!accessToken,
-  });
-
-  const activeDevices = activeLaunchesData?.active_launches || [];
-  
-  // Use active devices from the launch item directly (more reliable), but fall back to filtering if needed
-  // But also keep the query to ensure re-renders when active devices change
-  const launchActiveDevices = (launchItem.active_launches && launchItem.active_launches.length > 0) 
-    ? launchItem.active_launches 
-    : activeDevices.filter(deviceId => 
-        launchItem.devices_with_job.includes(deviceId) || launchItem.devices_without_job.includes(deviceId)
-      );
-  
-  // Calculate total devices - EXACT same logic as details page
-  const allDeviceIds = Array.from(new Set([...launchItem.devices_with_job, ...launchItem.devices_without_job]));
-  const allDeviceIdsWithActive = Array.from(new Set([...allDeviceIds, ...launchActiveDevices]));
-  const totalDevicesInLaunch = allDeviceIdsWithActive.length;
-
-  const { data: allJobs, isLoading, error } = useQuery<DeviceJob[], Error>({
-    queryKey: ['launchJobStats', groupId, launchItem.id, ...launchItem.devices_with_job],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: launchItem.devices_with_job, accessToken: accessToken!, targetLaunchId: launchItem.id }, { signal }),
-    enabled: launchItem.devices_with_job.length > 0 && !!accessToken,
-  });
-
-
-  if (totalDevicesInLaunch === 0) {
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="h-2.5 w-full rounded-full bg-muted" />
-          </TooltipTrigger>
-          <TooltipContent>No devices in this launch.</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-  
-  if (launchItem.devices_with_job.length === 0 && totalDevicesInLaunch > 0) {
-     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="h-2.5 w-full rounded-full bg-muted" />
-          </TooltipTrigger>
-          <TooltipContent>No jobs assigned yet for execution tracking.</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
-
-  if (isLoading && launchItem.devices_with_job.length > 0) {
-    return (
-      <div className="flex items-center gap-2">
-        <div className="relative h-2 flex-1 rounded-full overflow-hidden bg-muted">
-          {/* Animated shimmer loading effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/30 to-transparent animate-shimmer" />
-        </div>
-        <span className="text-xs font-medium min-w-[45px] text-right text-muted-foreground">
-          ...
-        </span>
-      </div>
-    );
-  }
-  if (error && launchItem.devices_with_job.length > 0) return <div className="text-xs text-destructive">Error fetching job stats</div>;
-
-  const relevantJobs = allJobs?.filter(job => job.definition.launchID === launchItem.id) || [];
-
-  // Deduplicate per-device states (COMPLETED > FAILED > ACTIVE)
-  const deviceStateMap = new Map<string, 'COMPLETED' | 'FAILED' | 'ACTIVE'>();
-  const rankMap = { 'ACTIVE': 1, 'FAILED': 2, 'COMPLETED': 3 } as const;
-
-  // IMPORTANT: Only count jobs that belong to devices in THIS launch
-  const devicesInThisLaunch = new Set([...launchItem.devices_with_job, ...launchItem.devices_without_job, ...launchActiveDevices]);
-  
-  relevantJobs.forEach(job => {
-    // Get the device ID from the job
-    const jobDeviceId = job.clientId || job.status?.clientId;
-    
-    // Only count if the device is actually in this launch
-    if (!jobDeviceId || !devicesInThisLaunch.has(jobDeviceId)) return;
-    const state = job.status.state;
-    let mapped: 'COMPLETED' | 'FAILED' | 'ACTIVE' = 'ACTIVE';
-    if (state === 'ACTIVATED' || state === 'INSTALLED') mapped = 'COMPLETED';
-    else if (state === 'TERMINATED') mapped = 'FAILED';
-    const current = deviceStateMap.get(jobDeviceId);
-    if (!current || rankMap[mapped] > rankMap[current]) {
-      deviceStateMap.set(jobDeviceId, mapped);
-    }
-  });
-  
-  let completedCount = 0;
-  let failedCount = 0;
-  // Count per-device states
-  deviceStateMap.forEach(s => {
-    if (s === 'COMPLETED') completedCount++;
-    else if (s === 'FAILED') failedCount++;
-  });
-  let activeFromJobsCount = Array.from(deviceStateMap.values()).filter(s => s === 'ACTIVE').length;
-  // Add devices from active_launches that don't have jobs yet (and are not completed/failed)
-  const activeWithoutJobs = launchActiveDevices.filter(d => !deviceStateMap.has(d));
-  const activeCount = activeFromJobsCount + activeWithoutJobs.length;
-  
-  const pendingAssignedCount = launchItem.devices_with_job.length - completedCount - failedCount - activeFromJobsCount;
-
-  const completedPercent = totalDevicesInLaunch > 0 ? (completedCount / totalDevicesInLaunch) * 100 : 0;
-  const activePercent = totalDevicesInLaunch > 0 ? (activeCount / totalDevicesInLaunch) * 100 : 0;
-  const pendingPercent = totalDevicesInLaunch > 0 ? (pendingAssignedCount / totalDevicesInLaunch) * 100 : 0;
-  const failedPercent = totalDevicesInLaunch > 0 ? (failedCount / totalDevicesInLaunch) * 100 : 0;
-  
-  const notStartedOrUnassignedCount = totalDevicesInLaunch - completedCount - activeCount - pendingAssignedCount - failedCount;
-  const notStartedOrUnassignedPercent = totalDevicesInLaunch > 0 ? (notStartedOrUnassignedCount / totalDevicesInLaunch) * 100 : 0;
-
-  // Calculate total progress (completed only, active shows separately with animation)
-  const totalProgressPercent = completedPercent;
-  const hasErrors = failedCount > 0;
-
-  const tooltipText = `Total in Launch: ${totalDevicesInLaunch}. Completed: ${completedCount}, Active: ${activeCount}, Pending (assigned job): ${pendingAssignedCount}, Failed: ${failedCount}. Not yet started/assigned job: ${notStartedOrUnassignedCount}`;
-
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">
-          {completedCount}/{totalDevicesInLaunch} devices
-        </span>
-        <span className="font-medium text-primary">
-          {Math.round(totalProgressPercent)}%
-        </span>
-      </div>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex h-2 w-full rounded-full overflow-hidden bg-muted shadow-inner">
-              {completedPercent > 0 && (
-                <div
-                  className="h-full bg-primary relative z-0 transition-all duration-500"
-                  style={{ width: `${completedPercent}%` }}
-                />
-              )}
-              {activePercent > 0 && completedCount < totalDevicesInLaunch && (
-                <div
-                  className="h-full bg-amber-400 dark:bg-amber-500 relative z-10 overflow-hidden transition-all duration-500"
-                  style={{ width: `${activePercent}%` }}
-                >
-                  <div className="absolute top-0 h-full w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-sweep" />
-                </div>
-              )}
-              {pendingPercent > 0 && (completedCount + activeFromJobsCount + failedCount) < totalDevicesInLaunch && (
-                <div
-                  className="h-full bg-amber-200 dark:bg-amber-700/50 relative z-10 transition-all duration-500"
-                  style={{ width: `${pendingPercent}%` }}
-                />
-              )}
-              {failedPercent > 0 && (
-                <div
-                  className="h-full bg-destructive relative z-0 transition-all duration-500"
-                  style={{ width: `${failedPercent}%` }}
-                />
-              )}
-              {notStartedOrUnassignedPercent > 0 && (
-                <div
-                  className={`h-full transition-all duration-500 ${pendingAssignedCount > 0 ? 'bg-muted/80' : 'bg-muted'}`}
-                  style={{ width: `${notStartedOrUnassignedPercent}%` }}
-                />
-              )}
-               {(totalProgressPercent + pendingPercent + failedPercent + notStartedOrUnassignedPercent) === 0 && totalDevicesInLaunch > 0 && (
-                <div
-                  className="h-full bg-muted"
-                  style={{ width: `100%` }}
-                />
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>{tooltipText}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
-  );
-}
-
-interface LaunchTableProps {
-  launches: LaunchItem[];
-  groupId: string;
-  itemRolloutMutation: UseMutationResult<any, Error, string, unknown>;
-  openDetailsDialog: (launch: LaunchItem) => void;
-  showExecuteButton: boolean;
-  isLoadingLaunches: boolean;
-  launchesError?: Error | null;
-  refetchLaunches?: () => void;
-  startedLaunches?: Set<string>;
-  startedLaunchTotals?: Map<string, number>;
-  updateLaunchTotal?: (launchId: string, total: number) => void;
-  clearStartedLaunch?: (launchId: string) => void;
-}
-
-function LaunchTable({
-  launches,
-  groupId,
-  itemRolloutMutation,
-  openDetailsDialog,
-  showExecuteButton,
-  isLoadingLaunches,
-  launchesError,
-  refetchLaunches
-  , startedLaunches, startedLaunchTotals, updateLaunchTotal, clearStartedLaunch
-}: LaunchTableProps) {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  if (isLoadingLaunches) {
-    return <Skeleton className="h-40 w-full" />;
-  }
-
-  if (launchesError && refetchLaunches) {
-    return (
-      <div className="text-center py-4">
-        <p className="text-destructive flex items-center justify-center gap-2"><AlertTriangle /> Error Loading Launches</p>
-        <p className="text-destructive-foreground mb-2">{launchesError.message}</p>
-        <Button variant="outline" size="sm" onClick={refetchLaunches}>
-            <RefreshCw className="mr-2 h-4 w-4" /> Retry
-        </Button>
-      </div>
-    );
-  }
-  
-  return (
-    <>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Update Pack Name</TableHead>
-            <TableHead>Execution Date</TableHead>
-            <TableHead className="w-[150px]">Job Assignment</TableHead>
-            <TableHead className="w-[150px]">Execution Status</TableHead>
-            <TableHead>Device Counts</TableHead>
-            <TableHead className="text-center w-[100px]">Details</TableHead>
-            {showExecuteButton && <TableHead className="text-center w-[100px]">Execute</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {launches.map(l => (
-            <TableRow key={l.id}>
-              <TableCell className="font-medium">
-                <LaunchNameCell launch={l} groupId={groupId} accessToken={user?.access_token || null} />
-              </TableCell>
-              <TableCell>
-                <LaunchProgressCell
-                  groupId={groupId}
-                  launch={l}
-                  accessToken={user?.access_token || null}
-                  startedLaunches={startedLaunches}
-                  startedLaunchTotals={startedLaunchTotals}
-                  updateLaunchTotal={updateLaunchTotal}
-                  clearStartedLaunch={clearStartedLaunch}
-                />
-              </TableCell>
-              <TableCell>
-                {(() => {
-                  // Use active devices directly from the launch item
-                  const launchActiveDevices = l.active_launches || [];
-                  const totalDevicesInLaunch = l.devices_with_job.length + l.devices_without_job.length + launchActiveDevices.length;
-                  const assignedPercent = totalDevicesInLaunch > 0 ? (l.devices_with_job.length / totalDevicesInLaunch) * 100 : 0;
-                  const tooltipText = `${l.devices_with_job.length} of ${totalDevicesInLaunch} devices have jobs assigned (${assignedPercent.toFixed(0)}%).`;
-                  if (totalDevicesInLaunch === 0) {
-                      return <TooltipProvider><Tooltip><TooltipTrigger asChild><div className="h-2.5 w-full rounded-full bg-muted" /></TooltipTrigger><TooltipContent>No devices in this launch.</TooltipContent></Tooltip></TooltipProvider>;
-                  }
-                  return (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="relative h-2.5 w-full">
-                            <Progress value={assignedPercent} className="h-full bg-accent/20" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-xs font-medium text-primary-foreground leading-none">
-                                {`${assignedPercent.toFixed(0)}%`}
-                              </span>
-                            </div>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>{tooltipText}</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  );
-                })()}
-              </TableCell>
-              <TableCell>
-                <JobExecutionProgressCell groupId={groupId} launchItem={l} accessToken={user?.access_token || null} />
-              </TableCell>
-              <TableCell className="text-xs">
-                {(() => {
-                  // Use active devices directly from the launch item
-                  const launchActiveDevices = l.active_launches || [];
-                  const launchActiveCount = launchActiveDevices.length;
-                  
-                  return (
-                    <>
-                      {l.devices_with_job.length} completed
-                      <br />
-                      {l.devices_without_job.length} not assigned
-                      {launchActiveCount > 0 && (
-                        <>
-                          <br />
-                          <span className="text-blue-600 dark:text-blue-400">{launchActiveCount} Active</span>
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-              </TableCell>
-              <TableCell 
-                className="text-center"
-              >
-                <Button 
-                  size="sm" 
-                  className="bg-accent text-accent-foreground hover:bg-accent/90 h-8 px-2 gap-1.5"
-                  onClick={() => openDetailsDialog(l)}
-                >
-                  <Eye className="h-4 w-4" /> <span className="hidden sm:inline">View</span>
-                </Button>
-              </TableCell>
-              {showExecuteButton && (
-                <TableCell className="text-center">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-8 px-2 gap-1.5"
-                    onClick={() => itemRolloutMutation.mutate(l.id)}
-                    disabled={l.devices_without_job.length === 0 || (itemRolloutMutation.isPending && itemRolloutMutation.variables === l.id)}
-                  >
-                    {(itemRolloutMutation.isPending && itemRolloutMutation.variables === l.id) 
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <PlayCircle className="h-4 w-4" />
-                    }
-                    <span className="hidden sm:inline">
-                      {(itemRolloutMutation.isPending && itemRolloutMutation.variables === l.id) ? "Executing..." : "Execute"}
-                    </span>
-                  </Button>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {launches.length === 0 && <p className="text-center py-4 text-muted-foreground">No launches found in this section.</p>}
-    </>
-  );
-}
-
-
-// Helper function to get status badge variant
-function getStatusVariant(status: UpdatePackWithStatus['status']): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (status) {
-    case 'Rolling Out':
-      return 'outline';
-    case 'Completed':
-      return 'default';
-    case 'Paused':
-      return 'outline';
-    case 'Failed':
-      return 'destructive';
-    default:
-      return 'outline';
-  }
 }
 
 // Component to calculate real-time status for a single launch
@@ -860,7 +192,7 @@ function LaunchStatusCell({ launch, groupId, accessToken, startedLaunches, start
     });
   }, [relevantJobs, isPhasedLaunchDetected]);
 
-  const calculateStatus = (): UpdatePackWithStatus['status'] => {
+  const calculateStatus = (): LaunchDisplayStatus => {
     if (!jobs || jobs.length === 0) {
       // Check if there are active devices - if so, show Rolling Out
       const launchActiveDevices = (launch.active_launches && launch.active_launches.length > 0)
@@ -1046,11 +378,11 @@ interface LaunchProgressCellProps {
 
 function LaunchProgressCell({ launch, groupId, accessToken, startedLaunches, startedLaunchTotals, updateLaunchTotal, clearStartedLaunch }: LaunchProgressCellProps) {
   const queryClient = useQueryClient();
-  const { data: jobs } = useQuery<DeviceJob[], Error>({
+  const { data: jobs, isLoading } = useQuery<DeviceJob[], Error>({
     queryKey: ['launchJobStatuses', groupId, launch.id, ...launch.devices_with_job],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ 
-      groupId, 
-      deviceIds: launch.devices_with_job, 
+    queryFn: ({ signal }) => fetchAllDeviceJobs({
+      groupId,
+      deviceIds: launch.devices_with_job,
       accessToken: accessToken!,
       targetLaunchId: launch.id,
     }, { signal }),
@@ -1088,26 +420,42 @@ function LaunchProgressCell({ launch, groupId, accessToken, startedLaunches, sta
     return <span className="text-xs text-muted-foreground">No devices</span>;
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="relative h-2 flex-1 rounded-full overflow-hidden bg-muted" />
+        <span className="text-xs text-muted-foreground min-w-[45px] text-right">…/{displayTotal}</span>
+      </div>
+    );
+  }
+
+  // Per-device deduplication: keep the best state per device (COMPLETED > FAILED > ACTIVE).
+  // This mirrors LaunchStatusCell and avoids double-counting devices with multiple job entries.
   const relevantJobs = jobs?.filter(job => job.definition.launchID === launch.id) || [];
+  const deviceStateMap = new Map<string, 'COMPLETED' | 'FAILED' | 'ACTIVE'>();
+  relevantJobs.forEach(job => {
+    const jobDeviceId = job.clientId || job.status?.clientId;
+    if (!jobDeviceId) return;
+    const state = job.status.state;
+    const current = deviceStateMap.get(jobDeviceId);
+    if (state === 'ACTIVATED' || state === 'INSTALLED') {
+      deviceStateMap.set(jobDeviceId, 'COMPLETED');
+    } else if (state === 'TERMINATED') {
+      if (current !== 'COMPLETED') deviceStateMap.set(jobDeviceId, 'FAILED');
+    } else {
+      if (!current) deviceStateMap.set(jobDeviceId, 'ACTIVE');
+    }
+  });
+
   let completedCount = 0;
   let failedCount = 0;
   let activeFromJobsCount = 0;
-
-  const devicesInThisLaunch = new Set(allDeviceIdsWithActive);
-
   const relevantJobDeviceIds = new Set<string>();
-  relevantJobs.forEach(job => {
-    const state = job.status.state;
-    const jobDeviceId = job.clientId || job.status?.clientId;
-    if (!jobDeviceId || !devicesInThisLaunch.has(jobDeviceId)) return;
-    relevantJobDeviceIds.add(jobDeviceId);
-    if (state === 'ACTIVATED' || state === 'INSTALLED') {
-      completedCount++;
-    } else if (state === 'TERMINATED') {
-      failedCount++;
-    } else {
-      activeFromJobsCount++;
-    }
+  deviceStateMap.forEach((state, deviceId) => {
+    relevantJobDeviceIds.add(deviceId);
+    if (state === 'COMPLETED') completedCount++;
+    else if (state === 'FAILED') failedCount++;
+    else activeFromJobsCount++;
   });
 
   // Count active devices that do not have a job assigned yet
@@ -1245,379 +593,6 @@ function LaunchErrorRateCell({ launch, groupId, accessToken }: LaunchErrorRateCe
     <span className={`text-sm font-medium ${errorRate > 10 ? 'text-destructive' : 'text-muted-foreground'}`}>
       {errorRate.toFixed(1)}%
     </span>
-  );
-}
-
-// Component to calculate real-time status for a pack by fetching job statuses
-interface UpdatePackStatusCellProps {
-  pack: UpdatePackWithStatus;
-  groupId: string;
-  accessToken: string | null;
-}
-
-function UpdatePackStatusCell({ pack, groupId, accessToken }: UpdatePackStatusCellProps) {
-  // Collect all device IDs that have jobs across all launches for this pack
-  const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
-  
-  // Get all launch IDs for this pack to enable pagination search
-  const launchIds = pack.launches.map(l => l.id);
-  
-  // Fetch job statuses for all devices - use pagination to find jobs for all launches
-  const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['packJobStatuses', groupId, pack.id, ...allDeviceIdsWithJobs],
-    queryFn: async ({ signal }) => {
-      // For pack-level queries, we need to find jobs for any of the pack's launches
-      // Fetch with pagination, stopping when we find jobs for each launch
-      const jobs: DeviceJob[] = [];
-      for (const deviceId of allDeviceIdsWithJobs) {
-        const deviceJobs = await fetchAllDeviceJobs({ 
-          groupId, 
-          deviceIds: [deviceId], 
-          accessToken: accessToken!,
-        }, { signal });
-        // Only keep jobs that belong to this pack's launches
-        const relevantJobs = deviceJobs.filter(job => launchIds.includes(job.definition.launchID));
-        jobs.push(...relevantJobs);
-      }
-      return jobs;
-    },
-    enabled: allDeviceIdsWithJobs.length > 0 && !!accessToken,
-  });
-
-  // Calculate real status based on job states
-  const calculateRealStatus = (): { 
-    status: UpdatePackWithStatus['status']; 
-    completedCount: number; 
-    failedCount: number;
-    inProgressCount: number;
-  } => {
-    if (!allJobs || allJobs.length === 0) {
-      if (pack.totalDevices === 0) return { status: 'Not Started', completedCount: 0, failedCount: 0, inProgressCount: 0 };
-      if (pack.devicesWithJob === 0) return { status: 'Not Started', completedCount: 0, failedCount: 0, inProgressCount: 0 };
-      return { status: 'Rolling Out', completedCount: 0, failedCount: 0, inProgressCount: pack.devicesWithJob };
-    }
-
-    // Filter jobs that belong to this pack's launches
-    const relevantJobs = allJobs.filter(job => 
-      pack.launches.some(launch => job.definition.launchID === launch.id)
-    );
-
-    // Deduplicate device-level state for the pack across many launches
-    const deviceStateMap = new Map<string, 'COMPLETED'|'FAILED'|'ACTIVE'>();
-    relevantJobs.forEach(job => {
-      const devId = job.clientId || job.status?.clientId;
-      if (!devId) return;
-      const state = job.status.state;
-      const current = deviceStateMap.get(devId);
-      if (state === 'ACTIVATED' || state === 'INSTALLED') {
-        deviceStateMap.set(devId, 'COMPLETED');
-      } else if (state === 'TERMINATED') {
-        if (current !== 'COMPLETED') deviceStateMap.set(devId, 'FAILED');
-      } else {
-        if (!current) deviceStateMap.set(devId, 'ACTIVE');
-      }
-    });
-    let completedCount = 0;
-    let failedCount = 0;
-    let inProgressCount = 0;
-    deviceStateMap.forEach(s => {
-      if (s === 'COMPLETED') completedCount++;
-      if (s === 'FAILED') failedCount++;
-      if (s === 'ACTIVE') inProgressCount++;
-    });
-
-    // Determine overall status
-    let status: UpdatePackWithStatus['status'] = 'Rolling Out';
-    
-    if (pack.totalDevices > 0) {
-      const totalProcessed = completedCount + failedCount;
-      if (totalProcessed === pack.totalDevices) {
-        // All devices processed
-        status = failedCount > completedCount ? 'Failed' : 'Completed';
-      } else if (inProgressCount === 0 && pack.devicesWithJob === 0) {
-        status = 'Not Started';
-      }
-    }
-
-    // Note: Do NOT change status to 'Action Required' at pack-level here - we'll compute an indicator outside and show it next to the status when needed.
-
-    return { status, completedCount, failedCount, inProgressCount };
-  };
-
-  if (isLoading) {
-    return (
-      <Badge variant="outline" className="flex items-center gap-1 min-w-[100px] justify-center whitespace-nowrap">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Loading...
-      </Badge>
-    );
-  }
-
-  const { status, completedCount, failedCount, inProgressCount } = calculateRealStatus();
-
-  // Compute pack-level WFX waiting indicator
-  const packRelevantJobs = allJobs ? allJobs.filter(job => pack.launches.some(l => job.definition.launchID === l.id)) : [];
-  const packFirstJobWithWorkflow = packRelevantJobs.find(job => job.workflow?.transitions);
-  const packWfxTransitions = extractWfxEligibleTransitions(packFirstJobWithWorkflow?.workflow);
-  const packHasWfxWaiting = packWfxTransitions.length > 0 && packWfxTransitions.some(({ from }) => packRelevantJobs.some(job => job.status.state === from));
-  const showPackActionRequired = packHasWfxWaiting && status === 'Rolling Out';
-
-  return (
-    <div className="flex items-center gap-1">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="outline" className={`flex items-center gap-1 min-w-[100px] justify-center whitespace-nowrap ${
-              status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-100' :
-              status === 'Rolling Out' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
-              status === 'Failed' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' :
-              'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
-            }`}>
-              {status === 'Rolling Out' && <Clock className="h-3 w-3" />}
-              {status === 'Completed' && <Check className="h-3 w-3 stroke-[3]" />}
-              {status === 'Failed' && <AlertTriangle className="h-3 w-3" />}
-              {status}
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>
-            <div className="text-xs space-y-1">
-              <div>Completed: {completedCount}</div>
-              <div>In Progress: {inProgressCount}</div>
-              <div>Failed: {failedCount}</div>
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      {/* Action Required warning triangle icon next to badge */}
-      {showPackActionRequired && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center justify-center w-6 h-6 bg-amber-100 dark:bg-amber-900/40 border border-amber-400 text-amber-600 dark:text-amber-400 rounded-full cursor-help ring-2 ring-amber-400/30 animate-pulse">
-                <AlertTriangle className="h-3.5 w-3.5" />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="font-semibold">Action Required</p>
-              <p className="text-xs">Devices waiting for manual intervention</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-    </div>
-  );
-}
-
-// Component to show real-time progress based on actual job execution
-interface UpdatePackProgressCellProps {
-  pack: UpdatePackWithStatus;
-  groupId: string;
-  accessToken: string | null;
-}
-
-function UpdatePackProgressCell({ pack, groupId, accessToken }: UpdatePackProgressCellProps) {
-  const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
-  const launchIds = pack.launches.map(l => l.id);
-  
-  const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['packJobStatuses', groupId, pack.id, ...allDeviceIdsWithJobs],
-    queryFn: async ({ signal }) => {
-      const jobs: DeviceJob[] = [];
-      for (const deviceId of allDeviceIdsWithJobs) {
-        const deviceJobs = await fetchAllDeviceJobs({ 
-          groupId, 
-          deviceIds: [deviceId], 
-          accessToken: accessToken!,
-        }, { signal });
-        const relevantJobs = deviceJobs.filter(job => launchIds.includes(job.definition.launchID));
-        jobs.push(...relevantJobs);
-      }
-      return jobs;
-    },
-    enabled: allDeviceIdsWithJobs.length > 0 && !!accessToken,
-  });
-
-  // Fetch active launches to get devices currently executing
-  const { data: activeLaunchesData } = useQuery<LaunchListResponse, Error>({
-    queryKey: ['activeLaunches', groupId],
-  queryFn: ({ signal }) => fetchCurrentLaunches({ groupId, accessToken: accessToken! }, { signal }),
-    enabled: !!accessToken,
-  });
-
-  const activeDevices = activeLaunchesData?.active_launches || [];
-
-  if (isLoading || !allJobs) {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{pack.devicesWithJob} / {pack.totalDevices} devices</span>
-          <span>{pack.rolloutProgress.toFixed(0)}%</span>
-        </div>
-        <Progress value={pack.rolloutProgress} className="h-2" />
-      </div>
-    );
-  }
-
-  // Calculate real progress from job states
-  const relevantJobs = allJobs.filter(job => 
-    pack.launches.some(launch => job.definition.launchID === launch.id)
-  );
-
-  // Deduplicate per-device states so we count once per device
-  const deviceStateMap = new Map<string, 'COMPLETED'|'FAILED'|'ACTIVE'>();
-  relevantJobs.forEach(job => {
-    const devId = job.clientId || job.status?.clientId;
-    if (!devId) return;
-    const state = job.status.state;
-    const current = deviceStateMap.get(devId);
-    if (state === 'ACTIVATED' || state === 'INSTALLED') {
-      deviceStateMap.set(devId, 'COMPLETED');
-    } else if (state === 'TERMINATED') {
-      if (current !== 'COMPLETED') deviceStateMap.set(devId, 'FAILED');
-    } else {
-      if (!current) deviceStateMap.set(devId, 'ACTIVE');
-    }
-  });
-  let completedCount = 0;
-  let failedCount = 0;
-  deviceStateMap.forEach(s => {
-    if (s === 'COMPLETED') completedCount++;
-    if (s === 'FAILED') failedCount++;
-  });
-
-  // Count active devices for this pack's launches
-  const packActiveDevices = activeDevices.filter(deviceId => 
-    pack.launches.some(launch => 
-      launch.devices_with_job.includes(deviceId) || launch.devices_without_job.includes(deviceId)
-    )
-  );
-  const activeCount = packActiveDevices.length;
-
-  const completedPercent = pack.totalDevices > 0 ? (completedCount / pack.totalDevices) * 100 : 0;
-  const activePercent = pack.totalDevices > 0 ? (activeCount / pack.totalDevices) * 100 : 0;
-  const errorRate = pack.totalDevices > 0 ? (failedCount / pack.totalDevices) * 100 : 0;
-
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{completedCount} completed</span>
-              <span>{completedPercent.toFixed(0)}%</span>
-            </div>
-            <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-muted">
-              {completedPercent > 0 && (
-                <div 
-                  className="h-full bg-yellow-500 transition-all duration-300" 
-                  style={{ width: `${completedPercent}%` }}
-                />
-              )}
-              {activePercent > 0 && completedPercent < 100 && (
-                <div 
-                  className="h-full bg-yellow-500 animate-pulse" 
-                  style={{ 
-                    width: `${activePercent}%`,
-                    marginLeft: completedPercent > 0 ? `${completedPercent}%` : '0%'
-                  }}
-                />
-              )}
-              {errorRate > 0 && (
-                <div 
-                  className="absolute top-0 h-full bg-destructive" 
-                  style={{ 
-                    left: `${completedPercent + activePercent}%`, 
-                    width: `${errorRate}%` 
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <div className="text-xs">
-            <div>Completed: {completedCount}</div>
-            <div>Active: {activeCount}</div>
-            <div>Failed: {failedCount}</div>
-            <div>Pending: {pack.totalDevices - completedCount - activeCount - failedCount}</div>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
-
-// Component to show real-time error rate
-interface UpdatePackErrorRateCellProps {
-  pack: UpdatePackWithStatus;
-  groupId: string;
-  accessToken: string | null;
-}
-
-function UpdatePackErrorRateCell({ pack, groupId, accessToken }: UpdatePackErrorRateCellProps) {
-  const allDeviceIdsWithJobs = pack.launches.flatMap(l => l.devices_with_job);
-  const launchIds = pack.launches.map(l => l.id);
-  
-  const { data: allJobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['packJobStatuses', groupId, pack.id, ...allDeviceIdsWithJobs],
-    queryFn: async ({ signal }) => {
-      const jobs: DeviceJob[] = [];
-      for (const deviceId of allDeviceIdsWithJobs) {
-        const deviceJobs = await fetchAllDeviceJobs({ 
-          groupId, 
-          deviceIds: [deviceId], 
-          accessToken: accessToken!,
-        }, { signal });
-        const relevantJobs = deviceJobs.filter(job => launchIds.includes(job.definition.launchID));
-        jobs.push(...relevantJobs);
-      }
-      return jobs;
-    },
-    enabled: allDeviceIdsWithJobs.length > 0 && !!accessToken,
-  });
-
-  if (isLoading || !allJobs) {
-    return (
-      <div className="flex items-center gap-1">
-        <span className="text-muted-foreground">0.0%</span>
-      </div>
-    );
-  }
-
-  // Calculate real error rate from job states
-  const relevantJobs = allJobs.filter(job => 
-    pack.launches.some(launch => job.definition.launchID === launch.id)
-  );
-
-  let failedCount = 0;
-  relevantJobs.forEach(job => {
-    if (job.status.state === 'TERMINATED') {
-      failedCount++;
-    }
-  });
-
-  const errorRate = pack.totalDevices > 0 ? (failedCount / pack.totalDevices) * 100 : 0;
-
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-1">
-            {errorRate > 10 && (
-              <AlertTriangle className="h-4 w-4 text-destructive" />
-            )}
-            <span className={errorRate > 10 ? 'text-destructive font-medium' : 'text-muted-foreground'}>
-              {errorRate.toFixed(1)}% {failedCount > 0 && `(${failedCount})`}
-            </span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <div className="text-xs">
-            {failedCount} device(s) failed out of {pack.totalDevices} total
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   );
 }
 
@@ -1974,6 +949,8 @@ interface LaunchRowWithWorkflowStatesProps {
   startStoredLaunch?: (launchId: string) => void;
   executingLaunches?: Set<string>;
   packVersion?: number; // Fallback version from pack if launch.version is not available
+  packName?: string; // When set, the row leads with the pack name (used in flat, non-grouped lists)
+  dmsName?: string; // Device group name shown in the launch metadata line
 }
 
 function LaunchRowWithWorkflowStates({
@@ -1991,6 +968,8 @@ function LaunchRowWithWorkflowStates({
   startStoredLaunch,
   executingLaunches,
   packVersion,
+  packName,
+  dmsName,
 }: LaunchRowWithWorkflowStatesProps) {
   const [isPhasedExpanded, setIsPhasedExpanded] = React.useState(false);
   const isPhased = isPhasedWorkflow(launch.workflow_type);
@@ -2032,7 +1011,7 @@ function LaunchRowWithWorkflowStates({
                 className="p-0 h-auto font-medium text-primary hover:underline"
                 onClick={() => onViewLaunchDetails(launch)}
               >
-                {launch.exec_date ? format(parseISO(launch.exec_date), "PPp") : 'N/A'}
+                {packName || (launch.exec_date ? format(parseISO(launch.exec_date), "PPp") : 'N/A')}
               </Button>
               {/* Workflow type badges */}
               {isPhased && (
@@ -2071,8 +1050,10 @@ function LaunchRowWithWorkflowStates({
                 </Badge>
               )}
             </div>
-            <div className="text-xs text-muted-foreground mt-1 font-mono break-all pl-9">
-              ID: {launch.id}
+            <div className="text-xs text-muted-foreground mt-1 break-all pl-9">
+              {packName && launch.exec_date && <span>{format(parseISO(launch.exec_date), "PPp")} · </span>}
+              {dmsName && <span>{dmsName} · </span>}
+              <span className="font-mono">ID: {launch.id}</span>
             </div>
           </div>
           
@@ -2244,454 +1225,91 @@ function LaunchRowWithWorkflowStates({
   );
 }
 
-// Component for grouped update pack view with launches
-interface UpdatePackGroupProps {
-  pack: UpdatePackWithStatus;
-  groupId: string;
-  accessToken: string | null;
-  onNewLaunch: (packId: string, packName: string, version: number, groupId?: string) => void;
-  onNewVersion: (packId: string, groupId?: string) => void;
-  onViewLaunchDetails: (launch: LaunchItem) => void;
-  startedLaunches?: Set<string>;
-  startedLaunchTotals?: Map<string, number>;
-  startStoredLaunch?: (launchId: string) => void;
-  updateLaunchTotal?: (launchId: string, total: number) => void;
-  clearStartedLaunch?: (launchId: string) => void;
-}
-
-function UpdatePackGroup({ pack, groupId, accessToken, onNewLaunch, onNewVersion, onViewLaunchDetails, startedLaunches, startedLaunchTotals, startStoredLaunch, updateLaunchTotal, clearStartedLaunch }: UpdatePackGroupProps) {
-  const queryClient = useQueryClient();
-  const [isExpanded, setIsExpanded] = React.useState(true);
-  const [localStartedLaunches, setLocalStartedLaunches] = React.useState<Set<string>>(new Set());
-  const [executingLaunches, setExecutingLaunches] = React.useState<Set<string>>(new Set());
-  const [cancelAutoLaunch, setCancelAutoLaunch] = React.useState<{ launchId: string; workflowType?: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased' } | null>(null);
-  
-  // Pagination state for launches
-  const [launchesPageSize, setLaunchesPageSize] = React.useState(5);
-  const [launchesBookmark, setLaunchesBookmark] = React.useState<string | null>(null);
-  const [bookmarkStack, setBookmarkStack] = React.useState<string[]>([]);
-  const [hasMoreLaunches, setHasMoreLaunches] = React.useState(false);
-  
-  // Fetch additional launches when page size or bookmark changes
-  // DISABLED: pack.launches already contains the launches from the parent query
-  // Fetching again causes issues with matching since we don't know if update_pack_id stores UUID or name
-  const { data: launchesData, isLoading: isLoadingLaunches } = useQuery({
-    queryKey: ['packLaunches', pack.name, pack.version, groupId, launchesPageSize, launchesBookmark],
-    queryFn: async () => {
-      // Return null to disable this query - we'll use pack.launches instead
-      return null;
-    },
-    enabled: false, // Disabled - rely on parent pack.launches data
-    enabled: !!accessToken && isExpanded,
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchInterval: (localStartedLaunches.size > 0 || (startedLaunches && startedLaunches.size > 0)) ? 5000 : false,
-  });
-  
-  // Update hasMoreLaunches when data changes
-  React.useEffect(() => {
-    // Since we're using pack.launches, check if we need pagination
-    // For now, just show all launches from pack
-    setHasMoreLaunches(false);
-  }, [pack.launches]);
-
-  // Use pack.launches from parent (already filtered and loaded)
-  // Apply client-side pagination if needed
-  const displayedLaunches = React.useMemo(() => {
-    // Just use pack.launches - it already contains the launches for this pack
-    return pack.launches;
-  }, [pack.launches]);
-  
-  const handleNextPage = () => {
-    if (launchesData?.next) {
-      // Save current bookmark to stack before moving forward
-      setBookmarkStack(prev => [...prev, launchesBookmark || '']);
-      setLaunchesBookmark(launchesData.next);
-    }
-  };
-  
-  const handlePreviousPage = () => {
-    // Pop the last bookmark from stack to go back
-    setBookmarkStack(prev => {
-      if (prev.length === 0) return prev;
-      const newStack = [...prev];
-      const previousBookmark = newStack.pop();
-      setLaunchesBookmark(previousBookmark === '' ? null : previousBookmark || null);
-      return newStack;
-    });
-  };
-  
-  // Mutation to cancel auto mode - sets to manual with rollout_value 0, explicitly preserving workflow_type
-  const { mutate: cancelAutoMutate, isPending: isCancellingAuto } = useMutation({
-    mutationFn: ({ launchId, workflowType }: { launchId: string; workflowType?: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased' }) => 
-      updateLaunchStrategy({
-        groupId,
-        launchId,
-        strategyData: { 
-          auto: false,
-          rollout_type: 'numeric',
-          rollout_value: 0,
-          // Explicitly preserve the workflow_type - backend may reset to default if not included
-          workflow_type: workflowType
-        },
-        accessToken: accessToken!
-      }),
-    onSuccess: (data, { launchId }) => {
-      toast({ 
-        title: "Auto Deploy Canceled", 
-        description: "Launch has been switched to manual mode. You can change this in launch details." 
-      });
-      queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
-      queryClient.invalidateQueries({ queryKey: ['currentLaunches', groupId] });
-      setCancelAutoLaunch(null);
-    },
-    onError: (err: Error) => {
-      toast({ 
-        variant: "destructive", 
-        title: "Failed to Cancel Auto Deploy", 
-        description: err.message 
-      });
-      setCancelAutoLaunch(null);
-    },
-  });
-  
-  const handleLaunchExecute = async (launchId: string) => {
-    // Store launch reference before API call - check both displayedLaunches and pack.launches
-    const launch = displayedLaunches.find(l => l.id === launchId) || pack.launches.find(l => l.id === launchId);
-    
-    // Immediately mark as executing for instant visual feedback
-    setExecutingLaunches(prev => {
-      const n = new Set(prev);
-      n.add(launchId);
-      return n;
-    });
-    
-    // Optimistically mark as started for immediate UI updates
-    setLocalStartedLaunches(prev => {
-      const n = new Set(prev);
-      n.add(launchId);
-      return n;
-    });
-    
-    if (startStoredLaunch) startStoredLaunch(launchId);
-    
-    // Store the total for display immediately to avoid UI dropouts
-    if (launch && updateLaunchTotal) {
-      const allDeviceIds = Array.from(new Set([...launch.devices_with_job, ...launch.devices_without_job, ...(launch.active_launches || [])]));
-      updateLaunchTotal(launchId, allDeviceIds.length);
-    }
-    
-    try {
-      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/rollout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to execute launch: ${response.statusText}`);
-      }
-      
-      toast({
-        title: "Launch Executed",
-        description: `Launch ${launchId.slice(-4)} has been successfully executed.`,
-      });
-
-      // Immediately refetch all relevant queries to show updated status and progress
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['allLaunches'] }),
-        queryClient.refetchQueries({ queryKey: ['activeLaunches', groupId] }),
-        queryClient.refetchQueries({ queryKey: ['launchJobStatuses', groupId, launchId] }),
-        queryClient.refetchQueries({ queryKey: ['launchJobStats', groupId, launchId] }),
-        queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', groupId, launchId] }),
-      ]);
-
-    } catch (error) {
-      console.error('Error executing launch:', error);
-      
-      // Revert optimistic updates on error
-      setLocalStartedLaunches(prev => {
-        const n = new Set(prev);
-        n.delete(launchId);
-        return n;
-      });
-      
-      toast({
-        variant: "destructive",
-        title: "Launch Execution Failed",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-      });
-    } finally {
-      // Remove from executing state
-      setExecutingLaunches(prev => {
-        const n = new Set(prev);
-        n.delete(launchId);
-        return n;
-      });
-    }
-  };
-  
-  return (
-    <div className="border rounded-lg hover:shadow-md transition-shadow">
-      <div className="p-4 border-b">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="h-8 w-8 p-0 hover:bg-primary/10"
-              >
-                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              </Button>
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-primary" />
-                  <Link href={`/updates/pack-details?groupId=${groupId}&packName=${encodeURIComponent(pack.name)}`}>
-                    <h3 className="text-lg font-semibold hover:text-primary cursor-pointer transition-colors">{pack.name}</h3>
-                  </Link>
-                  <Badge variant="secondary" className="font-medium">v{pack.version}</Badge>
-                  {pack.isRemoved && (
-                    <Badge variant="destructive">removed</Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <span>{pack.dmsName}</span>
-                  <span>•</span>
-                  <div className="flex items-center gap-2">
-                    <span>Show:</span>
-                    <Select
-                      value={launchesPageSize.toString()}
-                      onValueChange={(value) => {
-                        setLaunchesPageSize(parseInt(value));
-                        setLaunchesBookmark(null);
-                      }}
-                    >
-                      <SelectTrigger className="w-[70px] h-7 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {!pack.hasActiveLaunch && pack.uri && (
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => onNewLaunch(pack.id, pack.name, pack.version, groupId)}
-                className="gap-2 bg-primary hover:bg-primary/90"
-              >
-                <PlayCircle className="h-4 w-4" />
-                {/* Use "Launch" for first time or new version, "Relaunch" only when version hasn't changed */}
-                {pack.launches.length === 0 ? 'Launch' : pack.hasLaunchForCurrentVersion ? 'Relaunch' : 'Launch'}
-              </Button>
-            )}
-            {!pack.hasActiveLaunch && !pack.uri && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        disabled
-                        className="gap-2 bg-muted text-muted-foreground cursor-not-allowed"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Cannot Launch
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Error generating the update, please delete it or upload a new version</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {pack.hasActiveLaunch && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 border border-border">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Launch in progress</span>
-              </div>
-            )}
-            {!pack.isRemoved && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onNewVersion(pack.id, groupId)}
-                className="gap-2"
-              >
-                <PlusCircle className="h-4 w-4" />
-                New Version
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {isExpanded && (
-        <div className="p-4">
-          {displayedLaunches.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center rounded-lg border-2 border-dashed">
-              <Info className="h-12 w-12 text-muted-foreground mb-3" />
-              <p className="text-lg font-medium text-foreground">No launches found for this update pack</p>
-              <p className="text-sm text-muted-foreground mb-4 max-w-md">
-                Create a new launch to start deploying version {pack.version} to your devices.
-              </p>
-              <Button
-                onClick={() => onNewLaunch(pack.id, pack.name, pack.version, groupId)}
-                disabled={!pack.uri}
-                className={`bg-primary hover:bg-primary/90 ${!pack.uri ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
-              >
-                {!pack.uri ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="flex items-center gap-2">
-                          <XCircle className="h-4 w-4" />
-                          Cannot Launch - Create New Version
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Error generating the update, please delete it or upload a new version</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  <>
-                    <PlayCircle className="mr-2 h-4 w-4" />
-                    Create Launch for v{pack.version}
-                  </>
-                )}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                {displayedLaunches.map((launch) => (
-                  <LaunchRowWithWorkflowStates
-                    key={launch.id}
-                    launch={launch}
-                    groupId={groupId}
-                    accessToken={accessToken}
-                    startedLaunches={startedLaunches}
-                    startedLaunchTotals={startedLaunchTotals}
-                    updateLaunchTotal={updateLaunchTotal}
-                    clearStartedLaunch={clearStartedLaunch}
-                    onViewLaunchDetails={onViewLaunchDetails}
-                    onExecuteLaunch={handleLaunchExecute}
-                    onCancelAuto={(launchId, workflowType) => setCancelAutoLaunch({ launchId, workflowType })}
-                    isCancellingAuto={isCancellingAuto}
-                    startStoredLaunch={startStoredLaunch}
-                    executingLaunches={executingLaunches}
-                    packVersion={pack.version}
-                  />
-                ))}
-              </div>
-              {/* Pagination disabled since we're using parent data
-              <div className="flex items-center justify-center gap-2 pt-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handlePreviousPage}
-                  disabled={bookmarkStack.length === 0}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleNextPage}
-                  disabled={!hasMoreLaunches}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-              */}
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Cancel Auto Deploy Confirmation Dialog */}
-      <AlertDialog open={!!cancelAutoLaunch} onOpenChange={(open) => !open && setCancelAutoLaunch(null)}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
-                Stop Auto Deploy?
-              </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p className="font-medium">This will switch the launch to manual mode.</p>
-              <p>The launch will no longer automatically deploy to new devices. You will need to manually execute it for each batch.</p>
-              <p className="text-muted-foreground text-sm">Note: You can re-enable auto mode later in the launch details page.</p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep Auto Mode</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (cancelAutoLaunch) {
-                  cancelAutoMutate({ 
-                    launchId: cancelAutoLaunch.launchId, 
-                    workflowType: cancelAutoLaunch.workflowType as 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased' | undefined 
-                  });
-                }
-              }}
-              className="bg-destructive hover:bg-destructive/90"
-              disabled={isCancellingAuto}
-            >
-              Stop Auto Deploy
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
 export default function UpdatesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [selectedLaunchForDialog, setSelectedLaunchForDialog] = React.useState<LaunchItem | null>(null);
-  const [isDetailDialogOpen, setIsDetailDialogOpen] = React.useState(false);
   const [isStrategyDialogOpen, setIsStrategyDialogOpen] = React.useState(false);
   const [selectedPackForLaunch, setSelectedPackForLaunch] = React.useState<string | null>(null);
-  // Get filter parameters from URL
+  const [cancelAutoLaunch, setCancelAutoLaunch] = React.useState<{ groupId: string; launchId: string; workflowType?: LaunchWorkflowType } | null>(null);
+  const [executingLaunches, setExecutingLaunches] = React.useState<Set<string>>(new Set());
+  const [historyLimit, setHistoryLimit] = React.useState(10);
+
+  // URL params: packName narrows the page to one pack's launches; action=launch deep-links the
+  // "New Launch" dialog (e.g. the Launch action in the Package Inventory).
   const packNameFilter = searchParams.get('packName');
   const dmsIdFilter = searchParams.get('groupId');
+  const actionParam = searchParams.get('action');
+  const packIdParam = searchParams.get('packId');
 
   const [startedLaunches, setStartedLaunches] = React.useState<Set<string>>(new Set());
   const [startedLaunchTotals, setStartedLaunchTotals] = React.useState<Map<string, number>>(new Map());
   const [filterDmsId, setFilterDmsId] = React.useState<string>(dmsIdFilter || "all");
-  
+
+  // Launch precondition dry-run / confirm flow
+  const [isPreconditionDialogOpen, setIsPreconditionDialogOpen] = React.useState(false);
+  const [forceDeploy, setForceDeploy] = React.useState(false);
+  const [preconditionCheck, setPreconditionCheck] = React.useState<{ payload: CreateLaunchPayload; qualifying: string[]; failures: PreconditionFailure[] } | null>(null);
+
   // Update filter when URL param changes
   React.useEffect(() => {
     setFilterDmsId(dmsIdFilter || "all");
   }, [dmsIdFilter]);
-  
+
   const { user } = useAuth();
   const { availableDms, selectedDms, setSelectedDms } = useDms();
-  
-  // Fetch update packs from ALL DMSs (for the list view)
-  const { data: allDmsUpdatePacks = [], isLoading: isLoadingAllPacks } = useQuery({
+
+  // Deep link: open the launch dialog with group + pack preselected, then consume the params.
+  React.useEffect(() => {
+    if (actionParam !== 'launch' || availableDms.length === 0) return;
+    if (dmsIdFilter) {
+      const target = availableDms.find(d => d.id === dmsIdFilter);
+      if (target && selectedDms?.id !== target.id) setSelectedDms(target);
+    }
+    setSelectedPackForLaunch(packIdParam);
+    setIsStrategyDialogOpen(true);
+    router.replace('/updates');
+  }, [actionParam, packIdParam, dmsIdFilter, availableDms, selectedDms, setSelectedDms, router]);
+
+  const updateLaunchTotal = React.useCallback((launchId: string, total: number) => {
+    setStartedLaunchTotals(prev => {
+      const current = prev.get(launchId);
+      if (current === total) return prev; // Avoid recreating Map if nothing changed
+      const n = new Map(prev);
+      n.set(launchId, total);
+      return n;
+    });
+  }, []);
+
+  const clearStartedLaunch = React.useCallback((launchId: string) => {
+    setStartedLaunches(prev => {
+      if (!prev.has(launchId)) return prev;
+      const n = new Set(prev);
+      n.delete(launchId);
+      return n;
+    });
+    setStartedLaunchTotals(prev => {
+      if (!prev.has(launchId)) return prev;
+      const n = new Map(prev);
+      n.delete(launchId);
+      return n;
+    });
+  }, []);
+
+  const startStoredLaunch = React.useCallback((launchId: string) => {
+    setStartedLaunches(prev => {
+      if (prev.has(launchId)) return prev;
+      const n = new Set(prev);
+      n.add(launchId);
+      return n;
+    });
+  }, []);
+
+  // Fetch update packs from ALL DMSs (used to resolve names/ids when creating launches)
+  const { data: allDmsUpdatePacks = [] } = useQuery({
     queryKey: ['allDmsUpdatePacks', user?.access_token, availableDms.map(d => d.id).join(',')],
     queryFn: async () => {
       if (!user?.access_token || availableDms.length === 0) return [];
-      
       const promises = availableDms.map(async dms => {
         try {
           const res = await fetchUpdatePacks({ groupId: dms.id, accessToken: user.access_token! }, { pageSize: 100 });
@@ -2701,22 +1319,21 @@ export default function UpdatesPage() {
           return [];
         }
       });
-      
       const results = await Promise.all(promises);
       return results.flat();
     },
     enabled: !!user?.access_token && availableDms.length > 0
   });
 
-  // Fetch update packs for strategy configuration
+  // Fetch update packs for the launch (strategy) dialog — scoped to the selected device group
   const { data: updatePacksResponse2, isLoading: isLoadingUpdatePacks } = useQuery({
     queryKey: ['updatePacks', selectedDms?.id],
     queryFn: ({ signal }) => fetchUpdatePacks({ groupId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }, { signal }),
     enabled: !!selectedDms?.id && !!user?.access_token,
   });
-  
+
   // Use packs from the global cache if available for the selected DMS to avoid loading states when switching
-  const updatePacks = React.useMemo(() => {
+  const updatePacks: UpdatePack[] = React.useMemo(() => {
     if (selectedDms && allDmsUpdatePacks.length > 0) {
       const filtered = allDmsUpdatePacks.filter((p: any) => p.groupId === selectedDms.id);
       if (filtered.length > 0) return filtered;
@@ -2728,7 +1345,7 @@ export default function UpdatesPage() {
   const createLaunchMutation = useMutation({
     mutationFn: (launchData: CreateLaunchPayload) => {
       if (!selectedDms?.id) {
-        throw new Error('No DMS selected');
+        throw new Error('No Device Group selected');
       }
       return createLaunch({
         groupId: selectedDms.id,
@@ -2736,32 +1353,42 @@ export default function UpdatesPage() {
         launchData
       });
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       toast({ title: "Launch Created", description: data.message || "Successfully created new launch with configured strategy." });
-      
-      // Reset pagination by invalidating pack-specific queries
       queryClient.invalidateQueries({ queryKey: ['packLaunches'] });
-      
-      // Immediately refetch to show new launch
       await queryClient.refetchQueries({ queryKey: ['allLaunches'] });
-      
+
       // If the response contains a launch ID, mark it as started for immediate polling
-      if (data.launch_id || data.launchId || data.id) {
-        const newLaunchId = data.launch_id || data.launchId || data.id;
-        if (startStoredLaunch) startStoredLaunch(newLaunchId);
-      }
-      
+      // but NOT when auto is enabled — user still needs to press Execute first
+      const newLaunchId = data.launch_id || data.launchId || data.id;
+      if (newLaunchId && !variables.auto) startStoredLaunch(newLaunchId);
+
       // Refetch again after a short delay to ensure we catch the new launch
       setTimeout(async () => {
         await queryClient.refetchQueries({ queryKey: ['allLaunches'] });
       }, 500);
-      
+
       setIsStrategyDialogOpen(false);
       setSelectedPackForLaunch(null);
+      setPreconditionCheck(null);
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", title: "Launch Creation Failed", description: err.message });
     },
+  });
+
+  // Dry-run mutation: evaluate preconditions before committing the launch.
+  const dryRunMutation = useMutation({
+    mutationFn: (launchData: CreateLaunchPayload) => {
+      if (!selectedDms?.id) throw new Error('No Device Group selected');
+      return createLaunch({ groupId: selectedDms.id, accessToken: user!.access_token!, launchData, dryRun: true });
+    },
+    onSuccess: (data, launchData) => {
+      setPreconditionCheck({ payload: launchData, qualifying: data.qualifying_devices || [], failures: data.precondition_failures || [] });
+      setForceDeploy(false);
+      setIsPreconditionDialogOpen(true);
+    },
+    onError: (err: Error) => toast({ variant: 'destructive', title: 'Precondition check failed', description: err.message }),
   });
 
   const handleStrategySave = (formDataFromForm: UpdateStrategy) => {
@@ -2776,7 +1403,8 @@ export default function UpdatesPage() {
       return;
     }
 
-    // Create launch payload with all required strategy fields
+    const preconditions = (formDataFromForm.preconditions || []).filter(p => p.required_pack_name && p.min_version);
+
     const launchPayload: CreateLaunchPayload = {
       update_pack_name: selectedPack.name, // Backend expects pack name
       workflow_type: formDataFromForm.workflowType,
@@ -2784,9 +1412,18 @@ export default function UpdatesPage() {
       rollout_value: formDataFromForm.rolloutValue,
       test_device_id: formDataFromForm.testDeviceId || undefined,
       auto: formDataFromForm.auto || false,
+      ...(formDataFromForm.auto && formDataFromForm.approvalThreshold != null ? { approval_threshold: formDataFromForm.approvalThreshold } : {}),
+      ...(formDataFromForm.auto && formDataFromForm.errorThreshold != null ? { error_threshold: formDataFromForm.errorThreshold } : {}),
+      ...(preconditions.length > 0 ? { preconditions } : {}),
     };
 
-    createLaunchMutation.mutate(launchPayload);
+    // With preconditions configured, run a dry-run first to show qualifying / failing devices and
+    // let the user decide whether to force-deploy. Otherwise create the launch directly.
+    if (preconditions.length > 0) {
+      dryRunMutation.mutate(launchPayload);
+    } else {
+      createLaunchMutation.mutate(launchPayload);
+    }
   };
 
   // Fetch all launches from all DMS instances
@@ -2794,44 +1431,38 @@ export default function UpdatesPage() {
     queryKey: ['allLaunches', packNameFilter, dmsIdFilter],
     queryFn: async () => {
       if (!user?.access_token || availableDms.length === 0) return [];
-      
+
       // If filtering by DMS, only fetch from that DMS
-      const dmsToQuery = dmsIdFilter 
+      const dmsToQuery = dmsIdFilter
         ? availableDms.filter(dms => dms.id === dmsIdFilter)
         : availableDms;
-      
+
       // If we have a pack filter, fetch all launches
       if (packNameFilter) {
-        const allLaunchesPromises = dmsToQuery.map(dms => 
+        const allLaunchesPromises = dmsToQuery.map(dms =>
           fetchAllLaunches({ groupId: dms.id, accessToken: user.access_token! })
             .then(launches => launches.map(launch => ({ ...launch, dmsName: dms.name })))
             .catch(() => []) // Return empty array on error for this DMS
         );
-        
-        const launchesArrays = await Promise.all(allLaunchesPromises);
-        let filteredLaunches = launchesArrays.flat();
 
-        filteredLaunches = filteredLaunches.filter(launch => 
-          launch.name.includes(packNameFilter) || 
+        const launchesArrays = await Promise.all(allLaunchesPromises);
+        return launchesArrays.flat().filter(launch =>
+          launch.name.includes(packNameFilter) ||
           launch.name === packNameFilter ||
           launch.name.startsWith(packNameFilter)
         );
-
-        return filteredLaunches;
       }
-      
-      // Otherwise, fetch 5 launches per pack
+
+      // Otherwise, fetch the latest 5 launches per pack
       const allPackLaunches: LaunchItemWithDms[] = [];
-      
+
       for (const dms of dmsToQuery) {
-        // Fetch update packs for this DMS
         try {
-          const packsResponse = await fetchUpdatePacks({ 
-            groupId: dms.id, 
-            accessToken: user.access_token! 
+          const packsResponse = await fetchUpdatePacks({
+            groupId: dms.id,
+            accessToken: user.access_token!
           }, { pageSize: 50 });
-          
-          // For each pack, fetch the latest 5 launches
+
           const packLaunchPromises = packsResponse.list.map(pack =>
             fetchLaunchesByUpdatePack({
               groupId: dms.id,
@@ -2841,12 +1472,12 @@ export default function UpdatesPage() {
               sortBy: 'exec_date',
               sortMode: 'desc'
             })
-              .then(response => 
+              .then(response =>
                 (response.list || []).map(launch => ({ ...launch, dmsName: dms.name }))
               )
               .catch(() => [])
           );
-          
+
           const packLaunchesArrays = await Promise.all(packLaunchPromises);
           allPackLaunches.push(...packLaunchesArrays.flat());
         } catch (err) {
@@ -2860,21 +1491,72 @@ export default function UpdatesPage() {
     refetchInterval: startedLaunches.size > 0 ? 3000 : false,
   });
 
-  const itemRolloutMutation = useMutation({
-    mutationFn: ({ groupId, launchId }: { groupId: string; launchId: string }) => 
-      triggerItemRollout({ groupId, launchId, accessToken: user!.access_token! }),
-    onSuccess: async (data, { groupId, launchId }) => {
-      toast({ title: "Rollout Triggered", description: data.message || `Rollout for item ${launchId} started.` });
-      
-      const launch = allLaunches.find(l => l.id === launchId);
-      // Mark launch as started globally to preserve ui totals during transient changes
-      if (launch && updateLaunchTotal) {
-        const allDeviceIds = Array.from(new Set([...launch.devices_with_job, ...launch.devices_without_job, ...(launch.active_launches || [])]));
-        updateLaunchTotal(launchId, allDeviceIds.length);
+  // Mutation to cancel auto mode - sets to manual with rollout_value 0, explicitly preserving workflow_type
+  const cancelAutoMutation = useMutation({
+    mutationFn: ({ groupId, launchId, workflowType }: { groupId: string; launchId: string; workflowType?: LaunchWorkflowType }) =>
+      updateLaunchStrategy({
+        groupId,
+        launchId,
+        strategyData: {
+          auto: false,
+          rollout_type: 'numeric',
+          rollout_value: 0,
+          // Explicitly preserve the workflow_type - backend may reset to default if not included
+          workflow_type: workflowType
+        },
+        accessToken: user!.access_token!
+      }),
+    onSuccess: (_data, { groupId }) => {
+      toast({
+        title: "Auto Deploy Canceled",
+        description: "Launch has been switched to manual mode. You can change this in launch details."
+      });
+      queryClient.invalidateQueries({ queryKey: ['allLaunches'] });
+      queryClient.invalidateQueries({ queryKey: ['currentLaunches', groupId] });
+      setCancelAutoLaunch(null);
+    },
+    onError: (err: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to Cancel Auto Deploy",
+        description: err.message
+      });
+      setCancelAutoLaunch(null);
+    },
+  });
+
+  // Trigger a rollout for a launch (apply its strategy to the pending devices).
+  const handleLaunchExecute = async (groupId: string, launchId: string) => {
+    const launch = allLaunches.find(l => l.id === launchId);
+
+    // Optimistically mark as executing/started for instant visual feedback
+    setExecutingLaunches(prev => new Set(prev).add(launchId));
+    startStoredLaunch(launchId);
+
+    // Store the total for display immediately to avoid UI dropouts
+    if (launch) {
+      const allDeviceIds = Array.from(new Set([...launch.devices_with_job, ...launch.devices_without_job, ...(launch.active_launches || [])]));
+      updateLaunchTotal(launchId, allDeviceIds.length);
+    }
+
+    try {
+      const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/rollout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to execute launch: ${response.statusText}`);
       }
-      startStoredLaunch && startStoredLaunch(launchId);
-      
-      // Immediately refetch to show updated status and progress
+
+      toast({
+        title: "Launch Executed",
+        description: `Launch ${launchId.slice(-4)} has been successfully executed.`,
+      });
+
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['allLaunches'] }),
         queryClient.refetchQueries({ queryKey: ['activeLaunches', groupId] }),
@@ -2882,210 +1564,129 @@ export default function UpdatesPage() {
         queryClient.refetchQueries({ queryKey: ['launchJobStats', groupId, launchId] }),
         queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', groupId, launchId] }),
       ]);
-    },
-    onError: (err: Error, { launchId }) => {
-      toast({ variant: "destructive", title: `Rollout Failed for ${launchId}`, description: err.message });
-    },
-  });
-  
+    } catch (error) {
+      console.error('Error executing launch:', error);
+      clearStartedLaunch(launchId);
+      toast({
+        variant: "destructive",
+        title: "Launch Execution Failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    } finally {
+      setExecutingLaunches(prev => {
+        const n = new Set(prev);
+        n.delete(launchId);
+        return n;
+      });
+    }
+  };
+
   const isLoading = isLoadingLaunches || isLoadingUpdatePacks;
 
-  // Get update pack name from update packs list
-  const getUpdatePackName = (packId?: string) => {
-    if (!packId) return 'Not Set';
-    const pack = updatePacks.find(p => p.name === packId || p.id === packId);
-    return pack ? `${pack.name} v${pack.version}` : packId;
-  };
-
-  // Prepare form initial data with defaults
-  const formInitialData: UpdateStrategy = {
-    workflowType: 'wfx.workflow.dau.direct', // Default to direct workflow
-    rolloutType: 'numeric', // Default to numeric rollout
-    rolloutValue: 10, // Default rollout value
-    testDeviceId: undefined,
-    updatePackId: selectedPackForLaunch || undefined,
-    auto: false,
-  };
-
-  // Group launches by update pack
-  const groupedLaunches = React.useMemo(() => {
-    if (packNameFilter || !user?.access_token) return { activePacks: [], removedPacks: [] };
-    
-    // Fetch all update packs from all DMS
-    const packsMap = new Map<string, UpdatePackWithStatus>();
-    
-    // Initialize with all update packs (these are active packs)
-    allDmsUpdatePacks.forEach((pack: any) => {
-      // Filter by DMS
-      if (filterDmsId !== 'all' && pack.groupId !== filterDmsId) return;
-
-      const key = `${pack.groupId}-${pack.name}-${pack.version}`;
-      if (!packsMap.has(key)) {
-        packsMap.set(key, {
-          ...pack,
-          // groupId and dmsName are already in pack object
-          launches: [],
-          totalDevices: 0,
-          devicesWithJob: 0,
-          completedDevices: 0,
-          failedDevices: 0,
-          status: 'Not Started',
-          errorRate: 0,
-          rolloutProgress: 0,
-          targetTags: [],
-          hasLaunchForCurrentVersion: false,
-          hasActiveLaunch: false,
-          isRemoved: false,
-        });
-      }
-    });
-
-    // Add launches to their respective packs
-    allLaunches.forEach(launch => {
-      // Filter by DMS
-      if (filterDmsId !== 'all' && launch.group_id !== filterDmsId) return;
-
-      // Match launch to pack using update_pack_id
-      // update_pack_id should match the pack's name or id
-      if (!launch.update_pack_id) return; // Skip launches without pack reference
-      
-      const matchedPack = allDmsUpdatePacks.find((p: any) => {
-        // Try matching by name (most common) or by id
-        const nameMatches = p.name?.toLowerCase() === launch.update_pack_id?.toLowerCase();
-        const idMatches = p.id === launch.update_pack_id;
-        const dmsMatches = p.groupId === launch.group_id;
-        return dmsMatches && (nameMatches || idMatches);
-      });
-      
-      if (!matchedPack) return; // Skip if we can't find the pack
-      
-      const key = `${launch.group_id}-${matchedPack.name}-${matchedPack.version}`;
-      let packWithStatus = packsMap.get(key);
-      
-      if (!packWithStatus) {
-        // This shouldn't happen since we initialized all packs, but handle it
-        packWithStatus = packsMap.get(key);
-      }
-      
-      if (packWithStatus) {
-        packWithStatus.launches.push(launch);
-        const devicesWithJobCount = (launch.devices_with_job?.length) ?? 0;
-        const devicesWithoutJobCount = (launch.devices_without_job?.length) ?? 0;
-        packWithStatus.totalDevices += devicesWithJobCount + devicesWithoutJobCount;
-        packWithStatus.devicesWithJob += devicesWithJobCount;
-        packWithStatus.hasLaunchForCurrentVersion = true;
-        
-        // Check if this launch has devices without jobs (active launch)
-        if (devicesWithoutJobCount > 0) {
-          packWithStatus.hasActiveLaunch = true;
-        }
-      }
-    });
-    
-    // Separate active and removed packs
-    const allPacks = Array.from(packsMap.values());
-    const activePacks = allPacks.filter(pack => !pack.isRemoved);
-    const removedPacks = allPacks.filter(pack => pack.isRemoved);
-    
-    // Sort both arrays
-    const sortPacks = (packs: UpdatePackWithStatus[]) => packs.sort((a, b) => {
-      // Get the most recent launch date for each pack
-      const getLatestLaunchDate = (pack: UpdatePackWithStatus) => {
-  if (pack.launches.length === 0) return 0; // No launches = oldest
-        return Math.max(...pack.launches.map(launch => 
-          launch.exec_date ? new Date(launch.exec_date).getTime() : 0
-        ));
-      };
-      
-      const aLatestDate = getLatestLaunchDate(a);
-      const bLatestDate = getLatestLaunchDate(b);
-      
-      // Sort by latest launch date (descending - most recent first)
-      if (aLatestDate !== bLatestDate) {
-        return bLatestDate - aLatestDate;
-      }
-      
-      // If same launch date, sort by DMS name, then pack name, then version (descending)
-      if (a.dmsName !== b.dmsName) return a.dmsName.localeCompare(b.dmsName);
-      if (a.name !== b.name) return a.name.localeCompare(b.name);
-      return b.version - a.version;
-    });
-    
+  // Split launches into "still has work to do" (active) and finished (history).
+  const { activeLaunches, historyLaunches } = React.useMemo(() => {
+    const visible = allLaunches
+      .filter(l => filterDmsId === 'all' || l.group_id === filterDmsId)
+      .slice()
+      .sort((a, b) => (b.exec_date ? new Date(b.exec_date).getTime() : 0) - (a.exec_date ? new Date(a.exec_date).getTime() : 0));
+    const isActive = (l: LaunchItemWithDms) =>
+      (l.devices_without_job?.length || 0) > 0 || (l.active_launches?.length || 0) > 0 || startedLaunches.has(l.id);
     return {
-      activePacks: sortPacks(activePacks),
-      removedPacks: sortPacks(removedPacks),
+      activeLaunches: visible.filter(isActive),
+      historyLaunches: visible.filter(l => !isActive(l)),
     };
-  }, [allLaunches, allDmsUpdatePacks, filterDmsId, packNameFilter, user]);
-
-  const handleNewLaunch = (packId: string, packName: string, version: number, groupId?: string) => {
-    // If groupId is provided and different from currently selected, update selectedDms
-    if (groupId && groupId !== selectedDms?.id) {
-      const newDms = availableDms.find(d => d.id === groupId);
-      if (newDms) {
-        setSelectedDms(newDms);
-      }
-    }
-    // Set the selected pack and open strategy dialog
-    setSelectedPackForLaunch(packId);
-    setIsStrategyDialogOpen(true);
-  };
-
-  const handleNewVersion = (packId: string, groupId?: string) => {
-    // If groupId is provided and different from currently selected, update selectedDms
-    if (groupId && groupId !== selectedDms?.id) {
-      const newDms = availableDms.find(d => d.id === groupId);
-      if (newDms) {
-        setSelectedDms(newDms);
-      }
-    }
-    let url = `/updates/create-version?basePackId=${encodeURIComponent(packId)}`;
-    if (groupId) {
-      url += `&groupId=${encodeURIComponent(groupId)}`;
-    }
-    router.push(url);
-  };
+  }, [allLaunches, filterDmsId, startedLaunches]);
 
   const handleViewLaunchDetails = (launch: LaunchItem) => {
     router.push(`/updates/details?groupId=${launch.group_id}&launchId=${launch.id}`);
   };
 
-  const updateLaunchTotal = React.useCallback((launchId: string, total: number) => {
-    setStartedLaunchTotals(prev => {
-      const current = prev.get(launchId);
-      if (current === total) return prev; // Avoid recreating Map if nothing changed
-      const n = new Map(prev);
-      n.set(launchId, total);
-      return n;
-    });
-  }, [setStartedLaunchTotals]);
+  // Prepare form initial data with defaults
+  const formInitialData: UpdateStrategy = {
+    workflowType: 'wfx.workflow.dau.direct',
+    rolloutType: 'numeric',
+    rolloutValue: 10,
+    testDeviceId: undefined,
+    updatePackId: selectedPackForLaunch || undefined,
+    auto: false,
+  };
 
-  const clearStartedLaunch = React.useCallback((launchId: string) => {
-    setStartedLaunches(prev => {
-      if (!prev.has(launchId)) return prev; // No change required
-      const n = new Set(prev);
-      n.delete(launchId);
-      return n;
-    });
-    setStartedLaunchTotals(prev => {
-      if (!prev.has(launchId)) return prev; // No change required
-      const n = new Map(prev);
-      n.delete(launchId);
-      return n;
-    });
-  }, [setStartedLaunches, setStartedLaunchTotals]);
-
-  const startStoredLaunch = React.useCallback((launchId: string) => {
-    setStartedLaunches(prev => {
-      if (prev.has(launchId)) return prev; // No change required
-      const n = new Set(prev);
-      n.add(launchId);
-      return n;
-    });
-  }, [setStartedLaunches]);
+  const renderHistoryTable = (launches: LaunchItemWithDms[]) => (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[240px]">Pack / Launch</TableHead>
+            <TableHead className="w-[150px]">Device Group</TableHead>
+            <TableHead className="w-[180px]">Executed</TableHead>
+            <TableHead className="w-[130px]">Status</TableHead>
+            <TableHead className="w-[200px]">Progress</TableHead>
+            <TableHead className="w-[90px]">Errors</TableHead>
+            <TableHead className="w-[80px] text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {launches.map((launch) => (
+            <TableRow
+              key={`${launch.group_id}-${launch.id}`}
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => handleViewLaunchDetails(launch)}
+            >
+              <TableCell>
+                <div className="flex flex-col gap-0.5">
+                  <LaunchNameCell launch={launch} groupId={launch.group_id} accessToken={user?.access_token || null} />
+                  <span className="text-xs text-muted-foreground font-mono">{launch.id}</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm">{launch.dmsName}</span>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm">{launch.exec_date ? format(parseISO(launch.exec_date), "Pp") : 'N/A'}</span>
+              </TableCell>
+              <TableCell>
+                <LaunchStatusCell
+                  launch={launch}
+                  groupId={launch.group_id}
+                  accessToken={user?.access_token || null}
+                  startedLaunches={startedLaunches}
+                  startedLaunchTotals={startedLaunchTotals}
+                />
+              </TableCell>
+              <TableCell>
+                <LaunchProgressCell
+                  launch={launch}
+                  groupId={launch.group_id}
+                  accessToken={user?.access_token || null}
+                  startedLaunches={startedLaunches}
+                  startedLaunchTotals={startedLaunchTotals}
+                  updateLaunchTotal={updateLaunchTotal}
+                  clearStartedLaunch={clearStartedLaunch}
+                />
+              </TableCell>
+              <TableCell>
+                <LaunchErrorRateCell launch={launch} groupId={launch.group_id} accessToken={user?.access_token || null} />
+              </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => { e.stopPropagation(); handleViewLaunchDetails(launch); }}
+                  title="View launch details"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header with Create Update Pack button */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           {packNameFilter && (
@@ -3096,31 +1697,34 @@ export default function UpdatesPage() {
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to All Updates
+              All Launches
             </Button>
           )}
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Package className="h-8 w-8 text-primary" />
-              {packNameFilter ? `Launches for ${packNameFilter}` : 'IoT Firmware Updates'}
+              <Rocket className="h-8 w-8 text-primary" />
+              {packNameFilter ? `Launches for ${packNameFilter}` : 'Launches'}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {packNameFilter 
-                ? `View all launches for the ${packNameFilter} update pack.`
-                : 'Manage and distribute firmware updates to your device fleet.'
+              {packNameFilter
+                ? `All launches of the ${packNameFilter} update pack.`
+                : 'Roll out update packs to your devices — track active rollouts and review past launches.'
               }
             </p>
           </div>
         </div>
         {!packNameFilter && (
           <div className="flex items-center gap-3">
-            <div className="w-[180px]">
+            <div className="w-[210px]">
               <Select value={filterDmsId} onValueChange={setFilterDmsId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All DMS" />
+                  <span className="flex items-center gap-2 truncate">
+                    <Boxes className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="All Device Groups" />
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All DMS</SelectItem>
+                  <SelectItem value="all">All Device Groups</SelectItem>
                   {availableDms.map((dms) => (
                     <SelectItem key={dms.id} value={dms.id}>
                       {dms.name}
@@ -3129,266 +1733,155 @@ export default function UpdatesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={() => router.push('/updates/packs')} variant="outline">
-              <Package className="h-4 w-4 mr-2" />
-              View Update Packs
+            <Button variant="outline" asChild>
+              <Link href="/package-inventory">
+                <Package className="h-4 w-4 mr-2" />
+                Package Inventory
+              </Link>
             </Button>
-            <Button onClick={() => router.push('/updates/create_update')} className="bg-primary hover:bg-primary/90">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Create New Update Pack
+            <Button onClick={() => setIsStrategyDialogOpen(true)} className="bg-primary hover:bg-primary/90">
+              <Rocket className="h-4 w-4 mr-2" />
+              New Launch
             </Button>
           </div>
         )}
       </div>
 
-      {/* Launches Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">
-              {packNameFilter ? 'Launches' : 'Update Packs & Launches'}
-            </h2>
-            <p className="text-muted-foreground">
-              {packNameFilter 
-                ? 'A list of all firmware update launches for this pack.'
-                : 'View all update packs and their launches across Device Groups.'
-              }
-            </p>
-          </div>
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
         </div>
-        
-        {isLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        ) : launchesError ? (
-          <div className="text-center py-4">
-            <p className="text-destructive flex items-center justify-center gap-2">
-              <AlertTriangle /> Error Loading Launches
-            </p>
-            <p className="text-destructive-foreground mb-2">{launchesError.message}</p>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Retry
-            </Button>
-          </div>
-        ) : !packNameFilter ? (
-          /* Grouped view by update pack */
-          <div className="space-y-4">
-            {groupedLaunches.activePacks.length === 0 && groupedLaunches.removedPacks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center bg-muted/30 rounded-lg">
-                <Package className="h-16 w-16 text-muted-foreground mb-4" />
-                <p className="text-lg font-medium text-foreground">No update packs found</p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Create your first update pack to start deploying firmware updates.
-                </p>
-                <Button onClick={() => router.push('/updates/create_update')} className="bg-primary hover:bg-primary/90">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Create Update Pack
+      ) : launchesError ? (
+        <div className="text-center py-4">
+          <p className="text-destructive flex items-center justify-center gap-2">
+            <AlertTriangle /> Error Loading Launches
+          </p>
+          <p className="text-destructive-foreground mb-2">{launchesError.message}</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Retry
+          </Button>
+        </div>
+      ) : !packNameFilter ? (
+        <>
+          {activeLaunches.length === 0 && historyLaunches.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed rounded-lg bg-muted/20">
+              <Rocket className="h-14 w-14 text-muted-foreground mb-4" />
+              <p className="text-lg font-medium text-foreground">No launches yet</p>
+              <p className="text-sm text-muted-foreground mb-4 max-w-md">
+                Pick an update pack and roll it out to your devices. Packs are created and managed in the Package Inventory.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setIsStrategyDialogOpen(true)}>
+                  <Rocket className="mr-2 h-4 w-4" />
+                  New Launch
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/package-inventory">
+                    <Package className="mr-2 h-4 w-4" />
+                    Browse Packages
+                  </Link>
                 </Button>
               </div>
-            ) : (
-              <>
-                {/* Active Update Packs */}
-                {groupedLaunches.activePacks.length > 0 && (
-                  <div className="space-y-4">
-                    {groupedLaunches.activePacks.map((pack) => (
-                      <UpdatePackGroup
-                        key={`${pack.groupId}-${pack.name}-${pack.version}`}
-                        pack={pack}
-                        groupId={pack.groupId}
-                        accessToken={user?.access_token || null}
-                        onNewLaunch={handleNewLaunch}
-                        onNewVersion={handleNewVersion}
-                        onViewLaunchDetails={handleViewLaunchDetails}
-                        startedLaunches={startedLaunches}
-                        startedLaunchTotals={startedLaunchTotals}
-                        startStoredLaunch={startStoredLaunch}
-                        updateLaunchTotal={updateLaunchTotal}
-                        clearStartedLaunch={clearStartedLaunch}
-                      />
-                    ))}
-                  </div>
-                )}
-                
-                {/* Removed Update Packs */}
-                {groupedLaunches.removedPacks.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-destructive">
-                        <Info className="h-5 w-5" />
-                        <h3 className="font-semibold">Removed Update Packs</h3>
-                      </div>
-                      <p className="text-sm text-destructive/80 mt-1">
-                        These update packs have been removed but still have associated launches.
-                      </p>
-                    </div>
-                    {groupedLaunches.removedPacks.map((pack) => (
-                      <UpdatePackGroup
-                        key={`${pack.groupId}-${pack.name}-${pack.version}`}
-                        pack={pack}
-                        groupId={pack.groupId}
-                        accessToken={user?.access_token || null}
-                        onNewLaunch={handleNewLaunch}
-                        onNewVersion={handleNewVersion}
-                        onViewLaunchDetails={handleViewLaunchDetails}
-                        startedLaunches={startedLaunches}
-                        startedLaunchTotals={startedLaunchTotals}
-                        startStoredLaunch={startStoredLaunch}
-                        updateLaunchTotal={updateLaunchTotal}
-                        clearStartedLaunch={clearStartedLaunch}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        ) : (
-          /* Filtered view - show table */
-          <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[120px]">Launch</TableHead>
-                    <TableHead className="w-[200px]">Update Pack</TableHead>
-                    <TableHead className="w-[150px]">DMS</TableHead>
-                    <TableHead className="w-[180px]">Execution Date</TableHead>
-                    <TableHead className="w-[120px]">Status</TableHead>
-                    <TableHead className="w-[180px]">Rollout Progress</TableHead>
-                    <TableHead className="w-[100px]">Error Rate</TableHead>
-                    <TableHead className="w-[80px] text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allLaunches.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        No launches found.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    allLaunches.map((launch) => (
-                      <TableRow 
-                        key={`${launch.group_id}-${launch.id}`}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => router.push(`/updates/details?groupId=${launch.group_id}&launchId=${launch.id}`)}
-                      >
-                        <TableCell>
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="p-0 h-auto font-medium text-primary hover:underline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/updates/details?groupId=${launch.group_id}&launchId=${launch.id}`);
-                            }}
-                          >
-                            Launch - {launch.id.slice(-4)}
-                          </Button>
-                        </TableCell>
-                        <TableCell>
-                          <LaunchNameCell 
-                            launch={launch} 
-                            groupId={launch.group_id} 
-                            accessToken={user?.access_token || null}
-                            onClick={() => {
-                              router.push(`/updates/pack-details?groupId=${launch.group_id}&packName=${encodeURIComponent(launch.name)}`);
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{launch.dmsName}</span>
-                            <span className="text-xs text-muted-foreground">{launch.group_id}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm">
-                            {launch.exec_date ? format(parseISO(launch.exec_date), "Pp") : 'N/A'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <LaunchStatusCell 
-                              launch={launch}
-                              groupId={launch.group_id}
-                              accessToken={user?.access_token || null}
-                              startedLaunches={startedLaunches}
-                              startedLaunchTotals={startedLaunchTotals}
-                            />
-                            {launch.devices_without_job.length > 0 && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  itemRolloutMutation.mutate({ 
-                                    groupId: launch.group_id, 
-                                    launchId: launch.id 
-                                  });
-                                }}
-                              >
-                                <PlayCircle className="h-4 w-4 text-primary" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <LaunchProgressCell
-                            launch={launch}
-                            groupId={launch.group_id}
-                            accessToken={user?.access_token || null}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <LaunchErrorRateCell
-                            launch={launch}
-                            groupId={launch.group_id}
-                            accessToken={user?.access_token || null}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem 
-                                onClick={() => router.push(`/updates/details?groupId=${launch.group_id}&launchId=${launch.id}`)}
-                              >
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Launch Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  itemRolloutMutation.mutate({ 
-                                    groupId: launch.group_id, 
-                                    launchId: launch.id 
-                                  });
-                                }}
-                                disabled={launch.devices_without_job.length === 0}
-                              >
-                                <PlayCircle className="mr-2 h-4 w-4" />
-                                Resume Rollout
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
             </div>
+          ) : (
+            <>
+              {/* Active launches: rollouts that still have pending or in-flight devices */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-semibold">Active Launches</h2>
+                  <Badge variant="secondary">{activeLaunches.length}</Badge>
+                </div>
+                {activeLaunches.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic border border-dashed rounded-lg px-4 py-6 text-center">
+                    No active launches — every started rollout has finished.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {activeLaunches.map((launch) => (
+                      <LaunchRowWithWorkflowStates
+                        key={`${launch.group_id}-${launch.id}`}
+                        launch={launch}
+                        groupId={launch.group_id}
+                        accessToken={user?.access_token || null}
+                        packName={launch.name}
+                        dmsName={launch.dmsName}
+                        startedLaunches={startedLaunches}
+                        startedLaunchTotals={startedLaunchTotals}
+                        updateLaunchTotal={updateLaunchTotal}
+                        clearStartedLaunch={clearStartedLaunch}
+                        onViewLaunchDetails={handleViewLaunchDetails}
+                        onExecuteLaunch={(launchId) => handleLaunchExecute(launch.group_id, launchId)}
+                        onCancelAuto={(launchId, workflowType) => setCancelAutoLaunch({ groupId: launch.group_id, launchId, workflowType })}
+                        isCancellingAuto={cancelAutoMutation.isPending}
+                        startStoredLaunch={startStoredLaunch}
+                        executingLaunches={executingLaunches}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Launch history: finished rollouts, newest first */}
+              <section className="space-y-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <History className="h-5 w-5 text-muted-foreground" />
+                  <h2 className="text-xl font-semibold">Launch History</h2>
+                  <Badge variant="secondary">{historyLaunches.length}</Badge>
+                </div>
+                {historyLaunches.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic px-1">No finished launches yet.</p>
+                ) : (
+                  <>
+                    {renderHistoryTable(historyLaunches.slice(0, historyLimit))}
+                    {historyLaunches.length > historyLimit && (
+                      <div className="flex justify-center">
+                        <Button variant="outline" size="sm" onClick={() => setHistoryLimit(l => l + 20)}>
+                          <ChevronDown className="mr-2 h-4 w-4" />
+                          Show more ({historyLaunches.length - historyLimit} remaining)
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            </>
+          )}
+        </>
+      ) : (
+        /* Single-pack view: every launch of this pack, active first */
+        <div className="space-y-2">
+          {allLaunches.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic border border-dashed rounded-lg px-4 py-6 text-center">
+              No launches found for this pack.
+            </p>
+          ) : (
+            [...activeLaunches, ...historyLaunches].map((launch) => (
+              <LaunchRowWithWorkflowStates
+                key={`${launch.group_id}-${launch.id}`}
+                launch={launch}
+                groupId={launch.group_id}
+                accessToken={user?.access_token || null}
+                packName={launch.name}
+                dmsName={launch.dmsName}
+                startedLaunches={startedLaunches}
+                startedLaunchTotals={startedLaunchTotals}
+                updateLaunchTotal={updateLaunchTotal}
+                clearStartedLaunch={clearStartedLaunch}
+                onViewLaunchDetails={handleViewLaunchDetails}
+                onExecuteLaunch={(launchId) => handleLaunchExecute(launch.group_id, launchId)}
+                onCancelAuto={(launchId, workflowType) => setCancelAutoLaunch({ groupId: launch.group_id, launchId, workflowType })}
+                isCancellingAuto={cancelAutoMutation.isPending}
+                startStoredLaunch={startStoredLaunch}
+                executingLaunches={executingLaunches}
+              />
+            ))
           )}
         </div>
+      )}
 
-      {/* Strategy Configuration Dialog */}
+      {/* New Launch dialog: pick the device group + pack, then configure the rollout strategy */}
       <Dialog open={isStrategyDialogOpen} onOpenChange={(open) => {
         setIsStrategyDialogOpen(open);
         if (!open) {
@@ -3399,71 +1892,77 @@ export default function UpdatesPage() {
           <DialogHeader className="pr-8">
             <DialogTitle className="flex items-center gap-2">
               <Rocket className="h-5 w-5 text-primary" />
-              Create New Launch
+              New Launch
             </DialogTitle>
             <DialogDescription>
-              Configure and create a new firmware update launch. All strategy parameters are required for each launch (rollout type, workflow, and target devices).
+              Roll out an update pack to the devices of a group. Every launch carries its own strategy
+              (workflow, rollout size, optional test device).
             </DialogDescription>
           </DialogHeader>
-          
+
           <ScrollArea className="max-h-[calc(90vh-180px)] pr-4">
-            <div className="space-y-6">
-              {/* Strategy Form */}
-              <UpdateStrategyForm
-                strategy={formInitialData}
-                availableUpdatePacks={updatePacks}
-                defaultSelectedPackId={selectedPackForLaunch || undefined}
-                onStrategySavedOrUpdated={handleStrategySave}
-                showSubmitButton={false}
-                formId="launch-strategy-form"
-              />
-              
-              {/* Help Section */}
-              <Card className="border-primary/20 bg-primary/5">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Info className="h-4 w-4 text-primary" />
-                    Configuration Guide
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div>
-                    <p className="font-medium mb-1">Workflow Types:</p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground ml-2">
-                      <li><strong>Direct:</strong> Deploy updates immediately to all targeted devices</li>
-                      <li><strong>Phased:</strong> Deploy updates in controlled stages with user monitoring</li>
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <p className="font-medium mb-1">Rollout Options:</p>
-                    <ul className="list-disc list-inside space-y-1 text-muted-foreground ml-2">
-                      <li><strong>Percentage:</strong> Target a percentage of your total device fleet</li>
-                      <li><strong>Fixed:</strong> Target a specific number of devices</li>
-                    </ul>
-                  </div>
-                  
-                  <div className="pt-2 border-t">
-                    <p className="text-xs text-muted-foreground">
-                      <strong>Tip:</strong> Use a test device to validate updates before full deployment. Start with lower percentages for phased rollouts to minimize risk.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Device Group</label>
+                <Select
+                  value={selectedDms?.id || ''}
+                  onValueChange={(v) => {
+                    const dms = availableDms.find(d => d.id === v);
+                    if (dms) {
+                      setSelectedDms(dms);
+                      setSelectedPackForLaunch(null); // packs are group-scoped
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <span className="flex items-center gap-2 truncate">
+                      <Boxes className="h-4 w-4 text-muted-foreground" />
+                      <SelectValue placeholder="Select a device group" />
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDms.map((dms) => (
+                      <SelectItem key={dms.id} value={dms.id}>{dms.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {!selectedDms ? (
+                <p className="text-sm text-muted-foreground border border-dashed rounded-lg px-4 py-6 text-center">
+                  Select a device group to choose one of its update packs.
+                </p>
+              ) : (
+                <UpdateStrategyForm
+                  key={selectedDms.id}
+                  strategy={formInitialData}
+                  availableUpdatePacks={updatePacks}
+                  defaultSelectedPackId={selectedPackForLaunch || undefined}
+                  onStrategySavedOrUpdated={handleStrategySave}
+                  showSubmitButton={false}
+                  showPreconditions
+                  formId="launch-strategy-form"
+                />
+              )}
+
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+                <p><strong className="text-foreground">Direct</strong> rolls out and installs automatically; <strong className="text-foreground">Phased</strong> pauses at workflow states for manual approval.</p>
+                <p><strong className="text-foreground">Tip:</strong> use a test device and a small first batch to validate the update before a full rollout.</p>
+              </div>
             </div>
           </ScrollArea>
-          
+
           <DialogFooter className="gap-2">
-            <Button 
+            <Button
               type="submit"
               form="launch-strategy-form"
-              disabled={createLaunchMutation.isPending} 
+              disabled={createLaunchMutation.isPending || dryRunMutation.isPending || !selectedDms}
               className="w-full h-12 bg-primary hover:bg-primary/90 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {createLaunchMutation.isPending ? (
+              {createLaunchMutation.isPending || dryRunMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Creating Launch...
+                  {dryRunMutation.isPending ? 'Checking preconditions...' : 'Creating Launch...'}
                 </>
               ) : (
                 <>
@@ -3476,13 +1975,107 @@ export default function UpdatesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Launch Detail Dialog */}
-      <LaunchDetailDialog
-        launchItem={selectedLaunchForDialog}
-        isOpen={isDetailDialogOpen}
-        onOpenChange={setIsDetailDialogOpen}
-      />
+      {/* Launch Preconditions confirmation dialog (shown after a dry-run) */}
+      <AlertDialog
+        open={isPreconditionDialogOpen}
+        onOpenChange={(open) => {
+          setIsPreconditionDialogOpen(open);
+          if (!open) setPreconditionCheck(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Launch Preconditions
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">
+                  {preconditionCheck?.qualifying.length ?? 0} device(s) qualify / {preconditionCheck?.failures.length ?? 0} device(s) do NOT meet prerequisites
+                </p>
+                <p>Devices that do not meet the prerequisites are excluded unless you force the deployment.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {(preconditionCheck?.failures.length ?? 0) > 0 && (
+            <ScrollArea className="max-h-60 rounded-md border">
+              <div className="divide-y text-sm">
+                {preconditionCheck?.failures.map((f: PreconditionFailure, idx: number) => (
+                  <div key={`${f.device_id}-${f.pack_name}-${idx}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 p-2">
+                    <span className="font-mono text-xs">{f.device_id}</span>
+                    <span className="text-muted-foreground">—</span>
+                    <span className="font-medium">{f.pack_name}:</span>
+                    <span className="font-mono text-xs">{f.current_version || 'not installed'}</span>
+                    <span className="text-muted-foreground">vs</span>
+                    <span className="font-mono text-xs">{f.required}</span>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700">
+            <Checkbox
+              id="force-deploy"
+              checked={forceDeploy}
+              onCheckedChange={(checked) => setForceDeploy(checked === true)}
+              className="mt-0.5"
+            />
+            <label htmlFor="force-deploy" className="text-sm font-medium cursor-pointer">
+              Warning: Force deploy to non-qualifying devices (not recommended)
+            </label>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPreconditionCheck(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={(preconditionCheck?.qualifying.length ?? 0) === 0 && !forceDeploy}
+              onClick={() => {
+                if (!preconditionCheck) return;
+                const payload = { ...preconditionCheck.payload, force_preconditions: forceDeploy };
+                setIsPreconditionDialogOpen(false);
+                createLaunchMutation.mutate(payload);
+              }}
+              className="bg-primary hover:bg-primary/90"
+            >
+              Confirm Launch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Auto Deploy Confirmation Dialog */}
+      <AlertDialog open={!!cancelAutoLaunch} onOpenChange={(open) => !open && setCancelAutoLaunch(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Stop Auto Deploy?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p className="font-medium">This will switch the launch to manual mode.</p>
+              <p>The launch will no longer automatically deploy to new devices. You will need to manually execute it for each batch.</p>
+              <p className="text-muted-foreground text-sm">Note: You can re-enable auto mode later in the launch details page.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Auto Mode</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (cancelAutoLaunch) cancelAutoMutation.mutate(cancelAutoLaunch);
+              }}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={cancelAutoMutation.isPending}
+            >
+              Stop Auto Deploy
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
 

@@ -29,7 +29,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { add, format } from 'date-fns';
 import type { CreateSigningProfilePayload } from '@/lib/ca-data';
-import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { generateUUID } from '@/lib/utils';
 
 const INDEFINITE_DATE_API_VALUE = "9999-12-31T23:59:59.999Z";
 

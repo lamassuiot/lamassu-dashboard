@@ -5,7 +5,7 @@ import React, { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Package } from 'lucide-react';
-import { UpdatePackForm } from '@/components/iot/update-pack-form';
+import { CreatePackForm } from '@/components/iot/create-pack-form';
 import { useDms } from '@/contexts/DmsContext';
 
 // Dedicated "create a brand-new update pack" page. Creating a NEW VERSION of an existing pack lives
@@ -37,8 +37,8 @@ export default function CreateUpdatePackPage() {
     }
   }, [dmsIdParam, availableDms, selectedDms, setSelectedDms]);
 
-  const handleSwuGenerated = () => {
-    router.push('/updates/create_update');
+  const handleCreated = (gid: string, packName: string) => {
+    router.push(`/updates/pack-details?groupId=${encodeURIComponent(gid)}&packName=${encodeURIComponent(packName)}`);
   };
 
   // While a legacy ?mode=update link is being redirected to /updates/create-version, don't paint the
@@ -63,7 +63,7 @@ export default function CreateUpdatePackPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push('/updates/create_update')}
+            onClick={() => router.push('/package-inventory')}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -74,18 +74,14 @@ export default function CreateUpdatePackPage() {
               Create New Update Pack
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Home / Updates / Create / New Pack
+              Packs are managed in the Package Inventory.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Form (new-pack mode only) */}
-      <UpdatePackForm
-        formModeActual="new"
-        availableBasePacks={[]}
-        onSwuGenerated={handleSwuGenerated}
-      />
+      {/* Lightweight "create pack = repo" form. Artifacts + SWU come later on the pack-details page. */}
+      <CreatePackForm onCreated={handleCreated} />
     </div>
   );
 }

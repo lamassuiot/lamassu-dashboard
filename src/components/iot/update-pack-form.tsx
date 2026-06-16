@@ -67,6 +67,7 @@ const updatePackFormSchema = z.object({
   version: z.coerce.number().int().positive("Version must be a positive integer."),
   groupId: z.string().min(1, "Please select a Device Group."),
   type: z.enum(["rawfile", "firmware", "other"]),
+  packaging: z.enum(["swu", "non-swu"]).optional(),
   signingAlgorithm: z.string().optional(),
   signingKeyId: z.string().optional(),
   signingMethod: z.string().optional(),
@@ -238,6 +239,7 @@ export function UpdatePackForm({
       version: 1, 
       groupId: selectedDms?.id || "",
       type: "rawfile",
+      packaging: "swu",
       signingAlgorithm: "none",
       encryptionMode: "none",
       encryptionKeyId: "none",
@@ -827,6 +829,7 @@ export function UpdatePackForm({
           version: packDetails.version,
           type: packDetails.type,
           group_id: groupId,
+          packaging: (packDetails as any).packaging || "swu",
           allow_previous_version_download: (packDetails as any).allowPreviousVersionDownload || false,
         };
         createPackResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks`, {
@@ -1296,6 +1299,57 @@ export function UpdatePackForm({
                         </SelectContent>
                       </Select>
                       <FormDescription>Type can be set for the new pack/version.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="packaging"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        Packaging
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="font-semibold mb-1">SWU:</p>
+                              <p className="text-xs mb-2">Builds and signs a single SWU; devices run the phased/direct workflow with an activation step.</p>
+                              <p className="font-semibold mb-1">Non-SWU:</p>
+                              <p className="text-xs">Delivers raw artifact binaries; devices run a simple download-and-install workflow (no SWU build, no activation).</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || 'swu'}
+                        disabled={isProcessingSwu}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select packaging" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="swu">
+                            <div className="flex flex-col">
+                              <span>SWU</span>
+                              <span className="text-xs text-muted-foreground">Build + sign an SWU</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="non-swu">
+                            <div className="flex flex-col">
+                              <span>Non-SWU</span>
+                              <span className="text-xs text-muted-foreground">Raw download &amp; install</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>How the pack is delivered to devices.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

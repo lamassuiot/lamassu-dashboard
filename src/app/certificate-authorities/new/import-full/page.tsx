@@ -20,7 +20,7 @@ import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { importCa, type ImportCaPayload, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
-import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { generateUUID } from '@/lib/utils';
 
 interface DecodedImportedCertInfo {
   subject?: string;

@@ -62,6 +62,7 @@ export default function CreateKmsKeyPage() {
   const [keyType, setKeyType] = useState('RSA');
   const [rsaKeySize, setRsaKeySize] = useState('2048');
   const [ecdsaCurve, setEcdsaCurve] = useState('P-256');
+  const [mldsaVariant, setMldsaVariant] = useState('ML-DSA-65');
 
   const [importKeyName, setImportKeyName] = useState('');
   const [privateKeyPem, setPrivateKeyPem] = useState('');
@@ -115,8 +116,13 @@ export default function CreateKmsKeyPage() {
     const keyTypeDetail = supportedKeyTypes.find(kt => kt.type === value);
     if (keyTypeDetail && keyTypeDetail.sizes.length > 0) {
       const firstSize = keyTypeDetail.sizes[0];
-      if (value === 'RSA') setRsaKeySize(firstSize.toString());
-      else if (value === 'ECDSA') setEcdsaCurve(firstSize.toString());
+      if (value === 'RSA') {
+        setRsaKeySize(firstSize.toString());
+      } else if (value === 'ECDSA') {
+        setEcdsaCurve(firstSize.toString());
+      } else if (value === 'ML-DSA') {
+        setMldsaVariant(firstSize.toString());
+      }
     }
   };
 
@@ -129,18 +135,21 @@ export default function CreateKmsKeyPage() {
   const keySpecLabel = (() => {
     if (keyType === 'RSA') return 'RSA Key Size';
     if (keyType === 'ECDSA') return 'ECDSA Curve';
+    if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
     return 'Key Specification';
   })();
 
   const currentKeySpecValue = (() => {
     if (keyType === 'RSA') return rsaKeySize;
     if (keyType === 'ECDSA') return ecdsaCurve;
+    if (keyType === 'ML-DSA') return mldsaVariant;
     return '';
   })();
 
   const handleKeySpecChange = (value: string) => {
     if (keyType === 'RSA') setRsaKeySize(value);
     else if (keyType === 'ECDSA') setEcdsaCurve(value);
+    else if (keyType === 'ML-DSA') setMldsaVariant(value);
   };
 
   const handleMetadataChange = (value: string | undefined) => {

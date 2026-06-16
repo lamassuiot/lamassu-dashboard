@@ -1,19 +1,22 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useDropzone } from 'react-dropzone';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Download, Package, Calendar, FileText, Info, CheckCircle, XCircle, Copy, Shield, PenTool, Lock, Users, Laptop, History, Plus, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Package, Calendar, FileText, Info, CheckCircle, XCircle, Copy, Shield, PenTool, Lock, Users, Laptop, History, Plus, Trash2, Loader2, UploadCloud } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchUpdatePacks, fetchArtifacts, fetchUpdatePackDescriptor, fetchGroupDevices, getPerDeviceSwuDownloadUrl, fetchUpdatePackVersions, downloadSwuVersion, fetchArtifactCatalog, downloadArtifact } from '@/lib/iot-api';
+import { fetchUpdatePacks, fetchArtifacts, fetchUpdatePackDescriptor, fetchGroupDevices, getPerDeviceSwuDownloadUrl, fetchUpdatePackVersions, downloadSwuVersion, fetchArtifactCatalog, downloadArtifact, fetchVersionSignature, downloadVersionArtifactsArchive } from '@/lib/iot-api';
 import { fetchKmsKey, type ApiKmsKey } from '@/lib/kms-data';
+import { GenerateSwuDialog } from '@/components/iot/generate-swu-dialog';
+import { GeneratePackageDialog } from '@/components/iot/generate-package-dialog';
 import { cn, formatBytes, isValidSemver } from '@/lib/utils';
 import type { DeviceListApiResponse, UpdatePackVersion, Artifact } from '@/types/iot';
 import type { UpdatePacksResponse } from '@/lib/iot-api';
@@ -97,6 +100,16 @@ export default function UpdatePackDetailsPage() {
     enabled: !!groupId && !!packName && !!user?.access_token,
   });
 
+  // Non-SWU packs deliver raw artifacts and never build an SWU.
+  const isNonSwu = updatePack?.packaging === 'non-swu';
+
+  // Generate-SWU dialog state
+  const [isGenerateSwuOpen, setIsGenerateSwuOpen] = useState(false);
+  // Non-SWU "Generate Package" dialog state
+  const [isGeneratePackageOpen, setIsGeneratePackageOpen] = useState(false);
+  // Per-version download progress (artifacts archive / signature)
+  const [versionActionBusy, setVersionActionBusy] = useState<string | null>(null);
+
   // Upload artifact state
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -104,12 +117,21 @@ export default function UpdatePackDetailsPage() {
   const [uploadVersion, setUploadVersion] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [downloadingArtifactId, setDownloadingArtifactId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDownloadingCurrent, setIsDownloadingCurrent] = useState(false);
+  // Drag & drop for the artifact binary (selects the file; name defaults from it, version optional).
+  const onArtifactDrop = useCallback((accepted: File[]) => {
+    const f = accepted[0] ?? null;
+    if (!f) return;
+    setUploadFile(f);
+    setUploadArtifactName((prev) => prev || f.name.replace(/\.[^/.]+$/, ''));
+  }, []);
+  const { getRootProps: getArtifactRootProps, getInputProps: getArtifactInputProps, isDragActive: isArtifactDragActive } = useDropzone({ onDrop: onArtifactDrop, multiple: false });
 
   const handleArtifactUpload = async () => {
     if (!uploadFile || !groupId || !packName || !user?.access_token) return;
-    if (!isValidSemver(uploadVersion)) {
-      toast({ title: 'Invalid version', description: 'Version must be in X.Y.Z format (e.g. 1.2.3).', variant: 'destructive' });
+    // Artifact version is optional; only validate the format when one is provided.
+    if (uploadVersion.trim() && !isValidSemver(uploadVersion.trim())) {
+      toast({ title: 'Invalid version', description: 'Version is optional, but if set it must be X.Y.Z (e.g. 1.2.3).', variant: 'destructive' });
       return;
     }
     setIsUploading(true);
@@ -142,7 +164,7 @@ export default function UpdatePackDetailsPage() {
     }
   };
 
-  const handleDownloadVersion = async (version: number) => {
+  const handleDownloadVersion = async (version: string) => {
     if (!groupId || !packName || !user?.access_token) return;
     try {
       const blob = await downloadSwuVersion({ groupId, packName, version, accessToken: user.access_token });
@@ -208,28 +230,67 @@ export default function UpdatePackDetailsPage() {
     }
   };
 
-  const handleDownload = () => {
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadVersionArtifacts = async (version: string) => {
+    if (!groupId || !packName || !user?.access_token) return;
+    setVersionActionBusy(`artifacts:${version}`);
+    try {
+      const blob = await downloadVersionArtifactsArchive({ groupId, packName, version, accessToken: user.access_token });
+      triggerBlobDownload(blob, `${packName}_v${version}_artifacts.tar.gz`);
+    } catch (err: any) {
+      toast({ title: 'Download failed', description: err.message || 'Could not download the artifacts archive.', variant: 'destructive' });
+    } finally {
+      setVersionActionBusy(null);
+    }
+  };
+
+  const handleDownloadSignature = async (version: string) => {
+    if (!groupId || !packName || !user?.access_token) return;
+    setVersionActionBusy(`signature:${version}`);
+    try {
+      const sig = await fetchVersionSignature({ groupId, packName, version, accessToken: user.access_token });
+      // Bundle the signed manifest, the PKCS7/CMS signature and the signing certificate so the file is
+      // self-contained for offline verification.
+      const bundle = JSON.stringify(sig, null, 2);
+      triggerBlobDownload(new Blob([bundle], { type: 'application/json' }), `${packName}_v${version}_signature.json`);
+    } catch (err: any) {
+      toast({ title: 'No signature', description: err.message || 'This version has no recorded signature.', variant: 'destructive' });
+    } finally {
+      setVersionActionBusy(null);
+    }
+  };
+
+  const handleDownload = async () => {
     if (!updatePack?.uri) {
-      toast({
-        variant: "destructive",
-        title: "Download Failed",
-        description: "Update pack URI is not available."
-      });
+      toast({ variant: "destructive", title: "Download Failed", description: "Update pack URI is not available." });
       return;
     }
-
-    // Create a temporary link and trigger download
-    const link = document.createElement('a');
-    link.href = updatePack.uri;
-    link.download = updatePack.binaryFileName || `${updatePack.name}-v${updatePack.version}.swu`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast({
-      title: "Download Started",
-      description: `Downloading ${updatePack.name} v${updatePack.version}`
-    });
+    setIsDownloadingCurrent(true);
+    try {
+      const response = await fetch(updatePack.uri, {
+        headers: { 'Authorization': `Bearer ${user!.access_token!}` },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const ext = updatePack.packaging === 'non-swu' ? 'tar.gz' : 'swu';
+      const filename = updatePack.binaryFileName || `${updatePack.name}-v${updatePack.version}.${ext}`;
+      triggerBlobDownload(blob, filename);
+      toast({ title: "Download Started", description: `Downloading ${updatePack.name} v${updatePack.version}` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Download Failed", description: err.message || "Could not download the file." });
+    } finally {
+      setIsDownloadingCurrent(false);
+    }
   };
 
   const handleDownloadArtifact = async (fileName: string) => {
@@ -348,48 +409,106 @@ export default function UpdatePackDetailsPage() {
               )}
             </div>
           </div>
-          {/* Download button: only show for non-per-device modes */}
-          {!isPerDevice && (
-            <Button
-              onClick={handleDownload}
-              disabled={!updatePack.uri}
-              size="lg"
-              className="bg-primary hover:bg-primary/90"
-            >
-              <Download className="mr-2 h-5 w-5" />
-              Download SWU
-            </Button>
-          )}
-        </div>
-        
-        {/* Status Banner */}
-        <div className={`rounded-lg border p-4 ${updatePack.uri ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900'}`}>
-          <div className="flex items-center gap-3">
-            {updatePack.uri ? (
-              <>
-                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                <div>
-                  <p className="font-semibold text-green-900 dark:text-green-100">SWU File Generated Successfully</p>
-                  <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                    This update package is ready for deployment
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                <div>
-                  <p className="font-semibold text-red-900 dark:text-red-100">
-                    {updatePack.generationError || `SWU not generated for Version ${updatePack.version}`}
-                  </p>
-                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                    There was a problem creating the update package
-                  </p>
-                </div>
-              </>
+          <div className="flex items-center gap-2">
+            {/* Generate SWU: only for SWU packs (non-SWU packs deliver raw artifacts) */}
+            {!isNonSwu && (
+              <Button
+                onClick={() => setIsGenerateSwuOpen(true)}
+                size="lg"
+                variant={updatePack.uri ? 'outline' : 'default'}
+                className={updatePack.uri ? '' : 'bg-primary hover:bg-primary/90'}
+              >
+                <PenTool className="mr-2 h-5 w-5" />
+                {updatePack.uri ? 'Regenerate SWU' : 'Generate SWU'}
+              </Button>
+            )}
+            {/* Download button: only show for SWU packs in non-per-device modes */}
+            {!isPerDevice && !isNonSwu && (
+              <Button
+                onClick={handleDownload}
+                disabled={!updatePack.uri || isDownloadingCurrent}
+                size="lg"
+                className="bg-primary hover:bg-primary/90"
+              >
+                {isDownloadingCurrent ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
+                Download SWU
+              </Button>
+            )}
+            {/* Non-SWU packs: build + download a .tar.gz package instead of an SWU */}
+            {isNonSwu && (
+              <Button
+                onClick={() => setIsGeneratePackageOpen(true)}
+                size="lg"
+                variant={updatePack.uri ? 'outline' : 'default'}
+                className={updatePack.uri ? '' : 'bg-primary hover:bg-primary/90'}
+              >
+                <Package className="mr-2 h-5 w-5" />
+                {updatePack.uri ? 'Regenerate Package' : 'Generate Package'}
+              </Button>
+            )}
+            {isNonSwu && (
+              <Button onClick={handleDownload} disabled={!updatePack.uri || isDownloadingCurrent} size="lg" className="bg-primary hover:bg-primary/90">
+                {isDownloadingCurrent ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
+                Download Package
+              </Button>
             )}
           </div>
         </div>
+        
+        {/* Status Banner */}
+        {isNonSwu ? (
+          <div className={`rounded-lg border p-4 ${updatePack.uri ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900' : 'bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900'}`}>
+            <div className="flex items-center gap-3">
+              {updatePack.uri ? <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" /> : <Package className="h-5 w-5 text-purple-600 dark:text-purple-400" />}
+              <div>
+                <p className={`font-semibold ${updatePack.uri ? 'text-green-900 dark:text-green-100' : 'text-purple-900 dark:text-purple-100'}`}>
+                  {updatePack.uri ? `Package built (v${updatePack.version})` : 'Non-SWU pack — package not built yet'}
+                </p>
+                <p className={`text-sm mt-1 ${updatePack.uri ? 'text-green-700 dark:text-green-300' : 'text-purple-700 dark:text-purple-300'}`}>
+                  {updatePack.uri
+                    ? 'Devices download this pack as a .tar.gz (download-and-install). Regenerate after changing artifacts.'
+                    : 'Upload artifacts, then "Generate Package" to build the .tar.gz devices will download.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          updatePack.uri ? (
+            <div className="rounded-lg border p-4 bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <div>
+                  <p className="font-semibold text-green-900 dark:text-green-100">SWU built (v{updatePack.version})</p>
+                  <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                    This update pack is ready for deployment. Regenerate after changing its artifacts.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : updatePack.generationError ? (
+            <div className="rounded-lg border p-4 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900">
+              <div className="flex items-center gap-3">
+                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                <div>
+                  <p className="font-semibold text-red-900 dark:text-red-100">SWU generation failed</p>
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">{updatePack.generationError}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
+              <div className="flex items-center gap-3">
+                <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div>
+                  <p className="font-semibold text-blue-900 dark:text-blue-100">No SWU generated yet (v{updatePack.version})</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                    Upload artifacts, then “Generate SWU” to build the package devices will download.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        )}
       </div>
 
       {/* Per-Device Download Section */}
@@ -453,36 +572,44 @@ export default function UpdatePackDetailsPage() {
             <Package className="h-5 w-5 text-primary" />
             Artifacts
           </h3>
-          <Button size="sm" onClick={() => setIsUploadOpen(v => !v)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Upload Artifact
-          </Button>
+          {updatePack.uri ? (
+            // Built versions are immutable: changing artifacts requires a new pack version.
+            <Button size="sm" variant="outline" onClick={() => router.push(`/updates/create-version?basePackId=${encodeURIComponent(updatePack.id)}&groupId=${encodeURIComponent(groupId || '')}`)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Version to Edit
+            </Button>
+          ) : (
+            <Button size="sm" onClick={() => setIsUploadOpen(v => !v)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Upload Artifact
+            </Button>
+          )}
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Binary files registered for this pack version. These are available as selectable components when building the SWU.
+          {updatePack.uri
+            ? `Version ${updatePack.version} is built and immutable. Create a new version (you set the semver, greater than ${updatePack.version}) to add or upgrade artifacts — the current artifacts carry forward.`
+            : 'Binary files for this pack version. Uploading a new version of an existing artifact replaces it; these are the components built into the SWU/package.'}
         </p>
 
-        {/* Upload form (inline toggle) */}
-        {isUploadOpen && (
+        {/* Upload form (inline toggle) — only while the version is unbuilt */}
+        {isUploadOpen && !updatePack.uri && (
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 mb-4 space-y-3">
             <h4 className="text-sm font-semibold">Upload new artifact</h4>
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">Binary file</Label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={e => {
-                  const f = e.target.files?.[0] ?? null;
-                  setUploadFile(f);
-                  if (f && !uploadArtifactName) setUploadArtifactName(f.name.replace(/\.[^/.]+$/, ''));
-                }}
-              />
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" type="button" onClick={() => fileInputRef.current?.click()}>
-                  Choose file
-                </Button>
-                <span className="text-sm text-muted-foreground">{uploadFile ? uploadFile.name : 'No file chosen'}</span>
+              <div
+                {...getArtifactRootProps()}
+                className={cn(
+                  'p-5 border-2 border-dashed rounded-md cursor-pointer transition-colors text-center',
+                  isArtifactDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-muted-foreground/50',
+                  uploadFile && 'border-green-500/60 bg-green-500/5'
+                )}
+              >
+                <input {...getArtifactInputProps()} />
+                <UploadCloud className={cn('w-8 h-8 mx-auto mb-1', isArtifactDragActive ? 'text-primary' : 'text-muted-foreground')} />
+                {uploadFile
+                  ? <p className="text-sm text-foreground">{uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB)</p>
+                  : <p className="text-sm text-muted-foreground">{isArtifactDragActive ? 'Drop the file here…' : 'Drag & drop the binary here, or click to select'}</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -506,14 +633,14 @@ export default function UpdatePackDetailsPage() {
                 />
                 {uploadVersion && !isValidSemver(uploadVersion)
                   ? <p className="text-xs text-destructive">Version must be X.Y.Z (e.g. 1.2.3).</p>
-                  : <p className="text-xs text-muted-foreground">X.Y.Z, and greater than the artifact's current latest.</p>}
+                  : <p className="text-xs text-muted-foreground">Optional. If set: X.Y.Z, greater than the artifact's current latest.</p>}
               </div>
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => { setIsUploadOpen(false); setUploadFile(null); setUploadArtifactName(''); setUploadVersion(''); }}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleArtifactUpload} disabled={!uploadFile || isUploading || !isValidSemver(uploadVersion)}>
+              <Button size="sm" onClick={handleArtifactUpload} disabled={!uploadFile || isUploading || (!!uploadVersion && !isValidSemver(uploadVersion))}>
                 {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading…</> : 'Upload & Register'}
               </Button>
             </div>
@@ -547,9 +674,7 @@ export default function UpdatePackDetailsPage() {
             <TableBody>
               {catalogArtifacts.map(a => (
                 <TableRow key={a.id}>
-                  <TableCell className="font-medium">
-                    <Link href="/firmware-inventory" className="text-primary hover:underline" title="View in Firmware Inventory">{a.name}</Link>
-                  </TableCell>
+                  <TableCell className="font-medium">{a.name}</TableCell>
                   <TableCell><span className="font-mono text-sm">{a.version || <span className="italic text-muted-foreground">—</span>}</span></TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{a.filename}</TableCell>
                   <TableCell className="text-right text-sm">{formatBytes(a.size)}</TableCell>
@@ -594,7 +719,7 @@ export default function UpdatePackDetailsPage() {
                 <TableHead>Created</TableHead>
                 <TableHead>Encryption</TableHead>
                 <TableHead>Checksum</TableHead>
-                <TableHead className="text-right">Download</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -627,19 +752,42 @@ export default function UpdatePackDetailsPage() {
                       {v.checksum || '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {perDevice ? (
-                        <span className="text-xs text-muted-foreground italic">per-device</span>
-                      ) : (
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        {/* Raw component archive — uniform for SWU and non-SWU */}
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={!downloadable}
-                          onClick={() => handleDownloadVersion(v.version)}
-                          title={downloadable ? `Download v${v.version}` : 'Previous-version download is disabled for this pack'}
+                          disabled={versionActionBusy === `artifacts:${v.version}`}
+                          onClick={() => handleDownloadVersionArtifacts(v.version)}
+                          title="Download this version's artifacts (.tar.gz)"
                         >
-                          <Download className="mr-1 h-3 w-3" /> .swu
+                          {versionActionBusy === `artifacts:${v.version}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Package className="mr-1 h-3 w-3" /> artifacts</>}
                         </Button>
-                      )}
+                        {/* Signed manifest + PKCS7/CMS signature (certificate embedded) */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={versionActionBusy === `signature:${v.version}`}
+                          onClick={() => handleDownloadSignature(v.version)}
+                          title="Download the signed manifest + signature (certificate)"
+                        >
+                          {versionActionBusy === `signature:${v.version}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Shield className="mr-1 h-3 w-3" /> signature</>}
+                        </Button>
+                        {/* SWU deliverable (SWU packs only) */}
+                        {!isNonSwu && (perDevice ? (
+                          <span className="text-xs text-muted-foreground italic">per-device</span>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!downloadable}
+                            onClick={() => handleDownloadVersion(v.version)}
+                            title={downloadable ? `Download v${v.version}` : 'Previous-version download is disabled for this pack'}
+                          >
+                            <Download className="mr-1 h-3 w-3" /> .swu
+                          </Button>
+                        ))}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -1016,6 +1164,39 @@ export default function UpdatePackDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* Generate SWU dialog (SWU packs only) */}
+      {!isNonSwu && updatePack && (
+        <GenerateSwuDialog
+          open={isGenerateSwuOpen}
+          onOpenChange={setIsGenerateSwuOpen}
+          groupId={groupId!}
+          packName={packName!}
+          catalogArtifacts={catalogArtifacts}
+          onGenerated={() => {
+            queryClient.invalidateQueries({ queryKey: ['updatePacks', groupId] });
+            queryClient.invalidateQueries({ queryKey: ['updatePackVersions', groupId, packName] });
+            queryClient.invalidateQueries({ queryKey: ['updatePackDescriptor', groupId, packName] });
+            refetchCatalog();
+          }}
+        />
+      )}
+
+      {/* Generate Package dialog (non-SWU packs: sign + encrypt the .tar.gz) */}
+      {isNonSwu && updatePack && (
+        <GeneratePackageDialog
+          open={isGeneratePackageOpen}
+          onOpenChange={setIsGeneratePackageOpen}
+          groupId={groupId!}
+          packName={packName!}
+          catalogArtifacts={catalogArtifacts}
+          onGenerated={() => {
+            queryClient.invalidateQueries({ queryKey: ['updatePacks', groupId] });
+            queryClient.invalidateQueries({ queryKey: ['updatePackVersions', groupId, packName] });
+            refetchCatalog();
+          }}
+        />
+      )}
     </div>
   );
 }
