@@ -19,7 +19,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 import { cn } from '@/lib/utils';
 import {
@@ -116,9 +115,10 @@ interface ResponsivePanelProps {
   title: string;
   description: string;
   children: React.ReactNode;
+  sheetClassName?: string;
 }
 
-function ResponsivePanel({ open, onOpenChange, title, description, children }: ResponsivePanelProps) {
+function ResponsivePanel({ open, onOpenChange, title, description, children, sheetClassName }: ResponsivePanelProps) {
   const isMobile = useIsMobile();
   if (isMobile) {
     return (
@@ -135,7 +135,7 @@ function ResponsivePanel({ open, onOpenChange, title, description, children }: R
   }
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[480px] sm:max-w-[480px] flex flex-col p-0 overflow-hidden">
+      <SheetContent side="right" className={cn('!w-[480px] sm:!max-w-[480px] flex flex-col p-0 overflow-hidden', sheetClassName)}>
         <SheetHeader className="shrink-0 px-6 pt-6 pb-4 border-b">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
@@ -570,6 +570,7 @@ export default function CBOMPage() {
         onOpenChange={setIsScanDrawerOpen}
         title="Scan CBOM"
         description="Scan a public or authenticated Git repository and persist the resulting CBOM."
+        sheetClassName="lg:!w-[50vw] lg:!max-w-[50vw]"
       >
         <div className="space-y-5 px-6 pt-5 pb-6">
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -609,94 +610,90 @@ export default function CBOMPage() {
               </button>
 
               {advancedOptions && (
-                <Tabs defaultValue="scan" className="mt-4 w-full">
-                  <div className="border-b">
-                    <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
-                      {[
-                        { value: 'scan', label: 'Scan Settings' },
-                        { value: 'auth', label: 'Authentication' },
-                      ].map(({ value, label }) => (
-                        <TabsTrigger
-                          key={value}
-                          value={value}
-                          className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                        >
-                          {label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="adv-branch" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Branch</Label>
+                    <Input id="adv-branch" placeholder="main" value={advBranch} onChange={(e) => setAdvBranch(e.target.value)} className="h-9 text-sm" />
                   </div>
-                  <TabsContent value="scan" className="mt-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="adv-branch" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Branch</Label>
-                        <Input id="adv-branch" placeholder="main" value={advBranch} onChange={(e) => setAdvBranch(e.target.value)} className="h-9 text-sm" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="adv-subfolder" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Subfolder</Label>
-                        <Input id="adv-subfolder" placeholder="src/" value={advSubfolder} onChange={(e) => setAdvSubfolder(e.target.value)} className="h-9 text-sm" />
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="adv-subfolder" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Subfolder</Label>
+                    <Input id="adv-subfolder" placeholder="src/" value={advSubfolder} onChange={(e) => setAdvSubfolder(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="adv-username" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Username</Label>
+                    <Input id="adv-username" placeholder="username" value={advUsername} onChange={(e) => setAdvUsername(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="adv-password" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Password / Token</Label>
+                    <div className="relative">
+                      <Input
+                        id="adv-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••"
+                        value={advPassword}
+                        onChange={(e) => setAdvPassword(e.target.value)}
+                        className="h-9 pr-8 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
                     </div>
-                  </TabsContent>
-                  <TabsContent value="auth" className="mt-4 space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="adv-username" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Username</Label>
-                      <Input id="adv-username" placeholder="username" value={advUsername} onChange={(e) => setAdvUsername(e.target.value)} className="h-9 text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="adv-password" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Password Or Personal Access Token</Label>
-                      <div className="relative">
-                        <Input
-                          id="adv-password"
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="••••••"
-                          value={advPassword}
-                          onChange={(e) => setAdvPassword(e.target.value)}
-                          className="h-9 pr-8 text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((v) => !v)}
-                          className="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground hover:text-foreground"
-                          tabIndex={-1}
-                        >
-                          {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                  </div>
+                </div>
               )}
             </div>
 
             {(isScanning || scanStatus || scanGitUrl || scanDetections > 0 || scanError) && (
-              <div className={cn(
-                'rounded-lg border px-4 py-3 text-xs',
-                scanError
-                  ? 'border-destructive/40 bg-destructive/5'
-                  : scanFinished
-                    ? 'border-blue-400/40 bg-blue-50/50 dark:bg-blue-950/20'
-                    : 'border-border/60 bg-muted/20',
-              )}>
-                <div className="flex items-center gap-1.5">
+              <div className="border-t pt-4 text-xs space-y-2">
+                {/* Status line */}
+                <div className="flex items-center gap-2">
                   {isScanning && !scanError && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
-                  {scanFinished && !scanError && <Check className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
-                  <span className={cn('font-medium', scanError ? 'text-destructive' : scanFinished ? 'text-blue-600 dark:text-blue-400' : 'text-foreground')}>
-                    {scanStatus || 'Waiting...'}
+                  {scanFinished && !scanError && <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+                  {scanError && <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                  <span className={cn(
+                    'font-medium',
+                    scanError ? 'text-destructive' : scanFinished ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground',
+                  )}>
+                    {scanStatus || 'Initialising'}
                   </span>
-                  {scanError && <span className="ml-1 text-destructive">{scanError}</span>}
+                  {scanError && <span className="text-destructive/70 truncate">{scanError}</span>}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                  {scanGitUrl && <span className="truncate max-w-xs"><span className="text-foreground/60">Repo:</span> {scanGitUrl}</span>}
-                  {scanBranch && <span><span className="text-foreground/60">Branch:</span> {scanBranch}</span>}
-                  {scanRevisionHash && <span><span className="text-foreground/60">Rev:</span> {scanRevisionHash.slice(0, 10)}</span>}
-                  {scanDetections > 0 && <span><span className="text-foreground/60">Detections:</span> {scanDetections}</span>}
-                  {scanFileCount !== null && scanFileCount > 0 && <span><span className="text-foreground/60">Files:</span> {scanFileCount.toLocaleString()}</span>}
-                  {scanLineCount !== null && scanLineCount > 0 && <span><span className="text-foreground/60">Lines:</span> {scanLineCount.toLocaleString()}</span>}
-                  {scanDuration !== null && scanDuration > 0 && (
-                    <span><span className="text-foreground/60">Duration:</span> {scanDuration >= 1000 ? `${(scanDuration / 1000).toFixed(1)}s` : `${scanDuration}ms`}</span>
-                  )}
-                </div>
+
+                {/* Repo / branch / rev */}
+                {(scanGitUrl || scanBranch || scanRevisionHash) && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    {scanGitUrl && (
+                      <span className="truncate" title={scanGitUrl}>
+                        {scanGitUrl.replace(/^https?:\/\//, '')}
+                      </span>
+                    )}
+                    {scanBranch && <><span className="opacity-30">·</span><span>{scanBranch}</span></>}
+                    {scanRevisionHash && <><span className="opacity-30">·</span><span className="font-mono">{scanRevisionHash.slice(0, 7)}</span></>}
+                  </div>
+                )}
+
+                {/* Stats */}
+                {(scanDetections > 0 || (scanFileCount !== null && scanFileCount > 0) || (scanLineCount !== null && scanLineCount > 0) || (scanDuration !== null && scanDuration > 0)) && (
+                  <div className="flex items-center gap-4 text-muted-foreground">
+                    {scanDetections > 0 && (
+                      <span><span className="tabular-nums font-medium text-foreground">{scanDetections}</span> detections</span>
+                    )}
+                    {scanFileCount !== null && scanFileCount > 0 && (
+                      <span><span className="tabular-nums font-medium text-foreground">{scanFileCount.toLocaleString()}</span> files</span>
+                    )}
+                    {scanLineCount !== null && scanLineCount > 0 && (
+                      <span><span className="tabular-nums font-medium text-foreground">{scanLineCount.toLocaleString()}</span> lines</span>
+                    )}
+                    {scanDuration !== null && scanDuration > 0 && (
+                      <span><span className="tabular-nums font-medium text-foreground">{scanDuration >= 1000 ? `${(scanDuration / 1000).toFixed(1)}s` : `${scanDuration}ms`}</span></span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

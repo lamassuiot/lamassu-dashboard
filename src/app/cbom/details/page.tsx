@@ -7,7 +7,7 @@ import { fetchCBOM, deleteCBOM, CBOMItem, runComplianceCheck, type QuantumSafeCo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode, Info, Boxes } from 'lucide-react';
+import { ArrowLeft, Trash2, Download, ExternalLink, Shield, Loader2, AlertTriangle, ChevronDown, ChevronRight, Folder, FolderOpen, FileCode } from 'lucide-react';
 import {
   GraphCanvas,
   Sphere,
@@ -46,6 +46,8 @@ import { CBOMBubbleChart } from '@/components/cbom/CBOMBubbleChart';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { StatGauge } from '@/components/shared/StatGauge';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
+import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
+import { Separator } from '@/components/ui/separator';
 import {
   Background,
   Controls,
@@ -57,8 +59,9 @@ import {
 import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
 import chiperInfo from '../../../../chiper_info.json';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 type CipherStrength = 'recommended' | 'secure' | 'weak' | 'insecure' | 'unknown';
 
@@ -375,7 +378,7 @@ const getAssetFilterValue = (asset: CBOMAsset, column: FilterColumn): string => 
 
 function CBOMDetailsContent() {
   const searchParams = useSearchParams();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [cbom, setCbom] = useState<CBOMItem | null>(null);
@@ -790,9 +793,6 @@ function CBOMDetailsContent() {
   }, [detailsData, complianceFindingsMap, complianceResult]);
 
   const cbomTypeLabel = isRealtimeCBOM ? 'Realtime capture' : 'Repository scan';
-  const accentBarClass = isRealtimeCBOM
-    ? 'bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500'
-    : 'bg-gradient-to-r from-cyan-500 via-blue-500 to-emerald-500';
   const cbomTypePillClass = isRealtimeCBOM
     ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
     : 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300';
@@ -819,7 +819,7 @@ function CBOMDetailsContent() {
     },
   ];
 
-  if (!isAuthenticated()) {
+  if (!isLoggedIn) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Card className="w-96">
@@ -888,297 +888,246 @@ function CBOMDetailsContent() {
   }
 
   return (
-    <div className="w-full space-y-5">
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className={cn('h-1 w-full', accentBarClass)} />
-        <div className="p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Shield className="h-6 w-6" />
+    <BreadcrumbPage
+      className="space-y-5"
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'CBOM', href: '/cbom' },
+        {
+          label: (
+            <Badge variant="default" className="text-xs">
+              {detailsData?.projectIdentifier || cbom.projectIdentifier}
+            </Badge>
+          ),
+        },
+      ]}
+    >
+
+      {/* ── Hero + Tabs (flush, no space-y gap between them) ── */}
+      <div className="flex flex-col">
+
+      {/* ── Hero ── */}
+      <div className="pb-5">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+
+          {/* Identity */}
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Shield className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <h1 className="truncate text-2xl font-semibold tracking-tight" title={detailsData?.projectIdentifier || cbom.projectIdentifier}>
+                  {detailsData?.projectIdentifier || cbom.projectIdentifier}
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Inspect cryptographic assets, dependencies, network exposure, and compliance results for this CBOM.
+                </p>
               </div>
-              <div className="min-w-0 space-y-2">
-                <div>
-                  <h1 className="truncate text-2xl font-semibold tracking-tight" title={detailsData?.projectIdentifier || cbom.projectIdentifier}>
-                    {detailsData?.projectIdentifier || cbom.projectIdentifier}
-                  </h1>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Inspect cryptographic assets, dependencies, network exposure, and compliance results for this CBOM.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold', cbomTypePillClass)}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-                    {cbomTypeLabel.toUpperCase()}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={cn('inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium', cbomTypePillClass)}>
+                  <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+                  {cbomTypeLabel.toUpperCase()}
+                </span>
+                <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">CycloneDX</span>
+                {detailsData?.gitUrl && (
+                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground max-w-[320px] truncate">
+                    {detailsData.gitUrl}
+                  </span>
+                )}
+                {detailsData?.branch && (
+                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    branch: {detailsData.branch}
+                  </span>
+                )}
+                {detailsData?.commit && (
+                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground">
+                    commit: {typeof detailsData.commit === 'string' ? detailsData.commit.slice(0, 8) : detailsData.commit}
+                  </span>
+                )}
+                {detailsData?.createdAt && (
+                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    scanned
+                    <DateDisplay date={detailsData.createdAt} formatString="dd/MM/yyyy HH:mm" showRelative={false} className="ml-1" />
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions + Stats */}
+          <div className="flex flex-col gap-4 xl:flex-1 xl:pl-6 xl:border-l">
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 xl:justify-end">
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+
+            {/* Stats */}
+            <div>
+              <div className="grid gap-4 sm:grid-cols-4">
+                {heroSummaryCards.map((item, index) => (
+                  <div key={item.label} className={cn('px-1 sm:px-4', index > 0 && 'sm:border-l')}>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
+                    <p className="text-xs text-muted-foreground">{item.hint}</p>
                   </div>
-                  <Badge variant="secondary" className="text-xs">CycloneDX</Badge>
-                  {detailsData?.gitUrl && (
-                    <Badge variant="outline" className="max-w-[320px] truncate font-mono text-xs">
-                      {detailsData.gitUrl}
-                    </Badge>
-                  )}
-                  {detailsData?.branch && (
-                    <Badge variant="outline" className="text-xs">
-                      branch: {detailsData.branch}
-                    </Badge>
-                  )}
-                  {detailsData?.commit && (
-                    <Badge variant="outline" className="font-mono text-xs">
-                      commit: {typeof detailsData.commit === 'string' ? detailsData.commit.slice(0, 8) : detailsData.commit}
-                    </Badge>
-                  )}
-                  {detailsData?.createdAt && (
-                    <Badge variant="outline" className="text-xs">
-                      scanned
-                      <DateDisplay date={detailsData.createdAt} formatString="dd/MM/yyyy HH:mm" showRelative={false} className="ml-1" />
-                    </Badge>
-                  )}
-                </div>
+                ))}
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-4 xl:min-w-[500px]">
-              {heroSummaryCards.map((item, index) => (
-                <div key={item.label} className={cn('px-1 sm:px-4', index > 0 && 'sm:border-l')}>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                  <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
-                  <p className="text-xs text-muted-foreground">{item.hint}</p>
-                </div>
-              ))}
-            </div>
           </div>
-          <div className="mt-5 flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="mr-2 h-4 w-4" />
-              Download
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
-          </div>
+
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'assets')} className="w-full">
-        <div className="border-b">
-          <TabsList className="h-auto w-full justify-start gap-0 rounded-none bg-transparent p-0">
+        <div className="border-b overflow-x-auto overflow-y-hidden">
+          <TabsList className={cn(pageTabsListClass, "min-w-max")}>
             {[
-              { value: 'overview', icon: Info, label: 'Overview' },
-              { value: 'assets', icon: Boxes, label: 'Assets' },
-            ].map(({ value, icon: Icon, label }) => (
+              { value: 'overview', label: 'Overview' },
+              { value: 'assets', label: 'Assets' },
+            ].map(({ value, label }) => (
               <TabsTrigger
                 key={value}
                 value={value}
-                className="relative h-10 gap-2 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                className={pageTabsTriggerClass}
               >
-                <Icon className="h-4 w-4" />
                 {label}
               </TabsTrigger>
             ))}
           </TabsList>
         </div>
 
-        <div className="mt-6 pb-2">
+        <div className="pb-6">
           <TabsContent value="overview" className="mt-0">
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-              <div className="space-y-6">
-                <Card className="overflow-hidden rounded-xl shadow-sm">
-                  <CardHeader className="border-b py-4">
-                    <CardTitle className="flex items-center text-lg">
-                      <Info className="mr-3 h-5 w-5 text-primary" />
-                      Project Snapshot
-                    </CardTitle>
-                    <CardDescription>Core source and scan metadata for this CBOM.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="divide-y">
-                      <div className="py-3 first:pt-0">
-                        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Package</Label>
-                        <p className="mt-2 break-all text-sm font-medium">{detailsData?.projectIdentifier || cbom.projectIdentifier}</p>
-                      </div>
-                      <div className="py-3">
-                        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Source</Label>
-                        <p className="mt-2 break-all font-mono text-xs">{detailsData?.gitUrl || 'Not available'}</p>
-                      </div>
-                      <div className="grid gap-0 sm:grid-cols-3">
-                        <div className="py-3 sm:pr-4">
-                          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Branch</Label>
-                          <p className="mt-2 text-sm font-medium">{detailsData?.branch || '—'}</p>
-                        </div>
-                        <div className="py-3 sm:border-l sm:px-4">
-                          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Commit</Label>
-                          <p className="mt-2 font-mono text-xs">{typeof detailsData?.commit === 'string' ? detailsData.commit : '—'}</p>
-                        </div>
-                        <div className="py-3 sm:border-l sm:pl-4">
-                          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Captured</Label>
-                          <div className="mt-2 text-sm font-medium">
-                            {detailsData?.createdAt ? (
-                              <DateDisplay date={detailsData.createdAt} formatString="dd/MM/yyyy HH:mm" showRelative={false} />
-                            ) : (
-                              '—'
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
 
-                <Card className="overflow-hidden rounded-xl shadow-sm">
-                  <CardHeader className="border-b py-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <Shield className="h-5 w-5 text-primary" />
-                          Compliance Analysis
-                          {complianceResult && (
-                            <span
-                              className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                                complianceResult.globalComplianceStatus
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                              }`}
-                            >
-                              {complianceResult.globalComplianceStatus ? 'Compliant' : 'Non-Compliant'}
-                            </span>
-                          )}
-                        </CardTitle>
-                        {complianceResult ? (
-                          <CardDescription>
-                            {complianceResult.complianceServiceName} · Policy <span className="font-medium">{complianceResult.policyName}</span>
-                          </CardDescription>
-                        ) : (
-                          <CardDescription>Check cryptographic assets against a compliance policy.</CardDescription>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Select value={compliancePolicyId} onValueChange={setCompliancePolicyId}>
-                          <SelectTrigger className="h-9 w-44 text-sm">
-                            <SelectValue placeholder="Policy ID" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="quantum_safe">quantum_safe</SelectItem>
-                            <SelectItem value="pqc">pqc</SelectItem>
-                            <SelectItem value="eccg_v2">eccg_v2</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          onClick={handleCheckCompliance}
-                          disabled={isCheckingCompliance || !compliancePolicyId || !detailsData?.bom}
-                        >
-                          {isCheckingCompliance ? (
-                            <>
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                              Checking...
-                            </>
-                          ) : (
-                            <>
-                              <Shield className="mr-1.5 h-3.5 w-3.5" />
-                              Check
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {complianceResult ? (
-                      <>
-                        <div className="flex flex-wrap gap-3">
-                          {complianceResult.complianceLevels.map((level) => {
-                            const count = Array.from(complianceFindingsMap.values()).filter((id) => id === level.id).length;
-                            return (
-                              <div
-                                key={level.id}
-                                className="flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5"
-                                style={{ borderColor: `${level.colorHex}88` }}
-                              >
-                                <span
-                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                  style={{ background: level.colorHex }}
-                                />
-                                <div>
-                                  <p className="text-sm font-medium leading-none">{level.label}</p>
-                                  <p className="mt-1 text-xs text-muted-foreground">
-                                    {count} asset{count !== 1 ? 's' : ''}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {!complianceResult.globalComplianceStatus && (
-                          <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2.5 dark:border-yellow-800 dark:bg-yellow-900/20">
-                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
-                            <p className="text-xs text-yellow-800 dark:text-yellow-300">
-                              This project contains asymmetric cryptographic algorithms that are not quantum-safe. Review the highlighted assets in the table and dependency graph below.
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="rounded-lg border border-dashed bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
-                        Run a compliance check to compare this CBOM against a policy.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+            {/* Source */}
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+              <div>
+                <p className="font-semibold">Source</p>
+                <p className="text-sm text-muted-foreground mt-1">Repository and scan identity for this CBOM.</p>
               </div>
-
-              <div className="space-y-6">
-                <Card className="overflow-hidden rounded-xl shadow-sm">
-                  <CardHeader className="border-b py-4">
-                    <CardTitle className="flex items-center text-lg">
-                      <Boxes className="mr-3 h-5 w-5 text-primary" />
-                      Distribution & Coverage
-                    </CardTitle>
-                    <CardDescription>Quick visual signals for asset spread and identifier completeness.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
-                    <div className="flex justify-center rounded-lg border bg-muted/10 px-4 py-4">
-                      <StatGauge
-                        percentage={oidCoverage}
-                        label="OID Coverage"
-                        color="hsl(var(--chart-5))"
-                        valueText={`${Math.round(oidCoverage)}%`}
-                        secondaryText={`${assetsWithOid}/${assets.length || 0}`}
-                        className="flex flex-col items-center gap-1 text-center"
-                      />
-                    </div>
-                    {assets.length > 0 ? (
-                      <div className="rounded-lg border bg-background px-3 py-4">
-                        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Asset distribution</p>
-                        <CBOMBubbleChart assets={assets} height={180} />
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-dashed bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
-                        No cryptographic assets available for charting.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+              <div className="lg:col-span-2">
+                <DetailInfoRows>
+                  <DetailInfoRow
+                    label="Package"
+                    value={detailsData?.projectIdentifier || cbom.projectIdentifier}
+                    className="first:pt-0"
+                  />
+                  <DetailInfoRow
+                    label="Repository"
+                    value={<span className="break-all">{detailsData?.gitUrl || '-'}</span>}
+                  />
+                  <DetailInfoRow
+                    label="Branch"
+                    value={detailsData?.branch || '-'}
+                  />
+                  <DetailInfoRow
+                    label="Commit"
+                    value={<span className="font-mono text-xs">{typeof detailsData?.commit === 'string' ? detailsData.commit : '-'}</span>}
+                  />
+                  <DetailInfoRow
+                    label="Captured"
+                    value={detailsData?.createdAt
+                      ? <DateDisplay date={detailsData.createdAt} formatString="dd/MM/yyyy HH:mm" />
+                      : '-'
+                    }
+                    className="last:pb-0"
+                  />
+                </DetailInfoRows>
               </div>
             </div>
+
+            <Separator />
+
+            {/* Coverage */}
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+              <div>
+                <p className="font-semibold">Coverage</p>
+                <p className="text-sm text-muted-foreground mt-1">OID identifier completeness and asset type spread.</p>
+              </div>
+              <div className="lg:col-span-2 space-y-6">
+                {assets.length > 0 ? (
+                  <CBOMBubbleChart assets={assets} height={220} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">No cryptographic assets found.</p>
+                )}
+                <DetailInfoRows>
+                  <DetailInfoRow
+                    label="OID Coverage"
+                    value={
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">{Math.round(oidCoverage)}%</span>
+                        <span className="text-xs text-muted-foreground">({assetsWithOid} of {assets.length || 0} assets have an OID)</span>
+                      </div>
+                    }
+                    className="first:pt-0"
+                  />
+                  <DetailInfoRow
+                    label="Total Assets"
+                    value={assets.length}
+                    className="last:pb-0"
+                  />
+                </DetailInfoRows>
+              </div>
+            </div>
+
           </TabsContent>
 
           <TabsContent value="assets" className="mt-0">
-            <Card className="overflow-hidden rounded-xl shadow-sm">
-              <CardHeader className="border-b py-4">
+            <div className="space-y-4">
+
+              {/* Assets + Compliance merged header */}
+              <div>
+              <div className="border-b pb-3 mb-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
-                    <CardTitle className="flex items-center text-lg">
-                      <Boxes className="mr-3 h-5 w-5 text-primary" />
+                    <h2 className="text-base font-semibold">
                       Cryptographic Assets
-                    </CardTitle>
-                    <CardDescription>
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {Object.values(selectedFilters).some((f) => f.length > 0)
                         ? `${filteredAssets.length} of ${totalAssets} assets currently visible`
                         : `${totalAssets} assets available in this CBOM`}
-                    </CardDescription>
+                    </p>
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
+                    {/* Compliance controls */}
+                    <Select value={compliancePolicyId} onValueChange={setCompliancePolicyId}>
+                      <SelectTrigger className="h-9 w-44 text-sm">
+                        <SelectValue placeholder="Policy ID" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="quantum_safe">quantum_safe</SelectItem>
+                        <SelectItem value="pqc">pqc</SelectItem>
+                        <SelectItem value="eccg_v2">eccg_v2</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      onClick={handleCheckCompliance}
+                      disabled={isCheckingCompliance || !compliancePolicyId || !detailsData?.bom}
+                    >
+                      {isCheckingCompliance ? (
+                        <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Checking...</>
+                      ) : (
+                        <>Check compliance</>
+                      )}
+                    </Button>
+
                     {assetViewMode === 'table' && (
                       <div className="flex items-center gap-2">
                         <Switch
@@ -1219,8 +1168,45 @@ function CBOMDetailsContent() {
                     </div>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              </div>
+
+              {/* Compliance results */}
+              {complianceResult ? (
+                <div className="space-y-3 mb-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                      complianceResult.globalComplianceStatus
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                    }`}>
+                      {complianceResult.globalComplianceStatus ? 'Compliant' : 'Non-Compliant'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {complianceResult.complianceServiceName} · Policy <span className="font-medium text-foreground">{complianceResult.policyName}</span>
+                    </span>
+                    <div className="flex flex-wrap gap-2 ml-2">
+                      {complianceResult.complianceLevels.map((level) => {
+                        const count = Array.from(complianceFindingsMap.values()).filter((id) => id === level.id).length;
+                        return (
+                          <span key={level.id} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs" style={{ borderColor: `${level.colorHex}88`, color: level.colorHex }}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                            {level.label} · {count}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {!complianceResult.globalComplianceStatus && (
+                    <div className="flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2.5 dark:border-yellow-800 dark:bg-yellow-900/20">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
+                      <p className="text-xs text-yellow-800 dark:text-yellow-300">
+                        This project contains asymmetric cryptographic algorithms that are not quantum-safe. Review the highlighted assets below.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+              <div className="space-y-4">
                 <div>
           {assets.length === 0 ? (
             <p className="text-sm text-muted-foreground">No cryptographic assets found in this CBOM.</p>
@@ -1588,7 +1574,7 @@ function CBOMDetailsContent() {
                                 </TableCell>
                                 <TableCell>
                                   {!complianceResult || !level ? (
-                                    <span className="text-muted-foreground text-xs">—</span>
+                                    <span className="text-muted-foreground text-xs">-</span>
                                   ) : (
                                     <span
                                       className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border"
@@ -1618,18 +1604,18 @@ function CBOMDetailsContent() {
                                             <tr key={i} className="border-b last:border-0">
                                               <td className="px-3 py-1.5 font-mono text-primary">
                                                 <span className="inline-flex items-center gap-1">
-                                                  {occ?.location || '—'}
+                                                  {occ?.location || '-'}
                                                   <ExternalLink className="h-3 w-3 shrink-0" />
                                                 </span>
                                               </td>
                                               <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                                                {occ?.line ?? '—'}
+                                                {occ?.line ?? '-'}
                                               </td>
                                               <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                                                {occ?.offset ?? '—'}
+                                                {occ?.offset ?? '-'}
                                               </td>
                                               <td className="px-3 py-1.5 text-muted-foreground">
-                                                {occ?.additionalContext || '—'}
+                                                {occ?.additionalContext || '-'}
                                               </td>
                                             </tr>
                                           ))}
@@ -1677,7 +1663,7 @@ function CBOMDetailsContent() {
                               </TableCell>
                               <TableCell>
                                 {!complianceResult || !level ? (
-                                  <span className="text-muted-foreground text-xs">—</span>
+                                  <span className="text-muted-foreground text-xs">-</span>
                                 ) : (
                                   <span
                                     className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border"
@@ -1696,11 +1682,14 @@ function CBOMDetailsContent() {
             </div>
           )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>{/* end Assets */}
+            </div>{/* end space-y-6 */}
           </TabsContent>
         </div>
       </Tabs>
+
+      </div>{/* end Hero + Tabs wrapper */}
 
       <CBOMAssetDetailDialog
         asset={selectedAsset}
@@ -1725,7 +1714,7 @@ function CBOMDetailsContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }
 

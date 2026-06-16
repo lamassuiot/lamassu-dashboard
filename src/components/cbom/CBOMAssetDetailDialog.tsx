@@ -3,9 +3,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import type * as MonacoTypes from 'monaco-editor';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetDescription,
+} from '@/components/ui/sheet';
 import { ExternalLink } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import {
     Table,
     TableBody,
@@ -76,18 +83,16 @@ const getComplianceInfo = (asset: CBOMAssetDetail): ComplianceInfo => {
     if (isSymmetricOrNonAlgorithm) {
         return {
             policy: 'quantum_safe',
-            summary: 'Not Applicable: we only categorize asymmetric algorithms',
-            details:
-                'The asset has a symmetric primitive, so the Quantum Safe categorization is not applicable',
-            category: 'Not Applicable',
+            summary: 'Not Applicable',
+            details: 'Symmetric primitives are not subject to Quantum Safe categorization.',
+            category: 'N/A',
         };
     }
 
     return {
         policy: 'quantum_safe',
-        summary: 'Asymmetric algorithm — quantum safety not yet determined',
-        details:
-            'This asymmetric algorithm should be reviewed against quantum-safe standards (e.g. NIST PQC).',
+        summary: 'Needs Review',
+        details: 'This asymmetric algorithm should be reviewed against quantum-safe standards (e.g. NIST PQC).',
         category: 'Unknown',
     };
 };
@@ -95,39 +100,20 @@ const getComplianceInfo = (asset: CBOMAssetDetail): ComplianceInfo => {
 const getLanguageFromFilePath = (filePath: string): string => {
     const ext = filePath.split('.').pop()?.toLowerCase() || '';
     const languageMap: Record<string, string> = {
-        ts: 'typescript',
-        tsx: 'typescript',
-        js: 'javascript',
-        jsx: 'javascript',
-        py: 'python',
-        go: 'go',
-        java: 'java',
-        rs: 'rust',
-        c: 'c',
-        cpp: 'cpp',
-        cs: 'csharp',
-        rb: 'ruby',
-        php: 'php',
-        sh: 'shell',
-        yaml: 'yaml',
-        yml: 'yaml',
-        json: 'json',
-        xml: 'xml',
-        html: 'html',
-        css: 'css',
-        md: 'markdown',
-        kt: 'kotlin',
-        swift: 'swift',
-        scala: 'scala',
+        ts: 'typescript', tsx: 'typescript',
+        js: 'javascript', jsx: 'javascript',
+        py: 'python', go: 'go', java: 'java', rs: 'rust',
+        c: 'c', cpp: 'cpp', cs: 'csharp', rb: 'ruby',
+        php: 'php', sh: 'shell', yaml: 'yaml', yml: 'yaml',
+        json: 'json', xml: 'xml', html: 'html', css: 'css',
+        md: 'markdown', kt: 'kotlin', swift: 'swift', scala: 'scala',
     };
     return languageMap[ext] || 'plaintext';
 };
 
 const capitalizeWords = (value: string): string => {
     if (!value) return value;
-    return value
-        .replace(/-/g, ' ')
-        .replace(/\b\w/g, (char) => char.toUpperCase());
+    return value.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
 const buildGitHubRawUrl = (gitUrl: string, location: string, branch: string): string | null => {
@@ -188,10 +174,7 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
     }, [applyDecorations]);
 
     const handleEditorMount: OnMount = (editor, monaco) => {
-        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-            validate: false,
-        });
-
+        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({ validate: false });
         editorRef.current = editor;
         monacoRef.current = monaco;
         applyDecorations();
@@ -212,10 +195,9 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
             additionalContext?: string;
         };
 
-        const viewUrl =
-            gitUrl
-                ? (buildGitHubViewUrl(gitUrl, location, targetLine, branch || 'main') ?? undefined)
-                : undefined;
+        const viewUrl = gitUrl
+            ? (buildGitHubViewUrl(gitUrl, location, targetLine, branch || 'main') ?? undefined)
+            : undefined;
 
         const rawUrl = gitUrl ? buildGitHubRawUrl(gitUrl, location, branch || 'main') : null;
 
@@ -256,12 +238,13 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
     if (!asset) return null;
 
     const firstOccurrence = asset.evidence?.occurrences?.[0];
+    const allOccurrences = asset.evidence?.occurrences ?? [];
     const assetTypeLabel = capitalizeWords(
         asset.cryptoProperties?.assetType || asset.type || 'Asset',
     );
     const complianceInfo = getComplianceInfo(asset);
 
-    const specRows: Array<{ label: string; value: string }> = [
+    const specFields: Array<{ label: string; value: string; mono?: boolean; wide?: boolean }> = [
         {
             label: 'Asset Type',
             value: capitalizeWords(asset.cryptoProperties?.assetType || '-'),
@@ -273,8 +256,9 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
         ...(asset.cryptoProperties?.algorithmProperties?.parameterSetIdentifier
             ? [
                 {
-                    label: 'Parameter Set Identifier',
+                    label: 'Parameter Set',
                     value: asset.cryptoProperties.algorithmProperties.parameterSetIdentifier,
+                    mono: true,
                 },
             ]
             : []),
@@ -285,145 +269,224 @@ export const CBOMAssetDetailDialog: React.FC<CBOMAssetDetailDialogProps> = ({
                     value: asset.cryptoProperties.algorithmProperties.cryptoFunctions
                         .map(capitalizeWords)
                         .join(', '),
+                    wide: true,
                 },
             ]
             : []),
         ...(asset.cryptoProperties?.oid
-            ? [{ label: 'OID', value: asset.cryptoProperties.oid }]
+            ? [{ label: 'OID', value: asset.cryptoProperties.oid, mono: true }]
             : []),
-        ...(asset['bom-ref'] ? [{ label: 'BOM Reference', value: asset['bom-ref'] }] : []),
+        ...(asset['bom-ref']
+            ? [{ label: 'BOM Reference', value: asset['bom-ref'], mono: true, wide: true }]
+            : []),
     ];
 
+    const isCompliant = complianceInfo.category === 'N/A';
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 gap-0 [&>button]:hidden">
-                {/* Header */}
-                <div className="px-6 pt-6 pb-4">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        {assetTypeLabel}
-                    </p>
-                    <h2 className="text-2xl font-semibold mt-0.5">{asset.name || '-'}</h2>
-                </div>
-
-                <Separator />
-
-                {/* Code section */}
-                {firstOccurrence?.location && (
-                    <>
-                        <div className="px-6 py-4 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-semibold">Code</h3>
-                                {codeContext?.viewUrl && (
-                                    <a
-                                        href={codeContext.viewUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                                    >
-                                        View code
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                    </a>
+        <Sheet open={open} onOpenChange={onOpenChange}>
+            <SheetContent
+                side="right"
+                className="flex flex-col gap-0 p-0 sm:!w-[50vw] sm:!max-w-none overflow-hidden"
+            >
+                {/* Sticky header */}
+                <SheetHeader className="shrink-0 px-6 py-5 border-b bg-background">
+                    <div className="flex items-start gap-3 pr-8">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <Badge variant="secondary" className="text-xs font-medium">
+                                    {assetTypeLabel}
+                                </Badge>
+                                {asset.cryptoProperties?.algorithmProperties?.primitive && (
+                                    <span className="text-xs text-muted-foreground">
+                                        {capitalizeWords(asset.cryptoProperties.algorithmProperties.primitive)}
+                                    </span>
                                 )}
                             </div>
-
-                            <div className="rounded-md overflow-hidden border border-border/50">
-                                {isLoadingCode ? (
-                                    <div className="bg-[#1e1e1e] px-4 py-5 font-mono text-xs text-[#858585]">Loading code…</div>
-                                ) : codeContext ? (
-                                    <Editor
-                                        height="200px"
-                                        language={getLanguageFromFilePath(firstOccurrence.location)}
-                                        value={codeContext.lines.map((l) => l.content).join('\n')}
-                                        theme="vs-dark"
-                                        options={{
-                                            readOnly: true,
-                                            minimap: { enabled: false },
-                                            scrollBeyondLastLine: false,
-                                            lineNumbers: (n) =>
-                                                String((codeContext.lines[0]?.number ?? 1) + n - 1),
-                                            folding: false,
-                                            contextmenu: false,
-                                            renderLineHighlight: 'none',
-                                            fontSize: 12,
-                                            lineDecorationsWidth: 4,
-                                            overviewRulerLanes: 0,
-                                            overviewRulerBorder: false,
-                                            renderValidationDecorations: 'off',
-                                            scrollbar: {
-                                                vertical: 'hidden',
-                                                horizontal: 'auto',
-                                                alwaysConsumeMouseWheel: false,
-                                            },
-                                        }}
-                                        onMount={handleEditorMount}
-                                    />
-                                ) : (
-                                    <div className="bg-[#1e1e1e] px-4 py-3 font-mono text-xs text-[#858585]">
-                                        {firstOccurrence.location}
-                                        {firstOccurrence.line != null ? `:${firstOccurrence.line}` : ''}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <Separator />
-                    </>
-                )}
-
-                {/* Compliance section */}
-                <div className="px-6 py-4 space-y-3">
-                    <h3 className="text-sm font-semibold">Compliance</h3>
-
-                    <div className="flex items-start gap-2">
-                        <span className="shrink-0 mt-0.5 text-muted-foreground font-bold">—</span>
-                        <div>
-                            <p className="text-sm">{complianceInfo.summary}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                                Policy: {complianceInfo.policy}
-                            </p>
+                            <SheetTitle className="text-lg font-semibold leading-snug">
+                                {asset.name || '-'}
+                            </SheetTitle>
+                            {asset['bom-ref'] && (
+                                <SheetDescription className="mt-0.5 font-mono text-[11px] truncate">
+                                    {asset['bom-ref']}
+                                </SheetDescription>
+                            )}
                         </div>
                     </div>
+                </SheetHeader>
 
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Compliance Information</TableHead>
-                                <TableHead className="w-36">Category</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow>
-                                <TableCell className="text-sm">{complianceInfo.details}</TableCell>
-                                <TableCell className="text-sm font-medium">{complianceInfo.category}</TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </div>
+                {/* Scrollable body */}
+                <div className="flex-1 overflow-y-auto">
 
-                <Separator />
-
-                {/* Specification section */}
-                <div className="px-6 py-4 pb-6 space-y-3">
-                    <h3 className="text-sm font-semibold">Specification</h3>
-
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-48">Type</TableHead>
-                                <TableHead>Value</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {specRows.map((row) => (
-                                <TableRow key={row.label}>
-                                    <TableCell className="text-sm text-muted-foreground">{row.label}</TableCell>
-                                    <TableCell className="text-sm font-mono break-all">{row.value}</TableCell>
-                                </TableRow>
+                    {/* Specification */}
+                    <section className="px-6 py-5">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-4">
+                            Specification
+                        </h3>
+                        <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+                            {specFields.map((field) => (
+                                <div key={field.label} className={field.wide ? 'col-span-2' : ''}>
+                                    <dt className="text-xs text-muted-foreground mb-0.5">{field.label}</dt>
+                                    <dd className={`text-sm font-medium break-all${field.mono ? ' font-mono' : ''}`}>
+                                        {field.value}
+                                    </dd>
+                                </div>
                             ))}
-                        </TableBody>
-                    </Table>
+                        </dl>
+                    </section>
+
+                    <Separator />
+
+                    {/* Compliance */}
+                    <section className="px-6 py-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                Compliance
+                            </h3>
+                            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                                Policy: {complianceInfo.policy}
+                            </span>
+                        </div>
+                        <div className={`rounded-lg border px-4 py-3 ${isCompliant
+                            ? 'border-muted bg-muted/20'
+                            : 'border-yellow-500/30 bg-yellow-500/5'
+                            }`}>
+                            <p className={`text-sm font-medium mb-1 ${isCompliant ? '' : 'text-yellow-700 dark:text-yellow-400'}`}>
+                                {complianceInfo.summary}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{complianceInfo.details}</p>
+                        </div>
+                    </section>
+
+                    {/* Locations */}
+                    {allOccurrences.length > 0 && (
+                        <>
+                            <Separator />
+                            <section className="px-6 py-5">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                        Locations
+                                    </h3>
+                                    <span className="text-[10px] font-medium text-muted-foreground">
+                                        {allOccurrences.length} occurrence{allOccurrences.length !== 1 ? 's' : ''}
+                                    </span>
+                                </div>
+
+                                {/* Code snippet for first occurrence */}
+                                {firstOccurrence?.location && (
+                                    <div className="mb-4">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="font-mono text-xs text-muted-foreground truncate">
+                                                {firstOccurrence.location}
+                                                {firstOccurrence.line != null ? `:${firstOccurrence.line}` : ''}
+                                            </span>
+                                            {codeContext?.viewUrl && (
+                                                <a
+                                                    href={codeContext.viewUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="ml-2 shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                                >
+                                                    View
+                                                    <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            )}
+                                        </div>
+                                        <div className="rounded-md overflow-hidden border border-border/50">
+                                            {isLoadingCode ? (
+                                                <div className="bg-[#1e1e1e] px-4 py-5 font-mono text-xs text-[#858585]">
+                                                    Loading code…
+                                                </div>
+                                            ) : codeContext ? (
+                                                <Editor
+                                                    height="180px"
+                                                    language={getLanguageFromFilePath(firstOccurrence.location)}
+                                                    value={codeContext.lines.map((l) => l.content).join('\n')}
+                                                    theme="vs-dark"
+                                                    options={{
+                                                        readOnly: true,
+                                                        minimap: { enabled: false },
+                                                        scrollBeyondLastLine: false,
+                                                        lineNumbers: (n) =>
+                                                            String((codeContext.lines[0]?.number ?? 1) + n - 1),
+                                                        folding: false,
+                                                        contextmenu: false,
+                                                        renderLineHighlight: 'none',
+                                                        fontSize: 12,
+                                                        lineDecorationsWidth: 4,
+                                                        overviewRulerLanes: 0,
+                                                        overviewRulerBorder: false,
+                                                        renderValidationDecorations: 'off',
+                                                        scrollbar: {
+                                                            vertical: 'hidden',
+                                                            horizontal: 'auto',
+                                                            alwaysConsumeMouseWheel: false,
+                                                        },
+                                                    }}
+                                                    onMount={handleEditorMount}
+                                                />
+                                            ) : (
+                                                <div className="bg-[#1e1e1e] px-4 py-3 font-mono text-xs text-[#858585]">
+                                                    {firstOccurrence.location}
+                                                    {firstOccurrence.line != null ? `:${firstOccurrence.line}` : ''}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Location</TableHead>
+                                            <TableHead className="w-16 text-right">Line</TableHead>
+                                            <TableHead className="w-16 text-right">Offset</TableHead>
+                                            <TableHead className="w-36">Context</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {allOccurrences.map((occ, i) => {
+                                            const viewUrl =
+                                                gitUrl && occ.location && occ.line != null
+                                                    ? (buildGitHubViewUrl(gitUrl, occ.location, occ.line, branch || 'main') ?? undefined)
+                                                    : undefined;
+                                            return (
+                                            <TableRow key={i}>
+                                                <TableCell className="font-mono text-xs text-primary max-w-0 truncate">
+                                                    {viewUrl ? (
+                                                        <a
+                                                            href={viewUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 hover:underline"
+                                                        >
+                                                            {occ.location || '—'}
+                                                            <ExternalLink className="h-3 w-3 shrink-0" />
+                                                        </a>
+                                                    ) : (
+                                                        occ.location || '—'
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right tabular-nums text-muted-foreground text-xs">
+                                                    {occ.line ?? '—'}
+                                                </TableCell>
+                                                <TableCell className="text-right tabular-nums text-muted-foreground text-xs">
+                                                    {occ.offset ?? '—'}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-muted-foreground truncate max-w-0">
+                                                    {occ.additionalContext || '—'}
+                                                </TableCell>
+                                            </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </section>
+                        </>
+                    )}
+
                 </div>
-            </DialogContent>
-        </Dialog>
+            </SheetContent>
+        </Sheet>
     );
 };
