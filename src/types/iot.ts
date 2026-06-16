@@ -17,6 +17,22 @@ export interface DeviceUpdateEvent {
   logUrl?: string;
 }
 
+// A single launch precondition: a device must already have `required_pack_name` installed at a
+// version >= `min_version` to qualify (API-facing, snake_case).
+export interface LaunchPrecondition {
+  required_pack_name: string;
+  min_version: string;
+}
+
+// A device that did not satisfy a precondition (used in dry-run/create responses and persisted on
+// the launch). `current_version` is "" when the pack is not installed; `required` is ">=<min>".
+export interface PreconditionFailure {
+  device_id: string;
+  pack_name: string;
+  current_version: string;
+  required: string;
+}
+
 // Used by UpdateStrategyForm (camelCase)
 export interface UpdateStrategy {
   id?: string; // ID will be generated if not provided (e.g., when creating new)
@@ -26,13 +42,17 @@ export interface UpdateStrategy {
   testDeviceId?: string;
   updatePackId?: string; // This will store the ID of the update pack
   auto?: boolean; // Auto mode toggle
+  approvalThreshold?: number; // % of batch that must succeed before next batch (auto only)
+  errorThreshold?: number; // % of all devices that can fail before aborting (auto only)
+  preconditions?: LaunchPrecondition[];
 }
 
 export interface ApiCreateUpdatePackPayload {
   name: string;
-  version: number;
+  version: string; // semver (x.y.z), set by the developer
   group_id: string; // dms_id is part of the payload to the external API
   type: string;
+  packaging?: string; // 'swu' (default, build+sign an SWU) or 'non-swu' (raw download-install)
   allow_previous_version_download?: boolean; // enable downloading previous (snapshotted) versions
 }
 
@@ -41,8 +61,11 @@ export type EncryptionMode = '' | 'shared' | 'per-device';
 export interface UpdatePack {
   id: string;
   name: string;
-  version: number;
+  group_id?: string; // owning device group; present on fleet-wide (/updatepacks) responses
+  version: string; // semver (x.y.z)
   type: 'rawfile' | 'firmware' | string; // Allow string for other potential types
+  packaging?: 'swu' | 'non-swu' | string; // delivery mode: 'swu' builds/signs an SWU; 'non-swu' delivers raw artifacts
+  status?: 'draft' | 'built' | string; // build lifecycle of the current version (URI remains the download link)
   descriptorFileName?: string;
   descriptorContent?: string; // Added for viewing descriptor
   uri?: string;
@@ -75,7 +98,7 @@ export interface ArtifactRef {
 export interface PackArtifactRef {
   update_pack_id: string;
   pack_name: string;
-  pack_version: number;
+  pack_version: string;
   group_id: string;
 }
 
@@ -101,7 +124,7 @@ export interface UpdatePackVersion {
   update_pack_id: string;
   group_id: string;
   name: string;
-  version: number;
+  version: string;
   uri?: string;
   type?: string;
   checksum?: string;
@@ -117,51 +140,62 @@ export interface UpdatePackVersion {
   created_at?: string;
 }
 
-// --- Device firmware/artifact inventory ---
-
-export type ArtifactVersionStatus = 'active' | 'inactive' | 'backup';
-
-// One artifact/firmware version present on a device. A device has many; for A/B devices an
-// artifact can have an 'active' and a 'backup' slot. The 'active' row is the current version.
-export interface DeviceArtifactVersion {
-  id: string;
-  device_id: string;
-  artifact_name: string;
-  version: string;
-  checksum?: string;
-  status: ArtifactVersionStatus;
-  installed_at: string;
-}
+// --- Device package inventory (pack-level) ---
 
 export type FirmwareUpdateStatus = 'pending' | 'running' | 'success' | 'failed';
 export type FirmwareUpdateSource = 'service' | 'external';
 
-// One firmware-update attempt for a device's artifact (service-driven or out-of-band/local).
-export interface DeviceFirmwareUpdate {
+// The current version of an update pack installed on a device. A device can hold many packs, each
+// at exactly one current version. This is the single per-device install marker — the individual
+// artifacts the device has are derived from this pack version's manifest (see DevicePackArtifact).
+export interface DevicePackVersion {
+  id: string;
+  device_id: string;
+  update_pack_id: string;
+  pack_name: string;
+  group_id: string;
+  version: string; // semver (x.y.z)
+  packaging: 'swu' | 'non-swu' | string;
+  checksum?: string;
+  installed_at: string;
+  launch_id?: string;
+  job_id?: string;
+}
+
+// One pack-update attempt for a device. Records the pack-level version transition and lifecycle
+// status for a launched job.
+export interface DevicePackUpdate {
   id: string;
   job_id?: string;
   launch_id?: string;
   device_id: string;
-  artifact_name: string;
-  version_from?: string;
+  update_pack_id: string;
+  pack_name: string;
+  group_id: string;
+  packaging: 'swu' | 'non-swu' | string;
+  version_from: string;
   version_to: string;
   status: FirmwareUpdateStatus;
   timestamp_init?: string | null;
   timestamp_completed?: string | null;
-  device_artifact_version_id?: string;
   source?: FirmwareUpdateSource;
 }
 
-// Request body for reporting an out-of-band / local firmware change on a device.
-export interface NotifyDeviceArtifactPayload {
+// One artifact a pack version delivers. Since a device installs a whole pack version (an immutable
+// manifest), the artifact's installed version IS the version the manifest declares; checksum/size
+// come from the global artifact catalog and installed_at is the pack's install time.
+export interface DevicePackArtifact {
   artifact_name: string;
   version: string;
   checksum?: string;
-  status?: ArtifactVersionStatus;
-  version_from?: string;
-  installed_at?: string;
-  launch_id?: string;
-  job_id?: string;
+  size?: number;
+  installed_at?: string | null;
+}
+
+// A device's installed update pack plus the artifacts that pack delivers — the per-device
+// "package inventory" entry (a pack owns its artifacts).
+export interface DevicePackWithArtifacts extends DevicePackVersion {
+  artifacts: DevicePackArtifact[];
 }
 
 export interface LaunchItem {
@@ -179,7 +213,13 @@ export interface LaunchItem {
   test_device_id?: string;
   update_pack_id?: string; // Immutable - cannot be changed after creation
   auto?: boolean; // Auto mode toggle
+  approval_threshold?: number; // % of batch that must succeed before next batch (auto only)
+  error_threshold?: number; // % of all devices that can fail before aborting (auto only)
   version?: number; // Version from the update pack
+  // Launch preconditions (all optional / backward-compatible)
+  preconditions?: LaunchPrecondition[];
+  forced_preconditions?: boolean;
+  precondition_failures?: PreconditionFailure[];
 }
 
 export interface LaunchListResponse {
@@ -196,6 +236,8 @@ export interface ApiGlobalStrategy {
   test_device_id?: string;
   update_pack_id?: string; // This is the pack ID from the API
   auto?: boolean; // Auto mode toggle
+  approval_threshold?: number;
+  error_threshold?: number;
 }
 
 // Types for /device/{deviceId}/jobs response

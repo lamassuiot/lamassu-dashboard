@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import type { UpdateStrategy, UpdatePack } from '@/types/iot'; // UpdatePack added
 // MOCK_DEVICES and MOCK_UPDATE_STRATEGIES removed as strategy is global and packs are fetched
 import { toast } from "@/hooks/use-toast";
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 
 const SELECT_NONE_VALUE = "_NONE_"; 
 
@@ -34,6 +34,12 @@ const strategyFormSchema = z.object({
   testDeviceId: z.string().optional(), // Assuming MOCK_DEVICES is still used for test device IDs for now
   updatePackId: z.string().optional(), // This will store the ID of the update pack
   auto: z.boolean(), // Auto mode toggle - required boolean
+  approvalThreshold: z.coerce.number().int().min(1).max(100).optional(),
+  errorThreshold: z.coerce.number().int().min(1).max(100).optional(),
+  preconditions: z.array(z.object({
+    required_pack_name: z.string().min(1, "Pack is required"),
+    min_version: z.string().min(1, "Version is required").regex(/^\d+\.\d+\.\d+$/, "Use semver format (e.g. 1.2.0)"),
+  })).optional(),
 });
 
 type StrategyFormValues = z.infer<typeof strategyFormSchema>;
@@ -50,6 +56,7 @@ interface UpdateStrategyFormProps {
   disableWorkflowTypeSelection?: boolean; // New prop to disable workflow type selection
   showSubmitButton?: boolean; // New prop to control submit button visibility
   formId?: string; // Optional ID for the form element
+  showPreconditions?: boolean; // Gate the Launch Preconditions section (only in create-launch dialog)
 }
 
 export function UpdateStrategyForm({ 
@@ -64,6 +71,7 @@ export function UpdateStrategyForm({
   disableWorkflowTypeSelection = false,
   showSubmitButton = true,
   formId,
+  showPreconditions = false,
 }: UpdateStrategyFormProps) {
   // Use initialStrategy if provided, otherwise fall back to legacy strategy prop
   const initialStrategyData = initialStrategy || legacyStrategy;
@@ -73,8 +81,11 @@ export function UpdateStrategyForm({
     rolloutType: "numeric",
     rolloutValue: 10,
     testDeviceId: undefined,
-    updatePackId: defaultSelectedPackId || undefined, // Use the default selected pack
-    auto: false, // Default to manual mode
+    updatePackId: defaultSelectedPackId || undefined,
+    auto: false,
+    approvalThreshold: undefined,
+    errorThreshold: undefined,
+    preconditions: [],
   };
 
   const form = useForm<StrategyFormValues>({
@@ -85,29 +96,37 @@ export function UpdateStrategyForm({
       rolloutValue: initialStrategyData.rolloutValue,
       testDeviceId: initialStrategyData.testDeviceId || undefined,
       updatePackId: defaultSelectedPackId || initialStrategyData.updatePackId || undefined,
-      auto: initialStrategyData.auto ?? false, // Include auto in defaultValues
+      auto: initialStrategyData.auto ?? false,
+      approvalThreshold: initialStrategyData.approvalThreshold ?? undefined,
+      errorThreshold: initialStrategyData.errorThreshold ?? undefined,
+      preconditions: initialStrategyData.preconditions ?? [],
     } : {
       workflowType: "wfx.workflow.dau.direct",
       rolloutType: "numeric",
       rolloutValue: 10,
       testDeviceId: undefined,
       updatePackId: defaultSelectedPackId || undefined,
-      auto: false, // Include auto in defaultValues
+      auto: false,
+      approvalThreshold: undefined,
+      errorThreshold: undefined,
+      preconditions: [],
     },
   });
 
   React.useEffect(() => {
     if (initialStrategyData) {
-      form.reset({ 
+      form.reset({
           workflowType: initialStrategyData.workflowType,
           rolloutType: initialStrategyData.rolloutType,
           rolloutValue: initialStrategyData.rolloutValue,
           testDeviceId: initialStrategyData.testDeviceId || undefined,
           updatePackId: defaultSelectedPackId || initialStrategyData.updatePackId || undefined,
-          auto: initialStrategyData.auto ?? false, // Use nullish coalescing for boolean
+          auto: initialStrategyData.auto ?? false,
+          approvalThreshold: initialStrategyData.approvalThreshold ?? undefined,
+          errorThreshold: initialStrategyData.errorThreshold ?? undefined,
+          preconditions: initialStrategyData.preconditions ?? [],
       });
     } else {
-      // When no initial strategy data, use defaults with the selected pack
       form.reset({
         workflowType: "wfx.workflow.dau.direct",
         rolloutType: "numeric",
@@ -115,17 +134,38 @@ export function UpdateStrategyForm({
         testDeviceId: undefined,
         updatePackId: defaultSelectedPackId || undefined,
         auto: false,
+        approvalThreshold: undefined,
+        errorThreshold: undefined,
+        preconditions: [],
       });
     }
   }, [initialStrategyData, defaultSelectedPackId, form]);
+
+  const { fields: preconditionFields, append: appendPrecondition, remove: removePrecondition } = useFieldArray({
+    control: form.control,
+    name: "preconditions",
+  });
+
+  // Dedupe available packs by name so the precondition Select uses each pack name only once.
+  const uniquePacksByName = React.useMemo(() => {
+    const seen = new Set<string>();
+    return availableUpdatePacks.filter(pack => {
+      if (!pack.name || seen.has(pack.name)) return false;
+      seen.add(pack.name);
+      return true;
+    });
+  }, [availableUpdatePacks]);
 
   const onSubmit = (data: StrategyFormValues) => {
     console.log('Form submitted with data:', data);
     console.log('Auto field value:', data.auto);
     
-    const processedData = { 
+    const processedData = {
       ...data,
-      auto: data.auto ?? false, // Ensure auto is always a boolean
+      auto: data.auto ?? false,
+      // Clear thresholds when not in auto mode
+      approvalThreshold: data.auto ? data.approvalThreshold : undefined,
+      errorThreshold: data.auto ? data.errorThreshold : undefined,
     };
     
     console.log('Processed data:', processedData);
@@ -141,6 +181,8 @@ export function UpdateStrategyForm({
       // id and name are handled by parent if it's a global strategy concept
       ...initialStrategyData, // Carry over ID or other props if they exist
       ...processedData,
+      // Drop empty precondition rows so they never reach the payload.
+      preconditions: (processedData.preconditions || []).filter(p => p.required_pack_name && p.min_version),
     };
     
     // Use onSave if provided, otherwise fall back to legacy callback
@@ -368,7 +410,153 @@ export function UpdateStrategyForm({
                 )}
               />
             </div>
+
+            {form.watch("auto") && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="approvalThreshold"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Approval Threshold</FormLabel>
+                      <div className="relative">
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="80"
+                            min={1}
+                            max={100}
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                            className="pr-8"
+                          />
+                        </FormControl>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground text-sm">
+                          %
+                        </div>
+                      </div>
+                      <FormDescription>
+                        Min % of batch devices that must succeed before the next batch starts.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="errorThreshold"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Error Threshold</FormLabel>
+                      <div className="relative">
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="10"
+                            min={1}
+                            max={100}
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                            className="pr-8"
+                          />
+                        </FormControl>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground text-sm">
+                          %
+                        </div>
+                      </div>
+                      <FormDescription>
+                        Max % of all devices that can fail before the update is aborted.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
           </div>
+
+          {showPreconditions && (
+            <>
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                  <div className="h-1 w-1 rounded-full bg-primary" />
+                  Launch Preconditions
+                  <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                </div>
+
+                <FormDescription>
+                  Only deploy to devices that already have a given pack at a minimum version.
+                </FormDescription>
+
+                {preconditionFields.map((pcField, index) => (
+                  <div key={pcField.id} className="flex items-end gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`preconditions.${index}.required_pack_name`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormLabel>Required Pack</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select pack" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {uniquePacksByName.map(pack => (
+                                <SelectItem key={pack.name} value={pack.name}>
+                                  {pack.name} v{pack.version}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name={`preconditions.${index}.min_version`}
+                      render={({ field }) => (
+                        <FormItem className="w-32">
+                          <FormLabel>Min Version</FormLabel>
+                          <FormControl>
+                            <Input placeholder="1.2.0" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removePrecondition(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendPrecondition({ required_pack_name: '', min_version: '' })}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add prerequisite
+                </Button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Action Buttons */}

@@ -1032,6 +1032,63 @@ export default function LaunchDetailsPage() {
         </div>
       </div>
 
+      {/* Launch Preconditions Section */}
+      {(launchItem.precondition_failures?.length || launchItem.preconditions?.length) ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            <h2 className="text-xl font-semibold">Launch Preconditions</h2>
+          </div>
+
+          {launchItem.forced_preconditions && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700 p-3">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <p className="text-sm">
+                This launch was force-deployed to devices that did not meet the configured prerequisites.
+              </p>
+            </div>
+          )}
+
+          {launchItem.preconditions && launchItem.preconditions.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-muted-foreground">Configured prerequisites</label>
+              <div className="flex flex-wrap gap-2">
+                {launchItem.preconditions.map((pc, idx) => (
+                  <Badge key={`${pc.required_pack_name}-${idx}`} variant="outline" className="font-mono text-xs">
+                    {pc.required_pack_name} &gt;= {pc.min_version}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {launchItem.precondition_failures && launchItem.precondition_failures.length > 0 && (
+            <div className="relative w-full overflow-auto">
+              <Table className="table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[200px]">Device ID</TableHead>
+                    <TableHead className="w-[180px]">Required Pack</TableHead>
+                    <TableHead className="w-[140px]">Device Version</TableHead>
+                    <TableHead className="w-[140px]">Required Version</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {launchItem.precondition_failures.map((f, idx) => (
+                    <TableRow key={`${f.device_id}-${f.pack_name}-${idx}`} className="text-xs">
+                      <TableCell className="font-mono py-2">{f.device_id}</TableCell>
+                      <TableCell className="py-2">{f.pack_name}</TableCell>
+                      <TableCell className="font-mono py-2">{f.current_version || 'not installed'}</TableCell>
+                      <TableCell className="font-mono py-2">{f.required}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {/* Phased Workflow States Section - Only show for phased workflows */}
       {isPhasedWorkflow(launchItem.workflow_type) && (
         <div className="space-y-4">
