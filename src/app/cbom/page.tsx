@@ -149,7 +149,7 @@ function ResponsivePanel({ open, onOpenChange, title, description, children }: R
 }
 
 export default function CBOMPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const { toast } = useToast();
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isLoadingTable, setIsLoadingTable] = useState(true);
@@ -454,7 +454,7 @@ export default function CBOMPage() {
     }
   };
 
-  if (!isAuthenticated()) {
+  if (!isLoggedIn) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Card className="w-96">
