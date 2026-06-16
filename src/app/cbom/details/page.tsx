@@ -48,16 +48,6 @@ import { StatGauge } from '@/components/shared/StatGauge';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { Separator } from '@/components/ui/separator';
-import {
-  Background,
-  Controls,
-  MiniMap,
-  ReactFlow,
-  type Edge,
-  type Node,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import dagre from '@dagrejs/dagre';
 import chiperInfo from '../../../../chiper_info.json';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -81,8 +71,7 @@ const cipherStrengthBadge: Record<CipherStrength, { label: string; className: st
   unknown:     { label: 'Unknown',     className: 'bg-muted text-muted-foreground border border-border' },
 };
 
-const networkDetailSectionClass = 'rounded-md border border-border/60 bg-muted/20 p-2.5';
-const networkDetailChipClass = 'rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-foreground';
+const networkDetailChipClass = 'rounded-full border border-border/70 bg-background px-2.5 py-1 font-mono text-xs text-foreground';
 
 function NetworkDetailSection({
   title,
@@ -94,18 +83,30 @@ function NetworkDetailSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className={networkDetailSectionClass}>
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="py-3 border-b border-border/30 last:border-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
           {title}
         </p>
         {meta ? (
-          <span className="text-[10px] font-medium text-muted-foreground">
+          <span className="text-xs text-muted-foreground/60">
             {meta}
           </span>
         ) : null}
       </div>
       {children}
+    </div>
+  );
+}
+
+function PanelGroupHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 pt-3 pb-1">
+      <div className="flex-1 border-t border-border/30" />
+      <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
+        {label}
+      </span>
+      <div className="flex-1 border-t border-border/30" />
     </div>
   );
 }
@@ -133,7 +134,7 @@ interface CBOMDetailsData {
 
 type FilterColumn = 'name' | 'type' | 'primitive' | 'location';
 type AssetFilters = Record<FilterColumn, string[]>;
-type AssetViewMode = 'table' | 'graph' | 'file-tree' | 'network-graph';
+type AssetViewMode = 'table' | 'file-tree' | 'network-graph' | 'network-table';
 
 interface FileTreeEntry {
   assetName: string;
@@ -336,6 +337,119 @@ const getProtocolStringList = (
     ),
   );
 
+interface AlgorithmProperties {
+  primitive?: string;
+  nistQuantumSecurityLevel?: number;
+  classicalSecurityLevel?: number;
+  mode?: string;
+  curve?: string;
+  oid?: string;
+}
+
+interface NegotiatedAlg {
+  name: string;
+  primitive: string;
+  oid?: string;
+  nistQuantumSecurityLevel?: number;
+  classicalSecurityLevel?: number;
+  mode?: string;
+  curve?: string;
+}
+
+interface OfferedCipherSuiteObj {
+  name: string;
+  identifiers?: string[];
+  algorithms: NegotiatedAlg[];
+}
+
+interface CertificateInfo {
+  subjectName: string;
+  issuerName: string;
+  notValidBefore?: string;
+  notValidAfter?: string;
+  subjectPublicKeyAlg?: string;
+  signatureAlg?: string;
+}
+
+interface PqcResult {
+  pqc: boolean;
+  level: number;
+  assets: string[];
+}
+
+const ROLE_ORDER = [
+  'Key agreement / KEM',
+  'Authentication / Signature',
+  'Bulk encryption',
+  'Hash / HKDF',
+  'MAC',
+  'Other',
+] as const;
+
+type AlgRole = typeof ROLE_ORDER[number];
+
+function primitiveToRole(primitive: string): AlgRole {
+  if (['key-agree', 'kem', 'combiner'].includes(primitive)) return 'Key agreement / KEM';
+  if (['signature', 'pke'].includes(primitive)) return 'Authentication / Signature';
+  if (['ae', 'block-cipher', 'stream-cipher'].includes(primitive)) return 'Bulk encryption';
+  if (primitive === 'hash') return 'Hash / HKDF';
+  if (primitive === 'mac') return 'MAC';
+  return 'Other';
+}
+
+function resolveAlg(c: any): NegotiatedAlg {
+  const algProps = c.cryptoProperties?.algorithmProperties as AlgorithmProperties | undefined;
+  return {
+    name: (c.name as string | undefined) ?? (c['bom-ref'] as string),
+    primitive: algProps?.primitive ?? 'unknown',
+    oid: algProps?.oid,
+    nistQuantumSecurityLevel: algProps?.nistQuantumSecurityLevel,
+    classicalSecurityLevel: algProps?.classicalSecurityLevel,
+    mode: algProps?.mode,
+    curve: algProps?.curve,
+  };
+}
+
+function resolveGroupPqc(
+  negotiatedGroupName: string,
+  componentMap: Map<string, any>,
+  cryptoRefArray: string[],
+): PqcResult {
+  if (!negotiatedGroupName) return { pqc: false, level: 0, assets: [] };
+
+  const pqcAssets: string[] = [];
+  let maxLevel = 0;
+
+  // Walk the cryptoRefArray of the protocol asset — these are direct refs to algorithm components
+  for (const ref of cryptoRefArray) {
+    const comp = componentMap.get(ref);
+    if (!comp) continue;
+    const algProps = comp.cryptoProperties?.algorithmProperties as AlgorithmProperties | undefined;
+    const primitive = algProps?.primitive;
+    const level = algProps?.nistQuantumSecurityLevel ?? 0;
+    if (primitive === 'kem' || primitive === 'combiner') {
+      pqcAssets.push(comp.name ?? ref);
+      if (level > maxLevel) maxLevel = level;
+    }
+  }
+
+  // Also check by name: look for a component whose name matches the negotiated group
+  if (pqcAssets.length === 0) {
+    for (const [, comp] of componentMap) {
+      if ((comp.name as string | undefined)?.toLowerCase() === negotiatedGroupName.toLowerCase()) {
+        const algProps = comp.cryptoProperties?.algorithmProperties as AlgorithmProperties | undefined;
+        const level = algProps?.nistQuantumSecurityLevel ?? 0;
+        if (level > 0) {
+          pqcAssets.push(comp.name);
+          if (level > maxLevel) maxLevel = level;
+        }
+      }
+    }
+  }
+
+  return { pqc: maxLevel >= 1, level: maxLevel, assets: pqcAssets };
+}
+
 const buildDetailsModel = (projectId: string, data: any): CBOMDetailsData => {
   const details = (data || {}) as CBOMDetailsData;
   const properties = details?.bom?.metadata?.properties;
@@ -401,6 +515,7 @@ function CBOMDetailsContent() {
   const [isCheckingCompliance, setIsCheckingCompliance] = useState(false);
   const [groupByRef, setGroupByRef] = useState(false);
   const [expandedRefs, setExpandedRefs] = useState<Set<string>>(new Set());
+  const [expandedSuites, setExpandedSuites] = useState<Set<string>>(new Set());
 
   const projectId = searchParams.get('projectId');
 
@@ -625,6 +740,28 @@ function CBOMDetailsContent() {
     const edges: GraphEdge[] = [];
 
     const components: any[] = bom?.components ?? [];
+    const componentMap = new Map<string, any>(
+      components.map((c: any) => [c['bom-ref'] as string, c]),
+    );
+
+    // Map protocol bom-ref → service endpoint name ("ip:port") from top-level services[]
+    const bomServices: any[] = bom?.services ?? [];
+    const bomDeps: any[] = bom?.dependencies ?? [];
+    const serviceMap = new Map<string, string>();
+    // Map bom-ref → dependsOn[] — used to resolve in-use algorithms when cryptoRefArray is empty (old CBOMs)
+    const dependsOnMap = new Map<string, string[]>();
+    for (const dep of bomDeps) {
+      if (Array.isArray(dep.dependsOn)) dependsOnMap.set(dep.ref as string, dep.dependsOn as string[]);
+    }
+    for (const svc of bomServices) {
+      const svcRef = svc['bom-ref'] as string;
+      const svcName = (svc.name as string) ?? '';
+      const dep = bomDeps.find((d: any) => d.ref === svcRef);
+      for (const pRef of (dep?.dependsOn ?? []) as string[]) {
+        if (!serviceMap.has(pRef)) serviceMap.set(pRef, svcName);
+      }
+    }
+
     const protocols = components.filter(
       (c: any) => c.cryptoProperties?.assetType === 'protocol',
     );
@@ -638,31 +775,92 @@ function CBOMDetailsContent() {
       const sniLabel = snis[0] ?? ref;
 
       const version: string = typeof protocolProperties?.version === 'string' ? protocolProperties.version : '';
-      const negotiated =
-        props.find((p: any) => p.name === 'live-cbom:tls.negotiatedCipherSuite')?.value ?? '';
+      // Support both the new decomposed names and the old flat names for backward compatibility
+      const negotiatedCipherSuite =
+        props.find((p: any) => p.name === 'live-cbom:tls.negotiated.cipherSuite')?.value ??
+        props.find((p: any) => p.name === 'live-cbom:tls.negotiatedCipherSuite')?.value ??
+        '';
 
       const supportedVersions = getPropertyStringList(props, ['live-cbom:tls.client.supportedVersions']);
-
       const serverSelectedVersion = props.find((p: any) => p.name === 'live-cbom:tls.server.selectedVersion')?.value ?? '';
 
-      const keyExchangeGroups = getPropertyStringList(props, ['live-cbom:tls.keyExchangeGroups']);
+      // negotiated.group is new; old CBOMs use keyExchangeGroups or supportedGroups (take first as negotiated)
+      const allKeyExchangeGroups = getPropertyStringList(props, [
+        'live-cbom:tls.keyExchangeGroups',
+        'live-cbom:tls.supportedGroups',
+      ]);
+      const negotiatedGroup =
+        props.find((p: any) => p.name === 'live-cbom:tls.negotiated.group')?.value ??
+        allKeyExchangeGroups[0] ??
+        '';
+      const offeredGroups = getPropertyStringList(props, ['live-cbom:tls.offered.groups']).length
+        ? getPropertyStringList(props, ['live-cbom:tls.offered.groups'])
+        : allKeyExchangeGroups;
+      const offeredSignatureAlgorithms = getPropertyStringList(props, [
+        'live-cbom:tls.offered.signatureAlgorithms',
+        'live-cbom:tls.signatureAlgorithms',
+        'live-cbom:tls.client.signatureAlgorithms',
+        'live-cbom:tls.server.signatureAlgorithms',
+      ]);
+      const authVisibility =
+        props.find((p: any) => p.name === 'live-cbom:tls.auth.visibility')?.value ?? '';
 
       const cipherSuites = getProtocolStringList(protocolProperties, ['cipherSuites']);
-      const signatureAlgorithms = Array.from(
-        new Set([
-          ...getPropertyStringList(props, [
-            'live-cbom:tls.signatureAlgorithms',
-            'live-cbom:tls.client.signatureAlgorithms',
-            'live-cbom:tls.server.signatureAlgorithms',
-          ]),
-          ...getProtocolStringList(protocolProperties, [
-            'signatureAlgorithms',
-            'supportedSignatureAlgorithms',
-            'signatureSchemes',
-            'supportedSignatureSchemes',
-          ]),
-        ]),
-      );
+
+      // cryptoRefArray is the authoritative in-use asset list (new CBOMs only).
+      // Old CBOMs leave it empty; fall back to bom.dependencies[proto.ref].dependsOn which
+      // contains the same information in older live-cbom schema versions.
+      const rawCryptoRefs: string[] = Array.isArray(protocolProperties?.cryptoRefArray)
+        ? (protocolProperties!.cryptoRefArray as string[])
+        : [];
+      const cryptoRefArray: string[] = rawCryptoRefs.length > 0
+        ? rawCryptoRefs
+        : (dependsOnMap.get(ref) ?? []);
+
+      const pqcResult = resolveGroupPqc(negotiatedGroup, componentMap, cryptoRefArray);
+
+      // Decomposed algorithms for the negotiated session
+      const negotiatedAlgorithms: NegotiatedAlg[] = cryptoRefArray
+        .map((r) => componentMap.get(r))
+        .filter((c) => c && c.cryptoProperties?.assetType === 'algorithm')
+        .map(resolveAlg);
+
+      // Offered cipher suites with their decomposed algorithm refs
+      const rawCipherSuites: Array<{ name?: string; identifiers?: string[]; algorithms?: string[] }> =
+        Array.isArray(protocolProperties?.cipherSuites)
+          ? (protocolProperties!.cipherSuites as any[])
+          : [];
+
+      const offeredCipherSuites: OfferedCipherSuiteObj[] = rawCipherSuites.map((suite) => ({
+        name: suite.name ?? '',
+        identifiers: suite.identifiers,
+        algorithms: (suite.algorithms ?? [])
+          .map((r: string) => componentMap.get(r))
+          .filter((c: any) => c && c.cryptoProperties?.assetType === 'algorithm')
+          .map(resolveAlg),
+      }));
+
+      const warning = props.find((p: any) => p.name === 'live-cbom:warning')?.value ?? '';
+      const endpoint = serviceMap.get(ref) ?? '';
+
+      // Certificate details — only present for TLS ≤ 1.2. Use rawCryptoRefs (not the fallback
+      // dependsOn list) because old CBOMs never include cert refs in their dependency entries.
+      const certificates: CertificateInfo[] = rawCryptoRefs
+        .map((r) => componentMap.get(r))
+        .filter((c) => c && c.cryptoProperties?.assetType === 'certificate')
+        .map((c) => {
+          const cp = c.cryptoProperties?.certificateProperties as Record<string, any> | undefined;
+          const pubKeyComp = cp?.subjectPublicKeyRef ? componentMap.get(cp.subjectPublicKeyRef) : null;
+          const sigAlgComp = cp?.signatureAlgorithmRef ? componentMap.get(cp.signatureAlgorithmRef) : null;
+          return {
+            subjectName: cp?.subjectName ?? '',
+            issuerName: cp?.issuerName ?? '',
+            notValidBefore: cp?.notValidBefore,
+            notValidAfter: cp?.notValidAfter,
+            subjectPublicKeyAlg: pubKeyComp?.name ?? cp?.subjectPublicKeyRef ?? '',
+            signatureAlg: sigAlgComp?.name ?? cp?.signatureAlgorithmRef ?? '',
+          } satisfies CertificateInfo;
+        });
 
       nodes.push({
         id: ref,
@@ -672,12 +870,22 @@ function CBOMDetailsContent() {
           isAgent: false,
           tlsVersion: version,
           snis,
-          negotiatedCipherSuite: negotiated,
+          negotiatedCipherSuite,
           supportedVersions,
           serverSelectedVersion,
-          keyExchangeGroups,
+          negotiatedGroup,
+          offeredGroups,
+          offeredSignatureAlgorithms,
+          authVisibility,
           cipherSuites,
-          signatureAlgorithms,
+          negotiatedAlgorithms,
+          offeredCipherSuites,
+          pqcProtected: pqcResult.pqc,
+          pqcLevel: pqcResult.level,
+          pqcAssets: pqcResult.assets,
+          warning,
+          endpoint,
+          certificates,
         },
       });
 
@@ -685,7 +893,7 @@ function CBOMDetailsContent() {
         id: `${agentRef}->${ref}`,
         source: agentRef,
         target: ref,
-        label: negotiated,
+        label: negotiatedCipherSuite,
         labelVisible: true,
       });
     });
@@ -693,109 +901,18 @@ function CBOMDetailsContent() {
     return { nodes, edges };
   }, [isRealtimeCBOM, detailsData]);
 
-  const dependencyGraph = React.useMemo(() => {
-    const allComponents = detailsData?.bom?.components || [];
-    const dependencies = detailsData?.bom?.dependencies || [];
-
-    const graphNodes = new Map<string, Node>();
-    const graphEdges = new Map<string, Edge>();
-
-    const dagreGraph = new dagre.graphlib.Graph();
-    dagreGraph.setDefaultEdgeLabel(() => ({}));
-    dagreGraph.setGraph({ rankdir: 'LR', ranksep: 140, nodesep: 50 });
-
-    const ensureNode = (refId: string, fallbackLabel?: string) => {
-      if (graphNodes.has(refId)) {
-        return;
-      }
-
-      const component = allComponents.find((item) => item['bom-ref'] === refId);
-      const primitive = component?.cryptoProperties?.algorithmProperties?.primitive;
-      const label = component?.name || fallbackLabel || refId;
-
-      const levelId = complianceFindingsMap.get(refId);
-      const levelColor = levelId !== undefined
-        ? complianceResult?.complianceLevels.find((l) => l.id === levelId)?.colorHex
-        : undefined;
-
-      const node: Node = {
-        id: refId,
-        data: {
-          label: primitive ? `${label} (${primitive})` : label,
-        },
-        position: { x: 0, y: 0 },
-        style: {
-          border: levelColor ? `2px solid ${levelColor}` : '1px solid hsl(var(--border))',
-          borderRadius: 8,
-          padding: 8,
-          background: levelColor ? `${levelColor}22` : 'hsl(var(--card))',
-          color: 'hsl(var(--foreground))',
-          fontSize: 12,
-          width: 220,
-        },
-      };
-
-      graphNodes.set(refId, node);
-      dagreGraph.setNode(refId, { width: 220, height: 54 });
-    };
-
-    allComponents
-      .filter((item) => item.type === 'cryptographic-asset')
-      .forEach((component, index) => {
-        const refId = component['bom-ref'] || `${component.name || 'asset'}-${index}`;
-        ensureNode(refId, component.name || `Asset ${index + 1}`);
-      });
-
-    dependencies.forEach((dependency) => {
-      const sourceRef = dependency.ref;
-      if (!sourceRef) {
-        return;
-      }
-
-      ensureNode(sourceRef, sourceRef);
-      (dependency.dependsOn || []).forEach((targetRef) => {
-        ensureNode(targetRef, targetRef);
-
-        const edgeId = `${sourceRef}->${targetRef}`;
-        if (!graphEdges.has(edgeId)) {
-          graphEdges.set(edgeId, {
-            id: edgeId,
-            source: sourceRef,
-            target: targetRef,
-            animated: false,
-          });
-          dagreGraph.setEdge(sourceRef, targetRef);
-        }
-      });
-    });
-
-    dagre.layout(dagreGraph);
-
-    const laidOutNodes = Array.from(graphNodes.values()).map((node) => {
-      const position = dagreGraph.node(node.id);
-      if (!position) {
-        return node;
-      }
-
-      return {
-        ...node,
-        position: {
-          x: position.x - 110,
-          y: position.y - 27,
-        },
-      };
-    });
-
-    return {
-      nodes: laidOutNodes,
-      edges: Array.from(graphEdges.values()),
-    };
-  }, [detailsData, complianceFindingsMap, complianceResult]);
-
   const cbomTypeLabel = isRealtimeCBOM ? 'Realtime capture' : 'Repository scan';
   const cbomTypePillClass = isRealtimeCBOM
     ? 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300'
     : 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300';
+  const pqcSessionStat = React.useMemo(() => {
+    if (!isRealtimeCBOM) return null;
+    const protocolNodes = networkGraphData.nodes.filter((n) => !n.data?.isAgent);
+    const total = protocolNodes.length;
+    const protected_ = protocolNodes.filter((n) => n.data?.pqcProtected).length;
+    return { protected: protected_, total };
+  }, [isRealtimeCBOM, networkGraphData]);
+
   const heroSummaryCards = [
     {
       label: 'Total assets',
@@ -817,6 +934,13 @@ function CBOMDetailsContent() {
       value: `${Math.round(oidCoverage)}%`,
       hint: `${assetsWithOid}/${assets.length || 0} assets with OID`,
     },
+    ...(pqcSessionStat !== null
+      ? [{
+          label: 'PQC sessions',
+          value: `${pqcSessionStat.protected}/${pqcSessionStat.total}`,
+          hint: 'PQC-protected TLS sessions',
+        }]
+      : []),
   ];
 
   if (!isLoggedIn) {
@@ -977,7 +1101,7 @@ function CBOMDetailsContent() {
 
             {/* Stats */}
             <div>
-              <div className="grid gap-4 sm:grid-cols-4">
+              <div className={cn('grid gap-4', pqcSessionStat !== null ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
                 {heroSummaryCards.map((item, index) => (
                   <div key={item.label} className={cn('px-1 sm:px-4', index > 0 && 'sm:border-l')}>
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
@@ -1157,14 +1281,16 @@ function CBOMDetailsContent() {
                       >
                         {isRealtimeCBOM ? 'Network Graph' : 'File Tree'}
                       </Button>
-                      <Button
-                        variant={assetViewMode === 'graph' ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="h-7 rounded-sm px-3 text-xs"
-                        onClick={() => setAssetViewMode('graph')}
-                      >
-                        Dependency Graph
-                      </Button>
+                      {isRealtimeCBOM && (
+                        <Button
+                          variant={assetViewMode === 'network-table' ? 'secondary' : 'ghost'}
+                          size="sm"
+                          className="h-7 rounded-sm px-3 text-xs"
+                          onClick={() => setAssetViewMode('network-table')}
+                        >
+                          Network Table
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1210,44 +1336,6 @@ function CBOMDetailsContent() {
                 <div>
           {assets.length === 0 ? (
             <p className="text-sm text-muted-foreground">No cryptographic assets found in this CBOM.</p>
-          ) : assetViewMode === 'graph' ? (
-            dependencyGraph.nodes.length === 0 ? (
-              <div className="p-4 border border-dashed rounded-md text-sm text-muted-foreground">
-                No dependency relations were found for this CBOM.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="h-[640px] w-full rounded-md border bg-background">
-                  <ReactFlow
-                    nodes={dependencyGraph.nodes}
-                    edges={dependencyGraph.edges}
-                    fitView
-                    proOptions={{ hideAttribution: true }}
-                    nodesDraggable={false}
-                    nodesConnectable={false}
-                    elementsSelectable={true}
-                  >
-                    <Background />
-                    <MiniMap pannable zoomable />
-                    <Controls />
-                  </ReactFlow>
-                </div>
-                {complianceResult && (
-                  <div className="flex flex-wrap items-center gap-3 px-1 py-1.5">
-                    <span className="text-xs text-muted-foreground">Compliance legend:</span>
-                    {complianceResult.complianceLevels.map((level) => (
-                      <span key={level.id} className="inline-flex items-center gap-1.5 text-xs">
-                        <span
-                          className="h-2.5 w-2.5 rounded-sm border-2 inline-block"
-                          style={{ borderColor: level.colorHex, background: `${level.colorHex}22` }}
-                        />
-                        {level.label}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
           ) : assetViewMode === 'network-graph' ? (
             networkGraphData.nodes.length === 0 ? (
               <div className="p-4 border border-dashed rounded-md text-sm text-muted-foreground">
@@ -1255,7 +1343,7 @@ function CBOMDetailsContent() {
               </div>
             ) : (
               <div className="flex gap-3 items-start">
-                <div className="relative h-[420px] flex-1 min-w-0 rounded-md border bg-background overflow-hidden">
+                <div className="relative h-[420px] flex-1 min-w-0 rounded-md bg-background overflow-hidden">
                   <GraphCanvas
                     nodes={networkGraphData.nodes}
                     edges={networkGraphData.edges}
@@ -1284,6 +1372,7 @@ function CBOMDetailsContent() {
                         unknown:     { bg: '#6b7280', stroke: '#4b5563' },
                       };
                       const sc = strengthColors[strengthKey];
+                      const pqcProtected = node.data?.pqcProtected as boolean | undefined;
                       return (
                         <group>
                           <Sphere {...rest} node={node} />
@@ -1309,6 +1398,15 @@ function CBOMDetailsContent() {
                                   position="bottom-right"
                                 />
                               ) : null}
+                              <ReagraphBadge
+                                {...rest}
+                                node={node}
+                                label={pqcProtected ? 'PQC' : 'Classical'}
+                                backgroundColor={pqcProtected ? '#0891b2' : '#78716c'}
+                                textColor="#ffffff"
+                                strokeColor={pqcProtected ? '#0e7490' : '#57534e'}
+                                position="bottom-left"
+                              />
                             </>
                           )}
                         </group>
@@ -1318,8 +1416,9 @@ function CBOMDetailsContent() {
                 </div>
 
                 {selectedNetworkNode && !selectedNetworkNode.data?.isAgent && (
-                  <div className="w-1/3 shrink-0 rounded-md border bg-card text-card-foreground text-xs overflow-y-auto max-h-[420px]">
-                    <div className="flex items-center justify-between px-3 py-2 border-b">
+                  <>
+                  <div className="w-1/3 shrink-0 text-sm overflow-y-auto max-h-[420px]">
+                    <div className="flex items-center justify-between mb-1">
                       <span className="font-semibold text-sm truncate" title={selectedNetworkNode.label}>
                         {selectedNetworkNode.label}
                       </span>
@@ -1331,7 +1430,27 @@ function CBOMDetailsContent() {
                         ✕
                       </button>
                     </div>
-                    <div className="p-3 space-y-2.5">
+                    <div>
+                      {/* Warning advisory */}
+                      {(selectedNetworkNode.data?.warning as string | undefined) && (
+                        <div className="mb-2 flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                          <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400">⚠</span>
+                          <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                            {selectedNetworkNode.data.warning as string}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Endpoint */}
+                      {(selectedNetworkNode.data?.endpoint as string | undefined) && (
+                        <NetworkDetailSection title="Endpoint">
+                          <span className={`${networkDetailChipClass} font-mono`}>
+                            {selectedNetworkNode.data.endpoint as string}
+                          </span>
+                        </NetworkDetailSection>
+                      )}
+
+                      {/* SNI */}
                       {(selectedNetworkNode.data?.snis as string[] | undefined)?.length ? (
                         <NetworkDetailSection
                           title="SNI"
@@ -1345,28 +1464,47 @@ function CBOMDetailsContent() {
                         </NetworkDetailSection>
                       ) : null}
 
+                      <PanelGroupHeader label="Negotiated" />
+
+                      {/* TLS Version — server-selected + client-offered versions */}
                       {selectedNetworkNode.data?.tlsVersion && (
                         <NetworkDetailSection title="TLS Version">
-                          <span className={`${networkDetailChipClass} border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400`}>
-                            TLS {selectedNetworkNode.data.tlsVersion as string}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={`${networkDetailChipClass} border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400`}>
+                              TLS {selectedNetworkNode.data.tlsVersion as string}
+                            </span>
+                            {(selectedNetworkNode.data?.serverSelectedVersion as string | undefined) && (
+                              <span className="text-xs text-muted-foreground">
+                                server selected: {selectedNetworkNode.data.serverSelectedVersion as string}
+                              </span>
+                            )}
+                          </div>
+                          {(selectedNetworkNode.data?.supportedVersions as string[] | undefined)?.length ? (
+                            <div className="mt-1.5">
+                              <p className="text-xs text-muted-foreground/60 mb-1">Client offered</p>
+                              <div className="flex flex-wrap gap-1">
+                                {(selectedNetworkNode.data.supportedVersions as string[]).map((v: string) => (
+                                  <span key={v} className={networkDetailChipClass}>{v}</span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                         </NetworkDetailSection>
                       )}
 
+                      {/* Cipher Suite — server-chosen AEAD + HKDF hash */}
                       {selectedNetworkNode.data?.negotiatedCipherSuite && (
-                        <NetworkDetailSection title="Negotiated Cipher Suite" meta="Active">
+                        <NetworkDetailSection title="Cipher Suite" meta="Server selected">
                           {(() => {
                             const cs = selectedNetworkNode.data.negotiatedCipherSuite as string;
                             const strength = getCipherStrength(cs);
                             const badge = cipherStrengthBadge[strength];
                             return (
-                              <div className="rounded-md border-l-4 border-purple-500 bg-purple-500/15 dark:bg-purple-500/20 px-3 py-2">
-                                <div className="flex items-center gap-1.5 mb-1">
-                                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${badge.className}`}>
-                                    {badge.label}
-                                  </span>
-                                </div>
-                                <span className="font-mono text-purple-700 dark:text-purple-300 font-semibold break-all">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold leading-none ${badge.className}`}>
+                                  {badge.label}
+                                </span>
+                                <span className="font-mono text-foreground font-medium break-all">
                                   {cs}
                                 </span>
                               </div>
@@ -1375,86 +1513,530 @@ function CBOMDetailsContent() {
                         </NetworkDetailSection>
                       )}
 
-                      {(selectedNetworkNode.data?.keyExchangeGroups as string[] | undefined)?.length ? (
+                      {/* Decomposed in-use cryptography from cryptoRefArray */}
+                      {(selectedNetworkNode.data?.negotiatedAlgorithms as NegotiatedAlg[] | undefined)?.length ? (
+                        <NetworkDetailSection title="Cryptography" meta="In-use decomposed">
+                          {(() => {
+                            const algs = selectedNetworkNode.data!.negotiatedAlgorithms as NegotiatedAlg[];
+                            const byRole = new Map<AlgRole, NegotiatedAlg[]>();
+                            for (const alg of algs) {
+                              const role = primitiveToRole(alg.primitive);
+                              if (!byRole.has(role)) byRole.set(role, []);
+                              byRole.get(role)!.push(alg);
+                            }
+                            return (
+                              <div className="space-y-1.5">
+                                {ROLE_ORDER.filter((r) => byRole.has(r)).map((role) => (
+                                  <div key={role}>
+                                    <p className="text-xs text-muted-foreground/60 mb-1">{role}</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {byRole.get(role)!.map((alg) => {
+                                        const isPqc = (alg.nistQuantumSecurityLevel ?? 0) >= 1;
+                                        const secLevel = alg.nistQuantumSecurityLevel ?? 0;
+                                        const classicLevel = alg.classicalSecurityLevel ?? 0;
+                                        const tooltip = [
+                                          alg.oid ? `OID ${alg.oid}` : '',
+                                          secLevel > 0 ? `NIST PQC level ${secLevel}` : '',
+                                          classicLevel > 0 ? `${classicLevel}-bit classical` : '',
+                                        ].filter(Boolean).join(' · ');
+                                        return (
+                                          <span
+                                            key={alg.name}
+                                            className={`${networkDetailChipClass} ${isPqc ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : ''}`}
+                                            title={tooltip || undefined}
+                                          >
+                                            {alg.name}
+                                            {(secLevel > 0 || classicLevel > 0) && (
+                                              <span className={`ml-1 text-[10px] font-sans ${isPqc ? 'text-cyan-500/70' : 'text-muted-foreground/50'}`}>
+                                                {secLevel > 0 ? `L${secLevel}` : `${classicLevel}b`}
+                                              </span>
+                                            )}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </NetworkDetailSection>
+                      ) : null}
+
+                      {/* Key Exchange Group — from key_share ServerHello */}
+                      {(selectedNetworkNode.data?.negotiatedGroup as string | undefined) && (
+                        <NetworkDetailSection title="Key Exchange Group" meta="key_share">
+                          <span className={`${networkDetailChipClass} border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400`}>
+                            {selectedNetworkNode.data.negotiatedGroup as string}
+                          </span>
+                        </NetworkDetailSection>
+                      )}
+
+                      <PanelGroupHeader label="Authentication" />
+
+                      {/* Certificate details — TLS ≤ 1.2 only (TLS 1.3 certs are encrypted) */}
+                      {(selectedNetworkNode.data?.certificates as CertificateInfo[] | undefined)?.length ? (
                         <NetworkDetailSection
-                          title="Key Exchange Groups"
-                          meta={`${(selectedNetworkNode.data.keyExchangeGroups as string[]).length} group${(selectedNetworkNode.data.keyExchangeGroups as string[]).length === 1 ? '' : 's'}`}
+                          title="Certificate"
+                          meta={`${(selectedNetworkNode.data.certificates as CertificateInfo[]).length} observed`}
+                        >
+                          {(selectedNetworkNode.data.certificates as CertificateInfo[]).map((cert, idx) => (
+                            <div key={idx} className={`space-y-1.5 ${idx > 0 ? 'mt-2 pt-2 border-t border-border/30' : ''}`}>
+                              {cert.subjectName && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground/60 mb-0.5">Subject</p>
+                                  <p className="font-mono text-xs break-all">{cert.subjectName}</p>
+                                </div>
+                              )}
+                              {cert.issuerName && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground/60 mb-0.5">Issuer</p>
+                                  <p className="font-mono text-xs break-all">{cert.issuerName}</p>
+                                </div>
+                              )}
+                              {(cert.notValidBefore || cert.notValidAfter) && (
+                                <div className="flex gap-3 flex-wrap">
+                                  {cert.notValidBefore && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground/60 mb-0.5">Valid from</p>
+                                      <span className={networkDetailChipClass}>{cert.notValidBefore}</span>
+                                    </div>
+                                  )}
+                                  {cert.notValidAfter && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground/60 mb-0.5">Valid to</p>
+                                      <span className={networkDetailChipClass}>{cert.notValidAfter}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {cert.subjectPublicKeyAlg && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground/60 mb-0.5">Public key algorithm</p>
+                                  <span className={networkDetailChipClass}>{cert.subjectPublicKeyAlg}</span>
+                                </div>
+                              )}
+                              {cert.signatureAlg && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground/60 mb-0.5">Signature algorithm</p>
+                                  <span className={networkDetailChipClass}>{cert.signatureAlg}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </NetworkDetailSection>
+                      ) : null}
+
+                      {/* TLS 1.3 passive capture — cert encrypted in EncryptedExtensions */}
+                      {(selectedNetworkNode.data?.authVisibility as string | undefined) === 'not-observed-passive' && (
+                        <NetworkDetailSection title="Certificate">
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Certificate &amp; CertificateVerify signature were encrypted (TLS 1.3 EncryptedExtensions) — not observable from a passive capture.
+                          </p>
+                        </NetworkDetailSection>
+                      )}
+
+                      <PanelGroupHeader label="Offered — ClientHello" />
+
+                      {/* Cipher Suites — full ClientHello cipher_suites list */}
+                      {(selectedNetworkNode.data?.offeredCipherSuites as OfferedCipherSuiteObj[] | undefined)?.length ? (
+                        <NetworkDetailSection
+                          title="Cipher Suites"
+                          meta={`${(selectedNetworkNode.data.offeredCipherSuites as OfferedCipherSuiteObj[]).length} advertised`}
+                        >
+                          {(() => {
+                            const suiteObjs = selectedNetworkNode.data!.offeredCipherSuites as OfferedCipherSuiteObj[];
+                            const suiteNames = suiteObjs.map((s) => s.name);
+                            const counts = suiteNames.reduce<Record<CipherStrength, number>>(
+                              (acc, cs) => { acc[getCipherStrength(cs)]++; return acc; },
+                              { recommended: 0, secure: 0, weak: 0, insecure: 0, unknown: 0 },
+                            );
+                            const order: CipherStrength[] = ['recommended', 'secure', 'weak', 'insecure', 'unknown'];
+                            return (
+                              <>
+                                <div className="flex flex-wrap gap-1 mb-1.5">
+                                  {order.filter((s) => counts[s] > 0).map((s) => (
+                                    <span key={s} className={`rounded px-2 py-0.5 text-xs font-semibold leading-none ${cipherStrengthBadge[s].className}`}>
+                                      {counts[s]} {cipherStrengthBadge[s].label}
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="space-y-0.5 max-h-64 overflow-y-auto pr-1">
+                                  {suiteObjs.map((suite) => {
+                                    const isNegotiated = suite.name === (selectedNetworkNode.data?.negotiatedCipherSuite as string);
+                                    const strength = getCipherStrength(suite.name);
+                                    const badge = cipherStrengthBadge[strength];
+                                    const isExpanded = expandedSuites.has(suite.name);
+                                    const toggleExpanded = () =>
+                                      setExpandedSuites((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(suite.name)) next.delete(suite.name); else next.add(suite.name);
+                                        return next;
+                                      });
+                                    const byRole = new Map<AlgRole, NegotiatedAlg[]>();
+                                    for (const alg of suite.algorithms) {
+                                      const role = primitiveToRole(alg.primitive);
+                                      if (!byRole.has(role)) byRole.set(role, []);
+                                      byRole.get(role)!.push(alg);
+                                    }
+                                    return (
+                                      <div
+                                        key={suite.name}
+                                        className={`rounded ${isNegotiated ? 'border-l-2 border-purple-500 bg-purple-500/20 dark:bg-purple-500/25' : 'bg-muted'}`}
+                                      >
+                                        <button
+                                          onClick={suite.algorithms.length ? toggleExpanded : undefined}
+                                          className={`flex w-full items-start gap-1.5 px-2 py-1 text-left${suite.algorithms.length ? ' cursor-pointer' : ''}`}
+                                        >
+                                          <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold leading-none mt-px ${badge.className}`}>
+                                            {badge.label}
+                                          </span>
+                                          {isNegotiated && (
+                                            <span className="shrink-0 rounded-full bg-purple-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide leading-none mt-px">
+                                              Negotiated
+                                            </span>
+                                          )}
+                                          <span className={`font-mono break-all flex-1 text-left${isNegotiated ? ' font-semibold text-purple-700 dark:text-purple-300' : ''}`}>
+                                            {suite.name}
+                                            {suite.identifiers?.length ? (
+                                              <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-sans">
+                                                {suite.identifiers.join(', ')}
+                                              </span>
+                                            ) : null}
+                                          </span>
+                                          {suite.algorithms.length > 0 && (
+                                            <span className="shrink-0 mt-px text-muted-foreground/50">
+                                              {isExpanded ? '▴' : '▾'}
+                                            </span>
+                                          )}
+                                        </button>
+                                        {isExpanded && suite.algorithms.length > 0 && (
+                                          <div className="px-2 pb-1.5 space-y-1">
+                                            {ROLE_ORDER.filter((r) => byRole.has(r)).map((role) => (
+                                              <div key={role}>
+                                                <p className="text-xs text-muted-foreground/50 mb-1">{role}</p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                  {byRole.get(role)!.map((alg) => {
+                                                    const isPqc = (alg.nistQuantumSecurityLevel ?? 0) >= 1;
+                                                    return (
+                                                      <span
+                                                        key={alg.name}
+                                                        className={`${networkDetailChipClass} text-[10px] ${isPqc ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : ''}`}
+                                                      >
+                                                        {alg.name}
+                                                      </span>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </NetworkDetailSection>
+                      ) : null}
+
+                      {/* Supported Groups — supported_groups extension, full client capability list */}
+                      {(selectedNetworkNode.data?.offeredGroups as string[] | undefined)?.length ? (
+                        <NetworkDetailSection
+                          title="Supported Groups"
+                          meta={`${(selectedNetworkNode.data.offeredGroups as string[]).length} advertised`}
                         >
                           <div className="flex flex-wrap gap-1">
-                            {(selectedNetworkNode.data.keyExchangeGroups as string[]).map((g: string) => (
-                              <span key={g} className={networkDetailChipClass}>{g}</span>
-                            ))}
+                            {(selectedNetworkNode.data.offeredGroups as string[]).map((g: string) => {
+                              const isUsed = g === (selectedNetworkNode.data?.negotiatedGroup as string);
+                              return (
+                                <span
+                                  key={g}
+                                  className={`${networkDetailChipClass}${isUsed ? ' border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : ''}`}
+                                >
+                                  {g}
+                                  {isUsed && <span className="ml-1 text-[9px] font-sans text-cyan-500/70">✓</span>}
+                                </span>
+                              );
+                            })}
                           </div>
                         </NetworkDetailSection>
                       ) : null}
 
-                      {(selectedNetworkNode.data?.signatureAlgorithms as string[] | undefined)?.length ? (
+                      {/* Signature Algorithms — signature_algorithms extension */}
+                      {(selectedNetworkNode.data?.offeredSignatureAlgorithms as string[] | undefined)?.length ? (
                         <NetworkDetailSection
                           title="Signature Algorithms"
-                          meta={`${(selectedNetworkNode.data.signatureAlgorithms as string[]).length} algorithm${(selectedNetworkNode.data.signatureAlgorithms as string[]).length === 1 ? '' : 's'}`}
+                          meta={`${(selectedNetworkNode.data.offeredSignatureAlgorithms as string[]).length} advertised`}
                         >
                           <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
-                            {(selectedNetworkNode.data.signatureAlgorithms as string[]).map((algorithm: string) => (
+                            {(selectedNetworkNode.data.offeredSignatureAlgorithms as string[]).map((algorithm: string) => (
                               <span key={algorithm} className={networkDetailChipClass}>{algorithm}</span>
                             ))}
                           </div>
                         </NetworkDetailSection>
                       ) : null}
 
-                      {(selectedNetworkNode.data?.cipherSuites as string[] | undefined)?.length ? (
-                        <NetworkDetailSection
-                          title="Cipher Suites"
-                          meta={`${(selectedNetworkNode.data.cipherSuites as string[]).length} suite${(selectedNetworkNode.data.cipherSuites as string[]).length === 1 ? '' : 's'}`}
-                        >
-                          {(() => {
-                            const suites = selectedNetworkNode.data.cipherSuites as string[];
-                            const counts = suites.reduce<Record<CipherStrength, number>>(
-                              (acc, cs) => { acc[getCipherStrength(cs)]++; return acc; },
-                              { recommended: 0, secure: 0, weak: 0, insecure: 0, unknown: 0 },
-                            );
-                            const order: CipherStrength[] = ['recommended', 'secure', 'weak', 'insecure', 'unknown'];
-                            return (
-                              <div className="flex flex-wrap gap-1 mb-2">
-                                {order.filter((s) => counts[s] > 0).map((s) => (
-                                  <span key={s} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${cipherStrengthBadge[s].className}`}>
-                                    {counts[s]} {cipherStrengthBadge[s].label}
-                                  </span>
+                      <PanelGroupHeader label="Security Posture" />
+
+                      {/* PQC Readiness */}
+                      {(() => {
+                        const pqcProtected = selectedNetworkNode.data?.pqcProtected as boolean | undefined;
+                        const pqcLevel = selectedNetworkNode.data?.pqcLevel as number | undefined;
+                        const pqcAssets = selectedNetworkNode.data?.pqcAssets as string[] | undefined;
+                        return (
+                          <NetworkDetailSection title="PQC Readiness">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {pqcProtected ? (
+                                <span className="rounded px-2 py-0.5 text-xs font-semibold leading-none bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30">
+                                  PQC-protected
+                                </span>
+                              ) : (
+                                <span className="rounded px-2 py-0.5 text-xs font-semibold leading-none bg-muted text-muted-foreground border border-border">
+                                  Classical / quantum-vulnerable
+                                </span>
+                              )}
+                              {pqcLevel !== undefined && pqcLevel > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  NIST level {pqcLevel}
+                                </span>
+                              )}
+                            </div>
+                            {pqcAssets && pqcAssets.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {pqcAssets.map((a) => (
+                                  <span key={a} className={networkDetailChipClass}>{a}</span>
                                 ))}
                               </div>
-                            );
-                          })()}
-                          <div className="space-y-0.5 max-h-52 overflow-y-auto pr-1">
-                            {(selectedNetworkNode.data.cipherSuites as string[]).map((cs: string) => {
-                              const isNegotiated = cs === (selectedNetworkNode.data?.negotiatedCipherSuite as string);
-                              const strength = getCipherStrength(cs);
-                              const badge = cipherStrengthBadge[strength];
-                              return (
-                                <div
-                                  key={cs}
-                                  className={`flex items-start gap-1.5 rounded px-2 py-1 ${
-                                    isNegotiated
-                                      ? 'border-l-2 border-purple-500 bg-purple-500/20 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300'
-                                      : 'bg-muted'
-                                  }`}
-                                >
-                                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none mt-px ${badge.className}`}>
-                                    {badge.label}
-                                  </span>
-                                  {isNegotiated && (
-                                    <span className="shrink-0 rounded-full bg-purple-600 text-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide leading-none mt-px">
-                                      Negotiated
-                                    </span>
-                                  )}
-                                  <span className={`font-mono break-all${isNegotiated ? ' font-semibold' : ''}`}>{cs}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </NetworkDetailSection>
-                      ) : null}
+                            )}
+                          </NetworkDetailSection>
+                        );
+                      })()}
                     </div>
                   </div>
+                  </>
                 )}
+              </div>
+            )
+          ) : assetViewMode === 'network-table' ? (
+            networkGraphData.nodes.filter((n) => !n.data?.isAgent).length === 0 ? (
+              <div className="p-4 border border-dashed rounded-md text-sm text-muted-foreground">
+                No network connections found in this CBOM.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap">Endpoint</TableHead>
+                      <TableHead className="whitespace-nowrap">Host (SNI)</TableHead>
+                      <TableHead className="whitespace-nowrap">TLS</TableHead>
+                      <TableHead className="whitespace-nowrap">PQC</TableHead>
+                      <TableHead className="whitespace-nowrap">Cipher Suite</TableHead>
+                      <TableHead className="whitespace-nowrap">Key Exchange Group</TableHead>
+                      <TableHead className="whitespace-nowrap">In-use Algorithms</TableHead>
+                      <TableHead className="whitespace-nowrap">Offered Suites</TableHead>
+                      <TableHead className="whitespace-nowrap">Supported Groups</TableHead>
+                      <TableHead className="whitespace-nowrap">Signature Algorithms</TableHead>
+                      <TableHead className="whitespace-nowrap">Auth / Certificate</TableHead>
+                      <TableHead className="whitespace-nowrap">Warning</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {networkGraphData.nodes
+                      .filter((n) => !n.data?.isAgent)
+                      .map((n) => {
+                        const hostNames = n.data?.snis as string[] | undefined;
+                        const tlsVersion = n.data?.tlsVersion as string | undefined;
+                        const negotiatedCipherSuite = n.data?.negotiatedCipherSuite as string | undefined;
+                        const negotiatedGroup = n.data?.negotiatedGroup as string | undefined;
+                        const offeredGroups = n.data?.offeredGroups as string[] | undefined;
+                        const offeredSignatureAlgorithms = n.data?.offeredSignatureAlgorithms as string[] | undefined;
+                        const offeredCipherSuites = n.data?.offeredCipherSuites as OfferedCipherSuiteObj[] | undefined;
+                        const pqcProtected = n.data?.pqcProtected as boolean | undefined;
+                        const pqcLevel = n.data?.pqcLevel as number | undefined;
+                        const negotiatedAlgorithms = n.data?.negotiatedAlgorithms as NegotiatedAlg[] | undefined;
+                        const warning = n.data?.warning as string | undefined;
+                        const endpoint = n.data?.endpoint as string | undefined;
+                        const certificates = n.data?.certificates as CertificateInfo[] | undefined;
+                        const cipherStrength = negotiatedCipherSuite ? getCipherStrength(negotiatedCipherSuite) : 'unknown';
+                        const csBadge = cipherStrengthBadge[cipherStrength];
+
+                        // Cipher suite strength distribution for offered suites
+                        const offeredSuiteCounts = (offeredCipherSuites ?? []).reduce<Record<CipherStrength, number>>(
+                          (acc, s) => { acc[getCipherStrength(s.name)]++; return acc; },
+                          { recommended: 0, secure: 0, weak: 0, insecure: 0, unknown: 0 },
+                        );
+
+                        return (
+                          <TableRow key={n.id}>
+                            {/* Endpoint — ip:port from services[] */}
+                            <TableCell className="font-mono text-xs whitespace-nowrap">
+                              {endpoint || <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+
+                            {/* Host (SNI) */}
+                            <TableCell className="font-medium">
+                              <div className="flex flex-col gap-0.5">
+                                {((hostNames?.length ? hostNames : [n.label ?? n.id])).map((s) => (
+                                  <span key={s} className="font-mono text-xs whitespace-nowrap">{s}</span>
+                                ))}
+                              </div>
+                            </TableCell>
+
+                            {/* TLS version — server selected */}
+                            <TableCell>
+                              {tlsVersion ? (
+                                <span className="inline-flex items-center rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300 whitespace-nowrap">
+                                  TLS {tlsVersion}
+                                </span>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+
+                            {/* PQC status */}
+                            <TableCell>
+                              {pqcProtected ? (
+                                <span className="inline-flex items-center rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-xs font-semibold text-cyan-700 dark:text-cyan-400 whitespace-nowrap">
+                                  PQC{pqcLevel ? ` L${pqcLevel}` : ''}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                  Classical
+                                </span>
+                              )}
+                            </TableCell>
+
+                            {/* Negotiated cipher suite */}
+                            <TableCell className="min-w-[200px]">
+                              {negotiatedCipherSuite ? (
+                                <div className="flex items-start gap-1.5 flex-col">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${csBadge.className}`}>
+                                      {csBadge.label}
+                                    </span>
+                                    <span className="font-mono text-xs">{negotiatedCipherSuite}</span>
+                                  </div>
+                                  {offeredCipherSuites?.length ? (
+                                    <span className="text-[10px] text-muted-foreground/60">
+                                      {offeredCipherSuites.length} offered
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+
+                            {/* Key exchange group — from key_share */}
+                            <TableCell>
+                              {negotiatedGroup ? (
+                                <span className="inline-flex items-center rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 font-mono text-xs text-cyan-700 dark:text-cyan-400 whitespace-nowrap">
+                                  {negotiatedGroup}
+                                </span>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+
+                            {/* Decomposed in-use algorithms from cryptoRefArray */}
+                            <TableCell className="min-w-[140px]">
+                              <div className="flex flex-wrap gap-1">
+                                {(negotiatedAlgorithms ?? []).map((alg) => {
+                                  const isPqc = (alg.nistQuantumSecurityLevel ?? 0) >= 1;
+                                  return (
+                                    <span
+                                      key={alg.name}
+                                      title={alg.primitive}
+                                      className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-xs whitespace-nowrap ${isPqc ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : 'border-border/70 bg-background text-foreground'}`}
+                                    >
+                                      {alg.name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </TableCell>
+
+                            {/* Offered cipher suites — cipher_suites from ClientHello */}
+                            <TableCell className="min-w-[120px]">
+                              {offeredCipherSuites?.length ? (
+                                <div className="space-y-1">
+                                  <span className="text-xs font-medium">{offeredCipherSuites.length} suites</span>
+                                  <div className="flex flex-wrap gap-0.5">
+                                    {(['recommended', 'secure', 'weak', 'insecure'] as CipherStrength[])
+                                      .filter((s) => offeredSuiteCounts[s] > 0)
+                                      .map((s) => (
+                                        <span key={s} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${cipherStrengthBadge[s].className}`}>
+                                          {offeredSuiteCounts[s]} {cipherStrengthBadge[s].label}
+                                        </span>
+                                      ))}
+                                  </div>
+                                </div>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+
+                            {/* Supported groups — supported_groups extension, negotiated one highlighted */}
+                            <TableCell className="min-w-[160px]">
+                              <div className="flex flex-wrap gap-1">
+                                {(offeredGroups ?? []).map((g) => {
+                                  const isUsed = g === negotiatedGroup;
+                                  return (
+                                    <span
+                                      key={g}
+                                      className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-xs whitespace-nowrap ${isUsed ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : 'border-border/70 bg-background text-foreground'}`}
+                                    >
+                                      {g}{isUsed ? ' ✓' : ''}
+                                    </span>
+                                  );
+                                })}
+                                {!offeredGroups?.length && <span className="text-muted-foreground">—</span>}
+                              </div>
+                            </TableCell>
+
+                            {/* Signature algorithms — signature_algorithms extension from ClientHello */}
+                            <TableCell className="min-w-[160px]">
+                              {offeredSignatureAlgorithms?.length ? (
+                                <div className="space-y-1">
+                                  <span className="text-xs font-medium">{offeredSignatureAlgorithms.length} schemes</span>
+                                  <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                                    {offeredSignatureAlgorithms.map((alg) => (
+                                      <span key={alg} className="inline-flex items-center rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-xs whitespace-nowrap">
+                                        {alg}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+
+                            {/* Auth / Certificate — subject for TLS 1.2, note for TLS 1.3 */}
+                            <TableCell className="max-w-[180px]">
+                              {certificates?.length ? (
+                                <div className="space-y-0.5">
+                                  {certificates.map((cert, i) => (
+                                    <p key={i} className="font-mono text-xs truncate" title={cert.subjectName}>
+                                      {cert.subjectName || '—'}
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  {tlsVersion === '1.3' ? 'Encrypted (TLS 1.3)' : '—'}
+                                </span>
+                              )}
+                            </TableCell>
+
+                            {/* Warning advisory */}
+                            <TableCell className="max-w-[200px]">
+                              {warning ? (
+                                <div className="flex items-start gap-1">
+                                  <span className="shrink-0 text-amber-500">⚠</span>
+                                  <span className="text-xs text-amber-700 dark:text-amber-400 break-words">{warning}</span>
+                                </div>
+                              ) : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
               </div>
             )
           ) : assetViewMode === 'file-tree' ? (
