@@ -126,6 +126,7 @@ const navigationConfig: NavGroup[] = [
       { href: '/devices', label: 'Devices', icon: Router, uiAuthzCapabilities: 'pki.devicemanager.device' },
       { href: '/device-groups', label: 'Device Groups', icon: Layers, uiAuthzCapabilities: 'pki.devicemanager.device_group' },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
+      { href: '/updates', label: 'Updates', icon: Rocket }
     ],
   },
   {
