@@ -72,7 +72,8 @@ const cipherStrengthBadge: Record<CipherStrength, { label: string; className: st
   unknown:     { label: 'Unknown',     className: 'bg-muted text-muted-foreground border border-border',                           short: '?', compactClass: 'bg-muted text-muted-foreground' },
 };
 
-const networkDetailChipClass = 'rounded-full border border-border/70 bg-background px-2.5 py-1 font-mono text-xs text-foreground';
+const chip = 'inline-flex items-center rounded border px-2 py-0.5 text-xs';
+const networkDetailChipClass = `${chip} border-border/70 bg-muted/40 font-mono text-foreground`;
 
 function NetworkDetailSection({
   title,
@@ -1417,9 +1418,10 @@ function CBOMDetailsContent() {
                 </div>
 
                 {selectedNetworkNode && !selectedNetworkNode.data?.isAgent && (
-                  <>
-                  <div className="w-1/3 shrink-0 text-sm overflow-y-auto max-h-[420px]">
-                    <div className="flex items-center justify-between mb-1">
+                  <div className="w-1/3 shrink-0 overflow-y-auto max-h-[420px] pl-4 border-l">
+
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-3">
                       <span className="font-semibold text-sm truncate" title={selectedNetworkNode.label}>
                         {selectedNetworkNode.label}
                       </span>
@@ -1431,92 +1433,77 @@ function CBOMDetailsContent() {
                         ✕
                       </button>
                     </div>
-                    <div>
-                      {/* Warning advisory */}
-                      {(selectedNetworkNode.data?.warning as string | undefined) && (
-                        <div className="mb-2 flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                          <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400">⚠</span>
-                          <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
-                            {selectedNetworkNode.data.warning as string}
-                          </p>
-                        </div>
-                      )}
+
+                    {/* Warning */}
+                    {(selectedNetworkNode.data?.warning as string | undefined) && (
+                      <div className="mb-3 flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                        <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400">⚠</span>
+                        <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                          {selectedNetworkNode.data.warning as string}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="divide-y text-sm">
 
                       {/* Endpoint */}
                       {(selectedNetworkNode.data?.endpoint as string | undefined) && (
-                        <NetworkDetailSection title="Endpoint">
-                          <span className={`${networkDetailChipClass} font-mono`}>
-                            {selectedNetworkNode.data.endpoint as string}
-                          </span>
-                        </NetworkDetailSection>
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Endpoint</p>
+                          <p className="mt-1 font-mono text-sm">{selectedNetworkNode.data.endpoint as string}</p>
+                        </div>
                       )}
 
-                      {/* SNI */}
+                      {/* Host (SNI) */}
                       {(selectedNetworkNode.data?.snis as string[] | undefined)?.length ? (
-                        <NetworkDetailSection
-                          title="SNI"
-                          meta={`${(selectedNetworkNode.data.snis as string[]).length} host${(selectedNetworkNode.data.snis as string[]).length === 1 ? '' : 's'}`}
-                        >
-                          <div className="flex flex-wrap gap-1">
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Host (SNI)</p>
+                          <div className="mt-1 flex flex-wrap gap-1">
                             {(selectedNetworkNode.data.snis as string[]).map((s: string) => (
                               <span key={s} className={networkDetailChipClass}>{s}</span>
                             ))}
                           </div>
-                        </NetworkDetailSection>
+                        </div>
                       ) : null}
 
-                      <PanelGroupHeader label="Negotiated" />
-
-                      {/* TLS Version — server-selected + client-offered versions */}
+                      {/* TLS Version */}
                       {selectedNetworkNode.data?.tlsVersion && (
-                        <NetworkDetailSection title="TLS Version">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className={`${networkDetailChipClass} border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400`}>
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">TLS Version</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className={`${chip} border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-medium`}>
                               TLS {selectedNetworkNode.data.tlsVersion as string}
                             </span>
-                            {(selectedNetworkNode.data?.serverSelectedVersion as string | undefined) && (
+                            {(selectedNetworkNode.data?.supportedVersions as string[] | undefined)?.length ? (
                               <span className="text-xs text-muted-foreground">
-                                server selected: {selectedNetworkNode.data.serverSelectedVersion as string}
+                                ({(selectedNetworkNode.data.supportedVersions as string[]).join(', ')} offered)
                               </span>
-                            )}
+                            ) : null}
                           </div>
-                          {(selectedNetworkNode.data?.supportedVersions as string[] | undefined)?.length ? (
-                            <div className="mt-1.5">
-                              <p className="text-xs text-muted-foreground/60 mb-1">Client offered</p>
-                              <div className="flex flex-wrap gap-1">
-                                {(selectedNetworkNode.data.supportedVersions as string[]).map((v: string) => (
-                                  <span key={v} className={networkDetailChipClass}>{v}</span>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                        </NetworkDetailSection>
+                        </div>
                       )}
 
-                      {/* Cipher Suite — server-chosen AEAD + HKDF hash */}
+                      {/* Cipher Suite */}
                       {selectedNetworkNode.data?.negotiatedCipherSuite && (
-                        <NetworkDetailSection title="Cipher Suite" meta="Server selected">
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Cipher Suite</p>
                           {(() => {
                             const cs = selectedNetworkNode.data.negotiatedCipherSuite as string;
-                            const strength = getCipherStrength(cs);
-                            const badge = cipherStrengthBadge[strength];
+                            const badge = cipherStrengthBadge[getCipherStrength(cs)];
                             return (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold leading-none ${badge.className}`}>
-                                  {badge.label}
-                                </span>
-                                <span className="font-mono text-foreground font-medium break-all">
-                                  {cs}
-                                </span>
+                              <div className="mt-1 flex items-start gap-1.5 flex-wrap">
+                                <span className={`${chip} font-medium ${badge.className}`}>{badge.label}</span>
+                                <span className="font-mono text-sm font-medium break-all">{cs}</span>
                               </div>
                             );
                           })()}
-                        </NetworkDetailSection>
+                        </div>
                       )}
 
-                      {/* Decomposed in-use cryptography from cryptoRefArray */}
+                      {/* In-use Algorithms */}
                       {(selectedNetworkNode.data?.negotiatedAlgorithms as NegotiatedAlg[] | undefined)?.length ? (
-                        <NetworkDetailSection title="Cryptography" meta="In-use decomposed">
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Algorithms</p>
                           {(() => {
                             const algs = selectedNetworkNode.data!.negotiatedAlgorithms as NegotiatedAlg[];
                             const byRole = new Map<AlgRole, NegotiatedAlg[]>();
@@ -1526,26 +1513,18 @@ function CBOMDetailsContent() {
                               byRole.get(role)!.push(alg);
                             }
                             return (
-                              <div className="space-y-1.5">
+                              <div className="mt-1 space-y-2">
                                 {ROLE_ORDER.filter((r) => byRole.has(r)).map((role) => (
                                   <div key={role}>
                                     <p className="text-xs text-muted-foreground/60 mb-1">{role}</p>
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <div className="flex flex-wrap gap-1">
                                       {byRole.get(role)!.map((alg) => {
                                         const isPqc = (alg.nistQuantumSecurityLevel ?? 0) >= 1;
                                         const secLevel = alg.nistQuantumSecurityLevel ?? 0;
                                         const classicLevel = alg.classicalSecurityLevel ?? 0;
-                                        const tooltip = [
-                                          alg.oid ? `OID ${alg.oid}` : '',
-                                          secLevel > 0 ? `NIST PQC level ${secLevel}` : '',
-                                          classicLevel > 0 ? `${classicLevel}-bit classical` : '',
-                                        ].filter(Boolean).join(' · ');
+                                        const tip = [alg.oid ? `OID ${alg.oid}` : '', secLevel > 0 ? `NIST PQC level ${secLevel}` : '', classicLevel > 0 ? `${classicLevel}-bit classical` : ''].filter(Boolean).join(' · ');
                                         return (
-                                          <span
-                                            key={alg.name}
-                                            className={`${networkDetailChipClass} ${isPqc ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : ''}`}
-                                            title={tooltip || undefined}
-                                          >
+                                          <span key={alg.name} title={tip || undefined} className={`${networkDetailChipClass} ${isPqc ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : ''}`}>
                                             {alg.name}
                                             {(secLevel > 0 || classicLevel > 0) && (
                                               <span className={`ml-1 text-[10px] font-sans ${isPqc ? 'text-cyan-500/70' : 'text-muted-foreground/50'}`}>
@@ -1561,101 +1540,122 @@ function CBOMDetailsContent() {
                               </div>
                             );
                           })()}
-                        </NetworkDetailSection>
+                        </div>
                       ) : null}
 
-                      {/* Key Exchange Group — from key_share ServerHello */}
+                      {/* Key Exchange Group */}
                       {(selectedNetworkNode.data?.negotiatedGroup as string | undefined) && (
-                        <NetworkDetailSection title="Key Exchange Group" meta="key_share">
-                          <span className={`${networkDetailChipClass} border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400`}>
-                            {selectedNetworkNode.data.negotiatedGroup as string}
-                          </span>
-                        </NetworkDetailSection>
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Key Exchange Group</p>
+                          <p className="mt-1 font-mono text-sm">{selectedNetworkNode.data.negotiatedGroup as string}</p>
+                        </div>
                       )}
 
-                      <PanelGroupHeader label="Authentication" />
-
-                      {/* Certificate details — TLS ≤ 1.2 only (TLS 1.3 certs are encrypted) */}
-                      {(selectedNetworkNode.data?.certificates as CertificateInfo[] | undefined)?.length ? (
-                        <NetworkDetailSection
-                          title="Certificate"
-                          meta={`${(selectedNetworkNode.data.certificates as CertificateInfo[]).length} observed`}
-                        >
-                          {(selectedNetworkNode.data.certificates as CertificateInfo[]).map((cert, idx) => (
-                            <div key={idx} className={`space-y-1.5 ${idx > 0 ? 'mt-2 pt-2 border-t border-border/30' : ''}`}>
-                              {cert.subjectName && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground/60 mb-0.5">Subject</p>
-                                  <p className="font-mono text-xs break-all">{cert.subjectName}</p>
-                                </div>
-                              )}
-                              {cert.issuerName && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground/60 mb-0.5">Issuer</p>
-                                  <p className="font-mono text-xs break-all">{cert.issuerName}</p>
-                                </div>
-                              )}
-                              {(cert.notValidBefore || cert.notValidAfter) && (
-                                <div className="flex gap-3 flex-wrap">
-                                  {cert.notValidBefore && (
-                                    <div>
-                                      <p className="text-xs text-muted-foreground/60 mb-0.5">Valid from</p>
-                                      <span className={networkDetailChipClass}>{cert.notValidBefore}</span>
-                                    </div>
-                                  )}
-                                  {cert.notValidAfter && (
-                                    <div>
-                                      <p className="text-xs text-muted-foreground/60 mb-0.5">Valid to</p>
-                                      <span className={networkDetailChipClass}>{cert.notValidAfter}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                              {cert.subjectPublicKeyAlg && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground/60 mb-0.5">Public key algorithm</p>
-                                  <span className={networkDetailChipClass}>{cert.subjectPublicKeyAlg}</span>
-                                </div>
-                              )}
-                              {cert.signatureAlg && (
-                                <div>
-                                  <p className="text-xs text-muted-foreground/60 mb-0.5">Signature algorithm</p>
-                                  <span className={networkDetailChipClass}>{cert.signatureAlg}</span>
-                                </div>
+                      {/* PQC Readiness */}
+                      {(() => {
+                        const pqcProtected = selectedNetworkNode.data?.pqcProtected as boolean | undefined;
+                        const pqcLevel = selectedNetworkNode.data?.pqcLevel as number | undefined;
+                        const pqcAssets = selectedNetworkNode.data?.pqcAssets as string[] | undefined;
+                        return (
+                          <div className="py-3 first:pt-0">
+                            <p className="text-xs font-medium text-muted-foreground">PQC Readiness</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {pqcProtected ? (
+                                <span className={`${chip} border-cyan-500/30 bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 font-medium`}>
+                                  PQC-protected{pqcLevel ? ` · NIST L${pqcLevel}` : ''}
+                                </span>
+                              ) : (
+                                <span className={`${chip} border-border/70 bg-muted/40 text-muted-foreground font-medium`}>
+                                  Classical / quantum-vulnerable
+                                </span>
                               )}
                             </div>
-                          ))}
-                        </NetworkDetailSection>
+                            {pqcAssets?.length ? (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {pqcAssets.map((a) => <span key={a} className={networkDetailChipClass}>{a}</span>)}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Certificate */}
+                      {(selectedNetworkNode.data?.certificates as CertificateInfo[] | undefined)?.length ? (
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Certificate</p>
+                          <div className="mt-1 space-y-3">
+                            {(selectedNetworkNode.data.certificates as CertificateInfo[]).map((cert, idx) => (
+                              <div key={idx} className={`space-y-2 ${idx > 0 ? 'pt-3 border-t border-border/30' : ''}`}>
+                                {cert.subjectName && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground/60">Subject</p>
+                                    <p className="mt-0.5 font-mono text-xs break-all">{cert.subjectName}</p>
+                                  </div>
+                                )}
+                                {cert.issuerName && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground/60">Issuer</p>
+                                    <p className="mt-0.5 font-mono text-xs break-all">{cert.issuerName}</p>
+                                  </div>
+                                )}
+                                {(cert.notValidBefore || cert.notValidAfter) && (
+                                  <div className="flex gap-4">
+                                    {cert.notValidBefore && (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground/60">Valid from</p>
+                                        <p className="mt-0.5 font-mono text-xs">{cert.notValidBefore}</p>
+                                      </div>
+                                    )}
+                                    {cert.notValidAfter && (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground/60">Valid to</p>
+                                        <p className="mt-0.5 font-mono text-xs">{cert.notValidAfter}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {cert.subjectPublicKeyAlg && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground/60">Public key algorithm</p>
+                                    <p className="mt-0.5 font-mono text-xs">{cert.subjectPublicKeyAlg}</p>
+                                  </div>
+                                )}
+                                {cert.signatureAlg && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground/60">Signature algorithm</p>
+                                    <p className="mt-0.5 font-mono text-xs">{cert.signatureAlg}</p>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       ) : null}
 
-                      {/* TLS 1.3 passive capture — cert encrypted in EncryptedExtensions */}
+                      {/* TLS 1.3 passive capture */}
                       {(selectedNetworkNode.data?.authVisibility as string | undefined) === 'not-observed-passive' && (
-                        <NetworkDetailSection title="Certificate">
-                          <p className="text-xs text-muted-foreground leading-relaxed">
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Certificate</p>
+                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                             Certificate &amp; CertificateVerify signature were encrypted (TLS 1.3 EncryptedExtensions) — not observable from a passive capture.
                           </p>
-                        </NetworkDetailSection>
+                        </div>
                       )}
 
-                      <PanelGroupHeader label="Offered — ClientHello" />
-
-                      {/* Cipher Suites — full ClientHello cipher_suites list */}
+                      {/* Offered Cipher Suites */}
                       {(selectedNetworkNode.data?.offeredCipherSuites as OfferedCipherSuiteObj[] | undefined)?.length ? (
-                        <NetworkDetailSection
-                          title="Cipher Suites"
-                          meta={`${(selectedNetworkNode.data.offeredCipherSuites as OfferedCipherSuiteObj[]).length} advertised`}
-                        >
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Offered Cipher Suites</p>
                           {(() => {
                             const suiteObjs = selectedNetworkNode.data!.offeredCipherSuites as OfferedCipherSuiteObj[];
-                            const suiteNames = suiteObjs.map((s) => s.name);
-                            const counts = suiteNames.reduce<Record<CipherStrength, number>>(
-                              (acc, cs) => { acc[getCipherStrength(cs)]++; return acc; },
+                            const counts = suiteObjs.reduce<Record<CipherStrength, number>>(
+                              (acc, s) => { acc[getCipherStrength(s.name)]++; return acc; },
                               { recommended: 0, secure: 0, weak: 0, insecure: 0, unknown: 0 },
                             );
                             const order: CipherStrength[] = ['recommended', 'secure', 'weak', 'insecure', 'unknown'];
                             return (
                               <>
-                                <div className="flex items-center gap-2 mb-1.5">
+                                <div className="mt-1 flex items-center gap-2 mb-1.5">
                                   {order.filter((s) => counts[s] > 0).map((s) => (
                                     <span key={s} className="flex items-center gap-0.5">
                                       <span className="text-xs text-muted-foreground leading-none">{counts[s]}</span>
@@ -1666,51 +1666,21 @@ function CBOMDetailsContent() {
                                 <div className="space-y-0.5 max-h-64 overflow-y-auto pr-1">
                                   {suiteObjs.map((suite) => {
                                     const isNegotiated = suite.name === (selectedNetworkNode.data?.negotiatedCipherSuite as string);
-                                    const strength = getCipherStrength(suite.name);
-                                    const badge = cipherStrengthBadge[strength];
+                                    const badge = cipherStrengthBadge[getCipherStrength(suite.name)];
                                     const isExpanded = expandedSuites.has(suite.name);
-                                    const toggleExpanded = () =>
-                                      setExpandedSuites((prev) => {
-                                        const next = new Set(prev);
-                                        if (next.has(suite.name)) next.delete(suite.name); else next.add(suite.name);
-                                        return next;
-                                      });
+                                    const toggleExpanded = () => setExpandedSuites((prev) => { const next = new Set(prev); if (next.has(suite.name)) next.delete(suite.name); else next.add(suite.name); return next; });
                                     const byRole = new Map<AlgRole, NegotiatedAlg[]>();
-                                    for (const alg of suite.algorithms) {
-                                      const role = primitiveToRole(alg.primitive);
-                                      if (!byRole.has(role)) byRole.set(role, []);
-                                      byRole.get(role)!.push(alg);
-                                    }
+                                    for (const alg of suite.algorithms) { const role = primitiveToRole(alg.primitive); if (!byRole.has(role)) byRole.set(role, []); byRole.get(role)!.push(alg); }
                                     return (
-                                      <div
-                                        key={suite.name}
-                                        className={`rounded ${isNegotiated ? 'border-l-2 border-purple-500 bg-purple-500/20 dark:bg-purple-500/25' : 'bg-muted'}`}
-                                      >
-                                        <button
-                                          onClick={suite.algorithms.length ? toggleExpanded : undefined}
-                                          className={`flex w-full items-start gap-1.5 px-2 py-1 text-left${suite.algorithms.length ? ' cursor-pointer' : ''}`}
-                                        >
-                                          <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold leading-none mt-px ${badge.className}`}>
-                                            {badge.label}
-                                          </span>
-                                          {isNegotiated && (
-                                            <span className="shrink-0 rounded-full bg-purple-600 text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide leading-none mt-px">
-                                              Negotiated
-                                            </span>
-                                          )}
-                                          <span className={`font-mono break-all flex-1 text-left${isNegotiated ? ' font-semibold text-purple-700 dark:text-purple-300' : ''}`}>
+                                      <div key={suite.name} className={`rounded ${isNegotiated ? 'border-l-2 border-purple-500 bg-purple-500/20 dark:bg-purple-500/25' : 'bg-muted'}`}>
+                                        <button onClick={suite.algorithms.length ? toggleExpanded : undefined} className={`flex w-full items-start gap-1.5 px-2 py-1 text-left${suite.algorithms.length ? ' cursor-pointer' : ''}`}>
+                                          <span className={`${chip} font-medium ${badge.className}`}>{badge.label}</span>
+                                          {isNegotiated && <span className={`${chip} border-purple-600 bg-purple-600 text-white font-medium`}>Negotiated</span>}
+                                          <span className={`font-mono text-xs break-all flex-1 text-left${isNegotiated ? ' font-semibold text-purple-700 dark:text-purple-300' : ''}`}>
                                             {suite.name}
-                                            {suite.identifiers?.length ? (
-                                              <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-sans">
-                                                {suite.identifiers.join(', ')}
-                                              </span>
-                                            ) : null}
+                                            {suite.identifiers?.length ? <span className="ml-1.5 text-[10px] text-muted-foreground/50 font-sans">{suite.identifiers.join(', ')}</span> : null}
                                           </span>
-                                          {suite.algorithms.length > 0 && (
-                                            <span className="shrink-0 mt-px text-muted-foreground/50">
-                                              {isExpanded ? '▴' : '▾'}
-                                            </span>
-                                          )}
+                                          {suite.algorithms.length > 0 && <span className="shrink-0 mt-px text-muted-foreground/50">{isExpanded ? '▴' : '▾'}</span>}
                                         </button>
                                         {isExpanded && suite.algorithms.length > 0 && (
                                           <div className="px-2 pb-1.5 space-y-1">
@@ -1718,17 +1688,9 @@ function CBOMDetailsContent() {
                                               <div key={role}>
                                                 <p className="text-xs text-muted-foreground/50 mb-1">{role}</p>
                                                 <div className="flex flex-wrap gap-1.5">
-                                                  {byRole.get(role)!.map((alg) => {
-                                                    const isPqc = (alg.nistQuantumSecurityLevel ?? 0) >= 1;
-                                                    return (
-                                                      <span
-                                                        key={alg.name}
-                                                        className={`${networkDetailChipClass} text-[10px] ${isPqc ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : ''}`}
-                                                      >
-                                                        {alg.name}
-                                                      </span>
-                                                    );
-                                                  })}
+                                                  {byRole.get(role)!.map((alg) => (
+                                                    <span key={alg.name} className={networkDetailChipClass}>{alg.name}</span>
+                                                  ))}
                                                 </div>
                                               </div>
                                             ))}
@@ -1741,84 +1703,40 @@ function CBOMDetailsContent() {
                               </>
                             );
                           })()}
-                        </NetworkDetailSection>
+                        </div>
                       ) : null}
 
-                      {/* Supported Groups — supported_groups extension, full client capability list */}
+                      {/* Supported Groups */}
                       {(selectedNetworkNode.data?.offeredGroups as string[] | undefined)?.length ? (
-                        <NetworkDetailSection
-                          title="Supported Groups"
-                          meta={`${(selectedNetworkNode.data.offeredGroups as string[]).length} advertised`}
-                        >
-                          <div className="flex flex-wrap gap-1">
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Supported Groups</p>
+                          <div className="mt-1 flex flex-wrap gap-1">
                             {(selectedNetworkNode.data.offeredGroups as string[]).map((g: string) => {
                               const isUsed = g === (selectedNetworkNode.data?.negotiatedGroup as string);
                               return (
-                                <span
-                                  key={g}
-                                  className={`${networkDetailChipClass}${isUsed ? ' border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : ''}`}
-                                >
-                                  {g}
-                                  {isUsed && <span className="ml-1 text-[9px] font-sans text-cyan-500/70">✓</span>}
+                                <span key={g} className={`${networkDetailChipClass}${isUsed ? ' border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : ''}`}>
+                                  {g}{isUsed && <span className="ml-1 text-[9px] font-sans text-cyan-500/70">✓</span>}
                                 </span>
                               );
                             })}
                           </div>
-                        </NetworkDetailSection>
+                        </div>
                       ) : null}
 
-                      {/* Signature Algorithms — signature_algorithms extension */}
+                      {/* Signature Algorithms */}
                       {(selectedNetworkNode.data?.offeredSignatureAlgorithms as string[] | undefined)?.length ? (
-                        <NetworkDetailSection
-                          title="Signature Algorithms"
-                          meta={`${(selectedNetworkNode.data.offeredSignatureAlgorithms as string[]).length} advertised`}
-                        >
-                          <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1">
-                            {(selectedNetworkNode.data.offeredSignatureAlgorithms as string[]).map((algorithm: string) => (
-                              <span key={algorithm} className={networkDetailChipClass}>{algorithm}</span>
+                        <div className="py-3 first:pt-0">
+                          <p className="text-xs font-medium text-muted-foreground">Signature Algorithms</p>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {(selectedNetworkNode.data.offeredSignatureAlgorithms as string[]).map((alg: string) => (
+                              <span key={alg} className={networkDetailChipClass}>{alg}</span>
                             ))}
                           </div>
-                        </NetworkDetailSection>
+                        </div>
                       ) : null}
 
-                      <PanelGroupHeader label="Security Posture" />
-
-                      {/* PQC Readiness */}
-                      {(() => {
-                        const pqcProtected = selectedNetworkNode.data?.pqcProtected as boolean | undefined;
-                        const pqcLevel = selectedNetworkNode.data?.pqcLevel as number | undefined;
-                        const pqcAssets = selectedNetworkNode.data?.pqcAssets as string[] | undefined;
-                        return (
-                          <NetworkDetailSection title="PQC Readiness">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {pqcProtected ? (
-                                <span className="rounded px-2 py-0.5 text-xs font-semibold leading-none bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30">
-                                  PQC-protected
-                                </span>
-                              ) : (
-                                <span className="rounded px-2 py-0.5 text-xs font-semibold leading-none bg-muted text-muted-foreground border border-border">
-                                  Classical / quantum-vulnerable
-                                </span>
-                              )}
-                              {pqcLevel !== undefined && pqcLevel > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                  NIST level {pqcLevel}
-                                </span>
-                              )}
-                            </div>
-                            {pqcAssets && pqcAssets.length > 0 && (
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                {pqcAssets.map((a) => (
-                                  <span key={a} className={networkDetailChipClass}>{a}</span>
-                                ))}
-                              </div>
-                            )}
-                          </NetworkDetailSection>
-                        );
-                      })()}
                     </div>
                   </div>
-                  </>
                 )}
               </div>
             )
@@ -1905,7 +1823,7 @@ function CBOMDetailsContent() {
                             {/* TLS version — server selected */}
                             <TableCell>
                               {tlsVersion ? (
-                                <span className="inline-flex items-center rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300 whitespace-nowrap">
+                                <span className={`${chip} border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-medium whitespace-nowrap`}>
                                   TLS {tlsVersion}
                                 </span>
                               ) : <span className="text-muted-foreground">—</span>}
@@ -1914,11 +1832,11 @@ function CBOMDetailsContent() {
                             {/* PQC status */}
                             <TableCell>
                               {pqcProtected ? (
-                                <span className="inline-flex items-center rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-xs font-semibold text-cyan-700 dark:text-cyan-400 whitespace-nowrap">
+                                <span className={`${chip} border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 font-medium whitespace-nowrap`}>
                                   PQC{pqcLevel ? ` L${pqcLevel}` : ''}
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                <span className={`${chip} border-border/70 bg-muted/40 text-muted-foreground`}>
                                   Classical
                                 </span>
                               )}
@@ -1928,7 +1846,7 @@ function CBOMDetailsContent() {
                             <TableCell className="min-w-[200px]">
                               {negotiatedCipherSuite ? (
                                 <div className="flex flex-col items-start gap-1.5">
-                                  <span className={`rounded px-2 py-0.5 font-mono text-xs font-semibold leading-none ${csBadge.className}`}>
+                                  <span className={`${chip} font-mono font-medium ${csBadge.className}`}>
                                     {negotiatedCipherSuite}
                                   </span>
                                   {offeredCipherSuites?.length ? (
@@ -1954,7 +1872,7 @@ function CBOMDetailsContent() {
                                   <span
                                     key={alg.name}
                                     title={alg.primitive}
-                                    className="inline-flex items-center rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-xs whitespace-nowrap text-foreground"
+                                    className={`${networkDetailChipClass} whitespace-nowrap`}
                                   >
                                     {alg.name}
                                   </span>
@@ -1970,7 +1888,7 @@ function CBOMDetailsContent() {
                                   return (
                                     <span
                                       key={g}
-                                      className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-xs whitespace-nowrap ${isUsed ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : 'border-border/70 bg-background text-foreground'}`}
+                                      className={`${chip} font-mono whitespace-nowrap ${isUsed ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-400' : 'border-border/70 bg-muted/40 text-foreground'}`}
                                     >
                                       {g}{isUsed ? ' ✓' : ''}
                                     </span>
@@ -1985,7 +1903,7 @@ function CBOMDetailsContent() {
                               {offeredSignatureAlgorithms?.length ? (
                                 <div className="flex flex-wrap gap-1">
                                   {offeredSignatureAlgorithms.map((alg) => (
-                                    <span key={alg} className="inline-flex items-center rounded-full border border-border/70 bg-background px-2 py-0.5 font-mono text-xs whitespace-nowrap">
+                                    <span key={alg} className={`${networkDetailChipClass} whitespace-nowrap`}>
                                       {alg}
                                     </span>
                                   ))}
