@@ -10,19 +10,20 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare } from "lucide-react";
+import { Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
 import { DmsSelector } from '@/components/shared/DmsSelector';
-import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { fetchDevices } from '@/lib/devices-api';
 import { useToast } from '@/hooks/use-toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/device-icon';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -86,23 +87,7 @@ export const StatusBadge: React.FC<{ status: DeviceStatus }> = ({ status }) => {
   return <Badge variant="secondary" className={cn("text-xs capitalize", badgeClass)}>{status.replace('_', ' ').toLowerCase()}</Badge>;
 };
 
-export const mapApiIconToIconType = (apiIcon: string): string => {
-  return apiIcon || 'HelpCircle'; // Pass through name, or default.
-};
-
-export const DeviceIcon: React.FC<{ type: string; iconColor?: string; bgColor?: string; }> = ({ type, iconColor, bgColor }) => {
-  const IconComponent = getLucideIconByName(type);
-
-  return (
-    <div className={cn("p-1.5 rounded-md inline-flex items-center justify-center")} style={{ backgroundColor: bgColor || '#F0F8FF' }}>
-      {IconComponent ? (
-        <IconComponent className={cn("h-5 w-5")} style={{ color: iconColor || '#0f67ff' }} />
-      ) : (
-        <HelpCircle className={cn("h-5 w-5")} style={{ color: iconColor || '#0f67ff' }} />
-      )}
-    </div>
-  );
-};
+export { DeviceIcon, mapApiIconToIconType } from '@/app/devices/device-icon';
 
 type SortableColumn = 'id' | 'status' | 'deviceGroup' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -378,7 +363,7 @@ export default function DevicesPage() {
   const hasActiveFilters = debouncedSearchTerm || statusFilter !== 'ALL' || dmsOwnerFilter;
 
   return (
-    <div className="space-y-6 w-full pb-8">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Devices' }]} className="space-y-6 w-full pb-8">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
         <div className="flex items-center space-x-3">
           <DeviceIcon type="CgSmartphoneChip" />
@@ -629,6 +614,6 @@ export default function DevicesPage() {
         ra={raForEnrollModal}
         initialDeviceId={deviceForEnrollModal?.id}
       />
-    </div>
+    </BreadcrumbPage>
   );
 }

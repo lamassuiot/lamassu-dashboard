@@ -22,6 +22,7 @@ import { AEADIndicator } from '@/components/shared/AEADIndicator';
 import { SYM_KEY_ALGORITHMS } from '@/lib/key-spec-constants';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 interface SymKey extends ApiSymKey {
   displayName: string;
@@ -162,7 +163,7 @@ export default function SymKeysPage() {
   }
 
   return (
-    <div className="space-y-6 w-full pb-8">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'KMS Keys', href: '/kms/keys' }, { label: 'Symmetric Keys' }]} className="space-y-6 w-full pb-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <Lock className="h-8 w-8 text-primary" />
@@ -375,6 +376,6 @@ export default function SymKeysPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }

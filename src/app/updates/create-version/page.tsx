@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { cn, isValidSemver, compareSemver } from '@/lib/utils';
 import type { UpdatePack } from '@/types/iot';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 // Lightweight "create a new version of an existing pack" page. It just bumps the pack to a fresh
 // version and lands on the pack's details, where artifacts are uploaded and (for SWU packs) the SWU
@@ -105,7 +106,7 @@ export default function CreateUpdatePackVersionPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Distribution Set', href: '/package-inventory' }, { label: 'New Version' }]} className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -169,6 +170,6 @@ export default function CreateUpdatePackVersionPage() {
           </Button>
         </CardFooter>
       </Card>
-    </div>
+    </BreadcrumbPage>
   );
 }

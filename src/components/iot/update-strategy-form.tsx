@@ -24,11 +24,14 @@ import type { UpdateStrategy, UpdatePack } from '@/types/iot'; // UpdatePack add
 // MOCK_DEVICES and MOCK_UPDATE_STRATEGIES removed as strategy is global and packs are fetched
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { fetchWorkflows, type WfxWorkflow } from '@/lib/iot-api';
 
 const SELECT_NONE_VALUE = "_NONE_"; 
 
 const strategyFormSchema = z.object({
-  workflowType: z.enum(["wfx.workflow.dau.direct", "wfx.workflow.dau.phased"]),
+  workflowType: z.string().min(1, "Please select a workflow type"),
   rolloutType: z.enum(["numeric", "percentage"]),
   rolloutValue: z.coerce.number().int().positive("Rollout value must be a positive integer."),
   testDeviceId: z.string().optional(), // Assuming MOCK_DEVICES is still used for test device IDs for now
@@ -56,7 +59,7 @@ interface UpdateStrategyFormProps {
   disableWorkflowTypeSelection?: boolean; // New prop to disable workflow type selection
   showSubmitButton?: boolean; // New prop to control submit button visibility
   formId?: string; // Optional ID for the form element
-  showPreconditions?: boolean; // Gate the Launch Preconditions section (only in create-launch dialog)
+  showPreconditions?: boolean; // Gate the Campaign Preconditions section (only in create-campaign dialog)
 }
 
 export function UpdateStrategyForm({ 
@@ -75,6 +78,23 @@ export function UpdateStrategyForm({
 }: UpdateStrategyFormProps) {
   // Use initialStrategy if provided, otherwise fall back to legacy strategy prop
   const initialStrategyData = initialStrategy || legacyStrategy;
+  const { user } = useAuth();
+
+  // Fetch available workflows dynamically from the wfx API
+  const { data: workflows = [] } = useQuery<WfxWorkflow[]>({
+    queryKey: ['wfxWorkflows'],
+    queryFn: ({ signal }) => fetchWorkflows({ accessToken: user!.access_token! }, { signal }),
+    enabled: !!user?.access_token,
+    staleTime: 5 * 60 * 1000, // cache for 5 minutes
+  });
+
+  // Helper to get a human-readable label for a workflow name
+  const getWorkflowLabel = (name: string): string => {
+    // Readable short labels derived from the workflow name suffix
+    const suffix = name.replace(/^wfx\.workflow\.dau\./, '');
+    const label = suffix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return label || name;
+  };
 
   const defaultFormValues: StrategyFormValues = {
     workflowType: "wfx.workflow.dau.direct",
@@ -245,9 +265,7 @@ export function UpdateStrategyForm({
                     <FormLabel>Workflow Type</FormLabel>
                     {disableWorkflowTypeSelection ? (
                       <div className="h-10 px-3 py-2 bg-muted border rounded-md flex items-center text-sm text-muted-foreground">
-                        {field.value === 'wfx.workflow.dau.direct' ? 'Direct Update' : 
-                         field.value === 'wfx.workflow.dau.phased' ? 'Phased Rollout' : 
-                         'Not Set'}
+                        {getWorkflowLabel(field.value)}
                       </div>
                     ) : (
                       <Select onValueChange={field.onChange} value={field.value} disabled={disableWorkflowTypeSelection}>
@@ -257,8 +275,16 @@ export function UpdateStrategyForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="wfx.workflow.dau.direct">Direct Update</SelectItem>
-                          <SelectItem value="wfx.workflow.dau.phased">Phased Rollout</SelectItem>
+                          {workflows.length > 0 ? (
+                            workflows.map(wf => (
+                              <SelectItem key={wf.name} value={wf.name}>{getWorkflowLabel(wf.name)}</SelectItem>
+                            ))
+                          ) : (
+                            <>
+                              <SelectItem value="wfx.workflow.dau.direct">Direct Update</SelectItem>
+                              <SelectItem value="wfx.workflow.dau.phased">Phased Rollout</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     )}
@@ -485,7 +511,7 @@ export function UpdateStrategyForm({
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <div className="h-1 w-1 rounded-full bg-primary" />
-                  Launch Preconditions
+                  Campaign Preconditions
                   <span className="text-xs font-normal text-muted-foreground">(optional)</span>
                 </div>
 
@@ -577,7 +603,7 @@ export function UpdateStrategyForm({
                   {disableUpdatePackSelection 
                     ? (initialStrategyData?.id ? 'Update Strategy' : 'Save Strategy')
                     : (form.watch("updatePackId") && form.watch("updatePackId") !== SELECT_NONE_VALUE
-                      ? `Prepare Launch`
+                      ? `Prepare Campaign`
                       : "Select Update Pack"
                     )
                   }

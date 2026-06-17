@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { getDeviceGroupByID } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
 import { DeviceGroupForm } from '@/components/device-groups/DeviceGroupForm';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 export default function EditDeviceGroupClient() {
   const searchParams = useSearchParams();
@@ -113,7 +114,7 @@ export default function EditDeviceGroupClient() {
   }
 
   return (
-    <div className="w-full space-y-6 mb-8">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Device Groups', href: '/device-groups' }, { label: 'Edit Device Group' }]} className="w-full space-y-6 mb-8">
       <Button variant="secondary" onClick={() => router.push(`/device-groups/details?groupId=${group.id}`)}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Group Details
       </Button>
@@ -129,6 +130,6 @@ export default function EditDeviceGroupClient() {
       </div>
 
       <DeviceGroupForm mode="edit" existingGroup={group} />
-    </div>
+    </BreadcrumbPage>
   );
 }

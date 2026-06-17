@@ -17,15 +17,15 @@ export interface DeviceUpdateEvent {
   logUrl?: string;
 }
 
-// A single launch precondition: a device must already have `required_pack_name` installed at a
+// A single campaign precondition: a device must already have `required_pack_name` installed at a
 // version >= `min_version` to qualify (API-facing, snake_case).
-export interface LaunchPrecondition {
+export interface CampaignPrecondition {
   required_pack_name: string;
   min_version: string;
 }
 
 // A device that did not satisfy a precondition (used in dry-run/create responses and persisted on
-// the launch). `current_version` is "" when the pack is not installed; `required` is ">=<min>".
+// the campaign). `current_version` is "" when the pack is not installed; `required` is ">=<min>".
 export interface PreconditionFailure {
   device_id: string;
   pack_name: string;
@@ -36,7 +36,7 @@ export interface PreconditionFailure {
 // Used by UpdateStrategyForm (camelCase)
 export interface UpdateStrategy {
   id?: string; // ID will be generated if not provided (e.g., when creating new)
-  workflowType: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
+  workflowType: string;
   rolloutType: 'numeric' | 'percentage';
   rolloutValue: number;
   testDeviceId?: string;
@@ -44,7 +44,7 @@ export interface UpdateStrategy {
   auto?: boolean; // Auto mode toggle
   approvalThreshold?: number; // % of batch that must succeed before next batch (auto only)
   errorThreshold?: number; // % of all devices that can fail before aborting (auto only)
-  preconditions?: LaunchPrecondition[];
+  preconditions?: CampaignPrecondition[];
 }
 
 export interface ApiCreateUpdatePackPayload {
@@ -198,16 +198,16 @@ export interface DevicePackWithArtifacts extends DevicePackVersion {
   artifacts: DevicePackArtifact[];
 }
 
-export interface LaunchItem {
+export interface CampaignItem {
   id: string;
   group_id: string;
   name: string;
   exec_date: string; // ISO Date string
   devices_with_job: string[];
   devices_without_job: string[];
-  active_launches?: string[] | null; // Device IDs that are currently active/executing in this launch
-  // Launch-level strategy configuration (added per launch, not per DMS)
-  workflow_type?: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
+  active_launches?: string[] | null; // Device IDs that are currently active/executing in this campaign
+  // Campaign-level strategy configuration (added per campaign, not per DMS)
+  workflow_type?: string;
   rollout_type?: 'numeric' | 'percentage';
   rollout_value?: number;
   test_device_id?: string;
@@ -216,21 +216,21 @@ export interface LaunchItem {
   approval_threshold?: number; // % of batch that must succeed before next batch (auto only)
   error_threshold?: number; // % of all devices that can fail before aborting (auto only)
   version?: number; // Version from the update pack
-  // Launch preconditions (all optional / backward-compatible)
-  preconditions?: LaunchPrecondition[];
+  // Campaign preconditions (all optional / backward-compatible)
+  preconditions?: CampaignPrecondition[];
   forced_preconditions?: boolean;
   precondition_failures?: PreconditionFailure[];
 }
 
-export interface LaunchListResponse {
+export interface CampaignListResponse {
   next: string | null;
-  list: LaunchItem[] | null;
+  list: CampaignItem[] | null;
   active_launches?: string[]; // Device IDs that are currently active/executing
 }
 
 export interface ApiGlobalStrategy {
   group_id: string;
-  workflow_type: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
+  workflow_type: string;
   rollout_type: 'numeric' | 'percentage';
   rollout_value: number;
   test_device_id?: string;
@@ -280,6 +280,8 @@ export interface DeviceJobWorkflowTransition {
   from: string;
   to: string;
   action?: string;
+  immediate?: boolean;
+  inmediate?: boolean; // tolerated misspelling seen in some workflow definitions
 }
 
 export interface DeviceJobWorkflow {

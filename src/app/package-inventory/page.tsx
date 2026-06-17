@@ -44,6 +44,7 @@ import { DateDisplay } from '@/components/shared/DateDisplay';
 import { compareSemver } from '@/lib/utils';
 import { CreatePackForm } from '@/components/iot/create-pack-form';
 import { NewPackVersionDialog, type PackForVersioning } from '@/components/iot/new-pack-version-dialog';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 type PackRow = UpdatePack & { groupId: string; groupName: string; orphaned: boolean };
 
@@ -116,12 +117,12 @@ const PackInventoryRow: React.FC<{
   const versions = (versionsResp?.list || []).slice().sort((a, b) => compareSemver(b.version, a.version));
 
   const detailsHref = `/updates/pack-details?groupId=${encodeURIComponent(pack.groupId)}&packName=${encodeURIComponent(pack.name)}`;
-  const launchHref = `/updates?action=launch&groupId=${encodeURIComponent(pack.groupId)}&packId=${encodeURIComponent(pack.id)}`;
-  // An orphaned pack's device group is gone, so it has no devices to launch to.
-  const canLaunch = !!pack.uri && !pack.orphaned;
-  const launchTitle = pack.orphaned
-    ? "This pack's device group no longer exists — nothing to launch to"
-    : pack.uri ? undefined : 'Build the package before launching it';
+  const campaignHref = `/updates?action=campaign&groupId=${encodeURIComponent(pack.groupId)}&packId=${encodeURIComponent(pack.id)}`;
+  // An orphaned pack's device group is gone, so it has no devices to start a campaign for.
+  const canStartCampaign = !!pack.uri && !pack.orphaned;
+  const campaignTitle = pack.orphaned
+    ? "This pack's device group no longer exists — nothing to start a campaign for"
+    : pack.uri ? undefined : 'Build the package before starting a campaign';
   // The pack-details page is addressed by group+name; with an empty group ID its URL collapses to
   // /groups//... and 404s. Packs with a non-empty (even if deleted) group still resolve, so gate
   // only on an empty group ID. Version history is available inline below regardless.
@@ -160,14 +161,14 @@ const PackInventoryRow: React.FC<{
               </Link>
             )}
           </Button>
-          <Button size="sm" className="h-7 text-xs" disabled={!canLaunch} asChild={canLaunch} title={launchTitle}>
-            {canLaunch ? (
-              <Link href={launchHref}>
+          <Button size="sm" className="h-7 text-xs" disabled={!canStartCampaign} asChild={canStartCampaign} title={campaignTitle}>
+            {canStartCampaign ? (
+              <Link href={campaignHref}>
                 <Rocket className="mr-1 h-3 w-3" />
-                Launch
+                Campaign
               </Link>
             ) : (
-              <span className="flex items-center"><Rocket className="mr-1 h-3 w-3" />Launch</span>
+              <span className="flex items-center"><Rocket className="mr-1 h-3 w-3" />Campaign</span>
             )}
           </Button>
           <DropdownMenu>
@@ -206,11 +207,11 @@ const PackInventoryRow: React.FC<{
               <GitFork className="mr-1.5 h-3.5 w-3.5" />
               New Version
             </Button>
-            {canLaunch && (
+            {canStartCampaign && (
               <Button variant="outline" size="sm" asChild>
-                <Link href={launchHref}>
+                <Link href={campaignHref}>
                   <Rocket className="mr-1.5 h-3.5 w-3.5" />
-                  Launch
+                  Campaign
                 </Link>
               </Button>
             )}
@@ -343,22 +344,24 @@ export default function PackageInventoryPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Distribution Set' }]} className="space-y-6 pb-8">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
             <Package className="h-8 w-8 text-primary" />
-            Package Inventory
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Every update pack across your device groups — create packs, manage versions, and start launches from here.
-          </p>
+          </div>
+          <div>
+            <h1 className="text-2xl font-headline font-semibold">Distribution Set</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Every update pack across your device groups — create packs, manage versions, and start campaigns from here.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => refetch()} variant="outline" size="sm" disabled={isFetching}>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button onClick={() => refetch()} variant="outline" disabled={isFetching}>
             <RefreshCw className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')} /> Refresh
           </Button>
-          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+          <Button onClick={() => setIsCreateOpen(true)} className="bg-primary hover:bg-primary/90">
             <PackagePlus className="mr-2 h-4 w-4" /> New Update Pack
           </Button>
         </div>
@@ -422,14 +425,14 @@ export default function PackageInventoryPage() {
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading update packs…</div>
       ) : filtered.length === 0 ? (
-        <div className="p-10 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
-          <Package className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-muted-foreground">No update packs</h3>
-          <p className="text-sm text-muted-foreground mt-1 mb-4">
+        <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed rounded-lg bg-muted/20">
+          <Package className="h-14 w-14 text-muted-foreground mb-4" />
+          <p className="text-lg font-medium text-foreground">No update packs</p>
+          <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-md">
             {search || groupFilter !== 'all' ? 'No packs match your filters.' : 'Create an update pack to get started.'}
           </p>
           {!search && groupFilter === 'all' && (
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+            <Button onClick={() => setIsCreateOpen(true)}>
               <PackagePlus className="mr-2 h-4 w-4" /> New Update Pack
             </Button>
           )}
@@ -461,7 +464,6 @@ export default function PackageInventoryPage() {
             </DialogDescription>
           </DialogHeader>
           <CreatePackForm
-            embedded
             showGroupSelector
             defaultGroupId={groupFilter !== 'all' ? groupFilter : undefined}
             onCreated={(gid, packName) => {
@@ -506,6 +508,6 @@ export default function PackageInventoryPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }

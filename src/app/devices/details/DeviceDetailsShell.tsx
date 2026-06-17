@@ -4,9 +4,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal, ClipboardList } from 'lucide-react';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal, KeyRound, Workflow, Layers, ClipboardList } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/page';
+import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/device-icon';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,9 @@ const TAB_TO_SLUG: Record<string, string> = {
   information: 'information',
   certificatesHistory: 'certificates-history',
   timeline: 'timeline',
+  keyInventory: 'key-inventory',
+  updateStatus: 'update-status',
+  updatePacks: 'package-inventory',
   metadata: 'metadata',
   jobs: 'jobs',
 };
@@ -34,6 +37,9 @@ const SLUG_TO_TAB: Record<string, string> = {
   information: 'information',
   'certificates-history': 'certificatesHistory',
   timeline: 'timeline',
+  'key-inventory': 'keyInventory',
+  'update-status': 'updateStatus',
+  'package-inventory': 'updatePacks',
   metadata: 'metadata',
   jobs: 'jobs',
 };
@@ -327,9 +333,12 @@ export default function DeviceDetailsShell({ children }: { children: React.React
           <div className="border-b overflow-x-auto overflow-y-hidden">
             <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
               {([
-                { value: 'information',        icon: Info,             label: 'Information' },
+                { value: 'information',        icon: Info,              label: 'Information' },
                 { value: 'certificatesHistory', icon: History,          label: 'Certificates History' },
                 { value: 'timeline',            icon: Clock,            label: 'Timeline' },
+                { value: 'keyInventory',        icon: KeyRound,         label: 'Key Inventory' },
+                { value: 'updateStatus',        icon: Workflow,         label: 'Update Status' },
+                { value: 'updatePacks',         icon: Layers,           label: 'Package Inventory' },
                 { value: 'metadata',            icon: SlidersHorizontal, label: 'Metadata' },
                 { value: 'jobs',                icon: ClipboardList,    label: 'Jobs' },
               ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (

@@ -303,8 +303,8 @@ const LeftDownEdge = (props: any) => {
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{
-            fill: 'hsl(var(--muted-foreground))',
-            stroke: 'hsl(var(--muted-foreground))',
+            fill: 'var(--muted-foreground)',
+            stroke: 'var(--muted-foreground)',
             animation: 'currentMarkerPulse 2s ease-in-out infinite'
           }}
         />
@@ -402,8 +402,8 @@ const VerticalConnectionEdge = (props: any) => {
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{
-            fill: 'hsl(var(--muted-foreground))',
-            stroke: 'hsl(var(--muted-foreground))',
+            fill: 'var(--muted-foreground)',
+            stroke: 'var(--muted-foreground)',
             animation: 'currentMarkerPulse 2s ease-in-out infinite'
           }}
         />
@@ -572,14 +572,14 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
         strokeWidth = 3;
       } else if (isActualTerminalPath && edge.target === 'TERMINATED') {
         // Actual terminal path to TERMINATED: red color and thicker
-        stroke = 'hsl(var(--destructive))';
+        stroke = 'var(--destructive)';
         strokeWidth = 3; // Make red paths thicker
       } else if ((sourceVisited || wasSourceSkipped) && edge.target !== 'TERMINATED') {
         // Source visited or skipped AND not going to TERMINATED: primary color
-        stroke = 'hsl(var(--primary))'; // Theme primary color for visited terminal edges (except TERMINATED)
+        stroke = 'var(--primary)'; // Theme primary color for visited terminal edges (except TERMINATED)
       } else {
         // Not visited or going to TERMINATED: gray
-        stroke = 'hsl(var(--muted-foreground))';
+        stroke = 'var(--muted-foreground)';
       }
 
       // Determine source handle based on target position
@@ -647,17 +647,17 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], historyStates: string
         animationDuration = '1.5s';
       } else if (isCurrentEdge) {
         // Current state edge: will vibrate between visited (blue) and non-visited (gray) colors in component
-        stroke = 'hsl(var(--primary))'; // Start with blue visited color
+        stroke = 'var(--primary)'; // Start with blue visited color
         animated = true;
         animationDuration = '1s'; // Faster vibration
       } else if ((sourceVisited || wasSourceSkipped) && (targetVisited || wasTargetSkipped)) {
         // Both states visited or skipped: blue color
-        stroke = 'hsl(var(--primary))'; // Blue for visited edges
+        stroke = 'var(--primary)'; // Blue for visited edges
         animated = true;
         animationDuration = `${2 + (index % 3)}s`;
       } else {
         // Not visited: medium gray (previous color)
-        stroke = 'hsl(var(--muted-foreground))';
+        stroke = 'var(--muted-foreground)';
         animated = true;
         animationDuration = `${2 + (index % 3)}s`;
       }
@@ -835,40 +835,40 @@ const CustomNode = ({
 
   if (isCurrentState && !isTerminal) {
     // Current state - normal background with prominent border
-    backgroundColor = 'hsl(var(--card))';
-    borderColor = 'hsl(var(--primary))';
-    textColor = 'hsl(var(--card-foreground))';
+    backgroundColor = 'var(--card)';
+    borderColor = 'var(--primary)';
+    textColor = 'var(--card-foreground)';
     opacity = 1;
   } else if (isTerminal && actuallyVisited) {
     // Terminal states that were reached - special colors
     if (label === 'TERMINATED') {
       // TERMINATED state when reached - red
-      backgroundColor = 'hsl(var(--destructive) / 0.1)'; // Light red background
-      borderColor = 'hsl(var(--destructive))'; // Red border
-      textColor = 'hsl(var(--destructive))'; // Dark red text
+      backgroundColor = 'color-mix(in srgb, var(--destructive) 10%, transparent)'; // Light red background
+      borderColor = 'var(--destructive)'; // Red border
+      textColor = 'var(--destructive)'; // Dark red text
     } else if (label === 'ACTIVATED') {
       // ACTIVATED state when reached - green
-      backgroundColor = 'hsl(var(--primary) / 0.1)'; // Light green background
-      borderColor = 'hsl(var(--primary))'; // Green border
-      textColor = 'hsl(var(--primary))'; // Dark green text
+      backgroundColor = 'color-mix(in srgb, var(--primary) 10%, transparent)'; // Light green background
+      borderColor = 'var(--primary)'; // Green border
+      textColor = 'var(--primary)'; // Dark green text
     } else {
       // Other terminal states - default terminal styling
-      backgroundColor = 'hsl(var(--card))';
-      borderColor = 'hsl(var(--primary))';
-      textColor = 'hsl(var(--card-foreground))';
+      backgroundColor = 'var(--card)';
+      borderColor = 'var(--primary)';
+      textColor = 'var(--card-foreground)';
     }
     opacity = 1;
   } else if (actuallyVisited || wasSkipped) {
     // Visited or skipped states - normal appearance
-    backgroundColor = 'hsl(var(--card))';
-    borderColor = 'hsl(var(--primary))';
-    textColor = 'hsl(var(--card-foreground))';
+    backgroundColor = 'var(--card)';
+    borderColor = 'var(--primary)';
+    textColor = 'var(--card-foreground)';
     opacity = 1;
   } else {
     // Non-visited states - gray and subdued (OFF appearance)
-    backgroundColor = 'hsl(var(--card))'; // Keep original background
-    borderColor = 'hsl(var(--muted-foreground) / 0.3)';
-    textColor = 'hsl(var(--muted-foreground))';
+    backgroundColor = 'var(--card)'; // Keep original background
+    borderColor = 'color-mix(in srgb, var(--muted-foreground) 30%, transparent)';
+    textColor = 'var(--muted-foreground)';
     opacity = 0.6;
   }
 
@@ -876,13 +876,13 @@ const CustomNode = ({
   if (data.hasWfx && !isTerminal && showWfxHighlights) {
     borderColor = '#F59E0B';
     backgroundColor = 'rgba(245, 158, 11, 0.06)';
-    textColor = 'hsl(var(--muted-foreground))';
+    textColor = 'var(--muted-foreground)';
   }
 
   // When visual mode is enabled, set non-WFX normal states to primary color to increase contrast
   if (showWfxHighlights && !data.hasWfx && !isTerminal) {
-    borderColor = 'hsl(var(--primary))';
-    textColor = 'hsl(var(--card-foreground))';
+    borderColor = 'var(--primary)';
+    textColor = 'var(--card-foreground)';
   }
 
   const nodeContent = (
@@ -962,8 +962,8 @@ const CustomNode = ({
       <div 
         className="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 relative"
         style={{
-          backgroundColor: 'hsl(var(--background))', // Keep original background for all states
-          borderColor: !actuallyVisited && !wasSkipped && !isCurrentState ? 'hsl(var(--muted-foreground) / 0.3)' : 'hsl(var(--border))',
+          backgroundColor: 'var(--background)', // Keep original background for all states
+          borderColor: !actuallyVisited && !wasSkipped && !isCurrentState ? 'color-mix(in srgb, var(--muted-foreground) 30%, transparent)' : 'var(--border)',
           zIndex: 5 // Above node background but below tooltips
         }}
       >
@@ -997,13 +997,13 @@ const CustomNode = ({
               className="absolute -inset-0.5 rounded-full"
               style={{
                 border: '3px solid transparent',
-                borderTopColor: 'hsl(var(--primary))', /* Primary color */
+                borderTopColor: 'var(--primary)', /* Primary color */
                 borderRadius: '50%',
                 animation: 'spin 2s linear infinite'
               }}
             />
             {/* Colored inner circle for current state */}
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'hsl(var(--primary))' }} />
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--primary)' }} />
           </>
         )}
       </div>

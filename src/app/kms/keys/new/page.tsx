@@ -23,6 +23,7 @@ import { TagInput } from '@/components/shared/TagInput';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { cn } from '@/lib/utils';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -281,7 +282,7 @@ export default function CreateKmsKeyPage() {
 
   if (!selectedMode) {
     return (
-      <div className="w-full flex flex-col gap-8 mb-12">
+      <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'KMS Keys', href: '/kms/keys' }, { label: 'Add Cryptographic Key' }]} className="w-full flex flex-col gap-8 mb-12">
         <Button
           variant="ghost"
          
@@ -410,12 +411,12 @@ export default function CreateKmsKeyPage() {
             <ChevronRight className="ml-1.5 h-4 w-4" />
           </Button>
         </div>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   return (
-    <div className="w-[80%] mx-auto mb-8">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'KMS Keys', href: '/kms/keys' }, { label: 'Add Cryptographic Key' }]} className="w-[80%] mx-auto mb-8">
       <div className="flex justify-end mb-4">
         <Button variant="ghost" onClick={() => setSelectedMode(null)} className="text-muted-foreground hover:text-foreground">
           Change method <ArrowLeft className="ml-1.5 h-3.5 w-3.5 rotate-180" />
@@ -679,6 +680,6 @@ export default function CreateKmsKeyPage() {
           </Button>
         </div>
       </form>
-    </div>
+    </BreadcrumbPage>
   );
 }

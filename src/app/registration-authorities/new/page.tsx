@@ -24,9 +24,9 @@ import { sileo } from '@/lib/toast';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { createOrUpdateRa, fetchRaById, buildApiRaEstSettingsFromForm, createDefaultRaAuthFormValues, hydrateRaAuthFormValuesFromApi, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import { RaAuthConfigurationSection } from '@/components/ra/RaAuthConfigurationSection';
 import type { RaAuthFormValues } from '@/types/ra-auth';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 
 const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];
@@ -436,27 +436,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const SelectedDeviceIcon = getLucideIconByName(selectedDeviceIconName);
 
   return (
-    <div className="mb-8 w-full space-y-6">
-      {isEditMode ? (
-        <DetailBreadcrumbRow
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Registration Authorities', href: '/registration-authorities' },
-            {
-              label: (
-                <Badge variant="default" className="text-xs">
-                  {raName || raId || 'Edit'}
-                </Badge>
-              ),
-            },
-          ]}
-          actions={
-            <Button variant="outline" onClick={() => router.back()}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs
-            </Button>
-          }
-        />
-      ) : (
+    <BreadcrumbPage
+      items={[
+        { label: 'Home', href: '/' },
+        { label: 'Registration Authorities', href: '/registration-authorities' },
+        { label: isEditMode ? (raName || raId || 'Edit') : 'New Registration Authority' },
+      ]}
+      className="mb-8 w-full space-y-6"
+    >
+      {!isEditMode && (
         <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs</Button>
       )}
 
@@ -880,6 +868,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         initialBgColor={selectedDeviceIconBgColor}
         onColorsChange={({ iconColor, bgColor }) => { setSelectedDeviceIconColor(iconColor); setSelectedDeviceIconBgColor(bgColor); }}
       />
-    </div>
+    </BreadcrumbPage>
   );
 }

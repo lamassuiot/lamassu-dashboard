@@ -28,6 +28,7 @@ import { fetchDeviceInventory, revokeKeyFromDevice } from '@/lib/device-inventor
 import type { DeviceKeyBinding, BindingStatus } from '@/types/device-inventory';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { AssignKeyToDeviceModal } from '@/components/devices/AssignKeyToDeviceModal';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 const BindingStatusBadge: React.FC<{ status: BindingStatus }> = ({ status }) => {
   let badgeClass = '';
@@ -196,7 +197,7 @@ export default function DeviceInventoryPage() {
   }
 
   return (
-    <div className="space-y-6 w-full pb-8">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Device Key Inventory' }]} className="space-y-6 w-full pb-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -444,6 +445,6 @@ export default function DeviceInventoryPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BreadcrumbPage>
   );
 }

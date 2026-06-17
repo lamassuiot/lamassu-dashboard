@@ -34,6 +34,7 @@ import {
 } from '@/lib/symkms-api';
 import { formatDistanceToNow } from 'date-fns';
 import { KeyDevicesLookupCard } from '@/components/kms/KeyDevicesLookupCard';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 interface FileToEncrypt {
   id: string;
@@ -1014,7 +1015,7 @@ export default function SymKeyDetailsClient() {
   }
 
   return (
-    <div className="space-y-6 w-full pb-8">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'KMS Keys', href: '/kms/keys' }, { label: 'Symmetric Keys', href: '/kms/keys/sym-keys' }, { label: keyId || 'Details' }]} className="space-y-6 w-full pb-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <Button variant="outline" onClick={() => router.push('/kms/keys/sym-keys')}>
@@ -2197,6 +2198,6 @@ export default function SymKeyDetailsClient() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </BreadcrumbPage>
   );
 }
