@@ -31,6 +31,9 @@ const TAB_TO_SLUG: Record<string, string> = {
   information: 'information',
   certificatesHistory: 'certificates-history',
   timeline: 'timeline',
+  keyInventory: 'key-inventory',
+  updateStatus: 'update-status',
+  updatePacks: 'package-inventory',
   metadata: 'metadata',
   jobs: 'jobs',
 };
@@ -39,6 +42,9 @@ const SLUG_TO_TAB: Record<string, string> = {
   information: 'information',
   'certificates-history': 'certificatesHistory',
   timeline: 'timeline',
+  'key-inventory': 'keyInventory',
+  'update-status': 'updateStatus',
+  'package-inventory': 'updatePacks',
   metadata: 'metadata',
   jobs: 'jobs',
 };
@@ -362,9 +368,12 @@ export default function DeviceDetailsShell({ children }: { children: React.React
           <div className="border-b overflow-x-auto overflow-y-hidden">
             <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
               {([
-                { value: 'information',        icon: Info,             label: 'Information' },
+                { value: 'information',        icon: Info,              label: 'Information' },
                 { value: 'certificatesHistory', icon: History,          label: 'Certificates History' },
                 { value: 'timeline',            icon: Clock,            label: 'Timeline' },
+                { value: 'keyInventory',        icon: KeyRound,         label: 'Key Inventory' },
+                { value: 'updateStatus',        icon: Workflow,         label: 'Update Status' },
+                { value: 'updatePacks',         icon: Layers,           label: 'Package Inventory' },
                 { value: 'metadata',            icon: SlidersHorizontal, label: 'Metadata' },
                 { value: 'jobs',                icon: ClipboardList,    label: 'Jobs' },
               ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (

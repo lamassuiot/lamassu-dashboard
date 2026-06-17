@@ -3,7 +3,7 @@
 'use client';
 
 import { get_CLIENT_UPDATES_API_BASE_URL, handleApiError } from './api-domains';
-import type { UpdatePack, ApiCreateUpdatePackPayload, ApiGlobalStrategy, LaunchItem, DeviceJob, LaunchListResponse, DeviceListApiResponse, UpdatePackVersion, Artifact, DevicePackVersion, DevicePackUpdate, DevicePackWithArtifacts, LaunchPrecondition, PreconditionFailure } from '@/types/iot';
+import type { UpdatePack, ApiCreateUpdatePackPayload, ApiGlobalStrategy, CampaignItem, DeviceJob, CampaignListResponse, DeviceListApiResponse, UpdatePackVersion, Artifact, DevicePackVersion, DevicePackUpdate, DevicePackWithArtifacts, CampaignPrecondition, PreconditionFailure } from '@/types/iot';
 
 
 export interface ApiParams {
@@ -269,24 +269,24 @@ export async function fetchUpdatePackDescriptor({ groupId, packName, accessToken
 }
 
 // Global strategy endpoints removed - no longer supported by backend
-// Strategy is now configured per-launch only
+// Strategy is now configured per-campaign only
 
-export async function fetchCurrentLaunches({ groupId, accessToken, limit, bookmark }: ApiParams & { limit?: number; bookmark?: string }, opts?: ApiCallOptions): Promise<LaunchListResponse> {
+export async function fetchCurrentCampaigns({ groupId, accessToken, limit, bookmark }: ApiParams & { limit?: number; bookmark?: string }, opts?: ApiCallOptions): Promise<CampaignListResponse> {
   const params = new URLSearchParams();
   if (limit) params.set('limit', limit.toString());
   if (bookmark) params.set('bookmark', bookmark);
-  
+
   const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch${params.toString() ? '?' + params.toString() : ''}`;
 
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
-  const data = await handleApiError(response, 'Failed to fetch launches');
-  
+  const data = await handleApiError(response, 'Failed to fetch campaigns');
+
   // If active_launches is not provided by API, compute it from the jobs
   let activeLaunches = data.active_launches || [];
-  
+
   // If not provided, extract from jobs with OPEN workflow group states
   if (!data.active_launches && data.list && Array.isArray(data.list)) {
     const activeStates = ['INSTALL', 'INSTALLING', 'INSTALLED', 'ACTIVATE', 'ACTIVATING'];
@@ -295,7 +295,7 @@ export async function fetchCurrentLaunches({ groupId, accessToken, limit, bookma
       .map((job: any) => job.clientId || job.status?.clientId)
       .filter((id: string | undefined) => id !== undefined);
   }
-  
+
   return {
     next: data.next || null,
     list: data.list || [],
@@ -303,7 +303,7 @@ export async function fetchCurrentLaunches({ groupId, accessToken, limit, bookma
   };
 }
 
-export async function fetchLaunchDetails({ groupId, accessToken, launchId }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<LaunchItem | null> {
+export async function fetchCampaignDetails({ groupId, accessToken, campaignId }: ApiParams & { campaignId: string }, opts?: ApiCallOptions): Promise<CampaignItem | null> {
   let bookmark: string | undefined = undefined;
   let hasMore = true;
   let iterations = 0;
@@ -311,22 +311,22 @@ export async function fetchLaunchDetails({ groupId, accessToken, launchId }: Api
 
   while (hasMore && iterations < maxIterations) {
     iterations++;
-    const response: LaunchListResponse = await fetchCurrentLaunches({ groupId, accessToken, limit: 20, bookmark }, opts);
-    
+    const response: CampaignListResponse = await fetchCurrentCampaigns({ groupId, accessToken, limit: 20, bookmark }, opts);
+
     if (response.list) {
-      const found = response.list.find(l => l.id === launchId);
+      const found = response.list.find(l => l.id === campaignId);
       if (found) return found;
     }
-    
+
     bookmark = response.next || undefined;
     hasMore = !!response.next;
   }
-  
+
   return null;
 }
 
-export async function fetchAllLaunches({ groupId, accessToken }: ApiParams, opts?: ApiCallOptions): Promise<LaunchItem[]> {
-  const allLaunches: LaunchItem[] = [];
+export async function fetchAllCampaigns({ groupId, accessToken }: ApiParams, opts?: ApiCallOptions): Promise<CampaignItem[]> {
+  const allCampaigns: CampaignItem[] = [];
   let bookmark: string | undefined = undefined;
   let hasMore = true;
   let iterations = 0;
@@ -334,21 +334,21 @@ export async function fetchAllLaunches({ groupId, accessToken }: ApiParams, opts
 
   while (hasMore && iterations < maxIterations) {
     iterations++;
-    const response: LaunchListResponse = await fetchCurrentLaunches({ groupId, accessToken, limit: 20, bookmark }, opts);
-    
+    const response: CampaignListResponse = await fetchCurrentCampaigns({ groupId, accessToken, limit: 20, bookmark }, opts);
+
     if (response.list) {
-      allLaunches.push(...response.list);
+      allCampaigns.push(...response.list);
     }
-    
+
     bookmark = response.next || undefined;
     hasMore = !!response.next;
   }
-  
-  return allLaunches;
+
+  return allCampaigns;
 }
 
-// Fetch launches filtered by update pack ID
-export async function fetchLaunchesByUpdatePack({
+// Fetch campaigns filtered by update pack ID
+export async function fetchCampaignsByUpdatePack({
   groupId,
   accessToken,
   updatePackId,
@@ -362,23 +362,23 @@ export async function fetchLaunchesByUpdatePack({
   sortBy?: string;
   sortMode?: 'asc' | 'desc';
   bookmark?: string;
-}, opts?: ApiCallOptions): Promise<LaunchListResponse> {
+}, opts?: ApiCallOptions): Promise<CampaignListResponse> {
   const params = new URLSearchParams();
   if (pageSize) params.set('page_size', pageSize.toString());
   if (sortBy) params.set('sort_by', sortBy);
   if (sortMode) params.set('sort_mode', sortMode);
   if (bookmark) params.set('bookmark', bookmark);
   params.set('filter', `update_pack_id[eq]${updatePackId}`);
-  
+
   const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch?${params.toString()}`;
-  
+
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
-  
-  const data = await handleApiError(response, 'Failed to fetch launches for update pack');
-  
+
+  const data = await handleApiError(response, 'Failed to fetch campaigns for update pack');
+
   return {
     next: data.next || null,
     list: data.list || [],
@@ -386,14 +386,14 @@ export async function fetchLaunchesByUpdatePack({
   };
 }
 
-// Fetch jobs by launch ID directly
-export async function fetchJobsByLaunch({
-  launchId,
+// Fetch jobs by campaign ID directly
+export async function fetchJobsByCampaign({
+  campaignId,
   accessToken,
   pageSize = 50,
   bookmark
 }: {
-  launchId: string;
+  campaignId: string;
   accessToken: string;
   pageSize?: number;
   bookmark?: string;
@@ -401,38 +401,38 @@ export async function fetchJobsByLaunch({
   const params = new URLSearchParams();
   if (pageSize) params.set('page_size', pageSize.toString());
   if (bookmark) params.set('bookmark', bookmark);
-  
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/launch/${launchId}/jobs${params.toString() ? '?' + params.toString() : ''}`;
-  
+
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/launch/${campaignId}/jobs${params.toString() ? '?' + params.toString() : ''}`;
+
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
-  
-  const data = await handleApiError(response, `Failed to fetch jobs for launch ${launchId}`);
-  
+
+  const data = await handleApiError(response, `Failed to fetch jobs for campaign ${campaignId}`);
+
   return {
     list: data.list || [],
     next: data.next || null
   };
 }
 
-// Launch creation payload - all strategy fields are now required
-export interface CreateLaunchPayload {
+// Campaign creation payload - all strategy fields are now required
+export interface CreateCampaignPayload {
   update_pack_name: string;
-  workflow_type: 'wfx.workflow.dau.direct' | 'wfx.workflow.dau.phased';
+  workflow_type: string;
   rollout_type: 'numeric' | 'percentage';
   rollout_value: number;
   test_device_id?: string;
   auto?: boolean;
   approval_threshold?: number; // % of batch that must succeed before next batch (auto only)
   error_threshold?: number; // % of all devices that can fail before aborting (auto only)
-  // Launch preconditions (optional; omit/empty = no gating)
-  preconditions?: LaunchPrecondition[];
+  // Campaign preconditions (optional; omit/empty = no gating)
+  preconditions?: CampaignPrecondition[];
   force_preconditions?: boolean;
 }
 
-export async function createLaunch({ groupId, accessToken, launchData, dryRun }: ApiParams & { launchData: CreateLaunchPayload; dryRun?: boolean }, opts?: ApiCallOptions): Promise<any> {
+export async function createCampaign({ groupId, accessToken, campaignData, dryRun }: ApiParams & { campaignData: CreateCampaignPayload; dryRun?: boolean }, opts?: ApiCallOptions): Promise<any> {
   const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch${dryRun ? '?dry_run=true' : ''}`;
   const response = await fetch(url, {
     method: 'POST',
@@ -440,14 +440,14 @@ export async function createLaunch({ groupId, accessToken, launchData, dryRun }:
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
     },
-    body: JSON.stringify(launchData),
+    body: JSON.stringify(campaignData),
     signal: opts?.signal ?? undefined,
   });
-  return handleApiError(response, dryRun ? 'Failed to evaluate launch preconditions' : 'Failed to create launch');
+  return handleApiError(response, dryRun ? 'Failed to evaluate campaign preconditions' : 'Failed to create campaign');
 }
 
-// Deprecated: Use createLaunch instead
-export const triggerGlobalLaunchApi = createLaunch;
+// Deprecated: Use createCampaign instead
+export const triggerGlobalCampaignApi = createCampaign;
 
 export async function triggerItemRollout({ groupId, launchId, accessToken }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<any> {
   const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/rollout`, {
@@ -465,7 +465,7 @@ export interface PaginatedJobsResponse {
   hasMore: boolean;
 }
 
-export async function fetchDeviceJobsForLaunch({ groupId, deviceIds, accessToken }: ApiParams & { deviceIds: string[] }, opts?: ApiCallOptions): Promise<DeviceJob[]> {
+export async function fetchDeviceJobsForCampaign({ groupId, deviceIds, accessToken }: ApiParams & { deviceIds: string[] }, opts?: ApiCallOptions): Promise<DeviceJob[]> {
   if (!deviceIds || deviceIds.length === 0) {
     return [];
   }
@@ -516,13 +516,13 @@ export async function fetchDeviceJobsPaginated({
 }
 
 // Fetch ALL jobs for devices (handles pagination automatically)
-// Use this when you need to get jobs for older launches that may not be in the last 10
-export async function fetchAllDeviceJobs({ 
-  groupId, 
-  deviceIds, 
+// Use this when you need to get jobs for older campaigns that may not be in the last 10
+export async function fetchAllDeviceJobs({
+  groupId,
+  deviceIds,
   accessToken,
-  targetLaunchId, // Optional: stop fetching once we find jobs for this launch
-}: ApiParams & { deviceIds: string[]; targetLaunchId?: string }, opts?: ApiCallOptions): Promise<DeviceJob[]> {
+  targetCampaignId, // Optional: stop fetching once we find jobs for this campaign
+}: ApiParams & { deviceIds: string[]; targetCampaignId?: string }, opts?: ApiCallOptions): Promise<DeviceJob[]> {
   if (!deviceIds || deviceIds.length === 0) {
     return [];
   }
@@ -553,14 +553,18 @@ export async function fetchAllDeviceJobs({
         );
 
         const data = await handleApiError(response, `Failed to fetch jobs for ${deviceId}`);
-        const jobs = data.list || [];
+        // Inject deviceId as clientId if the API doesn't return it in the job object
+        const jobs: DeviceJob[] = (data.list || []).map((job: DeviceJob) => ({
+          ...job,
+          clientId: job.clientId || job.status?.clientId || deviceId,
+        }));
         deviceJobs.push(...jobs);
 
-        // If we're looking for a specific launch, check if we found it
-        if (targetLaunchId) {
-          const foundTargetJob = jobs.some((job: DeviceJob) => job.definition.launchID === targetLaunchId);
+        // If we're looking for a specific campaign, check if we found it
+        if (targetCampaignId) {
+          const foundTargetJob = jobs.some((job: DeviceJob) => job.definition.launchID === targetCampaignId);
           if (foundTargetJob) {
-            // We found jobs for the target launch, stop fetching
+            // We found jobs for the target campaign, stop fetching
             break;
           }
         }
@@ -588,17 +592,17 @@ export async function fetchAllDeviceJobs({
   return allJobs;
 }
 
-// Launch-specific strategy operations (new routes)
-export async function fetchLaunchStrategy({ groupId, launchId, accessToken }: ApiParams & { launchId: string }, opts?: ApiCallOptions): Promise<LaunchItem> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/strategy`, {
+// Campaign-specific strategy operations
+export async function fetchCampaignStrategy({ groupId, campaignId, accessToken }: ApiParams & { campaignId: string }, opts?: ApiCallOptions): Promise<CampaignItem> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${campaignId}/strategy`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
     signal: opts?.signal ?? undefined,
   });
-  return handleApiError(response, `Failed to fetch strategy for launch ${launchId}`);
+  return handleApiError(response, `Failed to fetch strategy for campaign ${campaignId}`);
 }
 
-export async function updateLaunchStrategy({ groupId, launchId, strategyData, accessToken }: ApiParams & { launchId: string; strategyData: Partial<ApiGlobalStrategy> }, opts?: ApiCallOptions): Promise<LaunchItem> {
-  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${launchId}/strategy`, {
+export async function updateCampaignStrategy({ groupId, campaignId, strategyData, accessToken }: ApiParams & { campaignId: string; strategyData: Partial<ApiGlobalStrategy> }, opts?: ApiCallOptions): Promise<CampaignItem> {
+  const response = await fetch(`${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch/${campaignId}/strategy`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -607,7 +611,7 @@ export async function updateLaunchStrategy({ groupId, launchId, strategyData, ac
     body: JSON.stringify(strategyData),
     signal: opts?.signal ?? undefined,
   });
-  return handleApiError(response, `Failed to update strategy for launch ${launchId}`);
+  return handleApiError(response, `Failed to update strategy for campaign ${campaignId}`);
 }
 
 // Job transition API - used for phased workflows to transition jobs to the next state
@@ -732,6 +736,24 @@ export async function fetchArtifactCatalog(
   });
   const data = await handleApiError(response, `Failed to fetch artifacts for pack ${packName}`);
   return data.list || [];
+}
+
+/**
+ * Link an already-uploaded global artifact to a pack's current version (no re-upload).
+ * POST /v1/groups/:groupId/updatepacks/:packName/artifact/link
+ */
+export async function linkArtifactToPack(
+  { groupId, packName, artifactId, accessToken }: ApiParams & { packName: string; artifactId: string },
+  opts?: ApiCallOptions
+): Promise<void> {
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/updatepacks/${packName}/artifact/link`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ artifact_id: artifactId }),
+    signal: opts?.signal ?? undefined,
+  });
+  await handleApiError(response, `Failed to link artifact to pack ${packName}`);
 }
 
 /**
@@ -1042,5 +1064,31 @@ export async function fetchDevicePackUpdates(
   });
   const data = await handleApiError(response, `Failed to fetch pack updates for device ${deviceId}`);
   return { list: data.list || [], next: data.next || null };
+}
+
+/**
+ * Fetch available wfx workflows from the updates API.
+ * Returns the list of workflow definitions (name + description).
+ */
+export interface WfxWorkflow {
+  name: string;
+  description: string;
+  states?: Array<{ name: string; description: string }>;
+  transitions?: Array<{ from: string; to: string; eligible: string; description: string; action?: string }>;
+  groups?: Array<{ name: string; description: string; states: string[] }>;
+}
+
+export async function fetchWorkflows(
+  { accessToken }: { accessToken: string },
+  opts?: ApiCallOptions
+): Promise<WfxWorkflow[]> {
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/workflows`;
+  const response = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+    signal: opts?.signal ?? undefined,
+  });
+  const data = await handleApiError(response, 'Failed to fetch workflows');
+  // wfx API wraps the list in a "content" field with pagination metadata
+  return data.content || data.list || (Array.isArray(data) ? data : []);
 }
 

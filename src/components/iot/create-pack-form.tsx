@@ -6,9 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Boxes, Loader2, PackagePlus } from 'lucide-react';
+import { Boxes, Loader2 } from 'lucide-react';
 import { useDms } from '@/contexts/DmsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -23,13 +22,11 @@ interface CreatePackFormProps {
   // Render an explicit device-group selector — used when the form is hosted outside a
   // group-scoped page (e.g. the Package Inventory dialog).
   showGroupSelector?: boolean;
-  // Render without the Card chrome so the form can live inside a Dialog.
-  embedded?: boolean;
 }
 
 // Lightweight "create an update pack = repo" form. It only creates the pack shell; artifacts are
 // uploaded afterwards on the pack-details page, and (for SWU packs) the SWU is built there too.
-export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defaultGroupId, showGroupSelector = false, embedded = false }) => {
+export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defaultGroupId, showGroupSelector = false }) => {
   const { selectedDms, availableDms } = useDms();
   const { user } = useAuth();
 
@@ -173,30 +170,10 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
     </Button>
   );
 
-  if (embedded) {
-    return (
-      <div className="space-y-5">
-        {fields}
-        <div className="flex border-t pt-4">{submitButton}</div>
-      </div>
-    );
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><PackagePlus className="h-5 w-5 text-primary" /> Pack Configuration</CardTitle>
-        <CardDescription>
-          Create the pack as a repository. After it's created you'll upload its artifacts, and for SWU
-          packs you'll build the SWU (security options + descriptor) from the pack's page.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {fields}
-      </CardContent>
-      <CardFooter className="border-t pt-6">
-        {submitButton}
-      </CardFooter>
-    </Card>
+    <div className="space-y-5">
+      {fields}
+      <div className="flex border-t pt-4">{submitButton}</div>
+    </div>
   );
 };

@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { SectionHeader } from '@/components/shared/FormComponents';
 import { createSymmetricKey, type CreateSymmetricKeyRequest } from '@/lib/symkms-api';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 // Algorithm types
 const ALGORITHM_TYPES = [
@@ -244,7 +245,7 @@ export default function CreateSymKeyPage() {
 
   if (!selectedMode) {
     return (
-      <div className="w-full space-y-8 mb-8">
+      <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'KMS Keys', href: '/kms/keys' }, { label: 'Symmetric Keys', href: '/kms/keys/sym-keys' }, { label: 'Create Symmetric Key' }]} className="w-full space-y-8 mb-8">
         <Button variant="outline" onClick={() => router.push('/kms/keys/sym-keys')} className="mb-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Symmetric Keys
         </Button>
@@ -276,14 +277,14 @@ export default function CreateSymKeyPage() {
             </Card>
           ))}
         </div>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   // Show generated key success view
   if (generatedKeyData) {
     return (
-      <div className="w-full space-y-8 mb-8 max-w-4xl mx-auto">
+      <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'KMS Keys', href: '/kms/keys' }, { label: 'Symmetric Keys', href: '/kms/keys/sym-keys' }, { label: 'Create Symmetric Key' }]} className="w-full space-y-8 mb-8 max-w-4xl mx-auto">
         <Button variant="outline" onClick={() => router.push('/kms/keys/sym-keys')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Symmetric Keys
         </Button>
@@ -345,12 +346,12 @@ export default function CreateSymKeyPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </BreadcrumbPage>
     );
   }
 
   return (
-    <div className="w-full space-y-8 mb-8 max-w-4xl mx-auto">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'KMS Keys', href: '/kms/keys' }, { label: 'Symmetric Keys', href: '/kms/keys/sym-keys' }, { label: 'Create Symmetric Key' }]} className="w-full space-y-8 mb-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <Button variant="outline" onClick={() => setSelectedMode(null)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Change Method
@@ -494,6 +495,6 @@ export default function CreateSymKeyPage() {
           </Button>
         </div>
       </form>
-    </div>
+    </BreadcrumbPage>
   );
 }

@@ -78,6 +78,11 @@
   to { height: 0; }
 }
 
+@keyframes sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
 @layer base {
   :root {
     --font-inter: 'Inter Variable', sans-serif;

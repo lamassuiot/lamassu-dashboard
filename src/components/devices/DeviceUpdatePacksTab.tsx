@@ -194,7 +194,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
                     <TableHead>Packaging</TableHead>
                     <TableHead>Started</TableHead>
                     <TableHead>Completed</TableHead>
-                    <TableHead>Job / Launch</TableHead>
+                    <TableHead>Job / Campaign</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -210,7 +210,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
                       <TableCell className="text-sm text-muted-foreground">
                         {u.timestamp_completed ? <DateDisplay date={u.timestamp_completed} /> : <span className="text-xs italic">—</span>}
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground max-w-[200px] truncate" title={`job: ${u.job_id || '—'} | launch: ${u.launch_id || '—'}`}>
+                      <TableCell className="font-mono text-xs text-muted-foreground max-w-[200px] truncate" title={`job: ${u.job_id || '—'} | campaign: ${u.launch_id || '—'}`}>
                         {u.job_id || u.launch_id || <span className="italic">—</span>}
                       </TableCell>
                     </TableRow>
