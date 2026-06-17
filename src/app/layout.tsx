@@ -114,6 +114,7 @@ const navigationConfig: NavGroup[] = [
       { href: '/device-groups', label: 'Device Groups', icon: Boxes },
       { href: '/device-inventory', label: 'Device Key Inventory', icon: KeyRound },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
+      { href: '/updates', label: 'Updates', icon: Rocket }
     ],
   },
   {
