@@ -15,3 +15,4 @@ export * from "./cert-parser";
 export * from "./csr-parser";
 export * from "./ocsp";
 export * from "./crl-parser";
+export * from "./pqc-keygen";

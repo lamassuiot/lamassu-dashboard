@@ -16,18 +16,18 @@ export const SIGNATURE_OID_MAP: Record<string, string> = {
   MLDSA_44: "2.16.840.1.101.3.4.3.17",
   MLDSA_65: "2.16.840.1.101.3.4.3.18",
   MLDSA_87: "2.16.840.1.101.3.4.3.19",
-  // SLH-DSA (FIPS 205) — id-slh-dsa-* (parameter sets 1–12)
+  // SLH-DSA (RFC 9909) — id-slh-dsa-* (parameter sets 1–12)
   SLHDSA_1:  "2.16.840.1.101.3.4.3.20",  // sha2-128s
-  SLHDSA_2:  "2.16.840.1.101.3.4.3.21",  // shake-128s
-  SLHDSA_3:  "2.16.840.1.101.3.4.3.22",  // sha2-128f
-  SLHDSA_4:  "2.16.840.1.101.3.4.3.23",  // shake-128f
-  SLHDSA_5:  "2.16.840.1.101.3.4.3.24",  // sha2-192s
-  SLHDSA_6:  "2.16.840.1.101.3.4.3.25",  // shake-192s
-  SLHDSA_7:  "2.16.840.1.101.3.4.3.26",  // sha2-192f
-  SLHDSA_8:  "2.16.840.1.101.3.4.3.27",  // shake-192f
-  SLHDSA_9:  "2.16.840.1.101.3.4.3.28",  // sha2-256s
-  SLHDSA_10: "2.16.840.1.101.3.4.3.29",  // shake-256s
-  SLHDSA_11: "2.16.840.1.101.3.4.3.30",  // sha2-256f
+  SLHDSA_2:  "2.16.840.1.101.3.4.3.21",  // sha2-128f
+  SLHDSA_3:  "2.16.840.1.101.3.4.3.22",  // sha2-192s
+  SLHDSA_4:  "2.16.840.1.101.3.4.3.23",  // sha2-192f
+  SLHDSA_5:  "2.16.840.1.101.3.4.3.24",  // sha2-256s
+  SLHDSA_6: "2.16.840.1.101.3.4.3.25",  // sha2-256f
+  SLHDSA_7:  "2.16.840.1.101.3.4.3.26",  // shake-128s
+  SLHDSA_8:  "2.16.840.1.101.3.4.3.27",  // shake-128f
+  SLHDSA_9:  "2.16.840.1.101.3.4.3.28",  // shake-192s
+  SLHDSA_10:  "2.16.840.1.101.3.4.3.29",  // shake-192f
+  SLHDSA_11: "2.16.840.1.101.3.4.3.30",  // shake-256s
   SLHDSA_12: "2.16.840.1.101.3.4.3.31",  // shake-256f
   // Composite-ML-DSA-RSA (IETF draft-ietf-lamps-pq-composite-sigs, parameter sets 1–8)
   COMPOSITE_MLDSA_RSA_1: "2.16.840.1.114027.80.8.1.1",  // MLDSA44-RSA2048-PSS-SHA256
