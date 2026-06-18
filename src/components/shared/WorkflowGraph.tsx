@@ -58,6 +58,25 @@ function ff(n: number): string {
     return n.toFixed(1);
 }
 
+// CMP workflows carry the logical actor of each transition in its Description:
+// device (certConf), admin (phased-issuance gate), and PKI — the backend's
+// internal server-side steps (validation, issuance), shown as "Internal".
+// Pills are styled as subtle outline badges (card background, thin colored
+// border, colored text) matching the dashboard's Badge aesthetic, so they
+// annotate the edges without dominating the diagram.
+const ACTOR_STYLES: Record<string, { display: string; fill: string; text: string; dot: string }> = {
+    device: { display: 'Device', fill: 'fill-card stroke-emerald-500', text: 'fill-emerald-600', dot: 'bg-emerald-500' },
+    PKI: { display: 'Internal', fill: 'fill-card stroke-border', text: 'fill-muted-foreground', dot: 'bg-muted-foreground' },
+    admin: { display: 'Admin', fill: 'fill-card stroke-amber-500', text: 'fill-amber-600', dot: 'bg-amber-500' },
+};
+
+// actorLabel is the text key for an edge's pill: the CMP actor from the
+// transition Description, falling back to the raw WFX eligibility (CLIENT/WFX)
+// for generic workflows. The human-readable display comes from ACTOR_STYLES.
+function actorLabel(t: WfxTransition): string {
+    return t.description?.trim() || t.eligible;
+}
+
 function stateWidth(label: string): number {
     return Math.max(76, Math.min(156, label.length * 6 + 24));
 }
@@ -409,7 +428,7 @@ function buildGraph(workflow: WfxWorkflow, followedStates: string[] = []): Built
 
         const key = `${transition.from}->${transition.to}`;
         if (primaryPairs.has(key)) {
-            transitionEdges.push(routeDirect(from, to, transition.eligible, 'direct'));
+            transitionEdges.push(routeDirect(from, to, actorLabel(transition), 'direct'));
             continue;
         }
 
@@ -417,17 +436,17 @@ function buildGraph(workflow: WfxWorkflow, followedStates: string[] = []): Built
             const rejectedCount = sideTransitions.filter(t => isRejected(t.to)).length;
             const slot = sideSlots.get(key) ?? 0;
             const laneX = to.x + to.width / 2 + 28 + slot * 24;
-            transitionEdges.push(routeRejected(from, to, transition.eligible, laneX, slot, Math.max(1, rejectedCount)));
+            transitionEdges.push(routeRejected(from, to, actorLabel(transition), laneX, slot, Math.max(1, rejectedCount)));
             continue;
         }
 
         if (terminalStates.has(transition.to)) {
-            transitionEdges.push(routeDirect(from, to, transition.eligible, 'terminal'));
+            transitionEdges.push(routeDirect(from, to, actorLabel(transition), 'terminal'));
             continue;
         }
 
         const laneX = Math.max(from.x, to.x) + Math.max(from.width, to.width) / 2 + 36;
-        transitionEdges.push(routeSide(from, to, transition.eligible, laneX, 0, 1));
+        transitionEdges.push(routeSide(from, to, actorLabel(transition), laneX, 0, 1));
     }
 
     const startStates = stateNames.filter(name => !incomingStateNames.has(name));
@@ -484,6 +503,12 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
     const markerId = `${markerBaseId}-arrow`;
     const activeMarkerId = `${markerBaseId}-active-arrow`;
     const graph = useMemo(() => buildGraph(workflow, followedStates), [followedStates, workflow]);
+
+    // Which known actors appear on this workflow's edges — drives the legend.
+    const legendActors = useMemo(() => {
+        const present = new Set(graph.edges.map(edge => edge.label));
+        return Object.keys(ACTOR_STYLES).filter(actor => present.has(actor));
+    }, [graph]);
 
     return (
         <div className="w-full overflow-x-auto rounded-md border bg-muted/20 p-4">
@@ -560,29 +585,44 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
                 {graph.edges.map((edge, index) => {
                     if (!edge.label || !edge.labelPoint) return null;
 
-                    const labelWidth = edge.label.length * 6 + 16;
                     const isActive = edge.active;
+                    const actorStyle = ACTOR_STYLES[edge.label];
+                    const display = actorStyle?.display ?? edge.label;
+                    const labelWidth = display.length * 4.8 + 10;
+                    // The active (traversed) path keeps the primary highlight so it
+                    // stays obvious; otherwise color the pill by actor when known,
+                    // falling back to the neutral pill for generic eligibilities.
+                    const rectClass = isActive
+                        ? 'fill-primary stroke-primary'
+                        : actorStyle
+                            ? actorStyle.fill
+                            : 'fill-card stroke-border';
+                    const textClass = isActive
+                        ? 'fill-primary-foreground'
+                        : actorStyle
+                            ? actorStyle.text
+                            : 'fill-muted-foreground';
 
                     return (
                         <g key={`${edge.from}-${edge.to}-${index}-label`}>
                             <rect
                                 x={edge.labelPoint.x - labelWidth / 2}
-                                y={edge.labelPoint.y - 9}
+                                y={edge.labelPoint.y - 7}
                                 width={labelWidth}
-                                height={18}
-                                rx={4}
-                                className={isActive ? 'fill-primary stroke-primary' : 'fill-card stroke-border'}
-                                strokeWidth={1}
+                                height={14}
+                                rx={3}
+                                className={rectClass}
+                                strokeWidth={0.75}
                             />
                             <text
                                 x={edge.labelPoint.x}
                                 y={edge.labelPoint.y}
                                 textAnchor="middle"
                                 dominantBaseline="middle"
-                                fontSize={9}
-                                className={isActive ? 'fill-primary-foreground' : 'fill-muted-foreground'}
+                                fontSize={7.5}
+                                className={textClass}
                             >
-                                {edge.label}
+                                {display}
                             </text>
                         </g>
                     );
@@ -688,6 +728,17 @@ export function WorkflowGraph({ workflow, followedStates = [] }: WorkflowGraphPr
                     );
                 })}
             </svg>
+            {legendActors.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
+                    <span className="font-medium">Performed by:</span>
+                    {legendActors.map(actor => (
+                        <span key={actor} className="inline-flex items-center gap-1.5">
+                            <span className={`inline-block h-2 w-2 rounded-full ${ACTOR_STYLES[actor].dot}`} />
+                            {ACTOR_STYLES[actor].display}
+                        </span>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
