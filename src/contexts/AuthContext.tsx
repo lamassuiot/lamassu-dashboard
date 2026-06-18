@@ -10,34 +10,7 @@ type OidcModule = typeof import('oidc-client-ts');
 
 let oidcModulePromise: Promise<OidcModule> | null = null;
 
-const createUserManager = (): UserManager | null => {
-  // Check moved inside the function to be safe.
-  if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_AUTH_ENABLED !== false) {
-    const config = (window as any).lamassuConfig;
-    const authority = config?.LAMASSU_AUTH_AUTHORITY;
-    const clientId = config?.LAMASSU_AUTH_CLIENT_ID || 'frontend';
-    const monitorSession = config?.LAMASSU_AUTH_MONITOR_SESSION === true;
-
-    if (!authority) {
-      console.warn('LAMASSU_AUTH_AUTHORITY not found in config');
-      return null;
-    }
-
-    return new UserManager({
-      authority: authority,
-      client_id: clientId,
-      redirect_uri: `${window.location.origin}/signin-callback`,
-      silent_redirect_uri: `${window.location.origin}/silent-renew-callback`,
-      post_logout_redirect_uri: `${window.location.origin}/signout-callback`,
-      response_type: 'code',
-      scope: 'openid profile email', // Standard scopes
-      userStore: new WebStorageStateStore({ store: window.localStorage }), // Persist user session
-      automaticSilentRenew: true, // Proactively renew tokens
-      loadUserInfo: true, // Fetch userinfo endpoint to surface claims like `picture`
-      monitorSession, // Opt-in: avoids CheckSessionIFrame errors when unsupported/blocked
-    });
-  }
-
+const loadOidcModule = (): Promise<OidcModule> => {
   oidcModulePromise ??= import('oidc-client-ts').then((module) => {
     module.Log.setLogger(console);
     module.Log.setLevel(module.Log.DEBUG);

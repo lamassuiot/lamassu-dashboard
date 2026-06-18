@@ -16,9 +16,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sileo } from '@/lib/toast';
 import { DetailItem } from '@/components/shared/DetailItem';
 import { cn } from '@/lib/utils';
-import { buildSelfSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem, type CsrSan } from "@/lib-crypto";
+import { buildSelfSignedCsr, buildSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem, generateMlDsaKeyPair, generateSlhDsaKeyPair, type CsrSan } from "@/lib-crypto";
 import { parseCsr, type DecodedCsrInfo } from '@/lib-crypto';
-import { KEY_TYPE_OPTIONS, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
+import { KEY_TYPE_OPTIONS_POST_QUANTUM, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS, SLHDSA_PARAM_SET_OPTIONS } from '@/lib/form-options';
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/shared/Stepper';
@@ -107,6 +107,8 @@ export default function IssueCertificateFormClient() {
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>('RSA');
   const [selectedRsaKeySize, setSelectedRsaKeySize] = useState<string>('2048');
   const [selectedEcdsaCurve, setSelectedEcdsaCurve] = useState<string>('P-256');
+  const [selectedMlDsaLevel, setSelectedMlDsaLevel] = useState<string>('ML-DSA-44');
+  const [selectedSlhDsaParamSet, setSelectedSlhDsaParamSet] = useState<string>('3');
   const [csrPem, setCsrPem] = useState('');
   const [decodedCsrInfo, setDecodedCsrInfo] = useState<DecodedCsrInfo | null>(null);
 
@@ -445,27 +447,49 @@ export default function IssueCertificateFormClient() {
     setGenerationError(null);
 
     try {
-      const algorithm = selectedAlgorithm === 'RSA'
-        ? { name: "RSASSA-PKCS1-v1_5", modulusLength: parseInt(selectedRsaKeySize, 10), publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }
-        : selectedAlgorithm === 'ECDSA' ? { name: "ECDSA", namedCurve: selectedEcdsaCurve }
-        : { name: "Ed25519" };
-      const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
+      // --- Part 1: Generate Key & CSR ---
+      const subject = {
+        commonName: commonName.trim(),
+        organization: organization.trim() || undefined,
+        organizationalUnit: organizationalUnit.trim() || undefined,
+        locality: locality.trim() || undefined,
+        stateProvince: stateProvince.trim() || undefined,
+        country: country.trim() || undefined,
+      };
+      const csrSans = sans.map(san => ({ type: san.type, value: san.value.trim() })) as CsrSan[];
 
-      const privateKeyPem = formatAsPem(arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey)), 'PRIVATE KEY');
+      let privateKeyPem: string;
+      let signedCsrPem: string;
+
+      if (selectedAlgorithm === 'ML-DSA' || selectedAlgorithm === 'SLH-DSA') {
+        const pqcResult = selectedAlgorithm === 'ML-DSA'
+          ? await generateMlDsaKeyPair(selectedMlDsaLevel)
+          : await generateSlhDsaKeyPair(selectedSlhDsaParamSet);
+
+        privateKeyPem = pqcResult.privateKeyPem;
+        signedCsrPem = await buildSignedCsr({
+          subject,
+          sans: csrSans,
+          signAlgorithm: pqcResult.signAlgorithm,
+          publicKeyPem: pqcResult.publicKeyPem,
+          signFn: pqcResult.signFn,
+        });
+      } else {
+        const algorithm = selectedAlgorithm === 'RSA'
+          ? { name: "RSASSA-PKCS1-v1_5", modulusLength: parseInt(selectedRsaKeySize, 10), publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }
+          : selectedAlgorithm === 'ECDSA' ? { name: "ECDSA", namedCurve: selectedEcdsaCurve }
+          : { name: "Ed25519" };
+        const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]) as CryptoKeyPair;
+
+        privateKeyPem = formatAsPem(arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey)), 'PRIVATE KEY');
+        signedCsrPem = await buildSelfSignedCsr({
+          subject,
+          sans: csrSans,
+          keyPair,
+        });
+      }
+
       setGeneratedPrivateKeyPem(privateKeyPem);
-
-      const signedCsrPem = await buildSelfSignedCsr({
-        subject: {
-          commonName: commonName.trim(),
-          organization: organization.trim() || undefined,
-          organizationalUnit: organizationalUnit.trim() || undefined,
-          locality: locality.trim() || undefined,
-          stateProvince: stateProvince.trim() || undefined,
-          country: country.trim() || undefined,
-        },
-        sans: sans.map(san => ({ type: san.type, value: san.value.trim() })) as CsrSan[],
-        keyPair,
-      });
 
       const payload = {
         csr: window.btoa(signedCsrPem),
@@ -863,9 +887,9 @@ export default function IssueCertificateFormClient() {
                           <Label htmlFor="keyAlgorithm">Algorithm</Label>
                           <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
                             <SelectTrigger id="keyAlgorithm"><SelectValue /></SelectTrigger>
-                            <SelectContent>{KEY_TYPE_OPTIONS.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
+                            <SelectContent>{KEY_TYPE_OPTIONS_POST_QUANTUM.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
                           </Select>
-                          <p className="text-xs text-muted-foreground">Algorithm family (RSA or ECDSA).</p>
+                          <p className="text-xs text-muted-foreground">Algorithm family for the generated key.</p>
                         </div>
                         {selectedAlgorithm === 'RSA' ? (
                           <div className="space-y-1.5">
@@ -876,7 +900,7 @@ export default function IssueCertificateFormClient() {
                             </Select>
                             <p className="text-xs text-muted-foreground">Bit length for the RSA key.</p>
                           </div>
-                        ) : (
+                        ) : selectedAlgorithm === 'ECDSA' ? (
                           <div className="space-y-1.5">
                             <Label htmlFor="ecdsaCurve">ECDSA Curve</Label>
                             <Select value={selectedEcdsaCurve} onValueChange={setSelectedEcdsaCurve}>
@@ -885,7 +909,25 @@ export default function IssueCertificateFormClient() {
                             </Select>
                             <p className="text-xs text-muted-foreground">Curve for the ECDSA key.</p>
                           </div>
-                        )}
+                        ) : selectedAlgorithm === 'ML-DSA' ? (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mlDsaLevel">Security Level</Label>
+                            <Select value={selectedMlDsaLevel} onValueChange={setSelectedMlDsaLevel}>
+                              <SelectTrigger id="mlDsaLevel"><SelectValue /></SelectTrigger>
+                              <SelectContent>{MLDSA_SECURITY_LEVEL_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">Security level for the ML-DSA key.</p>
+                          </div>
+                        ) : selectedAlgorithm === 'SLH-DSA' ? (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="slhDsaParamSet">Parameter Set</Label>
+                            <Select value={selectedSlhDsaParamSet} onValueChange={setSelectedSlhDsaParamSet}>
+                              <SelectTrigger id="slhDsaParamSet"><SelectValue /></SelectTrigger>
+                              <SelectContent>{SLHDSA_PARAM_SET_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">Parameter set for the SLH-DSA key.</p>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
