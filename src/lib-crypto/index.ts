@@ -17,3 +17,4 @@ export * from "./csr-parser";
 export * from "./ocsp";
 export * from "./crl-parser";
 export * from "./uuid";
+export * from "./pqc-keygen";
