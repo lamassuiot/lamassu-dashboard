@@ -30,12 +30,13 @@ window.lamassuConfig = {
     // --- Authentication (OIDC) ---
     // Set to `false` to disable OIDC authentication and use a mock user for development.
     // In a production environment, this should always be `true`.
-    LAMASSU_AUTH_ENABLED: true,
+    LAMASSU_AUTH_ENABLED: false,
   
     // The OIDC provider's URL. All OIDC endpoints (.well-known, authorization, token)
     // are relative to this authority.
     // Example: "https://auth.yourdomain.com/realms/your-realm"
-    LAMASSU_AUTH_AUTHORITY: "https://labq.lamassu.cloud/auth/realms/lamassu",
+    LAMASSU_AUTH_AUTHORITY: "https://localhost:8443/auth/realms/lamassu",
+    // LAMASSU_AUTH_AUTHORITY: "https://labq.lamassu.cloud/auth/realms/lamassu",
     
     // The OIDC client ID registered with your provider for this frontend application.
     LAMASSU_AUTH_CLIENT_ID: "frontend",

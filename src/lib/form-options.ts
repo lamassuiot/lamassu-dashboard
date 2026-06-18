@@ -12,6 +12,7 @@ export const KEY_TYPE_OPTIONS = [
 export const KEY_TYPE_OPTIONS_POST_QUANTUM = [
   ...KEY_TYPE_OPTIONS,
   { value: 'ML-DSA', label: 'ML-DSA (Post-Quantum)' },
+  { value: 'SLH-DSA', label: 'SLH-DSA (Post-Quantum)' },
 ];
 
 export const RSA_KEY_SIZE_OPTIONS = [
@@ -39,16 +40,16 @@ export const MLDSA_SECURITY_LEVEL_OPTIONS = [
  */
 export const SLHDSA_PARAM_SET_INFO: Record<string, { name: string; hash: string; security: string; speed: string }> = {
   '1':  { name: 'SHA2_128s',  hash: 'SHA-2',  security: '128-bit', speed: 'small sig' },
-  '2':  { name: 'SHAKE_128s', hash: 'SHAKE',  security: '128-bit', speed: 'small sig' },
-  '3':  { name: 'SHA2_128f',  hash: 'SHA-2',  security: '128-bit', speed: 'fast sig'  },
-  '4':  { name: 'SHAKE_128f', hash: 'SHAKE',  security: '128-bit', speed: 'fast sig'  },
-  '5':  { name: 'SHA2_192s',  hash: 'SHA-2',  security: '192-bit', speed: 'small sig' },
-  '6':  { name: 'SHAKE_192s', hash: 'SHAKE',  security: '192-bit', speed: 'small sig' },
-  '7':  { name: 'SHA2_192f',  hash: 'SHA-2',  security: '192-bit', speed: 'fast sig'  },
-  '8':  { name: 'SHAKE_192f', hash: 'SHAKE',  security: '192-bit', speed: 'fast sig'  },
-  '9':  { name: 'SHA2_256s',  hash: 'SHA-2',  security: '256-bit', speed: 'small sig' },
-  '10': { name: 'SHAKE_256s', hash: 'SHAKE',  security: '256-bit', speed: 'small sig' },
-  '11': { name: 'SHA2_256f',  hash: 'SHA-2',  security: '256-bit', speed: 'fast sig'  },
+  '2':  { name: 'SHA2_128f',  hash: 'SHA-2',  security: '128-bit', speed: 'fast sig'  },
+  '3':  { name: 'SHA2_192s',  hash: 'SHA-2',  security: '192-bit', speed: 'small sig' },
+  '4':  { name: 'SHA2_192f',  hash: 'SHA-2',  security: '192-bit', speed: 'fast sig'  },
+  '5':  { name: 'SHA2_256s',  hash: 'SHA-2',  security: '256-bit', speed: 'small sig' },
+  '6': { name: 'SHA2_256f',  hash: 'SHA-2',  security: '256-bit', speed: 'fast sig'  },
+  '7':  { name: 'SHAKE_128s', hash: 'SHAKE',  security: '128-bit', speed: 'small sig' },
+  '8':  { name: 'SHAKE_128f', hash: 'SHAKE',  security: '128-bit', speed: 'fast sig'  },
+  '9':  { name: 'SHAKE_192s', hash: 'SHAKE',  security: '192-bit', speed: 'small sig' },
+  '10':  { name: 'SHAKE_192f', hash: 'SHAKE',  security: '192-bit', speed: 'fast sig'  },
+  '11': { name: 'SHAKE_256s', hash: 'SHAKE',  security: '256-bit', speed: 'small sig' },
   '12': { name: 'SHAKE_256f', hash: 'SHAKE',  security: '256-bit', speed: 'fast sig'  },
 };
 
