@@ -89,7 +89,7 @@ export function KmsKeySelector({
         type="button"
         variant="secondary"
         onClick={() => setIsModalOpen(true)}
-        className={`w-full justify-start text-left font-normal ${className}`}
+        className={`w-full justify-start text-left font-normal h-auto py-2 ${className}`}
         disabled={disabled}
       >
         {selectedKey ? (
@@ -103,7 +103,7 @@ export function KmsKeySelector({
             </div>
             {selectedEngine && (
               <div className="shrink-0">
-                <CryptoEngineViewer engine={selectedEngine} />
+                <CryptoEngineViewer engine={selectedEngine} plainIcon />
               </div>
             )}
           </div>
@@ -179,7 +179,7 @@ export function KmsKeySelector({
                         </TableCell>
                         <TableCell>
                           {engine ? (
-                            <CryptoEngineViewer engine={engine} />
+                            <CryptoEngineViewer engine={engine} plainIcon />
                           ) : (
                             <Badge variant="secondary" className="text-xs">{key.engine_id}</Badge>
                           )}
