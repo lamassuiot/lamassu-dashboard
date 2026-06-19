@@ -2,15 +2,18 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ClipboardList, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Eye, Loader2 } from 'lucide-react';
+import { ClipboardList, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Eye, Loader2, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { TimedInput } from '@/components/ui/timed-input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import {
+    fetchJob,
     fetchJobs,
     resolveJobGroup,
     type WfxJob,
@@ -88,6 +91,11 @@ export default function JobsPage() {
 
     const [pageSize, setPageSize] = useState('10');
     const [offset, setOffset] = useState(0);
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    // Job ID direct lookup
+    const [jobIdSearch, setJobIdSearch] = useState('');
+    const isIdSearch = jobIdSearch.trim().length > 0;
 
     // Seed clientId from the URL on first render so deep-links like
     // /job-manager/jobs?clientId=<txID> from the CMP transactions panel
@@ -114,20 +122,26 @@ export default function JobsPage() {
         setIsLoading(true);
         setError(null);
         try {
-            const params: ListJobsParams = {
-                limit: Number(pageSize),
-                offset: currentOffset,
-                sort: 'desc',
-            };
-            if (filterValues.clientIdFilter) params.clientId = filterValues.clientIdFilter;
-            if (filterValues.stateFilter) params.state = filterValues.stateFilter;
-            if (filterValues.groupFilter) params.group = filterValues.groupFilter;
-            if (filterValues.tagFilter.length) params.tag = filterValues.tagFilter;
-            if (filterValues.workflowFilter) params.workflow = filterValues.workflowFilter;
+            if (jobIdSearch.trim()) {
+                const job = await fetchJob(jobIdSearch.trim());
+                setJobs([job]);
+                setTotal(1);
+            } else {
+                const params: ListJobsParams = {
+                    limit: Number(pageSize),
+                    offset: currentOffset,
+                    sort: sortOrder,
+                };
+                if (filterValues.clientIdFilter) params.clientId = filterValues.clientIdFilter;
+                if (filterValues.stateFilter) params.state = filterValues.stateFilter;
+                if (filterValues.groupFilter) params.group = filterValues.groupFilter;
+                if (filterValues.tagFilter.length) params.tag = filterValues.tagFilter;
+                if (filterValues.workflowFilter) params.workflow = filterValues.workflowFilter;
 
-            const result = await fetchJobs(params);
-            setJobs(result.content ?? []);
-            setTotal(result.pagination?.total ?? 0);
+                const result = await fetchJobs(params);
+                setJobs(result.content ?? []);
+                setTotal(result.pagination?.total ?? 0);
+            }
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'An unknown error occurred.';
             setError(msg);
@@ -136,20 +150,20 @@ export default function JobsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [pageSize, filterValues]);
+    }, [jobIdSearch, pageSize, sortOrder, filterValues]);
 
     useEffect(() => {
         setOffset(0);
-    }, [pageSize, filterValues]);
+    }, [jobIdSearch, pageSize, sortOrder, filterValues]);
 
     useEffect(() => {
         load(offset);
     }, [load, offset]);
 
+    const handleJobIdClear = () => setJobIdSearch('');
+
     const handleRefresh = () => load(offset);
 
-    const totalPages = Math.max(1, Math.ceil(total / Number(pageSize)));
-    const currentPage = Math.floor(offset / Number(pageSize)) + 1;
     const canPrev = offset > 0;
     const canNext = offset + Number(pageSize) < total;
 
@@ -160,57 +174,101 @@ export default function JobsPage() {
         router.push(`/job-manager/jobs/details?jobId=${encodeURIComponent(id)}`);
     };
 
-    return (
-        <div className="space-y-6 w-full pb-8">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                    <ClipboardList className="h-8 w-8 text-primary" />
-                    <h1 className="text-2xl font-headline font-semibold">Jobs</h1>
-                </div>
-                <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
-                    <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
-                    Refresh
-                </Button>
+    if (isLoading && jobs.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center flex-1 p-8">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                <p className="text-lg text-muted-foreground">Loading Jobs...</p>
             </div>
-            <p className="text-sm text-muted-foreground">
-                List of workflow execution jobs managed by the Job Manager.
-            </p>
+        );
+    }
+
+    return (
+        <BreadcrumbPage className="space-y-6 pb-8" items={[{ label: 'Home', href: '/' }, { label: 'Job Manager', href: '/job-manager' }, { label: 'Jobs' }]}>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                    <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+                        <ClipboardList className="h-8 w-8 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-headline font-semibold">Jobs</h1>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            List of workflow execution jobs managed by the Job Manager.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center space-x-2 shrink-0">
+                    <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
+                        <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
+                        Refresh
+                    </Button>
+                </div>
+            </div>
+
+            {/* Job ID search */}
+            <div className="min-w-0 space-y-1.5 max-w-sm">
+                <Label htmlFor="job-id-search">
+                    Job ID <span className="text-muted-foreground font-normal">(exact match only)</span>
+                </Label>
+                <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <TimedInput
+                        id="job-id-search"
+                        value={jobIdSearch}
+                        onChange={setJobIdSearch}
+                        delay={600}
+                        placeholder="Enter full Job ID…"
+                        className="pl-8 pr-8 text-sm"
+                        disabled={isLoading}
+                    />
+                    {jobIdSearch && (
+                        <button
+                            type="button"
+                            onClick={handleJobIdClear}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    )}
+                </div>
+            </div>
 
             {/* Error */}
             {error && (
                 <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Error Loading Jobs</AlertTitle>
+                    <AlertTitle>{isIdSearch ? 'Job Not Found' : 'Error Loading Jobs'}</AlertTitle>
                     <AlertDescription>
                         {error}{' '}
-                        <Button variant="link" onClick={handleRefresh} className="p-0 h-auto">
-                            Try again?
-                        </Button>
+                        {!isIdSearch && (
+                            <Button variant="link" onClick={handleRefresh} className="p-0 h-auto">
+                                Try again?
+                            </Button>
+                        )}
                     </AlertDescription>
                 </Alert>
             )}
 
-            {/* Filter Bar */}
-            <JobFilterBar
-                values={filterValues}
-                onChange={handleFilterChange}
-                onClearAll={handleClearAllFilters}
-                disabled={isLoading}
-            />
+            {/* Filter Bar — hidden during ID search */}
+            {!isIdSearch && (
+                <JobFilterBar
+                    values={filterValues}
+                    onChange={handleFilterChange}
+                    onClearAll={handleClearAllFilters}
+                    disabled={isLoading}
+                />
+            )}
 
             {/* Empty state */}
-            {!isLoading && !error && jobs.length === 0 && (
+            {!isLoading && !error && jobs.length === 0 ? (
                 <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
                     <h3 className="text-lg font-semibold text-muted-foreground">No Jobs Found</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                         There are no jobs matching the current filters.
                     </p>
                 </div>
-            )}
-
-            {/* Table */}
-            {(jobs.length > 0 || isLoading) && (
+            ) : (
                 <div className={cn('space-y-4', isLoading && 'opacity-50 pointer-events-none')}>
                     <div className="overflow-x-auto">
                         <Table>
@@ -221,9 +279,18 @@ export default function JobsPage() {
                                     <TableHead className="text-center">Workflow</TableHead>
                                     <TableHead className="text-center">Status</TableHead>
                                     <TableHead className="text-center">Group</TableHead>
-                                    <TableHead className="text-center">Created</TableHead>
+                                    <TableHead className="text-center">
+                                        <button
+                                            onClick={() => setSortOrder(o => o === 'desc' ? 'asc' : 'desc')}
+                                            className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                                            title={`Sort ${sortOrder === 'desc' ? 'oldest first' : 'newest first'}`}
+                                        >
+                                            Created
+                                            {sortOrder === 'desc' ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+                                        </button>
+                                    </TableHead>
                                     <TableHead className="text-center">Last Modified</TableHead>
-                                    <TableHead className="text-center">Actions</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -232,36 +299,39 @@ export default function JobsPage() {
                                     const deviceId = job.clientId ?? undefined;
                                     return (
                                         <TableRow key={job.id}>
-                                            <TableCell className="font-medium">
-                                                <button
+                                            <TableCell>
+                                                <Button
+                                                    variant="link"
+                                                    className="font-medium truncate p-0 h-auto text-left"
                                                     onClick={() => handleViewJob(job.id)}
-                                                    className="text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors font-mono text-xs"
                                                     title={job.id}
                                                 >
                                                     {job.id}
-                                                </button>
+                                                </Button>
                                             </TableCell>
                                             <TableCell>
                                                 {deviceId ? (
-                                                    <button
-                                                        onClick={() => router.push(`/devices/details?deviceId=${encodeURIComponent(deviceId)}`)}
-                                                        className="text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors font-mono text-xs truncate max-w-[160px] block text-left"
+                                                    <Button
+                                                        variant="link"
+                                                        className="font-medium truncate p-0 h-auto text-left max-w-[160px]"
+                                                        onClick={() => router.push(`/devices/details/information?deviceId=${encodeURIComponent(deviceId)}`)}
                                                         title={`View device ${deviceId}`}
                                                     >
                                                         {deviceId}
-                                                    </button>
+                                                    </Button>
                                                 ) : (
                                                     <span className="text-muted-foreground text-xs">—</span>
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 {job.workflow?.name ? (
-                                                    <button
+                                                    <Button
+                                                        variant="link"
+                                                        className="font-medium truncate p-0 h-auto text-left"
                                                         onClick={() => router.push(`/job-manager/workflows?name=${encodeURIComponent(job.workflow!.name)}`)}
-                                                        className="text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors text-xs"
                                                     >
                                                         {job.workflow.name}
-                                                    </button>
+                                                    </Button>
                                                 ) : (
                                                     <span className="text-muted-foreground text-xs">—</span>
                                                 )}
@@ -278,7 +348,7 @@ export default function JobsPage() {
                                             <TableCell className="text-center">
                                                 {job.mtime ? <DateDisplay date={job.mtime} className="items-center" /> : <span className="text-xs text-muted-foreground">—</span>}
                                             </TableCell>
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-right">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -295,45 +365,36 @@ export default function JobsPage() {
                         </Table>
                     </div>
 
-                    {/* Pagination */}
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                            <Label htmlFor="page-size" className="text-xs">Rows per page</Label>
+                    {/* Pagination — hidden during ID search */}
+                    {!isIdSearch && <div className="flex justify-between items-center mt-4">
+                        <div className="flex items-center space-x-2">
+                            <Label htmlFor="jobs-page-size" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
                             <Select
                                 value={pageSize}
                                 onValueChange={v => { setPageSize(v); setOffset(0); }}
+                                disabled={isLoading}
                             >
-                                <SelectTrigger id="page-size" className="h-8 w-[70px] text-xs">
+                                <SelectTrigger id="jobs-page-size" className="w-[80px]">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {PAGE_SIZE_OPTIONS.map(s => (
-                                        <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                        <SelectItem key={s} value={s}>{s}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs">
-                                Page {currentPage} of {totalPages} &mdash; {total} total
-                            </span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrev} disabled={!canPrev || isLoading}>
-                                <ChevronLeft className="h-4 w-4" />
+                        <div className="flex items-center space-x-2">
+                            <Button variant="secondary" onClick={handlePrev} disabled={!canPrev || isLoading}>
+                                <ChevronLeft className="mr-2 h-4 w-4" /> Previous
                             </Button>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNext} disabled={!canNext || isLoading}>
-                                <ChevronRight className="h-4 w-4" />
+                            <Button variant="secondary" onClick={handleNext} disabled={!canNext || isLoading}>
+                                Next <ChevronRight className="ml-2 h-4 w-4" />
                             </Button>
                         </div>
-                    </div>
+                    </div>}
                 </div>
             )}
-
-            {isLoading && jobs.length === 0 && (
-                <div className="flex flex-col items-center justify-center flex-1 p-8">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="text-lg text-muted-foreground">Loading Jobs...</p>
-                </div>
-            )}
-        </div>
+        </BreadcrumbPage>
     );
 }

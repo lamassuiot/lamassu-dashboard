@@ -4,13 +4,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Workflow, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { fetchWorkflows, type WfxWorkflow } from '@/lib/wfx-api';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 const PAGE_SIZE_OPTIONS = ['10', '25', '50'];
 
@@ -59,30 +59,43 @@ export default function WorkflowsPage() {
         router.push(`/job-manager/workflows/details?name=${encodeURIComponent(wf.name)}`);
     };
 
-    const totalPages = Math.max(1, Math.ceil(total / Number(pageSize)));
-    const currentPage = Math.floor(offset / Number(pageSize)) + 1;
     const canPrev = offset > 0;
     const canNext = offset + Number(pageSize) < total;
 
     const handlePrev = () => setOffset(o => Math.max(0, o - Number(pageSize)));
     const handleNext = () => setOffset(o => o + Number(pageSize));
 
-    return (
-        <div className="space-y-6 w-full pb-8">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                    <Workflow className="h-8 w-8 text-primary" />
-                    <h1 className="text-2xl font-headline font-semibold">Workflows</h1>
-                </div>
-                <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
-                    <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
-                    Refresh
-                </Button>
+    if (isLoading && workflows.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center flex-1 p-8">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                <p className="text-lg text-muted-foreground">Loading Workflows...</p>
             </div>
-            <p className="text-sm text-muted-foreground">
-                Workflow definitions available in the Job Manager.
-            </p>
+        );
+    }
+
+    return (
+        <BreadcrumbPage className="space-y-6 pb-8" items={[{ label: 'Home', href: '/' }, { label: 'Job Manager', href: '/job-manager' }, { label: 'Workflows' }]}>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                    <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+                        <Workflow className="h-8 w-8 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-headline font-semibold">Workflows</h1>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Workflow definitions available in the Job Manager.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center space-x-2 shrink-0">
+                    <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
+                        <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
+                        Refresh
+                    </Button>
+                </div>
+            </div>
 
             {/* Error */}
             {error && (
@@ -99,17 +112,14 @@ export default function WorkflowsPage() {
             )}
 
             {/* Empty state */}
-            {!isLoading && !error && workflows.length === 0 && (
+            {!isLoading && !error && workflows.length === 0 ? (
                 <div className="mt-6 p-8 border-2 border-dashed border-border rounded-lg text-center bg-muted/20">
                     <h3 className="text-lg font-semibold text-muted-foreground">No Workflows Found</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                         There are no workflow definitions registered in the Job Manager.
                     </p>
                 </div>
-            )}
-
-            {/* Table */}
-            {(workflows.length > 0 || isLoading) && (
+            ) : (
                 <div className={cn('space-y-4', isLoading && 'opacity-50 pointer-events-none')}>
                     <div className="overflow-x-auto">
                         <Table>
@@ -125,7 +135,7 @@ export default function WorkflowsPage() {
                                         <TableCell className="font-medium">
                                             <button
                                                 onClick={() => handleOpenWorkflow(wf)}
-                                                className="font-mono text-sm text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors text-left"
+                                                className="text-left text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors"
                                             >
                                                 {wf.name}
                                             </button>
@@ -142,44 +152,35 @@ export default function WorkflowsPage() {
                     </div>
 
                     {/* Pagination */}
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                            <Label htmlFor="wf-page-size" className="text-xs">Rows per page</Label>
+                    <div className="flex justify-between items-center mt-4">
+                        <div className="flex items-center space-x-2">
+                            <Label htmlFor="wf-page-size" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
                             <Select
                                 value={pageSize}
                                 onValueChange={v => { setPageSize(v); setOffset(0); }}
+                                disabled={isLoading}
                             >
-                                <SelectTrigger id="wf-page-size" className="h-8 w-[70px] text-xs">
+                                <SelectTrigger id="wf-page-size" className="w-[80px]">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {PAGE_SIZE_OPTIONS.map(s => (
-                                        <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                                        <SelectItem key={s} value={s}>{s}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs">
-                                Page {currentPage} of {totalPages} &mdash; {total} total
-                            </span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrev} disabled={!canPrev || isLoading}>
-                                <ChevronLeft className="h-4 w-4" />
+                        <div className="flex items-center space-x-2">
+                            <Button variant="secondary" onClick={handlePrev} disabled={!canPrev || isLoading}>
+                                <ChevronLeft className="mr-2 h-4 w-4" /> Previous
                             </Button>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleNext} disabled={!canNext || isLoading}>
-                                <ChevronRight className="h-4 w-4" />
+                            <Button variant="secondary" onClick={handleNext} disabled={!canNext || isLoading}>
+                                Next <ChevronRight className="ml-2 h-4 w-4" />
                             </Button>
                         </div>
                     </div>
                 </div>
             )}
-
-            {isLoading && workflows.length === 0 && (
-                <div className="flex flex-col items-center justify-center flex-1 p-8">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="text-lg text-muted-foreground">Loading Workflows...</p>
-                </div>
-            )}
-        </div>
+        </BreadcrumbPage>
     );
 }

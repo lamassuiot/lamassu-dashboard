@@ -80,7 +80,7 @@ export function JobFilterBar({
             }),
             createTextField<JobFilterValues>({
                 key: 'clientIdFilter',
-                label: 'Client ID (Device ID)',
+                label: 'Device ID',
                 placeholder: 'Filter by device ID…',
                 visibility: 'advanced',
                 changeTiming: 'timed',
