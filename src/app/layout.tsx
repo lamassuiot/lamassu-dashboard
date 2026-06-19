@@ -29,7 +29,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck } from 'lucide-react';
+import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow} from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -74,6 +74,28 @@ interface DecodedAccessToken {
   };
 }
 
+const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
+  'certificates': "Certificates",
+  'certificate-authorities': "Certification Authorities",
+  'signing-profiles': "Issuance Profiles",
+  'registration-authorities': "Registration Authorities",
+  'verification-authorities': "Verification Authorities",
+  'new': "New",
+  'details': "Details",
+  'issue-certificate': "Issue Certificate",
+  'kms': "KMS",
+  'keys': "Keys",
+  'devices': "Devices",
+  'device-groups': "Device Groups",
+  'integrations': "Platform Integrations",
+  'crypto-engines': "Crypto Engines",
+  'alerts': "Alerts",
+  'tools': "Tools",
+  'certificate-viewer': "Certificate Viewer",
+  'job-manager': "Job Manager",
+  'jobs': "Jobs",
+  'workflows': "Workflows",
+};
 
 interface NavItem {
   href: string;
@@ -112,6 +134,13 @@ const navigationConfig: NavGroup[] = [
       { href: '/devices', label: 'Devices', icon: Router },
       { href: '/device-groups', label: 'Device Groups', icon: Layers },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
+    ],
+  },
+  {
+    label: 'JOB MANAGER',
+    items: [
+      { href: '/job-manager/jobs', label: 'Jobs', icon: ClipboardList },
+      { href: '/job-manager/workflows', label: 'Workflows', icon: Workflow },
     ],
   },
   {
