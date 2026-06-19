@@ -5,6 +5,7 @@ import type {
   Policy,
   Principal,
   SchemaDefinition,
+  HTTPSchemaDefinition,
   PolicyStats,
   AuthorizeRequest,
   AuthorizeResponse,
@@ -224,23 +225,34 @@ export async function revokePolicy(principal_id: string, policy_id: string): Pro
 // Schema API Endpoints
 // ===========================
 
+function extractEntityData(data: any): Record<string, SchemaDefinition[]> {
+  if (Array.isArray(data)) return { default: data };
+  // New format: { entity: { ns: [...] }, http: { ... } }
+  if (data.entity && typeof data.entity === 'object' && !Array.isArray(data.entity)) {
+    return data.entity as Record<string, SchemaDefinition[]>;
+  }
+  // Old format: { ns: [...] }
+  return data as Record<string, SchemaDefinition[]>;
+}
+
 export async function getSchemas(): Promise<SchemaDefinition[]> {
   const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/schemas`, {
     headers: getAuthzContextHeaders(),
   });
   const data = await handleApiError(response, 'Failed to get schemas');
 
-  if (Array.isArray(data)) {
-    return data;
-  } else {
-    const schemas: SchemaDefinition[] = [];
-    Object.entries(data).forEach(([namespace, namespaceSchemas]) => {
+  if (Array.isArray(data)) return data;
+
+  const entityData = extractEntityData(data);
+  const schemas: SchemaDefinition[] = [];
+  Object.entries(entityData).forEach(([namespace, namespaceSchemas]) => {
+    if (Array.isArray(namespaceSchemas)) {
       (namespaceSchemas as SchemaDefinition[]).forEach(schema => {
         schemas.push({ ...schema, namespace });
       });
-    });
-    return schemas;
-  }
+    }
+  });
+  return schemas;
 }
 
 export async function getGroupedSchemas(): Promise<{ [namespace: string]: SchemaDefinition[] }> {
@@ -249,18 +261,27 @@ export async function getGroupedSchemas(): Promise<{ [namespace: string]: Schema
   });
   const data = await handleApiError(response, 'Failed to get schemas');
 
-  if (Array.isArray(data)) {
-    return { default: data };
-  } else {
-    const grouped: { [namespace: string]: SchemaDefinition[] } = {};
-    Object.entries(data).forEach(([namespace, namespaceSchemas]) => {
+  const entityData = extractEntityData(data);
+  const grouped: { [namespace: string]: SchemaDefinition[] } = {};
+  Object.entries(entityData).forEach(([namespace, namespaceSchemas]) => {
+    if (Array.isArray(namespaceSchemas)) {
       grouped[namespace] = (namespaceSchemas as SchemaDefinition[]).map(schema => ({
         ...schema,
-        namespace
+        namespace,
       }));
-    });
-    return grouped;
-  }
+    }
+  });
+  return grouped;
+}
+
+export async function getHTTPSchemas(): Promise<Record<string, HTTPSchemaDefinition>> {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/schemas`, {
+    headers: getAuthzContextHeaders(),
+  });
+  const data = await handleApiError(response, 'Failed to get schemas');
+
+  if (!data || Array.isArray(data)) return {};
+  return (data.http && typeof data.http === 'object' ? data.http : {}) as Record<string, HTTPSchemaDefinition>;
 }
 
 export function findAmbiguousEntityTypes(schemas: SchemaDefinition[]): Map<string, string[]> {

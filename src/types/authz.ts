@@ -22,11 +22,21 @@ export interface RelationRule {
   relations?: RelationRule[];
 }
 
+export interface HTTPRule {
+  http_schema_name: string;
+  actions: string[];
+}
+
+export interface HTTPSchemaDefinition {
+  all_actions: string[];
+}
+
 export interface Policy {
   id: string;
   name: string;
   description: string;
   rules: Rule[];
+  http_rules?: HTTPRule[];
   created_at: string;
   updated_at: string;
 }

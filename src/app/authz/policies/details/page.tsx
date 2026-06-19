@@ -52,7 +52,7 @@ import {
 } from '@/components/ui/tabs';
 import { getPolicy, getPolicyStats, deletePolicy } from '@/lib/authz-api';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
-import type { Policy, PolicyStats, ColumnFilter, FilterOperator, RelationRule } from '@/types/authz';
+import type { Policy, PolicyStats, ColumnFilter, FilterOperator, RelationRule, HTTPRule } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
@@ -297,6 +297,12 @@ function PolicyDetailsContent() {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rules</p>
             <p className="text-sm mt-0.5">{policy.rules.length} {policy.rules.length === 1 ? 'rule' : 'rules'}</p>
           </div>
+          {(policy.http_rules?.length ?? 0) > 0 && (
+            <div className="px-6">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">HTTP Rules</p>
+              <p className="text-sm mt-0.5">{policy.http_rules!.length} {policy.http_rules!.length === 1 ? 'rule' : 'rules'}</p>
+            </div>
+          )}
           <div className="px-6">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Principals</p>
             <p className="text-sm mt-0.5">{stats ? stats.principal_count : '—'}</p>
@@ -327,8 +333,8 @@ function PolicyDetailsContent() {
           </TabsList>
         </div>
 
-        <TabsContent value="overview" className="mt-6">
-          {policy.rules.length === 0 ? (
+        <TabsContent value="overview" className="mt-6 space-y-6">
+          {policy.rules.length === 0 && !policy.http_rules?.length ? (
             <div className="rounded-xl border bg-card p-12 text-center space-y-3">
               <div className="flex justify-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -341,84 +347,122 @@ function PolicyDetailsContent() {
               </div>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[18%] text-[11px] uppercase tracking-wider font-medium">Service</TableHead>
-                  <TableHead className="w-[28%] text-[11px] uppercase tracking-wider font-medium">Access Level</TableHead>
-                  <TableHead className="w-[22%] text-[11px] uppercase tracking-wider font-medium">Resources</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-medium">Request Conditions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-              {policy.rules.map((rule, index) => {
-                const namespace = rule.namespace || '';
-                const schema = rule.schema_name || '';
-                const entity = rule.entity_type || '';
-                const actions = rule.actions ?? [];
-                const direct_grants = rule.direct_grants ?? [];
-                const column_filters = rule.column_filters ?? [];
-                const relations = rule.relations ?? [];
+            <>
+              {policy.rules.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-[18%] text-[11px] uppercase tracking-wider font-medium">Service</TableHead>
+                      <TableHead className="w-[28%] text-[11px] uppercase tracking-wider font-medium">Access Level</TableHead>
+                      <TableHead className="w-[22%] text-[11px] uppercase tracking-wider font-medium">Resources</TableHead>
+                      <TableHead className="text-[11px] uppercase tracking-wider font-medium">Request Conditions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {policy.rules.map((rule, index) => {
+                      const namespace = rule.namespace || '';
+                      const schema = rule.schema_name || '';
+                      const entity = rule.entity_type || '';
+                      const actions = rule.actions ?? [];
+                      const direct_grants = rule.direct_grants ?? [];
+                      const column_filters = rule.column_filters ?? [];
+                      const relations = rule.relations ?? [];
 
-                return (
-                  <>
+                      return (
+                        <>
+                          <TableRow key={index} className="hover:bg-transparent align-top">
+                            <TableCell className="py-3">
+                              <span className="inline-flex items-center gap-1 font-mono text-sm flex-wrap">
+                                {namespace && <>
+                                  <span className="text-muted-foreground">{namespace}</span>
+                                  <span className="text-muted-foreground/40">›</span>
+                                </>}
+                                <span className="text-muted-foreground">{schema || '—'}</span>
+                                <span className="text-muted-foreground/40">›</span>
+                                <span className="font-medium">{entity || '—'}</span>
+                              </span>
+                            </TableCell>
+
+                            <TableCell className="py-3">
+                              {actions.length === 0 ? (
+                                <span className="text-xs text-muted-foreground/60 italic">None</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {actions.map((action, i) => (
+                                    <ActionBadge key={i} action={action} />
+                                  ))}
+                                </div>
+                              )}
+                            </TableCell>
+
+                            <TableCell className="py-3">
+                              {direct_grants.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {direct_grants.map((grant, i) => (
+                                    <Badge key={i} variant="secondary" className="font-mono text-[11px]">
+                                      {grant}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">All</span>
+                              )}
+                            </TableCell>
+
+                            <TableCell className="py-3">
+                              {column_filters.length === 0 ? (
+                                <span className="text-xs text-muted-foreground/60 italic">None</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {column_filters.map((filter, i) => (
+                                    <FilterChip key={i} filter={filter} />
+                                  ))}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                          {relations.length > 0 && <RelationRows relations={relations} />}
+                        </>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+
+              {policy.http_rules && policy.http_rules.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">HTTP Rules</p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[30%] text-[11px] uppercase tracking-wider font-medium">Schema</TableHead>
+                        <TableHead className="text-[11px] uppercase tracking-wider font-medium">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {policy.http_rules.map((httpRule: HTTPRule, index: number) => (
                         <TableRow key={index} className="hover:bg-transparent align-top">
                           <TableCell className="py-3">
-                            <span className="inline-flex items-center gap-1 font-mono text-sm flex-wrap">
-                              {namespace && <>
-                                <span className="text-muted-foreground">{namespace}</span>
-                                <span className="text-muted-foreground/40">›</span>
-                              </>}
-                              <span className="text-muted-foreground">{schema || '—'}</span>
-                              <span className="text-muted-foreground/40">›</span>
-                              <span className="font-medium">{entity || '—'}</span>
-                            </span>
+                            <code className="font-mono text-sm">{httpRule.http_schema_name}</code>
                           </TableCell>
-
                           <TableCell className="py-3">
-                            {actions.length === 0 ? (
+                            {httpRule.actions.length === 0 ? (
                               <span className="text-xs text-muted-foreground/60 italic">None</span>
                             ) : (
                               <div className="flex flex-wrap gap-1">
-                                {actions.map((action, i) => (
+                                {httpRule.actions.map((action, i) => (
                                   <ActionBadge key={i} action={action} />
                                 ))}
                               </div>
                             )}
                           </TableCell>
-
-                          <TableCell className="py-3">
-                            {direct_grants.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {direct_grants.map((grant, i) => (
-                                  <Badge key={i} variant="secondary" className="font-mono text-[11px]">
-                                    {grant}
-                                  </Badge>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground/60">All</span>
-                            )}
-                          </TableCell>
-
-                          <TableCell className="py-3">
-                            {column_filters.length === 0 ? (
-                              <span className="text-xs text-muted-foreground/60 italic">None</span>
-                            ) : (
-                              <div className="flex flex-wrap gap-1.5">
-                                {column_filters.map((filter, i) => (
-                                  <FilterChip key={i} filter={filter} />
-                                ))}
-                              </div>
-                            )}
-                          </TableCell>
                         </TableRow>
-                    {relations.length > 0 && <RelationRows relations={relations} />}
-                  </>
-                );
-              })}
-              </TableBody>
-            </Table>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
 

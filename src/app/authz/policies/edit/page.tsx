@@ -10,8 +10,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, AlertCircle, ArrowLeft, Save } from 'lucide-react';
 import { getPolicy, updatePolicy } from '@/lib/authz-api';
-import type { Rule } from '@/types/authz';
+import type { Rule, HTTPRule } from '@/types/authz';
 import { PolicyBuilder } from '@/components/authz/PolicyBuilder';
+import { HTTPRulesBuilder } from '@/components/authz/HTTPRulesBuilder';
 import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
@@ -25,6 +26,7 @@ function EditPolicyContent() {
     name: '',
     description: '',
     rules: [] as Rule[],
+    http_rules: [] as HTTPRule[],
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -45,6 +47,7 @@ function EditPolicyContent() {
         name: policy.name,
         description: policy.description,
         rules: normalizePolicyRules(policy.rules),
+        http_rules: policy.http_rules ?? [],
       });
       setError(null);
     } catch (err: any) {
@@ -73,6 +76,7 @@ function EditPolicyContent() {
         name: formData.name,
         description: formData.description,
         rules: normalizePolicyRules(formData.rules),
+        http_rules: formData.http_rules,
       });
       router.push(`/authz/policies/details?policy_id=${formData.id}`);
     } catch (err: any) {
@@ -186,7 +190,7 @@ function EditPolicyContent() {
 
           <Separator />
 
-          {/* ── Rules ── */}
+          {/* ── Entity Rules ── */}
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
             <div>
               <p className="font-semibold">Access Rules</p>
@@ -199,6 +203,24 @@ function EditPolicyContent() {
                 rules={formData.rules}
                 onChange={(rules) => setFormData({ ...formData, rules: normalizePolicyRules(rules) })}
                 error={error}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* ── HTTP Rules ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">HTTP Rules</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Grant access to HTTP-based service endpoints such as workflow actions.
+              </p>
+            </div>
+            <div className="lg:col-span-2">
+              <HTTPRulesBuilder
+                httpRules={formData.http_rules}
+                onChange={(http_rules) => setFormData({ ...formData, http_rules })}
               />
             </div>
           </div>
