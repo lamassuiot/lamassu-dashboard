@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal, ClipboardList } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/page';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -27,6 +27,7 @@ const TAB_TO_SLUG: Record<string, string> = {
   certificatesHistory: 'certificates-history',
   timeline: 'timeline',
   metadata: 'metadata',
+  jobs: 'jobs',
 };
 
 const SLUG_TO_TAB: Record<string, string> = {
@@ -34,6 +35,7 @@ const SLUG_TO_TAB: Record<string, string> = {
   'certificates-history': 'certificatesHistory',
   timeline: 'timeline',
   metadata: 'metadata',
+  jobs: 'jobs',
 };
 
 export default function DeviceDetailsShell({ children }: { children: React.ReactNode }) {
@@ -329,6 +331,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
                 { value: 'certificatesHistory', icon: History,          label: 'Certificates History' },
                 { value: 'timeline',            icon: Clock,            label: 'Timeline' },
                 { value: 'metadata',            icon: SlidersHorizontal, label: 'Metadata' },
+                { value: 'jobs',                icon: ClipboardList,    label: 'Jobs' },
               ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
                 <TabsTrigger key={value} value={value} className={pageTabsTriggerClass}>
                   <Icon className="h-4 w-4" />
