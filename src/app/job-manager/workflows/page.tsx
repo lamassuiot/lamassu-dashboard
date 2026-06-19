@@ -2,13 +2,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Workflow, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
+import { Workflow, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { fetchWorkflows, type WfxWorkflow } from '@/lib/wfx-api';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
@@ -151,34 +150,19 @@ export default function WorkflowsPage() {
                         </Table>
                     </div>
 
-                    {/* Pagination */}
-                    <div className="flex justify-between items-center mt-4">
-                        <div className="flex items-center space-x-2">
-                            <Label htmlFor="wf-page-size" className="text-sm text-muted-foreground whitespace-nowrap">Page Size:</Label>
-                            <Select
-                                value={pageSize}
-                                onValueChange={v => { setPageSize(v); setOffset(0); }}
-                                disabled={isLoading}
-                            >
-                                <SelectTrigger id="wf-page-size" className="w-[80px]">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {PAGE_SIZE_OPTIONS.map(s => (
-                                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <Button variant="secondary" onClick={handlePrev} disabled={!canPrev || isLoading}>
-                                <ChevronLeft className="mr-2 h-4 w-4" /> Previous
-                            </Button>
-                            <Button variant="secondary" onClick={handleNext} disabled={!canNext || isLoading}>
-                                Next <ChevronRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
+                    <CertificatePaginationControls
+                        pageSize={pageSize}
+                        onPageSizeChange={v => { setPageSize(v); setOffset(0); }}
+                        pageSizeOptions={PAGE_SIZE_OPTIONS}
+                        pageSizeLabel="Page Size:"
+                        pageSizeSelectId="wf-page-size"
+                        isLoading={isLoading}
+                        onPreviousPage={handlePrev}
+                        onNextPage={handleNext}
+                        canGoPrevious={canPrev}
+                        canGoNext={canNext}
+                        className="mt-4"
+                    />
                 </div>
             )}
         </BreadcrumbPage>
