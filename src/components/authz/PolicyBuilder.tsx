@@ -5,16 +5,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Code, FormInput } from 'lucide-react';
 import { PolicyBuilderJSON } from './PolicyBuilderJSON';
 import { PolicyBuilderForm } from './PolicyBuilderForm';
-import type { Rule } from '@/types/authz';
+import type { Rule, HTTPRule } from '@/types/authz';
 import { normalizePolicyRules } from '@/lib/policy-format';
 
 interface PolicyBuilderProps {
   rules: Rule[];
   onChange: (rules: Rule[]) => void;
+  httpRules: HTTPRule[];
+  onHttpRulesChange: (httpRules: HTTPRule[]) => void;
   error?: string | null;
 }
 
-export function PolicyBuilder({ rules, onChange, error }: PolicyBuilderProps) {
+export function PolicyBuilder({ rules, onChange, httpRules, onHttpRulesChange, error }: PolicyBuilderProps) {
   const [activeTab, setActiveTab] = useState<'json' | 'form'>('form');
   const normalizedRules = useMemo(() => normalizePolicyRules(rules), [rules]);
 
@@ -36,7 +38,13 @@ export function PolicyBuilder({ rules, onChange, error }: PolicyBuilderProps) {
       </TabsList>
 
       <TabsContent value="form" className="mt-4">
-        <PolicyBuilderForm rules={normalizedRules} onChange={handleRulesChange} error={error} />
+        <PolicyBuilderForm
+          rules={normalizedRules}
+          onChange={handleRulesChange}
+          httpRules={httpRules}
+          onHttpRulesChange={onHttpRulesChange}
+          error={error}
+        />
       </TabsContent>
 
       <TabsContent value="json" className="mt-4">

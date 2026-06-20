@@ -24,11 +24,27 @@ export interface RelationRule {
 
 export interface HTTPRule {
   http_schema_name: string;
+  http_group_name?: string;
   actions: string[];
 }
 
+export interface HTTPSchemaRoute {
+  name: string;
+  methods: string[];
+  path: string;
+  match_type: 'exact' | 'regex';
+  action: string;
+}
+
+export interface HTTPSchemaGroup {
+  name: string;
+  routes: HTTPSchemaRoute[];
+}
+
 export interface HTTPSchemaDefinition {
-  all_actions: string[];
+  name: string;
+  description?: string;
+  groups: HTTPSchemaGroup[];
 }
 
 export interface Policy {

@@ -280,8 +280,14 @@ export async function getHTTPSchemas(): Promise<Record<string, HTTPSchemaDefinit
   });
   const data = await handleApiError(response, 'Failed to get schemas');
 
-  if (!data || Array.isArray(data)) return {};
-  return (data.http && typeof data.http === 'object' ? data.http : {}) as Record<string, HTTPSchemaDefinition>;
+  if (!data || Array.isArray(data) || !data.http) return {};
+  const httpData = data.http;
+  // New format: array of schema objects with a `name` field
+  if (Array.isArray(httpData)) {
+    return Object.fromEntries((httpData as HTTPSchemaDefinition[]).map((s) => [s.name, s]));
+  }
+  // Legacy format: record keyed by name
+  return httpData as Record<string, HTTPSchemaDefinition>;
 }
 
 export function findAmbiguousEntityTypes(schemas: SchemaDefinition[]): Map<string, string[]> {

@@ -34,20 +34,30 @@ import {
   SlidersHorizontal,
   Search,
   Shield,
+  Globe,
 } from 'lucide-react';
 import type {
   EntityAddress,
   Rule,
+  HTTPRule,
   RelationRule,
   SchemaDefinition,
+  HTTPSchemaDefinition,
   ColumnFilter,
   FilterableField,
   FilterableFieldType,
   FilterOperator,
 } from '@/types/authz';
-import { getSchemas } from '@/lib/authz-api';
+import { getSchemas, getHTTPSchemas } from '@/lib/authz-api';
 import { findSchemaByAddress, normalizeEntityAddress, toQualifiedEntityType } from '@/lib/policy-format';
 import { cn } from '@/lib/utils';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified rule type — entity or HTTP, used internally throughout this file
+// ─────────────────────────────────────────────────────────────────────────────
+type AnyRule =
+  | { kind: 'entity'; data: Rule }
+  | { kind: 'http'; data: HTTPRule }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encoding helpers for the merged entity selector
@@ -395,14 +405,14 @@ function ActionSelector({
   const hasExtra = extraActions.length > 0;
 
   return (
-    <div className="rounded-md border bg-muted/20 divide-y">
+    <div className="space-y-2">
       {includeWildcard && (
-        <div className="p-2">
+        <div>
           {renderRow('*', true)}
         </div>
       )}
       {hasAtomic && (
-        <div className="p-2 space-y-0.5">
+        <div className="space-y-0.5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Atomic
           </p>
@@ -412,7 +422,7 @@ function ActionSelector({
         </div>
       )}
       {hasGlobal && (
-        <div className="p-2 space-y-0.5">
+        <div className="space-y-0.5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Global
           </p>
@@ -422,7 +432,7 @@ function ActionSelector({
         </div>
       )}
       {hasExtra && (
-        <div className="p-2 space-y-0.5">
+        <div className="space-y-0.5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Other
           </p>
@@ -642,45 +652,52 @@ function RuleSection({
 interface PolicyBuilderFormProps {
   rules: Rule[];
   onChange: (rules: Rule[]) => void;
+  httpRules: HTTPRule[];
+  onHttpRulesChange: (httpRules: HTTPRule[]) => void;
   error?: string | null;
 }
 
-export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormProps) {
+export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChange, error }: PolicyBuilderFormProps) {
   const [schemas, setSchemas] = useState<SchemaDefinition[]>([]);
+  const [httpSchemas, setHTTPSchemas] = useState<Record<string, HTTPSchemaDefinition>>({});
   const [loadingSchemas, setLoadingSchemas] = useState(true);
   const [openAccordionValue, setOpenAccordionValue] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const fetchSchemas = async () => {
-      try {
-        const data = await getSchemas();
-        setSchemas(data);
-      } catch (err) {
-        console.error('Failed to fetch schemas:', err);
-      } finally {
-        setLoadingSchemas(false);
-      }
-    };
-    fetchSchemas();
+    Promise.all([getSchemas(), getHTTPSchemas()])
+      .then(([entitySchemas, httpSchemasData]) => {
+        setSchemas(entitySchemas);
+        setHTTPSchemas(httpSchemasData);
+      })
+      .catch((err) => console.error('Failed to fetch schemas:', err))
+      .finally(() => setLoadingSchemas(false));
   }, []);
 
+  // Unified list — entity rules first, then HTTP rules. Derived from props; never stored in state.
+  const unifiedRules: AnyRule[] = [
+    ...rules.map((r): AnyRule => ({ kind: 'entity', data: r })),
+    ...httpRules.map((r): AnyRule => ({ kind: 'http', data: r })),
+  ];
+
+  const pushUnified = (next: AnyRule[]) => {
+    onChange(next.filter((r) => r.kind === 'entity').map((r) => (r as { kind: 'entity'; data: Rule }).data));
+    onHttpRulesChange(next.filter((r) => r.kind === 'http').map((r) => (r as { kind: 'http'; data: HTTPRule }).data));
+  };
+
   const addRule = () => {
-    const newIndex = rules.length;
-    onChange([
-      ...rules,
-      { namespace: '', schema_name: '', entity_type: '', actions: [], relations: [], direct_grants: [] },
-    ]);
-    setOpenAccordionValue(`rule-${newIndex}`);
+    const newIndex = unifiedRules.length;
+    pushUnified([...unifiedRules, { kind: 'entity', data: { namespace: '', schema_name: '', entity_type: '', actions: [], relations: [], direct_grants: [] } }]);
+    setOpenAccordionValue(`unified-${newIndex}`);
   };
 
-  const updateRule = (index: number, updated: Rule) => {
-    const newRules = [...rules];
-    newRules[index] = updated;
-    onChange(newRules);
+  const updateUnifiedRule = (index: number, updated: AnyRule) => {
+    const next = [...unifiedRules];
+    next[index] = updated;
+    pushUnified(next);
   };
 
-  const deleteRule = (index: number) => {
-    onChange(rules.filter((_, i) => i !== index));
+  const deleteUnifiedRule = (index: number) => {
+    pushUnified(unifiedRules.filter((_, i) => i !== index));
   };
 
   return (
@@ -692,7 +709,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
         </Alert>
       )}
 
-      {rules.length === 0 ? (
+      {unifiedRules.length === 0 ? (
         <div className="rounded-md border border-dashed px-4 py-6 text-center">
           <p className="text-sm text-muted-foreground">No access rules defined</p>
         </div>
@@ -704,25 +721,32 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
           value={openAccordionValue}
           onValueChange={setOpenAccordionValue}
         >
-          {rules.map((rule, index) => {
-            const hasEntity = !!(rule.schema_name && rule.entity_type);
-            const hasActions = rule.actions.length > 0;
-            const hasRelations = rule.relations.length > 0;
-            const hasGrants = (rule.direct_grants?.length ?? 0) > 0;
-            const hasFilters = (rule.column_filters?.length ?? 0) > 0;
-            const schemaDisplay = rule.schema_name || '';
-            const entityDisplay = rule.entity_type || '';
+          {unifiedRules.map((anyRule, index) => {
+            const isHTTP = anyRule.kind === 'http';
+            const entityRule = anyRule.kind === 'entity' ? anyRule.data : null;
+            const httpRule = anyRule.kind === 'http' ? anyRule.data : null;
 
-            const statusColor = !hasEntity
+            const hasTarget = isHTTP
+              ? !!httpRule!.http_schema_name
+              : !!(entityRule!.schema_name && entityRule!.entity_type);
+            const hasActions = anyRule.data.actions.length > 0;
+            const hasRelations = !isHTTP && (entityRule!.relations.length > 0);
+            const hasGrants = !isHTTP && ((entityRule!.direct_grants?.length ?? 0) > 0);
+            const hasFilters = !isHTTP && ((entityRule!.column_filters?.length ?? 0) > 0);
+
+            const statusColor = !hasTarget
               ? 'bg-muted-foreground/30'
               : !hasActions
                 ? 'bg-amber-400'
                 : 'bg-green-500';
+            const gradient = isHTTP
+              ? 'from-blue-500 to-cyan-400'
+              : 'from-primary to-[#39ff14]';
 
             return (
-              <div key={index} className="rounded-lg p-[2px] bg-gradient-to-br from-primary to-[#39ff14]">
+              <div key={index} className={cn('rounded-lg p-[2px] bg-gradient-to-br', gradient)}>
               <AccordionItem
-                value={`rule-${index}`}
+                value={`unified-${index}`}
                 className="rounded-md bg-card border-0 w-full data-open:bg-card"
               >
                 <AccordionTrigger className="hover:no-underline px-4 py-3 gap-3 [&>svg]:shrink-0 [&>svg]:size-3.5 [&>svg]:text-muted-foreground/40">
@@ -732,49 +756,59 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <span className="flex-1 min-w-0 font-mono text-xs">
-                      {!hasEntity ? (
-                        <span className="font-sans text-sm italic text-muted-foreground font-normal">Unconfigured</span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 min-w-0">
-                          {rule.namespace && (
-                            <span className="shrink-0 rounded border bg-muted px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-muted-foreground">
-                              {rule.namespace}
+                      {isHTTP ? (
+                        !httpRule!.http_schema_name ? (
+                          <span className="font-sans text-sm italic text-muted-foreground font-normal">Unconfigured</span>
+                        ) : (
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span className="shrink-0 rounded border bg-blue-500/10 border-blue-500/30 px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-blue-600 dark:text-blue-400">
+                              HTTP
                             </span>
-                          )}
-                          <span className="truncate">
-                            <span className="text-muted-foreground/70">{schemaDisplay}</span>
-                            <span className="mx-1 text-muted-foreground/30">/</span>
-                            <span className="font-medium text-foreground">{entityDisplay}</span>
+                            <span className="font-medium text-foreground">{httpRule!.http_schema_name}</span>
                           </span>
-                        </span>
+                        )
+                      ) : (
+                        !hasTarget ? (
+                          <span className="font-sans text-sm italic text-muted-foreground font-normal">Unconfigured</span>
+                        ) : (
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            {entityRule!.namespace && (
+                              <span className="shrink-0 rounded border bg-muted px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-muted-foreground">
+                                {entityRule!.namespace}
+                              </span>
+                            )}
+                            <span className="truncate">
+                              <span className="text-muted-foreground/70">{entityRule!.schema_name}</span>
+                              <span className="mx-1 text-muted-foreground/30">/</span>
+                              <span className="font-medium text-foreground">{entityRule!.entity_type}</span>
+                            </span>
+                          </span>
+                        )
                       )}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
                       {hasActions && (
-                        <Badge
-                          variant="default"
-                          className="text-[10px] px-1.5 py-0 bg-primary/90 gap-1 rounded-sm"
-                        >
+                        <Badge variant="default" className={cn('text-[10px] px-1.5 py-0 gap-1 rounded-sm', isHTTP ? 'bg-blue-600/90' : 'bg-primary/90')}>
                           <Zap className="h-2.5 w-2.5" />
-                          {rule.actions.length}
+                          {isHTTP && httpRule!.actions.includes('*') ? '*' : anyRule.data.actions.length}
                         </Badge>
                       )}
                       {hasRelations && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <Link2 className="h-2.5 w-2.5" />
-                          {rule.relations.length}
+                          {entityRule!.relations.length}
                         </Badge>
                       )}
                       {hasGrants && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <User className="h-2.5 w-2.5" />
-                          {rule.direct_grants!.length}
+                          {entityRule!.direct_grants!.length}
                         </Badge>
                       )}
                       {hasFilters && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <SlidersHorizontal className="h-2.5 w-2.5" />
-                          {rule.column_filters!.length}
+                          {entityRule!.column_filters!.length}
                         </Badge>
                       )}
                     </div>
@@ -782,13 +816,30 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
                 </AccordionTrigger>
 
                 <AccordionContent className="px-4 pb-0 border-t">
-                  <RuleEditor
-                    rule={rule}
-                    onChange={(updated) => updateRule(index, updated)}
-                    onDelete={() => deleteRule(index)}
-                    schemas={schemas}
-                    loadingSchemas={loadingSchemas}
-                  />
+                  {isHTTP ? (
+                    <HTTPRuleEditor
+                      rule={httpRule!}
+                      onChange={(updated) => updateUnifiedRule(index, { kind: 'http', data: updated })}
+                      onDelete={() => deleteUnifiedRule(index)}
+                      httpSchemas={httpSchemas}
+                      entitySchemas={schemas}
+                      onSwitchToEntity={(sn, et, ns) =>
+                        updateUnifiedRule(index, { kind: 'entity', data: { namespace: ns ?? '', schema_name: sn, entity_type: et, actions: [], relations: [], direct_grants: [] } })
+                      }
+                    />
+                  ) : (
+                    <RuleEditor
+                      rule={entityRule!}
+                      onChange={(updated) => updateUnifiedRule(index, { kind: 'entity', data: updated })}
+                      onDelete={() => deleteUnifiedRule(index)}
+                      schemas={schemas}
+                      httpSchemas={httpSchemas}
+                      loadingSchemas={loadingSchemas}
+                      onSwitchToHTTP={(schemaName, groupName) =>
+                        updateUnifiedRule(index, { kind: 'http', data: { http_schema_name: schemaName, http_group_name: groupName, actions: [] } })
+                      }
+                    />
+                  )}
                 </AccordionContent>
               </AccordionItem>
               </div>
@@ -798,6 +849,7 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
       )}
 
       <Button
+        type="button"
         onClick={addRule}
         className="w-full border-dashed"
         size="sm"
@@ -811,6 +863,360 @@ export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormP
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// UnifiedEntitySelector — entity types + HTTP schema groups in one combobox
+// ─────────────────────────────────────────────────────────────────────────────
+interface UnifiedEntitySelectorProps {
+  schemas: SchemaDefinition[];
+  httpSchemas: Record<string, HTTPSchemaDefinition>;
+  currentRule: AnyRule;
+  onSelectEntity: (schema_name: string, entity_type: string, namespace?: string) => void;
+  onSelectHTTP: (schemaName: string, groupName?: string) => void;
+  includeWildcard?: boolean;
+  loadingSchemas?: boolean;
+  error?: string;
+}
+
+function UnifiedEntitySelector({
+  schemas,
+  httpSchemas,
+  currentRule,
+  onSelectEntity,
+  onSelectHTTP,
+  includeWildcard = false,
+  loadingSchemas,
+  error,
+}: UnifiedEntitySelectorProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const isHTTP = currentRule.kind === 'http';
+  const entityData = currentRule.kind === 'entity' ? currentRule.data : null;
+  const httpData = currentRule.kind === 'http' ? currentRule.data : null;
+
+  const filteredSchemas = schemas
+    .filter((s) => {
+      if (!query) return true;
+      const q = query.toLowerCase();
+      return s.entity_type.toLowerCase().includes(q) || s.schema_name.toLowerCase().includes(q) || (s.namespace || '').toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      const nsCmp = (a.namespace || 'other').localeCompare(b.namespace || 'other');
+      return nsCmp !== 0 ? nsCmp : a.schema_name.localeCompare(b.schema_name) || a.entity_type.localeCompare(b.entity_type);
+    });
+
+  const namespaceGroups = filteredSchemas.reduce<Record<string, Record<string, SchemaDefinition[]>>>((acc, s) => {
+    const ns = s.namespace || 'other';
+    if (!acc[ns]) acc[ns] = {};
+    if (!acc[ns][s.schema_name]) acc[ns][s.schema_name] = [];
+    acc[ns][s.schema_name].push(s);
+    return acc;
+  }, {});
+
+  const filteredHTTPEntries = Object.entries(httpSchemas).filter(([, schema]) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return schema.name.toLowerCase().includes(q) || schema.groups.some((g) => g.name.toLowerCase().includes(q));
+  });
+
+  const selectedEntityValue = !isHTTP && entityData?.schema_name && entityData?.entity_type
+    ? encodeEntity(entityData.schema_name, entityData.entity_type)
+    : '';
+  const selectedSchema = !isHTTP && entityData
+    ? schemas.find((s) => s.schema_name === entityData.schema_name && s.entity_type === entityData.entity_type)
+    : null;
+  const isWildcard = entityData?.schema_name === '*' && entityData?.entity_type === '*';
+
+  const close = () => { setOpen(false); setQuery(''); };
+  const hasContent = Object.keys(namespaceGroups).length > 0 || filteredHTTPEntries.length > 0;
+
+  // Trigger content
+  let triggerContent: React.ReactNode;
+  if (isHTTP && httpData?.http_schema_name) {
+    triggerContent = (
+      <span className="flex items-center gap-1.5 font-mono text-sm">
+        <span className="shrink-0 rounded border bg-blue-500/10 border-blue-500/30 px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-blue-600 dark:text-blue-400">HTTP</span>
+        <span className="font-medium text-foreground">{httpData.http_schema_name}</span>
+        {httpData.http_group_name && (
+          <span className="text-muted-foreground/70">· {httpData.http_group_name}</span>
+        )}
+      </span>
+    );
+  } else if (!isHTTP && selectedEntityValue) {
+    triggerContent = (
+      <span className="flex items-center gap-1.5 font-mono text-sm">
+        {!isWildcard && selectedSchema?.namespace && (
+          <span className="shrink-0 rounded border bg-muted px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-muted-foreground">
+            {selectedSchema.namespace}
+          </span>
+        )}
+        {isWildcard ? (
+          <span className="font-sans text-sm italic text-muted-foreground">* · all entities</span>
+        ) : (
+          <span className="flex flex-col min-w-0 truncate leading-tight">
+            <span className="truncate font-medium text-foreground">{entityData!.entity_type}</span>
+            <span className="truncate font-sans text-[10px] text-muted-foreground">{selectedSchema?.schema_name ?? entityData!.schema_name}</span>
+          </span>
+        )}
+      </span>
+    );
+  } else {
+    triggerContent = <span className="text-muted-foreground">{loadingSchemas ? 'Loading schemas…' : 'Select entity or service…'}</span>;
+  }
+
+  return (
+    <div>
+      <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(''); }}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              'flex h-10 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap',
+              'transition-[color,box-shadow] duration-200 outline-none',
+              'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30',
+              error && 'border-destructive ring-3 ring-destructive/20'
+            )}
+          >
+            <span className="flex-1 min-w-0 text-left">{triggerContent}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground pointer-events-none" />
+          </button>
+        </PopoverTrigger>
+
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          className="w-auto rounded-2xl p-0 gap-0 overflow-hidden bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/5"
+          style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '320px' }}
+        >
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter entities…"
+              className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
+            />
+            {query && (
+              <button type="button" onClick={() => setQuery('')} className="shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors">
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-80 overflow-y-auto p-1">
+            {!hasContent && (
+              <div className="px-4 py-6 text-center">
+                <p className="text-xs text-muted-foreground">{query ? `No matches for "${query}"` : 'No entities available'}</p>
+              </div>
+            )}
+
+            {/* Entity namespace groups */}
+            {Object.entries(namespaceGroups).map(([ns, schemaGroups]) => {
+              const allItems = Object.values(schemaGroups).flat();
+              return (
+                <div key={ns} className="mb-1 last:mb-0">
+                  <div className="px-2 py-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">{ns}</span>
+                  </div>
+                  {includeWildcard && (
+                    <button
+                      type="button"
+                      onClick={() => { onSelectEntity('*', '*', ns); close(); }}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground',
+                        isWildcard && entityData?.namespace === ns && 'bg-accent text-accent-foreground'
+                      )}
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-muted/40 font-mono text-[10px] font-bold text-muted-foreground">*</span>
+                      <span className="flex-1 text-xs italic text-muted-foreground">All entities</span>
+                      {isWildcard && entityData?.namespace === ns && <Check className="h-3 w-3 shrink-0 text-primary" />}
+                    </button>
+                  )}
+                  <div className="grid grid-cols-2 gap-0.5">
+                    {allItems.map((s) => {
+                      const enc = encodeEntity(s.schema_name, s.entity_type);
+                      const isSel = !isHTTP && selectedEntityValue === enc;
+                      return (
+                        <button
+                          key={enc}
+                          type="button"
+                          onClick={() => { onSelectEntity(s.schema_name, s.entity_type, s.namespace); close(); }}
+                          className={cn(
+                            'group flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors',
+                            isSel ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                          )}
+                        >
+                          <span className={cn(
+                            'flex h-5 w-5 shrink-0 items-center justify-center rounded border font-mono text-[9px] font-bold uppercase',
+                            isSel ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-muted/40 text-muted-foreground'
+                          )}>
+                            {s.entity_type.charAt(0)}
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className={cn('block text-xs leading-tight truncate', isSel ? 'font-semibold' : 'font-medium')}>{s.entity_type}</span>
+                            <span className={cn('block font-mono text-[10px] leading-tight truncate transition-colors', isSel ? 'text-accent-foreground/60' : 'text-muted-foreground/60 group-hover:text-accent-foreground/60')}>{s.schema_name}</span>
+                          </span>
+                          {isSel && <Check className="h-3 w-3 shrink-0 text-primary" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* HTTP schema groups */}
+            {filteredHTTPEntries.map(([schemaKey, schema]) => {
+              const visibleGroups = schema.groups.filter((g) =>
+                !query || schema.name.toLowerCase().includes(query.toLowerCase()) || g.name.toLowerCase().includes(query.toLowerCase())
+              );
+              return (
+                <div key={`http-${schemaKey}`} className="mb-1 last:mb-0">
+                  <div className="px-2 py-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">{schema.name}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-0.5">
+                    {visibleGroups.map((group) => {
+                      const isSel = isHTTP && httpData?.http_schema_name === schema.name && httpData?.http_group_name === group.name;
+                      return (
+                        <button
+                          key={group.name}
+                          type="button"
+                          onClick={() => { onSelectHTTP(schema.name, group.name); close(); }}
+                          className={cn(
+                            'group flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors',
+                            isSel ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
+                          )}
+                        >
+                          <span className={cn(
+                            'flex h-5 w-5 shrink-0 items-center justify-center rounded border',
+                            isSel ? 'border-blue-500 bg-blue-500 text-white' : 'border-blue-300 bg-blue-500/10 text-blue-500'
+                          )}>
+                            <Globe className="h-3 w-3" />
+                          </span>
+                          <span className="flex-1 min-w-0">
+                            <span className={cn('block text-xs leading-tight truncate', isSel ? 'font-semibold' : 'font-medium')}>{group.name}</span>
+                            <span className="block font-mono text-[10px] leading-tight truncate text-muted-foreground/60">{group.routes.length} actions</span>
+                          </span>
+                          {isSel && <Check className="h-3 w-3 shrink-0 text-blue-500" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+      {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTTPRuleEditor — action picker for HTTP rules (service selected via unified selector)
+// ─────────────────────────────────────────────────────────────────────────────
+interface HTTPRuleEditorProps {
+  rule: HTTPRule;
+  onChange: (rule: HTTPRule) => void;
+  onDelete: () => void;
+  httpSchemas: Record<string, HTTPSchemaDefinition>;
+  entitySchemas: SchemaDefinition[];
+  onSwitchToEntity: (schema_name: string, entity_type: string, namespace?: string) => void;
+}
+
+function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, onSwitchToEntity }: HTTPRuleEditorProps) {
+  const schema = httpSchemas[rule.http_schema_name];
+  const isWildcard = rule.actions.includes('*');
+
+  const toggleAction = (action: string) => {
+    const next = rule.actions.includes(action)
+      ? rule.actions.filter((a) => a !== action)
+      : [...rule.actions, action];
+    onChange({ ...rule, actions: next });
+  };
+
+  const currentRule: AnyRule = { kind: 'http', data: rule };
+
+  return (
+    <div className="divide-y">
+      {/* ── Target (unified selector) ── */}
+      <RuleSection icon={<Globe />} title="Target Service" description="Select the HTTP service this rule applies to.">
+        <UnifiedEntitySelector
+          schemas={entitySchemas}
+          httpSchemas={httpSchemas}
+          currentRule={currentRule}
+          onSelectEntity={onSwitchToEntity}
+          onSelectHTTP={(schemaName, groupName) => onChange({ http_schema_name: schemaName, http_group_name: groupName, actions: [] })}
+          error={!rule.http_schema_name ? 'Required' : undefined}
+        />
+        {schema?.description && <p className="text-xs text-muted-foreground mt-1.5">{schema.description}</p>}
+      </RuleSection>
+
+      {/* ── Actions ── */}
+      {schema && (
+        <RuleSection icon={<Zap />} title="Allowed Actions" description="Select the HTTP actions this rule permits.">
+          <div className="space-y-2">
+            <div className={cn('flex items-center gap-2 px-2.5 py-1', isWildcard && 'opacity-100')}>
+              <Checkbox
+                id="http-rule-wildcard"
+                checked={isWildcard}
+                onCheckedChange={(checked) => onChange({ ...rule, actions: checked ? ['*'] : [] })}
+                className="size-3.5 shrink-0"
+              />
+              <span
+                className="font-mono text-xs cursor-pointer select-none text-foreground"
+                onClick={() => onChange({ ...rule, actions: isWildcard ? [] : ['*'] })}
+              >
+                *
+              </span>
+              <span className="text-[10px] text-muted-foreground/60">(all)</span>
+            </div>
+            {!isWildcard && (() => {
+              const groupsToShow = rule.http_group_name
+                ? schema.groups.filter((g) => g.name === rule.http_group_name)
+                : schema.groups;
+              return groupsToShow.map((group) => (
+                <div key={group.name} className="space-y-0.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">{group.name}</p>
+                  <div className="grid grid-cols-2 gap-0.5">
+                    {group.routes.map((route) => (
+                      <div key={route.action} className="flex items-center gap-2 px-2.5 py-1">
+                        <Checkbox
+                          id={`http-action-${route.action}`}
+                          checked={rule.actions.includes(route.action)}
+                          onCheckedChange={() => toggleAction(route.action)}
+                          className="size-3.5 shrink-0"
+                        />
+                        <span
+                          className="font-mono text-xs cursor-pointer select-none text-muted-foreground"
+                          onClick={() => toggleAction(route.action)}
+                          title={`${route.methods.join(', ')} ${route.path}`}
+                        >
+                          {route.action}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </RuleSection>
+      )}
+
+      <div className="py-3 flex justify-end">
+        <Button onClick={onDelete} variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 text-xs">
+          <Trash2 className="mr-1.5 h-3 w-3" />
+          Delete Rule
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RuleEditor
 // ─────────────────────────────────────────────────────────────────────────────
 interface RuleEditorProps {
@@ -818,10 +1224,12 @@ interface RuleEditorProps {
   onChange: (rule: Rule) => void;
   onDelete: () => void;
   schemas: SchemaDefinition[];
+  httpSchemas: Record<string, HTTPSchemaDefinition>;
+  onSwitchToHTTP: (schemaName: string, groupName?: string) => void;
   loadingSchemas?: boolean;
 }
 
-function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleEditorProps) {
+function RuleEditor({ rule, onChange, onDelete, schemas, httpSchemas, onSwitchToHTTP, loadingSchemas }: RuleEditorProps) {
   const selectedEntityAddress: EntityAddress = normalizeEntityAddress({
     schema_name: rule.schema_name,
     entity_type: rule.entity_type,
@@ -908,26 +1316,20 @@ function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleE
       {/* ── Target Entity ── */}
       <RuleSection
         icon={<Shield />}
-        title="Target Entity"
-        description="Which entity type this rule applies to. Use * to match all."
+        title="Target"
+        description="Which entity or HTTP service this rule applies to."
       >
-        <EntitySelector
+        <UnifiedEntitySelector
           schemas={schemas}
-          schema_name={rule.schema_name}
-          entity_type={rule.entity_type}
-          namespace={rule.namespace}
+          httpSchemas={httpSchemas}
+          currentRule={{ kind: 'entity', data: rule }}
           includeWildcard
-          placeholder={loadingSchemas ? 'Loading schemas…' : 'Select entity type…'}
-          onSelect={(sn, et, ns) => {
+          loadingSchemas={loadingSchemas}
+          onSelectEntity={(sn, et, ns) => {
             const schema = findSchemaByAddress(schemas, { schema_name: sn, entity_type: et });
-            onChange({
-              ...rule,
-              schema_name: sn,
-              entity_type: et,
-              namespace: ns ?? schema?.namespace ?? rule.namespace,
-              actions: [],
-            });
+            onChange({ ...rule, schema_name: sn, entity_type: et, namespace: ns ?? schema?.namespace ?? rule.namespace, actions: [] });
           }}
+          onSelectHTTP={onSwitchToHTTP}
           error={!rule.schema_name || !rule.entity_type ? 'Required' : undefined}
         />
       </RuleSection>
