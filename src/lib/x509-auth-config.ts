@@ -8,6 +8,7 @@ const normalizeIdentityType = (value: unknown): X509CaTrustIdentityType => {
 const normalizeMatchMode = (value: unknown): X509MatchMode => {
   if (value === 'serial_and_ca') return 'serial_and_ca';
   if (value === 'cn_and_ca' || value === 'cn') return 'cn_and_ca';
+  if (value === 'subject_cn') return 'subject_cn';
   return 'any_from_ca';
 };
 

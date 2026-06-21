@@ -96,6 +96,31 @@ const OPERATOR_SQL: Record<FilterOperator, string> = {
   like: 'LIKE',
 };
 
+const getRouteConstraints = (route: { constraint?: any; constraints?: any[]; route_constraints?: any[]; request_constraints?: any[] }) => {
+  const constraints = route.constraints ?? route.route_constraints ?? route.request_constraints;
+  if (constraints) return constraints;
+  return route.constraint ? [route.constraint] : [];
+};
+
+const formatRouteConstraint = (constraint: any): string => {
+  if (constraint?.description) return String(constraint.description);
+
+  const location = String(constraint?.location ?? constraint?.source ?? '').toLowerCase();
+  const fieldPath = String(constraint?.path ?? constraint?.name ?? '');
+  const subjectAttribute = String(constraint?.subject_attribute ?? constraint?.subject ?? '');
+  const subjectRef = subjectAttribute.startsWith('subject.')
+    ? subjectAttribute
+    : subjectAttribute
+      ? `subject.${subjectAttribute}`
+      : String(constraint?.equals ?? constraint?.value ?? '');
+  const operator = constraint?.operator && constraint.operator !== 'eq' ? String(constraint.operator) : '==';
+
+  if (location.includes('query')) return `requires query ${fieldPath} ${operator} ${subjectRef}`;
+  if (location.includes('json') || location.includes('body')) return `requires JSON body ${fieldPath} ${operator} ${subjectRef}`;
+  if (fieldPath && subjectRef) return `requires ${fieldPath} ${operator} ${subjectRef}`;
+  return 'requires route constraint';
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // EntitySelector — combobox grouped by namespace, tabular schema/entity columns
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1181,23 +1206,36 @@ function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, 
                 <div key={group.name} className="space-y-0.5">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">{group.name}</p>
                   <div className="grid grid-cols-2 gap-0.5">
-                    {group.routes.map((route) => (
-                      <div key={route.action} className="flex items-center gap-2 px-2.5 py-1">
-                        <Checkbox
-                          id={`http-action-${route.action}`}
-                          checked={rule.actions.includes(route.action)}
-                          onCheckedChange={() => toggleAction(route.action)}
-                          className="size-3.5 shrink-0"
-                        />
-                        <span
-                          className="font-mono text-xs cursor-pointer select-none text-muted-foreground"
-                          onClick={() => toggleAction(route.action)}
-                          title={`${route.methods.join(', ')} ${route.path}`}
-                        >
-                          {route.action}
-                        </span>
-                      </div>
-                    ))}
+                    {group.routes.map((route) => {
+                      const constraints = getRouteConstraints(route);
+                      return (
+                        <div key={route.action} className="flex items-start gap-2 px-2.5 py-1">
+                          <Checkbox
+                            id={`http-action-${route.action}`}
+                            checked={rule.actions.includes(route.action)}
+                            onCheckedChange={() => toggleAction(route.action)}
+                            className="mt-0.5 size-3.5 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <span
+                              className="block font-mono text-xs cursor-pointer select-none text-muted-foreground"
+                              onClick={() => toggleAction(route.action)}
+                              title={`${route.methods.join(', ')} ${route.path}`}
+                            >
+                              {route.action}
+                            </span>
+                            <span className="block truncate font-mono text-[10px] text-muted-foreground/70">
+                              {route.methods.join(', ')} {route.path}
+                            </span>
+                            {constraints.map((constraint, constraintIndex) => (
+                              <span key={constraintIndex} className="block truncate font-mono text-[10px] text-muted-foreground/70">
+                                {formatRouteConstraint(constraint)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ));

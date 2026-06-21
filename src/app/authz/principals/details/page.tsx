@@ -64,6 +64,7 @@ import {
 } from '@/components/ui/tabs';
 import { getPrincipal, getPrincipalPolicies, grantPolicy, revokePolicy, listPolicies, getPolicy, deletePrincipal } from '@/lib/authz-api';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
+import { principalHasSubjectAttribute } from '@/lib/principal-subject-attributes';
 import type { DateFilterValue, PolicyFilters, Principal, Policy, PrincipalType } from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
@@ -83,6 +84,27 @@ const PRINCIPAL_TYPE_LABEL: Record<PrincipalType, string> = {
 const PRINCIPAL_TYPE_CLASSES: Record<PrincipalType, string> = {
   oidc: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800',
   x509: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-800',
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+const getStringRecordEntries = (value: unknown): Array<[string, string]> => {
+  if (!isRecord(value)) return [];
+  return Object.entries(value)
+    .filter(([, entryValue]) => typeof entryValue === 'string' || typeof entryValue === 'number' || typeof entryValue === 'boolean')
+    .map(([key, entryValue]) => [key, String(entryValue)]);
+};
+
+const isWfxSbiPolicy = (policy: Policy | null | undefined): boolean => {
+  if (!policy) return false;
+  const haystack = [
+    policy.name,
+    policy.description,
+    ...(policy.http_rules ?? []).flatMap((rule) => [rule.http_schema_name, rule.http_group_name ?? '']),
+  ].join(' ').toLowerCase();
+
+  return haystack.includes('wfx') && haystack.includes('sbi');
 };
 
 function PrincipalDetailsContent() {
@@ -259,6 +281,7 @@ function PrincipalDetailsContent() {
   };
 
   const selectedPolicy = policyResults.find((p) => p.id === selectedPolicyId) ?? null;
+  const selectedPolicyNeedsClientId = isWfxSbiPolicy(selectedPolicy) && !principalHasSubjectAttribute(principal?.auth_config, 'client_id');
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -295,6 +318,52 @@ function PrincipalDetailsContent() {
 
   const renderAuthConfig = () => {
     const { auth_config, type } = principal;
+    const staticAttributeEntries = getStringRecordEntries((auth_config as any)?.subject_attributes);
+    const derivedAttributeEntries = getStringRecordEntries((auth_config as any)?.subject_attribute_mappings);
+
+    const renderSubjectAttributes = () => {
+      if (staticAttributeEntries.length === 0 && derivedAttributeEntries.length === 0) return null;
+
+      return (
+        <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
+          <div>
+            <p className="font-semibold">Subject Attributes</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Neutral attributes available to policies. Derived values override static values with the same key.
+            </p>
+          </div>
+          <div className="space-y-5 lg:col-span-2">
+            {staticAttributeEntries.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Static</p>
+                <div className="space-y-2">
+                  {staticAttributeEntries.map(([key, value]) => (
+                    <div key={key} className="grid grid-cols-[minmax(120px,0.4fr)_1fr] gap-3 rounded-md border bg-card px-3 py-2">
+                      <code className="truncate font-mono text-xs">{key}</code>
+                      <code className="truncate font-mono text-xs text-muted-foreground">{value}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {derivedAttributeEntries.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Derived</p>
+                <div className="space-y-2">
+                  {derivedAttributeEntries.map(([key, source]) => (
+                    <div key={key} className="grid grid-cols-[minmax(120px,0.4fr)_1fr] gap-3 rounded-md border bg-card px-3 py-2">
+                      <code className="truncate font-mono text-xs">{key}</code>
+                      <code className="truncate font-mono text-xs text-muted-foreground">{source}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
 
     if (type === 'oidc') {
       const oidcConfig = auth_config as any;
@@ -332,6 +401,7 @@ function PrincipalDetailsContent() {
               </div>
             </div>
           )}
+          {renderSubjectAttributes()}
         </div>
       );
     }
@@ -402,6 +472,7 @@ function PrincipalDetailsContent() {
               </div>
             </div>
           )}
+          {renderSubjectAttributes()}
         </div>
       );
     }
@@ -762,9 +833,19 @@ function PrincipalDetailsContent() {
 
           <SheetFooter className="border-t px-6 py-4 shrink-0">
             {selectedPolicy && (
-              <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
-                <Check className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span className="font-medium truncate">{selectedPolicy.name}</span>
+              <div className="mr-auto space-y-2">
+                <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
+                  <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="font-medium truncate">{selectedPolicy.name}</span>
+                </div>
+                {selectedPolicyNeedsClientId && (
+                  <Alert className="max-w-md py-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      This WFX SBI policy requires subject attribute client_id for job route constraints.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
             )}
             <div className="flex gap-2 justify-end">

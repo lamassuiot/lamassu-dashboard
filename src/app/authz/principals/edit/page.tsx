@@ -23,6 +23,14 @@ import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { SubjectAttributesEditor } from '@/components/authz/SubjectAttributesEditor';
+import {
+  newSubjectAttributeRow,
+  subjectAttributeRowsFromRecord,
+  validateSubjectAttributeRows,
+  withSubjectAttributeConfig,
+  type SubjectAttributeRow,
+} from '@/lib/principal-subject-attributes';
 import type {
   Principal,
   PrincipalType,
@@ -34,7 +42,7 @@ import type {
 function EditPrincipalContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const principal_id = searchParams.get('principal_id');
 
   const [loading, setLoading] = useState(true);
@@ -60,9 +68,11 @@ function EditPrincipalContent() {
   const [matchMode, setMatchMode] = useState<X509AuthConfig['match_mode']>('any_from_ca');
   const [serialNumber, setSerialNumber] = useState('');
   const [subjectCn, setSubjectCn] = useState('');
+  const [subjectAttributes, setSubjectAttributes] = useState<SubjectAttributeRow[]>([]);
+  const [subjectAttributeMappings, setSubjectAttributeMappings] = useState<SubjectAttributeRow[]>([]);
 
   const loadCAs = useCallback(async () => {
-    if (!isAuthenticated() || !user?.access_token) {
+    if (!user?.access_token) {
       setErrorCAs('User not authenticated. Please log in.');
       return;
     }
@@ -77,7 +87,7 @@ function EditPrincipalContent() {
     } finally {
       setIsLoadingCAs(false);
     }
-  }, [isAuthenticated, user?.access_token]);
+  }, [user?.access_token]);
 
   const handleOpenCaSelector = async () => {
     if (allCAs.length === 0) await loadCAs();
@@ -134,6 +144,8 @@ function EditPrincipalContent() {
       setType(fetchedPrincipal.type);
       setActive(fetchedPrincipal.active);
       setDescription((fetchedPrincipal as any).description || '');
+      setSubjectAttributes(subjectAttributeRowsFromRecord((fetchedPrincipal.auth_config as any)?.subject_attributes));
+      setSubjectAttributeMappings(subjectAttributeRowsFromRecord((fetchedPrincipal.auth_config as any)?.subject_attribute_mappings));
 
       if (fetchedPrincipal.type === 'oidc') {
         const oidcClaims = (fetchedPrincipal.auth_config as any)?.claims;
@@ -207,18 +219,27 @@ function EditPrincipalContent() {
         setError('Serial number is required when using serial_and_ca match mode');
         return;
       }
-      if (matchMode === 'cn_and_ca' && !subjectCn.trim()) {
-        setError('Subject CN is required when using cn_and_ca match mode');
+      if ((matchMode === 'cn_and_ca' || matchMode === 'subject_cn') && !subjectCn.trim()) {
+        setError('Subject CN is required when using this match mode');
         return;
       }
+    }
+
+    const subjectAttributeError = validateSubjectAttributeRows(subjectAttributes, subjectAttributeMappings, type);
+    if (subjectAttributeError) {
+      setError(subjectAttributeError);
+      return;
     }
 
     try {
       setSubmitting(true);
 
-      let auth_config: any = principal.auth_config;
+      let auth_config: Record<string, unknown> =
+        principal.auth_config && typeof principal.auth_config === 'object'
+          ? { ...(principal.auth_config as Record<string, unknown>) }
+          : {};
       if (type === 'oidc') {
-        auth_config = { claims };
+        auth_config = { ...auth_config, claims };
       } else if (type === 'x509') {
         const selectedCaPem = selectedCa?.rawApiData?.certificate?.certificate;
         const resolvedCaTrustValue = await deriveCaTrustValue();
@@ -233,6 +254,7 @@ function EditPrincipalContent() {
         }
 
         auth_config = {
+          ...auth_config,
           ca_trust: {
             identity_type: caTrustIdentityType,
             value: resolvedCaTrustValue,
@@ -240,11 +262,15 @@ function EditPrincipalContent() {
           },
           match_mode: matchMode,
         };
+        delete auth_config.serial_number;
+        delete auth_config.subject_cn;
         if (matchMode === 'serial_and_ca') auth_config.serial_number = serialNumber;
-        if (matchMode === 'cn_and_ca') auth_config.subject_cn = subjectCn;
+        if (matchMode === 'cn_and_ca' || matchMode === 'subject_cn') auth_config.subject_cn = subjectCn;
       }
 
-      await updatePrincipal(principal_id, { name, description: description.trim(), active, auth_config });
+      auth_config = withSubjectAttributeConfig(auth_config, subjectAttributes, subjectAttributeMappings);
+
+      await updatePrincipal(principal_id, { name, description: description.trim(), active, auth_config: auth_config as any });
       router.push(`/authz/principals/details?principal_id=${principal_id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to update principal');
@@ -439,12 +465,14 @@ function EditPrincipalContent() {
               <SelectItem value="any_from_ca">Any from CA</SelectItem>
               <SelectItem value="serial_and_ca">Serial Number + CA</SelectItem>
               <SelectItem value="cn_and_ca">Common Name (CN) + CA</SelectItem>
+              <SelectItem value="subject_cn">Subject Common Name</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
             {matchMode === 'any_from_ca' && 'Trust any certificate issued by the specified CA.'}
             {matchMode === 'serial_and_ca' && 'Match a specific certificate by serial number and issuing CA.'}
             {matchMode === 'cn_and_ca' && 'Match certificates by Common Name pattern. Wildcards such as *.example.com are supported.'}
+            {matchMode === 'subject_cn' && 'Match certificates by Subject Common Name.'}
           </p>
         </div>
       </div>
@@ -467,7 +495,7 @@ function EditPrincipalContent() {
         </div>
       )}
 
-      {matchMode === 'cn_and_ca' && (
+      {(matchMode === 'cn_and_ca' || matchMode === 'subject_cn') && (
         <div className="space-y-1.5">
           <Label htmlFor="subjectCn" className="text-sm">
             Subject Common Name (CN) <span className="text-destructive">*</span>
@@ -489,6 +517,14 @@ function EditPrincipalContent() {
       )}
     </div>
   );
+
+  const applyWfxDevicePreset = () => {
+    setMatchMode('subject_cn');
+    setSubjectAttributeMappings((rows) => {
+      const nextRows = rows.filter((row) => row.key.trim() !== 'client_id');
+      return [newSubjectAttributeRow('client_id', 'x509.subject.cn'), ...nextRows];
+    });
+  };
 
   if (loading) {
     return (
@@ -618,6 +654,29 @@ function EditPrincipalContent() {
 
           <Separator />
 
+          {/* ── Subject Attributes ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">Subject Attributes</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Neutral attributes used by authorization policies.
+              </p>
+            </div>
+            <div className="lg:col-span-2">
+              <SubjectAttributesEditor
+                type={type}
+                staticRows={subjectAttributes}
+                mappingRows={subjectAttributeMappings}
+                onStaticRowsChange={setSubjectAttributes}
+                onMappingRowsChange={setSubjectAttributeMappings}
+                onApplyWfxDevicePreset={type === 'x509' ? applyWfxDevicePreset : undefined}
+                disabled={submitting}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
           {/* ── Activation ── */}
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
             <div>
@@ -664,7 +723,6 @@ function EditPrincipalContent() {
         loadCAsAction={loadCAs}
         onCaSelected={handleCaSelected}
         currentSelectedCaId={selectedCa?.id}
-        isAuthLoading={isAuthLoading}
       />
     </BreadcrumbPage>
   );

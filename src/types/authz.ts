@@ -34,6 +34,23 @@ export interface HTTPSchemaRoute {
   path: string;
   match_type: 'exact' | 'regex';
   action: string;
+  constraint?: HTTPRouteConstraint;
+  constraints?: HTTPRouteConstraint[];
+  route_constraints?: HTTPRouteConstraint[];
+  request_constraints?: HTTPRouteConstraint[];
+}
+
+export interface HTTPRouteConstraint {
+  location?: string;
+  source?: string;
+  path?: string;
+  name?: string;
+  operator?: string;
+  equals?: string;
+  value?: string;
+  subject_attribute?: string;
+  subject?: string;
+  description?: string;
 }
 
 export interface HTTPSchemaGroup {
@@ -65,13 +82,19 @@ export interface ClaimCondition {
 }
 
 
-export interface OIDCAuthConfig {
+export interface SubjectAttributeConfig {
+  subject_attributes?: Record<string, string>;
+  subject_attribute_mappings?: Record<string, string>;
+}
+
+export interface OIDCAuthConfig extends SubjectAttributeConfig {
   claims: ClaimCondition[];
+  [key: string]: unknown;
 }
 
 export type X509CaTrustIdentityType = 'fingerprint' | 'authority_key_id';
 
-export type X509MatchMode = 'serial_and_ca' | 'cn_and_ca' | 'any_from_ca';
+export type X509MatchMode = 'serial_and_ca' | 'cn_and_ca' | 'any_from_ca' | 'subject_cn';
 
 export interface X509CaTrustConfig {
   identity_type: X509CaTrustIdentityType;
@@ -79,11 +102,12 @@ export interface X509CaTrustConfig {
   pem?: string;
 }
 
-export interface X509AuthConfig {
+export interface X509AuthConfig extends SubjectAttributeConfig {
   ca_trust: X509CaTrustConfig;
   match_mode: X509MatchMode;
   serial_number?: string;
   subject_cn?: string;
+  [key: string]: unknown;
 }
 
 export type PrincipalType = 'oidc' | 'x509';

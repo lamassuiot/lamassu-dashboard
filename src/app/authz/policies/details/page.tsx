@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { Fragment, useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,9 +50,19 @@ import {
   pageTabsListClass,
   pageTabsTriggerClass,
 } from '@/components/ui/tabs';
-import { getPolicy, getPolicyStats, deletePolicy } from '@/lib/authz-api';
+import { getPolicy, getPolicyStats, deletePolicy, getHTTPSchemas } from '@/lib/authz-api';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
-import type { Policy, PolicyStats, ColumnFilter, FilterOperator, RelationRule, HTTPRule } from '@/types/authz';
+import type {
+  Policy,
+  PolicyStats,
+  ColumnFilter,
+  FilterOperator,
+  RelationRule,
+  HTTPRule,
+  HTTPSchemaDefinition,
+  HTTPSchemaRoute,
+  HTTPRouteConstraint,
+} from '@/types/authz';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { cn } from '@/lib/utils';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
@@ -68,6 +78,54 @@ const FILTER_OP_LABEL: Record<FilterOperator, string> = {
 
 const formatFilterValue = (value: ColumnFilter['value']): string =>
   Array.isArray(value) ? value.join(', ') : String(value);
+
+const getRouteConstraints = (route: HTTPSchemaRoute): HTTPRouteConstraint[] => {
+  const constraints = route.constraints ?? route.route_constraints ?? route.request_constraints;
+  if (constraints) return constraints;
+  return route.constraint ? [route.constraint] : [];
+};
+
+const formatRouteConstraint = (constraint: HTTPRouteConstraint): string => {
+  if (constraint.description) return constraint.description;
+
+  const rawLocation = constraint.location ?? constraint.source ?? '';
+  const normalizedLocation = rawLocation.toLowerCase();
+  const fieldPath = constraint.path ?? constraint.name ?? '';
+  const subjectAttribute = constraint.subject_attribute ?? constraint.subject ?? '';
+  const subjectRef = subjectAttribute.startsWith('subject.')
+    ? subjectAttribute
+    : subjectAttribute
+      ? `subject.${subjectAttribute}`
+      : String(constraint.equals ?? constraint.value ?? '');
+  const operator = constraint.operator === 'eq' || !constraint.operator ? '==' : constraint.operator;
+
+  if (normalizedLocation.includes('query')) {
+    return `requires query ${fieldPath} ${operator} ${subjectRef}`;
+  }
+
+  if (normalizedLocation.includes('json') || normalizedLocation.includes('body')) {
+    return `requires JSON body ${fieldPath} ${operator} ${subjectRef}`;
+  }
+
+  if (fieldPath && subjectRef) return `requires ${fieldPath} ${operator} ${subjectRef}`;
+  return 'requires route constraint';
+};
+
+const getRoutesForHttpRule = (
+  rule: HTTPRule,
+  httpSchemas: Record<string, HTTPSchemaDefinition>,
+): HTTPSchemaRoute[] => {
+  const schema = httpSchemas[rule.http_schema_name];
+  if (!schema) return [];
+
+  const groups = rule.http_group_name
+    ? schema.groups.filter((group) => group.name === rule.http_group_name)
+    : schema.groups;
+  const routes = groups.flatMap((group) => group.routes);
+
+  if (rule.actions.includes('*')) return routes;
+  return routes.filter((route) => rule.actions.includes(route.action));
+};
 
 // ─── ActionBadge ─────────────────────────────────────────────────────────────
 
@@ -151,6 +209,7 @@ function PolicyDetailsContent() {
 
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [stats, setStats] = useState<PolicyStats | null>(null);
+  const [httpSchemas, setHttpSchemas] = useState<Record<string, HTTPSchemaDefinition>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
@@ -167,12 +226,14 @@ function PolicyDetailsContent() {
     if (!policy_id) return;
     try {
       setLoading(true);
-      const [policyData, statsData] = await Promise.all([
+      const [policyData, statsData, httpSchemasData] = await Promise.all([
         getPolicy(policy_id),
         getPolicyStats(policy_id).catch(() => null),
+        getHTTPSchemas().catch(() => ({})),
       ]);
       setPolicy(policyData);
       setStats(statsData);
+      setHttpSchemas(httpSchemasData);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load policy details');
@@ -441,22 +502,58 @@ function PolicyDetailsContent() {
                     </TableHeader>
                     <TableBody>
                       {policy.http_rules.map((httpRule: HTTPRule, index: number) => (
-                        <TableRow key={index} className="hover:bg-transparent align-top">
-                          <TableCell className="py-3">
-                            <code className="font-mono text-sm">{httpRule.http_schema_name}</code>
-                          </TableCell>
-                          <TableCell className="py-3">
-                            {httpRule.actions.length === 0 ? (
-                              <span className="text-xs text-muted-foreground/60 italic">None</span>
-                            ) : (
-                              <div className="flex flex-wrap gap-1">
-                                {httpRule.actions.map((action, i) => (
-                                  <ActionBadge key={i} action={action} />
-                                ))}
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
+                        <Fragment key={index}>
+                          <TableRow key={index} className="hover:bg-transparent align-top">
+                            <TableCell className="py-3">
+                              <code className="font-mono text-sm">{httpRule.http_schema_name}</code>
+                              {httpRule.http_group_name && (
+                                <p className="mt-0.5 font-mono text-xs text-muted-foreground">{httpRule.http_group_name}</p>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-3">
+                              {httpRule.actions.length === 0 ? (
+                                <span className="text-xs text-muted-foreground/60 italic">None</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {httpRule.actions.map((action, i) => (
+                                    <ActionBadge key={i} action={action} />
+                                  ))}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                          {getRoutesForHttpRule(httpRule, httpSchemas).map((route) => {
+                            const constraints = getRouteConstraints(route);
+                            return (
+                              <TableRow key={`${index}-${route.action}`} className="hover:bg-transparent align-top bg-muted/20">
+                                <TableCell className="py-2 pl-6">
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
+                                      {route.methods.map((method) => (
+                                        <Badge key={method} variant="secondary" className="font-mono text-[10px]">{method}</Badge>
+                                      ))}
+                                      <span>{route.path}</span>
+                                    </div>
+                                    <code className="text-[11px] text-muted-foreground">{route.action}</code>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  {constraints.length === 0 ? (
+                                    <span className="text-xs text-muted-foreground/60">No route constraints</span>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {constraints.map((constraint, constraintIndex) => (
+                                        <p key={constraintIndex} className="font-mono text-xs text-muted-foreground">
+                                          {formatRouteConstraint(constraint)}
+                                        </p>
+                                      ))}
+                                    </div>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </Fragment>
                       ))}
                     </TableBody>
                   </Table>
