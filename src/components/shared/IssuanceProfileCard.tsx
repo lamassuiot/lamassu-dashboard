@@ -2,94 +2,84 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import Link from 'next/link';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Fingerprint, BookText, KeyRound, ShieldCheck, Scale, Edit, Trash2, Eye, Users } from "lucide-react";
+import { ShieldCheck, Edit, Trash2, Eye, Users } from "lucide-react";
 import type { ApiSigningProfile } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
-import { SectionHeader } from '@/components/shared/FormComponents';
 
-const SummaryItem: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="space-y-1">
-    <p className="text-sm font-medium text-foreground/60">{label}</p>
-    <p className="text-sm text-foreground">{value}</p>
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getValidityLabel(profile: ApiSigningProfile) {
+  if (!profile.validity) return "—";
+  switch (profile.validity.type) {
+    case 'Duration': return profile.validity.duration || "—";
+    case 'Date':
+      if (profile.validity.time?.startsWith('9999-12-31')) return "No expiry";
+      return profile.validity.time ? new Date(profile.validity.time).toLocaleDateString() : "—";
+    case 'Indefinite': return "No expiry";
+    default: return "—";
+  }
+}
+
+function getExtensionRows(profile: ApiSigningProfile) {
+  return {
+    ku: {
+      honors: profile.honor_key_usage,
+      value: profile.honor_key_usage ? "Follows CSR" : profile.key_usage?.join(', ') || 'None',
+    },
+    eku: {
+      honors: profile.honor_extended_key_usages,
+      value: profile.honor_extended_key_usages ? "Follows CSR" : profile.extended_key_usages?.join(', ') || 'None',
+    },
+  };
+}
+
+function getCryptoRules(profile: ApiSigningProfile) {
+  if (!profile.crypto_enforcement?.enabled) return null;
+  return {
+    rsa: profile.crypto_enforcement.allow_rsa_keys ? (profile.crypto_enforcement.allowed_rsa_key_sizes ?? []) : null,
+    ecdsa: profile.crypto_enforcement.allow_ecdsa_keys ? (profile.crypto_enforcement.allowed_ecdsa_key_sizes ?? []) : null,
+  };
+}
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+const HonorToken: React.FC<{ honors: boolean }> = ({ honors }) => (
+  <span className={cn(
+    "text-[9px] font-mono font-semibold uppercase tracking-wide rounded px-1 py-0.5 shrink-0",
+    honors
+      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+      : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+  )}>
+    {honors ? "CSR" : "FIXED"}
+  </span>
+);
+
+const AlgoBadge: React.FC<React.PropsWithChildren> = ({ children }) => (
+  <Badge className="rounded-sm border border-primary/30 bg-primary/10 text-primary font-mono text-[9px] h-4 px-1">
+    {children}
+  </Badge>
+);
+
+const StatusBadge: React.FC<React.PropsWithChildren> = ({ children }) => (
+  <Badge className="rounded-sm border border-primary/30 bg-primary/10 text-primary text-[9px] font-semibold uppercase tracking-wide h-5 px-1.5">
+    {children}
+  </Badge>
+);
+
+const PropRow: React.FC<{ label: string; value: React.ReactNode; mono?: boolean }> = ({ label, value, mono }) => (
+  <div className="flex items-center gap-2 py-1.5">
+    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-24 shrink-0">{label}</span>
+    <div className={cn("text-xs text-foreground/80 min-w-0 truncate", mono && "font-mono")}>{value}</div>
   </div>
 );
 
-function getValidityLabel(profile: ApiSigningProfile) {
-  if (!profile.validity) return "Not specified";
-
-  switch (profile.validity.type) {
-    case 'Duration':
-      return profile.validity.duration || "Not specified";
-    case 'Date':
-      if (profile.validity.time?.startsWith('9999-12-31')) {
-        return "Never expires";
-      }
-      return profile.validity.time ? new Date(profile.validity.time).toLocaleDateString() : "Not specified";
-    case 'Indefinite':
-      return "Never expires";
-    default:
-      return "Not specified";
-  }
-}
-
-function getSubjectPolicy(profile: ApiSigningProfile) {
-  if (profile.honor_subject) {
-    return "Uses the subject DN requested in the CSR.";
-  }
-
-  const overrides = Object.entries(profile.subject || {})
-    .filter(([, value]) => value)
-    .map(([key, value]) => `${key.substring(0, 2).toUpperCase()}=${value}`)
-    .join(', ');
-
-  return overrides
-    ? `Overrides the CSR subject with ${overrides}.`
-    : "Overrides the CSR subject, but no fixed attributes are defined.";
-}
-
-function getExtensionPolicy(profile: ApiSigningProfile) {
-  const keyUsagePolicy = profile.honor_key_usage
-    ? "Key usage follows the CSR."
-    : `Key usage enforced: ${profile.key_usage?.join(', ') || 'None'}.`;
-
-  const extendedKeyUsagePolicy = profile.honor_extended_key_usages
-    ? "Extended key usage follows the CSR."
-    : `Extended key usage enforced: ${profile.extended_key_usages?.join(', ') || 'None'}.`;
-
-  return `${keyUsagePolicy} ${extendedKeyUsagePolicy}`;
-}
-
-function getCryptoEnforcementSummary(profile: ApiSigningProfile) {
-  if (!profile.crypto_enforcement?.enabled) {
-    return "Crypto enforcement is disabled for this profile.";
-  }
-
-  const rules: string[] = [];
-
-  if (profile.crypto_enforcement.allow_rsa_keys) {
-    const rsaSizes = profile.crypto_enforcement.allowed_rsa_key_sizes?.length
-      ? ` (${profile.crypto_enforcement.allowed_rsa_key_sizes.join(', ')} bits)`
-      : '';
-    rules.push(`RSA${rsaSizes}`);
-  }
-
-  if (profile.crypto_enforcement.allow_ecdsa_keys) {
-    const ecdsaSizes = profile.crypto_enforcement.allowed_ecdsa_key_sizes?.length
-      ? ` (${profile.crypto_enforcement.allowed_ecdsa_key_sizes.join(', ')})`
-      : '';
-    rules.push(`ECDSA${ecdsaSizes}`);
-  }
-
-  return rules.length > 0
-    ? `Allowed algorithms: ${rules.join(' and ')}.`
-    : "Crypto enforcement is enabled, but no key algorithms are currently allowed.";
-}
+// ─── Main component ────────────────────────────────────────────────────────────
 
 interface IssuanceProfileCardProps {
   profile: ApiSigningProfile;
@@ -99,136 +89,96 @@ interface IssuanceProfileCardProps {
   onViewUsage?: () => void;
 }
 
-export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({ profile, className, onEdit, onDelete, onViewUsage }) => {
+export const IssuanceProfileCard: React.FC<IssuanceProfileCardProps> = ({
+  profile, className, onEdit, onDelete, onViewUsage,
+}) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
-  const allowedKeyTypes: string[] = [];
-  if (profile.crypto_enforcement?.allow_rsa_keys) allowedKeyTypes.push('RSA');
-  if (profile.crypto_enforcement?.allow_ecdsa_keys) allowedKeyTypes.push('ECDSA');
   const validityLabel = getValidityLabel(profile);
-  const subjectPolicy = getSubjectPolicy(profile);
-  const extensionsPolicy = getExtensionPolicy(profile);
-  const cryptoSummary = getCryptoEnforcementSummary(profile);
-  const certificateScope = profile.sign_as_ca ? 'CA certificates' : 'End-entity certificates';
-  const subjectMode = profile.honor_subject ? 'CSR subject' : 'Profile subject override';
-  const keyTypeValue = allowedKeyTypes.length > 0 ? allowedKeyTypes.join(', ') : 'None';
+  const certificateScope = profile.sign_as_ca ? 'CA certs' : 'End-entity';
+  const subjectMode = profile.honor_subject ? 'Follows CSR' : 'Override';
+
+  const { ku, eku } = getExtensionRows(profile);
+  const cryptoRules = getCryptoRules(profile);
 
   return (
     <>
-      <Card
-        className={cn(
-          "flex min-h-[360px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors",
-          className
-        )}
-      >
-        <SectionHeader
-          icon={Scale}
-          title={profile.name}
-          description={profile.description || "No description provided for this profile."}
-          action={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {profile.sign_as_ca && (
-                <Badge variant="secondary" className="rounded-md text-foreground/75">
-                  CA
-                </Badge>
-              )}
-              {profile.crypto_enforcement?.enabled && (
-                <Badge variant="secondary" className="rounded-md text-foreground/75">
-                  Crypto enforcement
-                </Badge>
+      <Card className={cn("overflow-hidden", className)}>
+
+        {/* ── Header ── */}
+        <CardHeader className="px-4 border-b">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-sm font-semibold tracking-tight leading-none text-primary">{profile.name}</CardTitle>
+              {profile.description && (
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{profile.description}</p>
               )}
             </div>
-          }
-        />
-
-        <CardContent className="flex flex-1 flex-col gap-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SummaryItem label="Validity" value={validityLabel} />
-            <SummaryItem label="Signs" value={certificateScope} />
-            <SummaryItem label="Subject source" value={subjectMode} />
-            <SummaryItem label="Allowed key types" value={keyTypeValue} />
+            <div className="flex items-center gap-1 shrink-0">
+              {profile.sign_as_ca && <StatusBadge>CA</StatusBadge>}
+            </div>
           </div>
+        </CardHeader>
 
-          <DetailInfoRows>
-            <DetailInfoRow
-              icon={Fingerprint}
-              label="Subject policy"
-              value={subjectPolicy}
-              valueClassName="font-normal leading-6 text-foreground/70"
-              className="first:pt-0"
-            />
-            <DetailInfoRow
-              icon={BookText}
-              label="Extensions policy"
-              value={extensionsPolicy}
-              valueClassName="font-normal leading-6 text-foreground/70"
-            />
-            <DetailInfoRow
-              icon={KeyRound}
-              label="Crypto rules"
-              className="last:pb-0"
-              valueClassName="font-normal"
-              value={
-                <div className="space-y-2">
-                  <p className="text-sm leading-6 text-foreground/70">{cryptoSummary}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {allowedKeyTypes.length > 0 ? (
-                      allowedKeyTypes.map((keyType) => (
-                        <Badge key={keyType} variant="secondary" className="rounded-md text-foreground/75">
-                          {keyType}
-                        </Badge>
-                      ))
-                    ) : (
-                      <Badge variant="secondary" className="rounded-md text-foreground/75">
-                        No key types allowed
-                      </Badge>
-                    )}
-                    <Badge variant="secondary" className="rounded-md text-foreground/75">
-                      <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-                      {profile.sign_as_ca ? 'Can issue CA certificates' : 'Leaf certificates only'}
-                    </Badge>
-                    <Badge variant="secondary" className="rounded-md text-foreground/75">
-                      <Clock className="mr-1.5 h-3.5 w-3.5" />
-                      {validityLabel}
-                    </Badge>
+        {/* ── Property list ── */}
+        <CardContent className="px-4 py-1 divide-y">
+          <PropRow label="Validity" value={validityLabel} mono />
+          <PropRow label="Scope" value={certificateScope} />
+          <PropRow label="Subject" value={subjectMode} />
+          <PropRow label="Key usage" value={<div className="flex items-center gap-1.5"><HonorToken honors={ku.honors} /><span>{ku.value}</span></div>} />
+          <PropRow label="Ext. key usage" value={<div className="flex items-center gap-1.5"><HonorToken honors={eku.honors} /><span>{eku.value}</span></div>} />
+          <div className="flex items-center gap-2 py-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground w-24 shrink-0">Crypto</span>
+            <div className="flex flex-1 items-center gap-1 min-w-0">
+              {cryptoRules ? (
+                <>
+                  <div className="flex flex-wrap gap-1">
+                    {cryptoRules.rsa !== null && (cryptoRules.rsa.length > 0 ? cryptoRules.rsa.map(s => <AlgoBadge key={`rsa-${s}`}>RSA-{s}</AlgoBadge>) : <AlgoBadge>RSA</AlgoBadge>)}
+                    {cryptoRules.ecdsa !== null && (cryptoRules.ecdsa.length > 0 ? cryptoRules.ecdsa.map(s => <AlgoBadge key={`ec-${s}`}>EC {s}</AlgoBadge>) : <AlgoBadge>ECDSA</AlgoBadge>)}
                   </div>
-                </div>
-              }
-            />
-          </DetailInfoRows>
+                  <span className="ml-auto shrink-0"><StatusBadge><ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Enforced</StatusBadge></span>
+                </>
+              ) : (
+                <span className="text-xs text-foreground/80">Not enforced</span>
+              )}
+            </div>
+          </div>
         </CardContent>
 
+        {/* ── Footer ── */}
         {onEdit && onDelete && (
-          <CardFooter className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/70 bg-muted/10 px-6 py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" onClick={() => setIsDetailsModalOpen(true)}>
-                <Eye className="mr-1.5 h-3.5 w-3.5" /> View Raw
+          <CardFooter className="px-3 py-2 flex items-center justify-between border-t bg-muted/5">
+            <div className="flex items-center gap-0.5">
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => setIsDetailsModalOpen(true)}>
+                <Eye className="mr-1 h-3 w-3" />
+                Raw
               </Button>
               {onViewUsage && (
-                <Button variant="secondary" onClick={onViewUsage}>
-                  <Users className="mr-1.5 h-3.5 w-3.5" /> View Usage
+                <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={onViewUsage}>
+                  <Users className="mr-1 h-3 w-3" />
+                  Usage
                 </Button>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-0.5">
               <Button
-                variant="destructive"
-               
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                 onClick={onDelete}
               >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
+                <Trash2 className="mr-1 h-3 w-3" />
+                Delete
               </Button>
-              <Button
-                variant="secondary"
-               
-                onClick={onEdit}
-              >
-                <Edit className="mr-1.5 h-3.5 w-3.5" /> Edit
+              <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={onEdit}>
+                <Edit className="mr-1 h-3 w-3" />
+                Edit
               </Button>
             </div>
           </CardFooter>
         )}
       </Card>
+
       <Sheet open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
         <SheetContent side="right" className="!w-[33vw] sm:!max-w-none flex flex-col p-0">
           <SheetHeader className="border-b px-6 py-5">
