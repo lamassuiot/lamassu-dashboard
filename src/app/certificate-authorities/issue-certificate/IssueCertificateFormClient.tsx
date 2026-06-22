@@ -977,66 +977,62 @@ export default function IssueCertificateFormClient() {
               </div>
 
               <div className={cn('grid gap-6', generatedPrivateKeyPem && 'xl:grid-cols-2 xl:items-start')}>
-                <Card className={DETAIL_CARD_CLASSNAME}>
-                  <CardHeader className="border-b py-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <CardTitle className="flex items-center text-lg">
+                <div className="overflow-hidden rounded-lg border bg-background">
+                  <div className="flex flex-col gap-3 border-b bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h4 className="flex items-center text-base font-semibold">
                         <FileText className="mr-3 h-5 w-5 text-primary" />
                         Issued Certificate PEM
-                      </CardTitle>
-                      <div className="flex flex-wrap gap-2 sm:justify-end">
-                        <Button type="button" variant="secondary" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
-                          {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500" /> : <Copy className="mr-1 h-4 w-4" />}
-                          {issuedCertCopied ? 'Copied' : 'Copy'}
-                        </Button>
-                        <Button type="button" variant="secondary" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
-                          <DownloadIcon className="mr-1 h-4 w-4" />Download
-                        </Button>
-                      </div>
+                    </h4>
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                      <Button type="button" variant="secondary" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
+                        {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500" /> : <Copy className="mr-1 h-4 w-4" />}
+                        {issuedCertCopied ? 'Copied' : 'Copy'}
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
+                        <DownloadIcon className="mr-1 h-4 w-4" />Download
+                      </Button>
                     </div>
-                  </CardHeader>
-                  <CardContent>
+                  </div>
+                  <div className="space-y-3 p-4">
                     <Tabs value={certDisplayTab} onValueChange={(v) => setCertDisplayTab(v as 'leaf' | 'chain')} className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="leaf">Leaf Certificate</TabsTrigger>
                         <TabsTrigger value="chain">Full Chain</TabsTrigger>
                       </TabsList>
-                      <TabsContent value="leaf" className="mt-2">
+                      <TabsContent value="leaf" className="mt-3">
                         <Textarea readOnly value={issuedCertificate?.pem || ''} rows={10} className="font-mono bg-muted/50" />
                       </TabsContent>
-                      <TabsContent value="chain" className="mt-2">
+                      <TabsContent value="chain" className="mt-3">
                         <Textarea readOnly value={fullChainPem} rows={14} className="font-mono bg-muted/50" />
                       </TabsContent>
                     </Tabs>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {generatedPrivateKeyPem && (
-                  <Card className={DETAIL_CARD_CLASSNAME}>
-                    <CardHeader className="border-b py-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <CardTitle className="flex items-center text-lg">
+                  <div className="overflow-hidden rounded-lg border bg-background">
+                    <div className="flex flex-col gap-3 border-b bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <h4 className="flex items-center text-base font-semibold">
                           <KeyRound className="mr-3 h-5 w-5 text-primary" />
                           Generated Private Key
-                        </CardTitle>
-                        <div className="flex flex-wrap gap-2 sm:justify-end">
-                          <Button type="button" variant="secondary" onClick={() => handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
-                            {privateKeyCopied ? <Check className="mr-1 h-4 w-4 text-green-500" /> : <Copy className="mr-1 h-4 w-4" />}
-                            {privateKeyCopied ? 'Copied' : 'Copy'}
-                          </Button>
-                          <Button type="button" variant="secondary" onClick={() => handleDownload(generatedPrivateKeyPem, "private_key.pem", "application/x-pem-file")}>
-                            <DownloadIcon className="mr-1 h-4 w-4" />Download
-                          </Button>
-                        </div>
+                      </h4>
+                      <div className="flex flex-wrap gap-2 sm:justify-end">
+                        <Button type="button" variant="secondary" onClick={() => handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
+                          {privateKeyCopied ? <Check className="mr-1 h-4 w-4 text-green-500" /> : <Copy className="mr-1 h-4 w-4" />}
+                          {privateKeyCopied ? 'Copied' : 'Copy'}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => handleDownload(generatedPrivateKeyPem, "private_key.pem", "application/x-pem-file")}>
+                          <DownloadIcon className="mr-1 h-4 w-4" />Download
+                        </Button>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
+                    </div>
+                    <div className="space-y-3 p-4">
                       <Alert variant="warning">
                         <AlertDescription>This is your only chance to save the private key. Store it securely.</AlertDescription>
                       </Alert>
                       <Textarea readOnly value={generatedPrivateKeyPem} rows={8} className="font-mono bg-muted/50" />
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
