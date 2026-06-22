@@ -63,7 +63,9 @@ export const SelectableCaTreeItem: React.FC<SelectableCaTreeItemProps> = ({
   }
 
   const engine = allCryptoEngines?.find(e => e.id === ca.kmsKeyId);
-  const Icon = engine ? <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 text-primary flex-shrink-0" /> : <HardDrive className="h-4 w-4 text-primary flex-shrink-0" />;
+  const Icon = engine
+    ? <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 text-primary flex-shrink-0" />
+    : <HardDrive className="h-4 w-4 text-primary flex-shrink-0" />;
 
   return (
     <li className={`py-1 ${level > 0 ? 'pl-4 border-l border-dashed border-border ml-2' : ''} relative list-none`}>

@@ -10,7 +10,6 @@ import {
   ChevronRight,
   FileSearch,
   FilePlus2,
-  KeyRound,
   UploadCloud,
   FileText,
   HardDrive,
@@ -69,7 +68,7 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
     const engine = allCryptoEngines.find(e => e.id === ca.kmsKeyId);
     iconNode = engine
       ? <CryptoEngineViewer engine={engine} iconOnly className="h-6 w-6" />
-      : <KeyRound className="h-6 w-6 text-primary" />;
+      : <HardDrive className="h-6 w-6 text-primary" />;
   } else {
     iconNode = <HardDrive className="h-6 w-6 text-primary" />;
   }

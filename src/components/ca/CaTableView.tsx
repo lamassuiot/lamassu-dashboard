@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { FileSearch, FilePlus2, KeyRound, HardDrive, UploadCloud, FileText, ShieldAlert, GitFork } from 'lucide-react';
+import { FileSearch, FilePlus2, HardDrive, UploadCloud, FileText, ShieldAlert, GitFork } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isPast, parseISO } from 'date-fns';
 
@@ -87,7 +87,7 @@ export const CaTableView: React.FC<CaTableViewProps> = ({ cas, router, allCrypto
                     ) : engine ? (
                       <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4 flex-shrink-0" />
                     ) : ca.kmsKeyId ? (
-                      <KeyRound className="h-4 w-4 text-primary flex-shrink-0" />
+                      <HardDrive className="h-4 w-4 text-primary flex-shrink-0" />
                     ) : (
                       <HardDrive className="h-4 w-4 text-primary flex-shrink-0" />
                     )}

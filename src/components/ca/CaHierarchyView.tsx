@@ -89,12 +89,12 @@ export const CaHierarchyView: React.FC<CaHierarchyViewProps> = ({ cas, router, a
                 wrapperStyle={{ width: '100%', height: '100%' }}
                 contentStyle={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '60px 20px 20px 20px' }}
               >
-                <div className="ca-hierarchy-tree flex flex-row items-start space-x-12">
+                <div className="ca-hierarchy-tree flex flex-row items-start gap-20 px-10">
                   {cas.map((rootCa) => (
                     <Tree
                       key={rootCa.id}
                       lineWidth={'3px'}
-                      lineColor={'hsl(var(--primary))'}
+                      lineColor={'var(--color-primary)'}
                       lineBorderRadius={'5px'}
                       label={
                         <CaVisualizerCard
