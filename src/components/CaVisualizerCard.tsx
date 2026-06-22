@@ -1,12 +1,13 @@
 'use client';
 
 import type React from 'react';
-import { Landmark, KeyRound } from 'lucide-react';
+import { Shield, HardDrive } from 'lucide-react';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
 import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { CryptoEngineViewer } from '@/components/shared/CryptoEngineViewer';
+import { Badge } from '@/components/ui/badge';
 
 interface CaVisualizerCardProps {
   ca: CA;
@@ -24,16 +25,10 @@ const getStatus = (ca: CA): { label: string; expiryText: string; variant: Status
   return { label: 'Active', expiryText: `Expires in ${formatDistanceToNowStrict(expiryDate)}`, variant: 'active' };
 };
 
-const accentBar: Record<StatusVariant, string> = {
-  active:  'bg-emerald-500',
-  expired: 'bg-orange-400',
-  revoked: 'bg-destructive',
-};
-
-const labelColor: Record<StatusVariant, string> = {
-  active:  'text-emerald-700 dark:text-emerald-400',
-  expired: 'text-orange-600 dark:text-orange-400',
-  revoked: 'text-destructive',
+const statusBadgeClass: Record<StatusVariant, string> = {
+  active: 'border-primary/30 bg-primary/10 text-primary',
+  expired: 'border-orange-400/40 bg-orange-400/10 text-orange-700 dark:text-orange-300',
+  revoked: 'border-destructive/30 bg-destructive/10 text-destructive',
 };
 
 export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, className, onClick, allCryptoEngines }) => {
@@ -43,10 +38,10 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
   if (ca.kmsKeyId) {
     const engine = allCryptoEngines?.find(e => e.id === ca.kmsKeyId);
     icon = engine
-      ? <CryptoEngineViewer engine={engine} iconOnly className="h-4 w-4" />
-      : <KeyRound className="h-4 w-4 text-muted-foreground" />;
+      ? <CryptoEngineViewer engine={engine} iconOnly className="h-5 w-5" />
+      : <HardDrive className="h-5 w-5 text-primary" />;
   } else {
-    icon = <Landmark className="h-4 w-4 text-muted-foreground" />;
+    icon = <Shield className="h-5 w-5 text-muted-foreground" />;
   }
 
   const Comp = onClick ? 'button' : 'div';
@@ -56,29 +51,24 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
       data-ca-visualizer-card="true"
       {...(onClick ? { type: 'button' as const, onClick: () => onClick(ca), 'aria-label': `Select ${ca.name}` } : {})}
       className={cn(
-        'relative flex items-start gap-2.5 overflow-hidden rounded-lg border border-border bg-card pl-3.5 pr-3 py-2.5 text-left shadow-sm w-full',
-        onClick && 'cursor-pointer transition-colors hover:bg-muted/40',
+        'flex w-full items-start gap-3 rounded-md border bg-card p-3 text-left shadow-sm',
+        onClick && 'cursor-pointer transition-colors hover:bg-accent/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
         className
       )}
     >
-      {/* Status accent bar */}
-      <span className={cn('absolute inset-y-0 left-0 w-[3px]', accentBar[variant])} />
-
-      {/* Icon */}
       <div className="mt-0.5 shrink-0">
         {icon}
       </div>
 
-      {/* Text */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-medium leading-snug text-foreground">{ca.name}</p>
-        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{expiryText}</p>
+        <div className="flex items-start justify-between gap-2">
+          <p className="truncate text-sm font-semibold leading-snug text-foreground">{ca.name}</p>
+          <Badge className={cn('shrink-0 rounded-sm border px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide', statusBadgeClass[variant])}>
+            {label}
+          </Badge>
+        </div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{expiryText}</p>
       </div>
-
-      {/* Status label */}
-      <span className={cn('mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide', labelColor[variant])}>
-        {label}
-      </span>
     </Comp>
   );
 };
