@@ -1,8 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -28,11 +27,33 @@ export function GroupLatestVersionsCard({ groupId }: { groupId: string }) {
   const [updateTarget, setUpdateTarget] = React.useState<DevicePackVersionStatus | null>(null);
   const [workflow, setWorkflow] = React.useState(DEFAULT_LAUNCH_WORKFLOW);
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['groupVersionStatus', groupId],
-    queryFn: ({ signal }) => getGroupVersionStatus({ groupId }, { signal }),
-    enabled: !!groupId,
-  });
+  const [data, setData] = React.useState<any>(undefined);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<Error | null>(null);
+  const [isFetching, setIsFetching] = React.useState(false);
+
+  const fetchData = useCallback(async () => {
+    if (!groupId) return;
+    setIsFetching(true);
+    if (!data) setIsLoading(true);
+    try {
+      const result = await getGroupVersionStatus({ groupId });
+      setData(result);
+      setError(null);
+    } catch (err: any) {
+      console.error(err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
+      setIsFetching(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const refetch = fetchData;
 
   const allRows: DevicePackVersionStatus[] = React.useMemo(() => data?.rows || [], [data]);
 

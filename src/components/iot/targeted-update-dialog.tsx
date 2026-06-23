@@ -1,7 +1,6 @@
 'use client';
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -54,33 +53,77 @@ export function TargetedUpdateDialog({
     }
   }, [open, pack?.version]);
 
-  const { data: devicesData, isLoading: loadingDevices } = useQuery({
-    queryKey: ['groupDevicesForTargeted', groupId],
-    queryFn: () => getDevicesByGroup(groupId, { pageSize: 200 }),
-    enabled: open && !!groupId,
-  });
+  const [devicesData, setDevicesData] = useState<any>(undefined);
+  const [loadingDevices, setLoadingDevices] = useState(false);
+
+  const fetchDevices = useCallback(async () => {
+    setLoadingDevices(true);
+    try {
+      const result = await getDevicesByGroup(groupId, { pageSize: 200 });
+      setDevicesData(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingDevices(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    if (open && !!groupId) {
+      fetchDevices();
+    }
+  }, [fetchDevices, open, groupId]);
+
   const devices = devicesData?.list || [];
 
-  const { data: versionsData, isLoading: loadingVersions } = useQuery({
-    queryKey: ['updatePackVersions', groupId, pack?.name],
-    queryFn: ({ signal }) => fetchUpdatePackVersions({ groupId, packName: pack!.name }, { signal }),
-    enabled: open && !!groupId && !!pack?.name,
-  });
+  const [versionsData, setVersionsData] = useState<any>(undefined);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+
+  const fetchVersions = useCallback(async () => {
+    setLoadingVersions(true);
+    try {
+      const result = await fetchUpdatePackVersions({ groupId, packName: pack!.name });
+      setVersionsData(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingVersions(false);
+    }
+  }, [groupId, pack?.name]);
+
+  useEffect(() => {
+    if (open && !!groupId && !!pack?.name) {
+      fetchVersions();
+    }
+  }, [fetchVersions, open, groupId, pack?.name]);
+
   const versions = React.useMemo(() => {
-    const list = (versionsData?.list || []).map((v) => v.version);
+    const list = (versionsData?.list || []).map((v: any) => v.version);
     if (pack?.version && !list.includes(pack.version)) list.unshift(pack.version);
     return list;
   }, [versionsData, pack?.version]);
 
   // Current installed version of THIS distribution set, per device (devices may hold other sets too).
-  const { data: statusData } = useQuery({
-    queryKey: ['groupVersionStatus', groupId],
-    queryFn: ({ signal }) => getGroupVersionStatus({ groupId }, { signal }),
-    enabled: open && !!groupId,
-  });
+  const [statusData, setStatusData] = useState<any>(undefined);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const result = await getGroupVersionStatus({ groupId });
+      setStatusData(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    if (open && !!groupId) {
+      fetchStatus();
+    }
+  }, [fetchStatus, open, groupId]);
+
   const currentByDevice = React.useMemo(() => {
     const m = new Map<string, string>();
-    (statusData?.rows || []).forEach((r) => {
+    (statusData?.rows || []).forEach((r: any) => {
       if (pack && r.update_pack_id === pack.id) m.set(r.device_id, r.current_version);
     });
     return m;
@@ -90,13 +133,13 @@ export function TargetedUpdateDialog({
     const term = filter.trim().toLowerCase();
     if (!term) return devices;
     return devices.filter(
-      (d) => d.id.toLowerCase().includes(term) || (d.tags || []).some((t) => t.toLowerCase().includes(term))
+      (d: any) => d.id.toLowerCase().includes(term) || (d.tags || []).some((t: string) => t.toLowerCase().includes(term))
     );
   }, [devices, filter]);
 
-  const filteredIds = filteredDevices.map((d) => d.id);
-  const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
-  const someSelected = filteredIds.some((id) => selectedIds.has(id));
+  const filteredIds = filteredDevices.map((d: any) => d.id);
+  const allSelected = filteredIds.length > 0 && filteredIds.every((id: string) => selectedIds.has(id));
+  const someSelected = filteredIds.some((id: string) => selectedIds.has(id));
 
   const toggle = (id: string) =>
     setSelectedIds((prev) => {
@@ -109,8 +152,8 @@ export function TargetedUpdateDialog({
   const toggleAll = () =>
     setSelectedIds((prev) => {
       const n = new Set(prev);
-      if (allSelected) filteredIds.forEach((id) => n.delete(id));
-      else filteredIds.forEach((id) => n.add(id));
+      if (allSelected) filteredIds.forEach((id: string) => n.delete(id));
+      else filteredIds.forEach((id: string) => n.add(id));
       return n;
     });
 
@@ -163,7 +206,7 @@ export function TargetedUpdateDialog({
                   </span>
                 </SelectTrigger>
                 <SelectContent>
-                  {versions.map((v) => (
+                  {versions.map((v: string) => (
                     <SelectItem key={v} value={v} className="font-mono text-xs">
                       v{v}{pack?.version === v ? ' (latest)' : ''}
                     </SelectItem>
@@ -212,7 +255,7 @@ export function TargetedUpdateDialog({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredDevices.map((d) => {
+                  filteredDevices.map((d: any) => {
                     const current = currentByDevice.get(d.id);
                     const onLatest = current && current === pack?.version;
                     return (
@@ -246,7 +289,7 @@ export function TargetedUpdateDialog({
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {(d.tags || []).length > 0 ? (
-                              d.tags.map((t) => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)
+                              d.tags.map((t: string) => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
                             )}

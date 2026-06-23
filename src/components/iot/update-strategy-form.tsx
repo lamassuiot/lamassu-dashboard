@@ -2,7 +2,7 @@
 // src/components/iot/update-strategy-form.tsx
 "use client";
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
@@ -23,7 +23,6 @@ import { Separator } from "@/components/ui/separator";
 import type { UpdateStrategy, UpdatePack, DeviceListApiResponse } from '@/types/iot';
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, X, Zap, ShieldCheck, FlaskConical } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWorkflows, fetchGroupDevices, type WfxWorkflow } from '@/lib/iot-api';
 import { cn } from '@/lib/utils';
@@ -88,20 +87,40 @@ export function UpdateStrategyForm({
   const initialStrategyData = initialStrategy || legacyStrategy;
   const { user } = useAuth();
 
-  const { data: workflows = [] } = useQuery<WfxWorkflow[]>({
-    queryKey: ['wfxWorkflows'],
-    queryFn: ({ signal }) => fetchWorkflows({ signal }),
-    enabled: !!user?.access_token,
-    staleTime: 5 * 60 * 1000,
-  });
+  const [workflows, setWorkflows] = useState<WfxWorkflow[]>([]);
+  const fetchWorkflowsData = useCallback(async () => {
+    try {
+      const result = await fetchWorkflows({});
+      setWorkflows(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!!user?.access_token) {
+      fetchWorkflowsData();
+    }
+  }, [fetchWorkflowsData, user?.access_token]);
 
   // Group devices power the test-device picker. Only fetched when a groupId is supplied.
-  const { data: groupDevicesResp } = useQuery<DeviceListApiResponse>({
-    queryKey: ['groupDevices', groupId],
-    queryFn: ({ signal }) => fetchGroupDevices({ groupId: groupId! }, { signal }),
-    enabled: !!groupId && !!user?.access_token,
-    staleTime: 60 * 1000,
-  });
+  const [groupDevicesResp, setGroupDevicesResp] = useState<DeviceListApiResponse | undefined>(undefined);
+  const fetchGroupDevicesData = useCallback(async () => {
+    if (!groupId) return;
+    try {
+      const result = await fetchGroupDevices({ groupId });
+      setGroupDevicesResp(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    if (!!groupId && !!user?.access_token) {
+      fetchGroupDevicesData();
+    }
+  }, [fetchGroupDevicesData, groupId, user?.access_token]);
+
   const groupDevices = groupDevicesResp?.list ?? [];
 
   const getWorkflowLabel = (name: string): string => {

@@ -5,7 +5,6 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ConfigProvider } from '@/contexts/ConfigContext';
-import { QueryClientProvider } from '@/contexts/QueryClientProvider';
 import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -718,14 +717,12 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ConfigProvider>
           <AuthProvider>
-            <QueryClientProvider>
-              <IdentifierDisplayProvider>
-                <React.Suspense fallback={<LoadingState />}>
-                  <InnerLayout>{children}</InnerLayout>
-                </React.Suspense>
-                <Toaster />
-              </IdentifierDisplayProvider>
-            </QueryClientProvider>
+            <IdentifierDisplayProvider>
+              <React.Suspense fallback={<LoadingState />}>
+                <InnerLayout>{children}</InnerLayout>
+              </React.Suspense>
+              <Toaster />
+            </IdentifierDisplayProvider>
           </AuthProvider>
         </ConfigProvider>
       </body>

@@ -1,13 +1,12 @@
 "use client";
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, AlertTriangle, Check, Clock, Ban, PauseCircle, FlaskConical } from 'lucide-react';
 import type { CampaignItem, DeviceJob, CampaignListResponse, DeviceJobWorkflowTransition } from '@/types/iot';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchAllDeviceJobs, fetchCurrentCampaigns } from '@/lib/iot-api';
 import { cn } from '@/lib/utils';
 
@@ -133,18 +132,38 @@ interface CampaignNameCellProps {
 export function CampaignNameCell({ campaign, groupId, accessToken, onClick }: CampaignNameCellProps) {
   const firstDeviceIdWithJob = campaign.devices_with_job[0];
 
-  const { data: jobs, isLoading: isLoadingJobVersion, isFetched: isJobVersionFetched } = useQuery<DeviceJob[], Error>({
-    queryKey: ['deviceJobsForVersion', groupId, firstDeviceIdWithJob, campaign.id],
-    queryFn: ({ signal }) => fetchAllDeviceJobs(
-      { groupId, deviceIds: [firstDeviceIdWithJob!], targetCampaignId: campaign.id },
-      { signal }
-    ),
-    enabled: !!firstDeviceIdWithJob && !!accessToken,
-  });
+  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
+  const [isLoadingJobVersion, setIsLoadingJobVersion] = useState(false);
+  const [isJobVersionFetched, setIsJobVersionFetched] = useState(false);
+
+  const fetchJobs = useCallback(async () => {
+    setIsLoadingJobVersion(true);
+    try {
+      const result = await fetchAllDeviceJobs(
+        { groupId, deviceIds: [firstDeviceIdWithJob!], targetCampaignId: campaign.id },
+        {}
+      );
+      setJobs(result);
+      setIsJobVersionFetched(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingJobVersion(false);
+    }
+  }, [groupId, firstDeviceIdWithJob, campaign.id]);
+
+  useEffect(() => {
+    if (!!firstDeviceIdWithJob && !!accessToken) {
+      fetchJobs();
+    }
+  }, [fetchJobs, firstDeviceIdWithJob, accessToken]);
+
+  // isFetching becomes false after the first successful fetch, mirroring isFetched semantics
+  const isJobVersionFetchedFlag = !isLoadingJobVersion && !isJobVersionFetched;
 
   let versionToDisplay: string | null = null;
 
-  if (firstDeviceIdWithJob && !isLoadingJobVersion && isJobVersionFetched && jobs) {
+  if (firstDeviceIdWithJob && !isLoadingJobVersion && jobs) {
     const relevantJob = jobs.find(job => job.definition.launchID === campaign.id);
     if (relevantJob?.definition?.version?.trim()) {
       versionToDisplay = relevantJob.definition.version.trim();
@@ -201,22 +220,55 @@ interface CampaignStatusCellProps {
 export function CampaignStatusCell({ campaign, groupId, accessToken, startedCampaigns, startedCampaignTotals }: CampaignStatusCellProps) {
   // Include active_launches so that completed devices (ACTIVATED) not in devices_with_job are still counted
   const statusDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...(campaign.active_launches || [])]));
-  const { data: jobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['campaignJobStatuses', groupId, campaign.id, ...statusDeviceIds],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({
-      groupId,
-      deviceIds: statusDeviceIds,
-      targetCampaignId: campaign.id,
-    }, { signal }),
-    enabled: statusDeviceIds.length > 0 && !!accessToken,
-    refetchInterval: (startedCampaigns && startedCampaigns.has(campaign.id)) ? 3000 : false,
-  });
 
-  const { data: activeCampaignsData } = useQuery<CampaignListResponse, Error>({
-    queryKey: ['activeCampaigns', groupId],
-    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId }, { signal }),
-    enabled: !!accessToken,
-  });
+  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchJobs = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await fetchAllDeviceJobs({
+        groupId,
+        deviceIds: statusDeviceIds,
+        targetCampaignId: campaign.id,
+      }, {});
+      setJobs(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId, campaign.id, statusDeviceIds.join(',')]);
+
+  useEffect(() => {
+    if (statusDeviceIds.length > 0 && !!accessToken) {
+      fetchJobs();
+    }
+  }, [fetchJobs, accessToken]);
+
+  const refetchInterval = (startedCampaigns && startedCampaigns.has(campaign.id)) ? 3000 : false;
+  useEffect(() => {
+    if (!refetchInterval || statusDeviceIds.length === 0 || !accessToken) return;
+    const id = setInterval(fetchJobs, refetchInterval as number);
+    return () => clearInterval(id);
+  }, [fetchJobs, refetchInterval, accessToken, statusDeviceIds.length]);
+
+  const [activeCampaignsData, setActiveCampaignsData] = useState<CampaignListResponse | undefined>(undefined);
+
+  const fetchActiveCampaigns = useCallback(async () => {
+    try {
+      const result = await fetchCurrentCampaigns({ groupId }, {});
+      setActiveCampaignsData(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    if (!!accessToken) {
+      fetchActiveCampaigns();
+    }
+  }, [fetchActiveCampaigns, accessToken]);
 
   const activeDevices = activeCampaignsData?.active_launches || [];
 
@@ -401,25 +453,57 @@ export function CampaignProgressCell({
   campaign, groupId, accessToken,
   startedCampaigns, startedCampaignTotals, updateCampaignTotal, clearStartedCampaign, onCompleted,
 }: CampaignProgressCellProps) {
-  const queryClient = useQueryClient();
   // Include active_launches so that completed devices (ACTIVATED) not in devices_with_job are still counted
   const progressDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...(campaign.active_launches || [])]));
-  const { data: jobs, isLoading } = useQuery<DeviceJob[], Error>({
-    queryKey: ['campaignJobStatuses', groupId, campaign.id, ...progressDeviceIds],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({
-      groupId,
-      deviceIds: progressDeviceIds,
-      targetCampaignId: campaign.id,
-    }, { signal }),
-    enabled: progressDeviceIds.length > 0 && !!accessToken,
-    refetchInterval: (startedCampaigns && startedCampaigns.has(campaign.id)) ? 3000 : false,
-  });
 
-  const { data: activeCampaignsData } = useQuery<CampaignListResponse, Error>({
-    queryKey: ['activeCampaigns', groupId],
-    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId }, { signal }),
-    enabled: !!accessToken,
-  });
+  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchJobs = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await fetchAllDeviceJobs({
+        groupId,
+        deviceIds: progressDeviceIds,
+        targetCampaignId: campaign.id,
+      }, {});
+      setJobs(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId, campaign.id, progressDeviceIds.join(',')]);
+
+  useEffect(() => {
+    if (progressDeviceIds.length > 0 && !!accessToken) {
+      fetchJobs();
+    }
+  }, [fetchJobs, accessToken]);
+
+  const refetchInterval = (startedCampaigns && startedCampaigns.has(campaign.id)) ? 3000 : false;
+  useEffect(() => {
+    if (!refetchInterval || progressDeviceIds.length === 0 || !accessToken) return;
+    const id = setInterval(fetchJobs, refetchInterval as number);
+    return () => clearInterval(id);
+  }, [fetchJobs, refetchInterval, accessToken, progressDeviceIds.length]);
+
+  const [activeCampaignsData, setActiveCampaignsData] = useState<CampaignListResponse | undefined>(undefined);
+
+  const fetchActiveCampaigns = useCallback(async () => {
+    try {
+      const result = await fetchCurrentCampaigns({ groupId }, {});
+      setActiveCampaignsData(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    if (!!accessToken) {
+      fetchActiveCampaigns();
+    }
+  }, [fetchActiveCampaigns, accessToken]);
 
   const activeDevices = activeCampaignsData?.active_launches || [];
 
@@ -489,13 +573,14 @@ export function CampaignProgressCell({
     if (!allDone) return;
     if (startedCampaigns && startedCampaigns.has(campaign.id)) {
       if (clearStartedCampaign) clearStartedCampaign(campaign.id);
-      queryClient.invalidateQueries({ queryKey: ['campaignJobStatuses', groupId, campaign.id] });
-      queryClient.invalidateQueries({ queryKey: ['activeCampaigns', groupId] });
-      queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
+      fetchJobs();
+      fetchActiveCampaigns();
+      // Note: 'allCampaigns' refetch is not available here as it belongs to a different fetch instance.
+      // The parent component is responsible for refreshing the campaigns list if needed.
     }
     // Always tell the parent — active_launches is not reliably cleared by the API.
     if (onCompleted) onCompleted(campaign.id);
-  }, [allDone, startedCampaigns, clearStartedCampaign, onCompleted, campaign.id, groupId, queryClient]);
+  }, [allDone, startedCampaigns, clearStartedCampaign, onCompleted, campaign.id, groupId, fetchJobs, fetchActiveCampaigns]);
 
   if (totalDevices === 0) {
     return <span className="text-xs text-muted-foreground">No devices</span>;
@@ -561,15 +646,27 @@ interface CampaignErrorRateCellProps {
 
 export function CampaignErrorRateCell({ campaign, groupId, accessToken }: CampaignErrorRateCellProps) {
   const errorRateDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...(campaign.active_launches || [])]));
-  const { data: jobs } = useQuery<DeviceJob[], Error>({
-    queryKey: ['campaignJobStatuses', groupId, campaign.id, ...errorRateDeviceIds],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({
-      groupId,
-      deviceIds: errorRateDeviceIds,
-      targetCampaignId: campaign.id,
-    }, { signal }),
-    enabled: errorRateDeviceIds.length > 0 && !!accessToken,
-  });
+
+  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
+
+  const fetchJobs = useCallback(async () => {
+    try {
+      const result = await fetchAllDeviceJobs({
+        groupId,
+        deviceIds: errorRateDeviceIds,
+        targetCampaignId: campaign.id,
+      }, {});
+      setJobs(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [groupId, campaign.id, errorRateDeviceIds.join(',')]);
+
+  useEffect(() => {
+    if (errorRateDeviceIds.length > 0 && !!accessToken) {
+      fetchJobs();
+    }
+  }, [fetchJobs, accessToken]);
 
   const totalDevices = campaign.devices_with_job.length + campaign.devices_without_job.length;
 

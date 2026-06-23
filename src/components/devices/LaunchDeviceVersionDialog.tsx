@@ -1,7 +1,6 @@
 'use client';
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -27,6 +26,11 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
   const [workflow, setWorkflow] = React.useState<string>(DEFAULT_LAUNCH_WORKFLOW);
   const [submitting, setSubmitting] = React.useState(false);
 
+  const [packsData, setPacksData] = React.useState<any>(undefined);
+  const [loadingPacks, setLoadingPacks] = React.useState(false);
+  const [versionsData, setVersionsData] = React.useState<any>(undefined);
+  const [loadingVersions, setLoadingVersions] = React.useState(false);
+
   // Reset selections whenever the dialog opens for a different device.
   React.useEffect(() => {
     setPackId('');
@@ -34,21 +38,45 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
     setWorkflow(DEFAULT_LAUNCH_WORKFLOW);
   }, [target?.deviceId]);
 
-  const { data: packsData, isLoading: loadingPacks } = useQuery({
-    queryKey: ['updatePacks', groupId],
-    queryFn: ({ signal }) => fetchUpdatePacks({ groupId }, { pageSize: 100 }, { signal }),
-    enabled: open && !!groupId,
-  });
-  const packs = packsData?.list || [];
-  const selectedPack = packs.find((p) => p.id === packId);
+  const fetchPacks = useCallback(async () => {
+    if (!open || !groupId) return;
+    setLoadingPacks(true);
+    try {
+      const result = await fetchUpdatePacks({ groupId }, { pageSize: 100 });
+      setPacksData(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingPacks(false);
+    }
+  }, [open, groupId]);
 
-  const { data: versionsData, isLoading: loadingVersions } = useQuery({
-    queryKey: ['updatePackVersions', groupId, selectedPack?.name],
-    queryFn: ({ signal }) => fetchUpdatePackVersions({ groupId, packName: selectedPack!.name }, { signal }),
-    enabled: open && !!groupId && !!selectedPack?.name,
-  });
+  useEffect(() => {
+    fetchPacks();
+  }, [fetchPacks]);
+
+  const packs = packsData?.list || [];
+  const selectedPack = packs.find((p: any) => p.id === packId);
+
+  const fetchVersions = useCallback(async () => {
+    if (!open || !groupId || !selectedPack?.name) return;
+    setLoadingVersions(true);
+    try {
+      const result = await fetchUpdatePackVersions({ groupId, packName: selectedPack.name });
+      setVersionsData(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingVersions(false);
+    }
+  }, [open, groupId, selectedPack?.name]);
+
+  useEffect(() => {
+    fetchVersions();
+  }, [fetchVersions]);
+
   const versions = React.useMemo(() => {
-    const list = (versionsData?.list || []).map((v) => v.version);
+    const list = (versionsData?.list || []).map((v: any) => v.version);
     if (selectedPack?.version && !list.includes(selectedPack.version)) list.unshift(selectedPack.version);
     return list;
   }, [versionsData, selectedPack?.version]);
@@ -91,7 +119,7 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
                 </span>
               </SelectTrigger>
               <SelectContent>
-                {packs.map((p) => (
+                {packs.map((p: any) => (
                   <SelectItem key={p.id} value={p.id}>{p.name} <span className="text-muted-foreground">(latest v{p.version})</span></SelectItem>
                 ))}
               </SelectContent>
@@ -105,7 +133,7 @@ export function LaunchDeviceVersionDialog({ target, onClose }: { target: LaunchT
                 <SelectValue placeholder={!selectedPack ? 'Pick a pack first' : loadingVersions ? 'Loading versions…' : versions.length === 0 ? 'No built versions' : 'Select a version'} />
               </SelectTrigger>
               <SelectContent>
-                {versions.map((v) => (
+                {versions.map((v: string) => (
                   <SelectItem key={v} value={v} className="font-mono text-xs">
                     v{v}{selectedPack?.version === v ? ' (latest)' : ''}
                   </SelectItem>

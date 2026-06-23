@@ -1,8 +1,7 @@
 // src/components/iot/generate-package-dialog.tsx
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -61,35 +60,61 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
   const [encryptionAlgName, setEncryptionAlgName] = useState('AES-256-GCM');
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const [signingKeysResponse, setSigningKeysResponse] = useState<any>(undefined);
+  const [symmetricKeysResponse, setSymmetricKeysResponse] = useState<any>(undefined);
+  const [certificatesResponse, setCertificatesResponse] = useState<any>(undefined);
+
   React.useEffect(() => {
     if (open) setSelectedArtifactIds(new Set(catalogArtifacts.map((a) => a.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, catalogArtifacts.length]);
 
-  const { data: signingKeysResponse } = useQuery({
-    queryKey: ['signingKeys', sub],
-    queryFn: () => fetchKmsKeys(new URLSearchParams()),
-    enabled: open && !!sub && !!user?.access_token,
-  });
-  const signingKeys: any[] = signingKeysResponse?.list || [];
+  const fetchSigningKeys = useCallback(async () => {
+    if (!open || !sub || !user?.access_token) return;
+    try {
+      const result = await fetchKmsKeys(new URLSearchParams());
+      setSigningKeysResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [open, sub, user?.access_token]);
 
-  const { data: symmetricKeysResponse } = useQuery({
-    queryKey: ['symmetricKeys', sub],
-    queryFn: () => fetchSymmetricKeys(sub),
-    enabled: open && !!sub && !!user?.access_token,
-  });
-  const symmetricKeys: any[] = symmetricKeysResponse?.list || [];
+  useEffect(() => {
+    fetchSigningKeys();
+  }, [fetchSigningKeys]);
 
-  const { data: certificatesResponse } = useQuery({
-    queryKey: ['keyCertificates', signingKeyId],
-    queryFn: async () => {
-      if (!signingKeyId || signingKeyId === 'none') return { certificates: [] };
-      return fetchIssuedCertificates({
+  const fetchSymmetricKeysData = useCallback(async () => {
+    if (!open || !sub || !user?.access_token) return;
+    try {
+      const result = await fetchSymmetricKeys(sub);
+      setSymmetricKeysResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [open, sub, user?.access_token]);
+
+  useEffect(() => {
+    fetchSymmetricKeysData();
+  }, [fetchSymmetricKeysData]);
+
+  const fetchCertificates = useCallback(async () => {
+    if (!open || !signingKeyId || signingKeyId === 'none' || !user?.access_token) return;
+    try {
+      const result = await fetchIssuedCertificates({
         apiQueryString: `filter=subject_key_id[equal]${signingKeyId}&sort_by=valid_from&sort_mode=desc&page_size=50`,
       });
-    },
-    enabled: open && !!signingKeyId && signingKeyId !== 'none' && !!user?.access_token,
-  });
+      setCertificatesResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [open, signingKeyId, user?.access_token]);
+
+  useEffect(() => {
+    fetchCertificates();
+  }, [fetchCertificates]);
+
+  const signingKeys: any[] = signingKeysResponse?.list || [];
+  const symmetricKeys: any[] = symmetricKeysResponse?.list || [];
   const keyCertificates: any[] = certificatesResponse?.certificates || [];
 
   const selectedSigningKey = signingKeys.find((k) => (k.key_id || k.id) === signingKeyId);

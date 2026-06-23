@@ -1,7 +1,7 @@
 // src/app/updates/details/page.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
@@ -57,7 +56,6 @@ interface PhasedWorkflowStatesProps {
 }
 
 function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: PhasedWorkflowStatesProps) {
-  const queryClient = useQueryClient();
   const [isTransitioning, setIsTransitioning] = React.useState<string | null>(null);
 
   const allDeviceIdsForQuery = Array.from(new Set([
@@ -66,16 +64,36 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
     ...(campaign.active_launches || [])
   ]));
 
-  const { data: jobs, isLoading, refetch } = useQuery<DeviceJob[], Error>({
-    queryKey: ['phasedWorkflowStates', groupId, campaign.id, ...allDeviceIdsForQuery],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({
-      groupId,
-      deviceIds: allDeviceIdsForQuery,
-      targetCampaignId: campaign.id,
-    }, { signal }),
-    enabled: allDeviceIdsForQuery.length > 0 && !!accessToken,
-    refetchInterval: 5000,
-  });
+  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const refetch = useCallback(async () => {
+    if (allDeviceIdsForQuery.length === 0 || !accessToken) return;
+    setIsLoading(true);
+    try {
+      const result = await fetchAllDeviceJobs({
+        groupId,
+        deviceIds: allDeviceIdsForQuery,
+        targetCampaignId: campaign.id,
+      });
+      setJobs(result);
+    } catch (err) {
+      // ignore
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId, campaign.id, allDeviceIdsForQuery.join(','), accessToken]);
+
+  useEffect(() => {
+    if (allDeviceIdsForQuery.length === 0 || !accessToken) return;
+    refetch();
+  }, [refetch]);
+
+  useEffect(() => {
+    if (allDeviceIdsForQuery.length === 0 || !accessToken) return;
+    const id = setInterval(refetch, 5000);
+    return () => clearInterval(id);
+  }, [refetch, accessToken]);
 
   const memoizedWorkflow = React.useMemo(() => {
     const relJobs = jobs?.filter(job => job.definition.launchID === campaign.id) || [];
@@ -170,8 +188,6 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
         console.error('Failed transitions:', result.failed);
       }
       refetch();
-      queryClient.invalidateQueries({ queryKey: ['campaignJobStatuses', groupId, campaign.id] });
-      queryClient.invalidateQueries({ queryKey: ['currentCampaigns', groupId] });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       toast({ variant: "destructive", title: "Transition Failed", description: (error as Error).message });
@@ -328,22 +344,59 @@ interface DeviceJobStatusRowProps {
 
 function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, onTransitionComplete }: DeviceJobStatusRowProps) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
 
-  const { data: jobs, isLoading, error, refetch } = useQuery<DeviceJob[], Error>({
-    queryKey: ['deviceJobs', groupId, deviceId, targetCampaignId],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: [deviceId], targetCampaignId }, { signal }),
-    enabled: !!accessToken,
-    refetchInterval: 5000,
-  });
+  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const { data: activeCampaignsData } = useQuery<CampaignListResponse, Error>({
-    queryKey: ['activeCampaigns', groupId],
-    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId }, { signal }),
-    enabled: !!accessToken,
-    refetchInterval: 5000,
-  });
+  const refetch = useCallback(async () => {
+    if (!accessToken) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await fetchAllDeviceJobs({ groupId, deviceIds: [deviceId], targetCampaignId });
+      setJobs(result);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId, deviceId, targetCampaignId, accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    refetch();
+  }, [refetch]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    const id = setInterval(refetch, 5000);
+    return () => clearInterval(id);
+  }, [refetch, accessToken]);
+
+  const [activeCampaignsData, setActiveCampaignsData] = useState<CampaignListResponse | undefined>(undefined);
+
+  const fetchActiveCampaigns = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const result = await fetchCurrentCampaigns({ groupId });
+      setActiveCampaignsData(result);
+    } catch (err) {
+      // ignore
+    }
+  }, [groupId, accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    fetchActiveCampaigns();
+  }, [fetchActiveCampaigns]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    const id = setInterval(fetchActiveCampaigns, 5000);
+    return () => clearInterval(id);
+  }, [fetchActiveCampaigns, accessToken]);
 
   const activeDevices = activeCampaignsData?.active_launches || [];
   const isDeviceActive = activeDevices.includes(deviceId);
@@ -374,8 +427,6 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
       if (result.succeeded.length > 0) {
         toast({ title: "Transition Successful", description: `Device transitioned to ${currentWfxTransition.to}` });
         refetch();
-        queryClient.invalidateQueries({ queryKey: ['phasedWorkflowStates', groupId, targetCampaignId] });
-        queryClient.invalidateQueries({ queryKey: ['campaignJobStatuses', groupId, targetCampaignId] });
         onTransitionComplete?.();
       }
       if (result.failed.length > 0) {
@@ -542,7 +593,6 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
 export default function CampaignDetailsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
   const [isRefreshingJobs, setIsRefreshingJobs] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
@@ -565,63 +615,102 @@ export default function CampaignDetailsPage() {
   const shouldPollAggressively = isExecuting || (timeSinceExecution !== null && timeSinceExecution < 30000);
   const pollingInterval = shouldPollAggressively ? 2000 : 10000;
 
-  const { data: campaign, isLoading, error } = useQuery<CampaignItem, Error>({
-    queryKey: ['campaign', groupId, campaignId],
-    queryFn: async ({ signal }) => {
-      if (!user?.access_token || !groupId || !campaignId) throw new Error('Missing required parameters');
-      const item = await fetchCampaignDetails({ groupId, campaignId }, { signal });
-      if (!item) throw new Error('Campaign not found');
-      return { ...item, groupName, dms_id: groupId };
-    },
-    enabled: !!user?.access_token && !!groupId && !!campaignId,
-    refetchInterval: pollingInterval,
-  });
+  const [campaign, setCampaign] = useState<CampaignItem | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const { data: activeCampaignsData } = useQuery<CampaignListResponse, Error>({
-    queryKey: ['activeCampaigns', groupId],
-    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId: groupId! }, { signal }),
-    enabled: !!user?.access_token && !!groupId,
-    refetchInterval: pollingInterval,
-  });
+  const refetchCampaign = useCallback(async () => {
+    if (!user?.access_token || !groupId || !campaignId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const item = await fetchCampaignDetails({ groupId, campaignId });
+      if (!item) throw new Error('Campaign not found');
+      setCampaign(item);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.access_token, groupId, campaignId, groupName]);
+
+  useEffect(() => {
+    if (!user?.access_token || !groupId || !campaignId) return;
+    refetchCampaign();
+  }, [refetchCampaign]);
+
+  useEffect(() => {
+    if (!user?.access_token || !groupId || !campaignId) return;
+    const id = setInterval(refetchCampaign, pollingInterval);
+    return () => clearInterval(id);
+  }, [refetchCampaign, pollingInterval, user?.access_token, groupId, campaignId]);
+
+  const [activeCampaignsData, setActiveCampaignsData] = useState<CampaignListResponse | undefined>(undefined);
+
+  const refetchActiveCampaigns = useCallback(async () => {
+    if (!user?.access_token || !groupId) return;
+    try {
+      const result = await fetchCurrentCampaigns({ groupId });
+      setActiveCampaignsData(result);
+    } catch (err) {
+      // ignore
+    }
+  }, [groupId, user?.access_token]);
+
+  useEffect(() => {
+    if (!user?.access_token || !groupId) return;
+    refetchActiveCampaigns();
+  }, [refetchActiveCampaigns]);
+
+  useEffect(() => {
+    if (!user?.access_token || !groupId) return;
+    const id = setInterval(refetchActiveCampaigns, pollingInterval);
+    return () => clearInterval(id);
+  }, [refetchActiveCampaigns, pollingInterval, user?.access_token, groupId]);
 
   // Rollout edit — PUTs the strategy with the chosen type + value, preserving every other field.
-  const editRolloutMutation = useMutation({
-    mutationFn: ({ rolloutType, rolloutValue }: { rolloutType: 'numeric' | 'percentage'; rolloutValue: number }) => updateCampaignStrategy({
-      groupId: groupId!,
-      campaignId: campaignId!,
-      strategyData: {
-        workflow_type: campaign?.workflow_type,
-        rollout_type: rolloutType,
-        rollout_value: rolloutValue,
-        test_device_id: campaign?.test_device_id,
-        auto: campaign?.auto,
-      },
-    }),
-    onSuccess: () => {
+  const [isEditRolloutPending, setIsEditRolloutPending] = useState(false);
+
+  const editRolloutMutate = async ({ rolloutType, rolloutValue }: { rolloutType: 'numeric' | 'percentage'; rolloutValue: number }) => {
+    setIsEditRolloutPending(true);
+    try {
+      await updateCampaignStrategy({
+        groupId: groupId!,
+        campaignId: campaignId!,
+        strategyData: {
+          workflow_type: campaign?.workflow_type,
+          rollout_type: rolloutType,
+          rollout_value: rolloutValue,
+          test_device_id: campaign?.test_device_id,
+          auto: campaign?.auto,
+        },
+      });
       toast({ title: 'Rollout updated', description: 'The campaign rollout settings have been saved.' });
-      queryClient.invalidateQueries({ queryKey: ['campaign', groupId, campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
-      queryClient.invalidateQueries({ queryKey: ['currentCampaigns', groupId] });
+      refetchCampaign();
       setIsEditRolloutOpen(false);
-    },
-    onError: (err: Error) => {
-      toast({ variant: 'destructive', title: 'Update failed', description: err.message });
-    },
-  });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Update failed', description: (err instanceof Error ? err : new Error(String(err))).message });
+    } finally {
+      setIsEditRolloutPending(false);
+    }
+  };
 
   // Retry the campaign's failed devices (re-queue + roll out again).
-  const retryFailedMutation = useMutation({
-    mutationFn: () => retryFailedDevices({ groupId: groupId!, campaignId: campaignId! }),
-    onSuccess: () => {
+  const [isRetryFailedPending, setIsRetryFailedPending] = useState(false);
+
+  const retryFailedMutate = async () => {
+    setIsRetryFailedPending(true);
+    try {
+      await retryFailedDevices({ groupId: groupId!, campaignId: campaignId! });
       toast({ title: 'Retrying failed devices', description: 'The failed devices are being rolled out again.' });
-      queryClient.invalidateQueries({ queryKey: ['campaign', groupId, campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['activeCampaigns', groupId] });
-      queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
-    },
-    onError: (err: Error) => {
-      toast({ variant: 'destructive', title: 'Retry failed', description: err.message });
-    },
-  });
+      refetchCampaign();
+      refetchActiveCampaigns();
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Retry failed', description: (err instanceof Error ? err : new Error(String(err))).message });
+    } finally {
+      setIsRetryFailedPending(false);
+    }
+  };
 
   const openEditRollout = () => {
     setRolloutTypeInput(campaign?.rollout_type || 'numeric');
@@ -639,7 +728,7 @@ export default function CampaignDetailsPage() {
       toast({ variant: 'destructive', title: 'Invalid value', description: 'Percentage cannot exceed 100.' });
       return;
     }
-    editRolloutMutation.mutate({ rolloutType: rolloutTypeInput, rolloutValue: n });
+    editRolloutMutate({ rolloutType: rolloutTypeInput, rolloutValue: n });
   };
 
   const handleRefreshJobs = async () => {
@@ -647,12 +736,7 @@ export default function CampaignDetailsPage() {
     setIsRefreshingJobs(true);
     toast({ title: "Refreshing Job Statuses...", description: `For campaign: ${campaign.name}` });
     try {
-      const allDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...campaign.devices_without_job]));
-      allDeviceIds.forEach(deviceId => {
-        queryClient.invalidateQueries({ queryKey: ['deviceJobs', groupId, deviceId, campaign.id] });
-      });
-      queryClient.invalidateQueries({ queryKey: ['campaignJobStats', groupId, campaign.id, ...campaign.devices_with_job] });
-      await queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
+      refetchCampaign();
       toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for campaign: ${campaign.name}` });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
@@ -673,8 +757,8 @@ export default function CampaignDetailsPage() {
       });
       if (!response.ok) throw new Error(`Failed to execute campaign: ${response.statusText}`);
       toast({ title: "Campaign Executed", description: `Campaign ${campaign.name} has been successfully executed. Monitoring progress...` });
-      queryClient.invalidateQueries({ queryKey: ['campaign', groupId, campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['activeCampaigns', groupId] });
+      refetchCampaign();
+      refetchActiveCampaigns();
       setTimeout(() => { setIsExecuting(false); }, 30000);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
@@ -869,11 +953,11 @@ export default function CampaignDetailsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => retryFailedMutation.mutate()}
-                  disabled={retryFailedMutation.isPending}
+                  onClick={() => retryFailedMutate()}
+                  disabled={isRetryFailedPending}
                   className="gap-2 border-amber-400/60 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300"
                 >
-                  {retryFailedMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                  {isRetryFailedPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                   Retry {campaign.failed_devices?.length} failed device{campaign.failed_devices?.length === 1 ? '' : 's'}
                 </Button>
               </div>
@@ -1214,11 +1298,11 @@ export default function CampaignDetailsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditRolloutOpen(false)} disabled={editRolloutMutation.isPending}>
+            <Button variant="outline" onClick={() => setIsEditRolloutOpen(false)} disabled={isEditRolloutPending}>
               Cancel
             </Button>
-            <Button onClick={handleSaveRollout} disabled={editRolloutMutation.isPending}>
-              {editRolloutMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button onClick={handleSaveRollout} disabled={isEditRolloutPending}>
+              {isEditRolloutPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save
             </Button>
           </DialogFooter>

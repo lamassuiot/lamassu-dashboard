@@ -2,7 +2,7 @@
 // src/components/iot/device-list-table.tsx
 "use client";
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import type { Device as AppDevice, ApiDevice } from '@/types/iot';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { History, Loader2, AlertTriangle } from "lucide-react"; // Removed MoreHorizontal, PlayCircle, RefreshCw, Trash2
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDms } from '@/contexts/DmsContext';
 import { useRouter } from 'next/navigation'; // Added useRouter
@@ -51,14 +50,14 @@ async function fetchDevicesForTable(selectedDmsId: string | null): Promise<AppDe
     throw new Error(errorData.message || `Failed to fetch devices`);
   }
   const apiDevices: ApiDevice[] = await response.json();
-  
+
   return apiDevices.map(apiDevice => ({
     id: apiDevice.id,
-    name: apiDevice.id, 
+    name: apiDevice.id,
     status: apiDevice.status as AppDevice['status'],
     currentFirmware: apiDevice.identity?.active_version?.toString() || "N/A",
-    lastSeen: apiDevice.creation_timestamp, 
-    location: apiDevice.dms_owner || "N/A", 
+    lastSeen: apiDevice.creation_timestamp,
+    location: apiDevice.dms_owner || "N/A",
     dmsOwner: apiDevice.dms_owner,
   }));
 }
@@ -70,13 +69,29 @@ export function DeviceListTable() {
   const { selectedDms } = useDms();
   const router = useRouter(); // Initialize useRouter
 
-  const { data: devices = [], isLoading, error, refetch } = useQuery<AppDevice[], Error>({
-    queryKey: ['devices', selectedDms?.id],
-    queryFn: async () => {
-      return fetchDevicesForTable(selectedDms?.id || null);
-    },
-    enabled: isAuthenticated() && !!selectedDms?.id,
-  });
+  const [devices, setDevices] = useState<AppDevice[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchDevices = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await fetchDevicesForTable(selectedDms?.id || null);
+      setDevices(result);
+      setError(null);
+    } catch (err: any) {
+      console.error(err);
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedDms?.id]);
+
+  useEffect(() => {
+    if (isAuthenticated() && !!selectedDms?.id) {
+      fetchDevices();
+    }
+  }, [fetchDevices, isAuthenticated, selectedDms?.id]);
 
   const handleSelectAll = (checked: boolean | string) => { // Updated type for onCheckedChange
     if (checked) {
@@ -121,11 +136,11 @@ export function DeviceListTable() {
         <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-2" />
         <p className="text-destructive font-semibold">Error loading devices</p>
         <p className="text-sm text-muted-foreground mb-3">{error.message}</p>
-        <Button onClick={() => refetch()}>Retry</Button>
+        <Button onClick={() => fetchDevices()}>Retry</Button>
       </div>
     );
   }
-  
+
   return (
     <div className="bg-card rounded-lg shadow overflow-hidden mt-4">
       <Table>
@@ -167,9 +182,9 @@ export function DeviceListTable() {
               </TableCell>
               <TableCell>{device.dmsOwner}</TableCell>
               <TableCell className="text-right">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleViewTimeline(device.id)}
                   className="h-8 px-3 gap-1.5"
                 >

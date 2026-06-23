@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -219,17 +218,40 @@ const PackDetailPanel: React.FC<{ pack: PackRow }> = ({ pack }) => {
   const { user } = useAuth();
   const [expandedVersion, setExpandedVersion] = useState<string | null>(pack.version);
 
-  const { data: versionsResp, isLoading, error } = useQuery<{ list: UpdatePackVersion[]; next: string | null }, Error>({
-    queryKey: ['packInventoryVersions', pack.id],
-    queryFn: () => fetchUpdatePackVersionsById({ packId: pack.id }),
-    enabled: !!user?.access_token,
-  });
+  const [versionsResp, setVersionsResp] = useState<{ list: UpdatePackVersion[]; next: string | null } | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const { data: devicePackData } = useQuery({
-    queryKey: ['devicePackVersionsByPack', pack.name],
-    queryFn: () => fetchAllDevicePackVersions({ packName: pack.name, pageSize: 500 }),
-    enabled: !!user?.access_token,
-  });
+  const [devicePackData, setDevicePackData] = useState<{ list: { version: string }[] } | undefined>(undefined);
+
+  const fetchVersions = useCallback(async () => {
+    if (!user?.access_token) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await fetchUpdatePackVersionsById({ packId: pack.id });
+      setVersionsResp(result);
+    } catch (err) {
+      setError(err as Error);
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pack.id, user?.access_token]);
+
+  useEffect(() => { fetchVersions(); }, [fetchVersions]);
+
+  const fetchDevicePacks = useCallback(async () => {
+    if (!user?.access_token) return;
+    try {
+      const result = await fetchAllDevicePackVersions({ packName: pack.name, pageSize: 500 });
+      setDevicePackData(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [pack.name, user?.access_token]);
+
+  useEffect(() => { fetchDevicePacks(); }, [fetchDevicePacks]);
 
   const deviceCountsByVersion = useMemo(() => {
     const counts = new Map<string, number>();
@@ -555,7 +577,6 @@ const PackInventoryTable: React.FC<{
 
 export default function PackageInventoryPage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { availableDms } = useDms();
   const [search, setSearch] = useState('');
@@ -567,17 +588,33 @@ export default function PackageInventoryPage() {
   const [sortConfig, setSortConfig] = useState<PackSortConfig>({ column: 'name', direction: 'asc' });
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>(DEFAULT_COLUMN_VISIBILITY);
 
+  const [rawPacks, setRawPacks] = useState<UpdatePack[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // One fleet-wide call returns every pack regardless of group, so packs whose device group was
   // deleted (or whose group ID changed after a lamassuiot re-run) still surface here.
-  const { data: rawPacks = [], isLoading, error, refetch, isFetching } = useQuery<UpdatePack[], Error>({
-    queryKey: ['packInventoryAllPacks'],
-    queryFn: async ({ signal }) => {
-      if (!user?.access_token) return [];
-      const resp = await fetchAllUpdatePacks({ pageSize: 500 }, { signal });
-      return resp.list;
-    },
-    enabled: !!user?.access_token,
-  });
+  const fetchPacks = useCallback(async () => {
+    if (!user?.access_token) return;
+    setIsFetching(true);
+    if (rawPacks.length === 0) setIsLoading(true);
+    setError(null);
+    try {
+      const resp = await fetchAllUpdatePacks({ pageSize: 500 });
+      setRawPacks(resp.list);
+    } catch (err) {
+      setError(err as Error);
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+      setIsFetching(false);
+    }
+  }, [user?.access_token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { fetchPacks(); }, [fetchPacks]);
 
   // Resolve each pack's group name from availableDms; a pack whose group is no longer present is
   // flagged orphaned. Done in a memo (not the query) so flags recompute when the DMS list arrives,
@@ -593,18 +630,20 @@ export default function PackageInventoryPage() {
 
   const orphanedCount = useMemo(() => packs.filter((p) => p.orphaned).length, [packs]);
 
-  const deleteMutation = useMutation({
-    mutationFn: (pack: PackRow) => deleteUpdatePackByIdApi({ packId: pack.id }),
-    onSuccess: (data, pack) => {
+  const handleDeletePack = async (pack: PackRow) => {
+    setIsDeleting(true);
+    try {
+      const data = await deleteUpdatePackByIdApi({ packId: pack.id });
       toast({ title: 'Distribution Set Deleted', description: `Pack "${pack.name}" has been deleted. ${data?.message || ''}` });
       if (selectedPack?.id === pack.id) setSelectedPack(null);
-      queryClient.invalidateQueries({ queryKey: ['packInventoryAllPacks'] });
-    },
-    onError: (err: Error, pack) => {
+      fetchPacks();
+    } catch (err: Error | any) {
       toast({ variant: 'destructive', title: 'Deletion Failed', description: `Could not delete pack "${pack.name}". ${err.message}` });
-    },
-    onSettled: () => setPackToDelete(null),
-  });
+    } finally {
+      setIsDeleting(false);
+      setPackToDelete(null);
+    }
+  };
 
   const requestSort = (column: SortablePackColumn) => {
     setSortConfig((current) => ({
@@ -724,7 +763,7 @@ export default function PackageInventoryPage() {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <Button onClick={() => refetch()} variant="secondary" size="icon" disabled={isFetching} title="Refresh">
+              <Button onClick={() => fetchPacks()} variant="secondary" size="icon" disabled={isFetching} title="Refresh">
                 <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
               </Button>
               <Button onClick={() => setIsCreateOpen(true)}>
@@ -793,7 +832,7 @@ export default function PackageInventoryPage() {
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>
                 {error.message}
-                <Button variant="link" onClick={() => refetch()} className="ml-2 h-auto p-0">Try again?</Button>
+                <Button variant="link" onClick={() => fetchPacks()} className="ml-2 h-auto p-0">Try again?</Button>
               </AlertDescription>
             </Alert>
           )}
@@ -862,7 +901,7 @@ export default function PackageInventoryPage() {
                 defaultGroupId={createDefaultGroupId}
                 onCreated={(gid, packName) => {
                   setIsCreateOpen(false);
-                  queryClient.invalidateQueries({ queryKey: ['packInventoryAllPacks'] });
+                  fetchPacks();
                   goToPackDetails(gid, packName);
                 }}
               />
@@ -873,8 +912,7 @@ export default function PackageInventoryPage() {
             pack={packToVersion}
             onOpenChange={(open) => { if (!open) setPackToVersion(null); }}
             onCreated={(gid, packName) => {
-              queryClient.invalidateQueries({ queryKey: ['packInventoryAllPacks'] });
-              queryClient.invalidateQueries({ queryKey: ['packInventoryVersions'] });
+              fetchPacks();
               goToPackDetails(gid, packName);
             }}
           />
@@ -891,11 +929,11 @@ export default function PackageInventoryPage() {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => packToDelete && deleteMutation.mutate(packToDelete)}
+                  onClick={() => packToDelete && handleDeletePack(packToDelete)}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  disabled={deleteMutation.isPending}
+                  disabled={isDeleting}
                 >
-                  {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+                  {isDeleting ? 'Deleting…' : 'Delete'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
