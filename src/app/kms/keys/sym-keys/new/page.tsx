@@ -198,7 +198,7 @@ export default function CreateSymKeyPage() {
         key: keyValue,
       };
 
-      await createSymmetricKey(payload, user.access_token);
+      await createSymmetricKey(payload);
 
       if (selectedMode === 'generate') {
         // Show the generated key with download option

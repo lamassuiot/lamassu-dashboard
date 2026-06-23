@@ -24,6 +24,7 @@ import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
+import { LaunchDeviceVersionDialog, type LaunchTarget } from '@/components/devices/LaunchDeviceVersionDialog';
 import { sileo } from '@/lib/toast';
 import { DeviceDetailsContext } from './DeviceContext';
 
@@ -78,6 +79,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   const [isDeleting, setIsDeleting] = useState(false);
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
+  const [launchTarget, setLaunchTarget] = useState<LaunchTarget | null>(null);
 
   const fetchIntegrationData = useCallback(async (dmsOwnerId: string) => {
     try {
@@ -422,6 +424,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
           setActiveIntegration={setActiveIntegration}
           isUpdating={isForcingUpdate}
         />
+        <LaunchDeviceVersionDialog target={launchTarget} onClose={() => setLaunchTarget(null)} />
       </BreadcrumbPage>
     </DeviceDetailsContext.Provider>
   );

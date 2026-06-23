@@ -24,7 +24,7 @@ interface CreatePackFormProps {
   showGroupSelector?: boolean;
 }
 
-// Lightweight "create an update pack = repo" form. It only creates the pack shell; artifacts are
+// Lightweight "create an distribution set = repo" form. It only creates the pack shell; artifacts are
 // uploaded afterwards on the pack-details page, and (for SWU packs) the SWU is built there too.
 export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defaultGroupId, showGroupSelector = false }) => {
   const { selectedDms, availableDms } = useDms();
@@ -60,7 +60,6 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
     try {
       await createUpdatePack({
         groupId,
-        accessToken: user.access_token,
         payload: {
           name: trimmed,
           version: version.trim(),
@@ -70,7 +69,7 @@ export const CreatePackForm: React.FC<CreatePackFormProps> = ({ onCreated, defau
           allow_previous_version_download: allowPreviousVersionDownload,
         },
       });
-      toast({ title: 'Update pack created', description: `${trimmed} v${version.trim()} is ready — upload artifacts next.` });
+      toast({ title: 'Distribution set created', description: `${trimmed} v${version.trim()} is ready — upload artifacts next.` });
       onCreated?.(groupId, trimmed);
     } catch (err: any) {
       toast({ title: 'Failed to create pack', description: err.message || 'An error occurred.', variant: 'destructive' });

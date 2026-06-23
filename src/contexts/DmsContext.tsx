@@ -4,7 +4,7 @@
 // DmsContext — now backed by Lamassu IoT Device Groups.
 // The name "DmsContext"/"useDms"/"selectedDms" is kept for API compatibility with all
 // consuming components; internally it fetches and stores device groups. Device groups
-// are the universal fleet-targeting mechanism: an update pack is scoped to a group,
+// are the universal fleet-targeting mechanism: an distribution set is scoped to a group,
 // and a campaign targets every device whose criteria match that group.
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';

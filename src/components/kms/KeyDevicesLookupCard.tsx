@@ -32,7 +32,7 @@ export const KeyDevicesLookupCard: React.FC<KeyDevicesLookupCardProps> = ({ keyI
     setError(null);
 
     try {
-      const devices = await fetchDevicesByKey(keyId, user.access_token);
+      const devices = await fetchDevicesByKey(keyId);
       setDeviceIds(devices);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch devices for this key.');

@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
+import { LaunchGroupUpdateDialog } from '@/components/device-groups/LaunchGroupUpdateDialog';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { useDeviceGroupStats } from '@/hooks/useDeviceGroupStats';
 import { useLatestRequest } from '@/hooks/useLatestRequest';
@@ -340,6 +341,14 @@ export function GroupMembersList({ groupId, refreshKey = 0, className }: Readonl
         onOpenChange={setIsEnrollModalOpen}
         ra={raForEnrollModal}
         initialDeviceId={deviceForEnrollModal?.id}
+      />
+
+      <LaunchGroupUpdateDialog
+        open={launchOpen}
+        groupId={groupId}
+        deviceIds={Array.from(selectedIds)}
+        onClose={() => setLaunchOpen(false)}
+        onLaunched={() => setSelectedIds(new Set())}
       />
     </div>
   );

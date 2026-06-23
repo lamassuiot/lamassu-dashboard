@@ -33,6 +33,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useDms } from '@/contexts/DmsContext';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
+import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchSymmetricKeys } from '@/lib/symkms-api';
 import { fetchKmsKeys } from '@/lib/kms-data';
@@ -155,7 +156,7 @@ export function UpdatePackForm({
   // Fetch available symmetric keys for encryption
   const { data: symmetricKeysResponse } = useQuery({
     queryKey: ['symmetricKeys', user?.profile?.sub],
-    queryFn: () => fetchSymmetricKeys(user!.profile.sub!, user!.access_token!),
+    queryFn: () => fetchSymmetricKeys(user!.profile.sub!),
     enabled: !!user?.profile?.sub && !!user?.access_token,
   });
   
@@ -166,7 +167,7 @@ export function UpdatePackForm({
     queryKey: ['signingKeys', user?.profile?.sub],
     queryFn: () => {
       const params = new URLSearchParams();
-      return fetchKmsKeys(user!.access_token!, params);
+      return fetchKmsKeys(params);
     },
     enabled: !!user?.profile?.sub && !!user?.access_token,
   });
@@ -183,7 +184,7 @@ export function UpdatePackForm({
   const catalogPackName = basePack?.name || '';
   const { data: catalogArtifacts = [] } = useQuery<Artifact[]>({
     queryKey: ['artifactCatalog', catalogGroupId, catalogPackName],
-    queryFn: () => fetchArtifactCatalog({ groupId: catalogGroupId, packName: catalogPackName, accessToken: user!.access_token! }),
+    queryFn: () => fetchArtifactCatalog({ groupId: catalogGroupId, packName: catalogPackName }),
     enabled: !!catalogGroupId && !!catalogPackName && !!user?.access_token,
   });
 
@@ -196,7 +197,7 @@ export function UpdatePackForm({
       const acc: Artifact[] = [];
       let bookmark: string | undefined;
       for (let i = 0; i < 100; i++) {
-        const { list, next } = await fetchAllArtifacts({ accessToken: user!.access_token! }, { pageSize: 500, bookmark });
+        const { list, next } = await fetchAllArtifacts({ pageSize: 500, bookmark });
         acc.push(...list);
         if (!next) break;
         bookmark = next;
@@ -257,7 +258,6 @@ export function UpdatePackForm({
     queryFn: async () => {
       if (!selectedSigningKeyId || selectedSigningKeyId === 'none') return { certificates: [] };
       return fetchIssuedCertificates({
-        accessToken: user!.access_token!,
         apiQueryString: `filter=subject_key_id[equal]${selectedSigningKeyId}&sort_by=valid_from&sort_mode=desc&page_size=50`
       });
     },
@@ -819,9 +819,9 @@ export function UpdatePackForm({
 
       if (formModeActual === 'newVersion' && selectedBasePackIdProp) {
         const basePackNameForApi = safeBasePacks.find(p => p.id === selectedBasePackIdProp)?.name || apiPackName;
-        createPackResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${basePackNameForApi}/new`, {
+        createPackResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${basePackNameForApi}/new`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.access_token}` },
+          headers: { 'Content-Type': 'application/json' },
         });
       } else { 
         const createPayload: ApiCreateUpdatePackPayload = {
@@ -832,9 +832,9 @@ export function UpdatePackForm({
           packaging: (packDetails as any).packaging || "swu",
           allow_previous_version_download: (packDetails as any).allowPreviousVersionDownload || false,
         };
-        createPackResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks`, {
+        createPackResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.access_token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(createPayload),
         });
       }
@@ -867,9 +867,9 @@ export function UpdatePackForm({
         binaryFormData.append('artifact_name', meta.artifactName || defaultArtifactName(file.name));
         binaryFormData.append('version', meta.version || '');
 
-        const uploadBinaryResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
+        const uploadBinaryResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${user.access_token}` },
+          
           body: binaryFormData,
         });
 
@@ -919,9 +919,9 @@ export function UpdatePackForm({
         
         const descriptorFormData = new FormData();
         descriptorFormData.append('file', descriptorToUpload);
-        const uploadDescriptorResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
+        const uploadDescriptorResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${user.access_token}` },
+          
           body: descriptorFormData,
         });
         if (!uploadDescriptorResponse.ok) {
@@ -961,7 +961,7 @@ export function UpdatePackForm({
         setOverallProgress(75);
 
         try {
-          await assignKeyToDevice(userId, selectedKey.id, {}, user.access_token);
+          await assignKeyToDevice(userId, selectedKey.id, {});
           updateStepStatus(currentStepId, 'success', `Key "${selectedKey.id}" bound to inventory`);
         } catch (bindErr: any) {
           // 409 Conflict means binding already exists — that's fine
@@ -1057,12 +1057,9 @@ export function UpdatePackForm({
         }
       }
       
-      const generateSwuResponse = await fetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/swu?user_id=${encodeURIComponent(user.profile.sub)}`, {
+      const generateSwuResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/swu?user_id=${encodeURIComponent(user.profile.sub)}`, {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${user.access_token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(swuPayload),
       });
       if (!generateSwuResponse.ok) {
@@ -1074,7 +1071,7 @@ export function UpdatePackForm({
       updateStepStatus(currentStepId, 'success', swuResult.message || ".swu generation triggered successfully!");
       setOverallProgress(100);
 
-      setGenerationSuccessMessage("Update pack generated and processed successfully!");
+      setGenerationSuccessMessage("Distribution set generated and processed successfully!");
       onSwuGenerated?.();
 
     } catch (error) {
@@ -1091,12 +1088,12 @@ export function UpdatePackForm({
   const versionIsReadOnly = true; 
   // const typeIsEditable = true; // Removed as it's not explicitly used to gate editing below
 
-  let cardTitleText = "Update Pack Details"; // Generic default
+  let cardTitleText = "Distribution Set Details"; // Generic default
   let cardDescriptionText = "Define details, upload files, and generate the .swu pack.";
 
 
   if (formModeActual === 'new') {
-    cardTitleText = "Step 1: New Update Pack Details";
+    cardTitleText = "Step 1: New Distribution Set Details";
     cardDescriptionText = "Define core details. Version is set to 1. Then upload files and generate.";
   } else if (formModeActual === 'newVersion') {
     if (initialPackData?.name && selectedBasePackIdProp) {
@@ -1190,7 +1187,7 @@ export function UpdatePackForm({
                       <FormDescription>
                         {formModeActual === 'newVersion' 
                           ? "Device Group is locked when creating a new version of an existing pack." 
-                          : "Select the Device Group that will receive this update pack."}
+                          : "Select the Device Group that will receive this distribution set."}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1586,7 +1583,7 @@ export function UpdatePackForm({
                             ))}
                           </SelectContent>
                         </Select>
-                        <FormDescription>Select the KMS key to sign this update pack</FormDescription>
+                        <FormDescription>Select the KMS key to sign this distribution set</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1970,9 +1967,9 @@ export function UpdatePackForm({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <PackageCheck className="h-6 w-6 text-primary" />
-              Update Pack Generation Progress
+              Distribution Set Generation Progress
             </AlertDialogTitle>
-            {isProcessingSwu && <AlertDialogDescription>Please wait while the update pack is being generated...</AlertDialogDescription>}
+            {isProcessingSwu && <AlertDialogDescription>Please wait while the distribution set is being generated...</AlertDialogDescription>}
           </AlertDialogHeader>
           
           <div className="my-4 space-y-3">

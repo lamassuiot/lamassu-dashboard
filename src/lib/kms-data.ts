@@ -82,16 +82,7 @@ export async function fetchCryptoEngines(): Promise<ApiCryptoEngine[]> {
     return handleApiError(response, 'Failed to fetch crypto engines');
 }
 
-// Overloaded: fetchKmsKeys(accessToken, params) or legacy fetchKmsKeys(params) (no auth header).
-export async function fetchKmsKeys(accessTokenOrParams: string | URLSearchParams, params?: URLSearchParams): Promise<ApiKmsKeyListResponse> {
-    let accessToken: string | undefined;
-    let queryParams: URLSearchParams;
-    if (typeof accessTokenOrParams === 'string') {
-        accessToken = accessTokenOrParams;
-        queryParams = params ?? new URLSearchParams();
-    } else {
-        queryParams = accessTokenOrParams;
-    }
+export async function fetchKmsKeys(params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
     const url = new URL(`${get_KMS_API_BASE_URL()}/keys`);
     params.forEach((value, key) => url.searchParams.append(key, value));
     const response = await apiFetch(url.toString());
@@ -103,8 +94,8 @@ export async function fetchKmsKey(keyId: string): Promise<ApiKmsKey> {
     return handleApiError(response, 'Failed to fetch KMS key');
 }
 
-export async function signWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<any> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/sign`, {
+export async function signWithKmsKey(keyId: string, payload: any): Promise<any> {
+    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -112,8 +103,8 @@ export async function signWithKmsKey(keyId: string, payload: any, accessToken: s
     return handleApiError(response, 'Signing failed');
 }
 
-export async function verifyWithKmsKey(keyId: string, payload: any, accessToken: string): Promise<{ valid: boolean }> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/verify`, {
+export async function verifyWithKmsKey(keyId: string, payload: any): Promise<{ valid: boolean }> {
+    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -121,8 +112,8 @@ export async function verifyWithKmsKey(keyId: string, payload: any, accessToken:
     return handleApiError(response, 'Verification failed');
 }
 
-export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys`, {
+export async function createKmsKey(payload: CreateKmsKeyPayload): Promise<ApiKmsKey> {
+    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -130,8 +121,8 @@ export async function createKmsKey(payload: CreateKmsKeyPayload, accessToken: st
     return handleApiError(response, 'Failed to create key');
 }
 
-export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/import`, {
+export async function importKmsKey(payload: ImportKmsKeyPayload): Promise<ApiKmsKey> {
+    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -139,10 +130,9 @@ export async function importKmsKey(payload: ImportKmsKeyPayload, accessToken: st
     return handleApiError(response, 'Failed to import key');
 }
 
-export async function deleteKmsKey(keyId: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}`, {
+export async function deleteKmsKey(keyId: string): Promise<void> {
+    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     await handleApiError(response, 'Failed to delete KMS key');
 }
@@ -153,8 +143,8 @@ export interface PatchOperation {
     value?: any; // Value for add or replace operations (omit for remove)
 }
 
-export async function updateKeyAliases(keyId: string, patches: PatchOperation[], accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/alias`, {
+export async function updateKeyAliases(keyId: string, patches: PatchOperation[]): Promise<void> {
+    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/alias`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key_id: keyId, patches }),
@@ -162,29 +152,17 @@ export async function updateKeyAliases(keyId: string, patches: PatchOperation[],
     await handleApiError(response, 'Failed to update key aliases');
 }
 
-export async function updateKeyMetadata(keyId: string, patches: PatchOperation[], accessToken?: string): Promise<void> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/metadata`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(patches),
+export async function updateKeyTags(keyId: string, tags: string[]): Promise<void> {
+    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/tags`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags }),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to update key metadata. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Metadata update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for metadata update:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to update key tags');
 }
 
-export async function updateKeyTags(keyId: string, tags: string[], accessToken: string): Promise<void> {
-    const response = await fetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/tags`, {
+export async function updateKeyMetadata(keyId: string, patchOperations: PatchOperation[]): Promise<void> {
+    const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/metadata`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tags }),

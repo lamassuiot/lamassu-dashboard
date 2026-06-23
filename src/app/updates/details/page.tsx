@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
-  ArrowLeft, Package, RefreshCw, Loader2, AlertTriangle, Clock, CheckCircle,
+  ArrowLeft, Package, RefreshCw, RotateCcw, Loader2, AlertTriangle, Clock, CheckCircle,
   Eye, Settings2, Pencil, PlayCircle, Zap, Layers, ArrowRight, XCircle,
   CheckCircle2, Info, Copy, Check,
 } from 'lucide-react';
@@ -24,7 +24,7 @@ import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
-import { fetchCurrentCampaigns, fetchAllDeviceJobs, transitionJobs, fetchCampaignDetails, updateCampaignStrategy } from '@/lib/iot-api';
+import { fetchCurrentCampaigns, fetchAllDeviceJobs, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices } from '@/lib/iot-api';
 import type { CampaignItem, DeviceJob, CampaignListResponse } from '@/types/iot';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -34,7 +34,7 @@ import { JobWorkflowGraph } from '@/components/devices/JobWorkflowGraph';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import {
   isPhasedWorkflow, isDirectWorkflow, extractWfxEligibleTransitions,
-  CampaignProgressCell, CampaignStatusCell,
+  CampaignProgressCell, CampaignStatusCell, TestDeviceBadge, getTestDeviceStatus,
 } from '@/components/iot/campaign-cells';
 
 // Human-readable label for an arbitrary workflow type, e.g.
@@ -71,7 +71,6 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
     queryFn: ({ signal }) => fetchAllDeviceJobs({
       groupId,
       deviceIds: allDeviceIdsForQuery,
-      accessToken: accessToken!,
       targetCampaignId: campaign.id,
     }, { signal }),
     enabled: allDeviceIdsForQuery.length > 0 && !!accessToken,
@@ -162,7 +161,7 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
         message: `Transition from ${from} to ${to}`,
         progress: 0,
       }));
-      const result = await transitionJobs(transitionRequests, accessToken);
+      const result = await transitionJobs(transitionRequests);
       if (result.succeeded.length > 0) {
         toast({ title: "Transition Successful", description: `Successfully transitioned ${result.succeeded.length} device(s) to ${to}` });
       }
@@ -334,14 +333,14 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
 
   const { data: jobs, isLoading, error, refetch } = useQuery<DeviceJob[], Error>({
     queryKey: ['deviceJobs', groupId, deviceId, targetCampaignId],
-    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: [deviceId], accessToken: accessToken!, targetCampaignId }, { signal }),
+    queryFn: ({ signal }) => fetchAllDeviceJobs({ groupId, deviceIds: [deviceId], targetCampaignId }, { signal }),
     enabled: !!accessToken,
     refetchInterval: 5000,
   });
 
   const { data: activeCampaignsData } = useQuery<CampaignListResponse, Error>({
     queryKey: ['activeCampaigns', groupId],
-    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId, accessToken: accessToken! }, { signal }),
+    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId }, { signal }),
     enabled: !!accessToken,
     refetchInterval: 5000,
   });
@@ -370,7 +369,7 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
         state: currentWfxTransition.to,
         message: `Transition from ${currentWfxTransition.from} to ${currentWfxTransition.to}`,
         progress: 0,
-      }], accessToken);
+      }]);
 
       if (result.succeeded.length > 0) {
         toast({ title: "Transition Successful", description: `Device transitioned to ${currentWfxTransition.to}` });
@@ -570,7 +569,7 @@ export default function CampaignDetailsPage() {
     queryKey: ['campaign', groupId, campaignId],
     queryFn: async ({ signal }) => {
       if (!user?.access_token || !groupId || !campaignId) throw new Error('Missing required parameters');
-      const item = await fetchCampaignDetails({ groupId, accessToken: user.access_token, campaignId }, { signal });
+      const item = await fetchCampaignDetails({ groupId, campaignId }, { signal });
       if (!item) throw new Error('Campaign not found');
       return { ...item, groupName, dms_id: groupId };
     },
@@ -580,7 +579,7 @@ export default function CampaignDetailsPage() {
 
   const { data: activeCampaignsData } = useQuery<CampaignListResponse, Error>({
     queryKey: ['activeCampaigns', groupId],
-    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId: groupId!, accessToken: user?.access_token! }, { signal }),
+    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId: groupId! }, { signal }),
     enabled: !!user?.access_token && !!groupId,
     refetchInterval: pollingInterval,
   });
@@ -597,7 +596,6 @@ export default function CampaignDetailsPage() {
         test_device_id: campaign?.test_device_id,
         auto: campaign?.auto,
       },
-      accessToken: user!.access_token!,
     }),
     onSuccess: () => {
       toast({ title: 'Rollout updated', description: 'The campaign rollout settings have been saved.' });
@@ -608,6 +606,20 @@ export default function CampaignDetailsPage() {
     },
     onError: (err: Error) => {
       toast({ variant: 'destructive', title: 'Update failed', description: err.message });
+    },
+  });
+
+  // Retry the campaign's failed devices (re-queue + roll out again).
+  const retryFailedMutation = useMutation({
+    mutationFn: () => retryFailedDevices({ groupId: groupId!, campaignId: campaignId! }),
+    onSuccess: () => {
+      toast({ title: 'Retrying failed devices', description: 'The failed devices are being rolled out again.' });
+      queryClient.invalidateQueries({ queryKey: ['campaign', groupId, campaignId] });
+      queryClient.invalidateQueries({ queryKey: ['activeCampaigns', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
+    },
+    onError: (err: Error) => {
+      toast({ variant: 'destructive', title: 'Retry failed', description: err.message });
     },
   });
 
@@ -714,7 +726,13 @@ export default function CampaignDetailsPage() {
   const withoutJobIds = campaign.devices_without_job.filter(d => !withJobIds.includes(d));
   const allDeviceIdsWithActive = [...withJobIds, ...withoutJobIds];
   const totalDevices = allDeviceIdsWithActive.length;
-  const canExecute = campaign.devices_without_job.length > 0 || campaignActiveDevices.length > 0;
+  const hasPendingDevices = campaign.devices_without_job.length > 0 || campaignActiveDevices.length > 0;
+  // Auto mode manages rollouts automatically — manual execution must be blocked while it is active.
+  const canExecute = hasPendingDevices && !campaign.auto;
+  // Canary gate: the test device must complete successfully before the fleet rolls out.
+  const testStatus = getTestDeviceStatus(campaign);
+  const testBlocks = testStatus === 'testing' || testStatus === 'failed';
+  const isTestPhase = testStatus === 'pending';
 
   const copyId = () => {
     navigator.clipboard.writeText(campaign.id);
@@ -796,16 +814,67 @@ export default function CampaignDetailsPage() {
           <div className="xl:flex-1 xl:pl-6 xl:border-l space-y-3">
             <div className="flex items-center gap-3 flex-wrap">
               <CampaignStatusCell campaign={campaign} groupId={groupId!} accessToken={user?.access_token || null} />
+              <TestDeviceBadge campaign={campaign} />
               {campaign.exec_date && (
                 <span className="text-xs text-muted-foreground">{format(parseISO(campaign.exec_date), "Pp")}</span>
               )}
             </div>
             <CampaignProgressCell campaign={campaign} groupId={groupId!} accessToken={user?.access_token || null} />
-            {canExecute && (
+            {(canExecute || (hasPendingDevices && campaign.auto)) && (
               <div className="flex items-center gap-2 pt-1">
-                <Button variant="default" size="sm" disabled={isExecuting} onClick={handleExecuteCampaign} className="gap-2">
-                  {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                  Execute Campaign
+                {campaign.auto ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
+                            <PlayCircle className="h-4 w-4" />
+                            Execute Campaign
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Auto mode is managing this rollout — manual execution is not available.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : testBlocks ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button variant="default" size="sm" disabled className="gap-2 pointer-events-none">
+                            {testStatus === 'testing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                            {testStatus === 'testing' ? 'Testing…' : 'Test Failed'}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[260px]">{testStatus === 'testing'
+                          ? `Test device ${campaign.test_device_id} is updating — the rollout unlocks once it succeeds.`
+                          : `Test device ${campaign.test_device_id} failed — the rollout is blocked. Pause, cancel, or retry the test device.`}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <Button variant="default" size="sm" disabled={isExecuting} onClick={handleExecuteCampaign} className="gap-2">
+                    {isExecuting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                    {isTestPhase ? 'Send to Test Device' : 'Execute Campaign'}
+                  </Button>
+                )}
+              </div>
+            )}
+            {(campaign.failed_devices?.length || 0) > 0 && (
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => retryFailedMutation.mutate()}
+                  disabled={retryFailedMutation.isPending}
+                  className="gap-2 border-amber-400/60 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300"
+                >
+                  {retryFailedMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                  Retry {campaign.failed_devices?.length} failed device{campaign.failed_devices?.length === 1 ? '' : 's'}
                 </Button>
               </div>
             )}
@@ -1011,11 +1080,11 @@ export default function CampaignDetailsPage() {
                         </span>
                       )}
                     </div>
-                    {/* Update Pack ID — only if set */}
+                    {/* Distribution Set ID — only if set */}
                     {campaign.update_pack_id && (
                       <div className="flex items-center justify-between gap-3 py-3">
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-muted-foreground">Update Pack ID</p>
+                          <p className="text-xs font-medium text-muted-foreground">Distribution Set ID</p>
                           <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{campaign.update_pack_id}</p>
                         </div>
                         <Badge variant="secondary" className="shrink-0">Immutable</Badge>
@@ -1023,9 +1092,12 @@ export default function CampaignDetailsPage() {
                     )}
                     {/* Test Device ID — only if set */}
                     {campaign.test_device_id && (
-                      <div className="py-3 last:pb-0">
-                        <p className="text-xs font-medium text-muted-foreground">Test Device ID</p>
-                        <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{campaign.test_device_id}</p>
+                      <div className="flex items-start justify-between gap-3 py-3 last:pb-0">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground">Test Device ID</p>
+                          <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{campaign.test_device_id}</p>
+                        </div>
+                        <TestDeviceBadge campaign={campaign} className="shrink-0" />
                       </div>
                     )}
                   </div>

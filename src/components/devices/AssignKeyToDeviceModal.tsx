@@ -50,7 +50,7 @@ export const AssignKeyToDeviceModal: React.FC<AssignKeyToDeviceModalProps> = ({
     setIsLoadingKeys(true);
     try {
       const userId = user.profile?.sub || user.profile?.email || 'default-user';
-      const response = await fetchSymmetricKeys(userId, user.access_token, { pageSize: 100 });
+      const response = await fetchSymmetricKeys(userId, { pageSize: 100 });
       setAvailableKeys(response.list);
     } catch (err) {
       console.error('Failed to load symmetric keys:', err);
@@ -95,7 +95,7 @@ export const AssignKeyToDeviceModal: React.FC<AssignKeyToDeviceModalProps> = ({
         request.expires_at = new Date(expiresAt).toISOString();
       }
 
-      await assignKeyToDevice(deviceId, selectedKeyId, request, user.access_token);
+      await assignKeyToDevice(deviceId, selectedKeyId, request);
 
       toast({
         title: 'Key Assigned',

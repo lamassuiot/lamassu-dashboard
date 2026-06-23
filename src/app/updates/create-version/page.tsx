@@ -40,7 +40,7 @@ export default function CreateUpdatePackVersionPage() {
 
   const { data: fetchedUpdatePacks = [] } = useQuery<any, Error, UpdatePack[]>({
     queryKey: ['updatePacks', selectedDms?.id],
-    queryFn: () => fetchUpdatePacks({ groupId: selectedDms!.id, accessToken: user!.access_token! }, { pageSize: 50 }),
+    queryFn: () => fetchUpdatePacks({ groupId: selectedDms!.id }, { pageSize: 50 }),
     enabled: !!selectedDms && !!user?.access_token,
     select: (data) => (Array.isArray(data) ? data : (data?.list || [])),
   });
@@ -87,7 +87,7 @@ export default function CreateUpdatePackVersionPage() {
     }
     setIsCreating(true);
     try {
-      await createUpdatePackVersion({ groupId: selectedDms.id, packName: selectedPack.name, accessToken: user.access_token, version: newVersion.trim() });
+      await createUpdatePackVersion({ groupId: selectedDms.id, packName: selectedPack.name, version: newVersion.trim() });
       toast({ title: 'New version created', description: `${selectedPack.name} is now v${newVersion.trim()} — upload artifacts next.` });
       router.push(`/updates/pack-details?groupId=${encodeURIComponent(selectedDms.id)}&packName=${encodeURIComponent(selectedPack.name)}`);
     } catch (err: any) {
@@ -100,7 +100,7 @@ export default function CreateUpdatePackVersionPage() {
   if (!selectedDms) {
     return (
       <div className="flex items-center justify-center p-8">
-        <p className="text-muted-foreground">Please select a Device Group above to manage update packs.</p>
+        <p className="text-muted-foreground">Please select a Device Group above to manage distribution sets.</p>
       </div>
     );
   }
