@@ -23,8 +23,8 @@ import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
-import { fetchCurrentCampaigns, fetchAllDeviceJobs, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices } from '@/lib/iot-api';
-import type { CampaignItem, DeviceJob, CampaignListResponse } from '@/types/iot';
+import { fetchAllDeviceJobs, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices } from '@/lib/iot-api';
+import type { CampaignItem, DeviceJob } from '@/types/iot';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
@@ -73,50 +73,15 @@ function AutomationBadge({ auto, enabledLabel = 'Auto', disabledLabel = 'Manual'
 
 interface PhasedWorkflowStatesProps {
   campaign: CampaignItem;
-  groupId: string;
   accessToken: string | null;
+  jobs: DeviceJob[] | undefined;
+  isLoading: boolean;
+  onJobsChanged: () => void;
   className?: string;
 }
 
-function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: PhasedWorkflowStatesProps) {
+function PhasedWorkflowStates({ campaign, accessToken, jobs, isLoading, onJobsChanged, className }: PhasedWorkflowStatesProps) {
   const [isTransitioning, setIsTransitioning] = React.useState<string | null>(null);
-
-  const allDeviceIdsForQuery = Array.from(new Set([
-    ...campaign.devices_with_job,
-    ...campaign.devices_without_job,
-    ...(campaign.active_launches || [])
-  ]));
-
-  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const refetch = useCallback(async () => {
-    if (allDeviceIdsForQuery.length === 0 || !accessToken) return;
-    setIsLoading(true);
-    try {
-      const result = await fetchAllDeviceJobs({
-        groupId,
-        deviceIds: allDeviceIdsForQuery,
-        targetCampaignId: campaign.id,
-      });
-      setJobs(result);
-    } catch (err) {
-      // ignore
-    } finally {
-      setIsLoading(false);
-    }
-  }, [groupId, campaign.id, allDeviceIdsForQuery.join(','), accessToken]);
-
-  useEffect(() => {
-    if (allDeviceIdsForQuery.length === 0 || !accessToken) return;
-    refetch();
-  }, [refetch]);
-
-  useEffect(() => {
-    if (allDeviceIdsForQuery.length === 0 || !accessToken) return;
-    const id = setInterval(refetch, 5000);
-    return () => clearInterval(id);
-  }, [refetch, accessToken]);
 
   const memoizedWorkflow = React.useMemo(() => {
     const relJobs = jobs?.filter(job => job.definition.launchID === campaign.id) || [];
@@ -210,7 +175,7 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
         toast({ variant: "destructive", title: "Some Transitions Failed", description: `${result.failed.length} device(s) failed to transition.` });
         console.error('Failed transitions:', result.failed);
       }
-      refetch();
+      onJobsChanged();
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       toast({ variant: "destructive", title: "Transition Failed", description: (error as Error).message });
@@ -346,67 +311,14 @@ interface DeviceJobStatusRowProps {
   deviceId: string;
   targetCampaignId: string;
   accessToken: string | null;
-  onTransitionComplete?: () => void;
+  jobs: DeviceJob[] | undefined;
+  isDeviceActive: boolean;
+  onJobsChanged: () => void;
 }
 
-function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, onTransitionComplete }: DeviceJobStatusRowProps) {
+function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, jobs, isDeviceActive, onJobsChanged }: DeviceJobStatusRowProps) {
   const router = useRouter();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
-
-  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  const refetch = useCallback(async () => {
-    if (!accessToken) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await fetchAllDeviceJobs({ groupId, deviceIds: [deviceId], targetCampaignId });
-      setJobs(result);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [groupId, deviceId, targetCampaignId, accessToken]);
-
-  useEffect(() => {
-    if (!accessToken) return;
-    refetch();
-  }, [refetch]);
-
-  useEffect(() => {
-    if (!accessToken) return;
-    const id = setInterval(refetch, 5000);
-    return () => clearInterval(id);
-  }, [refetch, accessToken]);
-
-  const [activeCampaignsData, setActiveCampaignsData] = useState<CampaignListResponse | undefined>(undefined);
-
-  const fetchActiveCampaigns = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      const result = await fetchCurrentCampaigns({ groupId });
-      setActiveCampaignsData(result);
-    } catch (err) {
-      // ignore
-    }
-  }, [groupId, accessToken]);
-
-  useEffect(() => {
-    if (!accessToken) return;
-    fetchActiveCampaigns();
-  }, [fetchActiveCampaigns]);
-
-  useEffect(() => {
-    if (!accessToken) return;
-    const id = setInterval(fetchActiveCampaigns, 5000);
-    return () => clearInterval(id);
-  }, [fetchActiveCampaigns, accessToken]);
-
-  const activeDevices = activeCampaignsData?.active_launches || [];
-  const isDeviceActive = activeDevices.includes(deviceId);
   const relevantJob = jobs?.find(job => job.definition.launchID === targetCampaignId);
 
   const wfxTransitions = React.useMemo(() => {
@@ -433,8 +345,7 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
 
       if (result.succeeded.length > 0) {
         toast({ title: "Transition Successful", description: `Device transitioned to ${currentWfxTransition.to}` });
-        refetch();
-        onTransitionComplete?.();
+        onJobsChanged();
       }
       if (result.failed.length > 0) {
         toast({ variant: "destructive", title: "Transition Failed", description: result.failed[0]?.error || "Unknown error" });
@@ -446,27 +357,6 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
       setIsTransitioning(false);
     }
   };
-
-  if (isLoading) {
-    return (
-      <TableRow>
-        <TableCell className="font-mono text-xs py-2">{deviceId}</TableCell>
-        <TableCell colSpan={8} className="text-muted-foreground py-2">
-          <div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading job status...</div>
-        </TableCell>
-      </TableRow>
-    );
-  }
-  if (error) {
-    return (
-      <TableRow>
-        <TableCell className="font-mono text-xs py-2">{deviceId}</TableCell>
-        <TableCell colSpan={8} className="text-destructive py-2">
-          <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Error: {error.message}</div>
-        </TableCell>
-      </TableRow>
-    );
-  }
 
   if (!relevantJob && isDeviceActive) {
     return (
@@ -595,10 +485,182 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
   );
 }
 
+interface DeviceJobsSectionProps {
+  campaign: CampaignItem;
+  groupId: string;
+  accessToken: string | null;
+  onCampaignRefresh: () => Promise<void> | void;
+}
+
+function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }: DeviceJobsSectionProps) {
+  const campaignActiveDevices = campaign.active_launches || [];
+  const withJobIds = React.useMemo(
+    () => Array.from(new Set([...campaign.devices_with_job, ...campaignActiveDevices])),
+    [campaign.devices_with_job, campaignActiveDevices]
+  );
+  const allDeviceIdsWithActive = React.useMemo(() => {
+    const withoutJobIds = campaign.devices_without_job.filter(d => !withJobIds.includes(d));
+    return [...withJobIds, ...withoutJobIds];
+  }, [campaign.devices_without_job, withJobIds]);
+  const deviceIdsKey = allDeviceIdsWithActive.join(',');
+
+  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(false);
+  const [jobsError, setJobsError] = useState<Error | null>(null);
+  const [isRefreshingJobs, setIsRefreshingJobs] = useState(false);
+  const hasLoadedJobsRef = React.useRef(false);
+  const isFetchingJobsRef = React.useRef(false);
+
+  useEffect(() => {
+    hasLoadedJobsRef.current = false;
+    isFetchingJobsRef.current = false;
+    setJobs(undefined);
+    setIsLoadingJobs(false);
+    setJobsError(null);
+  }, [groupId, campaign.id, deviceIdsKey]);
+
+  const refetchJobs = useCallback(async () => {
+    if (!accessToken || allDeviceIdsWithActive.length === 0) return;
+    if (isFetchingJobsRef.current) return;
+    isFetchingJobsRef.current = true;
+
+    const isInitialFetch = !hasLoadedJobsRef.current;
+    if (isInitialFetch) setIsLoadingJobs(true);
+    try {
+      const result = await fetchAllDeviceJobs({
+        groupId,
+        deviceIds: allDeviceIdsWithActive,
+        targetCampaignId: campaign.id,
+      });
+      setJobs(result);
+      setJobsError(null);
+      hasLoadedJobsRef.current = true;
+    } catch (err) {
+      const nextError = err instanceof Error ? err : new Error(String(err));
+      if (isInitialFetch) {
+        setJobsError(nextError);
+      } else {
+        console.error(nextError);
+      }
+    } finally {
+      if (isInitialFetch) {
+        hasLoadedJobsRef.current = true;
+        setIsLoadingJobs(false);
+      }
+      isFetchingJobsRef.current = false;
+    }
+  }, [accessToken, groupId, campaign.id, deviceIdsKey]);
+
+  useEffect(() => {
+    if (!accessToken || allDeviceIdsWithActive.length === 0) return;
+    refetchJobs();
+  }, [accessToken, allDeviceIdsWithActive.length, refetchJobs]);
+
+  useEffect(() => {
+    if (!accessToken || allDeviceIdsWithActive.length === 0) return;
+    const id = setInterval(refetchJobs, 5000);
+    return () => clearInterval(id);
+  }, [accessToken, allDeviceIdsWithActive.length, refetchJobs]);
+
+  const refreshDeviceJobs = useCallback(() => {
+    refetchJobs();
+    onCampaignRefresh();
+  }, [refetchJobs, onCampaignRefresh]);
+
+  const handleRefreshJobs = async () => {
+    setIsRefreshingJobs(true);
+    toast({ title: "Refreshing Job Statuses...", description: `For campaign: ${campaign.name}` });
+    try {
+      await Promise.all([refetchJobs(), onCampaignRefresh()]);
+      toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for campaign: ${campaign.name}` });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      toast({ variant: "destructive", title: "Refresh Failed", description: (error as Error).message });
+    } finally {
+      setIsRefreshingJobs(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <PhasedWorkflowStates
+        campaign={campaign}
+        accessToken={accessToken}
+        jobs={jobs}
+        isLoading={isLoadingJobs}
+        onJobsChanged={refreshDeviceJobs}
+      />
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-semibold">Device Jobs</p>
+          <p className="mt-1 text-sm text-muted-foreground">Current status of firmware update jobs for all devices in this campaign.</p>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleRefreshJobs}
+          disabled={isRefreshingJobs}
+        >
+          {isRefreshingJobs ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          Refresh Jobs
+        </Button>
+      </div>
+      {allDeviceIdsWithActive.length > 0 ? (
+        <div className="relative w-full overflow-auto">
+          <Table className="table-fixed">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[140px]">Device ID</TableHead>
+                <TableHead className="w-[100px]">Status</TableHead>
+                <TableHead className="w-[180px]">Job State</TableHead>
+                <TableHead className="w-[180px]">Artifact</TableHead>
+                <TableHead className="w-[140px]">Job ID</TableHead>
+                <TableHead className="w-[120px]">Started</TableHead>
+                <TableHead className="w-[120px]">Last Update</TableHead>
+                <TableHead className="w-[80px]">Action</TableHead>
+                <TableHead className="w-[100px]">Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoadingJobs && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-muted-foreground py-4">
+                    <div className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading job status...</div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {jobsError && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-destructive py-4">
+                    <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Error: {jobsError.message}</div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoadingJobs && !jobsError && allDeviceIdsWithActive.map(deviceId => (
+                <DeviceJobStatusRow
+                  key={deviceId}
+                  groupId={groupId}
+                  deviceId={deviceId}
+                  targetCampaignId={campaign.id}
+                  accessToken={accessToken}
+                  jobs={jobs}
+                  isDeviceActive={campaignActiveDevices.includes(deviceId)}
+                  onJobsChanged={refreshDeviceJobs}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No devices associated with this campaign.</p>
+      )}
+    </div>
+  );
+}
+
 export default function CampaignDetailsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isRefreshingJobs, setIsRefreshingJobs] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionStartTime, setExecutionStartTime] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -606,6 +668,8 @@ export default function CampaignDetailsPage() {
   const [isEditRolloutOpen, setIsEditRolloutOpen] = useState(false);
   const [rolloutTypeInput, setRolloutTypeInput] = useState<'numeric' | 'percentage'>('numeric');
   const [rolloutValueInput, setRolloutValueInput] = useState('');
+  const hasLoadedCampaignRef = React.useRef(false);
+  const isFetchingCampaignRef = React.useRef(false);
   const { user } = useAuth();
   const { availableDms } = useDms();
 
@@ -624,20 +688,42 @@ export default function CampaignDetailsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  useEffect(() => {
+    hasLoadedCampaignRef.current = false;
+    isFetchingCampaignRef.current = false;
+    setCampaign(undefined);
+    setIsLoading(false);
+    setError(null);
+  }, [groupId, campaignId]);
+
   const refetchCampaign = useCallback(async () => {
     if (!user?.access_token || !groupId || !campaignId) return;
-    setIsLoading(true);
-    setError(null);
+    if (isFetchingCampaignRef.current) return;
+    isFetchingCampaignRef.current = true;
+
+    const isInitialFetch = !hasLoadedCampaignRef.current;
+    if (isInitialFetch) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       const item = await fetchCampaignDetails({ groupId, campaignId });
       if (!item) throw new Error('Campaign not found');
       setCampaign(item);
+      setError(null);
+      hasLoadedCampaignRef.current = true;
     } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
+      const nextError = err instanceof Error ? err : new Error(String(err));
+      if (isInitialFetch) {
+        setError(nextError);
+      } else {
+        console.error(nextError);
+      }
     } finally {
-      setIsLoading(false);
+      if (isInitialFetch) setIsLoading(false);
+      isFetchingCampaignRef.current = false;
     }
-  }, [user?.access_token, groupId, campaignId, groupName]);
+  }, [user?.access_token, groupId, campaignId]);
 
   useEffect(() => {
     if (!user?.access_token || !groupId || !campaignId) return;
@@ -649,29 +735,6 @@ export default function CampaignDetailsPage() {
     const id = setInterval(refetchCampaign, pollingInterval);
     return () => clearInterval(id);
   }, [refetchCampaign, pollingInterval, user?.access_token, groupId, campaignId]);
-
-  const [activeCampaignsData, setActiveCampaignsData] = useState<CampaignListResponse | undefined>(undefined);
-
-  const refetchActiveCampaigns = useCallback(async () => {
-    if (!user?.access_token || !groupId) return;
-    try {
-      const result = await fetchCurrentCampaigns({ groupId });
-      setActiveCampaignsData(result);
-    } catch (err) {
-      // ignore
-    }
-  }, [groupId, user?.access_token]);
-
-  useEffect(() => {
-    if (!user?.access_token || !groupId) return;
-    refetchActiveCampaigns();
-  }, [refetchActiveCampaigns]);
-
-  useEffect(() => {
-    if (!user?.access_token || !groupId) return;
-    const id = setInterval(refetchActiveCampaigns, pollingInterval);
-    return () => clearInterval(id);
-  }, [refetchActiveCampaigns, pollingInterval, user?.access_token, groupId]);
 
   // Rollout edit — PUTs the strategy with the chosen type + value, preserving every other field.
   const [isEditRolloutPending, setIsEditRolloutPending] = useState(false);
@@ -709,7 +772,6 @@ export default function CampaignDetailsPage() {
       await retryFailedDevices({ groupId: groupId!, campaignId: campaignId! });
       toast({ title: 'Retrying failed devices', description: 'The failed devices are being rolled out again.' });
       refetchCampaign();
-      refetchActiveCampaigns();
     } catch (err) {
       toast({ variant: 'destructive', title: 'Retry failed', description: (err instanceof Error ? err : new Error(String(err))).message });
     } finally {
@@ -736,21 +798,6 @@ export default function CampaignDetailsPage() {
     editRolloutMutate({ rolloutType: rolloutTypeInput, rolloutValue: n });
   };
 
-  const handleRefreshJobs = async () => {
-    if (!campaign) return;
-    setIsRefreshingJobs(true);
-    toast({ title: "Refreshing Job Statuses...", description: `For campaign: ${campaign.name}` });
-    try {
-      refetchCampaign();
-      toast({ title: "Job Statuses Refreshed", description: `Successfully updated details for campaign: ${campaign.name}` });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') return;
-      toast({ variant: "destructive", title: "Refresh Failed", description: (error as Error).message });
-    } finally {
-      setIsRefreshingJobs(false);
-    }
-  };
-
   const handleExecuteCampaign = async () => {
     if (!campaign) return;
     try {
@@ -763,7 +810,6 @@ export default function CampaignDetailsPage() {
       if (!response.ok) throw new Error(`Failed to execute campaign: ${response.statusText}`);
       toast({ title: "Campaign Executed", description: `Campaign ${campaign.name} has been successfully executed. Monitoring progress...` });
       refetchCampaign();
-      refetchActiveCampaigns();
       setTimeout(() => { setIsExecuting(false); }, 30000);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
@@ -1134,60 +1180,12 @@ export default function CampaignDetailsPage() {
 
           {/* Device Jobs Tab */}
           <TabsContent value="devices" className="mt-0">
-            <div className="space-y-4">
-              <PhasedWorkflowStates
-                campaign={campaign}
-                groupId={groupId!}
-                accessToken={user?.access_token || null}
-              />
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-semibold">Device Jobs</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Current status of firmware update jobs for all devices in this campaign.</p>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleRefreshJobs}
-                  disabled={isRefreshingJobs}
-                >
-                  {isRefreshingJobs ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Refresh Jobs
-                </Button>
-              </div>
-              {allDeviceIdsWithActive.length > 0 ? (
-                <div className="relative w-full overflow-auto">
-                  <Table className="table-fixed">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[140px]">Device ID</TableHead>
-                        <TableHead className="w-[100px]">Status</TableHead>
-                        <TableHead className="w-[180px]">Job State</TableHead>
-                        <TableHead className="w-[180px]">Artifact</TableHead>
-                        <TableHead className="w-[140px]">Job ID</TableHead>
-                        <TableHead className="w-[120px]">Started</TableHead>
-                        <TableHead className="w-[120px]">Last Update</TableHead>
-                        <TableHead className="w-[80px]">Action</TableHead>
-                        <TableHead className="w-[100px]">Details</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {allDeviceIdsWithActive.map(deviceId => (
-                        <DeviceJobStatusRow
-                          key={deviceId}
-                          groupId={groupId!}
-                          deviceId={deviceId}
-                          targetCampaignId={campaign.id}
-                          accessToken={user?.access_token || null}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No devices associated with this campaign.</p>
-              )}
-            </div>
+            <DeviceJobsSection
+              campaign={campaign}
+              groupId={groupId!}
+              accessToken={user?.access_token || null}
+              onCampaignRefresh={refetchCampaign}
+            />
           </TabsContent>
         </div>
       </Tabs>
