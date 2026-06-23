@@ -14,8 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft, Package, RefreshCw, RotateCcw, Loader2, AlertTriangle, Clock, CheckCircle,
-  Eye, Settings2, Pencil, PlayCircle, Zap, Layers, ArrowRight, XCircle,
-  CheckCircle2, Info, Copy, Check,
+  Eye, Pencil, PlayCircle, ArrowRight,
+  Info, Copy, Check,
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +46,29 @@ function prettifyWorkflowType(workflowType?: string): string {
     .replace(/[._-]/g, ' ')
     .replace(/\b\w/g, c => c.toUpperCase())
     .trim() || 'Workflow';
+}
+
+function getWorkflowLabel(workflowType?: string): string {
+  if (isDirectWorkflow(workflowType)) return 'Direct';
+  if (isPhasedWorkflow(workflowType)) return 'Phased';
+  return prettifyWorkflowType(workflowType);
+}
+
+function WorkflowBadge({ workflowType, className }: { workflowType?: string; className?: string }) {
+  const variant = isPhasedWorkflow(workflowType) ? 'secondary' : 'outline';
+  return (
+    <Badge variant={variant} className={cn('text-xs', className)}>
+      {getWorkflowLabel(workflowType)}
+    </Badge>
+  );
+}
+
+function AutomationBadge({ auto, enabledLabel = 'Auto', disabledLabel = 'Manual', className }: { auto?: boolean; enabledLabel?: string; disabledLabel?: string; className?: string }) {
+  return (
+    <Badge variant={auto ? 'secondary' : 'outline'} className={cn('text-xs', className)}>
+      {auto ? enabledLabel : disabledLabel}
+    </Badge>
+  );
 }
 
 interface PhasedWorkflowStatesProps {
@@ -223,30 +246,25 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
         )}
       </div>
       {hasPendingActions && (
-        <div className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-          Pending action required
-        </div>
+        <Badge variant="destructive" className="w-fit text-xs">Pending action required</Badge>
       )}
       {transitionStats.map(({ from, to, description, devicesAtState, devicesCompleted, devicesExecuting, devicesReachedState, devicesStarted, totalDevices, jobsAtState }) => {
         const devicesAtWaitingPoint = devicesCompleted + devicesAtState;
         const hasDevicesWaiting = devicesAtState > 0;
         return (
-          <div key={`${from}-${to}`} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border">
+          <div key={`${from}-${to}`} className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="font-mono text-xs">{from}</Badge>
                 <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <Badge variant="outline" className="font-mono text-xs bg-primary/10">{to}</Badge>
+                <Badge variant="secondary" className="font-mono text-xs">{to}</Badge>
                 <span className="text-sm text-muted-foreground ml-2">{description}</span>
               </div>
               <div className="flex items-center gap-4 mt-2 text-xs">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                        <span className="text-green-700 dark:text-green-400 font-medium">{devicesCompleted}/{devicesAtWaitingPoint} completed</span>
-                      </div>
+                      <span className="font-medium text-foreground">{devicesCompleted}/{devicesAtWaitingPoint} completed</span>
                     </TooltipTrigger>
                     <TooltipContent>{devicesCompleted} of {devicesAtWaitingPoint} devices that reached {from} state have completed the transition</TooltipContent>
                   </Tooltip>
@@ -254,10 +272,7 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5 text-yellow-600" />
-                        <span className="text-yellow-700 dark:text-yellow-400 font-medium">{devicesAtState}/{devicesAtState} waiting</span>
-                      </div>
+                      <span className="font-medium text-foreground">{devicesAtState}/{devicesAtState} waiting</span>
                     </TooltipTrigger>
                     <TooltipContent>{devicesAtState} device(s) at {from} state waiting for transition to {to}</TooltipContent>
                   </Tooltip>
@@ -266,10 +281,7 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-blue-600 animate-spin" />
-                          <span className="text-blue-700 dark:text-blue-400 font-medium">{devicesExecuting}/{devicesExecuting} executing</span>
-                        </div>
+                        <span className="font-medium text-foreground">{devicesExecuting}/{devicesExecuting} executing</span>
                       </TooltipTrigger>
                       <TooltipContent>{devicesExecuting} device(s) currently executing between {from} and {to}</TooltipContent>
                     </Tooltip>
@@ -278,10 +290,7 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1.5">
-                        <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-muted-foreground">{devicesStarted}/{totalDevices} started</span>
-                      </div>
+                      <span className="text-muted-foreground">{devicesStarted}/{totalDevices} started</span>
                     </TooltipTrigger>
                     <TooltipContent>{devicesStarted} of {totalDevices} total devices have started the update</TooltipContent>
                   </Tooltip>
@@ -293,9 +302,7 @@ function PhasedWorkflowStates({ campaign, groupId, accessToken, className }: Pha
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Badge className="animate-pulse text-xs bg-yellow-500 hover:bg-yellow-500 text-yellow-950">
-                        Action Required!
-                      </Badge>
+                      <Badge variant="destructive" className="text-xs">Action Required</Badge>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="text-sm">
@@ -463,7 +470,7 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
 
   if (!relevantJob && isDeviceActive) {
     return (
-      <TableRow className="text-xs bg-blue-50 dark:bg-blue-950/20">
+      <TableRow className="bg-muted/40 text-xs">
         <TableCell className="font-mono py-2">
           <span className="cursor-pointer hover:underline text-primary" onClick={() => router.push(`/devices/details?deviceId=${deviceId}&groupId=${groupId}`)}>
             {deviceId}
@@ -471,8 +478,8 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
         </TableCell>
         <TableCell className="py-2">
           <div className="flex items-center gap-1.5">
-            <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
-            <span className="font-medium text-blue-600 dark:text-blue-400">Executing</span>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">Executing</span>
           </div>
         </TableCell>
         <TableCell colSpan={7} className="text-muted-foreground italic py-2">
@@ -494,13 +501,13 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
   const state = relevantJob.status.state;
   let statusText = "In Progress";
   let StatusIcon = Clock;
-  let iconColor = "text-yellow-500";
+  let iconColor = "text-muted-foreground";
 
   if (state === 'TERMINATED') { statusText = 'Error'; StatusIcon = AlertTriangle; iconColor = "text-destructive"; }
   else if (state === 'ACTIVATED' || state === 'INSTALLED') { statusText = 'Finished'; StatusIcon = CheckCircle; iconColor = "text-primary"; }
 
   const needsAction = !!currentWfxTransition;
-  const rowClassName = needsAction ? "text-xs bg-yellow-50 dark:bg-yellow-950/20" : "text-xs";
+  const rowClassName = needsAction ? "bg-muted/40 text-xs" : "text-xs";
 
   return (
     <TableRow className={rowClassName}>
@@ -520,7 +527,7 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="outline" className={`font-mono text-xs cursor-help whitespace-nowrap ${needsAction ? 'border-yellow-400 bg-yellow-100 text-yellow-700' : ''}`}>
+                <Badge variant={needsAction ? 'secondary' : 'outline'} className="cursor-help whitespace-nowrap font-mono text-xs">
                   {state}
                 </Badge>
               </TooltipTrigger>
@@ -545,9 +552,7 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge className="text-xs bg-yellow-500 hover:bg-yellow-500 text-yellow-950 animate-pulse whitespace-nowrap">
-                    Action Required
-                  </Badge>
+                  <Badge variant="destructive" className="whitespace-nowrap text-xs">Action Required</Badge>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p className="text-sm">{1} device will move on to state: <span className="font-mono">{currentWfxTransition?.to || 'N/A'}</span></p>
@@ -568,7 +573,7 @@ function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, 
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="sm" variant="default" disabled={isTransitioning} onClick={handleTransition} className="gap-1 bg-yellow-500 hover:bg-yellow-600 text-yellow-950">
+                <Button size="sm" variant="default" disabled={isTransitioning} onClick={handleTransition} className="gap-1">
                   {isTransitioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
                   Next
                 </Button>
@@ -838,64 +843,33 @@ export default function CampaignDetailsPage() {
         { label: campaign.name },
       ]}
     >
-      {/* Hero */}
       <div className="pb-6 pt-2">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          {/* Identity - left */}
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <Package className="h-6 w-6 text-primary" />
-            </div>
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
             <div className="min-w-0 space-y-2">
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight truncate">{campaign.name}</h1>
                 <div className="mt-1 flex items-center gap-1.5">
                   <span className="text-xs font-medium text-muted-foreground">ID</span>
-                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[360px]">{campaign.id}</code>
+                  <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs">{campaign.id}</code>
                   <Button variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={copyId}>
-                    {copiedId ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+                    {copiedId ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
                   </Button>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                {/* Workflow type badge */}
-                {isDirectWorkflow(campaign.workflow_type) && (
-                  <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-amber-100 px-2 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                    <Zap className="h-3 w-3" /> Direct
-                  </span>
-                )}
-                {isPhasedWorkflow(campaign.workflow_type) && (
-                  <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-purple-100 px-2 text-xs font-medium text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                    <Layers className="h-3 w-3" /> Phased
-                  </span>
-                )}
-                {!isDirectWorkflow(campaign.workflow_type) && !isPhasedWorkflow(campaign.workflow_type) && (
-                  <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-slate-100 px-2 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    <Layers className="h-3 w-3" /> {prettifyWorkflowType(campaign.workflow_type)}
-                  </span>
-                )}
-                {/* Rollout type badge */}
+                <WorkflowBadge workflowType={campaign.workflow_type} />
                 {campaign.rollout_type && (
-                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                  <Badge variant="outline" className="text-xs">
                     {campaign.rollout_type.charAt(0).toUpperCase() + campaign.rollout_type.slice(1)}
-                  </span>
+                  </Badge>
                 )}
-                {/* Auto mode badge */}
-                {campaign.auto ? (
-                  <span className="inline-flex h-6 items-center rounded-md bg-emerald-100 px-2 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
-                    Auto
-                  </span>
-                ) : (
-                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    Manual
-                  </span>
-                )}
+                <AutomationBadge auto={campaign.auto} />
               </div>
             </div>
           </div>
 
-          {/* Status + progress + actions - right */}
-          <div className="xl:flex-1 xl:pl-6 xl:border-l space-y-3">
+          <div className="space-y-3 xl:flex-1 xl:border-l xl:pl-6">
             <div className="flex items-center gap-3 flex-wrap">
               <CampaignStatusCell campaign={campaign} groupId={groupId!} accessToken={user?.access_token || null} />
               <TestDeviceBadge campaign={campaign} />
@@ -955,7 +929,7 @@ export default function CampaignDetailsPage() {
                   size="sm"
                   onClick={() => retryFailedMutate()}
                   disabled={isRetryFailedPending}
-                  className="gap-2 border-amber-400/60 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300"
+                  className="gap-2"
                 >
                   {isRetryFailedPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                   Retry {campaign.failed_devices?.length} failed device{campaign.failed_devices?.length === 1 ? '' : 's'}
@@ -1022,8 +996,8 @@ export default function CampaignDetailsPage() {
                     </div>
                     <div className="lg:col-span-2 space-y-4">
                       {campaign.forced_preconditions && (
-                        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700 p-3">
-                          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                        <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                           <p className="text-sm">This campaign was force-deployed to devices that did not meet the configured prerequisites.</p>
                         </div>
                       )}
@@ -1086,48 +1060,24 @@ export default function CampaignDetailsPage() {
                         <p className="text-xs font-medium text-muted-foreground">Workflow Type</p>
                         <p className="mt-1 text-sm">{campaign.workflow_type || 'Not Set'}</p>
                       </div>
-                      {isDirectWorkflow(campaign.workflow_type) && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-amber-100 px-2 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 cursor-help">
-                                <Zap className="h-3 w-3" /> Direct
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Direct: Updates are downloaded, installed, and activated automatically on the device.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      {isPhasedWorkflow(campaign.workflow_type) && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-purple-100 px-2 text-xs font-medium text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 cursor-help">
-                                <Layers className="h-3 w-3" /> Phased
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Phased: Updates require developer approval at key stages before proceeding.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      {!isDirectWorkflow(campaign.workflow_type) && !isPhasedWorkflow(campaign.workflow_type) && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-slate-100 px-2 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300 cursor-help">
-                                <Layers className="h-3 w-3" /> {prettifyWorkflowType(campaign.workflow_type)}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>A simple download-and-install workflow.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <WorkflowBadge workflowType={campaign.workflow_type} className="cursor-help" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {isDirectWorkflow(campaign.workflow_type)
+                                ? 'Direct: Updates are downloaded, installed, and activated automatically on the device.'
+                                : isPhasedWorkflow(campaign.workflow_type)
+                                  ? 'Phased: Updates require developer approval at key stages before proceeding.'
+                                  : 'A simple download-and-install workflow.'}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     {/* Rollout Type */}
                     <div className="py-3">
@@ -1154,15 +1104,7 @@ export default function CampaignDetailsPage() {
                         <p className="text-xs font-medium text-muted-foreground">Auto Mode</p>
                         <p className="mt-1 text-sm">{campaign.auto ? 'Rollout starts automatically' : 'Manual execution required'}</p>
                       </div>
-                      {campaign.auto ? (
-                        <span className="inline-flex h-6 items-center rounded-md bg-emerald-100 px-2 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
-                          Enabled
-                        </span>
-                      ) : (
-                        <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                          Disabled
-                        </span>
-                      )}
+                      <AutomationBadge auto={campaign.auto} enabledLabel="Enabled" disabledLabel="Disabled" />
                     </div>
                     {/* Distribution Set ID — only if set */}
                     {campaign.update_pack_id && (

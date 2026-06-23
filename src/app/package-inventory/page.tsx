@@ -7,29 +7,17 @@ import {
   AlertTriangle,
   ArrowDown10,
   ArrowDownAZ,
-  ArrowRight,
   ArrowUp01,
   ArrowUpZA,
-  Boxes,
   ChevronsUpDown,
-  ExternalLink,
-  GitFork,
   Loader2,
-  Minus,
   MoreVertical,
-  Package,
   PackagePlus,
-  Plus,
   RefreshCw,
-  Rocket,
   Search,
-  Trash2,
-  Users,
 } from 'lucide-react';
 
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
-import { DateDisplay } from '@/components/shared/DateDisplay';
-import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout';
 import { NewPackVersionDialog, type PackForVersioning } from '@/components/iot/new-pack-version-dialog';
 import { CreatePackForm } from '@/components/iot/create-pack-form';
 import {
@@ -47,7 +35,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ColumnSelector } from '@/components/ui/column-selector';
 import {
@@ -71,13 +58,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
 import {
   deleteUpdatePackByIdApi,
-  fetchAllDevicePackVersions,
   fetchAllUpdatePacks,
-  fetchUpdatePackVersionsById,
 } from '@/lib/iot-api';
 import { cn, compareSemver } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import type { ArtifactRef, UpdatePack, UpdatePackVersion } from '@/types/iot';
+import type { UpdatePack } from '@/types/iot';
 
 type PackRow = UpdatePack & { groupId: string; groupName: string; orphaned: boolean };
 type SortDirection = 'asc' | 'desc';
@@ -107,51 +92,6 @@ const ORPHANED_FILTER = '__orphaned__';
 
 const sortableText = (value?: string) => (value || '').toLowerCase();
 
-const PackagingBadge: React.FC<{ packaging?: string }> = ({ packaging }) => (
-  <Badge variant="outline" className="font-mono text-xs">
-    {packaging || 'swu'}
-  </Badge>
-);
-
-const PackStatusBadge: React.FC<{ pack: PackRow }> = ({ pack }) => {
-  if (pack.uri) {
-    return (
-      <Badge variant="secondary" className="text-xs">
-        {pack.packaging === 'non-swu' ? 'built' : 'SWU built'}
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge variant="outline" className="text-xs text-muted-foreground">
-      not built
-    </Badge>
-  );
-};
-
-const GroupBadge: React.FC<{ pack: PackRow }> = ({ pack }) => (
-  <Badge
-    variant={pack.orphaned ? 'destructive' : 'outline'}
-    title={pack.orphaned ? "This pack's device group no longer exists." : undefined}
-    className="max-w-[220px] justify-start gap-1 text-xs"
-  >
-    {pack.orphaned ? <AlertTriangle className="h-3 w-3 shrink-0" /> : <Boxes className="h-3 w-3 shrink-0" />}
-    <span className="truncate">{pack.groupName}</span>
-  </Badge>
-);
-
-// Artifact changes of a version relative to the previous (older) version's manifest.
-function diffArtifacts(curr: ArtifactRef[], prev: ArtifactRef[]) {
-  const prevMap = new Map(prev.map((a) => [a.name, a.version]));
-  const currMap = new Map(curr.map((a) => [a.name, a.version]));
-  const added = curr.filter((a) => !prevMap.has(a.name));
-  const changed = curr
-    .filter((a) => prevMap.has(a.name) && prevMap.get(a.name) !== a.version)
-    .map((a) => ({ name: a.name, from: prevMap.get(a.name) || '', to: a.version }));
-  const removed = prev.filter((a) => !currMap.has(a.name));
-  return { added, changed, removed };
-}
-
 function getDetailsHref(pack: PackRow) {
   return `/updates/pack-details?groupId=${encodeURIComponent(pack.groupId)}&packName=${encodeURIComponent(pack.name)}`;
 }
@@ -160,213 +100,9 @@ function getCampaignHref(pack: PackRow) {
   return `/updates?action=campaign&groupId=${encodeURIComponent(pack.groupId)}&packId=${encodeURIComponent(pack.id)}`;
 }
 
-const DetailRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="py-3 first:pt-0">
-    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-    <div className="mt-1.5 text-sm font-medium">{children}</div>
-  </div>
-);
-
-const VersionDelta: React.FC<{
-  version: UpdatePackVersion;
-  previous?: UpdatePackVersion;
-}> = ({ version, previous }) => {
-  const currArts = version.artifacts || [];
-  const { added, changed, removed } = previous
-    ? diffArtifacts(currArts, previous.artifacts || [])
-    : { added: currArts, changed: [], removed: [] };
-  const hasChanges = added.length > 0 || changed.length > 0 || removed.length > 0;
-
-  if (currArts.length === 0) {
-    return <p className="text-xs text-muted-foreground">No artifacts declared for this version.</p>;
-  }
-
-  if (!hasChanges) {
-    return <p className="text-xs text-muted-foreground">No changes from previous version.</p>;
-  }
-
-  return (
-    <div className="space-y-1">
-      {added.map((artifact) => (
-        <div key={`added-${artifact.name}`} className="flex min-w-0 items-center gap-2 text-xs">
-          <Plus className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="truncate font-medium">{artifact.name}</span>
-          <span className="font-mono text-muted-foreground">{artifact.version || 'unversioned'}</span>
-          {!previous && <span className="text-muted-foreground">initial</span>}
-        </div>
-      ))}
-      {changed.map((artifact) => (
-        <div key={`changed-${artifact.name}`} className="flex min-w-0 items-center gap-2 text-xs">
-          <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="truncate font-medium">{artifact.name}</span>
-          <span className="font-mono text-muted-foreground">
-            {artifact.from || 'unversioned'} → {artifact.to || 'unversioned'}
-          </span>
-        </div>
-      ))}
-      {removed.map((artifact) => (
-        <div key={`removed-${artifact.name}`} className="flex min-w-0 items-center gap-2 text-xs">
-          <Minus className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="truncate text-muted-foreground line-through">{artifact.name}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const PackDetailPanel: React.FC<{ pack: PackRow }> = ({ pack }) => {
-  const { user } = useAuth();
-  const [expandedVersion, setExpandedVersion] = useState<string | null>(pack.version);
-
-  const [versionsResp, setVersionsResp] = useState<{ list: UpdatePackVersion[]; next: string | null } | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  const [devicePackData, setDevicePackData] = useState<{ list: { version: string }[] } | undefined>(undefined);
-
-  const fetchVersions = useCallback(async () => {
-    if (!user?.access_token) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await fetchUpdatePackVersionsById({ packId: pack.id });
-      setVersionsResp(result);
-    } catch (err) {
-      setError(err as Error);
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [pack.id, user?.access_token]);
-
-  useEffect(() => { fetchVersions(); }, [fetchVersions]);
-
-  const fetchDevicePacks = useCallback(async () => {
-    if (!user?.access_token) return;
-    try {
-      const result = await fetchAllDevicePackVersions({ packName: pack.name, pageSize: 500 });
-      setDevicePackData(result);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [pack.name, user?.access_token]);
-
-  useEffect(() => { fetchDevicePacks(); }, [fetchDevicePacks]);
-
-  const deviceCountsByVersion = useMemo(() => {
-    const counts = new Map<string, number>();
-    (devicePackData?.list || []).forEach((dpv: { version: string }) => {
-      counts.set(dpv.version, (counts.get(dpv.version) || 0) + 1);
-    });
-    return counts;
-  }, [devicePackData]);
-
-  const versions = useMemo(
-    () => (versionsResp?.list || []).slice().sort((a, b) => compareSemver(b.version, a.version)),
-    [versionsResp?.list],
-  );
-
-  return (
-    <div className="grid grid-cols-1 gap-x-8 px-6 py-4 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,2fr)]">
-      <div className="divide-y">
-        <DetailRow label="Name">{pack.name}</DetailRow>
-        <DetailRow label="Current Version">
-          <span className="font-mono">v{pack.version}</span>
-        </DetailRow>
-        <DetailRow label="Device Group">
-          <GroupBadge pack={pack} />
-        </DetailRow>
-        <DetailRow label="Packaging">
-          <div className="flex flex-wrap gap-1.5">
-            <PackagingBadge packaging={pack.packaging} />
-            <Badge variant="outline" className="font-mono text-xs">{pack.type}</Badge>
-            <PackStatusBadge pack={pack} />
-          </div>
-        </DetailRow>
-        <DetailRow label="Security">
-          <div className="flex flex-wrap gap-1.5">
-            {pack.signature_key_id && <Badge variant="outline" className="text-xs">signed</Badge>}
-            {pack.encryption_mode && <Badge variant="outline" className="text-xs">{pack.encryption_mode}</Badge>}
-            {pack.allow_previous_version_download && <Badge variant="outline" className="text-xs">previous downloads</Badge>}
-            {!pack.signature_key_id && !pack.encryption_mode && !pack.allow_previous_version_download && (
-              <span className="text-muted-foreground">None configured</span>
-            )}
-          </div>
-        </DetailRow>
-        {pack.createdAt && (
-          <DetailRow label="Created">
-            <DateDisplay date={pack.createdAt} showRelative />
-          </DetailRow>
-        )}
-      </div>
-
-      <div className="min-w-0">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold">Version History</h2>
-          {versions.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {versions.length} version{versions.length === 1 ? '' : 's'}
-            </span>
-          )}
-        </div>
-
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading versions…
-          </div>
-        ) : error ? (
-          <p className="text-sm text-destructive">{error.message}</p>
-        ) : versions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No built versions yet.</p>
-        ) : (
-          <div className="divide-y rounded-md border">
-            {versions.map((version, index) => {
-              const previous = versions[index + 1];
-              const isCurrent = version.version === pack.version;
-              const isExpanded = expandedVersion === version.version;
-              const artifactCount = version.artifacts?.length || 0;
-              const deviceCount = deviceCountsByVersion.get(version.version);
-
-              return (
-                <div key={version.id || version.version}>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedVersion(isExpanded ? null : version.version)}
-                    className="flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
-                  >
-                    <span className="font-mono text-sm font-medium">v{version.version}</span>
-                    {isCurrent && <Badge variant="secondary" className="text-xs">current</Badge>}
-                    {version.created_at && (
-                      <span className="hidden text-xs text-muted-foreground sm:inline">
-                        <DateDisplay date={version.created_at} />
-                      </span>
-                    )}
-                    {deviceCount != null && (
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                        <Users className="h-3 w-3" />
-                        {deviceCount}
-                      </span>
-                    )}
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {artifactCount} artifact{artifactCount === 1 ? '' : 's'}
-                    </span>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="border-t bg-muted/20 px-3 py-2">
-                      <VersionDelta version={version} previous={previous} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+function getGroupHref(pack: PackRow) {
+  return `/device-groups/details?groupId=${encodeURIComponent(pack.groupId)}`;
+}
 
 const SortableHeader: React.FC<{
   column: SortablePackColumn;
@@ -397,24 +133,53 @@ const SortableHeader: React.FC<{
 
 const PackInventoryTable: React.FC<{
   packs: PackRow[];
-  selectedPackId?: string;
   columnVisibility: ColumnVisibility;
   sortConfig: PackSortConfig;
   requestSort: (column: SortablePackColumn) => void;
-  onInspectPack: (pack: PackRow) => void;
   onNewVersion: (pack: PackRow) => void;
   onDelete: (pack: PackRow) => void;
 }> = ({
   packs,
-  selectedPackId,
   columnVisibility,
   sortConfig,
   requestSort,
-  onInspectPack,
   onNewVersion,
   onDelete,
 }) => {
   if (packs.length === 0) return null;
+
+  const renderGroupLink = (pack: PackRow, className?: string) => {
+    if (!pack.groupId || pack.orphaned) {
+      return (
+        <span
+          className={cn('truncate text-sm text-muted-foreground', pack.orphaned && 'text-destructive', className)}
+          title={pack.orphaned ? "This pack's device group no longer exists." : pack.groupName}
+        >
+          {pack.groupName}
+        </span>
+      );
+    }
+
+    return (
+      <Link
+        href={getGroupHref(pack)}
+        className={cn('truncate text-sm font-medium text-primary hover:underline', className)}
+        title={`Open ${pack.groupName}`}
+      >
+        {pack.groupName}
+      </Link>
+    );
+  };
+
+  const renderSecurityText = (pack: PackRow) => {
+    const items = [
+      pack.signature_key_id ? 'signed' : null,
+      pack.encryption_mode || null,
+      pack.allow_previous_version_download ? 'previous downloads' : null,
+    ].filter(Boolean);
+
+    return items.length > 0 ? items.join(', ') : '-';
+  };
 
   return (
     <Table>
@@ -450,73 +215,60 @@ const PackInventoryTable: React.FC<{
           const campaignHref = getCampaignHref(pack);
 
           return (
-            <TableRow
-              key={`${pack.groupId}-${pack.id}`}
-              data-state={selectedPackId === pack.id ? 'selected' : undefined}
-              className="cursor-pointer"
-              onClick={() => onInspectPack(pack)}
-            >
+            <TableRow key={`${pack.groupId}-${pack.id}`}>
               {columnVisibility.name && (
                 <TableCell className="min-w-[220px]">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0">
-                      <button
-                        type="button"
-                        className="block truncate text-left font-medium hover:underline"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onInspectPack(pack);
-                        }}
-                        title={`Inspect ${pack.name}`}
+                  <div className="min-w-0">
+                    {detailsBroken ? (
+                      <span className="block max-w-[260px] truncate font-medium" title={pack.name}>
+                        {pack.name}
+                      </span>
+                    ) : (
+                      <Link
+                        href={detailsHref}
+                        className="block max-w-[260px] truncate font-medium text-primary hover:underline"
+                        title={`Open ${pack.name}`}
                       >
                         {pack.name}
-                      </button>
-                      <div className="mt-1 md:hidden">
-                        <GroupBadge pack={pack} />
-                      </div>
+                      </Link>
+                    )}
+                    <div className="mt-1 md:hidden">
+                      {renderGroupLink(pack, 'block max-w-[220px] text-xs')}
                     </div>
                   </div>
                 </TableCell>
               )}
               {columnVisibility.group && (
                 <TableCell className="hidden md:table-cell">
-                  <GroupBadge pack={pack} />
+                  {renderGroupLink(pack, 'block max-w-[220px]')}
                 </TableCell>
               )}
               {columnVisibility.version && (
                 <TableCell>
-                  <span className="font-mono text-xs">v{pack.version}</span>
+                  v{pack.version}
                 </TableCell>
               )}
               {columnVisibility.packaging && (
                 <TableCell className="hidden lg:table-cell">
-                  <PackagingBadge packaging={pack.packaging} />
+                  {pack.packaging || 'swu'}
                 </TableCell>
               )}
               {columnVisibility.type && (
                 <TableCell className="hidden xl:table-cell">
-                  <Badge variant="outline" className="font-mono text-xs">{pack.type}</Badge>
+                  {pack.type}
                 </TableCell>
               )}
               {columnVisibility.status && (
                 <TableCell>
-                  <PackStatusBadge pack={pack} />
+                  {pack.uri ? (pack.packaging === 'non-swu' ? 'built' : 'SWU built') : 'not built'}
                 </TableCell>
               )}
               {columnVisibility.security && (
                 <TableCell className="hidden xl:table-cell">
-                  <div className="flex flex-wrap gap-1">
-                    {pack.signature_key_id && <Badge variant="outline" className="text-xs">signed</Badge>}
-                    {pack.encryption_mode && <Badge variant="outline" className="text-xs">{pack.encryption_mode}</Badge>}
-                    {pack.allow_previous_version_download && <Badge variant="outline" className="text-xs">previous</Badge>}
-                    {!pack.signature_key_id && !pack.encryption_mode && !pack.allow_previous_version_download && (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </div>
+                  {renderSecurityText(pack)}
                 </TableCell>
               )}
-              <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
+              <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" title="More actions" className="h-8 w-8">
@@ -525,43 +277,25 @@ const PackInventoryTable: React.FC<{
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onInspectPack(pack)}>
-                      <Package className="mr-2 h-4 w-4" />
-                      Inspect
-                    </DropdownMenuItem>
                     <DropdownMenuItem asChild={!detailsBroken} disabled={detailsBroken}>
                       {detailsBroken ? (
-                        <span>
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Open Details
-                        </span>
+                        <span>Open Details</span>
                       ) : (
-                        <Link href={detailsHref}>
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Open Details
-                        </Link>
+                        <Link href={detailsHref}>Open Details</Link>
                       )}
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild={canStartCampaign} disabled={!canStartCampaign}>
                       {canStartCampaign ? (
-                        <Link href={campaignHref}>
-                          <Rocket className="mr-2 h-4 w-4" />
-                          Start Campaign
-                        </Link>
+                        <Link href={campaignHref}>Start Campaign</Link>
                       ) : (
-                        <span>
-                          <Rocket className="mr-2 h-4 w-4" />
-                          Start Campaign
-                        </span>
+                        <span>Start Campaign</span>
                       )}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onNewVersion(pack)} disabled={detailsBroken}>
-                      <GitFork className="mr-2 h-4 w-4" />
                       New Version
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => onDelete(pack)} className="text-destructive focus:text-destructive">
-                      <Trash2 className="mr-2 h-4 w-4" />
                       Delete Pack
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -584,7 +318,6 @@ export default function PackageInventoryPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [packToVersion, setPackToVersion] = useState<PackForVersioning | null>(null);
   const [packToDelete, setPackToDelete] = useState<PackRow | null>(null);
-  const [selectedPack, setSelectedPack] = useState<PackRow | null>(null);
   const [sortConfig, setSortConfig] = useState<PackSortConfig>({ column: 'name', direction: 'asc' });
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>(DEFAULT_COLUMN_VISIBILITY);
 
@@ -635,7 +368,6 @@ export default function PackageInventoryPage() {
     try {
       const data = await deleteUpdatePackByIdApi({ packId: pack.id });
       toast({ title: 'Distribution Set Deleted', description: `Pack "${pack.name}" has been deleted. ${data?.message || ''}` });
-      if (selectedPack?.id === pack.id) setSelectedPack(null);
       fetchPacks();
     } catch (err: Error | any) {
       toast({ variant: 'destructive', title: 'Deletion Failed', description: `Could not delete pack "${pack.name}". ${err.message}` });
@@ -706,61 +438,17 @@ export default function PackageInventoryPage() {
     router.push(`/updates/pack-details?groupId=${encodeURIComponent(groupId)}&packName=${encodeURIComponent(packName)}`);
   };
 
-  const handleInspectPack = (pack: PackRow) => {
-    setSelectedPack((current) => (current?.id === pack.id ? null : pack));
-  };
-
   const createDefaultGroupId =
     groupFilter !== 'all' && groupFilter !== ORPHANED_FILTER ? groupFilter : undefined;
 
   return (
-    <MasterDetailLayout
-      isDetailOpen={!!selectedPack}
-      onClose={() => setSelectedPack(null)}
-      detailTitle={selectedPack ? selectedPack.name : null}
-      detailSubtitle={selectedPack ? `v${selectedPack.version}` : null}
-      detailActions={
-        selectedPack ? (
-          <>
-            <Button
-              variant="ghost"
-              className="h-7 text-xs"
-              onClick={() => setPackToVersion({
-                id: selectedPack.id,
-                name: selectedPack.name,
-                version: selectedPack.version,
-                groupId: selectedPack.groupId,
-                groupName: selectedPack.groupName,
-              })}
-              disabled={!selectedPack.groupId}
-            >
-              New Version
-            </Button>
-            <Button
-              variant="ghost"
-              className="h-7 text-xs"
-              disabled={!selectedPack.groupId}
-              onClick={() => goToPackDetails(selectedPack.groupId, selectedPack.name)}
-            >
-              Open full page →
-            </Button>
-          </>
-        ) : null
-      }
-      detail={selectedPack ? <PackDetailPanel key={selectedPack.id} pack={selectedPack} /> : null}
-      list={
-        <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Distribution Set' }]} className="space-y-6 pb-8">
+    <BreadcrumbPage items={[{ label: 'Home', href: '/' }, { label: 'Distribution Set' }]} className="space-y-6 pb-8">
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
-            <div className="flex items-start gap-3">
-              <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-                <Package className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-headline font-semibold">Distribution Set</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Every distribution set across your device groups — create packs, manage versions, and start campaigns from here.
-                </p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-headline font-semibold">Distribution Set</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Every distribution set across your device groups — create packs, manage versions, and start campaigns from here.
+              </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Button onClick={() => fetchPacks()} variant="secondary" size="icon" disabled={isFetching} title="Refresh">
@@ -773,14 +461,11 @@ export default function PackageInventoryPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-md border bg-card p-3 lg:flex-row lg:items-center">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[230px_minmax(240px,1fr)]">
               <Select value={groupFilter} onValueChange={setGroupFilter}>
                 <SelectTrigger>
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <SelectValue placeholder="All Device Groups" />
-                  </span>
+                  <SelectValue placeholder="All Device Groups" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Device Groups</SelectItem>
@@ -869,11 +554,9 @@ export default function PackageInventoryPage() {
           ) : (
             <PackInventoryTable
               packs={filtered}
-              selectedPackId={selectedPack?.id}
               columnVisibility={columnVisibility}
               sortConfig={sortConfig}
               requestSort={requestSort}
-              onInspectPack={handleInspectPack}
               onNewVersion={(pack) => setPackToVersion({
                 id: pack.id,
                 name: pack.name,
@@ -888,10 +571,7 @@ export default function PackageInventoryPage() {
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <PackagePlus className="h-5 w-5 text-primary" />
-                  New Distribution Set
-                </DialogTitle>
+                <DialogTitle>New Distribution Set</DialogTitle>
                 <DialogDescription>
                   Create the pack as a repository. You'll upload artifacts and build the SWU, if applicable, on the pack's page afterwards.
                 </DialogDescription>
@@ -939,7 +619,5 @@ export default function PackageInventoryPage() {
             </AlertDialogContent>
           </AlertDialog>
         </BreadcrumbPage>
-      }
-    />
   );
 }
