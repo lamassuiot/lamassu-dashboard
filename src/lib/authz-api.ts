@@ -29,6 +29,9 @@ import type {
   ListPrincipalsResponse,
   ListPrincipalPoliciesParams,
   ListPrincipalPoliciesResponse,
+  HTTPAuthzCheckRequest,
+  HTTPAuthzCheckResponse,
+  MatchHTTPAuthzCheckRequest,
 } from '@/types/authz';
 
 const getAuthzContextHeaders = (): HeadersInit => {
@@ -350,6 +353,24 @@ export async function matchAndGetFilter(request: MatchAndGetFilterRequest): Prom
     body: JSON.stringify(request),
   });
   return handleApiError(response, 'Failed to match and get filter');
+}
+
+export async function checkHTTPAuthorization(request: HTTPAuthzCheckRequest): Promise<HTTPAuthzCheckResponse> {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/authz/http/check`, {
+    method: 'POST',
+    headers: getAuthzContextHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to check HTTP authorization');
+}
+
+export async function matchAndCheckHTTPAuthorization(request: MatchHTTPAuthzCheckRequest): Promise<HTTPAuthzCheckResponse> {
+  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/http/check`, {
+    method: 'POST',
+    headers: getAuthzContextHeaders(),
+    body: JSON.stringify(request),
+  });
+  return handleApiError(response, 'Failed to match and check HTTP authorization');
 }
 
 export async function getCapabilities(request: GlobalCapabilitiesRequest): Promise<GlobalCapabilitiesResponse> {

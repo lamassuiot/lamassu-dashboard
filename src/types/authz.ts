@@ -132,6 +132,36 @@ export interface PolicyGrant {
   granted_at: string;
 }
 
+export interface HTTPAuthzCheckRequestDetails {
+  method: string;
+  path: string;
+  raw_query?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+export interface HTTPAuthzCheckRequest {
+  principal_id: string;
+  subject_attributes?: Record<string, string>;
+  request: HTTPAuthzCheckRequestDetails;
+}
+
+export interface MatchHTTPAuthzCheckRequest {
+  auth_type: PrincipalType;
+  auth_material: string;
+  request: HTTPAuthzCheckRequestDetails;
+}
+
+export interface HTTPAuthzCheckResponse {
+  allowed: boolean;
+  matched_principal_id?: string;
+  matched_principals?: string[];
+  matched_policy_id?: string;
+  matched_action?: string;
+  subject_attributes?: Record<string, string>;
+  reason?: string;
+}
+
 export type FilterableFieldType = 'string' | 'int' | 'float' | 'bool' | 'timestamp' | 'jsonb';
 export type FilterOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'like';
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,12 +42,18 @@ import type {
 } from '@/types/authz';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { cn } from '@/lib/utils';
+import { HttpAuthzCheckForm } from '@/components/authz/HttpAuthzCheckForm';
 
 export default function AuthorizationTestPage() {
+  const searchParams = useSearchParams();
+  const principalIdParam = searchParams.get('principal_id');
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabParam === 'http' ? 'http' : 'authorize');
   const [principals, setPrincipals] = useState<Principal[]>([]);
   const [schemas, setSchemas] = useState<SchemaDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [httpInitialPrincipalId, setHttpInitialPrincipalId] = useState<string | null>(principalIdParam);
 
   const [matchMode, setMatchMode] = useState(false);
   const [authCreds, setAuthCreds] = useState({ auth_type: 'x509' as 'oidc' | 'x509', value: '' });
@@ -100,6 +107,25 @@ export default function AuthorizationTestPage() {
   const allNamespaces = Array.from(new Set(schemas.map((s) => (s.namespace || '').trim()).filter(Boolean))).sort();
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (tabParam === 'http') {
+      setActiveTab('http');
+    }
+  }, [tabParam]);
+
+  useEffect(() => {
+    const pendingHTTPCheck = window.sessionStorage.getItem('authz.http_check.open') === '1';
+    const pendingPrincipalId = window.sessionStorage.getItem('authz.http_check.principal_id');
+
+    if (pendingPrincipalId) setHttpInitialPrincipalId(pendingPrincipalId);
+    if (pendingHTTPCheck) {
+      setActiveTab('http');
+    }
+
+    window.sessionStorage.removeItem('authz.http_check.open');
+    window.sessionStorage.removeItem('authz.http_check.principal_id');
+  }, []);
 
   const loadData = async () => {
     try {
@@ -357,7 +383,7 @@ export default function AuthorizationTestPage() {
         </Alert>
       )}
 
-      <Tabs defaultValue="authorize" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
             <TabsTrigger value="authorize" className={pageTabsTriggerClass}>
@@ -371,6 +397,9 @@ export default function AuthorizationTestPage() {
             </TabsTrigger>
             <TabsTrigger value="entity-caps" className={pageTabsTriggerClass}>
               <Database className="h-4 w-4" /> Entity Capabilities
+            </TabsTrigger>
+            <TabsTrigger value="http" className={pageTabsTriggerClass}>
+              <Play className="h-4 w-4" /> HTTP Route
             </TabsTrigger>
           </TabsList>
         </div>
@@ -658,6 +687,18 @@ export default function AuthorizationTestPage() {
               })()}
             </div>
           </div>
+        </TabsContent>
+
+        {/* ── HTTP Route ──────────────────────────────────────── */}
+        <TabsContent value="http" className="mt-6">
+          <HttpAuthzCheckForm
+            matchMode={matchMode}
+            authType={authCreds.auth_type}
+            authMaterial={authCreds.value}
+            onAuthTypeChange={(auth_type) => setAuthCreds({ auth_type, value: '' })}
+            onAuthMaterialChange={(value) => setAuthCreds((previous) => ({ ...previous, value }))}
+            initialPrincipalId={httpInitialPrincipalId}
+          />
         </TabsContent>
       </Tabs>
     </BreadcrumbPage>
