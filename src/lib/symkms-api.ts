@@ -1,5 +1,6 @@
 // src/lib/symkms-api.ts
 import { handleApiError, get_CLIENT_SYMKMS_API_BASE_URL } from './api-domains';
+import { apiFetch } from './api-client';
 
 // Utility functions for key format conversion
 export const hexToBase64 = (hex: string): string => {
@@ -60,7 +61,6 @@ export interface FetchSymmetricKeysOptions {
 
 export const fetchSymmetricKeys = async (
     userId: string, 
-    token: string, 
     options?: FetchSymmetricKeysOptions
 ): Promise<SymmetricKeysResponse> => {
     const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
@@ -74,13 +74,7 @@ export const fetchSymmetricKeys = async (
     
     const url = `${baseUrl}?${params.toString()}`;
     
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
-    });
+    const response = await apiFetch(url);
 
     const data = await handleApiError(response, 'Failed to fetch symmetric keys');
     
@@ -95,32 +89,23 @@ export const fetchSymmetricKeys = async (
     };
 };
 
-export const createSymmetricKey = async (request: CreateSymmetricKeyRequest, token: string): Promise<SymmetricKey> => {
+export const createSymmetricKey = async (request: CreateSymmetricKeyRequest): Promise<SymmetricKey> => {
     const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
     
-    const response = await fetch(baseUrl, {
+    const response = await apiFetch(baseUrl, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
     });
 
     return handleApiError(response, 'Failed to create symmetric key');
 };
 
-export const deleteSymmetricKey = async (keyId: string, token: string): Promise<void> => {
+export const deleteSymmetricKey = async (keyId: string): Promise<void> => {
     const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
     const url = `${baseUrl}/${encodeURIComponent(keyId)}`;
     
-    const response = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
-    });
+    const response = await apiFetch(url, { method: 'DELETE' });
 
     await handleApiError(response, 'Failed to delete symmetric key');
 };
@@ -153,32 +138,26 @@ export interface DecryptResponse {
     plaintext: string;  // Base64 encoded
 }
 
-export const encryptWithSymmetricKey = async (request: EncryptRequest, token: string): Promise<EncryptResponse> => {
+export const encryptWithSymmetricKey = async (request: EncryptRequest): Promise<EncryptResponse> => {
     const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
     const url = `${baseUrl}/encrypt`;
     
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
     });
 
     return handleApiError(response, 'Failed to encrypt data');
 };
 
-export const decryptWithSymmetricKey = async (request: DecryptRequest, token: string): Promise<DecryptResponse> => {
+export const decryptWithSymmetricKey = async (request: DecryptRequest): Promise<DecryptResponse> => {
     const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
     const url = `${baseUrl}/decrypt`;
     
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
     });
 
@@ -209,16 +188,13 @@ export interface VerifyMacResponse {
     valid: boolean;
 }
 
-export const computeMac = async (request: ComputeMacRequest, token: string, options?: { signal?: AbortSignal }): Promise<ComputeMacResponse> => {
+export const computeMac = async (request: ComputeMacRequest, options?: { signal?: AbortSignal }): Promise<ComputeMacResponse> => {
     const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
     const url = `${baseUrl}/mac`;
     
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
         signal: options?.signal,
     });
@@ -226,16 +202,13 @@ export const computeMac = async (request: ComputeMacRequest, token: string, opti
     return handleApiError(response, 'Failed to compute MAC');
 };
 
-export const verifyMac = async (request: VerifyMacRequest, token: string, options?: { signal?: AbortSignal }): Promise<VerifyMacResponse> => {
+export const verifyMac = async (request: VerifyMacRequest, options?: { signal?: AbortSignal }): Promise<VerifyMacResponse> => {
     const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
     const url = `${baseUrl}/mac/verify`;
     
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
         signal: options?.signal,
     });

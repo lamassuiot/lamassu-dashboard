@@ -20,25 +20,31 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import type { UpdateStrategy, UpdatePack } from '@/types/iot'; // UpdatePack added
-// MOCK_DEVICES and MOCK_UPDATE_STRATEGIES removed as strategy is global and packs are fetched
+import type { UpdateStrategy, UpdatePack, DeviceListApiResponse } from '@/types/iot';
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Plus, X } from 'lucide-react';
+import { Loader2, Plus, X, Zap, ShieldCheck, FlaskConical } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchWorkflows, type WfxWorkflow } from '@/lib/iot-api';
+import { fetchWorkflows, fetchGroupDevices, type WfxWorkflow } from '@/lib/iot-api';
+import { cn } from '@/lib/utils';
 
-const SELECT_NONE_VALUE = "_NONE_"; 
+const SELECT_NONE_VALUE = "_NONE_";
+
+// Safely coerce an optional number field — empty string / null / undefined all become undefined.
+const optionalPct = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined) ? undefined : Number(v),
+  z.number().int().min(1).max(100).optional(),
+);
 
 const strategyFormSchema = z.object({
   workflowType: z.string().min(1, "Please select a workflow type"),
   rolloutType: z.enum(["numeric", "percentage"]),
   rolloutValue: z.coerce.number().int().positive("Rollout value must be a positive integer."),
-  testDeviceId: z.string().optional(), // Assuming MOCK_DEVICES is still used for test device IDs for now
-  updatePackId: z.string().optional(), // This will store the ID of the update pack
-  auto: z.boolean(), // Auto mode toggle - required boolean
-  approvalThreshold: z.coerce.number().int().min(1).max(100).optional(),
-  errorThreshold: z.coerce.number().int().min(1).max(100).optional(),
+  testDeviceId: z.string().optional(),
+  updatePackId: z.string().optional(),
+  auto: z.boolean(),
+  approvalThreshold: optionalPct,
+  errorThreshold: optionalPct,
   preconditions: z.array(z.object({
     required_pack_name: z.string().min(1, "Pack is required"),
     min_version: z.string().min(1, "Version is required").regex(/^\d+\.\d+\.\d+$/, "Use semver format (e.g. 1.2.0)"),
@@ -48,21 +54,23 @@ const strategyFormSchema = z.object({
 type StrategyFormValues = z.infer<typeof strategyFormSchema>;
 
 interface UpdateStrategyFormProps {
-  initialStrategy?: UpdateStrategy; 
-  strategy?: UpdateStrategy; // Keep for backward compatibility
-  availableUpdatePacks?: UpdatePack[]; // Made optional
-  defaultSelectedPackId?: string; // New prop for pre-selecting a pack
+  initialStrategy?: UpdateStrategy;
+  strategy?: UpdateStrategy;
+  availableUpdatePacks?: UpdatePack[];
+  defaultSelectedPackId?: string;
   onSave?: (strategy: UpdateStrategy) => void;
-  onStrategySavedOrUpdated?: (strategy: UpdateStrategy) => void; // Keep for backward compatibility
+  onStrategySavedOrUpdated?: (strategy: UpdateStrategy) => void;
   isSaving?: boolean;
-  disableUpdatePackSelection?: boolean; // New prop to disable update pack selection
-  disableWorkflowTypeSelection?: boolean; // New prop to disable workflow type selection
-  showSubmitButton?: boolean; // New prop to control submit button visibility
-  formId?: string; // Optional ID for the form element
-  showPreconditions?: boolean; // Gate the Campaign Preconditions section (only in create-campaign dialog)
+  disableUpdatePackSelection?: boolean;
+  disableWorkflowTypeSelection?: boolean;
+  showSubmitButton?: boolean;
+  formId?: string;
+  showPreconditions?: boolean;
+  /** When set, the form fetches this group's devices to populate the test-device selector. */
+  groupId?: string;
 }
 
-export function UpdateStrategyForm({ 
+export function UpdateStrategyForm({
   initialStrategy,
   strategy: legacyStrategy,
   availableUpdatePacks = [],
@@ -75,98 +83,59 @@ export function UpdateStrategyForm({
   showSubmitButton = true,
   formId,
   showPreconditions = false,
+  groupId,
 }: UpdateStrategyFormProps) {
-  // Use initialStrategy if provided, otherwise fall back to legacy strategy prop
   const initialStrategyData = initialStrategy || legacyStrategy;
   const { user } = useAuth();
 
-  // Fetch available workflows dynamically from the wfx API
   const { data: workflows = [] } = useQuery<WfxWorkflow[]>({
     queryKey: ['wfxWorkflows'],
-    queryFn: ({ signal }) => fetchWorkflows({ accessToken: user!.access_token! }, { signal }),
+    queryFn: ({ signal }) => fetchWorkflows({ signal }),
     enabled: !!user?.access_token,
-    staleTime: 5 * 60 * 1000, // cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Helper to get a human-readable label for a workflow name
+  // Group devices power the test-device picker. Only fetched when a groupId is supplied.
+  const { data: groupDevicesResp } = useQuery<DeviceListApiResponse>({
+    queryKey: ['groupDevices', groupId],
+    queryFn: ({ signal }) => fetchGroupDevices({ groupId: groupId! }, { signal }),
+    enabled: !!groupId && !!user?.access_token,
+    staleTime: 60 * 1000,
+  });
+  const groupDevices = groupDevicesResp?.list ?? [];
+
   const getWorkflowLabel = (name: string): string => {
-    // Readable short labels derived from the workflow name suffix
     const suffix = name.replace(/^wfx\.workflow\.dau\./, '');
-    const label = suffix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    return label || name;
+    return suffix.replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || name;
   };
 
-  const defaultFormValues: StrategyFormValues = {
-    workflowType: "wfx.workflow.dau.direct",
-    rolloutType: "numeric",
-    rolloutValue: 10,
-    testDeviceId: undefined,
-    updatePackId: defaultSelectedPackId || undefined,
-    auto: false,
-    approvalThreshold: undefined,
-    errorThreshold: undefined,
-    preconditions: [],
-  };
+  const makeDefaults = (data?: UpdateStrategy, packId?: string): StrategyFormValues => ({
+    workflowType: data?.workflowType ?? "wfx.workflow.dau.direct",
+    rolloutType: data?.rolloutType ?? "numeric",
+    rolloutValue: data?.rolloutValue ?? 10,
+    testDeviceId: data?.testDeviceId ?? undefined,
+    updatePackId: packId ?? data?.updatePackId ?? undefined,
+    auto: data?.auto ?? false,
+    approvalThreshold: data?.approvalThreshold ?? undefined,
+    errorThreshold: data?.errorThreshold ?? undefined,
+    preconditions: data?.preconditions ?? [],
+  });
 
   const form = useForm<StrategyFormValues>({
     resolver: zodResolver(strategyFormSchema),
-    defaultValues: initialStrategyData ? {
-      workflowType: initialStrategyData.workflowType,
-      rolloutType: initialStrategyData.rolloutType,
-      rolloutValue: initialStrategyData.rolloutValue,
-      testDeviceId: initialStrategyData.testDeviceId || undefined,
-      updatePackId: defaultSelectedPackId || initialStrategyData.updatePackId || undefined,
-      auto: initialStrategyData.auto ?? false,
-      approvalThreshold: initialStrategyData.approvalThreshold ?? undefined,
-      errorThreshold: initialStrategyData.errorThreshold ?? undefined,
-      preconditions: initialStrategyData.preconditions ?? [],
-    } : {
-      workflowType: "wfx.workflow.dau.direct",
-      rolloutType: "numeric",
-      rolloutValue: 10,
-      testDeviceId: undefined,
-      updatePackId: defaultSelectedPackId || undefined,
-      auto: false,
-      approvalThreshold: undefined,
-      errorThreshold: undefined,
-      preconditions: [],
-    },
+    defaultValues: makeDefaults(initialStrategyData, defaultSelectedPackId),
   });
 
   React.useEffect(() => {
-    if (initialStrategyData) {
-      form.reset({
-          workflowType: initialStrategyData.workflowType,
-          rolloutType: initialStrategyData.rolloutType,
-          rolloutValue: initialStrategyData.rolloutValue,
-          testDeviceId: initialStrategyData.testDeviceId || undefined,
-          updatePackId: defaultSelectedPackId || initialStrategyData.updatePackId || undefined,
-          auto: initialStrategyData.auto ?? false,
-          approvalThreshold: initialStrategyData.approvalThreshold ?? undefined,
-          errorThreshold: initialStrategyData.errorThreshold ?? undefined,
-          preconditions: initialStrategyData.preconditions ?? [],
-      });
-    } else {
-      form.reset({
-        workflowType: "wfx.workflow.dau.direct",
-        rolloutType: "numeric",
-        rolloutValue: 10,
-        testDeviceId: undefined,
-        updatePackId: defaultSelectedPackId || undefined,
-        auto: false,
-        approvalThreshold: undefined,
-        errorThreshold: undefined,
-        preconditions: [],
-      });
-    }
-  }, [initialStrategyData, defaultSelectedPackId, form]);
+    form.reset(makeDefaults(initialStrategyData, defaultSelectedPackId));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStrategyData, defaultSelectedPackId]);
 
   const { fields: preconditionFields, append: appendPrecondition, remove: removePrecondition } = useFieldArray({
     control: form.control,
     name: "preconditions",
   });
 
-  // Dedupe available packs by name so the precondition Select uses each pack name only once.
   const uniquePacksByName = React.useMemo(() => {
     const seen = new Set<string>();
     return availableUpdatePacks.filter(pack => {
@@ -177,437 +146,405 @@ export function UpdateStrategyForm({
   }, [availableUpdatePacks]);
 
   const onSubmit = (data: StrategyFormValues) => {
-    console.log('Form submitted with data:', data);
-    console.log('Auto field value:', data.auto);
-    
     const processedData = {
       ...data,
       auto: data.auto ?? false,
-      // Clear thresholds when not in auto mode
       approvalThreshold: data.auto ? data.approvalThreshold : undefined,
       errorThreshold: data.auto ? data.errorThreshold : undefined,
+      testDeviceId: data.testDeviceId === SELECT_NONE_VALUE ? undefined : data.testDeviceId,
+      updatePackId: data.updatePackId === SELECT_NONE_VALUE ? undefined : data.updatePackId,
     };
-    
-    console.log('Processed data:', processedData);
-    
-    if (processedData.testDeviceId === SELECT_NONE_VALUE) {
-      processedData.testDeviceId = undefined;
-    }
-    if (processedData.updatePackId === SELECT_NONE_VALUE) {
-      processedData.updatePackId = undefined;
-    }
 
     const strategyToSave: UpdateStrategy = {
-      // id and name are handled by parent if it's a global strategy concept
-      ...initialStrategyData, // Carry over ID or other props if they exist
+      ...initialStrategyData,
       ...processedData,
-      // Drop empty precondition rows so they never reach the payload.
       preconditions: (processedData.preconditions || []).filter(p => p.required_pack_name && p.min_version),
     };
-    
-    // Use onSave if provided, otherwise fall back to legacy callback
+
     const saveCallback = onSave || onStrategySavedOrUpdated;
-    
     if (saveCallback) {
       saveCallback(strategyToSave);
     } else {
-        // Fallback toast if no callback provided (e.g. standalone form usage)
-        toast({
-            title: "Strategy Form Submitted",
-            description: "Data is ready (no specific save action defined by parent).",
-        });
-        console.log("Strategy form submitted:", strategyToSave);
+      toast({ title: "Strategy Form Submitted" });
     }
   };
-  
-  const handleClearForm = () => {
-    form.reset(defaultFormValues);
-    form.clearErrors();
-    toast({
-      title: "Form Cleared",
-      description: "Strategy form has been reset.",
-    });
-  };
 
-  const cardTitle = initialStrategyData?.id || initialStrategyData?.name // Check if editing an existing one
-    ? `Edit Strategy` 
-    : "Configure New Strategy";
-  const cardDescription = initialStrategyData?.id || initialStrategyData?.name
-    ? "Modify the details of the strategy."
-    : "Define how firmware rollouts happen.";
-
-  // For test device ID, still using MOCK_DEVICES. This could be fetched if needed.
-  const MOCK_DEVICES_FOR_TEST = [
-      { id: 'dev_001', name: 'Smart Thermostat Alpha'},
-      { id: 'ecs_device1', name: 'ECS Device 1'},
-      { id: 'ecs_device2', name: 'ECS Device 2'},
-  ];
-
+  const rolloutType = form.watch("rolloutType");
+  const isAuto = form.watch("auto");
+  const selectedPackId = form.watch("updatePackId");
 
   return (
     <Form {...form}>
-      <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 p-1">
-        
-        <div className="grid gap-6">
-          {/* Configuration Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-primary">
-              <div className="h-1 w-1 rounded-full bg-primary" />
-              Rollout Configuration
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="workflowType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Workflow Type</FormLabel>
-                    {disableWorkflowTypeSelection ? (
-                      <div className="h-10 px-3 py-2 bg-muted border rounded-md flex items-center text-sm text-muted-foreground">
-                        {getWorkflowLabel(field.value)}
-                      </div>
-                    ) : (
-                      <Select onValueChange={field.onChange} value={field.value} disabled={disableWorkflowTypeSelection}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select workflow type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {workflows.length > 0 ? (
-                            workflows.map(wf => (
-                              <SelectItem key={wf.name} value={wf.name}>{getWorkflowLabel(wf.name)}</SelectItem>
-                            ))
-                          ) : (
-                            <>
-                              <SelectItem value="wfx.workflow.dau.direct">Direct Update</SelectItem>
-                              <SelectItem value="wfx.workflow.dau.phased">Phased Rollout</SelectItem>
-                            </>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+      <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
 
-              <FormField
-                control={form.control}
-                name="updatePackId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Update Pack</FormLabel>
-                    {disableUpdatePackSelection ? (
-                      <div className="h-10 px-3 py-2 bg-muted border rounded-md flex items-center text-sm text-muted-foreground">
-                        {field.value ? (
-                          availableUpdatePacks.find(pack => pack.id === field.value) 
-                            ? `${availableUpdatePacks.find(pack => pack.id === field.value)?.name} v${availableUpdatePacks.find(pack => pack.id === field.value)?.version}`
-                            : `Pack ID: ${field.value}`
-                        ) : 'No update pack assigned'}
-                      </div>
-                    ) : (
-                      <Select onValueChange={field.onChange} value={field.value ?? SELECT_NONE_VALUE} disabled={disableUpdatePackSelection}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select update pack" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value={SELECT_NONE_VALUE}>None (Select later)</SelectItem>
-                          {availableUpdatePacks.map(pack => ( 
-                            <SelectItem key={pack.id} value={pack.id}>{pack.name} v{pack.version}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="rolloutType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Target Type</FormLabel>
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md border">
-                      <span className="text-sm pl-2">
-                        {field.value === 'numeric' ? 'Fixed Count' : 'Percentage'}
-                      </span>
-                      <FormControl>
-                        <Switch
-                          checked={field.value === 'percentage'}
-                          onCheckedChange={(checked) => field.onChange(checked ? 'percentage' : 'numeric')}
-                        />
-                      </FormControl>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            
-              <FormField
-                control={form.control}
-                name="rolloutValue"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {form.watch("rolloutType") === "percentage" ? "Percentage Value" : "Device Count"}
-                    </FormLabel>
-                    <div className="relative">
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder={form.watch("rolloutType") === "percentage" ? "25" : "10"} 
-                          {...field} 
-                          className="pr-12"
-                        />
-                      </FormControl>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground text-sm">
-                        {form.watch("rolloutType") === "percentage" ? "%" : "devs"}
-                      </div>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Advanced Settings */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-primary">
-              <div className="h-1 w-1 rounded-full bg-primary" />
-              Execution Settings
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="auto"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Auto Mode</FormLabel>
-                      <FormDescription>
-                        Automatically start rollout
-                      </FormDescription>
-                    </div>
+        {/* ── Row 1: Pack + Workflow ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="updatePackId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Distribution Set</FormLabel>
+                {disableUpdatePackSelection ? (
+                  <div className="h-10 px-3 py-2 bg-muted border rounded-md flex items-center text-sm text-muted-foreground">
+                    {field.value
+                      ? (availableUpdatePacks.find(p => p.id === field.value)?.name ?? `Pack: ${field.value}`)
+                      : 'No pack assigned'}
+                  </div>
+                ) : (
+                  <Select onValueChange={field.onChange} value={field.value ?? SELECT_NONE_VALUE}>
                     <FormControl>
-                      <Switch
-                        checked={Boolean(field.value)}
-                        onCheckedChange={field.onChange}
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select distribution set" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={SELECT_NONE_VALUE}>— None —</SelectItem>
+                      {availableUpdatePacks.map(pack => (
+                        <SelectItem key={pack.id} value={pack.id}>
+                          {pack.name} <span className="text-muted-foreground">v{pack.version}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="workflowType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Workflow</FormLabel>
+                {disableWorkflowTypeSelection ? (
+                  <div className="h-10 px-3 py-2 bg-muted border rounded-md flex items-center text-sm text-muted-foreground">
+                    {getWorkflowLabel(field.value)}
+                  </div>
+                ) : (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select workflow" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {workflows.length > 0 ? (
+                        workflows.map(wf => (
+                          <SelectItem key={wf.name} value={wf.name}>{getWorkflowLabel(wf.name)}</SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="wfx.workflow.dau.direct">Direct</SelectItem>
+                          <SelectItem value="wfx.workflow.dau.phased">Phased</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* ── Row 2: Batch mode + size ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="rolloutType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Batch Mode</FormLabel>
+                <div className="flex h-10 rounded-md border overflow-hidden text-sm">
+                  <button
+                    type="button"
+                    onClick={() => field.onChange('numeric')}
+                    className={cn(
+                      "flex-1 font-medium transition-colors",
+                      field.value === 'numeric'
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-transparent text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    Fixed count
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => field.onChange('percentage')}
+                    className={cn(
+                      "flex-1 font-medium transition-colors border-l",
+                      field.value === 'percentage'
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-transparent text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    Percentage
+                  </button>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="rolloutValue"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{rolloutType === 'percentage' ? 'Batch Percentage' : 'Batch Size'}</FormLabel>
+                <div className="relative">
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder={rolloutType === 'percentage' ? "25" : "10"}
+                      {...field}
+                      className="pr-16"
+                    />
+                  </FormControl>
+                  <span className="absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground pointer-events-none">
+                    {rolloutType === 'percentage' ? '%' : 'devices'}
+                  </span>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <Separator />
+
+        {/* ── Auto Rollout (full width) ── */}
+        <FormField
+          control={form.control}
+          name="auto"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-lg border p-4 gap-6">
+              <div className="min-w-0">
+                <FormLabel className="text-sm font-medium flex items-center gap-1.5 mb-0.5">
+                  <Zap className="h-4 w-4 text-primary shrink-0" />
+                  Auto Rollout
+                </FormLabel>
+                <FormDescription className="text-xs">
+                  Deploy to each batch automatically without manual approval between rounds.
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        {/* Auto threshold fields — only when auto is on */}
+        {isAuto && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-4 ml-1 border-l-2 border-primary/20">
+            <FormField
+              control={form.control}
+              name="approvalThreshold"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                    Approval Threshold
+                  </FormLabel>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="80"
+                        min={1}
+                        max={100}
+                        value={field.value ?? ""}
+                        onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                        className="pr-8"
                       />
                     </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="testDeviceId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Test Device (Optional)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? SELECT_NONE_VALUE}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select device" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={SELECT_NONE_VALUE}>None</SelectItem>
-                        {MOCK_DEVICES_FOR_TEST.map(device => (
-                          <SelectItem key={device.id} value={device.id}>
-                            {device.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {form.watch("auto") && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="approvalThreshold"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Approval Threshold</FormLabel>
-                      <div className="relative">
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="80"
-                            min={1}
-                            max={100}
-                            {...field}
-                            value={field.value ?? ""}
-                            onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-                            className="pr-8"
-                          />
-                        </FormControl>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground text-sm">
-                          %
-                        </div>
-                      </div>
-                      <FormDescription>
-                        Min % of batch devices that must succeed before the next batch starts.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="errorThreshold"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Error Threshold</FormLabel>
-                      <div className="relative">
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="10"
-                            min={1}
-                            max={100}
-                            {...field}
-                            value={field.value ?? ""}
-                            onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-                            className="pr-8"
-                          />
-                        </FormControl>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground text-sm">
-                          %
-                        </div>
-                      </div>
-                      <FormDescription>
-                        Max % of all devices that can fail before the update is aborted.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
-          </div>
-
-          {showPreconditions && (
-            <>
-              <Separator />
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                  <div className="h-1 w-1 rounded-full bg-primary" />
-                  Campaign Preconditions
-                  <span className="text-xs font-normal text-muted-foreground">(optional)</span>
-                </div>
-
-                <FormDescription>
-                  Only deploy to devices that already have a given pack at a minimum version.
-                </FormDescription>
-
-                {preconditionFields.map((pcField, index) => (
-                  <div key={pcField.id} className="flex items-end gap-2">
-                    <FormField
-                      control={form.control}
-                      name={`preconditions.${index}.required_pack_name`}
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormLabel>Required Pack</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value || undefined}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select pack" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {uniquePacksByName.map(pack => (
-                                <SelectItem key={pack.name} value={pack.name}>
-                                  {pack.name} v{pack.version}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name={`preconditions.${index}.min_version`}
-                      render={({ field }) => (
-                        <FormItem className="w-32">
-                          <FormLabel>Min Version</FormLabel>
-                          <FormControl>
-                            <Input placeholder="1.2.0" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removePrecondition(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <span className="absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground pointer-events-none">%</span>
                   </div>
-                ))}
+                  <FormDescription className="text-xs">
+                    Min % of batch devices that must succeed before the next batch starts.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
+            <FormField
+              control={form.control}
+              name="errorThreshold"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                    Error Threshold
+                  </FormLabel>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="10"
+                        min={1}
+                        max={100}
+                        value={field.value ?? ""}
+                        onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                        className="pr-8"
+                      />
+                    </FormControl>
+                    <span className="absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground pointer-events-none">%</span>
+                  </div>
+                  <FormDescription className="text-xs">
+                    Max % of all devices that can fail before the rollout is aborted.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
+        <Separator />
+
+        {/* ── Test device (canary) ── */}
+        <FormField
+          control={form.control}
+          name="testDeviceId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center gap-1.5">
+                <FlaskConical className="h-4 w-4 text-muted-foreground" />
+                Test Device
+                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+              </FormLabel>
+              {groupDevices.length > 0 ? (
+                <Select onValueChange={field.onChange} value={field.value || SELECT_NONE_VALUE}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a test device" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={SELECT_NONE_VALUE}>— None —</SelectItem>
+                    {groupDevices.map(d => (
+                      <SelectItem key={d.id} value={d.id}>{d.id}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <FormControl>
+                  <Input
+                    placeholder="Device ID to update first"
+                    value={field.value ?? ""}
+                    onChange={e => field.onChange(e.target.value)}
+                  />
+                </FormControl>
+              )}
+              <FormDescription className="text-xs">
+                This device receives the update first. The full rollout unlocks only after it completes successfully.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* ── Preconditions ── */}
+        {showPreconditions && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">
+                    Preconditions
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">(optional)</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Only deploy to devices that already have a specific pack at a minimum version.
+                  </p>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="shrink-0"
                   onClick={() => appendPrecondition({ required_pack_name: '', min_version: '' })}
                 >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add prerequisite
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add
                 </Button>
               </div>
-            </>
-          )}
-        </div>
 
-        {/* Action Buttons */}
+              {preconditionFields.map((pcField, index) => (
+                <div key={pcField.id} className="flex items-end gap-2">
+                  <FormField
+                    control={form.control}
+                    name={`preconditions.${index}.required_pack_name`}
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormLabel className="text-xs text-muted-foreground">Required Pack</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || undefined}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select pack" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {uniquePacksByName.map(pack => (
+                              <SelectItem key={pack.name} value={pack.name}>{pack.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name={`preconditions.${index}.min_version`}
+                    render={({ field }) => (
+                      <FormItem className="w-28">
+                        <FormLabel className="text-xs text-muted-foreground">Min version</FormLabel>
+                        <FormControl>
+                          <Input placeholder="1.0.0" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={() => removePrecondition(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ── Submit (when standalone) ── */}
         {showSubmitButton && (
-          <div className="pt-4">
-            <Button 
-              type="submit" 
-              disabled={isSaving || (!disableUpdatePackSelection && (!form.watch("updatePackId") || form.watch("updatePackId") === SELECT_NONE_VALUE))}
-              className="w-full h-11 text-base font-medium shadow-sm"
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={isSaving || (!disableUpdatePackSelection && (!selectedPackId || selectedPackId === SELECT_NONE_VALUE))}
+              className="w-full h-11 text-base font-medium"
             >
               {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</>
               ) : (
-                <>
-                  {disableUpdatePackSelection 
-                    ? (initialStrategyData?.id ? 'Update Strategy' : 'Save Strategy')
-                    : (form.watch("updatePackId") && form.watch("updatePackId") !== SELECT_NONE_VALUE
-                      ? `Prepare Campaign`
-                      : "Select Update Pack"
-                    )
-                  }
-                </>
+                disableUpdatePackSelection
+                  ? (initialStrategyData?.id ? 'Update Strategy' : 'Save Strategy')
+                  : (selectedPackId && selectedPackId !== SELECT_NONE_VALUE ? 'Prepare Campaign' : 'Select Distribution Set')
               )}
             </Button>
           </div>

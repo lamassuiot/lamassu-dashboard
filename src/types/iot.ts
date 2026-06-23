@@ -40,7 +40,7 @@ export interface UpdateStrategy {
   rolloutType: 'numeric' | 'percentage';
   rolloutValue: number;
   testDeviceId?: string;
-  updatePackId?: string; // This will store the ID of the update pack
+  updatePackId?: string; // This will store the ID of the distribution set
   auto?: boolean; // Auto mode toggle
   approvalThreshold?: number; // % of batch that must succeed before next batch (auto only)
   errorThreshold?: number; // % of all devices that can fail before aborting (auto only)
@@ -117,7 +117,7 @@ export interface Artifact {
   packs?: PackArtifactRef[];
 }
 
-// An immutable snapshot of an update pack at a specific version (GET .../updatepacks/:name/versions).
+// An immutable snapshot of an distribution set at a specific version (GET .../updatepacks/:name/versions).
 // Older versions remain downloadable when the pack has allow_previous_version_download enabled.
 export interface UpdatePackVersion {
   id: string;
@@ -145,7 +145,7 @@ export interface UpdatePackVersion {
 export type FirmwareUpdateStatus = 'pending' | 'running' | 'success' | 'failed';
 export type FirmwareUpdateSource = 'service' | 'external';
 
-// The current version of an update pack installed on a device. A device can hold many packs, each
+// The current version of an distribution set installed on a device. A device can hold many packs, each
 // at exactly one current version. This is the single per-device install marker — the individual
 // artifacts the device has are derived from this pack version's manifest (see DevicePackArtifact).
 export interface DevicePackVersion {
@@ -192,20 +192,86 @@ export interface DevicePackArtifact {
   installed_at?: string | null;
 }
 
-// A device's installed update pack plus the artifacts that pack delivers — the per-device
+// A device's installed distribution set plus the artifacts that pack delivers — the per-device
 // "package inventory" entry (a pack owns its artifacts).
 export interface DevicePackWithArtifacts extends DevicePackVersion {
   artifacts: DevicePackArtifact[];
 }
+
+// The latest version a device group should run for a pack — the declared "latest" target. One per
+// (group, pack); exact-pin semantics (a device is in sync only on an exact version match).
+export interface GroupLatestPack {
+  id: string;
+  group_id: string;
+  update_pack_id: string;
+  pack_name: string;
+  version: string; // latest semver (x.y.z)
+  updated_at: string;
+}
+
+// One pack's drift between a device's installed version and its group's latest version.
+export interface PackDrift {
+  update_pack_id: string;
+  pack_name: string;
+  current_version: string; // '' when the device lacks the pack (missing)
+  latest_version: string;
+  in_sync: boolean;
+  missing: boolean;
+}
+
+// A device's drift report against its group's latest pack versions.
+export interface DeviceLatestDrift {
+  device_id: string;
+  group_id: string;
+  drifts: PackDrift[];
+}
+
+// The packs a single device is behind on (installed version != the pack's latest). Each PackDrift's
+// latest_version carries the pack's LATEST version here.
+export interface DeviceVersionDrift {
+  device_id: string;
+  outdated: PackDrift[];
+}
+
+// Devices in a group that are not on the latest version of one or more packs.
+export interface GroupVersionCompliance {
+  group_id: string;
+  devices: DeviceVersionDrift[];
+}
+
+// One (device, pack) row in a group's version matrix: the version the device runs vs the pack's
+// latest, with an in-sync flag. Unlike compliance, in-sync rows are included.
+export interface DevicePackVersionStatus {
+  device_id: string;
+  update_pack_id: string;
+  pack_name: string;
+  current_version: string;
+  latest_version: string;
+  in_sync: boolean;
+}
+
+// The full per-device version matrix for a group: every tracked (device, pack) with the installed
+// version vs the pack's latest (compliant + outdated).
+export interface GroupVersionStatus {
+  group_id: string;
+  rows: DevicePackVersionStatus[];
+}
+
+// Operator-/system-driven lifecycle of a launch campaign (independent of per-device job states).
+// An empty backend value is treated as 'running' (legacy campaigns predate this field).
+export type LaunchLifecycleStatus = 'running' | 'paused' | 'cancelled' | 'completed';
 
 export interface CampaignItem {
   id: string;
   group_id: string;
   name: string;
   exec_date: string; // ISO Date string
+  // Operator-/system-driven lifecycle: '' (legacy == running) | 'running' | 'paused' | 'cancelled' | 'completed'
+  status?: LaunchLifecycleStatus | string;
   devices_with_job: string[];
   devices_without_job: string[];
   active_launches?: string[] | null; // Device IDs that are currently active/executing in this campaign
+  failed_devices?: string[] | null; // Device IDs whose update reached a terminal failure (subset of devices_with_job)
   // Campaign-level strategy configuration (added per campaign, not per DMS)
   workflow_type?: string;
   rollout_type?: 'numeric' | 'percentage';
@@ -215,7 +281,7 @@ export interface CampaignItem {
   auto?: boolean; // Auto mode toggle
   approval_threshold?: number; // % of batch that must succeed before next batch (auto only)
   error_threshold?: number; // % of all devices that can fail before aborting (auto only)
-  version?: number; // Version from the update pack
+  version?: number; // Version from the distribution set
   // Campaign preconditions (all optional / backward-compatible)
   preconditions?: CampaignPrecondition[];
   forced_preconditions?: boolean;

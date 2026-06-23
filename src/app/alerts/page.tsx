@@ -203,7 +203,7 @@ export default function AlertsPage() {
       }
 
       const [apiEventsResponse, apiSubscriptions] = await Promise.all([
-        fetchLatestAlerts(user.access_token, alertsQueryParams),
+        fetchLatestAlerts(alertsQueryParams),
         fetchSystemSubscriptions(),
       ]);
       

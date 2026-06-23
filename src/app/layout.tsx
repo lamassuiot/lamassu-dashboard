@@ -114,7 +114,6 @@ const navigationConfig: NavGroup[] = [
       { href: '/device-groups', label: 'Device Groups', icon: Boxes },
       { href: '/device-inventory', label: 'Device Key Inventory', icon: KeyRound },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
-      { href: '/updates', label: 'Updates', icon: Rocket }
     ],
   },
   {
@@ -646,7 +645,7 @@ const InnerLayout = ({ children }: { children: React.ReactNode }) => {
     }
 
     try {
-      const stats = await fetchCaStatsSummary(user.access_token);
+      const stats = await fetchCaStatsSummary();
       if (stats.cas.total === 0) {
         setIsWizardMode(true);
       } else {

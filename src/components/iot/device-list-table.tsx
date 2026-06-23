@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDms } from '@/contexts/DmsContext';
 import { useRouter } from 'next/navigation'; // Added useRouter
+import { apiFetch } from '@/lib/api-client';
 
 const statusVariantMap: Record<ApiDevice['status'], "default" | "secondary" | "destructive" | "outline"> = {
   ACTIVE: 'default',
@@ -37,29 +38,13 @@ const StatusBadge: React.FC<{ status: ApiDevice['status'] }> = ({ status }) => {
 };
 
 
-interface FetchDevicesParams {
-  accessToken: string | null;
-  selectedDmsId: string | null;
-}
-
-async function fetchDevices({ accessToken, selectedDmsId }: FetchDevicesParams): Promise<AppDevice[]> {
-  if (!accessToken) {
-    console.warn("fetchDevices: No access token provided.");
-    return [];
-  }
-
+async function fetchDevicesForTable(selectedDmsId: string | null): Promise<AppDevice[]> {
   let apiUrl = '/api/devices';
   if (selectedDmsId) {
     apiUrl += `?dms_owner=${encodeURIComponent(selectedDmsId)}`;
   }
-  
-  console.log(`Fetching devices from Next.js API route: ${apiUrl}`);
 
-  const response = await fetch(apiUrl, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-  });
+  const response = await apiFetch(apiUrl);
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: `Failed to fetch devices. Status: ${response.status}` }));
@@ -81,17 +66,16 @@ async function fetchDevices({ accessToken, selectedDmsId }: FetchDevicesParams):
 
 export function DeviceListTable() {
   const [selectedDevices, setSelectedDevices] = React.useState<Set<string>>(new Set());
-  const { getAccessToken } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { selectedDms } = useDms();
   const router = useRouter(); // Initialize useRouter
 
   const { data: devices = [], isLoading, error, refetch } = useQuery<AppDevice[], Error>({
     queryKey: ['devices', selectedDms?.id],
     queryFn: async () => {
-      const token = await getAccessToken();
-      return fetchDevices({ accessToken: token, selectedDmsId: selectedDms?.id || null });
+      return fetchDevicesForTable(selectedDms?.id || null);
     },
-    enabled: !!getAccessToken && !!selectedDms?.id, // Ensure selectedDmsId is also present
+    enabled: isAuthenticated() && !!selectedDms?.id,
   });
 
   const handleSelectAll = (checked: boolean | string) => { // Updated type for onCheckedChange

@@ -62,8 +62,8 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
     setError(null);
     try {
       const [inventoryRes, packUpdatesRes] = await Promise.all([
-        fetchDevicePackInventory({ deviceId, accessToken: user.access_token }),
-        fetchDevicePackUpdates({ deviceId, accessToken: user.access_token }),
+        fetchDevicePackInventory({ deviceId }),
+        fetchDevicePackUpdates({ deviceId }),
       ]);
       setPacks(inventoryRes.list);
       setPackUpdates(packUpdatesRes.list);
@@ -85,7 +85,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          The update pack(s) this device has installed and the artifacts each pack delivers, plus the history of every pack update.
+          The distribution set(s) this device has installed and the artifacts each pack delivers, plus the history of every pack update.
           A device installs whole packs — the artifacts and versions below come from each pack version's manifest.
         </p>
         <Button onClick={loadData} variant="outline" size="sm" disabled={isLoading}>
@@ -104,10 +104,10 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
         </Alert>
       )}
 
-      {/* Installed update packs, each with the artifacts its manifest declares */}
+      {/* Installed distribution sets, each with the artifacts its manifest declares */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4 text-primary" /> Installed Update Packs</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4 text-primary" /> Installed Distribution Sets</CardTitle>
           <CardDescription>
             {packs.length > 0
               ? `${packs.length} pack(s) tracked — each shown at its current version with the artifacts it delivers.`
@@ -188,7 +188,7 @@ export const DeviceUpdatePacksTab: React.FC<DeviceUpdatePacksTabProps> = ({ devi
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Update Pack</TableHead>
+                    <TableHead>Distribution Set</TableHead>
                     <TableHead>Transition</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Packaging</TableHead>

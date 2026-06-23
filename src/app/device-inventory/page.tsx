@@ -87,7 +87,7 @@ export default function DeviceInventoryPage() {
     setError(null);
 
     try {
-      const response = await fetchDeviceInventory(deviceId, user.access_token, {
+      const response = await fetchDeviceInventory(deviceId, {
         pageSize: parseInt(pageSize),
         bookmark: bookmark || undefined,
       });
@@ -168,7 +168,7 @@ export default function DeviceInventoryPage() {
 
     setIsRevoking(true);
     try {
-      await revokeKeyFromDevice(searchedDeviceId, bindingToRevoke.key_id, user.access_token);
+      await revokeKeyFromDevice(searchedDeviceId, bindingToRevoke.key_id);
       toast({
         title: 'Key Revoked',
         description: `Key "${bindingToRevoke.key_id}" has been revoked from device "${searchedDeviceId}".`,

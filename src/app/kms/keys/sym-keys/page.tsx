@@ -51,7 +51,7 @@ export default function SymKeysPage() {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
 
-  const loadData = useCallback(async (bookmark: string | null) => {
+  const loadData = useCallback(async (bookmark: string | null = null) => {
     if (authLoading || !isAuthenticated() || !user?.access_token) {
       if (!authLoading && !isAuthenticated()) {
         setError("User not authenticated. Please log in.");
@@ -66,7 +66,7 @@ export default function SymKeysPage() {
     try {
       // Use user profile sub or email as user_id
       const userId = user.profile?.sub || user.profile?.email || 'default-user';
-      const response = await fetchSymmetricKeys(userId, user.access_token, {
+      const response = await fetchSymmetricKeys(userId, {
         pageSize: parseInt(pageSize),
         bookmark: bookmark || undefined,
         sortBy: 'created_at',
@@ -133,7 +133,7 @@ export default function SymKeysPage() {
     if (!keyToDelete || !user?.access_token) return;
 
     try {
-      await deleteSymmetricKey(keyToDelete.id, user.access_token);
+      await deleteSymmetricKey(keyToDelete.id);
       
       toast({
         title: "Key Deleted",

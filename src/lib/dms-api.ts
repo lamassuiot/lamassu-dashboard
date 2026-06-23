@@ -209,7 +209,7 @@ export function buildApiRaEstSettingsFromForm(values: RaAuthFormValues): ApiRaEs
 
 // --- API Functions ---
 
-export async function fetchRegistrationAuthorities(accessToken: string, params?: URLSearchParams): Promise<ApiRaListResponse> {
+export async function fetchRegistrationAuthorities(params?: URLSearchParams): Promise<ApiRaListResponse> {
     const url = new URL(`${get_DMS_MANAGER_API_BASE_URL()}/dms`);
     if (params) {
         params.forEach((value, key) => url.searchParams.append(key, value));
@@ -218,13 +218,11 @@ export async function fetchRegistrationAuthorities(accessToken: string, params?:
         url.searchParams.set('page_size', '9');
     }
     
-    const response = await fetch(url.toString(), {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(url.toString());
     return handleApiError(response, 'Failed to fetch RAs');
 }
 
-export async function fetchAllRegistrationAuthorities(accessToken: string): Promise<ApiRaItem[]> {
+export async function fetchAllRegistrationAuthorities(): Promise<ApiRaItem[]> {
     let allRas: ApiRaItem[] = [];
     let nextBookmark: string | null = null;
     let hasNextPage = true;
@@ -235,7 +233,7 @@ export async function fetchAllRegistrationAuthorities(accessToken: string): Prom
             params.set('bookmark', nextBookmark);
         }
 
-        const response: ApiRaListResponse = await fetchRegistrationAuthorities(accessToken, params);
+        const response: ApiRaListResponse = await fetchRegistrationAuthorities(params);
         
         if (response.list) {
             allRas = allRas.concat(response.list);
@@ -248,16 +246,13 @@ export async function fetchAllRegistrationAuthorities(accessToken: string): Prom
     return allRas;
 }
 
-export async function fetchRaById(raId: string, accessToken: string): Promise<ApiRaItem> {
-    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+export async function fetchRaById(raId: string): Promise<ApiRaItem> {
+    const response = await apiFetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`);
     return handleApiError(response, 'Failed to fetch RA details');
 }
 
 export async function createOrUpdateRa(
     payload: RaCreationPayload,
-    accessToken: string,
     isEditMode: boolean,
     raId?: string | null,
 ): Promise<void> {
@@ -266,9 +261,9 @@ export async function createOrUpdateRa(
         : `${get_DMS_MANAGER_API_BASE_URL()}/dms`;
     const method = isEditMode ? 'PUT' : 'POST';
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
 
@@ -287,13 +282,10 @@ export async function createOrUpdateRa(
 }
 
 
-export async function bindIdentityToDevice(deviceId: string, certificateSerialNumber: string, accessToken: string): Promise<void> {
-    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/bind-identity`, {
+export async function bindIdentityToDevice(deviceId: string, certificateSerialNumber: string): Promise<void> {
+    const response = await apiFetch(`${get_DMS_MANAGER_API_BASE_URL()}/dms/bind-identity`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             device_id: deviceId,
             certificate_serial_number: certificateSerialNumber
@@ -305,15 +297,13 @@ export async function bindIdentityToDevice(deviceId: string, certificateSerialNu
 }
 
 
-export async function fetchDmsStats(accessToken: string): Promise<{ total: number }> {
-    const response = await fetch(`${get_DMS_MANAGER_API_BASE_URL()}/stats`, { 
-        headers: { 'Authorization': `Bearer ${accessToken}` } 
-    });
+export async function fetchDmsStats(): Promise<{ total: number }> {
+    const response = await apiFetch(`${get_DMS_MANAGER_API_BASE_URL()}/stats`);
     return handleApiError(response, 'Failed to fetch RA stats');
 }
 
-export async function updateRaMetadata(raId: string, metadata: object, accessToken: string): Promise<void> {
-    const currentRa = await fetchRaById(raId, accessToken);
+export async function updateRaMetadata(raId: string, metadata: object): Promise<void> {
+    const currentRa = await fetchRaById(raId);
     
     // The payload for createOrUpdateRa needs the full settings object.
     const payload: RaCreationPayload = {
@@ -323,12 +313,12 @@ export async function updateRaMetadata(raId: string, metadata: object, accessTok
       settings: currentRa.settings, // Preserve existing settings
     };
 
-    await createOrUpdateRa(payload, accessToken, true, raId);
+    await createOrUpdateRa(payload, true, raId);
 }
 
-export async function deleteRaIntegration(raId: string, integrationKey: string, accessToken: string): Promise<void> {
+export async function deleteRaIntegration(raId: string, integrationKey: string): Promise<void> {
     // 1. Fetch the current RA data
-    const currentRa = await fetchRaById(raId, accessToken);
+    const currentRa = await fetchRaById(raId);
     
     // 2. Check if metadata and the key exist
     if (!currentRa.metadata?.[integrationKey]) {
@@ -348,15 +338,12 @@ export async function deleteRaIntegration(raId: string, integrationKey: string, 
     };
     
     // 5. Call the existing update function to save the modified RA
-    await createOrUpdateRa(payload, accessToken, true, raId);
+    await createOrUpdateRa(payload, true, raId);
 }
 
-export async function deleteRa(raId: string, accessToken: string): Promise<void> {
+export async function deleteRa(raId: string): Promise<void> {
     const url = `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}`;
-    const response = await fetch(url, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(url, { method: 'DELETE' });
     if (!response.ok) {
         await handleApiError(response, 'Failed to delete RA');
     }

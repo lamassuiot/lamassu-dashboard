@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare } from "lucide-react";
+import { Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, Search, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Rocket } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +24,8 @@ import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-selector';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/device-icon';
+import { InstalledPacksSummary } from '@/components/devices/InstalledPacksSummary';
+import { LaunchDeviceVersionDialog, type LaunchTarget } from '@/components/devices/LaunchDeviceVersionDialog';
 
 type DeviceStatus = 'ACTIVE' | 'NO_IDENTITY' | 'RENEWAL_PENDING' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'DECOMMISSIONED';
 
@@ -122,6 +124,8 @@ export default function DevicesPage() {
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [raForEnrollModal, setRaForEnrollModal] = useState<ApiRaItem | null>(null);
   const [deviceForEnrollModal, setDeviceForEnrollModal] = useState<DeviceData | null>(null);
+  // Target device for the "launch update to a pack version" dialog.
+  const [launchTarget, setLaunchTarget] = useState<LaunchTarget | null>(null);
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
@@ -130,6 +134,7 @@ export default function DevicesPage() {
     deviceGroup: true,
     createdAt: true,
     tags: true,
+    installedPacks: true,
   });
 
   const columns: ColumnConfig[] = [
@@ -138,6 +143,7 @@ export default function DevicesPage() {
     { id: 'deviceGroup', label: 'Device Group', visible: columnVisibility.deviceGroup },
     { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
     { id: 'tags', label: 'Tags', visible: columnVisibility.tags },
+    { id: 'installedPacks', label: 'Packs', visible: columnVisibility.installedPacks },
   ];
 
   const handleColumnToggle = (columnId: string) => {
@@ -204,7 +210,7 @@ export default function DevicesPage() {
         if (statusFilter !== 'ALL') filtersToApply.push(`status[equal]${statusFilter}`);
         filtersToApply.forEach(f => params.append('filter', f));
 
-        const data = await fetchDevices(user.access_token!, params);
+        const data = await fetchDevices(params);
         const transformedDevices: DeviceData[] = data.list.map(apiDevice => ({
             id: apiDevice.id,
             displayId: apiDevice.id,
@@ -319,7 +325,7 @@ export default function DevicesPage() {
 
     // Fetch RA details after opening the modal to show loading state inside
     try {
-        const raData = await fetchRaById(device.deviceGroup, user.access_token);
+        const raData = await fetchRaById(device.deviceGroup);
         setRaForEnrollModal(raData);
     } catch (err: any) {
         toast({ title: 'Error Fetching RA Details', description: err.message, variant: 'destructive' });
@@ -471,6 +477,7 @@ export default function DevicesPage() {
                   {columnVisibility.deviceGroup && <SortableTableHeader column="deviceGroup" title="Device Group" className="w-[180px]" />}
                   {columnVisibility.createdAt && <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />}
                   {columnVisibility.tags && <TableHead>Tags</TableHead>}
+                  {columnVisibility.installedPacks && <TableHead className="w-[200px]">Packs</TableHead>}
                   <TableHead className="text-right w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -517,6 +524,11 @@ export default function DevicesPage() {
                           </div>
                         </TableCell>
                       )}
+                      {columnVisibility.installedPacks && (
+                        <TableCell>
+                          <InstalledPacksSummary deviceId={device.id} inlineLimit={1} />
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -529,6 +541,11 @@ export default function DevicesPage() {
                             <DropdownMenuItem onClick={() => handleViewDetails(device.id)}>
                               <Eye className="mr-2 h-4 w-4" /> View Details
                             </DropdownMenuItem>
+                            {device.deviceGroup && (
+                                <DropdownMenuItem onClick={() => setLaunchTarget({ deviceId: device.id, groupId: device.deviceGroup })}>
+                                    <Rocket className="mr-2 h-4 w-4" /> Launch Update...
+                                </DropdownMenuItem>
+                            )}
                             {device.status === 'NO_IDENTITY' && (
                                 <DropdownMenuItem onClick={() => handleOpenEnrollModal(device)}>
                                     <TerminalSquare className="mr-2 h-4 w-4" /> EST Enroll...
@@ -614,6 +631,7 @@ export default function DevicesPage() {
         ra={raForEnrollModal}
         initialDeviceId={deviceForEnrollModal?.id}
       />
+      <LaunchDeviceVersionDialog target={launchTarget} onClose={() => setLaunchTarget(null)} />
     </BreadcrumbPage>
   );
 }

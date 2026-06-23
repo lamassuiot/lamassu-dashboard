@@ -70,7 +70,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
 
       setIsLoadingRa(true);
       try {
-        const ra = await fetchRaById(selectedRaId, user.access_token);
+        const ra = await fetchRaById(selectedRaId);
         setSelectedRa(ra);
         
         // Update device profile from RA settings
@@ -130,7 +130,7 @@ export const RegisterDeviceModal: React.FC<RegisterDeviceModalProps> = ({
         metadata: {},
       };
 
-      await registerDevice(payload, user.access_token);
+      await registerDevice(payload);
 
       toast({
         title: "Device Registered",

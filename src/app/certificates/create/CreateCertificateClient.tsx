@@ -204,7 +204,7 @@ export default function CreateCertificateClient() {
         setProcessingError(null);
 
         try {
-            const result = await createCertificate(payload, user!.access_token!);
+            const result = await createCertificate(payload);
             const pem = result.certificate ? window.atob(result.certificate) : null;
             setIssuedCertPem(pem);
             setIssuedSerialNumber(result.serial_number ?? null);

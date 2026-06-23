@@ -68,14 +68,14 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
 
   const { data: signingKeysResponse } = useQuery({
     queryKey: ['signingKeys', sub],
-    queryFn: () => fetchKmsKeys(user!.access_token!, new URLSearchParams()),
+    queryFn: () => fetchKmsKeys(new URLSearchParams()),
     enabled: open && !!sub && !!user?.access_token,
   });
   const signingKeys: any[] = signingKeysResponse?.list || [];
 
   const { data: symmetricKeysResponse } = useQuery({
     queryKey: ['symmetricKeys', sub],
-    queryFn: () => fetchSymmetricKeys(sub, user!.access_token!),
+    queryFn: () => fetchSymmetricKeys(sub),
     enabled: open && !!sub && !!user?.access_token,
   });
   const symmetricKeys: any[] = symmetricKeysResponse?.list || [];
@@ -138,7 +138,7 @@ export const GeneratePackageDialog: React.FC<GeneratePackageDialogProps> = ({ op
         payload.signature_certificate = cert?.pemData || signingCertificate;
       }
 
-      await generatePackage({ groupId, packName, accessToken: user.access_token, payload });
+      await generatePackage({ groupId, packName, payload });
 
       toast({ title: 'Package generated', description: `Built the package for ${packName}.` });
       onGenerated?.();

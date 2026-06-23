@@ -32,12 +32,14 @@ import {
   Copy,
   Check,
   Tag,
+  Target,
 } from 'lucide-react';
 import { getDeviceGroupByID, deleteDeviceGroup } from '@/lib/device-groups-api';
 import type { DeviceGroup } from '@/types/device-group';
 import { FilterCriteriaDisplay } from '@/components/device-groups/FilterCriteriaDisplay';
 import { CompactGroupStats } from '@/components/device-groups/CompactGroupStats';
 import { GroupMembersList } from '@/components/device-groups/GroupMembersList';
+import { GroupLatestVersionsCard } from '@/components/device-groups/GroupLatestVersionsCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
@@ -236,6 +238,7 @@ export default function DeviceGroupDetailsClient() {
           <TabsList className={pageTabsListClass}>
             {([
               { value: 'members', icon: Monitor, label: 'Devices' },
+              { value: 'latest-versions', icon: Target, label: 'Latest Versions' },
               { value: 'info', icon: Info, label: 'Information' },
             ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
               <TabsTrigger key={value} value={value} className={pageTabsTriggerClass}>
@@ -249,6 +252,19 @@ export default function DeviceGroupDetailsClient() {
         <div className="mt-6 pb-6">
           <TabsContent value="members" className="mt-0">
             <GroupMembersList groupId={group.id} />
+          </TabsContent>
+
+          <TabsContent value="latest-versions" className="mt-0">
+            <div className="py-6 space-y-3">
+              <div>
+                <p className="font-semibold">Latest Versions</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Which version of each pack every device in this group is running, versus the pack&apos;s latest.
+                  Update any outdated device to the latest from here.
+                </p>
+              </div>
+              <GroupLatestVersionsCard groupId={group.id} />
+            </div>
           </TabsContent>
 
           <TabsContent value="info" className="mt-0">

@@ -2,15 +2,16 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Loader2, AlertTriangle, Check, Clock } from 'lucide-react';
+import { Loader2, AlertTriangle, Check, Clock, Ban, PauseCircle, FlaskConical } from 'lucide-react';
 import type { CampaignItem, DeviceJob, CampaignListResponse, DeviceJobWorkflowTransition } from '@/types/iot';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchAllDeviceJobs, fetchCurrentCampaigns } from '@/lib/iot-api';
+import { cn } from '@/lib/utils';
 
-export type CampaignDisplayStatus = 'Rolling Out' | 'Completed' | 'Paused' | 'Failed' | 'Not Started' | 'Partial Completed';
+export type CampaignDisplayStatus = 'Rolling Out' | 'Completed' | 'Paused' | 'Cancelled' | 'Failed' | 'Not Started' | 'Partial Completed';
 
 export interface WfxTransition {
   from: string;
@@ -28,6 +29,71 @@ export const isDirectWorkflow = (workflowType?: string): boolean =>
   workflowType === 'wfx.workflow.dau.direct' ||
   workflowType === 'direct' ||
   !workflowType;
+
+// ─── Test device (canary) gate ────────────────────────────────────────────────
+// A campaign may nominate a single "test device" that must receive — and successfully
+// complete — the update before the rest of the fleet is allowed to roll out. The backend
+// dispatches that device as the first batch and records its outcome in the campaign's
+// device lists; the status below is derived purely from those lists (no extra fetch).
+
+export type TestDeviceGateStatus = 'none' | 'pending' | 'testing' | 'passed' | 'failed';
+
+// Derive the canary status from the launch track's device lists. Terminal lists win over
+// in-flight ones: failed_devices ⊆ devices_with_job (both terminal), while active_launches
+// may linger after completion, so it is only consulted once the terminal lists are ruled out.
+export function getTestDeviceStatus(campaign: CampaignItem): TestDeviceGateStatus {
+  const id = campaign.test_device_id;
+  if (!id) return 'none';
+  if ((campaign.failed_devices ?? []).includes(id)) return 'failed';
+  if ((campaign.devices_with_job ?? []).includes(id)) return 'passed';
+  if ((campaign.active_launches ?? []).includes(id)) return 'testing';
+  return 'pending';
+}
+
+// Whether the broader rollout must be blocked: the canary is still running or has failed.
+export function isRolloutBlockedByTestDevice(campaign: CampaignItem): boolean {
+  const s = getTestDeviceStatus(campaign);
+  return s === 'testing' || s === 'failed';
+}
+
+const TEST_DEVICE_BADGE: Record<Exclude<TestDeviceGateStatus, 'none'>, { label: string; cls: string }> = {
+  pending: { label: 'Test pending', cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+  testing: { label: 'Testing…', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  passed: { label: 'Test passed', cls: 'bg-green-100 text-green-700 border-green-200' },
+  failed: { label: 'Test failed', cls: 'bg-red-100 text-red-700 border-red-200' },
+};
+
+// Small badge summarising the canary status. Renders nothing when the campaign has no test
+// device. Hovering shows the device id and what the current state means for the rollout.
+export function TestDeviceBadge({ campaign, className }: { campaign: CampaignItem; className?: string }) {
+  const status = getTestDeviceStatus(campaign);
+  if (status === 'none') return null;
+  const { label, cls } = TEST_DEVICE_BADGE[status];
+  const tip =
+    status === 'pending' ? `Test device ${campaign.test_device_id} updates first — the full rollout unlocks once it succeeds.` :
+    status === 'testing' ? `Test device ${campaign.test_device_id} is updating — the rollout unlocks once it succeeds.` :
+    status === 'passed' ? `Test device ${campaign.test_device_id} updated successfully — the rollout is unlocked.` :
+    `Test device ${campaign.test_device_id} failed — the rollout is blocked.`;
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className={cn('flex items-center gap-1 whitespace-nowrap cursor-help', cls, className)}>
+            {status === 'testing'
+              ? <Loader2 className="h-3 w-3 animate-spin" />
+              : status === 'passed'
+                ? <Check className="h-3 w-3 stroke-[3]" />
+                : status === 'failed'
+                  ? <AlertTriangle className="h-3 w-3" />
+                  : <FlaskConical className="h-3 w-3" />}
+            {label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent><p className="max-w-[260px]">{tip}</p></TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 // A WFX transition that auto-fires (no operator gate) when it is marked immediate by ANY
 // of the encodings the workflow definitions / JobWorkflowGraph recognize.
@@ -70,7 +136,7 @@ export function CampaignNameCell({ campaign, groupId, accessToken, onClick }: Ca
   const { data: jobs, isLoading: isLoadingJobVersion, isFetched: isJobVersionFetched } = useQuery<DeviceJob[], Error>({
     queryKey: ['deviceJobsForVersion', groupId, firstDeviceIdWithJob, campaign.id],
     queryFn: ({ signal }) => fetchAllDeviceJobs(
-      { groupId, deviceIds: [firstDeviceIdWithJob!], accessToken: accessToken!, targetCampaignId: campaign.id },
+      { groupId, deviceIds: [firstDeviceIdWithJob!], targetCampaignId: campaign.id },
       { signal }
     ),
     enabled: !!firstDeviceIdWithJob && !!accessToken,
@@ -140,7 +206,6 @@ export function CampaignStatusCell({ campaign, groupId, accessToken, startedCamp
     queryFn: ({ signal }) => fetchAllDeviceJobs({
       groupId,
       deviceIds: statusDeviceIds,
-      accessToken: accessToken!,
       targetCampaignId: campaign.id,
     }, { signal }),
     enabled: statusDeviceIds.length > 0 && !!accessToken,
@@ -149,7 +214,7 @@ export function CampaignStatusCell({ campaign, groupId, accessToken, startedCamp
 
   const { data: activeCampaignsData } = useQuery<CampaignListResponse, Error>({
     queryKey: ['activeCampaigns', groupId],
-    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId, accessToken: accessToken! }, { signal }),
+    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId }, { signal }),
     enabled: !!accessToken,
   });
 
@@ -169,6 +234,12 @@ export function CampaignStatusCell({ campaign, groupId, accessToken, startedCamp
   }, [relevantJobs]);
 
   const calculateStatus = (): CampaignDisplayStatus => {
+    // The operator-/system-driven lifecycle status takes precedence over the derived job-state view:
+    // a cancelled / completed / paused campaign shows that regardless of in-flight device states.
+    if (campaign.status === 'cancelled') return 'Cancelled';
+    if (campaign.status === 'completed') return 'Completed';
+    if (campaign.status === 'paused') return 'Paused';
+
     if (!jobs || jobs.length === 0) {
       const campaignActiveDevices = (campaign.active_launches && campaign.active_launches.length > 0)
         ? campaign.active_launches
@@ -220,10 +291,10 @@ export function CampaignStatusCell({ campaign, groupId, accessToken, startedCamp
     const totalProcessed = completedCount + failedCount + activeCount;
 
     if (activeCount > 0) return 'Rolling Out';
-    if (displayTotal > 0 && completedCount >= displayTotal) return 'Completed';
+    // Both ACTIVATED and TERMINATED are terminal states — when all devices have finished,
+    // the campaign is done. Only show Failed when every device terminated without activating.
     if (displayTotal > 0 && totalProcessed >= displayTotal) {
-      if (failedCount > 0 && completedCount > 0) return 'Partial Completed';
-      return failedCount > completedCount ? 'Failed' : 'Completed';
+      return completedCount > 0 ? 'Completed' : 'Failed';
     }
     return 'Rolling Out';
   };
@@ -280,12 +351,16 @@ export function CampaignStatusCell({ campaign, groupId, accessToken, startedCamp
         status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-100' :
         status === 'Rolling Out' ? 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
         status === 'Failed' ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-100' :
+        status === 'Cancelled' ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-50' :
+        status === 'Paused' ? 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100' :
         status === 'Partial Completed' ? 'bg-yellow-50 text-yellow-600 border-yellow-200 hover:bg-yellow-50' :
         'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-100'
       }`}>
         {status === 'Rolling Out' && <Clock className="h-3 w-3" />}
         {status === 'Completed' && <Check className="h-3 w-3 stroke-[3]" />}
         {status === 'Failed' && <AlertTriangle className="h-3 w-3" />}
+        {status === 'Cancelled' && <Ban className="h-3 w-3" />}
+        {status === 'Paused' && <PauseCircle className="h-3 w-3" />}
         {status === 'Partial Completed' && <AlertTriangle className="h-3 w-3" />}
         {status === 'Partial Completed' ? `Partial (${completionPercent}%)` : status}
       </Badge>
@@ -318,11 +393,13 @@ interface CampaignProgressCellProps {
   startedCampaignTotals?: Map<string, number>;
   updateCampaignTotal?: (campaignId: string, total: number) => void;
   clearStartedCampaign?: (campaignId: string) => void;
+  /** Called once (from actual job data) when all devices have reached a terminal state. */
+  onCompleted?: (campaignId: string) => void;
 }
 
 export function CampaignProgressCell({
   campaign, groupId, accessToken,
-  startedCampaigns, startedCampaignTotals, updateCampaignTotal, clearStartedCampaign,
+  startedCampaigns, startedCampaignTotals, updateCampaignTotal, clearStartedCampaign, onCompleted,
 }: CampaignProgressCellProps) {
   const queryClient = useQueryClient();
   // Include active_launches so that completed devices (ACTIVATED) not in devices_with_job are still counted
@@ -332,7 +409,6 @@ export function CampaignProgressCell({
     queryFn: ({ signal }) => fetchAllDeviceJobs({
       groupId,
       deviceIds: progressDeviceIds,
-      accessToken: accessToken!,
       targetCampaignId: campaign.id,
     }, { signal }),
     enabled: progressDeviceIds.length > 0 && !!accessToken,
@@ -341,7 +417,7 @@ export function CampaignProgressCell({
 
   const { data: activeCampaignsData } = useQuery<CampaignListResponse, Error>({
     queryKey: ['activeCampaigns', groupId],
-    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId, accessToken: accessToken! }, { signal }),
+    queryFn: ({ signal }) => fetchCurrentCampaigns({ groupId }, { signal }),
     enabled: !!accessToken,
   });
 
@@ -406,15 +482,20 @@ export function CampaignProgressCell({
   const processedCount = cappedCompletedCount + cappedFailedCount + cappedActiveCount;
   const processedPercent = totalForCalc > 0 ? (processedCount / totalForCalc) * 100 : 0;
 
-  // Clear stored started campaign when all devices are processed
+  // Clear stored started campaign + notify parent when all devices are processed.
+  // activeCount === 0 guards against firing before jobs have actually loaded.
+  const allDone = displayTotal > 0 && activeCount === 0 && (processedCount >= displayTotal || cappedCompletedCount >= displayTotal);
   React.useEffect(() => {
-    if (startedCampaigns && startedCampaigns.has(campaign.id) && (processedCount >= displayTotal || cappedCompletedCount >= displayTotal)) {
+    if (!allDone) return;
+    if (startedCampaigns && startedCampaigns.has(campaign.id)) {
       if (clearStartedCampaign) clearStartedCampaign(campaign.id);
       queryClient.invalidateQueries({ queryKey: ['campaignJobStatuses', groupId, campaign.id] });
       queryClient.invalidateQueries({ queryKey: ['activeCampaigns', groupId] });
       queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
     }
-  }, [processedCount, displayTotal, cappedCompletedCount, activeCount, startedCampaigns, clearStartedCampaign, campaign.id, groupId, queryClient]);
+    // Always tell the parent — active_launches is not reliably cleared by the API.
+    if (onCompleted) onCompleted(campaign.id);
+  }, [allDone, startedCampaigns, clearStartedCampaign, onCompleted, campaign.id, groupId, queryClient]);
 
   if (totalDevices === 0) {
     return <span className="text-xs text-muted-foreground">No devices</span>;
@@ -485,7 +566,6 @@ export function CampaignErrorRateCell({ campaign, groupId, accessToken }: Campai
     queryFn: ({ signal }) => fetchAllDeviceJobs({
       groupId,
       deviceIds: errorRateDeviceIds,
-      accessToken: accessToken!,
       targetCampaignId: campaign.id,
     }, { signal }),
     enabled: errorRateDeviceIds.length > 0 && !!accessToken,

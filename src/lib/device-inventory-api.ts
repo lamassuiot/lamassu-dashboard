@@ -1,6 +1,7 @@
 // src/lib/device-inventory-api.ts
 
 import { handleApiError, get_CLIENT_SYMKMS_API_BASE_URL } from './api-domains';
+import { apiFetch } from './api-client';
 import type {
   DeviceKeyBinding,
   AssignKeyToDeviceRequest,
@@ -16,17 +17,13 @@ export const assignKeyToDevice = async (
   deviceId: string,
   keyId: string,
   request: AssignKeyToDeviceRequest,
-  token: string
 ): Promise<DeviceKeyBinding> => {
   const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
   const url = `${baseUrl}/inventory/${encodeURIComponent(deviceId)}/keys/${encodeURIComponent(keyId)}`;
 
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
   });
 
@@ -40,18 +37,11 @@ export const assignKeyToDevice = async (
 export const revokeKeyFromDevice = async (
   deviceId: string,
   keyId: string,
-  token: string
 ): Promise<void> => {
   const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
   const url = `${baseUrl}/inventory/${encodeURIComponent(deviceId)}/keys/${encodeURIComponent(keyId)}`;
 
-  const response = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+  const response = await apiFetch(url, { method: 'DELETE' });
 
   if (!response.ok) {
     let errorMessage = `Failed to revoke key from device. HTTP error ${response.status}`;
@@ -73,7 +63,6 @@ export const revokeKeyFromDevice = async (
  */
 export const fetchDeviceInventory = async (
   deviceId: string,
-  token: string,
   options?: FetchDeviceInventoryOptions
 ): Promise<DeviceInventoryResponse> => {
   const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
@@ -87,13 +76,7 @@ export const fetchDeviceInventory = async (
   const queryString = params.toString();
   const url = `${baseUrl}/inventory/${encodeURIComponent(deviceId)}${queryString ? `?${queryString}` : ''}`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+  const response = await apiFetch(url);
 
   const data = await handleApiError(response, 'Failed to fetch device inventory');
 
@@ -113,18 +96,11 @@ export const fetchDeviceInventory = async (
  */
 export const fetchDevicesByKey = async (
   keyId: string,
-  token: string
 ): Promise<string[]> => {
   const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
   const url = `${baseUrl}/inventory/by-key/${encodeURIComponent(keyId)}`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+  const response = await apiFetch(url);
 
   const data = await handleApiError(response, 'Failed to fetch devices by key');
 
@@ -142,7 +118,6 @@ export const fetchDevicesByKey = async (
 export const fetchDeviceKey = async (
   deviceId: string,
   purpose: string,
-  token: string
 ): Promise<{ key: DeviceKeyBinding; material?: string }> => {
   const baseUrl = get_CLIENT_SYMKMS_API_BASE_URL();
   const params = new URLSearchParams();
@@ -150,13 +125,7 @@ export const fetchDeviceKey = async (
 
   const url = `${baseUrl}/inventory/${encodeURIComponent(deviceId)}/key?${params.toString()}`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+  const response = await apiFetch(url);
 
   return handleApiError(response, 'Failed to fetch device key');
 };

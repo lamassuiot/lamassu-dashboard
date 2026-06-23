@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal, KeyRound, Workflow, Layers, ClipboardList } from 'lucide-react';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal, KeyRound, Workflow, Layers, Rocket, ClipboardList } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/device-icon';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -19,6 +19,7 @@ import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
+import { LaunchDeviceVersionDialog, type LaunchTarget } from '@/components/devices/LaunchDeviceVersionDialog';
 import { sileo } from '@/lib/toast';
 import { DeviceDetailsContext } from './DeviceContext';
 
@@ -70,6 +71,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   const [isDeleting, setIsDeleting] = useState(false);
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
+  const [launchTarget, setLaunchTarget] = useState<LaunchTarget | null>(null);
 
   const fetchIntegrationData = useCallback(async (dmsOwnerId: string) => {
     try {
@@ -296,6 +298,10 @@ export default function DeviceDetailsShell({ children }: { children: React.React
                 <Button variant="secondary" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setLaunchTarget({ deviceId: device.id, groupId: device.dms_owner })}>
+                  <Rocket className="mr-2 h-4 w-4" /> Launch Update...
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {availableIntegrations.length > 0 && (
                   <>
                     <DropdownMenuItem onClick={() => setIsForceUpdateModalOpen(true)}>Force Update</DropdownMenuItem>
@@ -387,6 +393,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
           setActiveIntegration={setActiveIntegration}
           isUpdating={isForcingUpdate}
         />
+        <LaunchDeviceVersionDialog target={launchTarget} onClose={() => setLaunchTarget(null)} />
       </BreadcrumbPage>
     </DeviceDetailsContext.Provider>
   );

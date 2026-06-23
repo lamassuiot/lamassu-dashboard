@@ -25,7 +25,6 @@ export default function UpdateStatusPage() {
       while (hasMore) {
         const result = await fetchDeviceEventsPaginated({
           deviceId,
-          accessToken: user.access_token,
           limit: 50,
           bookmark,
         });

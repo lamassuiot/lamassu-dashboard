@@ -53,7 +53,7 @@ export function KmsKeySelector({
         params.append('engine_id', filterEngineId);
       }
 
-      const response = await fetchKmsKeys(user.access_token, params);
+      const response = await fetchKmsKeys(params);
       let filteredKeys = response.list || [];
       
       if (requirePrivateKey) {

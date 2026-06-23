@@ -59,7 +59,7 @@ export const NewPackVersionDialog: React.FC<NewPackVersionDialogProps> = ({ pack
     if (!pack || !user?.access_token || !versionGreater) return;
     setIsCreating(true);
     try {
-      await createUpdatePackVersion({ groupId: pack.groupId, packName: pack.name, accessToken: user.access_token, version: newVersion.trim() });
+      await createUpdatePackVersion({ groupId: pack.groupId, packName: pack.name, version: newVersion.trim() });
       toast({ title: 'New version created', description: `${pack.name} is now v${newVersion.trim()} — upload artifacts next.` });
       onOpenChange(false);
       onCreated?.(pack.groupId, pack.name, newVersion.trim());

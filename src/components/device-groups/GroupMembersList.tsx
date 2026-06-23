@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
@@ -31,7 +32,8 @@ import {
   Eye,
   MoreVertical,
   TerminalSquare,
-  HelpCircle
+  HelpCircle,
+  Rocket
 } from 'lucide-react';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { getDisplayDateFormat } from '@/lib/config';
@@ -41,6 +43,7 @@ import { cn } from '@/lib/utils';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { sileo } from '@/lib/toast';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
+import { LaunchGroupUpdateDialog } from '@/components/device-groups/LaunchGroupUpdateDialog';
 import { fetchRaById, type ApiRaItem } from '@/lib/dms-api';
 
 interface GroupMembersListProps {
@@ -115,6 +118,10 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [bookmarkHistory, setBookmarkHistory] = useState<(string | undefined)[]>([undefined]);
   const [nextBookmark, setNextBookmark] = useState<string | null>(null);
+
+  // Multi-select + bulk "launch update" for selected devices.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [launchOpen, setLaunchOpen] = useState(false);
 
   // Modal states for EST enrollment
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
@@ -239,6 +246,23 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
     return [...devices];
   }, [devices]);
 
+  const pageIds = sortedDevices.map((d) => d.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = pageIds.some((id) => selectedIds.has(id));
+
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+
+  const toggleSelectAllPage = () => setSelectedIds((prev) => {
+    const n = new Set(prev);
+    if (allPageSelected) pageIds.forEach((id) => n.delete(id));
+    else pageIds.forEach((id) => n.add(id));
+    return n;
+  });
+
   const SortableTableHeader: React.FC<{ column: SortableColumn; title: string; className?: string }> = ({ column, title, className }) => {
     const isSorted = sortConfig?.column === column;
     let Icon = ChevronsUpDown;
@@ -320,6 +344,18 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
         </div>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+          <span className="text-sm font-medium">{selectedIds.size} device{selectedIds.size === 1 ? '' : 's'} selected</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+            <Button size="sm" onClick={() => setLaunchOpen(true)}>
+              <Rocket className="mr-2 h-4 w-4" /> Update
+            </Button>
+          </div>
+        </div>
+      )}
+
       {isLoading && devices.length === 0 ? (
         <div className="flex items-center justify-center p-6">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -340,6 +376,13 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <Checkbox
+                      checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
+                      onCheckedChange={toggleSelectAllPage}
+                      aria-label="Select all devices on this page"
+                    />
+                  </TableHead>
                   {columnVisibility.id && <SortableTableHeader column="id" title="ID" className="w-[250px]" />}
                   {columnVisibility.status && <SortableTableHeader column="status" title="Status" className="w-[120px]" />}
                   {columnVisibility.createdAt && <SortableTableHeader column="createdAt" title="Created At" className="w-[180px]" />}
@@ -351,7 +394,14 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
                 {sortedDevices.map((device) => {
                   const [iconColor, bgColor] = device.icon_color ? device.icon_color.split('-') : ['#0f67ff', '#F0F8FF'];
                   return (
-                    <TableRow key={device.id}>
+                    <TableRow key={device.id} data-state={selectedIds.has(device.id) ? 'selected' : undefined}>
+                      <TableCell className="w-[40px]">
+                        <Checkbox
+                          checked={selectedIds.has(device.id)}
+                          onCheckedChange={() => toggleSelect(device.id)}
+                          aria-label={`Select ${device.id}`}
+                        />
+                      </TableCell>
                       {columnVisibility.id && (
                         <TableCell>
                           <div className="flex items-center space-x-3">
@@ -457,6 +507,14 @@ export function GroupMembersList({ groupId, className }: GroupMembersListProps) 
         onOpenChange={setIsEnrollModalOpen}
         ra={raForEnrollModal}
         initialDeviceId={deviceForEnrollModal?.id}
+      />
+
+      <LaunchGroupUpdateDialog
+        open={launchOpen}
+        groupId={groupId}
+        deviceIds={Array.from(selectedIds)}
+        onClose={() => setLaunchOpen(false)}
+        onLaunched={() => setSelectedIds(new Set())}
       />
     </div>
   );

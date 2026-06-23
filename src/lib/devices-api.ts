@@ -1,5 +1,6 @@
 // src/lib/devices-api.ts
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
+import { apiFetch, createApiHeaders } from './api-client';
 import type { DeviceJob } from '@/types/iot'; // Import DeviceJob
 
 // Maps dot-notation SSE event types to the normalized REST API format
@@ -93,30 +94,24 @@ export interface PaginatedDeviceEventsResponse {
 }
 
 
-export async function fetchDevices(accessToken: string, params: URLSearchParams): Promise<ApiResponse> {
+export async function fetchDevices(params: URLSearchParams): Promise<ApiResponse> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices?${params.toString()}`;
-    const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(url);
     return handleApiError(response, 'Failed to fetch devices');
 }
 
-export async function fetchDeviceById(deviceId: string, accessToken: string): Promise<ApiDevice> {
+export async function fetchDeviceById(deviceId: string): Promise<ApiDevice> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}`;
-    const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(url);
     return handleApiError(response, 'Failed to fetch device details');
 }
 
 export async function fetchDeviceEventsPaginated({
   deviceId,
-  accessToken,
   limit = 5,
   bookmark,
 }: {
   deviceId: string;
-  accessToken: string;
   limit?: number;
   bookmark?: string;
 }): Promise<PaginatedDeviceEventsResponse> {
@@ -125,9 +120,7 @@ export async function fetchDeviceEventsPaginated({
   if (bookmark) params.set('bookmark', bookmark);
 
   const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events${params.toString() ? `?${params.toString()}` : ''}`;
-  const response = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-  });
+  const response = await apiFetch(url);
 
   const data = await handleApiError(response, `Failed to fetch events for device ${deviceId}`);
 
@@ -149,25 +142,19 @@ export async function fetchDeviceEventsPaginated({
   };
 }
 
-export async function decommissionDevice(deviceId: string, accessToken: string): Promise<void> {
+export async function decommissionDevice(deviceId: string): Promise<void> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/decommission`;
-    const response = await fetch(url, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(url, { method: 'DELETE' });
     if (!response.ok) {
         await handleApiError(response, 'Failed to decommission device');
     }
 }
 
-export async function registerDevice(payload: any, accessToken: string): Promise<void> {
+export async function registerDevice(payload: any): Promise<void> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices`;
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
      if (!response.ok) {
@@ -175,20 +162,15 @@ export async function registerDevice(payload: any, accessToken: string): Promise
     }
 }
 
-export async function fetchDeviceStats(accessToken: string): Promise<DeviceStats> {
-  const response = await fetch(`${get_DEV_MANAGER_API_BASE_URL()}/stats`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
-  });
+export async function fetchDeviceStats(): Promise<DeviceStats> {
+  const response = await apiFetch(`${get_DEV_MANAGER_API_BASE_URL()}/stats`);
   return handleApiError(response, 'Failed to fetch device stats');
 }
 
-export async function updateDeviceMetadata(deviceId: string, patchOperations: PatchOperation[], accessToken: string): Promise<void> {
-  const response = await fetch(`${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/metadata`, {
+export async function updateDeviceMetadata(deviceId: string, patchOperations: PatchOperation[]): Promise<void> {
+  const response = await apiFetch(`${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/metadata`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ patches: patchOperations }),
   });
 
@@ -197,12 +179,9 @@ export async function updateDeviceMetadata(deviceId: string, patchOperations: Pa
   }
 }
 
-export async function deleteDevice(deviceId: string, accessToken: string): Promise<void> {
+export async function deleteDevice(deviceId: string): Promise<void> {
     const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}`;
-    const response = await fetch(url, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+    const response = await apiFetch(url, { method: 'DELETE' });
     if (!response.ok) {
         await handleApiError(response, 'Failed to delete device');
     }
@@ -210,13 +189,11 @@ export async function deleteDevice(deviceId: string, accessToken: string): Promi
 
 export function subscribeToDeviceEventsSSE({
   deviceId,
-  getAccessToken,
   onEvent,
   onConnectionChange,
   disconnectGraceMs = 3000,
 }: {
   deviceId: string;
-  getAccessToken: () => string | undefined;
   onEvent: (event: ApiDeviceEventItem) => void;
   onConnectionChange?: (connected: boolean) => void;
   disconnectGraceMs?: number;
@@ -256,19 +233,10 @@ export function subscribeToDeviceEventsSSE({
 
     (async () => {
       try {
-        const token = getAccessToken();
-        if (!token) {
-          // No valid token — retry after delay
-          const nextDelay = Math.min(retryDelay * 1.5, 10000);
-          setTimeout(() => connect(nextDelay), retryDelay);
-          return;
-        }
-
         const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
+          headers: createApiHeaders({
             'Accept': 'text/event-stream',
-          },
+          }),
           signal: controller.signal,
         });
 

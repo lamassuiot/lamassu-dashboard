@@ -140,7 +140,7 @@ export default function SymKeyDetailsClient() {
 
     try {
       const userId = user.profile?.sub || user.profile?.email || 'default-user';
-      const response = await fetchSymmetricKeys(userId, user.access_token);
+      const response = await fetchSymmetricKeys(userId);
       const key = response.list.find(k => k.id === keyId);
 
       if (key) {
@@ -368,7 +368,7 @@ export default function SymKeyDetailsClient() {
           request.iv = customIv.trim();
         }
 
-        const response = await encryptWithSymmetricKey(request, user.access_token);
+        const response = await encryptWithSymmetricKey(request);
         encrypted.push({
           id: file.id,
           name: file.name,
@@ -462,7 +462,7 @@ export default function SymKeyDetailsClient() {
         request.iv = customIv.trim();
       }
 
-      const response = await encryptWithSymmetricKey(request, user.access_token);
+      const response = await encryptWithSymmetricKey(request);
       setEncryptedText({
         ciphertext: response.ciphertext,
         iv: response.iv,
@@ -537,7 +537,7 @@ export default function SymKeyDetailsClient() {
         request.iv = ivForTextDecrypt.trim();
       }
 
-      const response = await decryptWithSymmetricKey(request, user.access_token);
+      const response = await decryptWithSymmetricKey(request);
       // Decode base64 plaintext to text
       const decryptedTextContent = atob(response.plaintext);
       setDecryptedText(decryptedTextContent);
@@ -655,7 +655,7 @@ export default function SymKeyDetailsClient() {
           request.iv = file.iv.trim();
         }
 
-        const response = await decryptWithSymmetricKey(request, user.access_token);
+        const response = await decryptWithSymmetricKey(request);
         // Calculate actual decrypted content size from base64
         const decryptedBytes = atob(response.plaintext);
         const actualSize = decryptedBytes.length;
@@ -801,7 +801,7 @@ export default function SymKeyDetailsClient() {
         const TIMEOUT_MS = Math.max(120 * 1000, (60 + fileSizeMB * 30) * 1000);
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
         try {
-          const response = await computeMac(request, user.access_token, { signal: controller.signal });
+          const response = await computeMac(request, { signal: controller.signal });
           setComputedMac(response.mac);
         } finally {
           clearTimeout(timeoutId);
@@ -824,7 +824,7 @@ export default function SymKeyDetailsClient() {
         const TIMEOUT_MS = 60 * 1000;
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
         try {
-          const response = await computeMac(request, user.access_token, { signal: controller.signal });
+          const response = await computeMac(request, { signal: controller.signal });
           setComputedMac(response.mac);
         } finally {
           clearTimeout(timeoutId);
@@ -908,7 +908,7 @@ export default function SymKeyDetailsClient() {
         setVerifyMacAbortController(controller);
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
         try {
-          const response = await verifyMac(request, user.access_token, { signal: controller.signal });
+          const response = await verifyMac(request, { signal: controller.signal });
           setMacVerifyResult(response.valid);
           toast({
             title: response.valid ? "MAC Valid" : "MAC Invalid",
@@ -938,7 +938,7 @@ export default function SymKeyDetailsClient() {
         const TIMEOUT_MS = 60 * 1000;
         const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
         try {
-          const response = await verifyMac(request, user.access_token, { signal: controller.signal });
+          const response = await verifyMac(request, { signal: controller.signal });
           setMacVerifyResult(response.valid);
           toast({
             title: response.valid ? "MAC Valid" : "MAC Invalid",
