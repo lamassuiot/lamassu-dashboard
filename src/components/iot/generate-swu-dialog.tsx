@@ -1,9 +1,8 @@
 // src/components/iot/generate-swu-dialog.tsx
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -140,6 +139,69 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
   const [encryptedFileIdx, setEncryptedFileIdx] = useState<Set<number>>(new Set());
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Signing keys
+  const [signingKeysResponse, setSigningKeysResponse] = useState<any>(undefined);
+  const fetchSigningKeys = useCallback(async () => {
+    try {
+      const result = await fetchKmsKeys(new URLSearchParams());
+      setSigningKeysResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open && !!sub && !!user?.access_token) {
+      fetchSigningKeys();
+    }
+  }, [fetchSigningKeys, open, sub, user?.access_token]);
+
+  const signingKeys: any[] = signingKeysResponse?.list || [];
+
+  // Symmetric keys
+  const [symmetricKeysResponse, setSymmetricKeysResponse] = useState<any>(undefined);
+  const fetchSymKeys = useCallback(async () => {
+    try {
+      const result = await fetchSymmetricKeys(sub);
+      setSymmetricKeysResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [sub]);
+
+  useEffect(() => {
+    if (open && !!sub && !!user?.access_token) {
+      fetchSymKeys();
+    }
+  }, [fetchSymKeys, open, sub, user?.access_token]);
+
+  const symmetricKeys: any[] = symmetricKeysResponse?.list || [];
+
+  // Certificates for selected signing key
+  const [certificatesResponse, setCertificatesResponse] = useState<any>(undefined);
+  const fetchCerts = useCallback(async () => {
+    if (!signingKeyId || signingKeyId === 'none') {
+      setCertificatesResponse({ certificates: [] });
+      return;
+    }
+    try {
+      const result = await fetchIssuedCertificates({
+        apiQueryString: `filter=subject_key_id[equal]${signingKeyId}&sort_by=valid_from&sort_mode=desc&page_size=50`,
+      });
+      setCertificatesResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [signingKeyId]);
+
+  useEffect(() => {
+    if (open && !!signingKeyId && signingKeyId !== 'none' && !!user?.access_token) {
+      fetchCerts();
+    }
+  }, [fetchCerts, open, signingKeyId, user?.access_token]);
+
+  const keyCertificates: any[] = certificatesResponse?.certificates || [];
+
   // Default-select all of the pack's artifacts whenever the dialog (re)opens.
   React.useEffect(() => {
     if (open) setSelectedArtifactIds(new Set(catalogArtifacts.map((a) => a.id)));
@@ -147,32 +209,6 @@ export const GenerateSwuDialog: React.FC<GenerateSwuDialogProps> = ({ open, onOp
   }, [open, catalogArtifacts.length]);
 
   const descriptorFiles = useMemo(() => extractDescriptorFiles(descriptorContent), [descriptorContent]);
-
-  const { data: signingKeysResponse } = useQuery({
-    queryKey: ['signingKeys', sub],
-    queryFn: () => fetchKmsKeys(new URLSearchParams()),
-    enabled: open && !!sub && !!user?.access_token,
-  });
-  const signingKeys: any[] = signingKeysResponse?.list || [];
-
-  const { data: symmetricKeysResponse } = useQuery({
-    queryKey: ['symmetricKeys', sub],
-    queryFn: () => fetchSymmetricKeys(sub),
-    enabled: open && !!sub && !!user?.access_token,
-  });
-  const symmetricKeys: any[] = symmetricKeysResponse?.list || [];
-
-  const { data: certificatesResponse } = useQuery({
-    queryKey: ['keyCertificates', signingKeyId],
-    queryFn: async () => {
-      if (!signingKeyId || signingKeyId === 'none') return { certificates: [] };
-      return fetchIssuedCertificates({
-        apiQueryString: `filter=subject_key_id[equal]${signingKeyId}&sort_by=valid_from&sort_mode=desc&page_size=50`,
-      });
-    },
-    enabled: open && !!signingKeyId && signingKeyId !== 'none' && !!user?.access_token,
-  });
-  const keyCertificates: any[] = certificatesResponse?.certificates || [];
 
   const selectedSigningKey = signingKeys.find((k) => (k.key_id || k.id) === signingKeyId);
   const signingMethods = useMemo(() => {

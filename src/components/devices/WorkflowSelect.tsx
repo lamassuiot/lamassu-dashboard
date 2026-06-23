@@ -1,7 +1,6 @@
 'use client';
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GitBranch } from 'lucide-react';
 import { fetchWorkflows, type WfxWorkflow } from '@/lib/iot-api';
@@ -27,11 +26,20 @@ export function WorkflowSelect({
   onChange: (value: string) => void;
   disabled?: boolean;
 }) {
-  const { data: workflows = [] } = useQuery<WfxWorkflow[]>({
-    queryKey: ['wfxWorkflows'],
-    queryFn: ({ signal }) => fetchWorkflows({ signal }),
-    staleTime: 5 * 60 * 1000,
-  });
+  const [workflows, setWorkflows] = useState<WfxWorkflow[]>([]);
+
+  const fetchWorkflowsData = useCallback(async () => {
+    try {
+      const result = await fetchWorkflows();
+      setWorkflows(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWorkflowsData();
+  }, [fetchWorkflowsData]);
 
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>

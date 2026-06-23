@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDropzone } from 'react-dropzone';
 import Link from 'next/link';
@@ -11,7 +11,6 @@ import {
   Copy, Shield, PenTool, Lock, Users, History, Plus, Loader2, UploadCloud, Link2,
   ChevronDown, ChevronRight, Boxes, GitCompare, MoreVertical, Rocket,
 } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -77,57 +76,139 @@ export default function UpdatePackDetailsPage() {
 
   const groupName = availableDms.find(d => d.id === groupId)?.name ?? groupId ?? '—';
 
+  // ── Data state ────────────────────────────────────────────────────────────
+
+  const [updatePacksResponse, setUpdatePacksResponse] = useState<UpdatePacksResponse | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [artifacts, setArtifacts] = useState<string[]>([]);
+  const [artifactsLoading, setArtifactsLoading] = useState(false);
+
+  const [descriptorContent, setDescriptorContent] = useState<string | undefined>(undefined);
+  const [descriptorLoading, setDescriptorLoading] = useState(false);
+
+  const [signingKey, setSigningKey] = useState<ApiKmsKey | undefined>(undefined);
+
+  const [dmsDevicesResponse, setDmsDevicesResponse] = useState<DeviceListApiResponse | undefined>(undefined);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+
+  const [versionsResponse, setVersionsResponse] = useState<{ list: UpdatePackVersion[] } | undefined>(undefined);
+
+  const [devicePackData, setDevicePackData] = useState<{ list: { version: string }[] } | undefined>(undefined);
+
+  const [catalogArtifacts, setCatalogArtifacts] = useState<Artifact[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+
+  const [globalArtifactsPage, setGlobalArtifactsPage] = useState<{ list: Artifact[] } | undefined>(undefined);
+  const [globalArtifactsLoading, setGlobalArtifactsLoading] = useState(false);
+
   // ── Data queries ──────────────────────────────────────────────────────────
 
-  const { data: updatePacksResponse, isLoading } = useQuery<UpdatePacksResponse, Error>({
-    queryKey: ['updatePacks', groupId],
-    queryFn: () => fetchUpdatePacks({ groupId: groupId! }, { pageSize: 50 }),
-    enabled: !!groupId && !!user?.access_token,
-  });
+  const fetchUpdatePacksData = useCallback(async () => {
+    if (!groupId || !user?.access_token) return;
+    setIsLoading(true);
+    try {
+      const result = await fetchUpdatePacks({ groupId }, { pageSize: 50 });
+      setUpdatePacksResponse(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId, user?.access_token]);
+
+  useEffect(() => { fetchUpdatePacksData(); }, [fetchUpdatePacksData]);
+
   const updatePacks = updatePacksResponse?.list || [];
   const updatePack = updatePacks.find(p => p.name === packName);
 
-  const { data: artifacts = [], isLoading: artifactsLoading } = useQuery<string[], Error>({
-    queryKey: ['updatePackArtifacts', groupId, packName],
-    queryFn: () => fetchArtifacts({ groupId: groupId!, packName: packName! }),
-    enabled: !!groupId && !!packName && !!user?.access_token,
-    staleTime: 0, refetchOnMount: true,
-  });
+  const fetchArtifactsData = useCallback(async () => {
+    if (!groupId || !packName || !user?.access_token) return;
+    setArtifactsLoading(true);
+    try {
+      const result = await fetchArtifacts({ groupId, packName });
+      setArtifacts(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setArtifactsLoading(false);
+    }
+  }, [groupId, packName, user?.access_token]);
 
-  const { data: descriptorContent, isLoading: descriptorLoading } = useQuery<string, Error>({
-    queryKey: ['updatePackDescriptor', groupId, packName],
-    queryFn: () => fetchUpdatePackDescriptor({ groupId: groupId!, packName: packName! }),
-    enabled: !!groupId && !!packName && !!user?.access_token,
-    staleTime: 0, refetchOnMount: true,
-  });
+  useEffect(() => { fetchArtifactsData(); }, [fetchArtifactsData]);
 
-  const { data: signingKey } = useQuery<ApiKmsKey, Error>({
-    queryKey: ['kmsKey', updatePack?.signature_key_id],
-    queryFn: () => fetchKmsKey(updatePack!.signature_key_id!),
-    enabled: !!updatePack?.signature_key_id && !!user?.access_token,
-  });
+  const fetchDescriptorData = useCallback(async () => {
+    if (!groupId || !packName || !user?.access_token) return;
+    setDescriptorLoading(true);
+    try {
+      const result = await fetchUpdatePackDescriptor({ groupId, packName });
+      setDescriptorContent(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDescriptorLoading(false);
+    }
+  }, [groupId, packName, user?.access_token]);
+
+  useEffect(() => { fetchDescriptorData(); }, [fetchDescriptorData]);
+
+  const fetchSigningKey = useCallback(async () => {
+    if (!updatePack?.signature_key_id || !user?.access_token) return;
+    try {
+      const result = await fetchKmsKey(updatePack.signature_key_id);
+      setSigningKey(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [updatePack?.signature_key_id, user?.access_token]);
+
+  useEffect(() => { fetchSigningKey(); }, [fetchSigningKey]);
 
   const isPerDevice = updatePack?.encryption_mode === 'per-device';
-  const { data: dmsDevicesResponse, isLoading: devicesLoading } = useQuery<DeviceListApiResponse, Error>({
-    queryKey: ['dmsDevices', groupId],
-    queryFn: () => fetchGroupDevices({ groupId: groupId! }),
-    enabled: !!groupId && !!user?.access_token && isPerDevice,
-  });
+
+  const fetchDmsDevices = useCallback(async () => {
+    if (!groupId || !user?.access_token || !isPerDevice) return;
+    setDevicesLoading(true);
+    try {
+      const result = await fetchGroupDevices({ groupId });
+      setDmsDevicesResponse(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDevicesLoading(false);
+    }
+  }, [groupId, user?.access_token, isPerDevice]);
+
+  useEffect(() => { fetchDmsDevices(); }, [fetchDmsDevices]);
+
   const dmsDevices = dmsDevicesResponse?.list || [];
 
-  const { data: versionsResponse } = useQuery({
-    queryKey: ['updatePackVersions', groupId, packName],
-    queryFn: () => fetchUpdatePackVersions({ groupId: groupId!, packName: packName! }),
-    enabled: !!groupId && !!packName && !!user?.access_token,
-  });
+  const fetchVersionsData = useCallback(async () => {
+    if (!groupId || !packName || !user?.access_token) return;
+    try {
+      const result = await fetchUpdatePackVersions({ groupId, packName });
+      setVersionsResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [groupId, packName, user?.access_token]);
+
+  useEffect(() => { fetchVersionsData(); }, [fetchVersionsData]);
+
   const packVersions: UpdatePackVersion[] = versionsResponse?.list || [];
 
-  // Fleet-wide device pack versions — used to count devices per version.
-  const { data: devicePackData } = useQuery({
-    queryKey: ['devicePackVersionsByPack', packName],
-    queryFn: () => fetchAllDevicePackVersions({ packName: packName!, pageSize: 500 }),
-    enabled: !!packName && !!user?.access_token,
-  });
+  const fetchDevicePackData = useCallback(async () => {
+    if (!packName || !user?.access_token) return;
+    try {
+      const result = await fetchAllDevicePackVersions({ packName, pageSize: 500 });
+      setDevicePackData(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [packName, user?.access_token]);
+
+  useEffect(() => { fetchDevicePackData(); }, [fetchDevicePackData]);
+
   const deviceCountsByVersion = useMemo(() => {
     const counts = new Map<string, number>();
     (devicePackData?.list || []).forEach(dpv => {
@@ -136,13 +217,20 @@ export default function UpdatePackDetailsPage() {
     return counts;
   }, [devicePackData]);
 
-  const queryClient = useQueryClient();
+  const fetchCatalogData = useCallback(async () => {
+    if (!groupId || !packName || !user?.access_token) return;
+    setCatalogLoading(true);
+    try {
+      const result = await fetchArtifactCatalog({ groupId, packName });
+      setCatalogArtifacts(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [groupId, packName, user?.access_token]);
 
-  const { data: catalogArtifacts = [], isLoading: catalogLoading, refetch: refetchCatalog } = useQuery<Artifact[], Error>({
-    queryKey: ['artifactCatalog', groupId, packName],
-    queryFn: () => fetchArtifactCatalog({ groupId: groupId!, packName: packName! }),
-    enabled: !!groupId && !!packName && !!user?.access_token,
-  });
+  useEffect(() => { fetchCatalogData(); }, [fetchCatalogData]);
 
   const isNonSwu = updatePack?.packaging === 'non-swu';
 
@@ -159,11 +247,21 @@ export default function UpdatePackDetailsPage() {
   const [linkSearch, setLinkSearch] = useState('');
   const [linkingArtifactId, setLinkingArtifactId] = useState<string | null>(null);
 
-  const { data: globalArtifactsPage, isLoading: globalArtifactsLoading } = useQuery({
-    queryKey: ['allArtifacts', linkSearch],
-    queryFn: () => fetchAllArtifacts({ pageSize: 50, ...(linkSearch ? { name: linkSearch } : {}) }),
-    enabled: isLinkOpen && !!user?.access_token,
-  });
+  const fetchGlobalArtifacts = useCallback(async () => {
+    if (!isLinkOpen || !user?.access_token) return;
+    setGlobalArtifactsLoading(true);
+    try {
+      const result = await fetchAllArtifacts({ pageSize: 50, ...(linkSearch ? { name: linkSearch } : {}) });
+      setGlobalArtifactsPage(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setGlobalArtifactsLoading(false);
+    }
+  }, [linkSearch, user?.access_token, isLinkOpen]);
+
+  useEffect(() => { fetchGlobalArtifacts(); }, [fetchGlobalArtifacts]);
+
   const globalArtifacts: Artifact[] = globalArtifactsPage?.list ?? [];
   const catalogIds = new Set(catalogArtifacts.map(a => a.id));
 
@@ -204,8 +302,8 @@ export default function UpdatePackDetailsPage() {
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.err || `Upload failed: ${res.status}`); }
       toast({ title: 'Artifact uploaded', description: `${name} registered.` });
       setUploadFile(null); setUploadArtifactName(''); setUploadVersion(''); setIsUploadOpen(false);
-      refetchCatalog();
-      queryClient.invalidateQueries({ queryKey: ['updatePackArtifacts', groupId, packName] });
+      fetchCatalogData();
+      fetchCatalogData();
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     } finally { setIsUploading(false); }
@@ -217,7 +315,7 @@ export default function UpdatePackDetailsPage() {
     try {
       await linkArtifactToPack({ groupId, packName, artifactId });
       toast({ title: 'Artifact linked' });
-      refetchCatalog();
+      fetchCatalogData();
     } catch (err: any) {
       toast({ title: 'Link failed', description: err.message, variant: 'destructive' });
     } finally { setLinkingArtifactId(null); }
@@ -1122,10 +1220,10 @@ export default function UpdatePackDetailsPage() {
           packName={packName!}
           catalogArtifacts={catalogArtifacts}
           onGenerated={() => {
-            queryClient.invalidateQueries({ queryKey: ['updatePacks', groupId] });
-            queryClient.invalidateQueries({ queryKey: ['updatePackVersions', groupId, packName] });
-            queryClient.invalidateQueries({ queryKey: ['updatePackDescriptor', groupId, packName] });
-            refetchCatalog();
+            fetchUpdatePacksData();
+            fetchVersionsData();
+            fetchDescriptorData();
+            fetchCatalogData();
           }}
         />
       )}
@@ -1138,9 +1236,9 @@ export default function UpdatePackDetailsPage() {
           packName={packName!}
           catalogArtifacts={catalogArtifacts}
           onGenerated={() => {
-            queryClient.invalidateQueries({ queryKey: ['updatePacks', groupId] });
-            queryClient.invalidateQueries({ queryKey: ['updatePackVersions', groupId, packName] });
-            refetchCatalog();
+            fetchUpdatePacksData();
+            fetchVersionsData();
+            fetchCatalogData();
           }}
         />
       )}

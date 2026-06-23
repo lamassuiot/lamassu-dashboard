@@ -1,7 +1,7 @@
 // src/app/updates/page.tsx
 "use client";
 
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { UpdateStrategyForm } from '@/components/iot/update-strategy-form';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -62,7 +61,6 @@ interface CampaignItemWithDms extends CampaignItem {
 export default function UpdatesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
   const [isStrategyDialogOpen, setIsStrategyDialogOpen] = React.useState(false);
   const [selectedPackForCampaign, setSelectedPackForCampaign] = React.useState<string | null>(null);
   // Confirmation dialog target for the terminal cancel action.
@@ -153,31 +151,49 @@ export default function UpdatesPage() {
   }, []);
 
   // Fetch distribution sets from ALL DMSs (used to resolve names/ids when creating launches)
-  const { data: allDmsUpdatePacks = [] } = useQuery({
-    queryKey: ['allDmsUpdatePacks', user?.access_token, availableDms.map(d => d.id).join(',')],
-    queryFn: async () => {
-      if (!user?.access_token || availableDms.length === 0) return [];
-      const promises = availableDms.map(async dms => {
-        try {
-          const res = await fetchUpdatePacks({ groupId: dms.id }, { pageSize: 100 });
-          return res.list.map(p => ({ ...p, groupId: dms.id, dmsName: dms.name }));
-        } catch (e) {
-          console.error(`Failed to fetch packs for DMS ${dms.id}`, e);
-          return [];
-        }
-      });
-      const results = await Promise.all(promises);
-      return results.flat();
-    },
-    enabled: !!user?.access_token && availableDms.length > 0
-  });
+  const [allDmsUpdatePacks, setAllDmsUpdatePacks] = useState<any[]>([]);
+
+  const fetchAllDmsUpdatePacks = useCallback(async () => {
+    if (!user?.access_token || availableDms.length === 0) return;
+    const promises = availableDms.map(async dms => {
+      try {
+        const res = await fetchUpdatePacks({ groupId: dms.id }, { pageSize: 100 });
+        return res.list.map(p => ({ ...p, groupId: dms.id, dmsName: dms.name }));
+      } catch (e) {
+        console.error(`Failed to fetch packs for DMS ${dms.id}`, e);
+        return [];
+      }
+    });
+    const results = await Promise.all(promises);
+    setAllDmsUpdatePacks(results.flat());
+  }, [user?.access_token, availableDms.map(d => d.id).join(',')]);
+
+  useEffect(() => {
+    if (!user?.access_token || availableDms.length === 0) return;
+    fetchAllDmsUpdatePacks();
+  }, [fetchAllDmsUpdatePacks]);
 
   // Fetch distribution sets for the launch (strategy) dialog — scoped to the selected device group
-  const { data: updatePacksResponse2, isLoading: isLoadingUpdatePacks } = useQuery({
-    queryKey: ['updatePacks', selectedDms?.id],
-    queryFn: ({ signal }) => fetchUpdatePacks({ groupId: selectedDms!.id }, { pageSize: 50 }, { signal }),
-    enabled: !!selectedDms?.id && !!user?.access_token,
-  });
+  const [updatePacksResponse2, setUpdatePacksResponse2] = useState<{ list: UpdatePack[] } | undefined>(undefined);
+  const [isLoadingUpdatePacks, setIsLoadingUpdatePacks] = useState(false);
+
+  const fetchUpdatePacksForDialog = useCallback(async () => {
+    if (!selectedDms?.id || !user?.access_token) return;
+    setIsLoadingUpdatePacks(true);
+    try {
+      const result = await fetchUpdatePacks({ groupId: selectedDms.id }, { pageSize: 50 });
+      setUpdatePacksResponse2(result);
+    } catch (err) {
+      // ignore
+    } finally {
+      setIsLoadingUpdatePacks(false);
+    }
+  }, [selectedDms?.id, user?.access_token]);
+
+  useEffect(() => {
+    if (!selectedDms?.id || !user?.access_token) return;
+    fetchUpdatePacksForDialog();
+  }, [fetchUpdatePacksForDialog]);
 
   // Use packs from the global cache if available for the selected DMS to avoid loading states when switching
   const updatePacks: UpdatePack[] = React.useMemo(() => {
@@ -189,53 +205,58 @@ export default function UpdatesPage() {
   }, [allDmsUpdatePacks, selectedDms, updatePacksResponse2?.list]);
 
   // Campaign creation mutation - requires all strategy fields
-  const createCampaignMutation = useMutation({
-    mutationFn: (campaignData: CreateCampaignPayload) => {
-      if (!selectedDms?.id) {
-        throw new Error('No Device Group selected');
-      }
-      return createCampaign({
+  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
+
+  const createCampaignMutate = async (campaignData: CreateCampaignPayload) => {
+    if (!selectedDms?.id) {
+      throw new Error('No Device Group selected');
+    }
+    setIsCreatingCampaign(true);
+    try {
+      const data = await createCampaign({
         groupId: selectedDms.id,
         campaignData
       });
-    },
-    onSuccess: async (data, variables) => {
       toast({ title: "Campaign Created", description: data.message || "Successfully created new campaign with configured strategy." });
-      queryClient.invalidateQueries({ queryKey: ['packCampaigns'] });
-      await queryClient.refetchQueries({ queryKey: ['allCampaigns'] });
+      refetchAllCampaigns();
 
       // If the response contains a campaign ID, mark it as started for immediate polling
       // but NOT when auto is enabled — user still needs to press Execute first
       const newCampaignId = data.launch_id || data.launchId || data.id;
-      if (newCampaignId && !variables.auto) startStoredCampaign(newCampaignId);
+      if (newCampaignId && !campaignData.auto) startStoredCampaign(newCampaignId);
 
       // Refetch again after a short delay to ensure we catch the new campaign
       setTimeout(async () => {
-        await queryClient.refetchQueries({ queryKey: ['allCampaigns'] });
+        refetchAllCampaigns();
       }, 500);
 
       setIsStrategyDialogOpen(false);
       setSelectedPackForCampaign(null);
       setPreconditionCheck(null);
-    },
-    onError: (err: Error) => {
-      toast({ variant: "destructive", title: "Campaign Creation Failed", description: err.message });
-    },
-  });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Campaign Creation Failed", description: (err instanceof Error ? err : new Error(String(err))).message });
+    } finally {
+      setIsCreatingCampaign(false);
+    }
+  };
 
   // Dry-run mutation: evaluate preconditions before committing the campaign.
-  const dryRunMutation = useMutation({
-    mutationFn: (campaignData: CreateCampaignPayload) => {
-      if (!selectedDms?.id) throw new Error('No Device Group selected');
-      return createCampaign({ groupId: selectedDms.id, campaignData, dryRun: true });
-    },
-    onSuccess: (data, campaignData) => {
+  const [isDryRunPending, setIsDryRunPending] = useState(false);
+
+  const dryRunMutate = async (campaignData: CreateCampaignPayload) => {
+    if (!selectedDms?.id) throw new Error('No Device Group selected');
+    setIsDryRunPending(true);
+    try {
+      const data = await createCampaign({ groupId: selectedDms.id, campaignData, dryRun: true });
       setPreconditionCheck({ payload: campaignData, qualifying: data.qualifying_devices || [], failures: data.precondition_failures || [] });
       setForceDeploy(false);
       setIsPreconditionDialogOpen(true);
-    },
-    onError: (err: Error) => toast({ variant: 'destructive', title: 'Precondition check failed', description: err.message }),
-  });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Precondition check failed', description: (err instanceof Error ? err : new Error(String(err))).message });
+    } finally {
+      setIsDryRunPending(false);
+    }
+  };
 
   const handleStrategySave = (formDataFromForm: UpdateStrategy) => {
     if (!formDataFromForm.updatePackId) {
@@ -266,18 +287,22 @@ export default function UpdatesPage() {
     // With preconditions configured, run a dry-run first to show qualifying / failing devices and
     // let the user decide whether to force-deploy. Otherwise create the campaign directly.
     if (preconditions.length > 0) {
-      dryRunMutation.mutate(campaignPayload);
+      dryRunMutate(campaignPayload);
     } else {
-      createCampaignMutation.mutate(campaignPayload);
+      createCampaignMutate(campaignPayload);
     }
   };
 
   // Fetch all campaigns from all DMS instances
-  const { data: allCampaigns = [], isLoading: isLoadingCampaigns, error: campaignsError, refetch } = useQuery<CampaignItemWithDms[], Error>({
-    queryKey: ['allCampaigns', packNameFilter, dmsIdFilter],
-    queryFn: async () => {
-      if (!user?.access_token || availableDms.length === 0) return [];
+  const [allCampaigns, setAllCampaigns] = useState<CampaignItemWithDms[]>([]);
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
+  const [campaignsError, setCampaignsError] = useState<Error | null>(null);
 
+  const refetchAllCampaigns = useCallback(async () => {
+    if (!user?.access_token || availableDms.length === 0) return;
+    setIsLoadingCampaigns(true);
+    setCampaignsError(null);
+    try {
       // If filtering by DMS, only fetch from that DMS
       const dmsToQuery = dmsIdFilter
         ? availableDms.filter(dms => dms.id === dmsIdFilter)
@@ -292,11 +317,12 @@ export default function UpdatesPage() {
         );
 
         const campaignsArrays = await Promise.all(allCampaignsPromises);
-        return campaignsArrays.flat().filter(campaign =>
+        setAllCampaigns(campaignsArrays.flat().filter(campaign =>
           campaign.name.includes(packNameFilter) ||
           campaign.name === packNameFilter ||
           campaign.name.startsWith(packNameFilter)
-        );
+        ));
+        return;
       }
 
       // Otherwise, fetch the latest 5 campaigns per pack
@@ -329,66 +355,96 @@ export default function UpdatesPage() {
         }
       }
 
-      return allPackCampaigns;
-    },
-    enabled: !!user?.access_token && availableDms.length > 0,
-    refetchInterval: startedCampaigns.size > 0 ? 3000 : false,
-  });
+      setAllCampaigns(allPackCampaigns);
+    } catch (err) {
+      setCampaignsError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoadingCampaigns(false);
+    }
+  }, [user?.access_token, availableDms.map(d => d.id).join(','), packNameFilter, dmsIdFilter]);
+
+  useEffect(() => {
+    if (!user?.access_token || availableDms.length === 0) return;
+    refetchAllCampaigns();
+  }, [refetchAllCampaigns]);
+
+  useEffect(() => {
+    if (startedCampaigns.size === 0) return;
+    const id = setInterval(refetchAllCampaigns, 3000);
+    return () => clearInterval(id);
+  }, [refetchAllCampaigns, startedCampaigns.size]);
 
   // Pause auto-deploy / Execute for a campaign (resumable). Replaces the old "switch to manual" hack.
-  const pauseMutation = useMutation({
-    mutationFn: ({ groupId, campaignId }: { groupId: string; campaignId: string }) =>
-      pauseCampaign({ groupId, campaignId }),
-    onSuccess: (_data, { groupId }) => {
+  const [isPausePending, setIsPausePending] = useState(false);
+
+  const pauseMutate = async ({ groupId, campaignId }: { groupId: string; campaignId: string }) => {
+    setIsPausePending(true);
+    try {
+      await pauseCampaign({ groupId, campaignId });
       toast({ title: "Campaign Paused", description: "Roll out is on hold. Resume it any time to continue." });
-      queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
-      queryClient.invalidateQueries({ queryKey: ['currentCampaigns', groupId] });
-    },
-    onError: (err: Error) => toast({ variant: "destructive", title: "Failed to Pause Campaign", description: err.message }),
-  });
+      refetchAllCampaigns();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to Pause Campaign", description: (err instanceof Error ? err : new Error(String(err))).message });
+    } finally {
+      setIsPausePending(false);
+    }
+  };
 
   // Resume a paused campaign; for auto campaigns the backend immediately rolls out pending devices.
-  const resumeMutation = useMutation({
-    mutationFn: ({ groupId, campaignId }: { groupId: string; campaignId: string }) =>
-      resumeCampaign({ groupId, campaignId }),
-    onSuccess: (_data, { groupId, campaignId }) => {
+  const [isResumePending, setIsResumePending] = useState(false);
+
+  const resumeMutate = async ({ groupId, campaignId }: { groupId: string; campaignId: string }) => {
+    setIsResumePending(true);
+    try {
+      await resumeCampaign({ groupId, campaignId });
       toast({ title: "Campaign Resumed", description: "Roll out has been resumed." });
       startStoredCampaign(campaignId);
-      queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
-      queryClient.invalidateQueries({ queryKey: ['currentCampaigns', groupId] });
-    },
-    onError: (err: Error) => toast({ variant: "destructive", title: "Failed to Resume Campaign", description: err.message }),
-  });
+      refetchAllCampaigns();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to Resume Campaign", description: (err instanceof Error ? err : new Error(String(err))).message });
+    } finally {
+      setIsResumePending(false);
+    }
+  };
 
   // Permanently cancel a campaign (terminal, not resumable).
-  const cancelMutation = useMutation({
-    mutationFn: ({ groupId, campaignId }: { groupId: string; campaignId: string }) =>
-      cancelCampaign({ groupId, campaignId }),
-    onSuccess: (_data, { groupId, campaignId }) => {
+  const [isCancelPending, setIsCancelPending] = useState(false);
+
+  const cancelMutate = async ({ groupId, campaignId }: { groupId: string; campaignId: string }) => {
+    setIsCancelPending(true);
+    try {
+      await cancelCampaign({ groupId, campaignId });
       toast({ title: "Campaign Cancelled", description: "The campaign was stopped permanently. Pending devices will not be updated." });
       clearStartedCampaign(campaignId);
-      queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
-      queryClient.invalidateQueries({ queryKey: ['currentCampaigns', groupId] });
+      refetchAllCampaigns();
       setCancelCampaignTarget(null);
-    },
-    onError: (err: Error) => { toast({ variant: "destructive", title: "Failed to Cancel Campaign", description: err.message }); setCancelCampaignTarget(null); },
-  });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to Cancel Campaign", description: (err instanceof Error ? err : new Error(String(err))).message });
+      setCancelCampaignTarget(null);
+    } finally {
+      setIsCancelPending(false);
+    }
+  };
 
   // Re-queue & roll out a campaign's failed devices again (retry a failed test device, or re-attempt
   // the errored devices of a finished campaign).
-  const retryFailedMutation = useMutation({
-    mutationFn: ({ groupId, campaignId }: { groupId: string; campaignId: string }) =>
-      retryFailedDevices({ groupId, campaignId }),
-    onSuccess: (_data, { groupId, campaignId }) => {
+  const [isRetryFailedPending, setIsRetryFailedPending] = useState(false);
+
+  const retryFailedMutate = async ({ groupId, campaignId }: { groupId: string; campaignId: string }) => {
+    setIsRetryFailedPending(true);
+    try {
+      await retryFailedDevices({ groupId, campaignId });
       toast({ title: "Retrying Failed Devices", description: "The failed devices are being rolled out again." });
       startStoredCampaign(campaignId);
       // A retry re-opens a finished campaign, so drop it from the locally-completed set.
       setCompletedCampaignIds(prev => { const n = new Set(prev); n.delete(campaignId); return n; });
-      queryClient.invalidateQueries({ queryKey: ['allCampaigns'] });
-      queryClient.invalidateQueries({ queryKey: ['currentCampaigns', groupId] });
-    },
-    onError: (err: Error) => toast({ variant: "destructive", title: "Failed to Retry Devices", description: err.message }),
-  });
+      refetchAllCampaigns();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to Retry Devices", description: (err instanceof Error ? err : new Error(String(err))).message });
+    } finally {
+      setIsRetryFailedPending(false);
+    }
+  };
 
   // Trigger a rollout for a campaign (apply its strategy to the pending devices).
   const handleCampaignExecute = async (groupId: string, campaignId: string) => {
@@ -422,13 +478,7 @@ export default function UpdatesPage() {
         description: `Campaign ${campaignId.slice(-4)} has been successfully executed.`,
       });
 
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['allCampaigns'] }),
-        queryClient.refetchQueries({ queryKey: ['activeCampaigns', groupId] }),
-        queryClient.refetchQueries({ queryKey: ['campaignJobStatuses', groupId, campaignId] }),
-        queryClient.refetchQueries({ queryKey: ['campaignJobStats', groupId, campaignId] }),
-        queryClient.refetchQueries({ queryKey: ['phasedWorkflowStates', groupId, campaignId] }),
-      ]);
+      refetchAllCampaigns();
     } catch (error) {
       console.error('Error executing campaign:', error);
       clearStartedCampaign(campaignId);
@@ -482,6 +532,8 @@ export default function UpdatesPage() {
     updatePackId: selectedPackForCampaign || undefined,
     auto: false,
   };
+
+  const lifecycleBusy = isPausePending || isResumePending || isCancelPending || isRetryFailedPending;
 
   const renderHistoryTable = (campaigns: CampaignItemWithDms[]) => (
     <div className="overflow-x-auto">
@@ -551,9 +603,9 @@ export default function UpdatesPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => retryFailedMutation.mutate({ groupId: campaign.group_id, campaignId: campaign.id })}
+                            onClick={() => retryFailedMutate({ groupId: campaign.group_id, campaignId: campaign.id })}
                             className="gap-2 border-amber-400/60 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300"
-                            disabled={retryFailedMutation.isPending}
+                            disabled={isRetryFailedPending}
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
                             Retry failed
@@ -661,7 +713,7 @@ export default function UpdatesPage() {
             <AlertTriangle /> Error Loading Campaigns
           </p>
           <p className="text-destructive-foreground mb-2">{campaignsError.message}</p>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <Button variant="outline" size="sm" onClick={() => refetchAllCampaigns()}>
             <RefreshCw className="mr-2 h-4 w-4" /> Retry
           </Button>
         </div>
@@ -786,7 +838,6 @@ export default function UpdatesPage() {
                               const status = campaign.status || 'running';
                               const isPaused = status === 'paused';
                               const isTerminal = status === 'cancelled' || status === 'completed';
-                              const lifecycleBusy = pauseMutation.isPending || resumeMutation.isPending || cancelMutation.isPending || retryFailedMutation.isPending;
                               const hasFailed = (campaign.failed_devices?.length || 0) > 0;
                               // Canary gate: the test device must complete before the rest of the fleet rolls out.
                               const testStatus = getTestDeviceStatus(campaign);
@@ -823,7 +874,7 @@ export default function UpdatesPage() {
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => retryFailedMutation.mutate({ groupId: campaign.group_id, campaignId: campaign.id })}
+                                        onClick={() => retryFailedMutate({ groupId: campaign.group_id, campaignId: campaign.id })}
                                         className="gap-2 border-amber-400/60 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300"
                                         disabled={lifecycleBusy}
                                       >
@@ -843,7 +894,7 @@ export default function UpdatesPage() {
                                     <Button
                                       size="sm"
                                       variant="default"
-                                      onClick={() => resumeMutation.mutate({ groupId: campaign.group_id, campaignId: campaign.id })}
+                                      onClick={() => resumeMutate({ groupId: campaign.group_id, campaignId: campaign.id })}
                                       className="gap-2 bg-primary hover:bg-primary/90"
                                       disabled={lifecycleBusy}
                                     >
@@ -863,7 +914,7 @@ export default function UpdatesPage() {
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => pauseMutation.mutate({ groupId: campaign.group_id, campaignId: campaign.id })}
+                                        onClick={() => pauseMutate({ groupId: campaign.group_id, campaignId: campaign.id })}
                                         className="gap-2"
                                         disabled={lifecycleBusy}
                                       >
@@ -1054,13 +1105,13 @@ export default function UpdatesPage() {
             <Button
               type="submit"
               form="campaign-strategy-form"
-              disabled={createCampaignMutation.isPending || dryRunMutation.isPending || !selectedDms}
+              disabled={isCreatingCampaign || isDryRunPending || !selectedDms}
               className="w-full sm:w-auto sm:min-w-[200px]"
             >
-              {createCampaignMutation.isPending || dryRunMutation.isPending ? (
+              {isCreatingCampaign || isDryRunPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {dryRunMutation.isPending ? 'Checking preconditions...' : 'Creating Campaign...'}
+                  {isDryRunPending ? 'Checking preconditions...' : 'Creating Campaign...'}
                 </>
               ) : (
                 <>
@@ -1134,7 +1185,7 @@ export default function UpdatesPage() {
                 if (!preconditionCheck) return;
                 const payload = { ...preconditionCheck.payload, force_preconditions: forceDeploy };
                 setIsPreconditionDialogOpen(false);
-                createCampaignMutation.mutate(payload);
+                createCampaignMutate(payload);
               }}
               className="bg-primary hover:bg-primary/90"
             >
@@ -1160,11 +1211,11 @@ export default function UpdatesPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Campaign</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => { if (cancelCampaignTarget) cancelMutation.mutate(cancelCampaignTarget); }}
+              onClick={() => { if (cancelCampaignTarget) cancelMutate(cancelCampaignTarget); }}
               className="bg-destructive hover:bg-destructive/90"
-              disabled={cancelMutation.isPending}
+              disabled={isCancelPending}
             >
-              {cancelMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Cancelling…</> : 'Cancel Campaign'}
+              {isCancelPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Cancelling…</> : 'Cancel Campaign'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1172,5 +1223,3 @@ export default function UpdatesPage() {
     </BreadcrumbPage>
   );
 }
-
-

@@ -1,7 +1,7 @@
 // src/app/updates/create-version/page.tsx
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, GitFork, Loader2 } from 'lucide-react';
@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useQuery } from '@tanstack/react-query';
 import { fetchUpdatePacks, createUpdatePackVersion } from '@/lib/iot-api';
 import { useDms } from '@/contexts/DmsContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,12 +37,23 @@ export default function CreateUpdatePackVersionPage() {
     }
   }, [dmsIdParam, availableDms, selectedDms, setSelectedDms]);
 
-  const { data: fetchedUpdatePacks = [] } = useQuery<any, Error, UpdatePack[]>({
-    queryKey: ['updatePacks', selectedDms?.id],
-    queryFn: () => fetchUpdatePacks({ groupId: selectedDms!.id }, { pageSize: 50 }),
-    enabled: !!selectedDms && !!user?.access_token,
-    select: (data) => (Array.isArray(data) ? data : (data?.list || [])),
-  });
+  const [fetchedUpdatePacksRaw, setFetchedUpdatePacksRaw] = useState<any>(undefined);
+
+  const fetchPacksData = useCallback(async () => {
+    if (!selectedDms || !user?.access_token) return;
+    try {
+      const result = await fetchUpdatePacks({ groupId: selectedDms.id }, { pageSize: 50 });
+      setFetchedUpdatePacksRaw(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [selectedDms?.id, user?.access_token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { fetchPacksData(); }, [fetchPacksData]);
+
+  const fetchedUpdatePacks: UpdatePack[] = Array.isArray(fetchedUpdatePacksRaw)
+    ? fetchedUpdatePacksRaw
+    : (fetchedUpdatePacksRaw?.list || []);
 
   const [selectedBasePackId, setSelectedBasePackId] = useState<string | undefined>(undefined);
   const [newVersion, setNewVersion] = useState('');

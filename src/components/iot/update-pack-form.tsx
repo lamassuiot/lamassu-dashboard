@@ -1,7 +1,7 @@
 // src/components/iot/update-pack-form.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -40,23 +40,22 @@ import { fetchKmsKeys } from '@/lib/kms-data';
 import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { assignKeyToDevice } from '@/lib/device-inventory-api';
 
-import { useQuery } from '@tanstack/react-query';
 import { fetchArtifactCatalog, fetchAllArtifacts } from '@/lib/iot-api';
 import { Badge } from '@/components/ui/badge';
 import type { Artifact } from '@/types/iot';
 
 const RSA_SIGNING_METHODS = [
-  "RSASSA_PSS_SHA_256", 
-  "RSASSA_PSS_SHA_384", 
+  "RSASSA_PSS_SHA_256",
+  "RSASSA_PSS_SHA_384",
   "RSASSA_PSS_SHA_512",
-  "RSASSA_PKCS1_V1_5_SHA_256", 
-  "RSASSA_PKCS1_V1_5_SHA_384", 
+  "RSASSA_PKCS1_V1_5_SHA_256",
+  "RSASSA_PKCS1_V1_5_SHA_384",
   "RSASSA_PKCS1_V1_5_SHA_512"
 ];
 
 const ECDSA_SIGNING_METHODS = [
-  "ECDSA_SHA_256", 
-  "ECDSA_SHA_384", 
+  "ECDSA_SHA_256",
+  "ECDSA_SHA_384",
   "ECDSA_SHA_512"
 ];
 
@@ -154,27 +153,45 @@ export function UpdatePackForm({
   const [showSecurityWarningDialog, setShowSecurityWarningDialog] = useState(false);
 
   // Fetch available symmetric keys for encryption
-  const { data: symmetricKeysResponse } = useQuery({
-    queryKey: ['symmetricKeys', user?.profile?.sub],
-    queryFn: () => fetchSymmetricKeys(user!.profile.sub!),
-    enabled: !!user?.profile?.sub && !!user?.access_token,
-  });
-  
+  const [symmetricKeysResponse, setSymmetricKeysResponse] = useState<any>(undefined);
+  const fetchSymKeys = useCallback(async () => {
+    try {
+      const result = await fetchSymmetricKeys(user!.profile.sub!);
+      setSymmetricKeysResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [user?.profile?.sub]);
+
+  useEffect(() => {
+    if (!!user?.profile?.sub && !!user?.access_token) {
+      fetchSymKeys();
+    }
+  }, [fetchSymKeys, user?.profile?.sub, user?.access_token]);
+
   const symmetricKeys = symmetricKeysResponse?.list || [];
 
   // Fetch available KMS keys for signing
-  const { data: signingKeysResponse } = useQuery({
-    queryKey: ['signingKeys', user?.profile?.sub],
-    queryFn: () => {
+  const [signingKeysResponse, setSigningKeysResponse] = useState<any>(undefined);
+  const fetchSigningKeys = useCallback(async () => {
+    try {
       const params = new URLSearchParams();
-      return fetchKmsKeys(params);
-    },
-    enabled: !!user?.profile?.sub && !!user?.access_token,
-  });
+      const result = await fetchKmsKeys(params);
+      setSigningKeysResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [user?.profile?.sub]);
+
+  useEffect(() => {
+    if (!!user?.profile?.sub && !!user?.access_token) {
+      fetchSigningKeys();
+    }
+  }, [fetchSigningKeys, user?.profile?.sub, user?.access_token]);
 
   const signingKeys = signingKeysResponse?.list || [];
 
-  // Defensive: a stale React Query cache under a shared key can hand us the full {list,next} object
+  // Defensive: a stale cache under a shared key can hand us the full {list,next} object
   // instead of an array. Normalize so the form never crashes on .find/.map.
   const safeBasePacks = Array.isArray(availableBasePacks) ? availableBasePacks : [];
 
@@ -182,18 +199,30 @@ export function UpdatePackForm({
   const basePack = safeBasePacks.find(p => p.id === selectedBasePackIdProp);
   const catalogGroupId = selectedDms?.id || '';
   const catalogPackName = basePack?.name || '';
-  const { data: catalogArtifacts = [] } = useQuery<Artifact[]>({
-    queryKey: ['artifactCatalog', catalogGroupId, catalogPackName],
-    queryFn: () => fetchArtifactCatalog({ groupId: catalogGroupId, packName: catalogPackName }),
-    enabled: !!catalogGroupId && !!catalogPackName && !!user?.access_token,
-  });
+  const [catalogArtifactsData, setCatalogArtifactsData] = useState<Artifact[]>([]);
+  const fetchCatalog = useCallback(async () => {
+    try {
+      const result = await fetchArtifactCatalog({ groupId: catalogGroupId, packName: catalogPackName });
+      setCatalogArtifactsData(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [catalogGroupId, catalogPackName]);
+
+  useEffect(() => {
+    if (!!catalogGroupId && !!catalogPackName && !!user?.access_token) {
+      fetchCatalog();
+    }
+  }, [fetchCatalog, catalogGroupId, catalogPackName, user?.access_token]);
+
+  const catalogArtifacts: Artifact[] = catalogArtifactsData;
 
   // The GLOBAL artifact pool — every previously-uploaded artifact is selectable here, not just the
   // ones already linked to this pack. Artifacts are first-class entities now. Follow the `next`
   // bookmark to load the COMPLETE pool (otherwise artifacts beyond one page would be unselectable).
-  const { data: globalArtifactsResp } = useQuery<{ list: Artifact[]; next: string | null }>({
-    queryKey: ['allArtifactsForSwu'],
-    queryFn: async () => {
+  const [globalArtifactsResp, setGlobalArtifactsResp] = useState<{ list: Artifact[]; next: string | null } | undefined>(undefined);
+  const fetchGlobalArtifacts = useCallback(async () => {
+    try {
       const acc: Artifact[] = [];
       let bookmark: string | undefined;
       for (let i = 0; i < 100; i++) {
@@ -202,10 +231,17 @@ export function UpdatePackForm({
         if (!next) break;
         bookmark = next;
       }
-      return { list: acc, next: null };
-    },
-    enabled: !!user?.access_token,
-  });
+      setGlobalArtifactsResp({ list: acc, next: null });
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!!user?.access_token) {
+      fetchGlobalArtifacts();
+    }
+  }, [fetchGlobalArtifacts, user?.access_token]);
   // Memoized so its reference is stable across renders (a fresh [] each render would re-fire the
   // descriptor-revalidation effect that depends on it, causing a render loop while the query loads).
   const globalArtifacts = React.useMemo(() => globalArtifactsResp?.list || [], [globalArtifactsResp]);
@@ -235,9 +271,9 @@ export function UpdatePackForm({
 
   const form = useForm<UpdatePackFormValues>({
     resolver: zodResolver(updatePackFormSchema),
-    defaultValues: { 
-      name: "", 
-      version: 1, 
+    defaultValues: {
+      name: "",
+      version: 1,
       groupId: selectedDms?.id || "",
       type: "rawfile",
       packaging: "swu",
@@ -253,16 +289,27 @@ export function UpdatePackForm({
 
   // Fetch certificates for the selected signing key
   const selectedSigningKeyId = form.watch('signingKeyId');
-  const { data: certificatesResponse } = useQuery({
-    queryKey: ['keyCertificates', selectedSigningKeyId],
-    queryFn: async () => {
-      if (!selectedSigningKeyId || selectedSigningKeyId === 'none') return { certificates: [] };
-      return fetchIssuedCertificates({
+  const [certificatesResponse, setCertificatesResponse] = useState<any>(undefined);
+  const fetchCerts = useCallback(async () => {
+    if (!selectedSigningKeyId || selectedSigningKeyId === 'none') {
+      setCertificatesResponse({ certificates: [] });
+      return;
+    }
+    try {
+      const result = await fetchIssuedCertificates({
         apiQueryString: `filter=subject_key_id[equal]${selectedSigningKeyId}&sort_by=valid_from&sort_mode=desc&page_size=50`
       });
-    },
-    enabled: !!selectedSigningKeyId && selectedSigningKeyId !== 'none' && !!user?.access_token,
-  });
+      setCertificatesResponse(result);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [selectedSigningKeyId]);
+
+  useEffect(() => {
+    if (!!selectedSigningKeyId && selectedSigningKeyId !== 'none' && !!user?.access_token) {
+      fetchCerts();
+    }
+  }, [fetchCerts, selectedSigningKeyId, user?.access_token]);
 
   const keyCertificates = certificatesResponse?.certificates || [];
 
@@ -368,19 +415,19 @@ export function UpdatePackForm({
 
   const handleBinaryUpload = async (files: File | File[]): Promise<boolean> => {
     const fileArray = Array.isArray(files) ? files : [files];
-    
+
     // Check for duplicates
     const existingNames = binaryFiles.map(f => f.name);
     const newFiles = fileArray.filter(file => !existingNames.includes(file.name));
-    
+
     if (newFiles.length !== fileArray.length) {
-      toast({ 
-        variant: "destructive", 
-        title: "Duplicate Files", 
-        description: "Some files were already uploaded and were skipped." 
+      toast({
+        variant: "destructive",
+        title: "Duplicate Files",
+        description: "Some files were already uploaded and were skipped."
       });
     }
-    
+
     if (newFiles.length === 0) return false;
 
     setBinaryFiles(prev => [...prev, ...newFiles]);
@@ -395,7 +442,7 @@ export function UpdatePackForm({
     if (descriptorFileContent) {
       validateDescriptorFiles(descriptorFileContent, [...binaryFiles, ...newFiles]);
     }
-    
+
     const fileNames = newFiles.map(f => f.name).join(', ');
     toast({ title: "Files Ready", description: `${fileNames} uploaded successfully.` });
     return true;
@@ -404,7 +451,7 @@ export function UpdatePackForm({
   const validateDescriptorFiles = (descriptorContent: string, uploadedFiles: File[]) => {
     try {
       let descriptor;
-      
+
       // Try to parse as JSON first
       try {
         descriptor = JSON.parse(descriptorContent);
@@ -412,10 +459,10 @@ export function UpdatePackForm({
         // If JSON parsing fails, try to parse as swupdate format
         descriptor = parseSwupdateDescriptor(descriptorContent);
       }
-      
+
       // Extract files from different possible formats
       let requiredFiles: string[] = [];
-      
+
       if (descriptor.files) {
         // Direct files array (JSON format)
         requiredFiles = descriptor.files;
@@ -432,9 +479,9 @@ export function UpdatePackForm({
           requiredFiles = files.map((file: any) => file.filename || file).filter((name: string) => name);
         }
       }
-      
+
       setDescriptorRequiredFiles(requiredFiles);
-      
+
       const uploadedFileNames = uploadedFiles.map(f => f.name);
       // A required file is satisfied by a freshly-uploaded binary OR by a selected global artifact
       // whose filename matches (reuse-without-reupload). Union both for the missing check.
@@ -458,10 +505,10 @@ export function UpdatePackForm({
           warnings.push(`${fileName} is not included in the descriptor`);
         }
       });
-      
+
       setDescriptorValidationErrors(errors);
       setDescriptorValidationWarnings(warnings);
-      
+
       return errors.length === 0; // Return true if no errors
     } catch (e) {
       console.error("Error parsing descriptor:", e);
@@ -485,7 +532,7 @@ export function UpdatePackForm({
   const parseSwupdateDescriptor = (content: string) => {
     // Simple parser for swupdate-style descriptors
     const result: any = {};
-    
+
     // Try to extract files using regex patterns
     const filenameMatches = content.match(/filename\s*=\s*["']([^"']+)["']/g);
     if (filenameMatches) {
@@ -493,7 +540,7 @@ export function UpdatePackForm({
         const filenameMatch = match.match(/filename\s*=\s*["']([^"']+)["']/);
         return filenameMatch ? filenameMatch[1] : null;
       }).filter(Boolean);
-      
+
       if (files.length > 0) {
         result.software = {
           ecs: {
@@ -502,14 +549,14 @@ export function UpdatePackForm({
         };
       }
     }
-    
+
     return result;
   };
 
   const convertToSWUGeneratorAlgorithmName = (algorithm: string): string => {
     // Convert algorithm names from our format to SWUGenerator expected format
     const normalizedAlg = algorithm.toLowerCase().trim();
-    
+
     const algorithmMap: Record<string, string> = {
       // AES variants
       'aes-128-cbc': 'AES-128-CBC',
@@ -543,7 +590,7 @@ export function UpdatePackForm({
     if (mapped) {
       return mapped;
     }
-    
+
     // If not found in map, return original
     console.warn(`Unknown algorithm format: ${algorithm}, using as-is`);
     return algorithm;
@@ -580,43 +627,43 @@ export function UpdatePackForm({
         // Handle swupdate format (libconf)
         // We need to modify the text content directly by adding encrypted=true to file entries
         let modifiedContent = descriptorContent;
-        
+
         // Find all file blocks using regex
         const fileBlockRegex = /\{\s*filename\s*=\s*["']([^"']+)["'][^}]*\}/g;
         const matches = [...descriptorContent.matchAll(fileBlockRegex)];
-        
+
         // Track which files we've encountered
         let fileIndex = 0;
         let offset = 0;
-        
+
         matches.forEach((match) => {
           const fullMatch = match[0];
           const filename = match[1];
           const matchStart = match.index! + offset;
-          
+
           // Check if this file should be encrypted
           if (encryptedFileIndices.includes(fileIndex)) {
             // Check if 'encrypted' field already exists in this block
             if (!fullMatch.includes('encrypted')) {
               // Find the position before the closing brace
               const closingBracePos = matchStart + fullMatch.lastIndexOf('}');
-              
+
               // Insert encrypted = true before the closing brace
               const before = modifiedContent.substring(0, closingBracePos);
               const after = modifiedContent.substring(closingBracePos);
-              
+
               // Add proper indentation (assuming 2 spaces or tab)
               const indentation = fullMatch.match(/^\s*/)?.[0] || '\t\t\t\t';
               modifiedContent = before + `\n${indentation}\tencrypted = true;` + after;
-              
+
               // Update offset for next iteration
               offset += `\n${indentation}\tencrypted = true;`.length;
             }
           }
-          
+
           fileIndex++;
         });
-        
+
         return modifiedContent;
       }
     } catch (e) {
@@ -640,20 +687,20 @@ export function UpdatePackForm({
           const text = event.target?.result as string;
           setDescriptorFileContent(text);
           setDescriptorFile(file); // Set the file object itself after content is read
-          
+
           // Validate descriptor against uploaded files
           const isValid = validateDescriptorFiles(text, binaryFiles);
-          
+
           if (isValid) {
             toast({ title: "Descriptor File Ready", description: `${file.name} selected and content loaded.` });
           } else {
-            toast({ 
-              variant: "destructive", 
-              title: "Descriptor Validation Failed", 
-              description: "Some required files are missing. Check the validation messages below." 
+            toast({
+              variant: "destructive",
+              title: "Descriptor Validation Failed",
+              description: "Some required files are missing. Check the validation messages below."
             });
           }
-          
+
           resolvePromise(true);
         } catch (e) {
           console.error("Error reading descriptor file:", e);
@@ -694,26 +741,26 @@ export function UpdatePackForm({
     setShowProgressDialog(true);
     setGenerationError(null);
     setGenerationSuccessMessage(null);
-    
+
     // Get form values to check for signing/encryption
     const formValues = form.getValues();
-    const hasSigning = (formValues.signingKeyId && formValues.signingKeyId !== 'none') || 
+    const hasSigning = (formValues.signingKeyId && formValues.signingKeyId !== 'none') ||
                        (!!formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none');
     const encryptionMode = formValues.encryptionMode || 'none';
-    const hasEncryption = encryptionMode === 'shared' 
+    const hasEncryption = encryptionMode === 'shared'
       ? (formValues.encryptionKeyId && formValues.encryptionKeyId !== 'none' && formValues.encryptionKeyId !== '')
       : encryptionMode === 'per-device';
     const selectedKey = encryptionMode === 'shared' ? symmetricKeys.find(k => k.id === formValues.encryptionKeyId) : null;
-    
+
     // Build dynamic progress steps based on selected algorithms
     const dynamicSteps: ProgressStep[] = [
       { id: 1, title: "Initialize Pack Metadata", icon: Settings2, status: 'pending', message: "Waiting to start..." },
       { id: 2, title: "Upload Binary Artifact", icon: FileUp, status: 'pending', message: "Waiting for metadata..." },
       { id: 3, title: "Upload Descriptor File", icon: FileUp, status: 'pending', message: "Waiting for files..." },
     ];
-    
+
     let stepCounter = 4;
-    
+
     // Add signing step if signing algorithm is selected
     if (hasSigning) {
       const algoName = formValues.signingMethod || formValues.signingAlgorithm || 'Unknown Algorithm';
@@ -725,7 +772,7 @@ export function UpdatePackForm({
         message: "Waiting for file uploads..."
       });
     }
-    
+
     // Add key binding step for shared mode (ensures inventory binding exists)
     if (encryptionMode === 'shared' && hasEncryption && selectedKey) {
       dynamicSteps.push({
@@ -747,7 +794,7 @@ export function UpdatePackForm({
         message: "Waiting for key binding..."
       });
     }
-    
+
     // Add final SWU generation step
     dynamicSteps.push({
       id: stepCounter,
@@ -756,13 +803,13 @@ export function UpdatePackForm({
       status: 'pending',
       message: hasEncryption ? "Waiting for encryption..." : hasSigning ? "Waiting for signing..." : "Waiting for files..."
     });
-    
+
     setProgressSteps(dynamicSteps);
     setOverallProgress(0);
 
     const formData = form.getValues();
     const selectedDmsForPack = availableDms.find(dms => dms.id === formData.groupId);
-    
+
     if (!selectedDmsForPack) {
         setGenerationError("No Device Group is selected.");
         setIsProcessingSwu(false);
@@ -793,7 +840,7 @@ export function UpdatePackForm({
       setIsProcessingSwu(false);
       return;
     }
-    
+
     if (formModeActual === 'newVersion' && !selectedBasePackIdProp) {
       setGenerationError("Base pack is not selected for creating a new version.");
       setIsProcessingSwu(false);
@@ -801,8 +848,8 @@ export function UpdatePackForm({
     }
 
     const packDetails = form.getValues();
-    const apiPackName = packDetails.name; 
-    
+    const apiPackName = packDetails.name;
+
     if (!user?.access_token) {
         setGenerationError("Authentication token not found.");
         setIsProcessingSwu(false);
@@ -815,7 +862,7 @@ export function UpdatePackForm({
       let createPackResponse;
       const updatesApiBaseUrl = get_CLIENT_UPDATES_API_BASE_URL();
       const packDetails = form.getValues();
-      const apiPackName = packDetails.name; 
+      const apiPackName = packDetails.name;
 
       if (formModeActual === 'newVersion' && selectedBasePackIdProp) {
         const basePackNameForApi = safeBasePacks.find(p => p.id === selectedBasePackIdProp)?.name || apiPackName;
@@ -823,7 +870,7 @@ export function UpdatePackForm({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
-      } else { 
+      } else {
         const createPayload: ApiCreateUpdatePackPayload = {
           name: packDetails.name,
           version: packDetails.version,
@@ -848,8 +895,8 @@ export function UpdatePackForm({
       updateStepStatus(1, 'success', createResult.message || "Pack metadata processed.");
       setOverallProgress(20);
 
-      const targetPackNameForFilesAndSwu = apiPackName; 
-      
+      const targetPackNameForFilesAndSwu = apiPackName;
+
       // Upload all binary files one by one. Each upload creates/overwrites a GLOBAL artifact and
       // links it to this pack; the response carries the artifact (with its id) so we can select it.
       updateStepStatus(2, 'in-progress', `Uploading ${binaryFiles.length} file(s)...`);
@@ -869,7 +916,7 @@ export function UpdatePackForm({
 
         const uploadBinaryResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/artifact/upload`, {
           method: 'POST',
-          
+
           body: binaryFormData,
         });
 
@@ -887,13 +934,13 @@ export function UpdatePackForm({
         const fileProgress = 20 + ((i + 1) / binaryFiles.length) * 20; // 20% to 40% range
         setOverallProgress(fileProgress);
       }
-      
+
       updateStepStatus(2, 'success', `All ${binaryFiles.length} file(s) uploaded successfully.`);
       setOverallProgress(40);
 
       if (descriptorFile) {
         updateStepStatus(3, 'in-progress', `Uploading ${descriptorFile.name}...`);
-        
+
         // Check if individual files are selected for encryption
         const encryptedFileIndices: number[] = [];
         if (!formValues.encryptAllFiles && descriptorRequiredFiles.length > 0) {
@@ -904,9 +951,9 @@ export function UpdatePackForm({
             }
           });
         }
-        
+
         let descriptorToUpload = descriptorFile;
-        
+
         // If individual files are selected for encryption, modify the descriptor
         if (encryptedFileIndices.length > 0 && descriptorFileContent) {
           const modifiedContent = modifyDescriptorForEncryption(descriptorFileContent, encryptedFileIndices);
@@ -916,12 +963,12 @@ export function UpdatePackForm({
             lastModified: descriptorFile.lastModified
           });
         }
-        
+
         const descriptorFormData = new FormData();
         descriptorFormData.append('file', descriptorToUpload);
         const uploadDescriptorResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/descriptor/upload`, {
           method: 'POST',
-          
+
           body: descriptorFormData,
         });
         if (!uploadDescriptorResponse.ok) {
@@ -935,22 +982,22 @@ export function UpdatePackForm({
         updateStepStatus(3, 'success', "Skipped (no descriptor file provided or not required for this mode).");
       }
       setOverallProgress(60);
-      
+
       // Handle signing step if algorithm is selected
       let currentStepId = 4;
       if (hasSigning) {
         const algoName = formValues.signingMethod || formValues.signingAlgorithm || 'Unknown Algorithm';
         updateStepStatus(currentStepId, 'in-progress', `Applying ${algoName.toUpperCase()} signature...`);
         setOverallProgress(70);
-        
+
         // Simulate signing process with random delay (0.5-1s)
         const signingDelay = 500 + Math.random() * 500;
         await new Promise(resolve => setTimeout(resolve, signingDelay));
-        
+
         updateStepStatus(currentStepId, 'success', `Successfully signed with ${algoName.toUpperCase()}`);
         currentStepId++;
       }
-      
+
       // Silent pre-flight: bind the key to the user's inventory before calling CreateSWU.
       // POST /symkms/v1/inventory/{user}/keys/{keyId} with empty body — purpose is optional;
       // the backend treats a purposeless binding as a wildcard that matches any purpose lookup.
@@ -979,17 +1026,17 @@ export function UpdatePackForm({
       if (hasEncryption && selectedKey) {
         updateStepStatus(currentStepId, 'in-progress', `Applying ${selectedKey.algorithm.toUpperCase()} encryption...`);
         setOverallProgress(80);
-        
+
         // Simulate encryption process with random delay (0.5-1s)
         const encryptionDelay = 500 + Math.random() * 500;
         await new Promise(resolve => setTimeout(resolve, encryptionDelay));
-        
+
         updateStepStatus(currentStepId, 'success', `Successfully encrypted with ${selectedKey.algorithm.toUpperCase()}`);
         currentStepId++;
       }
 
       updateStepStatus(currentStepId, 'in-progress', 'Triggering .swu file generation...');
-      
+
       // Prepare SWU generation payload based on encryption mode
       // (encryptionMode is already declared at the top of handleGenerateSwu)
       const swuPayload: any = {};
@@ -1030,7 +1077,7 @@ export function UpdatePackForm({
       if (hasSigning) {
         swuPayload.signature_key_id = formValues.signingKeyId;
         swuPayload.signature_alg_name = formValues.signingMethod;
-        
+
         const selectedCert = keyCertificates.find(c => c.serialNumber === formValues.signingCertificate);
         swuPayload.signature_certificate = selectedCert?.pemData || formValues.signingCertificate;
       }
@@ -1056,7 +1103,7 @@ export function UpdatePackForm({
           }
         }
       }
-      
+
       const generateSwuResponse = await apiFetch(`${updatesApiBaseUrl}/groups/${groupId}/updatepacks/${targetPackNameForFilesAndSwu}/swu?user_id=${encodeURIComponent(user.profile.sub)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1079,13 +1126,13 @@ export function UpdatePackForm({
       setGenerationError(errorMessage);
       onSwuGenerationError?.(errorMessage);
     } finally {
-      setIsProcessingSwu(false); 
+      setIsProcessingSwu(false);
     }
   };
-  
+
 
   const nameIsReadOnly = formModeActual === 'edit' || (formModeActual === 'newVersion' && !!selectedBasePackIdProp && !!initialPackData?.name);
-  const versionIsReadOnly = true; 
+  const versionIsReadOnly = true;
   // const typeIsEditable = true; // Removed as it's not explicitly used to gate editing below
 
   let cardTitleText = "Distribution Set Details"; // Generic default
@@ -1103,7 +1150,7 @@ export function UpdatePackForm({
       cardTitleText = "New Version: Select Base Pack";
       cardDescriptionText = "Choose an existing pack to create a new version. Details will populate below.";
     }
-  } else if (formModeActual === 'edit' && initialPackData) { 
+  } else if (formModeActual === 'edit' && initialPackData) {
     cardTitleText = `Update Files for: ${initialPackData.name} v${initialPackData.version}`;
     cardDescriptionText = "Re-upload files for this version. Pack details are locked. Type is editable.";
   }
@@ -1185,8 +1232,8 @@ export function UpdatePackForm({
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {formModeActual === 'newVersion' 
-                          ? "Device Group is locked when creating a new version of an existing pack." 
+                        {formModeActual === 'newVersion'
+                          ? "Device Group is locked when creating a new version of an existing pack."
                           : "Select the Device Group that will receive this distribution set."}
                       </FormDescription>
                       <FormMessage />
@@ -1511,8 +1558,8 @@ export function UpdatePackForm({
                       <div className="mt-3 space-y-2">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-primary">Preview: {descriptorFile.name}</p>
-                          <Button variant="ghost" size="sm" onClick={() => { 
-                            setDescriptorFile(null); 
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            setDescriptorFile(null);
                             setDescriptorFileContent(null);
                             setDescriptorValidationErrors([]);
                             setDescriptorValidationWarnings([]);
@@ -1547,11 +1594,11 @@ export function UpdatePackForm({
                   ))}
                 </div>
               )}
-              
+
               {/* Security Configuration - Moved after Files */}
               <h3 className="text-lg font-semibold pt-4 border-t">Step 3: Security Configuration</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                
+
                 {/* Signing Section */}
                 <div className="space-y-4">
                   <h4 className="font-medium text-sm text-muted-foreground border-b pb-2">Signing Configuration</h4>
@@ -1561,12 +1608,12 @@ export function UpdatePackForm({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Signing Key</FormLabel>
-                        <Select 
+                        <Select
                           onValueChange={(val) => {
                             field.onChange(val);
                             form.setValue('signingMethod', '');
                             form.setValue('signingCertificate', '');
-                          }} 
+                          }}
                           defaultValue={field.value}
                         >
                           <FormControl>
@@ -1595,7 +1642,7 @@ export function UpdatePackForm({
                     render={({ field }) => {
                       const selectedKeyId = form.watch('signingKeyId');
                       const selectedKey = signingKeys.find(k => k.key_id === selectedKeyId);
-                      
+
                       if (!selectedKeyId || selectedKeyId === 'none') return null;
 
                       let methods: string[] = [];
@@ -1634,7 +1681,7 @@ export function UpdatePackForm({
                     name="signingCertificate"
                     render={({ field }) => {
                       const selectedKeyId = form.watch('signingKeyId');
-                      
+
                       if (!selectedKeyId || selectedKeyId === 'none') return null;
 
                       // Filter certificates relevant for signing (Digital Signature or Non Repudiation or Code Signing)
@@ -1652,7 +1699,7 @@ export function UpdatePackForm({
                         if (cert.keyUsage && cert.keyUsage.length > 0) {
                            return cert.keyUsage.includes('digitalSignature') || cert.keyUsage.includes('nonRepudiation');
                         }
-                        
+
                         // If no key usage info defined, include it conservatively
                         return true;
                       });
@@ -1683,7 +1730,7 @@ export function UpdatePackForm({
                                     ...(cert.keyUsage || []).filter(u => u === 'digitalSignature' || u === 'nonRepudiation'),
                                     ...(cert.extendedKeyUsage || []).filter(u => u === 'CodeSigning')
                                   ].join(', ');
-                                  
+
                                   const usageDisplay = usages ? `[${usages}]` : '';
 
                                   return (
@@ -1709,7 +1756,7 @@ export function UpdatePackForm({
                 {/* Encryption Section */}
                 <div className="space-y-4">
                   <h4 className="font-medium text-sm text-muted-foreground border-b pb-2">Encryption Configuration</h4>
-                  
+
                   {/* Encryption Mode Selector */}
                   <FormField
                     control={form.control}
@@ -1913,13 +1960,13 @@ export function UpdatePackForm({
             <Button
               onClick={() => {
                 const formValues = form.getValues();
-                const hasSigning = (formValues.signingKeyId && formValues.signingKeyId !== 'none') || 
+                const hasSigning = (formValues.signingKeyId && formValues.signingKeyId !== 'none') ||
                                    (!!formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none');
                 const encMode = formValues.encryptionMode || 'none';
                 const hasEncryption = encMode === 'shared'
                   ? (formValues.encryptionKeyId && formValues.encryptionKeyId !== 'none' && formValues.encryptionKeyId !== '')
                   : encMode === 'per-device';
-                
+
                 if (!hasSigning && !hasEncryption) {
                   setShowSecurityWarningDialog(true);
                 } else if (!hasSigning) {
@@ -1971,16 +2018,16 @@ export function UpdatePackForm({
             </AlertDialogTitle>
             {isProcessingSwu && <AlertDialogDescription>Please wait while the distribution set is being generated...</AlertDialogDescription>}
           </AlertDialogHeader>
-          
+
           <div className="my-4 space-y-3">
             <Progress value={overallProgress} className="w-full h-3" indicatorClassName={
-                generationError ? "bg-destructive" : 
+                generationError ? "bg-destructive" :
                 (overallProgress === 100 && !generationError) ? "bg-primary" : "bg-accent"
             } />
             <div className="space-y-2.5 text-sm">
               {progressSteps.map(step => (
                 <div key={step.id} className={`flex items-start justify-between p-2 rounded-md border border-border/60 shadow-sm min-h-[60px] ${
-                    step.status === 'in-progress' ? 'bg-accent/10 border-accent/50' : 
+                    step.status === 'in-progress' ? 'bg-accent/10 border-accent/50' :
                     step.status === 'success' ? 'bg-primary/10 border-primary/50' :
                     step.status === 'error' ? 'bg-destructive/10 border-destructive/50' :
                     'bg-muted/30'
@@ -1991,7 +2038,7 @@ export function UpdatePackForm({
                       <span className="font-medium text-foreground">{step.title}</span>
                        {step.message && step.status !== 'pending' && (
                         <span className={`text-xs ${
-                          step.status === 'error' ? 'text-destructive' : 
+                          step.status === 'error' ? 'text-destructive' :
                           step.status === 'success' ? 'text-primary' : 'text-muted-foreground'
                         }`}>
                           {step.message}
@@ -2016,11 +2063,11 @@ export function UpdatePackForm({
               <p>{generationSuccessMessage}</p>
             </div>
           )}
-          
+
           <AlertDialogFooter className="mt-4">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowProgressDialog(false)} 
+            <Button
+              variant="outline"
+              onClick={() => setShowProgressDialog(false)}
               disabled={isProcessingSwu}
             >
               Close
@@ -2041,7 +2088,7 @@ export function UpdatePackForm({
                 const formValues = form.getValues();
                 const hasSigning = formValues.signingAlgorithm && formValues.signingAlgorithm !== 'none';
                 const hasEncryption = formValues.encryptionKeyId && formValues.encryptionKeyId !== 'none' && formValues.encryptionKeyId !== '';
-                
+
                 if (!hasSigning && !hasEncryption) {
                   return "Are you sure you want to generate an unencrypted and unsigned update? This may pose security risks.";
                 } else if (!hasSigning) {
@@ -2054,13 +2101,13 @@ export function UpdatePackForm({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowSecurityWarningDialog(false)}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={() => {
                 setShowSecurityWarningDialog(false);
                 handleGenerateSwu();
