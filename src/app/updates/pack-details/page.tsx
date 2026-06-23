@@ -7,9 +7,9 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import {
-  ArrowLeft, Download, Package, Calendar, FileText, Info, CheckCircle, XCircle,
-  Copy, Shield, PenTool, Lock, Users, History, Plus, Loader2, UploadCloud, Link2,
-  ChevronDown, ChevronRight, Boxes, GitCompare, MoreVertical, Rocket,
+  ArrowLeft, Download, Package, FileText, Info,
+  Copy, Shield, Users, History, Plus, Loader2, UploadCloud, Link2,
+  ChevronDown, ChevronRight, GitCompare, MoreVertical, Rocket,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -437,59 +437,23 @@ export default function UpdatePackDetailsPage() {
     );
   }
 
-  // ── Build-status banner ───────────────────────────────────────────────────
+  // ── Build status ─────────────────────────────────────────────────────────
 
-  const statusBanner = isNonSwu ? (
-    <div className={cn('rounded-lg border p-4', updatePack.uri
-      ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900'
-      : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900')}>
-      <div className="flex items-center gap-3">
-        {updatePack.uri
-          ? <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-          : <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />}
-        <div>
-          <p className={cn('font-semibold', updatePack.uri ? 'text-green-900 dark:text-green-100' : 'text-blue-900 dark:text-blue-100')}>
-            {updatePack.uri ? `Package built (v${updatePack.version})` : 'Non-SWU pack — package not built yet'}
-          </p>
-          <p className={cn('text-sm mt-1', updatePack.uri ? 'text-green-700 dark:text-green-300' : 'text-blue-700 dark:text-blue-300')}>
-            {updatePack.uri
-              ? 'Devices download this pack as a .tar.gz. Regenerate after changing artifacts.'
-              : 'Upload artifacts, then "Generate Package" to build the .tar.gz devices will download.'}
-          </p>
-        </div>
-      </div>
-    </div>
-  ) : updatePack.uri ? (
-    <div className="rounded-lg border p-4 bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900">
-      <div className="flex items-center gap-3">
-        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-        <div>
-          <p className="font-semibold text-green-900 dark:text-green-100">SWU built (v{updatePack.version})</p>
-          <p className="text-sm text-green-700 dark:text-green-300 mt-1">This pack is ready for deployment. Regenerate after changing its artifacts.</p>
-        </div>
-      </div>
-    </div>
-  ) : updatePack.generationError ? (
-    <div className="rounded-lg border p-4 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900">
-      <div className="flex items-center gap-3">
-        <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-        <div>
-          <p className="font-semibold text-red-900 dark:text-red-100">SWU generation failed</p>
-          <p className="text-sm text-red-700 dark:text-red-300 mt-1">{updatePack.generationError}</p>
-        </div>
-      </div>
-    </div>
-  ) : (
-    <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
-      <div className="flex items-center gap-3">
-        <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-        <div>
-          <p className="font-semibold text-blue-900 dark:text-blue-100">No SWU generated yet (v{updatePack.version})</p>
-          <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">Upload artifacts, then "Generate SWU" to build the package devices will download.</p>
-        </div>
-      </div>
-    </div>
-  );
+  const buildStatus = updatePack.uri
+    ? isNonSwu ? 'Package built' : 'SWU built'
+    : updatePack.generationError
+      ? 'Build failed'
+      : isNonSwu ? 'Package not built' : 'SWU not built';
+
+  const buildDescription = updatePack.uri
+    ? isNonSwu
+      ? 'Devices download this distribution set as a .tar.gz package.'
+      : 'This distribution set is ready for deployment.'
+    : updatePack.generationError
+      ? updatePack.generationError
+      : isNonSwu
+        ? 'Upload artifacts, then generate the package devices will download.'
+        : 'Upload artifacts, then generate the SWU devices will download.';
 
   // ── Version history — sorted newest-first ─────────────────────────────────
 
@@ -499,116 +463,120 @@ export default function UpdatePackDetailsPage() {
     return b.version.localeCompare(a.version, undefined, { numeric: true });
   });
 
+  const summaryCards = [
+    {
+      label: 'Version',
+      value: `v${updatePack.version}`,
+      hint: 'Current build',
+    },
+    {
+      label: 'Artifacts',
+      value: catalogArtifacts.length.toString(),
+      hint: catalogArtifacts.length === 1 ? 'Linked artifact' : 'Linked artifacts',
+    },
+    {
+      label: 'Installed',
+      value: (devicePackData?.list.length ?? 0).toString(),
+      hint: 'Device records',
+    },
+    {
+      label: 'Versions',
+      value: sortedVersions.length.toString(),
+      hint: sortedVersions.length === 1 ? 'Snapshot' : 'Snapshots',
+    },
+  ];
+
   return (
     <BreadcrumbPage
       items={[{ label: 'Home', href: '/' }, { label: 'Distribution Set', href: '/package-inventory' }, { label: packName || 'Pack Details' }]}
       className="space-y-5"
+      actions={
+        <>
+          {!isNonSwu && (
+            <Button onClick={() => setIsGenerateSwuOpen(true)} variant={updatePack.uri ? 'outline' : 'default'}>
+              {updatePack.uri ? 'Regenerate SWU' : 'Generate SWU'}
+            </Button>
+          )}
+          {!isPerDevice && !isNonSwu && (
+            <Button onClick={handleDownload} disabled={!updatePack.uri || isDownloadingCurrent}>
+              {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Download SWU
+            </Button>
+          )}
+          {isNonSwu && (
+            <>
+              <Button onClick={() => setIsGeneratePackageOpen(true)} variant={updatePack.uri ? 'outline' : 'default'}>
+                <Package className="mr-2 h-4 w-4" />
+                {updatePack.uri ? 'Regenerate Package' : 'Generate Package'}
+              </Button>
+              <Button onClick={handleDownload} disabled={!updatePack.uri || isDownloadingCurrent}>
+                {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Download Package
+              </Button>
+            </>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="secondary" aria-label="More actions">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsTargetedOpen(true)} disabled={!updatePack.uri}>
+                Targeted Update
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      }
     >
-      <div className="flex flex-col">
-
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <div className="pb-5">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-
-            {/* Identity */}
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <Package className="h-6 w-6 text-primary" />
-              </div>
-              <div className="min-w-0 space-y-2">
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">{updatePack.name}</h1>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    {/* Device Group */}
-                    <Link
-                      href={`/device-groups/details?groupId=${groupId}`}
-                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <Boxes className="h-3.5 w-3.5" />
-                      {groupName}
-                    </Link>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span className="text-xs font-medium text-muted-foreground">ID</span>
-                    <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono truncate max-w-[300px]">{updatePack.id}</code>
-                    <Button
-                      variant="ghost"
-                      className="h-6 w-6 p-0 shrink-0"
-                      onClick={() => { navigator.clipboard.writeText(updatePack.id); toast({ title: 'Copied' }); }}
-                    >
-                      <Copy className="h-3 w-3 text-muted-foreground" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs font-medium text-muted-foreground">v{updatePack.version}</span>
-                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    {updatePack.type === 'rawfile' ? 'Raw File' : updatePack.type === 'firmware' ? 'Firmware' : updatePack.type}
-                  </span>
-                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    {isNonSwu ? 'Non-SWU' : 'SWU'}
-                  </span>
-                  {updatePack.encryption_mode && (
-                    <span className={cn(
-                      'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
-                      updatePack.encryption_mode === 'per-device'
-                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                    )}>
-                      {updatePack.encryption_mode === 'per-device' ? <Users className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                      {updatePack.encryption_mode === 'per-device' ? 'Per-Device Enc.' : 'Shared Enc.'}
-                    </span>
-                  )}
-                  {updatePack.createdAt && (
-                    <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
-                      {format(new Date(updatePack.createdAt), 'PP')}
-                    </span>
-                  )}
-                </div>
-              </div>
+      <div className="border-b pb-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Package className="h-6 w-6 text-primary" />
             </div>
 
-            {/* Primary Actions */}
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end xl:shrink-0">
-              {!isNonSwu && (
-                <Button size="default" onClick={() => setIsGenerateSwuOpen(true)} variant={updatePack.uri ? 'outline' : 'default'}>
-                  <PenTool className="mr-2 h-4 w-4" />
-                  {updatePack.uri ? 'Regenerate SWU' : 'Generate SWU'}
-                </Button>
-              )}
-              {!isPerDevice && !isNonSwu && (
-                <Button size="default" onClick={handleDownload} disabled={!updatePack.uri || isDownloadingCurrent}>
-                  {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                  Download SWU
-                </Button>
-              )}
-              {isNonSwu && (
-                <>
-                  <Button size="default" onClick={() => setIsGeneratePackageOpen(true)} variant={updatePack.uri ? 'outline' : 'default'}>
-                    <Package className="mr-2 h-4 w-4" />
-                    {updatePack.uri ? 'Regenerate Package' : 'Generate Package'}
+            <div className="min-w-0 space-y-2">
+              <div>
+                <h1 className="truncate text-2xl font-semibold tracking-tight" title={updatePack.name}>{updatePack.name}</h1>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">ID</span>
+                  <code className="max-w-[360px] truncate rounded border bg-muted px-2 py-0.5 font-mono text-xs">{updatePack.id}</code>
+                  <Button
+                    variant="ghost"
+                    className="h-6 w-6 shrink-0 p-0"
+                    onClick={() => { navigator.clipboard.writeText(updatePack.id); toast({ title: 'Copied' }); }}
+                  >
+                    <Copy className="h-3 w-3 text-muted-foreground" />
                   </Button>
-                  <Button size="default" onClick={handleDownload} disabled={!updatePack.uri || isDownloadingCurrent}>
-                    {isDownloadingCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    Download Package
-                  </Button>
-                </>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="outline" aria-label="More actions">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setIsTargetedOpen(true)} disabled={!updatePack.uri}>
-                    <Rocket className="mr-2 h-4 w-4" /> Targeted Update…
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant="secondary" className="text-xs">v{updatePack.version}</Badge>
+                <Badge variant="outline" className="text-xs">
+                  {updatePack.type === 'rawfile' ? 'Raw File' : updatePack.type === 'firmware' ? 'Firmware' : updatePack.type}
+                </Badge>
+                <Badge variant="outline" className="text-xs">{isNonSwu ? 'Non-SWU' : 'SWU'}</Badge>
+                {updatePack.encryption_mode && <Badge variant="outline" className="text-xs">{updatePack.encryption_mode}</Badge>}
+              </div>
+            </div>
+          </div>
+
+          <div className="xl:flex-1 xl:border-l xl:pl-6">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+              {summaryCards.map((item, index) => (
+                <div key={item.label} className={cn('min-w-0', index > 0 && 'sm:border-l sm:pl-6')}>
+                  <p className="text-xs text-muted-foreground">{item.label}</p>
+                  <p className="mt-0.5 text-2xl font-semibold tracking-tight tabular-nums">{item.value}</p>
+                  <p className="text-xs text-muted-foreground/60">{item.hint}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
+      </div>
 
         {/* ── Tabs ─────────────────────────────────────────────────────── */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -631,147 +599,199 @@ export default function UpdatePackDetailsPage() {
           <div className="mt-6 pb-6">
 
             {/* ── Overview ─────────────────────────────────────────────── */}
-            <TabsContent value="overview" className="mt-0 space-y-8">
-              {statusBanner}
-
-              {/* Security Configuration */}
-              <div className="space-y-4">
-                <p className="font-semibold">Security Configuration</p>
-                <div className="space-y-4">
-                  <div className={cn(
-                    'flex items-center gap-3 p-3 rounded-lg border',
-                    updatePack?.signature_alg_name || updatePack?.alg_sign
-                      ? 'bg-muted/30 border-border'
-                      : 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800'
-                  )}>
-                    <PenTool className={cn('h-5 w-5', updatePack?.signature_alg_name || updatePack?.alg_sign ? 'text-primary' : 'text-red-600 dark:text-red-400')} />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Digital Signature</p>
-                      <div className={cn('text-xs mt-1', updatePack?.signature_alg_name || updatePack?.alg_sign ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400')}>
-                        {updatePack?.signature_alg_name ? (
-                          <>
-                            {updatePack.signature_alg_name}
-                            {signingKey && <span className="block mt-0.5 opacity-80">{signingKey.algorithm} Key: {signingKey.size} bits</span>}
-                            {updatePack.signature_key_id && (
-                              <span className="block mt-1">
-                                Key ID:{' '}
-                                <Link href={`/kms/keys/details?keyId=${encodeURIComponent(updatePack.signature_key_id)}`} className="text-primary hover:underline font-mono">
-                                  {updatePack.signature_key_id.substring(0, 16)}…
-                                </Link>
-                              </span>
-                            )}
-                          </>
-                        ) : updatePack?.alg_sign ? `${updatePack.alg_sign} Algorithm` : 'Not specified'}
+            <TabsContent value="overview" className="mt-0">
+              <div>
+                <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10 first:pt-0">
+                  <div>
+                    <p className="font-semibold">Distribution Set Identity</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Core naming, group, and package classification data.</p>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <div className="divide-y">
+                      <div className="py-3 first:pt-0">
+                        <p className="text-xs font-medium text-muted-foreground">Name</p>
+                        <p className="mt-1 text-sm font-medium">{updatePack.name}</p>
+                      </div>
+                      <div className="py-3">
+                        <p className="text-xs font-medium text-muted-foreground">Identifier</p>
+                        <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{updatePack.id}</p>
+                      </div>
+                      <div className="py-3">
+                        <p className="text-xs font-medium text-muted-foreground">Device Group</p>
+                        {groupId ? (
+                          <Link href={`/device-groups/details?groupId=${groupId}`} className="mt-1 inline-block text-sm font-medium text-primary hover:underline">
+                            {groupName}
+                          </Link>
+                        ) : (
+                          <p className="mt-1 text-sm">{groupName}</p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 py-3 last:pb-0 sm:grid-cols-3">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Type</p>
+                          <p className="mt-1 text-sm">{updatePack.type === 'rawfile' ? 'Raw File' : updatePack.type === 'firmware' ? 'Firmware' : updatePack.type}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Packaging</p>
+                          <p className="mt-1 text-sm">{isNonSwu ? 'Non-SWU' : 'SWU'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Created</p>
+                          <p className="mt-1 text-sm">{updatePack.createdAt ? format(new Date(updatePack.createdAt), 'PP') : 'N/A'}</p>
+                        </div>
                       </div>
                     </div>
-                    <Badge variant="secondary" className={updatePack?.signature_alg_name || updatePack?.alg_sign ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100'}>
-                      {updatePack?.signature_alg_name || updatePack?.alg_sign ? 'Signed' : 'Unsigned'}
-                    </Badge>
                   </div>
+                </div>
 
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
-                    <Lock className="h-5 w-5 text-primary" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Encryption</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {updatePack?.encryption_alg_name ? (
-                          <>
-                            {updatePack.encryption_alg_name}
-                            {updatePack.encryption_mode === 'per-device'
-                              ? <span className="ml-1">(per-device keys from inventory)</span>
-                              : updatePack.encryption_key_name ? (
-                                <>{' ('}<Link href={`/kms/keys/sym-keys/details?keyId=${encodeURIComponent(updatePack.encryption_key_name)}`} className="text-primary hover:underline">{updatePack.encryption_key_name}</Link>{')'}</>
-                              ) : <span className="ml-1">(Unknown key)</span>}
-                          </>
-                        ) : 'Not encrypted'}
-                      </p>
-                      {updatePack?.encryption_iv && updatePack.encryption_mode !== 'per-device' && (
-                        <p className="text-xs text-muted-foreground mt-1 font-mono">IV: {updatePack.encryption_iv}</p>
-                      )}
-                    </div>
-                    <Badge variant="secondary" className={updatePack?.encryption_alg_name ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-muted text-muted-foreground'}>
-                      {updatePack?.encryption_mode === 'per-device' ? 'Per-Device' : updatePack?.encryption_alg_name ? 'Shared' : 'Unencrypted'}
-                    </Badge>
+                <Separator />
+
+                <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
+                  <div>
+                    <p className="font-semibold">Build Status</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Current generated artifact state for device deployment.</p>
                   </div>
-
-                  {updatePack?.signature_certificate && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-medium">Signature Certificate</span>
+                  <div className="lg:col-span-2">
+                    <div className="divide-y">
+                      <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Status</p>
+                          <p className="mt-1 text-sm font-medium">{buildStatus}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{buildDescription}</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(updatePack.signature_certificate!); toast({ title: 'Copied' }); }}>
-                          <Copy className="mr-2 h-3 w-3" /> Copy
-                        </Button>
+                        <Badge variant={updatePack.uri ? 'secondary' : updatePack.generationError ? 'destructive' : 'outline'} className="shrink-0 text-xs">
+                          {updatePack.uri ? 'Built' : updatePack.generationError ? 'Failed' : 'Pending'}
+                        </Badge>
                       </div>
-                      <pre className="font-mono text-xs bg-muted p-3 rounded-md border overflow-x-auto max-h-48 overflow-y-auto">
-                        {updatePack.signature_certificate}
-                      </pre>
+                      <div className="grid grid-cols-1 gap-4 py-3 last:pb-0 sm:grid-cols-2">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Current Version</p>
+                          <p className="mt-1 text-sm">v{updatePack.version}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Previous Version Downloads</p>
+                          <p className="mt-1 text-sm">{updatePack.allow_previous_version_download ? 'Enabled' : 'Disabled'}</p>
+                        </div>
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
 
-              <Separator />
+                <Separator />
 
-              {/* Package Information */}
-              <div className="space-y-4">
-                <p className="font-semibold">Package Information</p>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Package ID</p>
-                    <div className="font-mono text-xs break-all bg-muted p-3 rounded-md border">{updatePack.id}</div>
+                <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
+                  <div>
+                    <p className="font-semibold">Security Configuration</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Signing, encryption, and certificate data used for package integrity.</p>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Package URI</p>
-                    <div className="relative">
-                      <div className="font-mono text-xs break-all bg-muted p-3 pr-10 rounded-md border">{updatePack.uri || 'Not available'}</div>
-                      <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => { navigator.clipboard.writeText(updatePack.uri || ''); toast({ title: 'Copied' }); }}>
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                  {(updatePack.binaryFileName || updatePack.descriptorFileName) && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
-                      {updatePack.binaryFileName && (
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Binary File</p>
-                          <p className="font-mono text-sm break-all">{updatePack.binaryFileName}</p>
+                  <div className="lg:col-span-2">
+                    <div className="divide-y">
+                      <div className="flex items-center justify-between gap-3 py-3 first:pt-0">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground">Digital Signature</p>
+                          <p className="mt-1 text-sm">{updatePack.signature_alg_name || updatePack.alg_sign || 'Not specified'}</p>
+                          {signingKey && <p className="mt-1 text-xs text-muted-foreground">{signingKey.algorithm} key, {signingKey.size} bits</p>}
+                          {updatePack.signature_key_id && (
+                            <Link href={`/kms/keys/details?keyId=${encodeURIComponent(updatePack.signature_key_id)}`} className="mt-1 block truncate text-xs text-primary hover:underline">
+                              {updatePack.signature_key_id}
+                            </Link>
+                          )}
+                        </div>
+                        <Badge variant={updatePack.signature_alg_name || updatePack.alg_sign ? 'secondary' : 'outline'} className="shrink-0 text-xs">
+                          {updatePack.signature_alg_name || updatePack.alg_sign ? 'Signed' : 'Unsigned'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground">Encryption</p>
+                          <p className="mt-1 text-sm">{updatePack.encryption_alg_name || 'Not encrypted'}</p>
+                          {updatePack.encryption_mode === 'per-device' ? (
+                            <p className="mt-1 text-xs text-muted-foreground">Per-device keys from inventory</p>
+                          ) : updatePack.encryption_key_name ? (
+                            <Link href={`/kms/keys/sym-keys/details?keyId=${encodeURIComponent(updatePack.encryption_key_name)}`} className="mt-1 block truncate text-xs text-primary hover:underline">
+                              {updatePack.encryption_key_name}
+                            </Link>
+                          ) : null}
+                          {updatePack.encryption_iv && updatePack.encryption_mode !== 'per-device' && (
+                            <p className="mt-1 break-all font-mono text-xs text-muted-foreground">IV: {updatePack.encryption_iv}</p>
+                          )}
+                        </div>
+                        <Badge variant={updatePack.encryption_alg_name ? 'secondary' : 'outline'} className="shrink-0 text-xs">
+                          {updatePack.encryption_mode === 'per-device' ? 'Per-device' : updatePack.encryption_alg_name ? 'Shared' : 'Unencrypted'}
+                        </Badge>
+                      </div>
+                      {updatePack.signature_certificate && (
+                        <div className="py-3 last:pb-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-medium text-muted-foreground">Signature Certificate</p>
+                            <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(updatePack.signature_certificate!); toast({ title: 'Copied' }); }}>
+                              <Copy className="mr-2 h-3 w-3" /> Copy
+                            </Button>
+                          </div>
+                          <pre className="mt-2 max-h-48 overflow-auto rounded-md border bg-muted p-3 font-mono text-xs">
+                            {updatePack.signature_certificate}
+                          </pre>
                         </div>
                       )}
-                      {updatePack.descriptorFileName && (
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Descriptor File</p>
-                          <p className="font-mono text-sm break-all">{updatePack.descriptorFileName}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
+                  <div>
+                    <p className="font-semibold">Package Files</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Generated binary, descriptor, and downloadable companion files.</p>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <div className="divide-y">
+                      <div className="py-3 first:pt-0">
+                        <p className="text-xs font-medium text-muted-foreground">Package URI</p>
+                        <div className="mt-1 flex min-w-0 items-center gap-2">
+                          <p className="min-w-0 flex-1 break-all font-mono text-xs text-muted-foreground">{updatePack.uri || 'Not available'}</p>
+                          {updatePack.uri && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { navigator.clipboard.writeText(updatePack.uri || ''); toast({ title: 'Copied' }); }}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {(updatePack.binaryFileName || updatePack.descriptorFileName) && (
+                        <div className="grid grid-cols-1 gap-4 py-3 sm:grid-cols-2">
+                          {updatePack.binaryFileName && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Binary File</p>
+                              <p className="mt-1 break-all text-sm">{updatePack.binaryFileName}</p>
+                            </div>
+                          )}
+                          {updatePack.descriptorFileName && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">Descriptor File</p>
+                              <p className="mt-1 break-all text-sm">{updatePack.descriptorFileName}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {updatePack.uri && (
+                        <div className="py-3 last:pb-0">
+                          <p className="text-xs font-medium text-muted-foreground">Downloads</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" disabled={versionActionBusy === `artifacts:${updatePack.version}`} onClick={() => handleDownloadVersionArtifacts(updatePack.version)}>
+                              {versionActionBusy === `artifacts:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Package className="mr-2 h-3.5 w-3.5" />}
+                              Artifacts
+                            </Button>
+                            <Button variant="outline" size="sm" disabled={versionActionBusy === `signature:${updatePack.version}`} onClick={() => handleDownloadSignature(updatePack.version)}>
+                              {versionActionBusy === `signature:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Shield className="mr-2 h-3.5 w-3.5" />}
+                              Signature
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
-
-              {updatePack.uri && (
-                <>
-                  <Separator />
-                  <div className="space-y-4">
-                    <div>
-                      <p className="font-semibold">Downloads</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Signed manifest and raw component archive for v{updatePack.version}.</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" disabled={versionActionBusy === `artifacts:${updatePack.version}`} onClick={() => handleDownloadVersionArtifacts(updatePack.version)}>
-                        {versionActionBusy === `artifacts:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Package className="mr-2 h-3.5 w-3.5" />}
-                        Artifacts
-                      </Button>
-                      <Button variant="outline" size="sm" disabled={versionActionBusy === `signature:${updatePack.version}`} onClick={() => handleDownloadSignature(updatePack.version)}>
-                        {versionActionBusy === `signature:${updatePack.version}` ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Shield className="mr-2 h-3.5 w-3.5" />}
-                        Signature
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              )}
             </TabsContent>
 
             {/* ── Artifacts ────────────────────────────────────────────── */}
@@ -807,7 +827,7 @@ export default function UpdatePackDetailsPage() {
                     <h4 className="text-sm font-semibold">Upload new artifact</h4>
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1 block">Binary file</Label>
-                      <div {...getArtifactRootProps()} className={cn('p-5 border-2 border-dashed rounded-md cursor-pointer transition-colors text-center', isArtifactDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-muted-foreground/50', uploadFile && 'border-green-500/60 bg-green-500/5')}>
+                      <div {...getArtifactRootProps()} className={cn('p-5 border-2 border-dashed rounded-md cursor-pointer transition-colors text-center', isArtifactDragActive || uploadFile ? 'border-primary bg-primary/10' : 'border-border hover:border-muted-foreground/50')}>
                         <input {...getArtifactInputProps()} />
                         <UploadCloud className={cn('w-8 h-8 mx-auto mb-1', isArtifactDragActive ? 'text-primary' : 'text-muted-foreground')} />
                         {uploadFile
@@ -1086,7 +1106,7 @@ export default function UpdatePackDetailsPage() {
 
                           {/* artifact count pill */}
                           {v.artifacts && v.artifacts.length > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                               <Package className="h-3 w-3" />
                               {v.artifacts.length} artifact{v.artifacts.length !== 1 ? 's' : ''}
                             </span>
@@ -1094,7 +1114,7 @@ export default function UpdatePackDetailsPage() {
 
                           {/* device count pill */}
                           {deviceCount != null && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                               <Users className="h-3 w-3" />
                               {deviceCount} device{deviceCount !== 1 ? 's' : ''}
                             </span>
@@ -1102,7 +1122,7 @@ export default function UpdatePackDetailsPage() {
 
                           {/* delta summary when collapsed */}
                           {!isExpanded && delta && (delta.added.length > 0 || delta.removed.length > 0 || delta.changed.length > 0) && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground ml-auto mr-2">
+                            <span className="ml-auto mr-2 inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                               <GitCompare className="h-3 w-3" />
                               {[
                                 delta.added.length > 0 && `+${delta.added.length}`,
@@ -1120,7 +1140,7 @@ export default function UpdatePackDetailsPage() {
                             {/* Artifact delta */}
                             {delta ? (
                               <div className="space-y-3">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                                <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                                   <GitCompare className="h-3.5 w-3.5" />
                                   Changes from v{prevVersion?.version}
                                 </p>
@@ -1128,33 +1148,33 @@ export default function UpdatePackDetailsPage() {
                                 <div className="space-y-1.5">
                                   {delta.added.map(a => (
                                     <div key={a.name} className="flex items-center gap-2 text-sm">
-                                      <span className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
+                                      <span className="h-2 w-2 shrink-0 rounded-sm bg-muted-foreground" />
                                       <span className="font-medium">{a.name}</span>
                                       <span className="font-mono text-xs text-muted-foreground">v{a.version}</span>
-                                      <Badge variant="outline" className="text-xs py-0 h-4 text-green-700 border-green-300 bg-green-50 dark:bg-green-950/30 dark:text-green-300 dark:border-green-800">added</Badge>
+                                      <Badge variant="secondary" className="h-4 py-0 text-xs">added</Badge>
                                     </div>
                                   ))}
                                   {delta.changed.map(a => (
                                     <div key={a.name} className="flex items-center gap-2 text-sm">
-                                      <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
+                                      <span className="h-2 w-2 shrink-0 rounded-sm bg-muted-foreground" />
                                       <span className="font-medium">{a.name}</span>
                                       <span className="font-mono text-xs text-muted-foreground line-through">v{a.oldVersion}</span>
                                       <span className="text-muted-foreground">→</span>
                                       <span className="font-mono text-xs">v{a.newVersion}</span>
-                                      <Badge variant="outline" className="text-xs py-0 h-4 text-amber-700 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800">updated</Badge>
+                                      <Badge variant="outline" className="h-4 py-0 text-xs">updated</Badge>
                                     </div>
                                   ))}
                                   {delta.removed.map(a => (
                                     <div key={a.name} className="flex items-center gap-2 text-sm">
-                                      <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
+                                      <span className="h-2 w-2 shrink-0 rounded-sm bg-muted-foreground" />
                                       <span className="font-medium line-through text-muted-foreground">{a.name}</span>
                                       <span className="font-mono text-xs text-muted-foreground">v{a.version}</span>
-                                      <Badge variant="outline" className="text-xs py-0 h-4 text-red-700 border-red-300 bg-red-50 dark:bg-red-950/30 dark:text-red-300 dark:border-red-800">removed</Badge>
+                                      <Badge variant="destructive" className="h-4 py-0 text-xs">removed</Badge>
                                     </div>
                                   ))}
                                   {delta.unchanged.map(a => (
                                     <div key={a.name} className="flex items-center gap-2 text-sm text-muted-foreground">
-                                      <span className="w-3 h-3 rounded-full bg-muted-foreground/30 shrink-0" />
+                                      <span className="h-2 w-2 shrink-0 rounded-sm bg-muted-foreground/30" />
                                       <span>{a.name}</span>
                                       <span className="font-mono text-xs">v{a.version}</span>
                                     </div>
@@ -1163,7 +1183,7 @@ export default function UpdatePackDetailsPage() {
                               </div>
                             ) : v.artifacts && v.artifacts.length > 0 ? (
                               <div className="space-y-3">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contents</p>
+                                <p className="text-xs font-medium text-muted-foreground">Contents</p>
                                 <div className="space-y-1.5">
                                   {v.artifacts.map(a => (
                                     <div key={a.name} className="flex items-center gap-2 text-sm">
@@ -1210,7 +1230,6 @@ export default function UpdatePackDetailsPage() {
 
           </div>
         </Tabs>
-      </div>
 
       {!isNonSwu && updatePack && (
         <GenerateSwuDialog
