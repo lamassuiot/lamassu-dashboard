@@ -58,6 +58,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { BackendStatusDialog } from '@/components/shared/BackendStatusDialog';
 import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
+import { PageSearchMenu, type PageSearchAccent } from '@/components/shared/PageSearchMenu';
 import { VERSION_INFO } from '@/lib/version';
 import { InitializationWizard } from '@/components/home/InitializationWizard';
 import { fetchCaStatsSummary } from '@/lib/ca-data';
@@ -77,66 +78,76 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
+  description?: string;
+  accent?: PageSearchAccent;
   devOnly?: boolean;
 }
 
 interface NavGroup {
   label?: string;
   items: NavItem[];
+  accent?: PageSearchAccent;
   devOnly?: boolean;
 }
 
 const navigationConfig: NavGroup[] = [
-  { items: [{ href: '/', label: 'Home', icon: HomeIcon }] },
+  { accent: 'general', items: [{ href: '/', label: 'Home', icon: HomeIcon, description: 'Dashboard overview' }] },
   {
     label: 'KMS',
+    accent: 'kms',
     items: [
-      { href: '/kms/keys', label: 'Asymmetric Keys', icon: KeyRound },
-      { href: '/kms/keys/sym-keys', label: 'Symmetric Keys', icon: Lock },
-      { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
+      { href: '/kms/keys', label: 'Asymmetric Keys', icon: KeyRound, description: 'KMS signing and encryption keys' },
+      { href: '/kms/keys/sym-keys', label: 'Symmetric Keys', icon: Lock, description: 'Symmetric key management' },
+      { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu, description: 'Configured cryptographic backends' },
     ],
   },
   {
     label: 'PKI',
+    accent: 'pki',
     items: [
-      { href: '/certificates', label: 'Certificates', icon: FileText },
-      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
-      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon },
-      { href: '/registration-authorities', label: 'Registration Authorities', icon: Users },
-      { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck }
+      { href: '/certificates', label: 'Certificates', icon: FileText, description: 'Issued certificate inventory' },
+      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark, description: 'Root and intermediate CA management' },
+      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, description: 'Certificate issuance policy templates' },
+      { href: '/registration-authorities', label: 'Registration Authorities', icon: Users, description: 'Enrollment and registration services' },
+      { href: '/verification-authorities', label: 'Verification Authorities', icon: ShieldCheck, description: 'Certificate validation services' }
     ],
   },
   {
     label: 'IoT',
+    accent: 'iot',
     items: [
-      { href: '/devices', label: 'Devices', icon: Router },
-      { href: '/device-groups', label: 'Device Groups', icon: Boxes },
-      { href: '/device-inventory', label: 'Device Key Inventory', icon: KeyRound },
-      { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
+      { href: '/devices', label: 'Devices', icon: Router, description: 'Device identity records' },
+      { href: '/device-groups', label: 'Device Groups', icon: Boxes, description: 'Grouped device targeting' },
+      { href: '/device-inventory', label: 'Device Key Inventory', icon: KeyRound, description: 'Device key material inventory' },
+      { href: '/integrations', label: 'Platform Integrations', icon: Blocks, description: 'Cloud and platform connectors' },
     ],
   },
   {
     label: 'OTA UPDATES MANAGER',
+    accent: 'ota',
     items: [
-      { href: '/package-inventory', label: 'Distribution Set', icon: Package },
-      { href: '/updates', label: 'Campaigns', icon: Rocket },
+      { href: '/package-inventory', label: 'Distribution Set', icon: Package, description: 'Packages and update artifacts' },
+      { href: '/updates', label: 'Campaigns', icon: Rocket, description: 'OTA rollout campaigns' },
     ],
   },
   {
     label: 'JOB MANAGER',
+    accent: 'jobs',
     items: [
-      { href: '/job-manager/jobs', label: 'Jobs', icon: ClipboardList },
-      { href: '/job-manager/workflows', label: 'Workflows', icon: Workflow },
+      { href: '/job-manager/jobs', label: 'Jobs', icon: ClipboardList, description: 'Job execution history' },
+      { href: '/job-manager/workflows', label: 'Workflows', icon: Workflow, description: 'Reusable job workflows' },
     ],
   },
   {
     label: 'NOTIFICATIONS',
-    items: [{ href: '/alerts', label: 'Alerts', icon: Info }],
+    accent: 'notifications',
+    items: [{ href: '/alerts', label: 'Alerts', icon: Info, description: 'System alerts and notifications' }],
   },
   {
     label: 'TOOLS',
+    accent: 'tools',
     items: [
-      { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
+      { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary, description: 'Inspect PEM certificates and metadata' },
     ],
   },
 ];
@@ -226,6 +237,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+  const isDeveloperMode = process.env.NODE_ENV == 'development' || Boolean(process.env.NEXT_FORCE_DEV_OPTIONS);
 
   let userRoles: string[] = [];
   if (isAuthenticated() && user?.access_token) {
@@ -282,6 +294,11 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               className="block md:hidden h-full w-auto invert brightness-0"
             />
           </div>
+          {isAuthenticated() && (
+            <div className="flex min-w-0 flex-1 justify-center px-3 md:px-6">
+              <PageSearchMenu navGroups={navigationConfig} isDeveloperMode={isDeveloperMode} />
+            </div>
+          )}
           <div className="flex items-center gap-4">
             {isAuthenticated() ? (
               <>

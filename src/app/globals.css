@@ -32,6 +32,14 @@
   --color-chart-3: hsl(var(--chart-3));
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
+  --color-page-search-general: hsl(var(--page-search-general));
+  --color-page-search-kms: hsl(var(--page-search-kms));
+  --color-page-search-pki: hsl(var(--page-search-pki));
+  --color-page-search-iot: hsl(var(--page-search-iot));
+  --color-page-search-ota: hsl(var(--page-search-ota));
+  --color-page-search-jobs: hsl(var(--page-search-jobs));
+  --color-page-search-notifications: hsl(var(--page-search-notifications));
+  --color-page-search-tools: hsl(var(--page-search-tools));
   --color-sidebar: hsl(var(--sidebar-background));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-primary: hsl(var(--sidebar-primary));
@@ -152,6 +160,16 @@
     /* Red for critical/error */
     --chart-5: 260 70% 70%;
     /* Purple for other */
+
+    /* Page search group accents */
+    --page-search-general: 217 90% 60%;
+    --page-search-kms: 260 70% 56%;
+    --page-search-pki: 217 100% 53%;
+    --page-search-iot: 150 70% 38%;
+    --page-search-ota: 30 86% 50%;
+    --page-search-jobs: 190 85% 38%;
+    --page-search-notifications: 0 72% 56%;
+    --page-search-tools: 280 65% 52%;
 
     /* Sidebar Specific Colors (Light Theme) */
     --sidebar-background: 210 60% 96%;
@@ -295,6 +313,16 @@
     --chart-3: 38 90% 58%;
     --chart-4: 3 80% 63%;
     --chart-5: 262 80% 70%;
+
+    /* Page search group accents */
+    --page-search-general: 212 100% 68%;
+    --page-search-kms: 262 80% 70%;
+    --page-search-pki: 212 100% 63%;
+    --page-search-iot: 176 55% 56%;
+    --page-search-ota: 38 90% 58%;
+    --page-search-jobs: 190 72% 58%;
+    --page-search-notifications: 3 80% 63%;
+    --page-search-tools: 285 76% 72%;
 
     /* Sidebar Specific Colors (Dark Theme) */
     --sidebar-background: 222 28% 10%;
