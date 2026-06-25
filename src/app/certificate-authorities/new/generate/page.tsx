@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -8,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
+import { ArrowLeft, PlusCircle, Settings, Info, Loader2, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import {
   fetchAndProcessCAs,
@@ -20,9 +18,7 @@ import {
   type CreateSigningProfilePayload,
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
 import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
@@ -508,12 +504,6 @@ export default function CreateCaGeneratePage() {
   }
 
   return (
-    <div className="w-full space-y-6 mb-8">
-      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
-      </Button>
-
-  return (
     <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
       <div className="w-[80%] mx-auto space-y-5 mb-8">
       <div className="flex justify-end mb-4">
@@ -532,6 +522,55 @@ export default function CreateCaGeneratePage() {
           </p>
         </div>
 
+        {/* ── CA Identity ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">CA Identity</p>
+            <p className="text-sm text-muted-foreground mt-1">Choose the CA type and define its basic identity.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="caType">CA Type</Label>
+              <Select value={caType} onValueChange={handleCaTypeChange} disabled={isSubmitting}>
+                <SelectTrigger id="caType"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="root">Root CA</SelectItem>
+                  <SelectItem value="intermediate">Intermediate CA</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {caType === 'root' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="issuerName">Issuer</Label>
+                <Input id="issuerName" value="Self-signed" disabled className="bg-muted/50" />
+                <p className="text-xs text-muted-foreground">Root CAs are self-signed.</p>
+              </div>
+            )}
+            {caType === 'intermediate' && (
+              <div className="space-y-1.5">
+                <Label>Parent CA</Label>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsParentCaModalOpen(true)} disabled={isLoadingDependencies || isSubmitting}>
+                    {selectedParentCa ? selectedParentCa.name : 'Select Parent CA...'}
+                  </Button>
+                </div>
+                {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="caId">CA ID (auto-generated)</Label>
+              <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="caName">CA Name (Common Name)</Label>
+              <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
+              {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
         {/* ── Key Pair Generation ── */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
           <div>
@@ -544,95 +583,37 @@ export default function CreateCaGeneratePage() {
               <CryptoEngineSelector value={cryptoEngineId} onValueChange={setCryptoEngineId} disabled={isSubmitting} />
               <p className="text-xs text-muted-foreground">Hardware or software engine that will manage this key.</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="keyType">Key Type</Label>
-                <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
-                  <SelectTrigger id="keyType"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {selectedEngine?.supported_key_types.map(kt => (
-                      <SelectItem key={kt.type} value={kt.type}>{kt.type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Algorithm family (RSA or ECDSA).</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="keySpec">{keySpecLabel}</Label>
-                <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
-                  <SelectTrigger id="keySpec"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {currentKeySpecOptions.map(ks => <SelectItem key={ks.value} value={ks.value}>{ks.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Bit length or curve for the selected algorithm.</p>
-              </div>
+            <CryptoKeyTypeSpecFields
+              idPrefix="ca-outer-key"
+              keyTypeValue={keyType}
+              keyTypeOptions={keyTypeOptions}
+              onKeyTypeChange={handleKeyTypeChange}
+              keySpecLabel={keySpecLabel}
+              keySpecValue={keySpec}
+              keySpecOptions={currentKeySpecOptions}
+              onKeySpecChange={setKeySpec}
+              disabled={!selectedEngine || isSubmitting}
+              keySpecDisabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}
+            />
+            <div className="flex items-center space-x-2">
+              <Switch id="hybridCA" checked={isHybridCa} onCheckedChange={handleIsHybridCaChange} />
+              <Label htmlFor="hybridCA">Hybrid CA</Label>
             </div>
-          </div>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-8">
-            <Card>
-              <SectionHeader icon={KeyRound} title="KMS: New Key Pair Generation settings" />
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="cryptoEngine">Crypto Engine</Label>
-                  <CryptoEngineSelector
-                    value={cryptoEngineId}
-                    onValueChange={setCryptoEngineId}
-                    disabled={isSubmitting}
-                    className="mt-1"
-                  />
-                </div>
-                <CryptoKeyTypeSpecFields
-                  idPrefix="ca-outer-key"
-                  keyTypeValue={keyType}
-                  keyTypeOptions={keyTypeOptions}
-                  onKeyTypeChange={handleKeyTypeChange}
-                  keySpecLabel={keySpecLabel}
-                  keySpecValue={keySpec}
-                  keySpecOptions={currentKeySpecOptions}
-                  onKeySpecChange={setKeySpec}
-                  disabled={!selectedEngine || isSubmitting}
-                  keySpecDisabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}
-                />
-                <div className="flex items-center space-x-2">
-                  <Switch id="hybridCA" checked={isHybridCa} onCheckedChange={setIsHybridCa} />
-                  <Label htmlFor="hybridCA">Hybrid CA</Label>
-                </div>
-                {isHybridCa && (
-                  <CryptoKeyTypeSpecFields
-                    idPrefix="ca-inner-key"
-                    keyTypeLabel="Inner Key Type"
-                    keyTypeValue={innerKeyType}
-                    keyTypeOptions={keyTypeOptions}
-                    onKeyTypeChange={handleInnerKeyTypeChange}
-                    keySpecLabel={innerKeySpecLabel}
-                    keySpecValue={innerKeySpec}
-                    keySpecOptions={innerKeySpecOptions}
-                    onKeySpecChange={setInnerKeySpec}
-                    disabled={!selectedEngine || isSubmitting}
-                    keySpecDisabled={!selectedEngine || innerKeySpecOptions.length === 0 || isSubmitting}
-                  />
-                )}
-                {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
-              </div>
+            {isHybridCa && (
+              <CryptoKeyTypeSpecFields
+                idPrefix="ca-inner-key"
+                keyTypeLabel="Inner Key Type"
+                keyTypeValue={innerKeyType}
+                keyTypeOptions={keyTypeOptions}
+                onKeyTypeChange={handleInnerKeyTypeChange}
+                keySpecLabel={innerKeySpecLabel}
+                keySpecValue={innerKeySpec}
+                keySpecOptions={innerKeySpecOptions}
+                onKeySpecChange={setInnerKeySpec}
+                disabled={!selectedEngine || isSubmitting}
+                keySpecDisabled={!selectedEngine || innerKeySpecOptions.length === 0 || isSubmitting}
+              />
             )}
-            {caType === 'root' && (
-              <div className="space-y-1.5">
-                <Label htmlFor="issuerName">Issuer</Label>
-                <Input id="issuerName" value="Self-signed" disabled className="bg-muted/50" />
-                <p className="text-xs text-muted-foreground">Root CAs are self-signed.</p>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="caId">CA ID (auto-generated)</Label>
-              <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="caName">CA Name (Common Name)</Label>
-              <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
-              {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}
-            </div>
           </div>
         </div>
 

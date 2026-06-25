@@ -907,39 +907,6 @@ export default function KmsKeyDetailsClient() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                {/* Access */}
-                <span className={cn(
-                  'inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium',
-                  keyDetails.hasPrivateKey
-                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                )}>
-                  <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', accessDotClass)} />
-                  {keyDetails.hasPrivateKey ? 'PRIVATE KEY' : 'PUBLIC ONLY'}
-                </span>
-
-                {/* Algorithm */}
-                <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 font-mono text-xs text-muted-foreground">
-                  {keyDetails.algorithm}
-                </span>
-
-                {/* Key type */}
-                <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                  {keyDetails.keyTypeDisplay}
-                </span>
-
-                {/* Engine */}
-                {cryptoEngine && (
-                  <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
-                    <CryptoEngineViewer engine={cryptoEngine} iconOnly />
-                    {cryptoEngine.name || cryptoEngine.type}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Summary stats */}
           <div className="xl:flex-1 xl:pl-6 xl:border-l">
             <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
@@ -1094,37 +1061,7 @@ export default function KmsKeyDetailsClient() {
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <Card className="overflow-hidden rounded-xl shadow-sm">
-                  <CardHeader className="border-b py-4">
-                    <CardTitle className="flex items-center text-lg">
-                      <ShieldCheck className="mr-3 h-5 w-5 text-primary" />
-                      Technical Profile
-                    </CardTitle>
-                    <CardDescription>Algorithm, strength, access mode, and engine placement.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="divide-y">
-                      <div className="py-3 first:pt-0">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Algorithm</p>
-                            <p className="mt-1 text-sm font-medium">{keyDetails.algorithm}</p>
-                          </div>
-                          <Badge variant="outline" className={cn('text-xs gap-1', algorithmBadgeClass)}>
-                            {isPqcKey && <QuantumAlgorithmIcon className="h-3 w-3" />}
-                            {keyDetails.algorithm === 'RSA'
-                              ? 'Asymmetric'
-                              : keyDetails.algorithm === 'ECDSA'
-                                ? 'Elliptic Curve'
-                                : keyDetails.algorithm === 'MLDSA'
-                                  ? 'Post-Quantum'
-                                  : keyDetails.algorithm === 'Ed25519'
-                                    ? 'Edwards Curve'
-                                    : 'Other'}
-                          </Badge>
-                        </div>
-                      </div>
+              <Separator />
 
               {/* ── Technical Profile ── */}
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">

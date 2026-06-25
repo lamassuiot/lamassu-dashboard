@@ -523,7 +523,6 @@ export default function CertificateAuthorityDetailsClient() {
                 </div>
               </div>
             </div>
-          </div>
 
           {/* Actions + Stats */}
           <div className="flex flex-col gap-4 xl:flex-1 xl:pl-6 xl:border-l">

@@ -371,10 +371,10 @@ export default function IssueCertificateFormClient() {
   };
 
   const handleKeyUsageChange = (usage: string, checked: boolean) => {
-    setKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
+    setKeyUsages(prev => checked ? [...prev, usage as KeyUsageOption] : prev.filter(u => u !== usage));
   };
   const handleExtendedKeyUsageChange = (usage: string, checked: boolean) => {
-    setExtendedKeyUsages(prev => checked ? [...prev, usage] : prev.filter(u => u !== usage));
+    setExtendedKeyUsages(prev => checked ? [...prev, usage as ExtendedKeyUsageOption] : prev.filter(u => u !== usage));
   };
 
   const buildProfilePayload = () => {
@@ -708,314 +708,23 @@ export default function IssueCertificateFormClient() {
                       : 'Upload or paste an existing CSR. The subject and public key will be read from it.'}
                   </p>
                 </div>
-            ) : (
-                <>
-                    <Stepper currentStep={step} steps={["Configure", "Issue", "Done"]} />
-                    
-                    {step === 1 && (
-                        <div className="space-y-6 mt-6">
-                            <Select value={issuanceMode} onValueChange={(val: 'generate' | 'upload') => setIssuanceMode(val)}>
-                                <SelectTrigger className="w-full sm:w-[300px]"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="generate">Generate Key & CSR In Browser</SelectItem>
-                                    <SelectItem value="upload">Upload Existing CSR</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            
-                            {/* --- Subject & SANs section --- */}
-                            <Card className={DETAIL_CARD_CLASSNAME}>
-                                <SectionHeader icon={BookText} title={`Certificate Subject ${issuanceMode === 'upload' ? '(from CSR)' : ''}`} />
-                                <CardContent className="space-y-4">
-                            {issuanceMode === 'generate' ? (
-                            <div className="space-y-4">
-                                {/* Row 1: CN */}
-                                <div className="space-y-1">
-                                    <Label htmlFor="commonName">Common Name (CN)</Label>
-                                    <Input
-                                        id="commonName"
-                                        value={commonName || ''}
-                                        onChange={e => setCommonName(e.target.value)}
-                                        required
-                                        readOnly={!!prefilledCn}
-                                        className={cn(!!prefilledCn && 'bg-muted/50')}
-                                    />
-                                    {!!prefilledCn && (
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                        Common Name pre-filled from device ID and cannot be changed.
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Row 2: OU, O */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <Label htmlFor="organizationalUnit">Organizational Unit (OU)</Label>
-                                        <Input id="organizationalUnit" value={organizationalUnit || ''} onChange={e => setOrganizationalUnit(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label htmlFor="organization">Organization (O)</Label>
-                                        <Input id="organization" value={organization || ''} onChange={e => setOrganization(e.target.value)} />
-                                    </div>
-                                </div>
-
-                                {/* Row 3: L, ST, C */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="space-y-1">
-                                        <Label htmlFor="locality">Locality (L)</Label>
-                                        <Input id="locality" value={locality || ''} onChange={e => setLocality(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label htmlFor="stateProvince">State/Province (ST)</Label>
-                                        <Input id="stateProvince" value={stateProvince || ''} onChange={e => setStateProvince(e.target.value)} />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label htmlFor="country">Country (C)</Label>
-                                        <Input id="country" value={country || ''} onChange={e => setCountry(e.target.value)} placeholder="e.g. US" maxLength={2} />
-                                    </div>
-                                </div>
-                                
-                                {/* SANs Section */}
-                                <div className="border-t pt-4 mt-2">
-                                  <h4 className="font-medium mb-2">Subject Alternative Names (SANs)</h4>
-                                  
-                                  <div className="flex items-end gap-2">
-                                    <div className="w-40 flex-none">
-                                      <Label htmlFor="san-type">Type</Label>
-                                      <Select value={currentSanType} onValueChange={(v) => setCurrentSanType(v as any)}>
-                                        <SelectTrigger id="san-type"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="DNS">DNS</SelectItem>
-                                          <SelectItem value="IP">IP Address</SelectItem>
-                                          <SelectItem value="Email">Email</SelectItem>
-                                          <SelectItem value="URI">URI</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <div className="flex-grow">
-                                      <Label htmlFor="san-value">Value</Label>
-                                      <Input 
-                                        id="san-value" 
-                                        value={currentSanValue} 
-                                        onChange={(e) => setCurrentSanValue(e.target.value)} 
-                                        onKeyDown={handleAddSanOnEnter}
-                                        placeholder={
-                                          currentSanType === 'DNS' ? 'e.g., example.com' :
-                                          currentSanType === 'IP' ? 'e.g., 192.168.1.1' :
-                                          currentSanType === 'Email' ? 'e.g., security@example.com' :
-                                          'e.g., https://device.id/info'
-                                        }
-                                      />
-                                    </div>
-                                    <Button type="button" onClick={handleAddSan}>Add</Button>
-                                  </div>
-
-                                  {sans.length > 0 && (
-                                    <div className="mt-4 p-3 border rounded-md bg-muted/30">
-                                      <div className="flex flex-wrap gap-2">
-                                        {sans.map((san, index) => (
-                                          <Badge key={index} variant="secondary" className="pl-2 pr-1 py-1 text-sm">
-                                            <span className="font-semibold mr-1.5">{san.type}:</span>
-                                            <span className="font-normal">{san.value}</span>
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-5 w-5 ml-1.5 opacity-60 hover:opacity-100 hover:bg-transparent p-0"
-                                              onClick={() => handleRemoveSan(index)}
-                                              aria-label={`Remove SAN ${san.value}`}
-                                            >
-                                              <XIcon className="h-3.5 w-3.5" />
-                                            </Button>
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                            </div>
-                            ) : (
-                            <div className="space-y-4">
-                                <div className="space-y-1"><Label htmlFor="csrFile">Upload CSR File</Label><Input id="csrFile" type="file" accept=".csr,.pem" onChange={handleCsrFileUpload}/></div>
-                                <div className="space-y-1"><Label htmlFor="csrPemTextarea">Or Paste CSR (PEM)</Label><Textarea id="csrPemTextarea" value={csrPem} onChange={e=>setCsrPem(e.target.value)} rows={8} className="font-mono"/></div>
-                                {decodedCsrInfo && (
-                                    <Card className={DETAIL_CARD_CLASSNAME}><CardHeader className="border-b py-4"><CardTitle className="text-lg">Decoded CSR Information</CardTitle></CardHeader><CardContent className="space-y-2 text-sm">{decodedCsrInfo.error ? <Alert variant="destructive">{decodedCsrInfo.error}</Alert> : <>
-                                        <DetailItem label="Subject" value={decodedCsrInfo.subject} isMono />
-                                        <DetailItem label="Public Key" value={decodedCsrInfo.publicKeyInfo} isMono />
-                                        {decodedCsrInfo.sans && decodedCsrInfo.sans.length > 0 && <DetailItem label="SANs" value={<div className="flex flex-wrap gap-1">{decodedCsrInfo.sans.map((san, i)=><Badge key={i} variant="secondary">{san}</Badge>)}</div>}/>}
-                                        {decodedCsrInfo.basicConstraints && <DetailItem label="Basic Constraints" value={decodedCsrInfo.basicConstraints} isMono />}
-                                    </> }</CardContent></Card>
-                                )}
-                            </div>
-                            )}
-                                </CardContent>
-                            </Card>
-
-                            {/* --- Key Generation section (generate mode only) --- */}
-                            {issuanceMode === 'generate' && (
-                                <Card className={DETAIL_CARD_CLASSNAME}>
-                                    <SectionHeader icon={KeyRound} title="Key Generation Details" />
-                                    <CardContent>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1"><Label htmlFor="keyAlgorithm">Algorithm</Label><Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{KEY_TYPE_OPTIONS_POST_QUANTUM.map(a=><SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent></Select></div>
-                                    {selectedAlgorithm === 'RSA' ? (
-                                    <div className="space-y-1"><Label htmlFor="rsaKeySize">RSA Key Size</Label><Select value={selectedRsaKeySize} onValueChange={setSelectedRsaKeySize}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{RSA_KEY_SIZE_OPTIONS.map(s=><SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div>
-                                    ) : selectedAlgorithm === 'ECDSA' ? (
-                                    <div className="space-y-1"><Label htmlFor="ecdsaCurve">ECDSA Curve</Label><Select value={selectedEcdsaCurve} onValueChange={setSelectedEcdsaCurve}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ECDSA_CURVE_OPTIONS.map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
-                                    ) : selectedAlgorithm === 'ML-DSA' ? (
-                                    <div className="space-y-1"><Label htmlFor="mlDsaLevel">Security Level</Label><Select value={selectedMlDsaLevel} onValueChange={setSelectedMlDsaLevel}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{MLDSA_SECURITY_LEVEL_OPTIONS.map(o=><SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select></div>
-                                    ) : selectedAlgorithm === 'SLH-DSA' ? (
-                                    <div className="space-y-1"><Label htmlFor="slhDsaParamSet">Parameter Set</Label><Select value={selectedSlhDsaParamSet} onValueChange={setSelectedSlhDsaParamSet}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SLHDSA_PARAM_SET_OPTIONS.map(o=><SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select></div>
-                                    ) : (
-                                    <div className="space-y-1"></div>
-                                    )}
-                                </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-                            
-                            {/* --- Configuration section (both modes) --- */}
-                            <Card className={DETAIL_CARD_CLASSNAME}>
-                                <SectionHeader icon={Settings2} title="Certificate Configuration" />
-                                <CardContent >
-                             <SigningProfileSelector
-                                profileMode={profileMode}
-                                onProfileModeChange={setProfileMode}
-                                availableProfiles={signingProfiles}
-                                isLoadingProfiles={isLoadingProfiles}
-                                selectedProfileId={selectedProfileId}
-                                onProfileIdChange={setSelectedProfileId}
-                                inlineModeEnabled={true}
-                                validity={validity}
-                                onValidityChange={setValidity}
-                                validityWarning={validityWarning}
-                                keyUsages={keyUsages}
-                                onKeyUsageChange={handleKeyUsageChange}
-                                extendedKeyUsages={extendedKeyUsages}
-                                onExtendedKeyUsageChange={handleExtendedKeyUsageChange}
-                                honorSubject={honorSubject}
-                                onHonorSubjectChange={setHonorSubject}
-                                customSubjectCN={customSubjectCN}
-                                customSubjectO={customSubjectO}
-                                customSubjectOU={customSubjectOU}
-                                customSubjectC={customSubjectC}
-                                customSubjectST={customSubjectST}
-                                customSubjectL={customSubjectL}
-                                onCustomSubjectChange={(field, value) => {
-                                  switch(field) {
-                                    case 'CN': setCustomSubjectCN(value); break;
-                                    case 'O': setCustomSubjectO(value); break;
-                                    case 'OU': setCustomSubjectOU(value); break;
-                                    case 'C': setCustomSubjectC(value); break;
-                                    case 'ST': setCustomSubjectST(value); break;
-                                    case 'L': setCustomSubjectL(value); break;
-                                  }
-                                }}
-                            />
-                                </CardContent>
-                            </Card>
-                        </div>
-                    )}
-
-                    {step === 2 && (
-                        <div className="flex items-center justify-center p-8 flex-col text-center">
-                        {isGenerating ? (
-                            <>
-                            <Loader2 className="h-16 w-16 text-primary animate-spin" />
-                            <h3 className="text-2xl font-semibold mt-4">Issuing Certificate...</h3>
-                            <p className="text-muted-foreground mt-2">
-                                Your request is being processed by the Certification Authority. Please wait.
-                            </p>
-                            </>
-                        ) : generationError ? (
-                            <>
-                            <AlertTriangle className="h-16 w-16 text-destructive" />
-                            <h3 className="text-2xl font-semibold mt-4">Issuance Failed</h3>
-                            <p className="text-muted-foreground mt-2">
-                                An error occurred. Please review the message below, go back to correct any issues, and try again.
-                            </p>
-                            </>
-                        ) : null}
-                        </div>
-                    )}
-
-                    {step === 3 && (
-                        <div className="mt-6 space-y-6">
-                            <div className="flex flex-col items-center gap-3 px-4 py-2 text-center">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                    <CheckCircle2 className="h-5 w-5" />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <h3 className="text-xl font-semibold tracking-tight">Certificate Issued Successfully!</h3>
-                                    <p className="max-w-xl text-sm text-muted-foreground">
-                                        The certificate has been provisioned. Remember to save your private key if you generated one in the browser.
-                                    </p>
-                                </div>
-                            </div>
-
-                        <div className={cn('grid gap-6', generatedPrivateKeyPem && 'xl:grid-cols-2 xl:items-start')}>
-                        <Card className={DETAIL_CARD_CLASSNAME}>
-                            <CardHeader className="border-b py-4">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <CardTitle className="flex items-center text-lg">
-                                        <FileText className="mr-3 h-5 w-5 text-primary" />
-                                        Issued Certificate PEM
-                                    </CardTitle>
-                                    <div className="flex flex-wrap gap-2 sm:justify-end">
-                                        <Button type="button" variant="secondary" size="sm" onClick={() => handleCopy(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "Certificate" : "Full Chain", setIssuedCertCopied)}>
-                                        {issuedCertCopied ? <Check className="mr-1 h-4 w-4 text-green-500"/> : <Copy className="mr-1 h-4 w-4"/>}
-                                        {issuedCertCopied ? 'Copied' : 'Copy'}
-                                        </Button>
-                                        <Button type="button" variant="secondary" size="sm" onClick={() => handleDownload(certDisplayTab === 'leaf' ? (issuedCertificate?.pem || '') : fullChainPem, certDisplayTab === 'leaf' ? "certificate.pem" : "certificate-chain.pem", "application/x-pem-file")}>
-                                        <DownloadIcon className="mr-1 h-4 w-4"/>Download
-                                        </Button>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <Tabs value={certDisplayTab} onValueChange={(v) => setCertDisplayTab(v as 'leaf' | 'chain')} className="w-full">
-                                    <TabsList className="grid w-full grid-cols-2">
-                                        <TabsTrigger value="leaf">Leaf Certificate</TabsTrigger>
-                                        <TabsTrigger value="chain">Full Chain</TabsTrigger>
-                                    </TabsList>
-                                    <TabsContent value="leaf" className="mt-2">
-                                        <Textarea readOnly value={issuedCertificate?.pem || ''} rows={10} className="font-mono bg-muted/50"/>
-                                    </TabsContent>
-                                    <TabsContent value="chain" className="mt-2">
-                                        <Textarea readOnly value={fullChainPem} rows={14} className="font-mono bg-muted/50"/>
-                                    </TabsContent>
-                                </Tabs>
-                            </CardContent>
-                        </Card>
-
-                        {generatedPrivateKeyPem && (
-                            <Card className={DETAIL_CARD_CLASSNAME}>
-                                <CardHeader className="border-b py-4">
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <CardTitle className="flex items-center text-lg">
-                                            <KeyRound className="mr-3 h-5 w-5 text-primary" />
-                                            Generated Private Key
-                                        </CardTitle>
-                                        <div className="flex flex-wrap gap-2 sm:justify-end">
-                                            <Button type="button" variant="secondary" size="sm" onClick={()=>handleCopy(generatedPrivateKeyPem, "Private Key", setPrivateKeyCopied)}>
-                                                {privateKeyCopied?<Check className="mr-1 h-4 w-4 text-green-500"/>:<Copy className="mr-1 h-4 w-4"/>}
-                                                {privateKeyCopied?'Copied':'Copy'}
-                                            </Button>
-                                            <Button type="button" variant="secondary" size="sm" onClick={()=>handleDownload(generatedPrivateKeyPem, "private_key.pem", "application/x-pem-file")}>
-                                                <DownloadIcon className="mr-1 h-4 w-4"/>Download
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                    <Alert variant="warning">
-                                        <AlertDescription>This is your only chance to save the private key. Store it securely.</AlertDescription>
-                                    </Alert>
-                                    <Textarea readOnly value={generatedPrivateKeyPem} rows={8} className="font-mono bg-muted/50"/>
-                                </CardContent>
-                            </Card>
+                <div className="space-y-4 lg:col-span-2">
+                  {issuanceMode === 'generate' ? (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="commonName">Common Name (CN)</Label>
+                        <Input
+                          id="commonName"
+                          value={commonName}
+                          onChange={e => setCommonName(e.target.value)}
+                          required
+                          readOnly={!!prefilledCn}
+                          className={cn(!!prefilledCn && 'bg-muted/50')}
+                        />
+                        {!!prefilledCn && (
+                          <p className="text-xs text-muted-foreground">Common Name pre-filled from device ID and cannot be changed.</p>
                         )}
                       </div>
-
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <Label htmlFor="organizationalUnit">Organizational Unit (OU)</Label>
@@ -1150,9 +859,9 @@ export default function IssueCertificateFormClient() {
                           <Label htmlFor="keyAlgorithm">Algorithm</Label>
                           <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
                             <SelectTrigger id="keyAlgorithm"><SelectValue /></SelectTrigger>
-                            <SelectContent>{KEY_TYPE_OPTIONS.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
+                            <SelectContent>{KEY_TYPE_OPTIONS_POST_QUANTUM.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
                           </Select>
-                          <p className="text-xs text-muted-foreground">Algorithm family (RSA or ECDSA).</p>
+                          <p className="text-xs text-muted-foreground">Cryptographic algorithm family.</p>
                         </div>
                         {selectedAlgorithm === 'RSA' ? (
                           <div className="space-y-1.5">
@@ -1163,7 +872,7 @@ export default function IssueCertificateFormClient() {
                             </Select>
                             <p className="text-xs text-muted-foreground">Bit length for the RSA key.</p>
                           </div>
-                        ) : (
+                        ) : selectedAlgorithm === 'ECDSA' ? (
                           <div className="space-y-1.5">
                             <Label htmlFor="ecdsaCurve">ECDSA Curve</Label>
                             <Select value={selectedEcdsaCurve} onValueChange={setSelectedEcdsaCurve}>
@@ -1172,7 +881,23 @@ export default function IssueCertificateFormClient() {
                             </Select>
                             <p className="text-xs text-muted-foreground">Curve for the ECDSA key.</p>
                           </div>
-                        )}
+                        ) : selectedAlgorithm === 'ML-DSA' ? (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mlDsaLevel">ML-DSA Security Level</Label>
+                            <Select value={selectedMlDsaLevel} onValueChange={setSelectedMlDsaLevel}>
+                              <SelectTrigger id="mlDsaLevel"><SelectValue /></SelectTrigger>
+                              <SelectContent>{MLDSA_SECURITY_LEVEL_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                        ) : selectedAlgorithm === 'SLH-DSA' ? (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="slhDsaParamSet">SLH-DSA Parameter Set</Label>
+                            <Select value={selectedSlhDsaParamSet} onValueChange={setSelectedSlhDsaParamSet}>
+                              <SelectTrigger id="slhDsaParamSet"><SelectValue /></SelectTrigger>
+                              <SelectContent>{SLHDSA_PARAM_SET_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>

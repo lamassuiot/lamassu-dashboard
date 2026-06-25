@@ -4,7 +4,6 @@
 import React, { useState } from 'react';
 import type { CA } from '@/lib/ca-data';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   ShieldAlert,
   ChevronRight,
@@ -115,13 +114,11 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
         )}
         {!hasChildren && <div className="w-4 h-4 flex-shrink-0"></div>} 
         
-        {IconComponent}
-        
         <div className="flex-grow min-w-0">
           <div className="flex items-center space-x-2">
             <p className="text-sm font-medium truncate">{ca.name}</p>
-            {ca.caType === 'IMPORTED' && <UploadCloud className="h-4 w-4 text-muted-foreground flex-shrink-0" title="Imported CA with Private Key" />}
-            {ca.caType === 'EXTERNAL_PUBLIC' && <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" title="External Public CA (Certificate Only)" />}
+            {ca.caType === 'IMPORTED' && <UploadCloud className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-label="Imported CA with Private Key" />}
+            {ca.caType === 'EXTERNAL_PUBLIC' && <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-label="External Public CA (Certificate Only)" />}
             {isPqcCertificate && (
               <Badge className="text-xs gap-1">
                 <QuantumAlgorithmIcon variant="primaryBadge" className="h-3 w-3" />
@@ -132,7 +129,7 @@ export const CaFilesystemViewItem: React.FC<CaFilesystemViewItemProps> = ({
               <Badge className="text-xs">HYBRID</Badge>
             )}
           </div>
-          <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")}>{statusText}</p>
+          <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")}>{expiryText}</p>
         </div>
 
         <div className="flex h-6 w-6 shrink-0 items-center justify-center">
