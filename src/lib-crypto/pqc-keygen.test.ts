@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as asn1js from "asn1js";
-import { generateMlDsaKeyPair, generateSlhDsaKeyPair, PqcKeyGenResult, arrayBufferToBase64 } from '@/lib-crypto'
+import { generateMlDsaKeyPair, generateSlhDsaKeyPair, PqcKeyGenResult } from '@/lib-crypto'
 import { ml_dsa44, ml_dsa65, ml_dsa87 } from '@noble/post-quantum/ml-dsa.js';
 import { 
   slh_dsa_sha2_128s,
@@ -100,13 +100,13 @@ async function validatePqcKeyGenResult(
 ) {
   // Sign a message
   const msg = makeFilled(64, 0x01);
-  const signFnOutput = await pqcKeyGenResult.signFn(msg.toBase64());
+  const signFnOutput = await pqcKeyGenResult.signFn(Buffer.from(msg).toString('base64'));
     
   // Get the private key and sign the message
   const privateKeyBer = parsePEM(pqcKeyGenResult.privateKeyPem, 'PRIVATE KEY');
   const pkcs8 = asn1js.fromBER(privateKeyBer).result as asn1js.Sequence;
   const privateKeyBitString = pkcs8.valueBlock.value[2] as asn1js.OctetString;
-  const privateKey = new Uint8Array(privateKeyBitString.valueBlock.value[0].valueBlock.valueHexView);
+  const privateKey = new Uint8Array((privateKeyBitString.valueBlock.value[0] as asn1js.OctetString).valueBlock.valueHexView);
   const sig = algo.sign(msg, privateKey);
 
   // Get the public key
@@ -117,7 +117,7 @@ async function validatePqcKeyGenResult(
 
   // Expect both signed messages to be valid
   expect(algo.verify(sig, msg, publicKey)).toBeTruthy();
-  expect(algo.verify(Uint8Array.fromBase64(signFnOutput), msg, publicKey)).toBeTruthy();
+  expect(algo.verify(base64ToBytes(signFnOutput), msg, publicKey)).toBeTruthy();
 }
 
 //---------------------------------------------------------------------------------------
@@ -127,6 +127,8 @@ async function validatePqcKeyGenResult(
 //---------------------------------------------------------------------------------------
 
 const makeFilled = (length: number, value: number) => new Uint8Array(length).fill(value)
+
+const base64ToBytes = (value: string) => new Uint8Array(Buffer.from(value, 'base64'));
 
 function parsePEM(
   encodedKey: string,
@@ -138,5 +140,5 @@ function parsePEM(
   let base64key = encodedKey.replace(header, '');
   base64key = base64key.replace(footer, '');
 
-  return Uint8Array.fromBase64(base64key);
+  return base64ToBytes(base64key);
 }
