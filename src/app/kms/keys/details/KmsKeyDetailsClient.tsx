@@ -1049,6 +1049,8 @@ export default function KmsKeyDetailsClient() {
                 </div>
               </div>
 
+              <Separator />
+
               {/* ── Technical Profile ── */}
               <div className="grid grid-cols-1 gap-6 py-6 lg:grid-cols-3 lg:gap-10">
                 <div>

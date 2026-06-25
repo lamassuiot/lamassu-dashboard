@@ -751,7 +751,6 @@ export default function IssueCertificateFormClient() {
                           <p className="text-xs text-muted-foreground">Common Name pre-filled from device ID and cannot be changed.</p>
                         )}
                       </div>
-
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <Label htmlFor="organizationalUnit">Organizational Unit (OU)</Label>
@@ -911,7 +910,7 @@ export default function IssueCertificateFormClient() {
                           </div>
                         ) : selectedAlgorithm === 'ML-DSA' ? (
                           <div className="space-y-1.5">
-                            <Label htmlFor="mlDsaLevel">Security Level</Label>
+                            <Label htmlFor="mlDsaLevel">ML-DSA Security Level</Label>
                             <Select value={selectedMlDsaLevel} onValueChange={setSelectedMlDsaLevel}>
                               <SelectTrigger id="mlDsaLevel"><SelectValue /></SelectTrigger>
                               <SelectContent>{MLDSA_SECURITY_LEVEL_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
@@ -920,7 +919,7 @@ export default function IssueCertificateFormClient() {
                           </div>
                         ) : selectedAlgorithm === 'SLH-DSA' ? (
                           <div className="space-y-1.5">
-                            <Label htmlFor="slhDsaParamSet">Parameter Set</Label>
+                            <Label htmlFor="slhDsaParamSet">SLH-DSA Parameter Set</Label>
                             <Select value={selectedSlhDsaParamSet} onValueChange={setSelectedSlhDsaParamSet}>
                               <SelectTrigger id="slhDsaParamSet"><SelectValue /></SelectTrigger>
                               <SelectContent>{SLHDSA_PARAM_SET_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>

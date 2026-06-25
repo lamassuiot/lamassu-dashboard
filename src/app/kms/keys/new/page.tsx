@@ -101,18 +101,8 @@ export default function CreateKmsKeyPage() {
   }, [cryptoEngineId]);
 
   const selectedEngine = cryptoEngines.find(engine => engine.id === cryptoEngineId);
+  const keyTypeOptions = getSupportedKeyTypeOptions(selectedEngine);
   const supportedKeyTypes = getSupportedKeyTypeValues(selectedEngine);
-  const availableKeyTypeOptions = getSupportedKeyTypeOptions(selectedEngine);
-
-  useEffect(() => {
-    if (supportedKeyTypes.length === 0) {
-      return;
-    }
-
-    if (!supportedKeyTypes.includes(keyType)) {
-      setKeyType(supportedKeyTypes[0]);
-    }
-  }, [selectedEngine, keyType, supportedKeyTypes]);
 
   const handleKeyTypeChange = (value: string) => {
     setKeyType(value);
@@ -120,6 +110,13 @@ export default function CreateKmsKeyPage() {
 
   const currentKeySpecOptions = getKeySpecOptions(keyType, getKeyTypeDetails(selectedEngine, keyType));
   const keySpecLabel = getKeySpecLabel(keyType);
+
+  useEffect(() => {
+    if (supportedKeyTypes.length === 0) return;
+    if (!supportedKeyTypes.includes(keyType)) {
+      setKeyType(supportedKeyTypes[0]);
+    }
+  }, [supportedKeyTypes, keyType]);
 
   useEffect(() => {
     if (currentKeySpecOptions.length === 0) {
@@ -209,7 +206,10 @@ export default function CreateKmsKeyPage() {
           ...(parsedMetadata && Object.keys(parsedMetadata).length > 0 && { metadata: parsedMetadata }),
         });
 
-        sileo.success({ title: "Key Pair Created", description: `Key pair "${keyName.trim()}" created successfully.` });
+        sileo.success({
+          title: "Key Pair Created",
+          description: `Key pair with name "${keyName.trim()}" has been successfully created.`,
+        });
         router.push('/kms/keys');
       } catch (error: any) {
         sileo.error({ title: "Creation Failed", description: error.message });
@@ -484,7 +484,7 @@ export default function CreateKmsKeyPage() {
                 <CryptoKeyTypeSpecFields
                   idPrefix="kms-create"
                   keyTypeValue={keyType}
-                  keyTypeOptions={availableKeyTypeOptions}
+                  keyTypeOptions={keyTypeOptions}
                   onKeyTypeChange={handleKeyTypeChange}
                   keySpecLabel={keySpecLabel}
                   keySpecValue={keySpec}

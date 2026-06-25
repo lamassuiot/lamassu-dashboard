@@ -16,19 +16,13 @@ const loadOidcModule = (): Promise<OidcModule> => {
     module.Log.setLevel(module.Log.DEBUG);
     return module;
   });
-
   return oidcModulePromise;
 };
 
-const createUserManager = async (): Promise<UserManager | null> => {
-  if (typeof window === 'undefined' || (window as any).lamassuConfig?.LAMASSU_AUTH_ENABLED === false) {
-    return null;
-  }
-
-  const config = (window as any).lamassuConfig;
-  const authority = config?.LAMASSU_AUTH_AUTHORITY;
-  const clientId = config?.LAMASSU_AUTH_CLIENT_ID || 'frontend';
-  const monitorSession = config?.LAMASSU_AUTH_MONITOR_SESSION === true;
+const createUserManager = async (config: Record<string, any>): Promise<UserManager | null> => {
+  const authority = config.LAMASSU_AUTH_AUTHORITY;
+  const clientId = config.LAMASSU_AUTH_CLIENT_ID || 'frontend';
+  const monitorSession = config.LAMASSU_AUTH_MONITOR_SESSION === true;
 
   if (!authority) {
     console.warn('LAMASSU_AUTH_AUTHORITY not found in config');
@@ -36,14 +30,10 @@ const createUserManager = async (): Promise<UserManager | null> => {
   }
 
   const oidcModule = await loadOidcModule();
-  if (!oidcModule) {
-    return null;
-  }
-
   const { UserManager: OidcUserManager, WebStorageStateStore } = oidcModule;
 
   return new OidcUserManager({
-    authority: authority,
+    authority,
     client_id: clientId,
     redirect_uri: `${window.location.origin}/signin-callback`,
     silent_redirect_uri: `${window.location.origin}/silent-renew-callback`,
@@ -52,6 +42,7 @@ const createUserManager = async (): Promise<UserManager | null> => {
     scope: 'openid profile email',
     userStore: new WebStorageStateStore({ store: window.localStorage }),
     automaticSilentRenew: true,
+    loadUserInfo: true,
     monitorSession,
   });
 };
@@ -94,7 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const manager = await createUserManager();
+      const manager = await createUserManager(config);
       if (!isCancelled) {
         setUserManagerInstance(manager);
       }

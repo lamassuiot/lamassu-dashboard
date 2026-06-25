@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -21,7 +19,6 @@ import {
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Switch } from '@/components/ui/switch';
-import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
 import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
@@ -516,6 +513,7 @@ export default function CreateCaGeneratePage() {
     { label: 'New', href: '/certificate-authorities/new' },
     { label: 'Generate' },
   ];
+
   return (
     <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
       <div className="w-[80%] mx-auto space-y-5 mb-8">
@@ -534,6 +532,55 @@ export default function CreateCaGeneratePage() {
             Provision a new Root or Intermediate CA. A new cryptographic key pair will be generated and managed by LamassuIoT.
           </p>
         </div>
+
+        {/* ── CA Identity ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">CA Identity</p>
+            <p className="text-sm text-muted-foreground mt-1">Choose the CA type and define its basic identity.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="caType">CA Type</Label>
+              <Select value={caType} onValueChange={handleCaTypeChange} disabled={isSubmitting}>
+                <SelectTrigger id="caType"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="root">Root CA</SelectItem>
+                  <SelectItem value="intermediate">Intermediate CA</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {caType === 'root' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="issuerName">Issuer</Label>
+                <Input id="issuerName" value="Self-signed" disabled className="bg-muted/50" />
+                <p className="text-xs text-muted-foreground">Root CAs are self-signed.</p>
+              </div>
+            )}
+            {caType === 'intermediate' && (
+              <div className="space-y-1.5">
+                <Label>Parent CA</Label>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsParentCaModalOpen(true)} disabled={isLoadingDependencies || isSubmitting}>
+                    {selectedParentCa ? selectedParentCa.name : 'Select Parent CA...'}
+                  </Button>
+                </div>
+                {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="caId">CA ID (auto-generated)</Label>
+              <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="caName">CA Name (Common Name)</Label>
+              <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
+              {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}
+            </div>
+          </div>
+        </div>
+
+        <Separator />
 
         {/* ── Key Pair Generation ── */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
