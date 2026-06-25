@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -419,7 +417,8 @@ export default function IssueCertificateFormClient() {
     try {
       const algorithm = selectedAlgorithm === 'RSA'
         ? { name: "RSASSA-PKCS1-v1_5", modulusLength: parseInt(selectedRsaKeySize, 10), publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }
-        : { name: "ECDSA", namedCurve: selectedEcdsaCurve };
+        : selectedAlgorithm === 'ECDSA' ? { name: "ECDSA", namedCurve: selectedEcdsaCurve }
+        : { name: "Ed25519" };
       const keyPair = await crypto.subtle.generateKey(algorithm, true, ["sign", "verify"]);
 
       const privateKeyPem = formatAsPem(arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey)), 'PRIVATE KEY');

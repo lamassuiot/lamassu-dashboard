@@ -10,7 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, PlusCircle, Settings, Info, CalendarDays, KeyRound, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, createCa, type CreateCaPayload, fetchSigningProfiles, type ApiSigningProfile, type CreateSigningProfilePayload } from '@/lib/ca-data';
+import {
+  fetchAndProcessCAs,
+  createCa,
+  type CreateCaPayload,
+  type CreateHybridCaPayload,
+  fetchSigningProfiles,
+  type ApiSigningProfile,
+  type CreateSigningProfilePayload,
+} from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
@@ -20,7 +28,7 @@ import { ExpirationInput, type ExpirationConfig } from '@/components/shared/Expi
 import { formatISO, add, format } from 'date-fns';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
-import { ECDSA_CURVE_OPTIONS } from '@/lib/form-options';
+import { ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS } from '@/lib/form-options';
 import { SigningProfileSelector } from '@/components/shared/SigningProfileSelector';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { CardSelector } from '@/components/shared/CardSelector';
@@ -79,6 +87,7 @@ export default function CreateCaGeneratePage() {
   const router = useRouter();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isHybridCa, setIsHybridCa] = useState(false);
 
   const [caType, setCaType] = useState('root');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
@@ -88,6 +97,8 @@ export default function CreateCaGeneratePage() {
 
   const [keyType, setKeyType] = useState('RSA');
   const [keySpec, setKeySpec] = useState('');
+  const [innerKeyType, setInnerKeyType] = useState('RSA');
+  const [innerKeySpec, setInnerKeySpec] = useState('');
 
   const [country, setCountry] = useState('');
   const [stateProvince, setStateProvince] = useState('');
@@ -121,9 +132,7 @@ export default function CreateCaGeneratePage() {
   const [isParentCaModalOpen, setIsParentCaModalOpen] = useState(false);
 
   const [availableParentCAs, setAvailableParentCAs] = useState<CA[]>([]);
-
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
-
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
   const [errorDependencies, setErrorDependencies] = useState<string | null>(null);
 
@@ -234,26 +243,71 @@ export default function CreateCaGeneratePage() {
 
   const selectedEngine = useMemo(() => allCryptoEngines.find(e => e.id === cryptoEngineId), [allCryptoEngines, cryptoEngineId]);
 
-  const currentKeySpecOptions = useMemo(() => {
+  const supportedKeyTypes = useMemo(
+    () => selectedEngine?.supported_key_types.map(kt => kt.type) ?? [],
+    [selectedEngine],
+  );
+
+  const buildKeySpecOptions = useCallback((type: string) => {
     if (!selectedEngine) return [];
 
-    const keyTypeDetails = selectedEngine.supported_key_types.find(kt => kt.type.toUpperCase() === keyType.toUpperCase());
+    const keyTypeDetails = selectedEngine.supported_key_types.find(
+      (kt) => kt.type.toUpperCase() === type.toUpperCase(),
+    );
     if (!keyTypeDetails) return [];
 
-    return keyTypeDetails.sizes.map(size => {
-      if (keyType === 'ECDSA') {
-        const curve = ECDSA_CURVE_OPTIONS.find(c => c.value.includes(String(size)));
-        return curve || { value: String(size), label: `Unknown Curve ${size}` };
+    return keyTypeDetails.sizes.map((size) => {
+      const sizeValue = String(size);
+      if (type === 'ECDSA') {
+        const curve = ECDSA_CURVE_OPTIONS.find((option) => option.value.includes(sizeValue));
+        return curve || { value: sizeValue, label: `Unknown Curve ${sizeValue}` };
       }
-      return { value: String(size), label: `${size} bit` };
+      if (type === 'ML-DSA') {
+        const normalizedSize = sizeValue.replace(/^ML-DSA-/, '');
+        const option = MLDSA_SECURITY_LEVEL_OPTIONS.find(
+          ({ value }: { value: string }) => value === sizeValue || value.endsWith(`-${normalizedSize}`),
+        );
+        return option || { value: sizeValue, label: `ML-DSA ${normalizedSize}` };
+      }
+      return { value: sizeValue, label: `${sizeValue} bit` };
     });
-  }, [selectedEngine, keyType]);
+  }, [selectedEngine]);
+
+  const currentKeySpecOptions = useMemo(() => {
+    return buildKeySpecOptions(keyType);
+  }, [buildKeySpecOptions, keyType]);
+
+  const innerKeySpecOptions = useMemo(() => {
+    return buildKeySpecOptions(innerKeyType);
+  }, [buildKeySpecOptions, innerKeyType]);
 
   const keySpecLabel = useMemo(() => {
     if (keyType === 'RSA') return 'RSA Key Size';
     if (keyType === 'ECDSA') return 'ECDSA Curve';
+    if (keyType === 'ML-DSA') return 'ML-DSA Security Level';
     return 'Key Specification';
   }, [keyType]);
+
+  const innerKeySpecLabel = useMemo(() => {
+    if (innerKeyType === 'RSA') return 'Inner RSA Key Size';
+    if (innerKeyType === 'ECDSA') return 'Inner ECDSA Curve';
+    if (innerKeyType === 'ML-DSA') return 'Inner ML-DSA Security Level';
+    return 'Inner Key Specification';
+  }, [innerKeyType]);
+
+  useEffect(() => {
+    if (supportedKeyTypes.length === 0) return;
+    if (!supportedKeyTypes.includes(keyType)) {
+      setKeyType(supportedKeyTypes[0]);
+    }
+  }, [supportedKeyTypes, keyType]);
+
+  useEffect(() => {
+    if (supportedKeyTypes.length === 0) return;
+    if (!supportedKeyTypes.includes(innerKeyType)) {
+      setInnerKeyType(supportedKeyTypes[0]);
+    }
+  }, [supportedKeyTypes, innerKeyType]);
 
   // Effect to update keySpec when options change
   useEffect(() => {
@@ -268,6 +322,23 @@ export default function CreateCaGeneratePage() {
       setKeySpec('');
     }
   }, [currentKeySpecOptions, keyType]);
+
+  useEffect(() => {
+    if (innerKeySpecOptions.length > 0) {
+      const defaultSpec = innerKeyType === 'RSA'
+        ? '2048'
+        : innerKeyType === 'ECDSA'
+          ? 'P-256'
+          : innerKeySpecOptions[0].value;
+      if (innerKeySpecOptions.some((opt) => opt.value === defaultSpec)) {
+        setInnerKeySpec(defaultSpec);
+      } else {
+        setInnerKeySpec(innerKeySpecOptions[0].value);
+      }
+    } else {
+      setInnerKeySpec('');
+    }
+  }, [innerKeySpecOptions, innerKeyType]);
 
 
   const handleCaTypeChange = (value: string) => {
@@ -285,6 +356,9 @@ export default function CreateCaGeneratePage() {
     // Key spec will be reset by the useEffect above
   };
 
+  const handleInnerKeyTypeChange = (value: string) => {
+    setInnerKeyType(value);
+  };
   const handleParentCaSelectFromModal = (ca: CA) => {
     if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
       sileo.error({
@@ -308,6 +382,13 @@ export default function CreateCaGeneratePage() {
       return { type: "Date", time: INDEFINITE_DATE_API_VALUE };
     }
     return { type: "Duration", duration: "1y" };
+  };
+
+  const parseKeyBits = (type: string, spec: string): number => {
+    if (type === 'ECDSA') {
+      return Number.parseInt(spec.replace('P-', ''), 10);
+    }
+    return Number.parseInt(spec.replace(/^ML-DSA-/, ''), 10);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -334,6 +415,11 @@ export default function CreateCaGeneratePage() {
       setIsSubmitting(false);
       return;
     }
+    if (isHybridCa && !innerKeySpec) {
+      sileo.error({ title: "Validation Error", description: "Please select an Inner Key Specification." });
+      setIsSubmitting(false);
+      return;
+    }
     if (profileMode === 'reuse' && !selectedProfileId) {
       sileo.error({ title: "Validation Error", description: "An issuance profile must be selected." });
       setIsSubmitting(false);
@@ -355,15 +441,7 @@ export default function CreateCaGeneratePage() {
       }
     }
 
-    let keyBits: number;
-    if (keyType === 'ECDSA') {
-      keyBits = parseInt(keySpec.replace('P-', ''), 10);
-    } else {
-      keyBits = parseInt(keySpec, 10);
-    }
-
-
-    const payload: CreateCaPayload = {
+    const basePayload = {
       parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
       id: caId,
       engine_id: cryptoEngineId,
@@ -375,21 +453,36 @@ export default function CreateCaGeneratePage() {
         organization_unit: organizationalUnit || undefined,
         common_name: caName,
       },
-      key_metadata: {
-        type: keyType,
-        bits: keyBits,
-      },
       ca_expiration: formatExpirationForApi(caExpiration),
       profile_id: selectedProfileId!,
-      ca_type: "MANAGED",
+      ca_type: 'MANAGED' as const,
     };
+    const payload: CreateCaPayload | CreateHybridCaPayload = isHybridCa
+      ? {
+          ...basePayload,
+          outer_key_metadata: {
+            type: keyType,
+            bits: parseKeyBits(keyType, keySpec),
+          },
+          inner_key_metadata: {
+            type: innerKeyType,
+            bits: parseKeyBits(innerKeyType, innerKeySpec),
+          },
+          hybrid_certificate_type: 'CHAMELEON',
+        }
+      : {
+          ...basePayload,
+          key_metadata: {
+            type: keyType,
+            bits: parseKeyBits(keyType, keySpec),
+          },
+        };
 
-    // Add CA certificate profile if specified
     if (caProfileMode === 'reuse' && selectedCaProfileId) {
       payload.ca_issuance_profile_id = selectedCaProfileId;
     } else if (caProfileMode === 'inline') {
       const formData = caProfileForm.getValues();
-      
+
       let validityPayload: { type: "Duration" | "Date"; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
       if (formData.validity.type === 'Duration' && formData.validity.durationValue) {
         validityPayload = { type: 'Duration', duration: formData.validity.durationValue };
@@ -424,7 +517,7 @@ export default function CreateCaGeneratePage() {
     }
 
     try {
-      await createCa(payload);
+      await createCa(payload, isHybridCa);
 
       sileo.success({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.` });
       router.push('/certificate-authorities');
@@ -449,6 +542,15 @@ export default function CreateCaGeneratePage() {
     { label: 'New', href: '/certificate-authorities/new' },
     { label: 'Generate' },
   ];
+  const handleIsHybridCaChange = () => {
+    setIsHybridCa(!isHybridCa)
+  }
+
+  return (
+    <div className="w-full space-y-6 mb-8">
+      <Button variant="outline" onClick={() => router.push('/certificate-authorities/new')}>
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Creation Methods
+      </Button>
 
   return (
     <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
