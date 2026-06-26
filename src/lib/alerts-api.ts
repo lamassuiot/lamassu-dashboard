@@ -91,7 +91,7 @@ export async function fetchLatestAlerts(accessToken: string, params?: URLSearchP
   }
 
   const data: ApiPaginatedResponse<ApiAlertEvent> = await response.json();
-  return data;
+  return { ...data, list: data.list ?? [] };
 }
 
 export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
