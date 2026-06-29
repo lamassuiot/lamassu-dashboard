@@ -4,6 +4,7 @@
 
 import { get_CLIENT_UPDATES_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
+import { fetchJobs as fetchWfxJobs } from './wfx-api';
 import type { UpdatePack, ApiCreateUpdatePackPayload, ApiGlobalStrategy, CampaignItem, DeviceJob, CampaignListResponse, DeviceListApiResponse, UpdatePackVersion, Artifact, DevicePackVersion, DevicePackUpdate, DevicePackWithArtifacts, CampaignPrecondition, PreconditionFailure, GroupLatestPack, DeviceLatestDrift, GroupVersionCompliance, GroupVersionStatus } from '@/types/iot';
 
 
@@ -275,22 +276,9 @@ export async function fetchCurrentCampaigns({ groupId, limit, bookmark }: ApiPar
   });
   const data = await handleApiError(response, 'Failed to fetch campaigns');
 
-  // If active_launches is not provided by API, compute it from the jobs
-  let activeLaunches = data.active_launches || [];
-
-  // If not provided, extract from jobs with OPEN workflow group states
-  if (!data.active_launches && data.list && Array.isArray(data.list)) {
-    const activeStates = ['INSTALL', 'INSTALLING', 'INSTALLED', 'ACTIVATE', 'ACTIVATING'];
-    activeLaunches = data.list
-      .filter((job: any) => job.status?.state && activeStates.includes(job.status.state))
-      .map((job: any) => job.clientId || job.status?.clientId)
-      .filter((id: string | undefined) => id !== undefined);
-  }
-
   return {
     next: data.next || null,
     list: data.list || [],
-    active_launches: activeLaunches
   };
 }
 
@@ -338,43 +326,6 @@ export async function fetchAllCampaigns({ groupId }: ApiParams, opts?: ApiCallOp
   return allCampaigns;
 }
 
-// Fetch campaigns filtered by distribution set ID
-export async function fetchCampaignsByUpdatePack({
-  groupId,
-  updatePackId,
-  pageSize = 50,
-  sortBy = 'exec_date',
-  sortMode = 'desc',
-  bookmark
-}: ApiParams & {
-  updatePackId: string;
-  pageSize?: number;
-  sortBy?: string;
-  sortMode?: 'asc' | 'desc';
-  bookmark?: string;
-}, opts?: ApiCallOptions): Promise<CampaignListResponse> {
-  const params = new URLSearchParams();
-  if (pageSize) params.set('page_size', pageSize.toString());
-  if (sortBy) params.set('sort_by', sortBy);
-  if (sortMode) params.set('sort_mode', sortMode);
-  if (bookmark) params.set('bookmark', bookmark);
-  params.set('filter', `update_pack_id[eq]${updatePackId}`);
-
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/groups/${groupId}/launch?${params.toString()}`;
-
-  const response = await apiFetch(url, {
-    signal: opts?.signal ?? undefined,
-  });
-
-  const data = await handleApiError(response, 'Failed to fetch campaigns for distribution set');
-
-  return {
-    next: data.next || null,
-    list: data.list || [],
-    active_launches: data.active_launches || []
-  };
-}
-
 // Fetch jobs by campaign ID directly
 export async function fetchJobsByCampaign({
   campaignId,
@@ -400,6 +351,64 @@ export async function fetchJobsByCampaign({
     list: data.list || [],
     next: data.next || null
   };
+}
+
+// ── WFX tag-based job lookup ──────────────────────────────────────────────────
+// The secure-updates backend stamps every device job it creates for a campaign with WFX
+// tags so jobs can be queried in bulk by the workflow executor instead of one request per
+// device:
+//   lms://dms/<groupID>             — the owning device group
+//   lms://secure-updates/<launchID> — the campaign (launch) the job belongs to
+// See the WFX `GET /jobs?tag=...` filter (repeatable query parameter).
+export const CAMPAIGN_LAUNCH_TAG_PREFIX = 'lms://secure-updates/';
+export const DEVICE_GROUP_TAG_PREFIX = 'lms://dms/';
+
+/** WFX tag that scopes a job query to a single campaign (launch). */
+export function buildCampaignLaunchTag(campaignId: string): string {
+  return `${CAMPAIGN_LAUNCH_TAG_PREFIX}${campaignId}`;
+}
+
+/** WFX tag that scopes a job query to a single device group. */
+export function buildDeviceGroupTag(groupId: string): string {
+  return `${DEVICE_GROUP_TAG_PREFIX}${groupId}`;
+}
+
+// Map a WFX job (northbound API shape) onto the DeviceJob shape the updates UI consumes.
+function wfxJobToDeviceJob(w: Awaited<ReturnType<typeof fetchWfxJobs>>['content'][number]): DeviceJob {
+  return {
+    clientId: w.clientId || w.status?.clientId || '',
+    definition: (w.definition ?? {}) as unknown as DeviceJob['definition'],
+    id: w.id,
+    mtime: w.mtime || '',
+    status: (w.status ?? { state: '', definitionHash: '' }) as unknown as DeviceJob['status'],
+    stime: w.stime || '',
+    tags: w.tags || [],
+    workflow: (w.workflow ?? {}) as unknown as DeviceJob['workflow'],
+  };
+}
+
+// Fetch every device job belonging to a campaign in a single tag-filtered WFX query,
+// paginating until the full set is retrieved. Replaces the per-device fan-out
+// (fetchAllDeviceJobs) when viewing a campaign's details.
+export async function fetchCampaignJobsByTag(
+  { campaignId, pageSize = 100 }: { campaignId: string; pageSize?: number },
+): Promise<DeviceJob[]> {
+  const tag = buildCampaignLaunchTag(campaignId);
+  const jobs: DeviceJob[] = [];
+  let offset = 0;
+  const maxIterations = 50; // Safety bound to prevent runaway pagination
+
+  for (let i = 0; i < maxIterations; i++) {
+    const page = await fetchWfxJobs({ tag: [tag], limit: pageSize, offset });
+    const content = page.content || [];
+    jobs.push(...content.map(wfxJobToDeviceJob));
+
+    const total = page.pagination?.total ?? jobs.length;
+    offset += content.length;
+    if (content.length === 0 || offset >= total) break;
+  }
+
+  return jobs;
 }
 
 // Campaign creation payload - all strategy fields are now required
@@ -1038,10 +1047,13 @@ export async function fetchDevicePackVersions(
  * GET /v1/devices/:deviceID/pack-inventory
  */
 export async function fetchDevicePackInventory(
-  { deviceId }: { deviceId: string },
+  { deviceId, pageSize, bookmark }: { deviceId: string; pageSize?: number; bookmark?: string },
   opts?: ApiCallOptions
 ): Promise<{ list: DevicePackWithArtifacts[]; next: string | null }> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/pack-inventory`;
+  const params = new URLSearchParams();
+  if (pageSize) params.set('page_size', String(pageSize));
+  if (bookmark) params.set('bookmark', bookmark);
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/pack-inventory${params.toString() ? '?' + params.toString() : ''}`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });
@@ -1050,14 +1062,38 @@ export async function fetchDevicePackInventory(
 }
 
 /**
+ * Fetch a device's COMPLETE package inventory, following pagination until exhausted. Use this for
+ * device views that must show every installed pack — the single-page fetch only returns the
+ * backend's default page (a device can track more packs than fit in one page).
+ */
+export async function fetchAllDevicePackInventory(
+  { deviceId, pageSize = 100 }: { deviceId: string; pageSize?: number },
+  opts?: ApiCallOptions
+): Promise<DevicePackWithArtifacts[]> {
+  const all: DevicePackWithArtifacts[] = [];
+  let bookmark: string | undefined;
+  const maxIterations = 50; // Safety bound against a non-advancing bookmark
+  for (let i = 0; i < maxIterations; i++) {
+    const { list, next } = await fetchDevicePackInventory({ deviceId, pageSize, bookmark }, opts);
+    all.push(...list);
+    if (!next) break;
+    bookmark = next;
+  }
+  return all;
+}
+
+/**
  * Fetch a device's pack-update history (newest first).
  * GET /v1/devices/:deviceID/pack-updates
  */
 export async function fetchDevicePackUpdates(
-  { deviceId }: { deviceId: string },
+  { deviceId, pageSize, bookmark }: { deviceId: string; pageSize?: number; bookmark?: string },
   opts?: ApiCallOptions
 ): Promise<{ list: DevicePackUpdate[]; next: string | null }> {
-  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/pack-updates`;
+  const params = new URLSearchParams();
+  if (pageSize) params.set('page_size', String(pageSize));
+  if (bookmark) params.set('bookmark', bookmark);
+  const url = `${get_CLIENT_UPDATES_API_BASE_URL()}/devices/${encodeURIComponent(deviceId)}/pack-updates${params.toString() ? '?' + params.toString() : ''}`;
   const response = await apiFetch(url, {
     signal: opts?.signal ?? undefined,
   });

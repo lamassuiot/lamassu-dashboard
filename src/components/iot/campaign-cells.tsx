@@ -1,13 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import React from 'react';
 import { Loader2, AlertTriangle, Check, Clock, Ban, PauseCircle, FlaskConical } from 'lucide-react';
-import type { CampaignItem, DeviceJob, CampaignListResponse, DeviceJobWorkflowTransition } from '@/types/iot';
+import type { CampaignItem, DeviceJob, DeviceJobWorkflowTransition } from '@/types/iot';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Skeleton } from '@/components/ui/skeleton';
-import { fetchAllDeviceJobs, fetchCurrentCampaigns } from '@/lib/iot-api';
 import { cn } from '@/lib/utils';
 
 export type CampaignDisplayStatus = 'Rolling Out' | 'Completed' | 'Paused' | 'Cancelled' | 'Failed' | 'Not Started' | 'Partial Completed';
@@ -37,15 +34,13 @@ export const isDirectWorkflow = (workflowType?: string): boolean =>
 
 export type TestDeviceGateStatus = 'none' | 'pending' | 'testing' | 'passed' | 'failed';
 
-// Derive the canary status from the launch track's device lists. Terminal lists win over
-// in-flight ones: failed_devices ⊆ devices_with_job (both terminal), while active_launches
-// may linger after completion, so it is only consulted once the terminal lists are ruled out.
+// Map the backend's assignment status for the test device to the UI gate status.
 export function getTestDeviceStatus(campaign: CampaignItem): TestDeviceGateStatus {
-  const id = campaign.test_device_id;
-  if (!id) return 'none';
-  if ((campaign.failed_devices ?? []).includes(id)) return 'failed';
-  if ((campaign.devices_with_job ?? []).includes(id)) return 'passed';
-  if ((campaign.active_launches ?? []).includes(id)) return 'testing';
+  if (!campaign.test_device_id) return 'none';
+  const s = campaign.test_device_status;
+  if (s === 'failed') return 'failed';
+  if (s === 'completed') return 'passed';
+  if (s === 'active') return 'testing';
   return 'pending';
 }
 
@@ -120,6 +115,44 @@ export function extractWfxEligibleTransitions(workflow?: DeviceJob['workflow']):
     .map(t => ({ from: t.from, to: t.to, description: t.description, action: t.action }));
 }
 
+// ─── Derived campaign device stats ────────────────────────────────────────────────
+// The backend returns pre-computed counts (pending_count, active_count, completed_count,
+// failed_count) populated from the launch_device_assignments table; no device-ID arrays.
+
+export interface CampaignDeviceStats {
+  total: number;     // every device targeted by the campaign
+  completed: number; // devices whose update job finished successfully
+  failed: number;    // devices whose update job terminally failed
+  active: number;    // devices with an in-flight / active update job
+  pending: number;   // devices not yet dispatched a job
+}
+
+export function deriveCampaignDeviceStats(campaign: CampaignItem): CampaignDeviceStats {
+  const failed = campaign.failed_count ?? 0;
+  const active = campaign.active_count ?? 0;
+  const completed = campaign.completed_count ?? 0;
+  const pending = campaign.pending_count ?? 0;
+  const total = campaign.total_devices ?? (failed + active + completed + pending);
+  return { total, completed, failed, active, pending };
+}
+
+// Derive the campaign's display status from its lifecycle field + device arrays — no jobs needed.
+export function deriveCampaignStatus(campaign: CampaignItem): CampaignDisplayStatus {
+  // The operator-/system-driven lifecycle status takes precedence over the device-derived view.
+  if (campaign.status === 'cancelled') return 'Cancelled';
+  if (campaign.status === 'completed') return 'Completed';
+  if (campaign.status === 'paused') return 'Paused';
+
+  const { total, completed, failed, active, pending } = deriveCampaignDeviceStats(campaign);
+  if (total === 0) return 'Not Started';
+  // Nothing has been dispatched yet (all devices still pending) → the campaign hasn't started.
+  if (completed + failed + active === 0) return 'Not Started';
+  // Still devices executing or waiting to be dispatched → rolling out.
+  if (active > 0 || pending > 0) return 'Rolling Out';
+  // Everything reached a terminal state.
+  return completed > 0 ? 'Completed' : 'Failed';
+}
+
 // ─── CampaignNameCell ───────────────────────────────────────────────────────────
 
 interface CampaignNameCellProps {
@@ -129,53 +162,17 @@ interface CampaignNameCellProps {
   onClick?: () => void;
 }
 
-export function CampaignNameCell({ campaign, groupId, accessToken, onClick }: CampaignNameCellProps) {
-  const firstDeviceIdWithJob = campaign.devices_with_job[0];
-
-  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
-  const [isLoadingJobVersion, setIsLoadingJobVersion] = useState(false);
-  const [isJobVersionFetched, setIsJobVersionFetched] = useState(false);
-
-  const fetchJobs = useCallback(async () => {
-    setIsLoadingJobVersion(true);
-    try {
-      const result = await fetchAllDeviceJobs(
-        { groupId, deviceIds: [firstDeviceIdWithJob!], targetCampaignId: campaign.id },
-        {}
-      );
-      setJobs(result);
-      setIsJobVersionFetched(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoadingJobVersion(false);
-    }
-  }, [groupId, firstDeviceIdWithJob, campaign.id]);
-
-  useEffect(() => {
-    if (!!firstDeviceIdWithJob && !!accessToken) {
-      fetchJobs();
-    }
-  }, [fetchJobs, firstDeviceIdWithJob, accessToken]);
-
-  // isFetching becomes false after the first successful fetch, mirroring isFetched semantics
-  const isJobVersionFetchedFlag = !isLoadingJobVersion && !isJobVersionFetched;
-
-  let versionToDisplay: string | null = null;
-
-  if (firstDeviceIdWithJob && !isLoadingJobVersion && jobs) {
-    const relevantJob = jobs.find(job => job.definition.launchID === campaign.id);
-    if (relevantJob?.definition?.version?.trim()) {
-      versionToDisplay = relevantJob.definition.version.trim();
-    }
-  }
+export function CampaignNameCell({ campaign, onClick }: CampaignNameCellProps) {
+  // Version is derived from the campaign object the updates backend already returns — either the
+  // explicit `version` field or a hint encoded in the campaign name (e.g. "fw_v1.2"). No per-device
+  // job query is performed at the list level.
+  let versionToDisplay: string | null =
+    campaign.version !== undefined && campaign.version !== null ? String(campaign.version) : null;
 
   if (!versionToDisplay && campaign.name) {
     const nameMatch = campaign.name.match(/(?:_v|\sV)([0-9]+(?:\.[0-9]+)*)/i);
     if (nameMatch?.[1]) versionToDisplay = nameMatch[1];
   }
-
-  const showVersionSkeleton = firstDeviceIdWithJob && isLoadingJobVersion;
 
   return (
     <div className="flex items-center gap-2">
@@ -185,8 +182,7 @@ export function CampaignNameCell({ campaign, groupId, accessToken, onClick }: Ca
       >
         {campaign.name}
       </span>
-      {showVersionSkeleton && <Skeleton className="h-5 w-8 rounded-full" />}
-      {!showVersionSkeleton && versionToDisplay && (
+      {versionToDisplay && (
         <Badge variant="secondary" className="text-xs">v{versionToDisplay}</Badge>
       )}
       {campaign.forced_preconditions === true && (
@@ -217,185 +213,15 @@ interface CampaignStatusCellProps {
   startedCampaignTotals?: Map<string, number>;
 }
 
-export function CampaignStatusCell({ campaign, groupId, accessToken, startedCampaigns, startedCampaignTotals }: CampaignStatusCellProps) {
-  // Include active_launches so that completed devices (ACTIVATED) not in devices_with_job are still counted
-  const statusDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...(campaign.active_launches || [])]));
+export function CampaignStatusCell({ campaign, startedCampaigns, startedCampaignTotals }: CampaignStatusCellProps) {
+  // Derived purely from the campaign object — the parent list polls the updates backend, so the
+  // arrays stay fresh without any per-device job queries here.
+  const { total, completed } = deriveCampaignDeviceStats(campaign);
+  const storedTotal = startedCampaignTotals?.get(campaign.id);
+  const displayTotal = (startedCampaigns?.has(campaign.id) && storedTotal) ? storedTotal : total;
 
-  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const fetchJobs = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const result = await fetchAllDeviceJobs({
-        groupId,
-        deviceIds: statusDeviceIds,
-        targetCampaignId: campaign.id,
-      }, {});
-      setJobs(result);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [groupId, campaign.id, statusDeviceIds.join(',')]);
-
-  useEffect(() => {
-    if (statusDeviceIds.length > 0 && !!accessToken) {
-      fetchJobs();
-    }
-  }, [fetchJobs, accessToken]);
-
-  const refetchInterval = (startedCampaigns && startedCampaigns.has(campaign.id)) ? 3000 : false;
-  useEffect(() => {
-    if (!refetchInterval || statusDeviceIds.length === 0 || !accessToken) return;
-    const id = setInterval(fetchJobs, refetchInterval as number);
-    return () => clearInterval(id);
-  }, [fetchJobs, refetchInterval, accessToken, statusDeviceIds.length]);
-
-  const [activeCampaignsData, setActiveCampaignsData] = useState<CampaignListResponse | undefined>(undefined);
-
-  const fetchActiveCampaigns = useCallback(async () => {
-    try {
-      const result = await fetchCurrentCampaigns({ groupId }, {});
-      setActiveCampaignsData(result);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [groupId]);
-
-  useEffect(() => {
-    if (!!accessToken) {
-      fetchActiveCampaigns();
-    }
-  }, [fetchActiveCampaigns, accessToken]);
-
-  const activeDevices = activeCampaignsData?.active_launches || [];
-
-  const relevantJobs = React.useMemo(() => {
-    if (!jobs) return [] as DeviceJob[];
-    return jobs.filter(job => job.definition.launchID === campaign.id);
-  }, [jobs, campaign.id]);
-
-  const hasPhasedDevicesWaiting = React.useMemo(() => {
-    if (relevantJobs.length === 0) return false;
-    const firstJobWithWorkflow = relevantJobs.find(job => job.workflow?.transitions);
-    const wfxTransitions = extractWfxEligibleTransitions(firstJobWithWorkflow?.workflow);
-    if (wfxTransitions.length === 0) return false;
-    return wfxTransitions.some(({ from }) => relevantJobs.some(job => job.status.state === from));
-  }, [relevantJobs]);
-
-  const calculateStatus = (): CampaignDisplayStatus => {
-    // The operator-/system-driven lifecycle status takes precedence over the derived job-state view:
-    // a cancelled / completed / paused campaign shows that regardless of in-flight device states.
-    if (campaign.status === 'cancelled') return 'Cancelled';
-    if (campaign.status === 'completed') return 'Completed';
-    if (campaign.status === 'paused') return 'Paused';
-
-    if (!jobs || jobs.length === 0) {
-      const campaignActiveDevices = (campaign.active_launches && campaign.active_launches.length > 0)
-        ? campaign.active_launches
-        : activeDevices.filter(deviceId => campaign.devices_with_job.includes(deviceId) || campaign.devices_without_job.includes(deviceId));
-      if (campaignActiveDevices.length > 0) return 'Rolling Out';
-      if (campaign.devices_with_job.length === 0) return 'Not Started';
-      return 'Rolling Out';
-    }
-
-    const rj = jobs.filter(job => job.definition.launchID === campaign.id);
-    const deviceStateMap = new Map<string, 'COMPLETED' | 'FAILED' | 'ACTIVE'>();
-    rj.forEach(job => {
-      const jobDeviceId = job.clientId || job.status?.clientId;
-      if (!jobDeviceId) return;
-      const state = job.status.state;
-      const current = deviceStateMap.get(jobDeviceId);
-      if (state === 'ACTIVATED' || state === 'INSTALLED') {
-        deviceStateMap.set(jobDeviceId, 'COMPLETED');
-      } else if (state === 'TERMINATED') {
-        if (current !== 'COMPLETED') deviceStateMap.set(jobDeviceId, 'FAILED');
-      } else {
-        if (!current) deviceStateMap.set(jobDeviceId, 'ACTIVE');
-      }
-    });
-    let completedCount = 0;
-    let failedCount = 0;
-    deviceStateMap.forEach(s => {
-      if (s === 'COMPLETED') completedCount++;
-      if (s === 'FAILED') failedCount++;
-    });
-
-    const campaignActiveDevices = (campaign.active_launches && campaign.active_launches.length > 0)
-      ? campaign.active_launches
-      : activeDevices.filter(deviceId => campaign.devices_with_job.includes(deviceId) || campaign.devices_without_job.includes(deviceId));
-    const allDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...campaign.devices_without_job]));
-    const allDeviceIdsWithActive = Array.from(new Set([...allDeviceIds, ...campaignActiveDevices]));
-    const totalDevicesFromApi = allDeviceIdsWithActive.length;
-    const storedTotal = startedCampaignTotals?.get(campaign.id);
-    const displayTotal = (startedCampaigns && startedCampaigns.has(campaign.id) && storedTotal) ? storedTotal : totalDevicesFromApi;
-
-    const jobActiveDeviceIds = [...deviceStateMap.entries()].filter(([, s]) => s === 'ACTIVE').map(([id]) => id);
-    const campaignActiveSet = new Set(campaignActiveDevices);
-    const jobActiveSet = new Set(jobActiveDeviceIds);
-    const combinedActiveSet = new Set<string>([...campaignActiveSet, ...jobActiveSet]);
-    deviceStateMap.forEach((s, id) => {
-      if (s === 'COMPLETED' || s === 'FAILED') combinedActiveSet.delete(id);
-    });
-    const activeCount = combinedActiveSet.size;
-    const totalProcessed = completedCount + failedCount + activeCount;
-
-    if (activeCount > 0) return 'Rolling Out';
-    // Both ACTIVATED and TERMINATED are terminal states — when all devices have finished,
-    // the campaign is done. Only show Failed when every device terminated without activating.
-    if (displayTotal > 0 && totalProcessed >= displayTotal) {
-      return completedCount > 0 ? 'Completed' : 'Failed';
-    }
-    return 'Rolling Out';
-  };
-
-  if (isLoading) {
-    return (
-      <Badge variant="outline" className="flex items-center gap-1 min-w-[100px] justify-center whitespace-nowrap">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Loading...
-      </Badge>
-    );
-  }
-
-  const status = calculateStatus();
-
-  let completionPercent = 0;
-  if (jobs && jobs.length > 0) {
-    const rj2 = jobs.filter(job => job.definition.launchID === campaign.id);
-    const dsm = new Map<string, 'COMPLETED' | 'FAILED' | 'ACTIVE'>();
-    rj2.forEach(job => {
-      const jobDeviceId = job.clientId || job.status?.clientId;
-      if (!jobDeviceId) return;
-      const state = job.status.state;
-      const current = dsm.get(jobDeviceId);
-      if (state === 'ACTIVATED' || state === 'INSTALLED') {
-        dsm.set(jobDeviceId, 'COMPLETED');
-      } else if (state === 'TERMINATED') {
-        if (current !== 'COMPLETED') dsm.set(jobDeviceId, 'FAILED');
-      } else {
-        if (!current) dsm.set(jobDeviceId, 'ACTIVE');
-      }
-    });
-    let completedCount = 0;
-    dsm.forEach(s => { if (s === 'COMPLETED') completedCount++; });
-    const allDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...campaign.devices_without_job]));
-    const campaignActiveDevices = (campaign.active_launches && campaign.active_launches.length > 0)
-      ? campaign.active_launches
-      : activeDevices.filter(deviceId => campaign.devices_with_job.includes(deviceId) || campaign.devices_without_job.includes(deviceId));
-    const allDeviceIdsWithActive = Array.from(new Set([...allDeviceIds, ...campaignActiveDevices]));
-    const totalDevicesFromApi = allDeviceIdsWithActive.length;
-    const storedTotal = startedCampaignTotals?.get(campaign.id);
-    const displayTotal = (startedCampaigns && startedCampaigns.has(campaign.id) && storedTotal) ? storedTotal : totalDevicesFromApi;
-    completionPercent = displayTotal > 0 ? Math.round((completedCount / displayTotal) * 100) : 0;
-  }
-
-  // Only flag "manual intervention" when a device is actually parked at a genuine WFX gate's
-  // from-state (hasPhasedDevicesWaiting). Generic CLIENT-driven progress or a plain rolling-out
-  // campaign is NOT an operator gate and must not trip this indicator.
-  const showActionRequiredIndicator = hasPhasedDevicesWaiting;
+  const status = deriveCampaignStatus(campaign);
+  const completionPercent = displayTotal > 0 ? Math.round((completed / displayTotal) * 100) : 0;
 
   return (
     <div className="flex items-center gap-1">
@@ -416,21 +242,6 @@ export function CampaignStatusCell({ campaign, groupId, accessToken, startedCamp
         {status === 'Partial Completed' && <AlertTriangle className="h-3 w-3" />}
         {status === 'Partial Completed' ? `Partial (${completionPercent}%)` : status}
       </Badge>
-      {showActionRequiredIndicator && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center justify-center w-6 h-6 bg-amber-100 dark:bg-amber-900/40 border border-amber-400 text-amber-600 dark:text-amber-400 rounded-full cursor-help ring-2 ring-amber-400/30 animate-pulse">
-                <AlertTriangle className="h-3.5 w-3.5" />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="font-semibold">Action Required</p>
-              <p className="text-xs">Devices waiting for manual intervention</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
     </div>
   );
 }
@@ -450,114 +261,23 @@ interface CampaignProgressCellProps {
 }
 
 export function CampaignProgressCell({
-  campaign, groupId, accessToken,
-  startedCampaigns, startedCampaignTotals, updateCampaignTotal, clearStartedCampaign, onCompleted,
+  campaign, startedCampaigns, startedCampaignTotals, updateCampaignTotal, clearStartedCampaign, onCompleted,
 }: CampaignProgressCellProps) {
-  // Include active_launches so that completed devices (ACTIVATED) not in devices_with_job are still counted
-  const progressDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...(campaign.active_launches || [])]));
-
-  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const fetchJobs = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const result = await fetchAllDeviceJobs({
-        groupId,
-        deviceIds: progressDeviceIds,
-        targetCampaignId: campaign.id,
-      }, {});
-      setJobs(result);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [groupId, campaign.id, progressDeviceIds.join(',')]);
-
-  useEffect(() => {
-    if (progressDeviceIds.length > 0 && !!accessToken) {
-      fetchJobs();
-    }
-  }, [fetchJobs, accessToken]);
-
-  const refetchInterval = (startedCampaigns && startedCampaigns.has(campaign.id)) ? 3000 : false;
-  useEffect(() => {
-    if (!refetchInterval || progressDeviceIds.length === 0 || !accessToken) return;
-    const id = setInterval(fetchJobs, refetchInterval as number);
-    return () => clearInterval(id);
-  }, [fetchJobs, refetchInterval, accessToken, progressDeviceIds.length]);
-
-  const [activeCampaignsData, setActiveCampaignsData] = useState<CampaignListResponse | undefined>(undefined);
-
-  const fetchActiveCampaigns = useCallback(async () => {
-    try {
-      const result = await fetchCurrentCampaigns({ groupId }, {});
-      setActiveCampaignsData(result);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [groupId]);
-
-  useEffect(() => {
-    if (!!accessToken) {
-      fetchActiveCampaigns();
-    }
-  }, [fetchActiveCampaigns, accessToken]);
-
-  const activeDevices = activeCampaignsData?.active_launches || [];
-
-  const allDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...campaign.devices_without_job]));
-  const campaignActiveDevices = (campaign.active_launches && campaign.active_launches.length > 0)
-    ? campaign.active_launches
-    : activeDevices.filter(deviceId => campaign.devices_with_job.includes(deviceId) || campaign.devices_without_job.includes(deviceId));
-  const allDeviceIdsWithActive = Array.from(new Set([...allDeviceIds, ...campaignActiveDevices]));
-  const totalDevices = allDeviceIdsWithActive.length;
+  // Breakdown derived from the campaign object — no per-device job queries at the list level.
+  const { total: totalDevices, completed, failed, active, pending } = deriveCampaignDeviceStats(campaign);
 
   React.useEffect(() => {
     if (updateCampaignTotal) updateCampaignTotal(campaign.id, totalDevices);
   }, [campaign.id, totalDevices, updateCampaignTotal]);
 
   const storedTotal = startedCampaignTotals?.get(campaign.id);
-  const displayTotal = (startedCampaigns && startedCampaigns.has(campaign.id) && storedTotal) ? storedTotal : totalDevices;
+  const displayTotal = (startedCampaigns?.has(campaign.id) && storedTotal) ? storedTotal : totalDevices;
 
-  // Compute job-based progress metrics (safe even when jobs is undefined/loading)
-  const relevantJobs = jobs?.filter(job => job.definition.launchID === campaign.id) || [];
-  const deviceStateMap = new Map<string, 'COMPLETED' | 'FAILED' | 'ACTIVE'>();
-  relevantJobs.forEach(job => {
-    const jobDeviceId = job.clientId || job.status?.clientId;
-    if (!jobDeviceId) return;
-    const state = job.status.state;
-    const current = deviceStateMap.get(jobDeviceId);
-    if (state === 'ACTIVATED' || state === 'INSTALLED') {
-      deviceStateMap.set(jobDeviceId, 'COMPLETED');
-    } else if (state === 'TERMINATED') {
-      if (current !== 'COMPLETED') deviceStateMap.set(jobDeviceId, 'FAILED');
-    } else {
-      if (!current) deviceStateMap.set(jobDeviceId, 'ACTIVE');
-    }
-  });
-
-  let completedCount = 0;
-  let failedCount = 0;
-  let activeFromJobsCount = 0;
-  const relevantJobDeviceIds = new Set<string>();
-  deviceStateMap.forEach((state, deviceId) => {
-    relevantJobDeviceIds.add(deviceId);
-    if (state === 'COMPLETED') completedCount++;
-    else if (state === 'FAILED') failedCount++;
-    else activeFromJobsCount++;
-  });
-
-  const activeWithoutJobs = campaignActiveDevices.filter(d => !relevantJobDeviceIds.has(d) && !campaign.devices_with_job.includes(d));
-  const activeCount = activeFromJobsCount + activeWithoutJobs.length;
-
-  let pendingAssignedCount = campaign.devices_with_job.length - completedCount - failedCount - activeFromJobsCount;
-  if (pendingAssignedCount < 0) pendingAssignedCount = 0;
-
-  const cappedCompletedCount = Math.min(completedCount, displayTotal);
-  const cappedFailedCount = Math.min(failedCount, displayTotal - cappedCompletedCount);
-  const cappedActiveCount = Math.min(activeCount, displayTotal - cappedCompletedCount - cappedFailedCount);
+  // Cap each segment so the stacked bar never exceeds 100% even if the backend arrays overlap.
+  const cappedCompletedCount = Math.min(completed, displayTotal);
+  const cappedFailedCount = Math.min(failed, displayTotal - cappedCompletedCount);
+  const cappedActiveCount = Math.min(active, displayTotal - cappedCompletedCount - cappedFailedCount);
+  const pendingAssignedCount = pending;
 
   const totalForCalc = displayTotal;
   const completedPercent = totalForCalc > 0 ? (cappedCompletedCount / totalForCalc) * 100 : 0;
@@ -566,33 +286,18 @@ export function CampaignProgressCell({
   const processedCount = cappedCompletedCount + cappedFailedCount + cappedActiveCount;
   const processedPercent = totalForCalc > 0 ? (processedCount / totalForCalc) * 100 : 0;
 
-  // Clear stored started campaign + notify parent when all devices are processed.
-  // activeCount === 0 guards against firing before jobs have actually loaded.
-  const allDone = displayTotal > 0 && activeCount === 0 && (processedCount >= displayTotal || cappedCompletedCount >= displayTotal);
+  // Clear stored started campaign + notify parent when all devices have reached a terminal state.
+  const allDone = displayTotal > 0 && active === 0 && pending === 0 && (cappedCompletedCount + cappedFailedCount) >= displayTotal;
   React.useEffect(() => {
     if (!allDone) return;
     if (startedCampaigns && startedCampaigns.has(campaign.id)) {
       if (clearStartedCampaign) clearStartedCampaign(campaign.id);
-      fetchJobs();
-      fetchActiveCampaigns();
-      // Note: 'allCampaigns' refetch is not available here as it belongs to a different fetch instance.
-      // The parent component is responsible for refreshing the campaigns list if needed.
     }
-    // Always tell the parent — active_launches is not reliably cleared by the API.
     if (onCompleted) onCompleted(campaign.id);
-  }, [allDone, startedCampaigns, clearStartedCampaign, onCompleted, campaign.id, groupId, fetchJobs, fetchActiveCampaigns]);
+  }, [allDone, startedCampaigns, clearStartedCampaign, onCompleted, campaign.id]);
 
   if (totalDevices === 0) {
     return <span className="text-xs text-muted-foreground">No devices</span>;
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center gap-2">
-        <div className="relative h-2 flex-1 rounded-full overflow-hidden bg-muted" />
-        <span className="text-xs text-muted-foreground min-w-[45px] text-right">…/{displayTotal}</span>
-      </div>
-    );
   }
 
   return (
@@ -644,40 +349,15 @@ interface CampaignErrorRateCellProps {
   accessToken: string | null;
 }
 
-export function CampaignErrorRateCell({ campaign, groupId, accessToken }: CampaignErrorRateCellProps) {
-  const errorRateDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...(campaign.active_launches || [])]));
+export function CampaignErrorRateCell({ campaign }: CampaignErrorRateCellProps) {
+  // Derived from the campaign object count fields.
+  const { total, failed } = deriveCampaignDeviceStats(campaign);
 
-  const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
-
-  const fetchJobs = useCallback(async () => {
-    try {
-      const result = await fetchAllDeviceJobs({
-        groupId,
-        deviceIds: errorRateDeviceIds,
-        targetCampaignId: campaign.id,
-      }, {});
-      setJobs(result);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [groupId, campaign.id, errorRateDeviceIds.join(',')]);
-
-  useEffect(() => {
-    if (errorRateDeviceIds.length > 0 && !!accessToken) {
-      fetchJobs();
-    }
-  }, [fetchJobs, accessToken]);
-
-  const totalDevices = campaign.devices_with_job.length + campaign.devices_without_job.length;
-
-  if (totalDevices === 0) {
+  if (total === 0) {
     return <span className="text-xs text-muted-foreground">N/A</span>;
   }
 
-  const relevantJobs = jobs?.filter(job => job.definition.launchID === campaign.id) || [];
-  let failedCount = 0;
-  relevantJobs.forEach(job => { if (job.status.state === 'TERMINATED') failedCount++; });
-  const errorRate = (failedCount / totalDevices) * 100;
+  const errorRate = (failed / total) * 100;
 
   return (
     <span className={`text-sm font-medium ${errorRate > 10 ? 'text-destructive' : 'text-muted-foreground'}`}>

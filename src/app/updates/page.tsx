@@ -6,8 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlayCircle, AlertTriangle, RefreshCw, Eye, Check, Loader2, Clock, Package, ArrowLeft, ChevronDown, Ban, Rocket, History, Boxes, Pause, Play, RotateCcw } from 'lucide-react';
-import type { UpdateStrategy, CampaignItem, UpdatePack, DeviceJob, CampaignListResponse, PreconditionFailure } from '@/types/iot';
+import { PlayCircle, AlertTriangle, RefreshCw, Eye, Loader2, Package, ArrowLeft, Ban, Rocket, History, Boxes, Pause, Play, RotateCcw } from 'lucide-react';
+import type { UpdateStrategy, CampaignItem, UpdatePack, PreconditionFailure } from '@/types/iot';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
@@ -33,13 +33,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent, pageTabsListClass, pageTabsTr
 import { cn } from '@/lib/utils';
 import {
   fetchUpdatePacks,
-  fetchCurrentCampaigns,
   createCampaign,
   type CreateCampaignPayload,
-  fetchAllDeviceJobs,
   fetchAllCampaigns,
-  fetchCampaignsByUpdatePack,
-  transitionJobs,
   pauseCampaign,
   resumeCampaign,
   cancelCampaign,
@@ -48,6 +44,7 @@ import {
 import { get_CLIENT_UPDATES_API_BASE_URL } from '@/lib/api-domains';
 import { useDms } from '@/contexts/DmsContext';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import {
   CampaignNameCell, CampaignStatusCell, CampaignProgressCell, CampaignErrorRateCell,
   getTestDeviceStatus, TestDeviceBadge,
@@ -58,6 +55,8 @@ interface CampaignItemWithDms extends CampaignItem {
   dmsName: string;
 }
 
+const CAMPAIGN_PAGE_SIZE_OPTIONS = ['10', '25', '50'];
+
 export default function UpdatesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,7 +65,6 @@ export default function UpdatesPage() {
   // Confirmation dialog target for the terminal cancel action.
   const [cancelCampaignTarget, setCancelCampaignTarget] = React.useState<{ groupId: string; campaignId: string } | null>(null);
   const [executingCampaigns, setExecutingCampaigns] = React.useState<Set<string>>(new Set());
-  const [historyLimit, setHistoryLimit] = React.useState(10);
 
   // URL params: packName narrows the page to one pack's campaigns; action=campaign deep-links the
   // "New Campaign" dialog (e.g. the Campaign action in the Package Inventory).
@@ -77,10 +75,15 @@ export default function UpdatesPage() {
 
   const [startedCampaigns, setStartedCampaigns] = React.useState<Set<string>>(new Set());
   const [startedCampaignTotals, setStartedCampaignTotals] = React.useState<Map<string, number>>(new Map());
-  // Campaign IDs confirmed finished by actual job data (active_launches is not reliably cleared by the API).
+  // Campaign IDs confirmed finished by CampaignProgressCell (complements the count-based active check).
   const [completedCampaignIds, setCompletedCampaignIds] = React.useState<Set<string>>(new Set());
   const [filterDmsId, setFilterDmsId] = React.useState<string>(dmsIdFilter || "all");
   const [activeTab, setActiveTab] = React.useState<'active' | 'history'>('active');
+
+  // Client-side pagination, consistent with the other list pages in the app.
+  const [pageSize, setPageSize] = React.useState<string>('10');
+  const [activePage, setActivePage] = React.useState(0);
+  const [historyPage, setHistoryPage] = React.useState(0);
 
   // Campaign precondition dry-run / confirm flow
   const [isPreconditionDialogOpen, setIsPreconditionDialogOpen] = React.useState(false);
@@ -308,54 +311,29 @@ export default function UpdatesPage() {
         ? availableDms.filter(dms => dms.id === dmsIdFilter)
         : availableDms;
 
-      // If we have a pack filter, fetch all campaigns
-      if (packNameFilter) {
-        const allCampaignsPromises = dmsToQuery.map(dms =>
+      // Fetch campaigns straight from each group's launch endpoint (already sorted + paginated by
+      // the backend). This replaces the previous per-pack fan-out (fetch every pack, then the last
+      // few campaigns of each) which issued one request per pack and never returned the full set.
+      const perGroup = await Promise.all(
+        dmsToQuery.map(dms =>
           fetchAllCampaigns({ groupId: dms.id })
             .then(campaigns => campaigns.map(campaign => ({ ...campaign, dmsName: dms.name })))
-            .catch(() => []) // Return empty array on error for this DMS
-        );
+            .catch(() => [] as CampaignItemWithDms[]) // Degrade gracefully per-group
+        )
+      );
 
-        const campaignsArrays = await Promise.all(allCampaignsPromises);
-        setAllCampaigns(campaignsArrays.flat().filter(campaign =>
+      let merged = perGroup.flat();
+
+      // packName narrows the page to a single pack's campaigns (deep-link from Package Inventory).
+      if (packNameFilter) {
+        merged = merged.filter(campaign =>
           campaign.name.includes(packNameFilter) ||
           campaign.name === packNameFilter ||
           campaign.name.startsWith(packNameFilter)
-        ));
-        return;
+        );
       }
 
-      // Otherwise, fetch the latest 5 campaigns per pack
-      const allPackCampaigns: CampaignItemWithDms[] = [];
-
-      for (const dms of dmsToQuery) {
-        try {
-          const packsResponse = await fetchUpdatePacks({
-            groupId: dms.id
-          }, { pageSize: 50 });
-
-          const packCampaignPromises = packsResponse.list.map(pack =>
-            fetchCampaignsByUpdatePack({
-              groupId: dms.id,
-              updatePackId: pack.id,
-              pageSize: 5,
-              sortBy: 'exec_date',
-              sortMode: 'desc'
-            })
-              .then(response =>
-                (response.list || []).map(campaign => ({ ...campaign, dmsName: dms.name }))
-              )
-              .catch(() => [])
-          );
-
-          const packCampaignsArrays = await Promise.all(packCampaignPromises);
-          allPackCampaigns.push(...packCampaignsArrays.flat());
-        } catch (err) {
-          console.error(`Error fetching packs/campaigns for DMS ${dms.id}:`, err);
-        }
-      }
-
-      setAllCampaigns(allPackCampaigns);
+      setAllCampaigns(merged);
     } catch (err) {
       setCampaignsError(err instanceof Error ? err : new Error(String(err)));
     } finally {
@@ -456,8 +434,7 @@ export default function UpdatesPage() {
 
     // Store the total for display immediately to avoid UI dropouts
     if (campaign) {
-      const allDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...campaign.devices_without_job, ...(campaign.active_launches || [])]));
-      updateCampaignTotal(campaignId, allDeviceIds.length);
+      updateCampaignTotal(campaignId, campaign.total_devices || 0);
     }
 
     try {
@@ -497,6 +474,10 @@ export default function UpdatesPage() {
   };
 
   const isLoading = isLoadingCampaigns || isLoadingUpdatePacks;
+  // Only block the whole view with a skeleton on the very first load. Background refetches and the
+  // 3s polling (active while a campaign is started) must refresh silently — otherwise the page
+  // "reloads" every few seconds and any open dialog is disrupted.
+  const showInitialSkeleton = isLoading && allCampaigns.length === 0;
 
   // Split campaigns into "still has work to do" (active) and finished (history).
   const { activeCampaigns, historyCampaigns } = React.useMemo(() => {
@@ -508,16 +489,46 @@ export default function UpdatesPage() {
       // Terminal lifecycle status (cancelled / completed) always belongs in history, regardless of
       // the raw device buckets.
       if (c.status === 'cancelled' || c.status === 'completed') return false;
-      // Job-data confirmation from CampaignProgressCell trumps the raw API fields:
-      // active_launches is not reliably cleared by the API after devices finish.
+      // CampaignProgressCell signals completion when all devices reach a terminal state.
       if (completedCampaignIds.has(c.id)) return false;
-      return (c.devices_without_job?.length || 0) > 0 || (c.active_launches?.length || 0) > 0 || startedCampaigns.has(c.id);
+      return (c.pending_count || 0) + (c.active_count || 0) > 0 || startedCampaigns.has(c.id);
     };
     return {
       activeCampaigns: visible.filter(isActive),
       historyCampaigns: visible.filter(c => !isActive(c)),
     };
   }, [allCampaigns, filterDmsId, startedCampaigns, completedCampaignIds]);
+
+  // Paginate each tab client-side; the full set is already in memory.
+  const numericPageSize = parseInt(pageSize, 10) || 10;
+  const activePageCount = Math.max(1, Math.ceil(activeCampaigns.length / numericPageSize));
+  const historyPageCount = Math.max(1, Math.ceil(historyCampaigns.length / numericPageSize));
+  const paginatedActiveCampaigns = React.useMemo(
+    () => activeCampaigns.slice(activePage * numericPageSize, activePage * numericPageSize + numericPageSize),
+    [activeCampaigns, activePage, numericPageSize]
+  );
+  const paginatedHistoryCampaigns = React.useMemo(
+    () => historyCampaigns.slice(historyPage * numericPageSize, historyPage * numericPageSize + numericPageSize),
+    [historyCampaigns, historyPage, numericPageSize]
+  );
+
+  // Keep page indices in range when the underlying data or page size changes.
+  React.useEffect(() => {
+    setActivePage(prev => Math.min(prev, activePageCount - 1));
+  }, [activePageCount]);
+  React.useEffect(() => {
+    setHistoryPage(prev => Math.min(prev, historyPageCount - 1));
+  }, [historyPageCount]);
+  // Reset to the first page when the group filter changes.
+  React.useEffect(() => {
+    setActivePage(0);
+    setHistoryPage(0);
+  }, [filterDmsId]);
+  const handlePageSizeChange = React.useCallback((value: string) => {
+    setPageSize(value);
+    setActivePage(0);
+    setHistoryPage(0);
+  }, []);
 
   const handleViewCampaignDetails = (campaign: CampaignItem) => {
     router.push(`/updates/details?groupId=${campaign.group_id}&campaignId=${campaign.id}`);
@@ -596,7 +607,7 @@ export default function UpdatesPage() {
               </TableCell>
               <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-end gap-1">
-                  {(campaign.failed_devices?.length || 0) > 0 && (
+                  {(campaign.failed_count || 0) > 0 && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -611,7 +622,7 @@ export default function UpdatesPage() {
                             Retry failed
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent><p>Re-attempt the {campaign.failed_devices?.length} failed device(s)</p></TooltipContent>
+                        <TooltipContent><p>Re-attempt the {campaign.failed_count} failed device(s)</p></TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   )}
@@ -687,7 +698,7 @@ export default function UpdatesPage() {
               <Button variant="outline" asChild>
                 <Link href="/package-inventory">
                   <Package className="h-4 w-4 mr-2" />
-                  Package Inventory
+                  Distribution Sets
                 </Link>
               </Button>
               <Button onClick={() => setIsStrategyDialogOpen(true)} className="bg-primary hover:bg-primary/90">
@@ -699,7 +710,7 @@ export default function UpdatesPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {showInitialSkeleton ? (
         <div className="space-y-2">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-10 w-full" />
@@ -724,7 +735,7 @@ export default function UpdatesPage() {
           <p className="text-sm text-muted-foreground mb-4 max-w-md">
             {packNameFilter
               ? `No campaigns found for the "${packNameFilter}" pack.`
-              : 'Pick an distribution set and roll it out to your devices. Packs are created and managed in the Package Inventory.'
+              : 'Pick a distribution set and roll it out to your devices. Distribution sets are created and managed in the Distribution Sets inventory.'
             }
           </p>
           {!packNameFilter && (
@@ -736,7 +747,7 @@ export default function UpdatesPage() {
               <Button variant="outline" asChild>
                 <Link href="/package-inventory">
                   <Package className="mr-2 h-4 w-4" />
-                  Browse Packages
+                  Browse Distribution Sets
                 </Link>
               </Button>
             </div>
@@ -782,7 +793,7 @@ export default function UpdatesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {activeCampaigns.map((campaign) => (
+                    {paginatedActiveCampaigns.map((campaign) => (
                       <TableRow
                         key={`${campaign.group_id}-${campaign.id}`}
                         className="cursor-pointer hover:bg-muted/50"
@@ -829,16 +840,15 @@ export default function UpdatesPage() {
                           <div className="flex items-center justify-end gap-2">
                             <TestDeviceBadge campaign={campaign} />
                             {(() => {
-                              const activeDevices = campaign.active_launches || [];
-                              const pending = campaign.devices_without_job.length + activeDevices.length;
+                              const pending = (campaign.pending_count || 0) + (campaign.active_count || 0);
                               const isAuto = campaign.auto === true;
                               const isStarted = startedCampaigns?.has(campaign.id);
                               const isExecuting = executingCampaigns?.has(campaign.id);
-                              const hasActive = activeDevices.length > 0;
+                              const hasActive = (campaign.active_count || 0) > 0;
                               const status = campaign.status || 'running';
                               const isPaused = status === 'paused';
                               const isTerminal = status === 'cancelled' || status === 'completed';
-                              const hasFailed = (campaign.failed_devices?.length || 0) > 0;
+                              const hasFailed = (campaign.failed_count || 0) > 0;
                               // Canary gate: the test device must complete before the rest of the fleet rolls out.
                               const testStatus = getTestDeviceStatus(campaign);
                               const testBlocks = testStatus === 'testing' || testStatus === 'failed';
@@ -882,7 +892,7 @@ export default function UpdatesPage() {
                                         Retry failed
                                       </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent><p>Re-attempt the {campaign.failed_devices?.length} failed device(s)</p></TooltipContent>
+                                    <TooltipContent><p>Re-attempt the {campaign.failed_count} failed device(s)</p></TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
                               ) : null;
@@ -1011,6 +1021,23 @@ export default function UpdatesPage() {
                 </Table>
               </div>
             )}
+            {activeCampaigns.length > 0 && (
+              <div className="mt-4">
+                <CertificatePaginationControls
+                  pageSize={pageSize}
+                  onPageSizeChange={handlePageSizeChange}
+                  pageSizeOptions={CAMPAIGN_PAGE_SIZE_OPTIONS}
+                  pageSizeLabel="Campaigns per page:"
+                  pageSizeSelectId="active-campaigns-page-size"
+                  isLoading={isLoadingCampaigns}
+                  onPreviousPage={() => setActivePage(p => Math.max(0, p - 1))}
+                  onNextPage={() => setActivePage(p => Math.min(activePageCount - 1, p + 1))}
+                  canGoPrevious={activePage > 0}
+                  canGoNext={activePage < activePageCount - 1}
+                  pageIndicator={`Page ${activePage + 1} of ${activePageCount}`}
+                />
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="history" className="mt-0">
@@ -1020,15 +1047,22 @@ export default function UpdatesPage() {
               </p>
             ) : (
               <>
-                {renderHistoryTable(historyCampaigns.slice(0, historyLimit))}
-                {historyCampaigns.length > historyLimit && (
-                  <div className="flex justify-center mt-2">
-                    <Button variant="outline" size="sm" onClick={() => setHistoryLimit(l => l + 20)}>
-                      <ChevronDown className="mr-2 h-4 w-4" />
-                      Show more ({historyCampaigns.length - historyLimit} remaining)
-                    </Button>
-                  </div>
-                )}
+                {renderHistoryTable(paginatedHistoryCampaigns)}
+                <div className="mt-4">
+                  <CertificatePaginationControls
+                    pageSize={pageSize}
+                    onPageSizeChange={handlePageSizeChange}
+                    pageSizeOptions={CAMPAIGN_PAGE_SIZE_OPTIONS}
+                    pageSizeLabel="Campaigns per page:"
+                    pageSizeSelectId="history-campaigns-page-size"
+                    isLoading={isLoadingCampaigns}
+                    onPreviousPage={() => setHistoryPage(p => Math.max(0, p - 1))}
+                    onNextPage={() => setHistoryPage(p => Math.min(historyPageCount - 1, p + 1))}
+                    canGoPrevious={historyPage > 0}
+                    canGoNext={historyPage < historyPageCount - 1}
+                    pageIndicator={`Page ${historyPage + 1} of ${historyPageCount}`}
+                  />
+                </div>
               </>
             )}
           </TabsContent>
@@ -1042,7 +1076,16 @@ export default function UpdatesPage() {
           setSelectedPackForCampaign(null);
         }
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col gap-0">
+        <DialogContent
+          className="max-w-5xl w-[95vw] max-h-[90vh] flex flex-col gap-0"
+          onInteractOutside={(e) => {
+            // Don't let a background refetch / outside focus shift dismiss the form mid-edit.
+            if (isCreatingCampaign || isDryRunPending) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isCreatingCampaign || isDryRunPending) e.preventDefault();
+          }}
+        >
           <DialogHeader className="pr-8 pb-4 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Rocket className="h-5 w-5 text-primary" />

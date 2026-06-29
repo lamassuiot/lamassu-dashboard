@@ -23,7 +23,7 @@ import { format, parseISO } from 'date-fns';
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from '@/contexts/AuthContext';
 import { useDms } from '@/contexts/DmsContext';
-import { fetchAllDeviceJobs, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices } from '@/lib/iot-api';
+import { fetchCampaignJobsByTag, transitionJobs, fetchCampaignDetails, updateCampaignStrategy, retryFailedDevices } from '@/lib/iot-api';
 import type { CampaignItem, DeviceJob } from '@/types/iot';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -116,8 +116,7 @@ function PhasedWorkflowStates({ campaign, accessToken, jobs, isLoading, onJobsCh
   }
 
   const workflowStates = firstJobWithWorkflow?.workflow?.states?.map(s => s.name) || [];
-  const allDeviceIds = Array.from(new Set([...campaign.devices_with_job, ...campaign.devices_without_job, ...(campaign.active_launches || [])]));
-  const totalDevices = allDeviceIds.length;
+  const totalDevices = campaign.total_devices ?? 0;
   const devicesStarted = relevantJobs.length;
 
   const transitionStats = wfxTransitions.map(({ from, to, description, action }) => {
@@ -319,7 +318,12 @@ interface DeviceJobStatusRowProps {
 function DeviceJobStatusRow({ groupId, deviceId, targetCampaignId, accessToken, jobs, isDeviceActive, onJobsChanged }: DeviceJobStatusRowProps) {
   const router = useRouter();
   const [isTransitioning, setIsTransitioning] = React.useState(false);
-  const relevantJob = jobs?.find(job => job.definition.launchID === targetCampaignId);
+  // Match the job belonging to BOTH this device and this campaign. The tag query returns every
+  // device's job for the campaign, so the clientId guard is required to pick the right row.
+  const relevantJob = jobs?.find(job =>
+    job.definition.launchID === targetCampaignId &&
+    (job.clientId || job.status?.clientId) === deviceId
+  );
 
   const wfxTransitions = React.useMemo(() => {
     if (!relevantJob?.workflow) return [];
@@ -493,16 +497,7 @@ interface DeviceJobsSectionProps {
 }
 
 function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }: DeviceJobsSectionProps) {
-  const campaignActiveDevices = campaign.active_launches || [];
-  const withJobIds = React.useMemo(
-    () => Array.from(new Set([...campaign.devices_with_job, ...campaignActiveDevices])),
-    [campaign.devices_with_job, campaignActiveDevices]
-  );
-  const allDeviceIdsWithActive = React.useMemo(() => {
-    const withoutJobIds = campaign.devices_without_job.filter(d => !withJobIds.includes(d));
-    return [...withJobIds, ...withoutJobIds];
-  }, [campaign.devices_without_job, withJobIds]);
-  const deviceIdsKey = allDeviceIdsWithActive.join(',');
+  const hasDevices = (campaign.total_devices || 0) > 0;
 
   const [jobs, setJobs] = useState<DeviceJob[] | undefined>(undefined);
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
@@ -517,21 +512,17 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
     setJobs(undefined);
     setIsLoadingJobs(false);
     setJobsError(null);
-  }, [groupId, campaign.id, deviceIdsKey]);
+  }, [groupId, campaign.id]);
 
   const refetchJobs = useCallback(async () => {
-    if (!accessToken || allDeviceIdsWithActive.length === 0) return;
+    if (!accessToken || !hasDevices) return;
     if (isFetchingJobsRef.current) return;
     isFetchingJobsRef.current = true;
 
     const isInitialFetch = !hasLoadedJobsRef.current;
     if (isInitialFetch) setIsLoadingJobs(true);
     try {
-      const result = await fetchAllDeviceJobs({
-        groupId,
-        deviceIds: allDeviceIdsWithActive,
-        targetCampaignId: campaign.id,
-      });
+      const result = await fetchCampaignJobsByTag({ campaignId: campaign.id });
       setJobs(result);
       setJobsError(null);
       hasLoadedJobsRef.current = true;
@@ -549,18 +540,18 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
       }
       isFetchingJobsRef.current = false;
     }
-  }, [accessToken, groupId, campaign.id, deviceIdsKey]);
+  }, [accessToken, groupId, campaign.id, hasDevices]);
 
   useEffect(() => {
-    if (!accessToken || allDeviceIdsWithActive.length === 0) return;
+    if (!accessToken || !hasDevices) return;
     refetchJobs();
-  }, [accessToken, allDeviceIdsWithActive.length, refetchJobs]);
+  }, [accessToken, hasDevices, refetchJobs]);
 
   useEffect(() => {
-    if (!accessToken || allDeviceIdsWithActive.length === 0) return;
+    if (!accessToken || !hasDevices) return;
     const id = setInterval(refetchJobs, 5000);
     return () => clearInterval(id);
-  }, [accessToken, allDeviceIdsWithActive.length, refetchJobs]);
+  }, [accessToken, hasDevices, refetchJobs]);
 
   const refreshDeviceJobs = useCallback(() => {
     refetchJobs();
@@ -605,7 +596,7 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
           Refresh Jobs
         </Button>
       </div>
-      {allDeviceIdsWithActive.length > 0 ? (
+      {hasDevices ? (
         <div className="relative w-full overflow-auto">
           <Table className="table-fixed">
             <TableHeader>
@@ -636,18 +627,28 @@ function DeviceJobsSection({ campaign, groupId, accessToken, onCampaignRefresh }
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoadingJobs && !jobsError && allDeviceIdsWithActive.map(deviceId => (
-                <DeviceJobStatusRow
-                  key={deviceId}
-                  groupId={groupId}
-                  deviceId={deviceId}
-                  targetCampaignId={campaign.id}
-                  accessToken={accessToken}
-                  jobs={jobs}
-                  isDeviceActive={campaignActiveDevices.includes(deviceId)}
-                  onJobsChanged={refreshDeviceJobs}
-                />
-              ))}
+              {!isLoadingJobs && !jobsError && (jobs?.filter(j => j.definition.launchID === campaign.id) ?? []).map(job => {
+                const deviceId = job.clientId || job.status?.clientId || '';
+                return (
+                  <DeviceJobStatusRow
+                    key={deviceId || job.id}
+                    groupId={groupId}
+                    deviceId={deviceId}
+                    targetCampaignId={campaign.id}
+                    accessToken={accessToken}
+                    jobs={jobs}
+                    isDeviceActive={false}
+                    onJobsChanged={refreshDeviceJobs}
+                  />
+                );
+              })}
+              {!isLoadingJobs && !jobsError && (campaign.pending_count || 0) > 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-xs text-muted-foreground italic py-3">
+                    {campaign.pending_count} device{(campaign.pending_count || 0) === 1 ? '' : 's'} pending dispatch…
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
@@ -855,13 +856,7 @@ export default function CampaignDetailsPage() {
     );
   }
 
-  const campaignActiveDevices = campaign.active_launches || [];
-  // Devices with jobs (assigned or active) first, then devices without jobs
-  const withJobIds = Array.from(new Set([...campaign.devices_with_job, ...campaignActiveDevices]));
-  const withoutJobIds = campaign.devices_without_job.filter(d => !withJobIds.includes(d));
-  const allDeviceIdsWithActive = [...withJobIds, ...withoutJobIds];
-  const totalDevices = allDeviceIdsWithActive.length;
-  const hasPendingDevices = campaign.devices_without_job.length > 0 || campaignActiveDevices.length > 0;
+  const hasPendingDevices = (campaign.pending_count || 0) + (campaign.active_count || 0) > 0;
   // Auto mode manages rollouts automatically — manual execution must be blocked while it is active.
   const canExecute = hasPendingDevices && !campaign.auto;
   // Canary gate: the test device must complete successfully before the fleet rolls out.
@@ -968,7 +963,7 @@ export default function CampaignDetailsPage() {
                 )}
               </div>
             )}
-            {(campaign.failed_devices?.length || 0) > 0 && (
+            {(campaign.failed_count || 0) > 0 && (
               <div className="flex items-center gap-2 pt-1">
                 <Button
                   variant="outline"
@@ -978,7 +973,7 @@ export default function CampaignDetailsPage() {
                   className="gap-2"
                 >
                   {isRetryFailedPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                  Retry {campaign.failed_devices?.length} failed device{campaign.failed_devices?.length === 1 ? '' : 's'}
+                  Retry {campaign.failed_count} failed device{(campaign.failed_count || 0) === 1 ? '' : 's'}
                 </Button>
               </div>
             )}

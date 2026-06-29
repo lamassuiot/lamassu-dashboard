@@ -268,10 +268,13 @@ export interface CampaignItem {
   exec_date: string; // ISO Date string
   // Operator-/system-driven lifecycle: '' (legacy == running) | 'running' | 'paused' | 'cancelled' | 'completed'
   status?: LaunchLifecycleStatus | string;
-  devices_with_job: string[];
-  devices_without_job: string[];
-  active_launches?: string[] | null; // Device IDs that are currently active/executing in this campaign
-  failed_devices?: string[] | null; // Device IDs whose update reached a terminal failure (subset of devices_with_job)
+  // Scalar counts (replaces device-ID arrays for scalability)
+  total_devices?: number;
+  pending_count?: number;
+  active_count?: number;
+  completed_count?: number;
+  failed_count?: number;
+  test_device_status?: string; // assignment status of the test/canary device: 'pending'|'active'|'completed'|'failed'
   // Campaign-level strategy configuration (added per campaign, not per DMS)
   workflow_type?: string;
   rollout_type?: 'numeric' | 'percentage';
@@ -291,7 +294,6 @@ export interface CampaignItem {
 export interface CampaignListResponse {
   next: string | null;
   list: CampaignItem[] | null;
-  active_launches?: string[]; // Device IDs that are currently active/executing
 }
 
 export interface ApiGlobalStrategy {
