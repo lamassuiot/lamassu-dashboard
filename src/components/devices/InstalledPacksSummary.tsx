@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { fetchDevicePackInventory } from '@/lib/iot-api';
+import { fetchAllDevicePackInventory } from '@/lib/iot-api';
 import type { DevicePackWithArtifacts } from '@/types/iot';
 
 function PackChip({ pack }: { pack: DevicePackWithArtifacts }) {
@@ -27,9 +27,9 @@ export function InstalledPacksSummary({ deviceId, inlineLimit = 1 }: { deviceId:
     const controller = new AbortController();
     setIsLoading(true);
     setError(false);
-    fetchDevicePackInventory({ deviceId }, { signal: controller.signal })
-      .then((res) => {
-        if (!cancelled) setPacks(res.list);
+    fetchAllDevicePackInventory({ deviceId }, { signal: controller.signal })
+      .then((list) => {
+        if (!cancelled) setPacks(list);
       })
       .catch(() => {
         if (!cancelled) setError(true);

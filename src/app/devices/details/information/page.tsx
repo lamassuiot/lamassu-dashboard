@@ -5,6 +5,7 @@ import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { PlusCircle } from 'lucide-react';
 import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
 import { getDisplayDateFormat } from '@/lib/config';
+import { DeviceDistributionSetsOverview } from '@/components/devices/DeviceDistributionSetsOverview';
 import { useDeviceDetails } from '../DeviceContext';
 
 function DetailPanel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -28,7 +29,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 }
 
 export default function InformationPage() {
-  const { device, openAssignIdentityModal } = useDeviceDetails();
+  const { device, deviceId, openAssignIdentityModal } = useDeviceDetails();
   if (!device) return null;
 
   return (
@@ -98,6 +99,8 @@ export default function InformationPage() {
           </div>
         )}
       </DetailPanel>
+
+      {deviceId && <DeviceDistributionSetsOverview deviceId={deviceId} />}
     </div>
   );
 }
