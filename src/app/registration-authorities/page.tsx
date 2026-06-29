@@ -3,34 +3,50 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   ClipboardCheck,
   PlusCircle,
   Loader2,
   AlertTriangle,
+  Settings2,
+  Tag,
+  ShieldCheck,
+  Edit,
   RefreshCw,
-  Search,
-  X,
+  MoreVertical,
+  TerminalSquare,
+  Router as RouterIcon,
+  BookText,
+  Trash2,
   ChevronLeft,
   ChevronRight,
+  ListChecks,
+  Server,
+  Search,
+  X,
+  LayoutGrid,
+  List,
+  Clock,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn } from '@/lib/utils';
+import { cn, getCookie, setCookie } from '@/lib/utils';
 import type { CA } from '@/lib/ca-data';
 import { findCaById, fetchAndProcessCAs } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
+import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import { EstEnrollModal } from '@/components/shared/EstEnrollModal';
 import { EstReEnrollModal } from '@/components/shared/EstReEnrollModal';
 import { EstCaCertsPanel } from '@/components/shared/EstCaCertsPanel';
 import { CmpEnrollModal } from '@/components/shared/CmpEnrollModal';
+import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 import { fetchRegistrationAuthorities, updateRaMetadata, type ApiRaItem, deleteRa } from '@/lib/dms-api';
 import { MetadataViewerModal } from '@/components/shared/MetadataViewerModal';
-import { ColumnSelector } from '@/components/ui/column-selector';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -47,6 +63,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RegistrationAuthoritiesTable } from '@/components/ra/RegistrationAuthoritiesTable';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { DateDisplay } from '@/components/shared/DateDisplay';
+import { getDisplayDateFormat } from '@/lib/config';
 
 // Add SortConfig type
 export type SortableColumn = 'name' | 'creation_ts';
@@ -56,6 +75,7 @@ interface SortConfig {
   direction: SortDirection;
 }
 
+const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
 type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | 'cmpenroll' | null;
@@ -69,6 +89,8 @@ export default function RegistrationAuthoritiesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // View mode state
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>();
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -76,7 +98,7 @@ export default function RegistrationAuthoritiesPage() {
   const [caFilterId, setCaFilterId] = useState<string | null>(null);
 
   // Pagination State
-  const [pageSize, setPageSize] = useState(LIST_PAGE_SIZES[0]);
+  const [pageSize, setPageSize] = useState(GRID_PAGE_SIZES[0]);
   const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
@@ -97,33 +119,32 @@ export default function RegistrationAuthoritiesPage() {
   const [raToDelete, setRaToDelete] = useState<ApiRaItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
-    icon: true,
-    name: true,
-    registrationMode: true,
-    enrollmentCA: true,
-    authMode: true,
-    createdAt: true,
-  });
-
-  const raColumns = [
-    { id: 'icon', label: 'Icon', visible: columnVisibility.icon },
-    { id: 'name', label: 'Name', visible: columnVisibility.name, disabled: true },
-    { id: 'registrationMode', label: 'Registration Mode', visible: columnVisibility.registrationMode },
-    { id: 'enrollmentCA', label: 'Enrollment CA', visible: columnVisibility.enrollmentCA },
-    { id: 'authMode', label: 'Auth Mode', visible: columnVisibility.authMode },
-    { id: 'createdAt', label: 'Created At', visible: columnVisibility.createdAt },
-  ];
-
-  const handleColumnToggle = (columnId: string) => {
-    setColumnVisibility((prev) => ({ ...prev, [columnId]: !prev[columnId] }));
-  };
-
   useEffect(() => {
     setIsClientMounted(true);
   }, []);
 
+  // Load view mode from cookie
+  useEffect(() => {
+    if (isClientMounted) {
+      const savedViewMode = getCookie('user-view-mode');
+      const newViewMode = (savedViewMode === 'grid' || savedViewMode === 'list') ? savedViewMode : 'grid';
+      setViewMode(newViewMode);
+      setPageSize(newViewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0]);
+    }
+  }, [isClientMounted]);
+
+  // Save view mode to cookie when it changes and adjust page size
+  useEffect(() => {
+    if (viewMode && isClientMounted) {
+      setCookie('user-view-mode', viewMode);
+      const newPageSize = viewMode === 'list' ? LIST_PAGE_SIZES[0] : GRID_PAGE_SIZES[0];
+      // Only change page size if it's not already in the correct set for the view mode
+      const currentOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
+      if (!currentOptions.includes(pageSize)) {
+          setPageSize(newPageSize);
+      }
+    }
+  }, [viewMode, isClientMounted, pageSize]);
   
   // Debounce search term
   useEffect(() => {
@@ -321,32 +342,28 @@ export default function RegistrationAuthoritiesPage() {
   }
 
   const hasActiveFilters = searchTerm || caFilterId;
-  const pageSizeOptions = LIST_PAGE_SIZES;
+  const pageSizeOptions = viewMode === 'list' ? LIST_PAGE_SIZES : GRID_PAGE_SIZES;
 
   return (
     <>
-    <BreadcrumbPage className="space-y-6 pb-8" items={[ {label:'Home',href:'/'}, {label:'Registration Authorities'} ]}>
-      <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
-            <ClipboardCheck className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-headline font-semibold">Registration Authorities</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage policies for device enrollment and certificate issuance.
-            </p>
-          </div>
+    <div className="space-y-6 w-full pb-8">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <ClipboardCheck className="h-8 w-8 text-primary" />
+          <h1 className="text-2xl font-headline font-semibold">Registration Authorities</h1>
         </div>
-        <div className="flex items-center space-x-2 shrink-0">
-          <Button onClick={handleRefresh} variant="secondary" disabled={isLoading}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
-          </Button>
-          <Button variant="default" onClick={handleCreateNewRAClick}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
-          </Button>
+        <div className="flex items-center space-x-2">
+           <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
+                <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} /> Refresh
+            </Button>
+            <Button variant="default" onClick={handleCreateNewRAClick}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
+            </Button>
         </div>
       </div>
+      <p className="text-sm text-muted-foreground">
+        Manage policies for device enrollment and certificate issuance.
+      </p>
 
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-grow w-full space-y-1.5">
@@ -368,7 +385,7 @@ export default function RegistrationAuthoritiesPage() {
           <div className="flex items-center gap-2">
             <Button
                 id="ca-filter-button"
-                variant="secondary"
+                variant="outline"
                 className="w-full justify-start text-left font-normal"
                 onClick={() => setIsCaSelectorOpen(true)}
                 disabled={isLoading}
@@ -388,7 +405,17 @@ export default function RegistrationAuthoritiesPage() {
             )}
            </div>
         </div>
-        <ColumnSelector columns={raColumns} onColumnToggle={handleColumnToggle} align="end" />
+        <div className="flex items-center space-x-2">
+            <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(value: 'grid' | 'list') => value && setViewMode(value)}
+                variant="outline"
+            >
+                <ToggleGroupItem value="grid" aria-label="Grid view"><LayoutGrid className="h-4 w-4"/></ToggleGroupItem>
+                <ToggleGroupItem value="list" aria-label="List view"><List className="h-4 w-4"/></ToggleGroupItem>
+            </ToggleGroup>
+        </div>
       </div>
 
         <SplitPanelLayout
@@ -447,7 +474,7 @@ export default function RegistrationAuthoritiesPage() {
             <PlusCircle className="mr-2 h-4 w-4" /> Create New RA
             </Button>
           </div>
-        ) : (
+        ) : viewMode === 'list' ? (
           <RegistrationAuthoritiesTable
             ras={filteredRas}
             getCaNameById={getCaNameById}
@@ -463,7 +490,7 @@ export default function RegistrationAuthoritiesPage() {
             onDelete={setRaToDelete}
             sortConfig={sortConfig}
             requestSort={requestSort}
-            columnVisibility={columnVisibility}
+            columnVisibility={{ icon: true, name: true, registrationMode: true, protocol: true, enrollmentCA: true, authMode: true, createdAt: true }}
           />
         ) : (
           <div className={cn("grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3", isLoading && "opacity-50")}>
@@ -660,33 +687,18 @@ export default function RegistrationAuthoritiesPage() {
               </Select>
             </div>
             <div className="flex items-center space-x-2">
-              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="secondary">
+              <Button onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0} variant="outline">
                 <ChevronLeft className="mr-2 h-4 w-4" /> Previous
               </Button>
-              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="secondary">
+              <Button onClick={handleNextPage} disabled={isLoading || !nextTokenFromApi} variant="outline">
                 Next <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </div>
         )}
-        </div>
+        </SplitPanelLayout>
 
-    </BreadcrumbPage>
-    <EstEnrollModal
-        isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
-        onOpenChange={handleEstPanelOpenChange}
-        ra={selectedRaForEstAction}
-      />
-    <EstReEnrollModal
-        isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
-        onOpenChange={handleEstPanelOpenChange}
-        ra={selectedRaForEstAction}
-      />
-    <EstCaCertsPanel
-        isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
-        onOpenChange={handleEstPanelOpenChange}
-        ra={selectedRaForEstAction}
-      />
+    </div>
     <CaSelectorModal
         isOpen={isCaSelectorOpen}
         onOpenChange={setIsCaSelectorOpen}
@@ -703,18 +715,15 @@ export default function RegistrationAuthoritiesPage() {
       <MetadataViewerModal
         isOpen={isMetadataModalOpen}
         onOpenChange={setIsMetadataModalOpen}
-        title={`Metadata — ${selectedRaForMetadata?.name}`}
-        description="Raw metadata object associated with this Registration Authority."
+        title={`Metadata for ${selectedRaForMetadata?.name}`}
+        description={`Raw metadata object associated with the Registration Authority.`}
         data={selectedRaForMetadata?.metadata || null}
         isEditable={true}
         itemId={selectedRaForMetadata?.id}
         onSave={handleUpdateRaMetadata}
         onUpdateSuccess={handleRefresh}
-        presentation="sheet"
-        useMonacoViewer={true}
-        sheetContentClassName="data-[side=right]:w-1/2 data-[side=right]:sm:max-w-none"
       />
-      <AlertDialog open={!!raToDelete} onOpenChange={(open) => !open && setRaToDelete(null)}>
+      <AlertDialog open={!!raToDelete} onOpenChange={(open: boolean) => !open && setRaToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
