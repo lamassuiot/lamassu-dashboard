@@ -23,7 +23,7 @@ function App() {
   const { user } = useAuth();
 
   return (
-    <div className={`scalar-app ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
+    <div className={`scalar-app -mx-4 -mt-4 -mb-8 md:-mx-6 md:-mt-6 md:-mb-12 ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
       <ApiReferenceReact
         configuration={{
           url: 'https://registry.scalar.com/@scalar/apis/galaxy?format=yaml',
