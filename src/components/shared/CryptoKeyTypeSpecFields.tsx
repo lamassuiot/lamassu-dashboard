@@ -32,8 +32,6 @@ export function CryptoKeyTypeSpecFields({
   disabled = false,
   keySpecDisabled = false,
 }: CryptoKeyTypeSpecFieldsProps) {
-  const selectedKeySpecOption = keySpecOptions.find((option) => option.value === keySpecValue);
-
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <div>
@@ -70,14 +68,6 @@ export function CryptoKeyTypeSpecFields({
             ))}
           </SelectContent>
         </Select>
-        {selectedKeySpecOption ? (
-          <div className="mt-2 flex items-center justify-between rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Security strength</span>
-            <div className="flex shrink-0 items-center">
-              <KeyStrengthIndicator algorithm={keyTypeValue} size={selectedKeySpecOption.value} variant="selector" />
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );
