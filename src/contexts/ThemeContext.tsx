@@ -70,7 +70,7 @@ const applyTheme = (theme: Theme): void => {
 };
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>('light');
+  const [currentTheme, setCurrentTheme] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
 
   // Initialize theme on mount
@@ -78,27 +78,27 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const cookieTheme = getThemeFromCookie();
     const initialTheme = cookieTheme || getSystemTheme();
     
-    setThemeState(initialTheme);
+    setCurrentTheme(initialTheme);
     applyTheme(initialTheme);
     setMounted(true);
   }, []);
 
   const setTheme = useCallback((newTheme: Theme) => {
-    setThemeState(newTheme);
+    setCurrentTheme(newTheme);
     applyTheme(newTheme);
     setThemeCookie(newTheme);
   }, []);
 
   const toggleTheme = useCallback(() => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
-  }, [theme, setTheme]);
+  }, [currentTheme, setTheme]);
 
   const value: ThemeContextType = {
-    theme,
+    theme: currentTheme,
     setTheme,
     toggleTheme,
-    isDarkMode: theme === 'dark',
+    isDarkMode: currentTheme === 'dark',
   };
 
   // Prevent flash of wrong theme by not rendering until mounted

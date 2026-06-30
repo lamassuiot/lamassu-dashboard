@@ -1,7 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
-import { AnyApiReferenceConfiguration, ApiReferenceReact } from '@scalar/api-reference-react'
+import { ApiReferenceReact } from '@scalar/api-reference-react'
 import '@scalar/api-reference-react/style.css'
 import { useTheme } from '@/contexts/ThemeContext'
 import { get_KMS_API_PUBLIC_URL, get_CA_API_PUBLIC_URL, get_VA_CORE_API_PUBLIC_URL, get_DMS_MANAGER_API_PUBLIC_URL, get_DEV_MANAGER_API_PUBLIC_URL, get_ALERTS_API_PUBLIC_URL } from '@/lib/api-domains';
