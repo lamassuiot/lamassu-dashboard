@@ -70,7 +70,14 @@ const applyTheme = (theme: Theme): void => {
 };
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentTheme, setCurrentTheme] = useState<Theme>(() => getThemeFromCookie() || getSystemTheme());
+  // Keep initial SSR/CSR render consistent to avoid hydration mismatches.
+  const [currentTheme, setCurrentTheme] = useState<Theme>('light');
+
+  // After mount, hydrate from cookie/system preference.
+  useEffect(() => {
+    const preferredTheme = getThemeFromCookie() || getSystemTheme();
+    setCurrentTheme(preferredTheme);
+  }, []);
 
   // Keep the DOM theme class in sync with current state.
   useEffect(() => {
