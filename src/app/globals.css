@@ -414,7 +414,10 @@
   }
 
   /* ── vis-timeline ─────────────────────────────────────────── */
-
+  .vis-shadow{
+    box-shadow: none !important;
+  }
+  
   /* Strip the library container entirely — the Card wrapper owns borders/bg/radius */
   .vis-timeline {
     border: none !important;
@@ -430,7 +433,7 @@
     background-color: transparent !important;
   }
 
-  /* Strip ALL default box/item chrome — our card component handles its own look */
+  /* Strip vis-item chrome — CaVisualizerCard provides the visual */
   .vis-item,
   .vis-item.vis-box,
   .vis-item.vis-selected,
@@ -444,10 +447,6 @@
 
   .vis-item .vis-item-content {
     padding: 0 !important;
-  }
-
-  .vis-item .vis-item-content * {
-    box-shadow: none !important;
   }
 
   /* Connecting line */
