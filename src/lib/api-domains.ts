@@ -29,6 +29,7 @@ export const get_KMS_API_BASE_URL = () => `${getApiBaseUrl()}/kms/v1`;
 export const get_KMS_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/kms`;
 
 export const get_AUTHZ_API_BASE_URL = () => `${getApiBaseUrl()}/authz/v1`;
+export const get_AUTHZ_API_PUBLIC_URL = () => `${getApiBaseUrl()}/authz`;
 
 export const get_CA_API_BASE_URL = () => `${getApiBaseUrl()}/ca/v1`;
 export const get_CA_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/ca`;
