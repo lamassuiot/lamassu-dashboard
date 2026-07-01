@@ -1,9 +1,10 @@
 
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import type { CA } from '@/lib/ca-data';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
 import { DataSet } from "vis-data/esnext";
 import { Timeline } from "vis-timeline/esnext";
@@ -30,36 +31,13 @@ const legend = [
 ];
 
 export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryptoEngines }) => {
-  const timelineRef  = useRef<HTMLDivElement>(null);
-  const cardRef      = useRef<HTMLDivElement>(null);
-  const hiddenRef    = useRef<Map<string, HTMLDivElement>>(new Map());
-  const instance     = useRef<Timeline | null>(null);
-  const router       = useRouter();
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const cardRef     = useRef<HTMLDivElement>(null);
+  const instance    = useRef<Timeline | null>(null);
+  const router      = useRouter();
 
-  const [isFullscreen,   setIsFullscreen]   = useState(false);
-  const [activeZoom,     setActiveZoom]     = useState<ZoomRange>('5y');
-  const [isReady,        setIsReady]        = useState(false);
-
-  /* ── Hidden off-screen render of each card ── */
-  const hiddenElements = useMemo(() => (
-    <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', zIndex: -1, pointerEvents: 'none' }}>
-      {cas.map(ca => (
-        <div
-          key={ca.id}
-          style={{ width: '200px' }}
-          ref={el => { el ? hiddenRef.current.set(ca.id, el) : hiddenRef.current.delete(ca.id); }}
-        >
-          <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="!shadow-none" />
-        </div>
-      ))}
-    </div>
-  ), [cas, allCryptoEngines]);
-
-  /* ── Readiness check (runs every render, very cheap) ── */
-  useEffect(() => {
-    const ready = cas.length > 0 && hiddenRef.current.size === cas.length;
-    setIsReady(prev => prev !== ready ? ready : prev);
-  });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeZoom,   setActiveZoom]   = useState<ZoomRange>('5y');
 
   /* ── Fullscreen listener ── */
   useEffect(() => {
@@ -70,7 +48,15 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
 
   /* ── Redraw after fullscreen toggle ── */
   useEffect(() => {
-    const t = setTimeout(() => { instance.current?.redraw(); instance.current?.fit(); }, 60);
+    const t = setTimeout(() => {
+      const tl = instance.current;
+      const el = timelineRef.current;
+      if (!tl || !el) return;
+      const h = el.parentElement?.clientHeight ?? 0;
+      if (h > 0) tl.setOptions({ height: `${h}px` });
+      tl.redraw();
+      tl.fit();
+    }, 80);
     return () => clearTimeout(t);
   }, [isFullscreen]);
 
@@ -78,43 +64,54 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
   useEffect(() => {
     if (!timelineRef.current) return;
     instance.current = new Timeline(timelineRef.current, new DataSet(), {
-      type:   'box',
-      stack:  true,
-      width:  '100%',
-      height: '100%',
-      margin: { item: { vertical: 8, horizontal: 4 }, axis: 16 },
-      start:  subMonths(new Date(), 30),
-      end:    addMonths(new Date(), 30),
-      zoomMin: 1000 * 60 * 60 * 24,
-      zoomMax: 1000 * 60 * 60 * 24 * 365 * 100,
+      type:            'box',
+      stack:           true,
+      width:           '100%',
+      height:          '340px',
+      autoResize:      true,
+      margin:          { item: { vertical: 8, horizontal: 4 }, axis: 16 },
+      start:           subMonths(new Date(), 30),
+      end:             addMonths(new Date(), 30),
+      zoomMin:         1000 * 60 * 60 * 24,
+      zoomMax:         1000 * 60 * 60 * 24 * 365 * 100,
       showCurrentTime: false,
     });
     instance.current.addCustomTime(new Date(), 'now-marker');
-    instance.current.on('select', ({ items }) => {
+    instance.current.on('select', ({ items }: { items: string[] }) => {
       if (items.length > 0) router.push(`/certificate-authorities/details?caId=${items[0]}`);
     });
     return () => { instance.current?.destroy(); };
   }, [router]);
 
-  /* ── Push items whenever data is ready ── */
+  /* ── Push items whenever cas or engines change ── */
   useEffect(() => {
-    if (!isReady || !instance.current) return;
-
-    const items = [...cas]
-      .sort((a, b) => parseISO(a.expires).getTime() - parseISO(b.expires).getTime())
-      .map(ca => {
-        const el = hiddenRef.current.get(ca.id);
-        if (!el) return null;
-        const expired = isPast(parseISO(ca.expires));
-        const cls = ca.status === 'revoked' ? 'item-revoked' : expired ? 'item-expired' : 'item-active';
-        return { id: ca.id, content: el, start: parseISO(ca.expires), className: cls };
-      })
-      .filter(Boolean);
-    instance.current.setItems(items as any);
-    instance.current.fit();
-
+    const tl = instance.current;
     const container = timelineRef.current;
-    if (!container) return;
+    if (!tl || !container || cas.length === 0) return;
+
+    const roots: Root[] = [];
+
+    const items = cas.map((ca) => {
+      const expired = isPast(parseISO(ca.expires));
+      const cls = ca.status === 'revoked' ? 'item-revoked' : expired ? 'item-expired' : 'item-active';
+      const div = document.createElement('div');
+      const root = createRoot(div);
+      // React renders asynchronously via the scheduler (MessageChannel).
+      // vis-timeline will pick up the populated div when tl.redraw() fires below.
+      root.render(
+        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="!shadow-none" />
+      );
+      roots.push(root);
+      return { id: ca.id, content: div, start: parseISO(ca.expires), className: cls };
+    });
+
+    tl.setItems(new DataSet(items) as any);
+    tl.fit();
+
+    // After React's scheduler flushes the card renders into the divs
+    // (which are now in the timeline DOM), force a full redraw so vis-timeline
+    // re-measures item heights and recomputes stacking positions.
+    const restackTimer = setTimeout(() => tl.redraw(), 60);
 
     const paintLines = () => {
       container.querySelectorAll<HTMLElement>('.vis-line, .vis-dot').forEach(el => {
@@ -128,10 +125,16 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
       });
     };
 
-    requestAnimationFrame(paintLines);
-    instance.current.on('rangechanged', paintLines);
-    return () => { instance.current?.off('rangechanged', paintLines); };
-  }, [isReady, cas, allCryptoEngines]);
+    let rafId = requestAnimationFrame(paintLines);
+    tl.on('rangechanged', paintLines);
+
+    return () => {
+      roots.forEach(r => r.unmount());
+      clearTimeout(restackTimer);
+      cancelAnimationFrame(rafId);
+      tl.off('rangechanged', paintLines);
+    };
+  }, [cas, allCryptoEngines]);
 
   /* ── Zoom helper ── */
   const handleZoom = (range: ZoomRange) => {
@@ -151,58 +154,51 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
   };
 
   return (
-    <>
-      {hiddenElements}
-      <Card ref={cardRef} className={cn('flex h-full w-full flex-col', isFullscreen && 'fixed inset-0 z-50 rounded-none')}>
+    <section ref={cardRef} className={cn('flex h-full w-full flex-col space-y-1.5', isFullscreen && 'fixed inset-0 z-50 bg-background p-4')}>
 
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Timeline</p>
+        <h2 className="text-sm font-semibold text-foreground">Certification Authority Expiry Timeline</h2>
+        <p className="text-[11px] text-muted-foreground">Visual timeline of CA expiry dates. Select an item to view details.</p>
+      </div>
 
-            {/* Left: title + description + legend */}
-            <div className="min-w-0 space-y-1.5">
-              <CardTitle className="text-base font-semibold">Certification Authority Expiry Timeline</CardTitle>
-              <CardDescription>Visual timeline of CA expiry dates. Click an item to view details.</CardDescription>
-              <div className="flex items-center gap-3 pt-0.5">
-                {legend.map(({ label, color }) => (
-                  <span key={label} className="flex items-center gap-1.5">
-                    <span className={cn('h-2 w-2 rounded-full', color)} />
-                    <span className="text-[11px] text-muted-foreground">{label}</span>
-                  </span>
-                ))}
-              </div>
+      <div className={cn('relative overflow-hidden border-y border-border/80 bg-background', isFullscreen ? 'flex-1 min-h-0' : 'h-[340px]')}>
+        <div className="pointer-events-none absolute right-2 top-2 z-20 flex flex-col items-end gap-1.5">
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <div className="hidden sm:flex items-center gap-px rounded-sm border border-border/80 bg-background/95 p-0.5 backdrop-blur-sm">
+              {ZOOM_RANGES.map(z => (
+                <button
+                  key={z}
+                  onClick={() => handleZoom(z)}
+                  className={cn(
+                    'h-6 rounded-sm px-2 text-[11px] font-medium transition-colors',
+                    activeZoom === z
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {z}
+                </button>
+              ))}
             </div>
-
-            {/* Right: zoom + fullscreen */}
-            <div className="flex shrink-0 items-center gap-1.5">
-              <div className="hidden sm:flex items-center gap-px rounded-md border border-border bg-muted/40 p-0.5">
-                {ZOOM_RANGES.map(z => (
-                  <button
-                    key={z}
-                    onClick={() => handleZoom(z)}
-                    className={cn(
-                      'h-6 rounded px-2 text-[11px] font-medium transition-colors',
-                      activeZoom === z
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {z}
-                  </button>
-                ))}
-              </div>
-              <Button variant="ghost" size="icon" onClick={handleFullscreen} className="h-7 w-7 text-muted-foreground hover:text-foreground">
-                {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
-              </Button>
-            </div>
-
+            <Button variant="ghost" size="icon" onClick={handleFullscreen} className="h-7 w-7 border border-border/80 bg-background/95 text-muted-foreground backdrop-blur-sm hover:text-foreground">
+              {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+            </Button>
           </div>
-        </CardHeader>
 
-        <CardContent className={cn('flex-1 p-0', isFullscreen && 'min-h-0')}>
-          <div ref={timelineRef} className={cn('w-full', isFullscreen ? 'h-full' : 'h-[340px]')} />
-        </CardContent>
+          <div className="pointer-events-auto flex items-center gap-3 rounded-sm border border-border/80 bg-background/95 px-2 py-1 backdrop-blur-sm">
+            {legend.map(({ label, color }) => (
+              <span key={label} className="flex items-center gap-1.5">
+                <span className={cn('h-2 w-2 rounded-full', color)} />
+                <span className="text-[11px] text-muted-foreground">{label}</span>
+              </span>
+            ))}
+          </div>
+        </div>
 
-      </Card>
-    </>
+        <div ref={timelineRef} className="h-full w-full" />
+      </div>
+
+    </section>
   );
 };
