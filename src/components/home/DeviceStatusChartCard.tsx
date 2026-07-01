@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Loader2 } from 'lucide-react';
 import { fetchDeviceStats } from '@/lib/devices-api';
@@ -102,13 +101,14 @@ export function DeviceStatusChartCard() {
   };
 
   return (
-    <Card className="flex h-full w-full flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Device Status Overview</CardTitle>
-        <CardDescription>A summary of all managed devices by their current status.</CardDescription>
-      </CardHeader>
+    <section className="flex h-full w-full flex-col space-y-1.5">
+      <div className="space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Overview</p>
+        <h2 className="text-sm font-semibold text-foreground">Device Status Overview</h2>
+        <p className="text-[11px] text-muted-foreground">A summary of all managed devices by their current status.</p>
+      </div>
 
-      <CardContent className="flex-1">
+      <div className="flex-1 border-y border-border/80 bg-background px-2 py-2">
         {isLoading && (
           <div className="flex h-[320px] flex-col items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -163,7 +163,7 @@ export function DeviceStatusChartCard() {
             <p className="text-sm text-muted-foreground">No device data available to display.</p>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

@@ -24,7 +24,7 @@ const ZOOM_RANGES = ['3m', '1y', '5y', '10y', '25y', '50y'] as const;
 type ZoomRange = typeof ZOOM_RANGES[number];
 
 const legend = [
-  { label: 'Active',  color: 'bg-emerald-500' },
+  { label: 'Active',  color: 'bg-primary' },
   { label: 'Expired', color: 'bg-orange-400' },
   { label: 'Revoked', color: 'bg-destructive' },
 ];
@@ -49,7 +49,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
           style={{ width: '200px' }}
           ref={el => { el ? hiddenRef.current.set(ca.id, el) : hiddenRef.current.delete(ca.id); }}
         >
-          <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} />
+          <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="!shadow-none" />
         </div>
       ))}
     </div>
@@ -99,6 +99,7 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
   /* ── Push items whenever data is ready ── */
   useEffect(() => {
     if (!isReady || !instance.current) return;
+
     const items = [...cas]
       .sort((a, b) => parseISO(a.expires).getTime() - parseISO(b.expires).getTime())
       .map(ca => {
@@ -109,8 +110,27 @@ export const CaExpiryTimeline: React.FC<CaExpiryTimelineProps> = ({ cas, allCryp
         return { id: ca.id, content: el, start: parseISO(ca.expires), className: cls };
       })
       .filter(Boolean);
-    instance.current.setItems(new DataSet(items as any));
+    instance.current.setItems(items as any);
     instance.current.fit();
+
+    const container = timelineRef.current;
+    if (!container) return;
+
+    const paintLines = () => {
+      container.querySelectorAll<HTMLElement>('.vis-line, .vis-dot').forEach(el => {
+        const color = el.classList.contains('item-active')  ? 'var(--color-primary)'
+                    : el.classList.contains('item-expired') ? '#fb923c'
+                    : el.classList.contains('item-revoked') ? 'var(--color-destructive)'
+                    : null;
+        if (!color) return;
+        const prop = el.classList.contains('vis-dot') ? 'border-color' : 'border-left-color';
+        el.style.setProperty(prop, color, 'important');
+      });
+    };
+
+    requestAnimationFrame(paintLines);
+    instance.current.on('rangechanged', paintLines);
+    return () => { instance.current?.off('rangechanged', paintLines); };
   }, [isReady, cas, allCryptoEngines]);
 
   /* ── Zoom helper ── */

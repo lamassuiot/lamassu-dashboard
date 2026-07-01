@@ -26,7 +26,7 @@ const getStatus = (ca: CA): { label: string; expiryText: string; variant: Status
 };
 
 const statusBadgeClass: Record<StatusVariant, string> = {
-  active: 'border-primary/30 bg-primary/10 text-primary',
+  active:  'border-primary/30 bg-primary/10 text-primary',
   expired: 'border-orange-400/40 bg-orange-400/10 text-orange-700 dark:text-orange-300',
   revoked: 'border-destructive/30 bg-destructive/10 text-destructive',
 };
