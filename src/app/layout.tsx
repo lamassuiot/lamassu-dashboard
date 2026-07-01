@@ -12,7 +12,8 @@ import Script from 'next/script';
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { matchAndGetGlobalCapabilities } from '@/lib/authz-api';
+import { matchAndGetGlobalCapabilities, getPrincipal } from '@/lib/authz-api';
+import type { Principal } from '@/types/authz';
 import {
   SidebarProvider,
   Sidebar,
@@ -285,19 +286,39 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [avatarError, setAvatarError] = useState(false);
   const [globalCapabilities, setGlobalCapabilities] = useState<Record<string, string[]> | null>(null);
   const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false);
+  const [matchedPrincipalIds, setMatchedPrincipalIds] = useState<string[]>([]);
+  const [matchedPrincipals, setMatchedPrincipals] = useState<Principal[] | null>(null);
 
   useEffect(() => {
     if (!user?.access_token) {
       setGlobalCapabilities(null);
+      setMatchedPrincipalIds([]);
       setCapabilitiesLoaded(true);
       return;
     }
 
     matchAndGetGlobalCapabilities({ auth_type: 'oidc', auth_material: user.access_token })
-      .then(res => setGlobalCapabilities(res.global_actions))
-      .catch(() => setGlobalCapabilities(null))
+      .then(res => {
+        setGlobalCapabilities(res.global_actions);
+        setMatchedPrincipalIds(res.matched_principals ?? []);
+      })
+      .catch(() => {
+        setGlobalCapabilities(null);
+        setMatchedPrincipalIds([]);
+      })
       .finally(() => setCapabilitiesLoaded(true));
   }, [user?.access_token]);
+
+  // Fetch principal details when the profile modal opens
+  useEffect(() => {
+    if (!isProfileModalOpen || matchedPrincipalIds.length === 0) {
+      setMatchedPrincipals(matchedPrincipalIds.length === 0 ? [] : null);
+      return;
+    }
+    setMatchedPrincipals(null);
+    Promise.all(matchedPrincipalIds.map(id => getPrincipal(id).catch(() => null)))
+      .then(results => setMatchedPrincipals(results.filter((p): p is Principal => p !== null)));
+  }, [isProfileModalOpen, matchedPrincipalIds]);
 
   const isNavItemVisible = useCallback((item: NavItem): boolean => {
     if (!item.uiAuthzCapabilities) return true;
@@ -669,6 +690,32 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                   : <span className="text-xs text-muted-foreground italic">No roles found in access token</span>
                 }
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Matched Principals */}
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Matched Principals</p>
+              {matchedPrincipals === null ? (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Loading…</span>
+                </div>
+              ) : matchedPrincipals.length === 0 ? (
+                <span className="text-xs text-muted-foreground italic">No principals matched</span>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {matchedPrincipals.map(p => (
+                    <Link key={p.id} href={`/authz/principals/details?id=${p.id}`} onClick={() => setIsProfileModalOpen(false)}>
+                      <Badge variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
+                        <span className="text-xs font-normal leading-tight">{p.name || p.id}</span>
+                        {p.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{p.id}</span>}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
 
             <Separator />
