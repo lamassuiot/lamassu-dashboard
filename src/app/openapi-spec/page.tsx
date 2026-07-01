@@ -36,6 +36,13 @@ function App() {
               request.headers.set('Authorization', `Bearer ${user.access_token}`);
             }
           },
+          fetch: (input, init) => {
+            const headers = new Headers((init as RequestInit | undefined)?.headers);
+            if (user?.access_token) {
+              headers.set('Authorization', `Bearer ${user.access_token}`);
+            }
+            return fetch(input, { ...init, headers });
+          },
           defaultOpenAllTags: true,
           showSidebar: false,
           hideModels: true,
