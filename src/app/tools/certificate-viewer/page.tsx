@@ -5,15 +5,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Binary, AlertTriangle, Loader2, CheckCircle, XCircle, Info, KeyRound, Lock, Link as LinkIcon, ShieldCheck } from "lucide-react";
+import { Binary, AlertTriangle, Loader2, CheckCircle, XCircle, Info, ShieldCheck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { DetailItem } from '@/components/shared/DetailItem';
 import { Badge } from '@/components/ui/badge';
 import { initPkijsEngine } from '@/lib-crypto';
 import { parseCertificatePemDetails, type ParsedPemDetails, fetchAndProcessCAs, type CA } from '@/lib/ca-data';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { sileo } from '@/lib/toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn, formatCertificateUsageLabel } from '@/lib/utils';
@@ -22,10 +20,12 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import { format as formatDate, parseISO, isValid } from 'date-fns';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { OcspCheckModal } from '@/components/shared/OcspCheckModal';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Code2, Layers } from 'lucide-react';
+import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 
 
 // --- Zlint Types and Interfaces ---
@@ -34,6 +34,8 @@ interface ZlintResult {
   status: 'pass' | 'error' | 'warn' | 'info' | 'fatal' | 'NA' | 'NE';
   details?: string;
 }
+
+type StatusFilter = 'all' | ZlintResult['status'];
 
 interface ZlintProfile {
     name: string;
@@ -129,7 +131,7 @@ const ResultStatusBadge: React.FC<{ status: ZlintResult['status'] }> = ({ status
   );
 };
 
-const SourceLink: React.FC<{ text: string, type: 'source' | 'citation' }> = ({ text, type }) => {
+const SourceLink: React.FC<{ text: string }> = ({ text }) => {
   if (!text) return <>N/A</>;
   
   const rfcMatch = text.match(/(RFC\s?\d+)/i);
@@ -155,15 +157,12 @@ const SourceLink: React.FC<{ text: string, type: 'source' | 'citation' }> = ({ t
   try {
     new URL(text);
     return <a href={text} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{text}</a>;
-  } catch (_) {
+    } catch {
     // Not a valid URL
   }
 
   return <>{text}</>;
 };
-
-type StatusFilter = ZlintResult['status'] | 'all';
-const statusFilterOrder: StatusFilter[] = ['all', 'fatal', 'error', 'warn', 'info', 'pass'];
 
 export default function CertificateViewerPage() {
 
@@ -189,7 +188,7 @@ export default function CertificateViewerPage() {
   // Linter Pagination & Filtering
   const [linterCurrentPage, setLinterCurrentPage] = useState(1);
   const [linterItemsPerPage, setLinterItemsPerPage] = useState(10);
-  const [linterStatusFilter, setLinterStatusFilter] = useState<StatusFilter>('all');
+    const [linterStatusFilter, setLinterStatusFilter] = useState<StatusFilter>('all');
   
   // State to hold all lint definitions
   const [lintProfileMap, setLintProfileMap] = useState<Map<string, ZlintProfile>>(new Map());
@@ -275,35 +274,51 @@ export default function CertificateViewerPage() {
     }
   }, [isWasmReady, lintProfileMap.size]);
   
-  const handleParse = async () => {
-    if (!pem.trim()) {
-        setParsedDetails(null);
-        setError(null);
-        setActiveTab("input");
-        return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    setParsedDetails(null);
-    setLintResults([]);
-    setIssuerForOcsp(null);
-    
-    try {
-        const details = await parseCertificatePemDetails(pem);
-        if (details.signatureAlgorithm === 'N/A') {
-            throw new Error("Could not parse the provided text as a valid PEM certificate.");
+    useEffect(() => {
+        const trimmedPem = pem.trim();
+
+        if (!trimmedPem) {
+            setIsLoading(false);
+            setParsedDetails(null);
+            setError(null);
+            setLintResults([]);
+            setIssuerForOcsp(null);
+            return;
         }
-        setParsedDetails(details);
-        setActiveTab("details");
-    } catch (e: any) {
-        setError(e.message || "An unknown error occurred during parsing.");
-        setParsedDetails(null);
-        setActiveTab("input");
-    } finally {
-        setIsLoading(false);
-    }
-  };
+
+        let isCancelled = false;
+        setIsLoading(true);
+        setError(null);
+        setLintResults([]);
+        setIssuerForOcsp(null);
+
+        const timeoutId = window.setTimeout(async () => {
+            try {
+                const details = await parseCertificatePemDetails(trimmedPem);
+                if (isCancelled) return;
+
+                if (details.signatureAlgorithm === 'N/A') {
+                    throw new Error('Could not parse the provided text as a valid PEM certificate.');
+                }
+
+                setParsedDetails(details);
+                setError(null);
+            } catch (e: any) {
+                if (isCancelled) return;
+                setError(e.message || 'An unknown error occurred during parsing.');
+                setParsedDetails(null);
+            } finally {
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
+            }
+        }, 400);
+
+        return () => {
+            isCancelled = true;
+            window.clearTimeout(timeoutId);
+        };
+    }, [pem]);
 
   const handleOpenOcspModal = async () => {
     if (!parsedDetails ) {
@@ -407,42 +422,30 @@ export default function CertificateViewerPage() {
     }, 100);
   };
   
-  const lintSummaryCounts = useMemo(() => {
-    const counts: Record<StatusFilter, number> = {
-      all: 0,
-      fatal: 0,
-      error: 0,
-      warn: 0,
-      info: 0,
-      pass: 0,
-      NA: 0,
-      NE: 0
-    };
-    lintResults.forEach(r => {
-      counts[r.status] = (counts[r.status] || 0) + 1;
-    });
-    counts.all = lintResults.length;
-    return counts;
-  }, [lintResults]);
+    const filteredLintResults = useMemo(() => {
+        if (linterStatusFilter === 'all') {
+            return lintResults;
+        }
+        return lintResults.filter((result) => result.status === linterStatusFilter);
+    }, [lintResults, linterStatusFilter]);
 
-  const filteredLintResults = useMemo(() => {
-    if (linterStatusFilter === 'all') {
-      return lintResults;
-    }
-    return lintResults.filter(r => r.status === linterStatusFilter);
-  }, [lintResults, linterStatusFilter]);
+    const lintStatusCounts = useMemo(() => {
+        return {
+            all: lintResults.length,
+            fatal: lintResults.filter((result) => result.status === 'fatal').length,
+            error: lintResults.filter((result) => result.status === 'error').length,
+            warn: lintResults.filter((result) => result.status === 'warn').length,
+            info: lintResults.filter((result) => result.status === 'info').length,
+            pass: lintResults.filter((result) => result.status === 'pass').length,
+        };
+    }, [lintResults]);
 
-  const paginatedLintResults = useMemo(() => {
+    const paginatedLintResults = useMemo(() => {
     const startIndex = (linterCurrentPage - 1) * linterItemsPerPage;
-    return filteredLintResults.slice(startIndex, startIndex + linterItemsPerPage);
-  }, [filteredLintResults, linterCurrentPage, linterItemsPerPage]);
+        return filteredLintResults.slice(startIndex, startIndex + linterItemsPerPage);
+    }, [filteredLintResults, linterCurrentPage, linterItemsPerPage]);
 
-  const totalLinterPages = Math.ceil(filteredLintResults.length / linterItemsPerPage);
-
-  const handleFilterChange = (status: StatusFilter) => {
-    setLinterStatusFilter(status);
-    setLinterCurrentPage(1);
-  };
+    const totalLinterPages = Math.ceil(filteredLintResults.length / linterItemsPerPage);
 
   const handlePageChange = (newPage: number) => {
     if (newPage > 0 && newPage <= totalLinterPages) {
@@ -454,261 +457,347 @@ export default function CertificateViewerPage() {
     return availableSources.map(source => ({ value: source, label: source }));
   }, [availableSources]);
   
-  const accordionTriggerStyle = "text-md font-medium bg-muted/30 hover:bg-muted/40 data-[state=open]:bg-muted/50 px-4 py-3 rounded-md";
-
   return (
-    <BreadcrumbPage items={[{label:'Home',href:'/'}, {label:'Tools'}, {label:'Certificate Viewer'}]} className="space-y-5 pb-8">
-      <div className="space-y-6 w-full pb-8">
-        <div className="flex items-center space-x-3">
-          <Binary className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-headline font-semibold">Certificate Analysis Tool</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Paste an X.509 certificate in PEM format to parse its details and lint it.
-        </p>
+        <BreadcrumbPage items={[{label:'Home',href:'/'}, {label:'Tools'}, {label:'Certificate Viewer'}]} className="space-y-5 pb-8">
+            <div className="space-y-6 w-full pb-8">
+                <div className="flex items-start gap-3">
+                    <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+                        <Binary className="h-8 w-8 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-headline font-semibold">Certificate Analysis Tool</h1>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Parse X.509 PEM certificates, inspect extensions, run lint checks, and validate OCSP status.
+                        </p>
+                    </div>
+                </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList>
-                <TabsTrigger value="input">PEM Input</TabsTrigger>
-                <TabsTrigger value="details" disabled={!parsedDetails}>Parsed Details</TabsTrigger>
-                <TabsTrigger value="linter" disabled={!parsedDetails}>Certificate Linter</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="input">
-                <Card>
-                    <CardHeader>
-                        <CardDescription>Paste a certificate below. Details and linter will be enabled upon successful parsing.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Textarea
-                            value={pem}
-                            onChange={(e) => setPem(e.target.value)}
-                            placeholder="-----BEGIN CERTIFICATE-----..."
-                            className="font-mono h-[30rem]"
-                            disabled={isLoading}
-                        />
-                        <Button onClick={handleParse} disabled={isLoading || !pem.trim()} className="mt-4">
-                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                            Parse Certificate
-                        </Button>
-                        {error && (
-                            <Alert variant="destructive" className="mt-2">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>Parsing Error</AlertTitle>
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                        )}
-                    </CardContent>
-                </Card>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <div className="border-b overflow-x-auto overflow-y-hidden">
+                            <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
+                                    <TabsTrigger value="input" className={pageTabsTriggerClass}>
+                                        <Code2 className="h-4 w-4" />
+                                        PEM Input
+                                    </TabsTrigger>
+                                    <TabsTrigger value="details" className={pageTabsTriggerClass} disabled={!parsedDetails}>
+                                        <Info className="h-4 w-4" />
+                                        Parsed Details
+                                    </TabsTrigger>
+                                    <TabsTrigger value="linter" className={pageTabsTriggerClass} disabled={!parsedDetails}>
+                                        <Layers className="h-4 w-4" />
+                                        Certificate Linter
+                                    </TabsTrigger>
+                            </TabsList>
+                        </div>
+
+                        <div className="mt-6 pb-6">
+                        <TabsContent value="input" className="mt-0">
+                                <div className="py-6 space-y-4">
+                                    <div className="flex flex-col overflow-hidden rounded-xl border">
+                                        <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                                                    <Code2 className="h-3.5 w-3.5 text-primary" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold leading-none">Certificate PEM</p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">Paste a PEM-encoded X.509 certificate to analyze.</p>
+                                                </div>
+                                            </div>
+
+                                            {isLoading ? (
+                                                <div className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground">
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    Parsing...
+                                                </div>
+                                            ) : null}
+                                        </div>
+
+                                        <Textarea
+                                            value={pem}
+                                            onChange={(e) => setPem(e.target.value)}
+                                            placeholder="-----BEGIN CERTIFICATE-----..."
+                                            className="h-[30rem] rounded-none border-0 bg-muted/10 font-mono text-xs leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        />
+                                    </div>
+
+                                    <p className="text-xs text-muted-foreground">Supports PEM-encoded X.509 certificates.</p>
+
+                                    {error && (
+                                        <Alert variant="destructive">
+                                            <AlertTriangle className="h-4 w-4" />
+                                            <AlertTitle>Parsing Error</AlertTitle>
+                                            <AlertDescription>{error}</AlertDescription>
+                                        </Alert>
+                                    )}
+                                </div>
             </TabsContent>
 
-            <TabsContent value="details">
+            <TabsContent value="details" className="mt-0">
                  {parsedDetails && (
-                    <>
-                    <div className="flex justify-end mb-4">
-                        <Button
-                            variant="secondary"
-                            onClick={handleOpenOcspModal}
-                            disabled={isFetchingIssuer || !parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0}
-                            title={
-                                !parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0
-                                ? "Certificate does not contain an OCSP URL."
-                                : "Check OCSP Status"
-                            }
-                        >
-                            {isFetchingIssuer ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                            OCSP Check
-                        </Button>
-                    </div>
-                    <Accordion type="multiple" defaultValue={['general', 'keyInfo']} className="w-full space-y-3">
-                        <AccordionItem value="general" className="border-b-0">
-                            <AccordionTrigger className={cn(accordionTriggerStyle)}><Info className="mr-2 h-5 w-5" />General Information</AccordionTrigger>
-                            <AccordionContent className="space-y-1 px-4 pt-3">
-                                <DetailItem label="Subject" value={parsedDetails.subject} isMono />
-                                <DetailItem label="Issuer" value={parsedDetails.issuer} isMono />
-                                <DetailItem label="Serial Number" value={<IdentifierDisplay value={parsedDetails.serialNumber} />} />
-                                <DetailItem label="Valid From" value={isValid(parseISO(parsedDetails.validFrom)) ? formatDate(parseISO(parsedDetails.validFrom), 'PPpp') : 'Invalid Date'} />
-                                <DetailItem label="Valid To" value={isValid(parseISO(parsedDetails.validTo)) ? formatDate(parseISO(parsedDetails.validTo), 'PPpp') : 'Invalid Date'} />
-                                <DetailItem label="Is CA" value={<Badge variant={parsedDetails.isCa ? "default" : "secondary"}>{parsedDetails.isCa ? 'Yes' : 'No'}</Badge>} />
-                                {parsedDetails.pathLenConstraint !== undefined && <DetailItem label="Path Length Constraint" value={<Badge variant="secondary">{parsedDetails.pathLenConstraint ?? 'None'}</Badge>} />}
-                            </AccordionContent>
-                        </AccordionItem>
-                        
-                        <AccordionItem value="keyInfo" className="border-b-0">
-                            <AccordionTrigger className={cn(accordionTriggerStyle)}><KeyRound className="mr-2 h-5 w-5" />Key & Signature Information</AccordionTrigger>
-                            <AccordionContent className="space-y-1 px-4 pt-3">
-                                <DetailItem label="Public Key Algorithm" value={parsedDetails.publicKeyAlgorithm || 'N/A'} />
-                                <DetailItem label="Signature Algorithm" value={parsedDetails.signatureAlgorithm || 'N/A'} />
-                                <DetailItem label="SHA-256 Fingerprint" value={parsedDetails.fingerprintSha256 || 'N/A'} isMono />
-                                <DetailItem label="Subject Key ID (SKI)" value={parsedDetails.subjectKeyId || 'N/A'} isMono />
-                                <DetailItem label="Authority Key ID (AKI)" value={parsedDetails.authorityKeyId || 'N/A'} isMono />
-                            </AccordionContent>
-                        </AccordionItem>
+                                        <div>
+                                            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+                                                <div>
+                                                    <p className="font-semibold">General Information</p>
+                                                    <p className="text-sm text-muted-foreground mt-1">Identity, issuer, lifecycle window, and CA constraints.</p>
+                                                </div>
+                                                <div className="lg:col-span-2 space-y-4">
+                                                    <div className="flex justify-end">
+                                                        <Button
+                                                            variant="secondary"
+                                                            onClick={handleOpenOcspModal}
+                                                            disabled={isFetchingIssuer || !parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0}
+                                                            title={
+                                                                !parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0
+                                                                    ? 'Certificate does not contain an OCSP URL.'
+                                                                    : 'Check OCSP Status'
+                                                            }
+                                                        >
+                                                            {isFetchingIssuer ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                                                            OCSP Check
+                                                        </Button>
+                                                    </div>
 
-                        <AccordionItem value="extensions" className="border-b-0">
-                            <AccordionTrigger className={cn(accordionTriggerStyle)}><Lock className="mr-2 h-5 w-5" />Certificate Extensions</AccordionTrigger>
-                            <AccordionContent className="space-y-3 px-4 pt-3">
-                                <DetailItem label="Subject Alternative Names" value={
-                                    parsedDetails.sans && parsedDetails.sans.length > 0 ? (
-                                        <div className="flex flex-wrap gap-1">
-                                            {parsedDetails.sans.map((san, index) => <Badge key={index} variant="secondary">{san}</Badge>)}
+                                                    <DetailInfoRows>
+                                                        <DetailInfoRow label="Subject" value={<span className="font-mono text-xs">{parsedDetails.subject}</span>} className="first:pt-0" />
+                                                        <DetailInfoRow label="Issuer" value={<span className="font-mono text-xs">{parsedDetails.issuer}</span>} />
+                                                        <DetailInfoRow label="Serial Number" value={<IdentifierDisplay value={parsedDetails.serialNumber} />} />
+                                                        <DetailInfoRow label="Valid From" value={isValid(parseISO(parsedDetails.validFrom)) ? formatDate(parseISO(parsedDetails.validFrom), 'PPpp') : 'Invalid Date'} />
+                                                        <DetailInfoRow label="Valid To" value={isValid(parseISO(parsedDetails.validTo)) ? formatDate(parseISO(parsedDetails.validTo), 'PPpp') : 'Invalid Date'} />
+                                                        <DetailInfoRow label="Is CA" value={<Badge variant={parsedDetails.isCa ? 'default' : 'secondary'}>{parsedDetails.isCa ? 'Yes' : 'No'}</Badge>} className="last:pb-0" />
+                                                    </DetailInfoRows>
+
+                                                    {parsedDetails.pathLenConstraint !== undefined && (
+                                                        <DetailInfoRows>
+                                                            <DetailInfoRow
+                                                                label="Path Length Constraint"
+                                                                value={<Badge variant="secondary">{parsedDetails.pathLenConstraint ?? 'None'}</Badge>}
+                                                                className="first:pt-0 last:pb-0"
+                                                            />
+                                                        </DetailInfoRows>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <Separator />
+
+                                            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+                                                <div>
+                                                    <p className="font-semibold">Key & Signature</p>
+                                                    <p className="text-sm text-muted-foreground mt-1">Algorithm and fingerprint material for this certificate.</p>
+                                                </div>
+                                                <div className="lg:col-span-2">
+                                                    <DetailInfoRows>
+                                                        <DetailInfoRow label="Public Key Algorithm" value={parsedDetails.publicKeyAlgorithm || 'N/A'} className="first:pt-0" />
+                                                        <DetailInfoRow label="Signature Algorithm" value={parsedDetails.signatureAlgorithm || 'N/A'} />
+                                                        <DetailInfoRow label="SHA-256 Fingerprint" value={parsedDetails.fingerprintSha256 || 'N/A'} valueClassName="font-mono text-xs" />
+                                                        <DetailInfoRow label="Subject Key ID (SKI)" value={parsedDetails.subjectKeyId || 'N/A'} valueClassName="font-mono text-xs" />
+                                                        <DetailInfoRow label="Authority Key ID (AKI)" value={parsedDetails.authorityKeyId || 'N/A'} valueClassName="font-mono text-xs" className="last:pb-0" />
+                                                    </DetailInfoRows>
+                                                </div>
+                                            </div>
+
+                                            <Separator />
+
+                                            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+                                                <div>
+                                                    <p className="font-semibold">Certificate Extensions</p>
+                                                    <p className="text-sm text-muted-foreground mt-1">Alternative names and certificate usage declarations.</p>
+                                                </div>
+                                                <div className="lg:col-span-2">
+                                                    <DetailInfoRows>
+                                                        <DetailInfoRow
+                                                            label="Subject Alternative Names"
+                                                            value={
+                                                                parsedDetails.sans && parsedDetails.sans.length > 0 ? (
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {parsedDetails.sans.map((san, index) => <Badge key={index} variant="secondary">{san}</Badge>)}
+                                                                    </div>
+                                                                ) : 'Not Specified'
+                                                            }
+                                                            className="first:pt-0"
+                                                        />
+                                                        <DetailInfoRow
+                                                            label="Key Usages"
+                                                            value={
+                                                                (parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0) || (parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0) ? (
+                                                                    <div className="space-y-2">
+                                                                        {parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0 && (
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="secondary">{formatCertificateUsageLabel(usage)}</Badge>)}
+                                                                            </div>
+                                                                        )}
+                                                                        {parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0 && (
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="secondary">{formatCertificateUsageLabel(usage)}</Badge>)}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : 'Not Specified'
+                                                            }
+                                                            className="last:pb-0"
+                                                        />
+                                                    </DetailInfoRows>
+                                                </div>
+                                            </div>
+
+                                            <Separator />
+
+                                            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+                                                <div>
+                                                    <p className="font-semibold">Distribution Points</p>
+                                                    <p className="text-sm text-muted-foreground mt-1">CRL, OCSP, and issuer endpoints embedded in the certificate.</p>
+                                                </div>
+                                                <div className="space-y-3 lg:col-span-2">
+                                                    {renderUrlList(parsedDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
+                                                    {parsedDetails.crlDistributionPoints && (parsedDetails.ocspUrls || parsedDetails.caIssuersUrls) && <Separator />}
+                                                    {renderUrlList(parsedDetails.ocspUrls, 'OCSP Responders (from AIA)')}
+                                                    {parsedDetails.ocspUrls && parsedDetails.caIssuersUrls && <Separator />}
+                                                    {renderUrlList(parsedDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
+                                                    {(!parsedDetails.crlDistributionPoints || parsedDetails.crlDistributionPoints.length === 0) && (!parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0) && (!parsedDetails.caIssuersUrls || parsedDetails.caIssuersUrls.length === 0) && (
+                                                        <p className="text-sm text-muted-foreground">No distribution points specified in certificate.</p>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                    ) : ("Not Specified")
-                                }/>
-                                 <Separator className="my-2" />
-                                <DetailItem label="Key Usages" value={
-                                (parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0) || (parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0) ? (
-                                    <div className="space-y-2">
-                                        {parsedDetails.keyUsage && parsedDetails.keyUsage.length > 0 && (
-                                            <div className="flex flex-wrap gap-1">
-                                                {parsedDetails.keyUsage.map(usage => <Badge key={usage} variant="secondary">{formatCertificateUsageLabel(usage)}</Badge>)}
-                                            </div>
-                                        )}
-                                        {parsedDetails.extendedKeyUsage && parsedDetails.extendedKeyUsage.length > 0 && (
-                                            <div className="flex flex-wrap gap-1">
-                                                {parsedDetails.extendedKeyUsage.map(usage => <Badge key={usage} variant="secondary">{formatCertificateUsageLabel(usage)}</Badge>)}
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : ("Not Specified")
-                                } />
-                            </AccordionContent>
-                        </AccordionItem>
-                        
-                        <AccordionItem value="distribution" className="border-b-0">
-                            <AccordionTrigger className={cn(accordionTriggerStyle)}><LinkIcon className="mr-2 h-5 w-5" />Distribution Points</AccordionTrigger>
-                            <AccordionContent className="space-y-3 px-4 pt-3">
-                                {renderUrlList(parsedDetails.crlDistributionPoints, 'CRL Distribution Points (CDP)')}
-                                {parsedDetails.crlDistributionPoints && (parsedDetails.ocspUrls || parsedDetails.caIssuersUrls) && <Separator/>}
-                                {renderUrlList(parsedDetails.ocspUrls, 'OCSP Responders (from AIA)')}
-                                {parsedDetails.ocspUrls && parsedDetails.caIssuersUrls && <Separator/>}
-                                {renderUrlList(parsedDetails.caIssuersUrls, 'CA Issuers (from AIA)')}
-                                {(!parsedDetails.crlDistributionPoints || parsedDetails.crlDistributionPoints.length === 0) && (!parsedDetails.ocspUrls || parsedDetails.ocspUrls.length === 0) && (!parsedDetails.caIssuersUrls || parsedDetails.caIssuersUrls.length === 0) && (
-                                    <p className="text-sm text-muted-foreground">No distribution points specified in certificate.</p>
-                                )}
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                    </>
                 )}
             </TabsContent>
             
-            <TabsContent value="linter">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Certificate Linter</CardTitle>
-                        <CardDescription>Analyze the certificate against a set of industry-standard linting rules.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col md:flex-row gap-4 items-end">
-                            <div className="flex-grow w-full space-y-1.5">
-                                <Label htmlFor="source-filter">Lint Sources</Label>
-                                 <MultiSelectDropdown
-                                    id="source-filter"
-                                    options={availableSourceOptions}
-                                    allOptionValues={availableSources}
-                                    selectedValues={selectedSources}
-                                    onChange={setSelectedSources}
-                                    buttonText="Select sources..."
-                                 />
-                            </div>
-                            <Button onClick={handleLint} disabled={isLinting || !isWasmReady} className="w-full md:w-auto">
-                                {isLinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : !isWasmReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                { !isWasmReady ? 'Loading Linter...' : 'Run Linter' }
-                            </Button>
-                        </div>
-                        {isLinting && (
-                           <div className="flex items-center mt-2 text-muted-foreground text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Linting...</div>
-                        )}
-                        {lintResults.length > 0 && (
-                            <div className="mt-4">
-                               <div className="flex flex-wrap items-center gap-2 border bg-muted/50 p-2 rounded-md mb-4">
-                                {statusFilterOrder.map(status => {
-                                    const count = lintSummaryCounts[status];
-                                    if (status !== 'all' && count === 0) return null;
-                                    const text = `${status.toUpperCase()} (${count})`;
-                                    return (
-                                        <Button
-                                            key={status}
-                                            variant={linterStatusFilter === status ? 'default' : 'secondary'}
-                                           
-                                            onClick={() => handleFilterChange(status)}
-                                            className="h-7 px-2.5"
-                                        >
-                                            {text}
-                                        </Button>
-                                    )
-                                })}
-                               </div>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="w-[100px]">Status</TableHead>
-                                            <TableHead>Lint Name</TableHead>
-                                            <TableHead>Description & Details</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {paginatedLintResults.map((result, index) => {
-                                            const profile = lintProfileMap.get(result.lint_name);
-                                            return (
-                                                <TableRow key={index}>
-                                                    <TableCell><ResultStatusBadge status={result.status} /></TableCell>
-                                                    <TableCell className="font-mono text-xs">{result.lint_name}</TableCell>
-                                                    <TableCell className="text-sm">
-                                                        {profile && <p className="font-medium">{profile.description}</p>}
-                                                        <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                                                            {profile?.source && <div><strong>Source:</strong> <SourceLink text={profile.source} type="source" /></div>}
-                                                            {profile?.citation && <div><strong>Citation:</strong> <SourceLink text={profile.citation} type="citation" /></div>}
-                                                            {result.details && <p><strong>Details:</strong> {result.details}</p>}
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        })}
-                                    </TableBody>
-                                </Table>
-                                {totalLinterPages > 1 && (
-                                     <div className="flex justify-between items-center mt-4">
-                                        <div className="flex items-center space-x-2">
-                                            <Label htmlFor="itemsPerPage" className="text-sm text-muted-foreground">Items per page:</Label>
-                                            <Select value={String(linterItemsPerPage)} onValueChange={(value) => { setLinterItemsPerPage(Number(value)); setLinterCurrentPage(1); }}>
-                                                <SelectTrigger id="itemsPerPage" className="w-[70px] h-9">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="10">10</SelectItem>
-                                                    <SelectItem value="25">25</SelectItem>
-                                                    <SelectItem value="50">50</SelectItem>
-                                                    <SelectItem value="100">100</SelectItem>
-                                                </SelectContent>
-                                            </Select>
+            <TabsContent value="linter" className="mt-0">
+                                <div>
+                                    <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-6">
+                                        <div>
+                                            <p className="font-semibold">Linter Configuration</p>
+                                            <p className="text-sm text-muted-foreground mt-1">Select rule sources and run checks against the current parsed certificate.</p>
                                         </div>
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-sm text-muted-foreground">
-                                                Page {linterCurrentPage} of {totalLinterPages}
-                                            </span>
-                                            <Button onClick={() => handlePageChange(linterCurrentPage - 1)} disabled={linterCurrentPage === 1} variant="secondary">
-                                                <ChevronLeft className="mr-1 h-4 w-4" /> Previous
-                                            </Button>
-                                            <Button onClick={() => handlePageChange(linterCurrentPage + 1)} disabled={linterCurrentPage >= totalLinterPages} variant="secondary">
-                                                Next <ChevronRight className="ml-1 h-4 w-4" />
-                                            </Button>
+                                        <div className="lg:col-span-2 space-y-4">
+                                            <div className="flex flex-col md:flex-row gap-4 items-end">
+                                                <div className="flex-grow w-full space-y-1.5">
+                                                    <Label htmlFor="source-filter">Lint Sources</Label>
+                                                    <MultiSelectDropdown
+                                                        id="source-filter"
+                                                        options={availableSourceOptions}
+                                                        allOptionValues={availableSources}
+                                                        selectedValues={selectedSources}
+                                                        onChange={setSelectedSources}
+                                                        buttonText="Select sources..."
+                                                    />
+                                                </div>
+                                                <Button onClick={handleLint} disabled={isLinting || !isWasmReady} className="w-full md:w-auto">
+                                                    {isLinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : !isWasmReady ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                                    {!isWasmReady ? 'Loading Linter...' : 'Run Linter'}
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
-                                )}
-                                <div className="text-xs text-muted-foreground text-center mt-6 pt-4 border-t">
-                                    Linting rules and descriptions are provided by the open-source{' '}
-                                    <a href="https://github.com/zmap/zlint" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                        Zlint
-                                    </a>{' '}
-                                    project.
+
+                                    <Separator />
+
+                                    <div className="py-6">
+                                            {!isLinting && lintResults.length === 0 && (
+                                                <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                                                    Run the linter to evaluate this certificate against selected rule sources.
+                                                </div>
+                                            )}
+
+                                            {isLinting && (
+                                                <div className="flex items-center text-muted-foreground text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Linting...</div>
+                                            )}
+
+                                            {lintResults.length > 0 && (
+                                                <div>
+                                                    <div className="mb-4 flex justify-start">
+                                                        <div className="w-[180px] space-y-1.5">
+                                                            <Label htmlFor="status-filter" className="text-sm text-muted-foreground">Status</Label>
+                                                            <Select
+                                                                value={linterStatusFilter}
+                                                                onValueChange={(value) => {
+                                                                    setLinterStatusFilter(value as StatusFilter);
+                                                                    setLinterCurrentPage(1);
+                                                                }}
+                                                            >
+                                                                <SelectTrigger id="status-filter" className="h-9">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="all">All ({lintStatusCounts.all})</SelectItem>
+                                                                    <SelectItem value="fatal">Fatal ({lintStatusCounts.fatal})</SelectItem>
+                                                                    <SelectItem value="error">Error ({lintStatusCounts.error})</SelectItem>
+                                                                    <SelectItem value="warn">Warn ({lintStatusCounts.warn})</SelectItem>
+                                                                    <SelectItem value="info">Info ({lintStatusCounts.info})</SelectItem>
+                                                                    <SelectItem value="pass">Pass ({lintStatusCounts.pass})</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                    </div>
+
+                                                    <ScrollArea className="w-full whitespace-nowrap">
+                                                        <Table>
+                                                            <TableHeader className="[&_tr]:border-0">
+                                                                <TableRow className="border-0">
+                                                                    <TableHead className="w-[100px]">Status</TableHead>
+                                                                    <TableHead>Lint Name</TableHead>
+                                                                    <TableHead>Description & Details</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {paginatedLintResults.map((result, index) => {
+                                                                    const profile = lintProfileMap.get(result.lint_name);
+                                                                    return (
+                                                                        <TableRow key={index} className="border-0">
+                                                                            <TableCell><ResultStatusBadge status={result.status} /></TableCell>
+                                                                            <TableCell className="font-mono text-xs">{result.lint_name}</TableCell>
+                                                                            <TableCell className="text-sm">
+                                                                                {profile && <p className="font-medium">{profile.description}</p>}
+                                                                                <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                                                                                    {profile?.source && <div><strong>Source:</strong> <SourceLink text={profile.source} /></div>}
+                                                                                    {profile?.citation && <div><strong>Citation:</strong> <SourceLink text={profile.citation} /></div>}
+                                                                                    {result.details && <p><strong>Details:</strong> {result.details}</p>}
+                                                                                </div>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    )
+                                                                })}
+                                                            </TableBody>
+                                                        </Table>
+                                                        <ScrollBar orientation="horizontal" />
+                                                    </ScrollArea>
+
+                                                    {totalLinterPages > 1 && (
+                                                        <div className="flex justify-between items-center mt-4">
+                                                            <div className="flex items-center space-x-2">
+                                                                <Label htmlFor="itemsPerPage" className="text-sm text-muted-foreground">Items per page:</Label>
+                                                                <Select value={String(linterItemsPerPage)} onValueChange={(value) => { setLinterItemsPerPage(Number(value)); setLinterCurrentPage(1); }}>
+                                                                    <SelectTrigger id="itemsPerPage" className="w-[70px] h-9">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="10">10</SelectItem>
+                                                                        <SelectItem value="25">25</SelectItem>
+                                                                        <SelectItem value="50">50</SelectItem>
+                                                                        <SelectItem value="100">100</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                            <div className="flex items-center space-x-2">
+                                                                <span className="text-sm text-muted-foreground">
+                                                                    Page {linterCurrentPage} of {totalLinterPages}
+                                                                </span>
+                                                                <Button onClick={() => handlePageChange(linterCurrentPage - 1)} disabled={linterCurrentPage === 1} variant="secondary">
+                                                                    <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+                                                                </Button>
+                                                                <Button onClick={() => handlePageChange(linterCurrentPage + 1)} disabled={linterCurrentPage >= totalLinterPages} variant="secondary">
+                                                                    Next <ChevronRight className="ml-1 h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
             </TabsContent>
+            </div>
         </Tabs>
       </div>
 
