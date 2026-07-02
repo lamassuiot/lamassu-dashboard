@@ -5,28 +5,60 @@ on:
     branches:
       - develop
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Docker image tag (leave blank to use 'dev'). Cannot be 'latest' or start with a number."
+        required: false
+        default: ""
 
 jobs:
+  validate_tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.set_tag.outputs.tag }}
+    steps:
+      - name: Validate and set tag
+        id: set_tag
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          TAG="${TAG:-dev}"
+
+          if [[ "${TAG,,}" == "latest" ]]; then
+            echo "Error: tag 'latest' is not allowed." >&2
+            exit 1
+          fi
+
+          if ! [[ "$TAG" =~ ^[A-Za-z_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "Error: tag must match ^[A-Za-z_][A-Za-z0-9_.-]{0,127}$ (got '$TAG')." >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
   dev_image:
     name: "Build DEV docker image"
+    needs: validate_tag
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Login to Github Registry
-        uses: docker/login-action@v3 
+        uses: docker/login-action@v3
         with:
-            registry: ghcr.io
-            username: ${{ github.actor }}
-            password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Build the Docker image latest tag
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the Docker image
         uses: docker/build-push-action@v6
         with:
           push: true
           tags: |
-            ghcr.io/lamassuiot/lamassu-ui:${{ github.sha }}
-            ghcr.io/lamassuiot/lamassu-ui:dev
+            ghcr.io/lamassuiot/lamassu-ui:${{ needs.validate_tag.outputs.tag }}
+            ghcr.io/lamassuiot/lamassu-ui:${{ needs.validate_tag.outputs.tag }}-${{ github.sha }}
