@@ -52,6 +52,9 @@ interface PolicyBuilderFlowProps {
   error?: string | null;
 }
 
+type RuleConfig = { id: string; startingEntity: string };
+type IncomingRelation = { name: string; sourceEntity: string };
+
 const nodeTypes: NodeTypes = {
   schemaEntity: SchemaEntityNode as any,
 };
@@ -131,11 +134,82 @@ const edgeIsInRulePath = (
   return false;
 };
 
+const getEntitiesInPolicyTree = (
+  ruleConfigs: RuleConfig[],
+  selectedRule: Rule | null,
+  schemas: SchemaDefinition[]
+): Set<string> => {
+  const entitiesInTree = new Set<string>();
+
+  ruleConfigs.forEach((rc) => entitiesInTree.add(rc.startingEntity));
+
+  selectedRule?.relations?.forEach((rel) => {
+    const targetQualifiedEntityType = getRelationTargetQualifiedEntityType(rel);
+    const targetAddress = normalizeEntityAddress(rel.to);
+    const targetSchema = findSchemaByEntityType(schemas, targetQualifiedEntityType);
+    entitiesInTree.add(targetSchema?.entity_type || targetAddress.entity_type);
+  });
+
+  return entitiesInTree;
+};
+
+const getIncomingRelations = (
+  schemas: SchemaDefinition[],
+  entitiesInTree: Set<string>,
+  entity_type: string
+): IncomingRelation[] => {
+  const incomingRels: IncomingRelation[] = [];
+
+  schemas.forEach((otherSchema) => {
+    Object.values(otherSchema.relations).forEach((relation) => {
+      if (relation.target_entity === entity_type && entitiesInTree.has(otherSchema.entity_type)) {
+        incomingRels.push({
+          name: relation.name,
+          sourceEntity: otherSchema.entity_type,
+        });
+      }
+    });
+  });
+
+  return incomingRels;
+};
+
+const getSelectedRuleSourceEntity = (selectedRule: Rule | null, schemas: SchemaDefinition[]) => {
+  if (!selectedRule) return '';
+  return findSchemaByEntityType(schemas, getRuleQualifiedEntityType(selectedRule))?.entity_type || selectedRule.entity_type;
+};
+
+const buildNestedRules = (
+  schemas: SchemaDefinition[],
+  selectedRule: Rule | null,
+  entity_type: string,
+  incomingRelations: IncomingRelation[]
+) => {
+  const selectedRuleSourceEntity = getSelectedRuleSourceEntity(selectedRule, schemas);
+
+  return incomingRelations.map((incomingRel) => {
+    const ruleRelation = selectedRule && selectedRuleSourceEntity === incomingRel.sourceEntity && selectedRule.relations
+      ? selectedRule.relations.find(
+          (r) => (findSchemaByEntityType(schemas, getRelationTargetQualifiedEntityType(r))?.entity_type || normalizeEntityAddress(r.to).entity_type).toLowerCase() === entity_type.toLowerCase() &&
+                 r.via.toLowerCase() === incomingRel.name.toLowerCase()
+        )
+      : undefined;
+
+    return {
+      sourceEntity: incomingRel.sourceEntity,
+      target_entity: entity_type,
+      relationName: incomingRel.name,
+      enabled: Boolean(ruleRelation),
+      actions: ruleRelation?.actions || [],
+    };
+  });
+};
+
 export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [schemas, setSchemas] = useState<SchemaDefinition[]>([]);
-  const [ruleConfigs, setRuleConfigs] = useState<Array<{ id: string; startingEntity: string }>>([]);
+  const [ruleConfigs, setRuleConfigs] = useState<RuleConfig[]>([]);
   const [loadingSchemas, setLoadingSchemas] = useState(true);
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -294,52 +368,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
 
       hasNodes.current = true;
       const selectedRule = selectedRuleIndex !== null ? rules[selectedRuleIndex] : null;
-      
-      // Helper function to determine which entities are in the policy tree based on the JSON rule
-      const getEntitiesInPolicyTree = (): Set<string> => {
-        const entitiesInTree = new Set<string>();
-        
-        // Add all starting entities
-        ruleConfigs.forEach((rc) => entitiesInTree.add(rc.startingEntity));
-        
-        // Add entities that are targets of relations in the selected rule
-        if (selectedRule && selectedRule.relations) {
-          selectedRule.relations.forEach((rel) => {
-            const targetQualifiedEntityType = getRelationTargetQualifiedEntityType(rel);
-            const targetAddress = normalizeEntityAddress(rel.to);
-            const targetSchema = findSchemaByEntityType(schemas, targetQualifiedEntityType);
-            entitiesInTree.add(targetSchema?.entity_type || targetAddress.entity_type);
-          });
-        }
-        
-        return entitiesInTree;
-      };
-
-      const entitiesInTree = getEntitiesInPolicyTree();
-
-      // Helper to find incoming relations: if A->B exists in schema, B should show nested rule for A
-      const getIncomingRelations = (entity_type: string) => {
-        const incomingRels: Array<{ name: string; sourceEntity: string }> = [];
-        
-        // Look through all schemas to find relations pointing TO this entity
-        // We check ALL schemas here, filtering by entitiesInTree happens later when determining enabled state
-        schemas.forEach((otherSchema) => {
-          Object.values(otherSchema.relations).forEach((relation) => {
-            if (relation.target_entity === entity_type) {
-              // Found a relation FROM another entity TO this entity
-              // Only include if the source entity is in the policy tree
-              if (entitiesInTree.has(otherSchema.entity_type)) {
-                incomingRels.push({
-                  name: relation.name,
-                  sourceEntity: otherSchema.entity_type,
-                });
-              }
-            }
-          });
-        });
-        
-        return incomingRels;
-      };
+      const entitiesInTree = getEntitiesInPolicyTree(ruleConfigs, selectedRule, schemas);
 
       // Update existing nodes data based on the selected rule (JSON is source of truth)
       setNodes((nds) =>
@@ -365,51 +394,8 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
             //   * organization is the source (defines the relation in JSON)
             //   * building is the target (shows the nested rule switch in UI)
             
-            const nestedRules: any[] = [];
-            
-            // Find all incoming relations (relations pointing TO this entity)
-            const incomingRelations = getIncomingRelations(entity_type);
-            
-            // For each incoming relation, check if it's enabled in the JSON rule
-            incomingRelations.forEach((incomingRel) => {
-              // Check if the source entity (the one that points to us) has this relation in JSON
-              const selectedRuleSourceEntity = selectedRule
-                ? (findSchemaByEntityType(schemas, getRuleQualifiedEntityType(selectedRule))?.entity_type || selectedRule.entity_type)
-                : '';
-
-              if (selectedRule && selectedRuleSourceEntity === incomingRel.sourceEntity && selectedRule.relations) {
-                const ruleRelation = selectedRule.relations.find(
-                  (r) => (findSchemaByEntityType(schemas, getRelationTargetQualifiedEntityType(r))?.entity_type || normalizeEntityAddress(r.to).entity_type).toLowerCase() === entity_type.toLowerCase() && 
-                         r.via.toLowerCase() === incomingRel.name.toLowerCase()
-                );
-                
-                if (ruleRelation) {
-                  nestedRules.push({
-                    sourceEntity: incomingRel.sourceEntity,
-                    target_entity: entity_type,
-                    relationName: incomingRel.name,
-                    enabled: true,
-                    actions: ruleRelation.actions || [],
-                  });
-                } else {
-                  nestedRules.push({
-                    sourceEntity: incomingRel.sourceEntity,
-                    target_entity: entity_type,
-                    relationName: incomingRel.name,
-                    enabled: false,
-                    actions: [],
-                  });
-                }
-              } else {
-                nestedRules.push({
-                  sourceEntity: incomingRel.sourceEntity,
-                  target_entity: entity_type,
-                  relationName: incomingRel.name,
-                  enabled: false,
-                  actions: [],
-                });
-              }
-            });
+            const incomingRelations = getIncomingRelations(schemas, entitiesInTree, entity_type);
+            const nestedRules = buildNestedRules(schemas, selectedRule, entity_type, incomingRelations);
             
             return {
               ...node,
@@ -480,49 +466,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
 
     // Initial creation path: create nodes from scratch
     const selectedRule = selectedRuleIndex !== null ? rules[selectedRuleIndex] : null;
-    
-    // Helper function to determine which entities are in the policy tree
-    const getEntitiesInPolicyTree = (): Set<string> => {
-      const entitiesInTree = new Set<string>();
-      
-      // Add all starting entities
-      ruleConfigs.forEach((rc) => entitiesInTree.add(rc.startingEntity));
-      
-      // Add entities that are targets of relations in the selected rule
-      if (selectedRule && selectedRule.relations) {
-        selectedRule.relations.forEach((rel) => {
-          const targetQualifiedEntityType = getRelationTargetQualifiedEntityType(rel);
-          const targetAddress = normalizeEntityAddress(rel.to);
-          const targetSchema = findSchemaByEntityType(schemas, targetQualifiedEntityType);
-          entitiesInTree.add(targetSchema?.entity_type || targetAddress.entity_type);
-        });
-      }
-      
-      return entitiesInTree;
-    };
-
-    const entitiesInTree = getEntitiesInPolicyTree();
-
-    // Helper to find incoming relations
-    const getIncomingRelations = (entity_type: string) => {
-      const incomingRels: Array<{ name: string; sourceEntity: string }> = [];
-      
-      schemas.forEach((otherSchema) => {
-        Object.values(otherSchema.relations).forEach((relation) => {
-          if (relation.target_entity === entity_type) {
-            // Only include if the source entity is in the policy tree
-            if (entitiesInTree.has(otherSchema.entity_type)) {
-              incomingRels.push({
-                name: relation.name,
-                sourceEntity: otherSchema.entity_type,
-              });
-            }
-          }
-        });
-      });
-      
-      return incomingRels;
-    };
+    const entitiesInTree = getEntitiesInPolicyTree(ruleConfigs, selectedRule, schemas);
 
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
@@ -545,49 +489,8 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       // - Nested rules should ONLY appear on TARGET entities (not starting entity)
       // - Example: If organization -> building via "My Org", building shows the switch
       
-      const nestedRules: any[] = [];
-      
-      // Find all incoming relations
-      const incomingRelations = getIncomingRelations(schema.entity_type);
-      
-      incomingRelations.forEach((incomingRel) => {
-        const selectedRuleSourceEntity = selectedRule
-          ? (findSchemaByEntityType(schemas, getRuleQualifiedEntityType(selectedRule))?.entity_type || selectedRule.entity_type)
-          : '';
-
-        if (selectedRule && selectedRuleSourceEntity === incomingRel.sourceEntity && selectedRule.relations) {
-          const ruleRelation = selectedRule.relations.find(
-            (r) => (findSchemaByEntityType(schemas, getRelationTargetQualifiedEntityType(r))?.entity_type || normalizeEntityAddress(r.to).entity_type).toLowerCase() === schema.entity_type.toLowerCase() && 
-                   r.via.toLowerCase() === incomingRel.name.toLowerCase()
-          );
-          
-          if (ruleRelation) {
-            nestedRules.push({
-              sourceEntity: incomingRel.sourceEntity,
-              target_entity: schema.entity_type,
-              relationName: incomingRel.name,
-              enabled: true,
-              actions: ruleRelation.actions || [],
-            });
-          } else {
-            nestedRules.push({
-              sourceEntity: incomingRel.sourceEntity,
-              target_entity: schema.entity_type,
-              relationName: incomingRel.name,
-              enabled: false,
-              actions: [],
-            });
-          }
-        } else {
-          nestedRules.push({
-            sourceEntity: incomingRel.sourceEntity,
-            target_entity: schema.entity_type,
-            relationName: incomingRel.name,
-            enabled: false,
-            actions: [],
-          });
-        }
-      });
+      const incomingRelations = getIncomingRelations(schemas, entitiesInTree, schema.entity_type);
+      const nestedRules = buildNestedRules(schemas, selectedRule, schema.entity_type, incomingRelations);
       
       newNodes.push({
         id: `schema-${schema.entity_type}`,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,13 +11,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,27 +25,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   PlusCircle,
   RefreshCw,
-  MoreVertical,
-  Eye,
-  Pencil,
-  Trash2,
   AlertTriangle,
   Loader2,
   ScrollText,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { listPolicies, deletePolicy } from '@/lib/authz-api';
-import type { DateFilterValue, Policy, PolicyFilters, PolicySortField } from '@/types/authz';
+import type { Policy, PolicyFilters, PolicySortField } from '@/types/authz';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { SortableTableHead } from '@/components/shared/SortableTableHead';
@@ -61,24 +40,24 @@ import {
   defaultPolicyDateFilterValue,
 } from '@/components/shared/filters/PolicyFilterBar';
 import type { GenericDateFilterValue } from '@/components/shared/filters/GenericFilterBar';
+import { toApiDateFilter } from '@/lib/date-filter';
+import { useBookmarkList } from '@/hooks/useBookmarkList';
+import { BookmarkPaginationFooter } from '@/components/shared/BookmarkPaginationFooter';
+import { AuthzRowActionsMenu } from '@/components/authz/AuthzRowActionsMenu';
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig { column: PolicySortField; direction: SortDirection }
 
 const DATE_COLUMNS = new Set<PolicySortField>(['created_at', 'updated_at']);
 
+const getPolicyListErrorMessage = (err: unknown) =>
+  err instanceof Error ? err.message : 'Failed to load policies';
+
 export default function PoliciesPage() {
   const router = useRouter();
 
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'created_at', direction: 'desc' });
   const [pageSize, setPageSize] = useState<string>('25');
-  const [bookmarkStack, setBookmarkStack] = useState<(string | null)[]>([null]);
-  const [currentPageIndex, setCurrentPageIndex] = useState(0);
-  const [nextTokenFromApi, setNextTokenFromApi] = useState<string | null>(null);
-  const isInitialLoad = useRef(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [idFilter, setIdFilter] = useState('');
   const [descriptionFilter, setDescriptionFilter] = useState('');
@@ -88,20 +67,6 @@ export default function PoliciesPage() {
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const toApiDateFilter = useCallback((filter: GenericDateFilterValue): DateFilterValue | undefined => {
-    if (!filter.date) return undefined;
-    const date = filter.date instanceof Date ? filter.date : new Date(filter.date);
-    if (Number.isNaN(date.getTime())) return undefined;
-
-    const operator = filter.operator === 'before'
-      ? 'before'
-      : filter.operator === 'equal'
-        ? 'equal'
-        : 'after';
-
-    return { operator, value: date.toISOString() };
-  }, []);
 
   const filters = useMemo<PolicyFilters>(() => {
     const nextFilters: PolicyFilters = {};
@@ -123,46 +88,44 @@ export default function PoliciesPage() {
     descriptionFilter,
     idFilter,
     searchTerm,
-    toApiDateFilter,
     updatedAtFilter,
   ]);
 
   const hasActiveFilters = Object.keys(filters).length > 0;
 
-  const loadPolicies = useCallback(async (bookmark: string | null) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await listPolicies({
-        pageSize: Number(pageSize),
-        bookmark: bookmark ?? undefined,
-        sortBy: sortConfig.column,
-        sortMode: sortConfig.direction,
-        ...(hasActiveFilters ? { filters } : {}),
-      });
-      setPolicies(data.list);
-      setNextTokenFromApi(data.next || null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load policies');
-      setPolicies([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filters, hasActiveFilters, pageSize, sortConfig]);
+  const loadPolicyPage = useCallback(({ pageSize, bookmark, sortConfig, filters }: {
+    pageSize: number;
+    bookmark?: string;
+    sortConfig: SortConfig;
+    filters?: PolicyFilters;
+  }) => listPolicies({
+    pageSize,
+    bookmark,
+    sortBy: sortConfig.column,
+    sortMode: sortConfig.direction,
+    ...(filters ? { filters } : {}),
+  }), []);
 
-  useEffect(() => {
-    if (!isInitialLoad.current) {
-      setCurrentPageIndex(0);
-      setBookmarkStack([null]);
-    }
-  }, [filters, pageSize, sortConfig]);
-
-  useEffect(() => {
-    if (bookmarkStack[currentPageIndex] !== undefined) {
-      loadPolicies(bookmarkStack[currentPageIndex]);
-      if (isInitialLoad.current) isInitialLoad.current = false;
-    }
-  }, [bookmarkStack, currentPageIndex, loadPolicies]);
+  const {
+    items: policies,
+    isLoading,
+    error,
+    setError,
+    currentPageIndex,
+    bookmarkStack,
+    nextTokenFromApi,
+    handleNextPage,
+    handlePreviousPage,
+    handleRefresh,
+    replaceItems: replacePolicies,
+  } = useBookmarkList<Policy, SortConfig, PolicyFilters>({
+    pageSize,
+    sortConfig,
+    filters,
+    hasActiveFilters,
+    loadPage: loadPolicyPage,
+    getErrorMessage: getPolicyListErrorMessage,
+  });
 
   const requestSort = (column: PolicySortField) => {
     setSortConfig(prev =>
@@ -172,32 +135,12 @@ export default function PoliciesPage() {
     );
   };
 
-  const handleNextPage = () => {
-    if (isLoading) return;
-    const nextIndex = currentPageIndex + 1;
-    if (nextIndex < bookmarkStack.length) {
-      setCurrentPageIndex(nextIndex);
-    } else if (nextTokenFromApi) {
-      setBookmarkStack(prev => [...prev.slice(0, currentPageIndex + 1), nextTokenFromApi]);
-      setCurrentPageIndex(currentPageIndex + 1);
-    }
-  };
-
-  const handlePreviousPage = () => {
-    if (isLoading || currentPageIndex === 0) return;
-    setCurrentPageIndex(prev => prev - 1);
-  };
-
-  const handleRefresh = () => {
-    loadPolicies(bookmarkStack[currentPageIndex]);
-  };
-
   const handleDelete = async () => {
     if (!policyToDelete) return;
     setIsDeleting(true);
     try {
       await deletePolicy(policyToDelete.id);
-      setPolicies(prev => prev.filter(p => p.id !== policyToDelete.id));
+      replacePolicies(prev => prev.filter(p => p.id !== policyToDelete.id));
       setIsDeleteDialogOpen(false);
       setPolicyToDelete(null);
     } catch (err: any) {
@@ -346,67 +289,28 @@ export default function PoliciesPage() {
                       <DateDisplay date={policy.updated_at} showRelative className="items-center" />
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                            <span className="sr-only">Policy Actions</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => router.push(`/authz/policies/details?policy_id=${policy.id}`)}
-                          >
-                            <Eye className="mr-2 h-4 w-4" /> View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => router.push(`/authz/policies/edit?policy_id=${policy.id}`)}
-                          >
-                            <Pencil className="mr-2 h-4 w-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => { setPolicyToDelete(policy); setIsDeleteDialogOpen(true); }}
-                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <AuthzRowActionsMenu
+                        label="Policy Actions"
+                        onView={() => router.push(`/authz/policies/details?policy_id=${policy.id}`)}
+                        onEdit={() => router.push(`/authz/policies/edit?policy_id=${policy.id}`)}
+                        onDelete={() => { setPolicyToDelete(policy); setIsDeleteDialogOpen(true); }}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="policyPageSize" className="text-sm text-muted-foreground whitespace-nowrap">Page size:</Label>
-              <Select value={pageSize} onValueChange={setPageSize} disabled={isLoading}>
-                <SelectTrigger id="policyPageSize" className="w-[80px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={handlePreviousPage} disabled={isLoading || currentPageIndex === 0}>
-                <ChevronLeft className="mr-1 h-4 w-4" /> Previous
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={handleNextPage}
-                disabled={isLoading || !(currentPageIndex < bookmarkStack.length - 1 || nextTokenFromApi)}
-              >
-                Next <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <BookmarkPaginationFooter
+            pageSizeId="policyPageSize"
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            isLoading={isLoading}
+            currentPageIndex={currentPageIndex}
+            canGoNext={currentPageIndex < bookmarkStack.length - 1 || Boolean(nextTokenFromApi)}
+            onPreviousPage={handlePreviousPage}
+            onNextPage={handleNextPage}
+          />
         </div>
       )}
 
