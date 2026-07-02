@@ -95,11 +95,6 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
 
 const getQualifiedEntityType = (schema: SchemaDefinition) => `${schema.schema_name}.${schema.entity_type}`;
 
-const getBaseEntityType = (entity_type: string) => {
-  const parts = entity_type.split('.');
-  return parts[parts.length - 1] || entity_type;
-};
-
 const matchesSchemaEntityType = (value: string, schema: SchemaDefinition) => {
   return value === schema.entity_type || value === getQualifiedEntityType(schema);
 };
@@ -527,7 +522,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
           const edgeId = `schema-rel-${schema.entity_type}-${relation.target_entity}-${relation.name}`;
           
           // All edges are simple smoothstep edges - nested rule config is in the source node
-          const edgeKey = `${schema.entity_type}->${relation.target_entity}:${relation.name.toLowerCase()}`;
           const isRuleEdge = edgeIsInRulePath(
             schema.entity_type,
             relation.target_entity,
