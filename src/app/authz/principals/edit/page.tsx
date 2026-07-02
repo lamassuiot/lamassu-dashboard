@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, Loader2, AlertCircle, Info, Plus, Trash2, ChevronsUpDown } from 'lucide-react';
 import { getPrincipal, updatePrincipal } from '@/lib/authz-api';
-import { useAuth } from '@/contexts/AuthContext';
+
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
@@ -45,7 +45,7 @@ import type {
 function EditPrincipalContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+
   const principal_id = searchParams.get('principal_id');
 
   const [loading, setLoading] = useState(true);
@@ -76,22 +76,17 @@ function EditPrincipalContent() {
   const [subjectAttributeMappings, setSubjectAttributeMappings] = useState<SubjectAttributeRow[]>([]);
 
   const loadCAs = useCallback(async () => {
-    if (!user?.access_token) {
-      setErrorCAs('User not authenticated. Please log in.');
-      return;
-    }
-
     try {
       setIsLoadingCAs(true);
       setErrorCAs(null);
-      const fetchedCAs = await fetchAndProcessCAs(user.access_token);
+      const fetchedCAs = await fetchAndProcessCAs();
       setAllCAs(fetchedCAs);
     } catch (err: any) {
       setErrorCAs(err.message || 'Failed to load Certification Authorities');
     } finally {
       setIsLoadingCAs(false);
     }
-  }, [user?.access_token]);
+  }, []);
 
   const handleOpenCaSelector = async () => {
     if (allCAs.length === 0) await loadCAs();

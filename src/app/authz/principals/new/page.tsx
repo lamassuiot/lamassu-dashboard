@@ -28,7 +28,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { createPrincipal } from '@/lib/authz-api';
-import { useAuth } from '@/contexts/AuthContext';
+
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
@@ -74,7 +74,7 @@ const PRINCIPAL_TYPE_LABEL: Record<SupportedPrincipalType, string> = {
 
 export default function NewPrincipalPage() {
   const router = useRouter();
-  const { user } = useAuth();
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,22 +108,17 @@ export default function NewPrincipalPage() {
   }, []);
 
   const loadCAs = useCallback(async () => {
-    if (!user?.access_token) {
-      setErrorCAs('User not authenticated. Please log in.');
-      return;
-    }
-
     try {
       setIsLoadingCAs(true);
       setErrorCAs(null);
-      const fetchedCAs = await fetchAndProcessCAs(user.access_token);
+      const fetchedCAs = await fetchAndProcessCAs();
       setAllCAs(fetchedCAs);
     } catch (err: any) {
       setErrorCAs(err.message || 'Failed to load Certification Authorities');
     } finally {
       setIsLoadingCAs(false);
     }
-  }, [user?.access_token]);
+  }, []);
 
   const handleOpenCaSelector = async () => {
     if (allCAs.length === 0) {

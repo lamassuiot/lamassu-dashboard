@@ -412,7 +412,10 @@ function ActionSelector({
             disabled ? 'cursor-not-allowed' : 'cursor-pointer',
             isSelected ? 'text-foreground' : 'text-muted-foreground',
           )}
+          role="button"
+          tabIndex={disabled ? -1 : 0}
           onClick={() => !disabled && onToggle(action)}
+          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !disabled && onToggle(action)}
         >
           {action}
         </span>
@@ -478,6 +481,7 @@ function TagInput({ values, onAdd, onRemove, placeholder, className }: TagInputP
         className
       )}
       onClick={() => inputRef.current?.focus()}
+      onKeyDown={() => inputRef.current?.focus()}
     >
       {values.map((v) => (
         <span
@@ -1187,7 +1191,10 @@ function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, 
               />
               <span
                 className="font-mono text-xs cursor-pointer select-none text-foreground"
+                role="button"
+                tabIndex={0}
                 onClick={() => onChange({ ...rule, actions: isWildcard ? [] : ['*'] })}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onChange({ ...rule, actions: isWildcard ? [] : ['*'] })}
               >
                 *
               </span>
@@ -1216,7 +1223,10 @@ function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, 
                           <div className="min-w-0">
                             <span
                               className="block font-mono text-xs cursor-pointer select-none text-muted-foreground"
+                              role="button"
+                              tabIndex={0}
                               onClick={() => toggleAction(route.action)}
+                              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleAction(route.action)}
                               title={`${route.methods.join(', ')} ${route.path}`}
                             >
                               {route.action}

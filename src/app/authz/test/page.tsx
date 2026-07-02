@@ -94,10 +94,10 @@ export default function AuthorizationTestPage() {
   };
 
   const getSchemaOptionsForNamespace = (namespace: string) =>
-    Array.from(new Set(schemas.filter((s) => (s.namespace || '').trim() === namespace).map((s) => s.schema_name))).sort();
+    Array.from(new Set(schemas.filter((s) => (s.namespace || '').trim() === namespace).map((s) => s.schema_name))).sort((a, b) => a.localeCompare(b));
 
   const getEntityTypeOptions = (namespace: string, schema_name: string) =>
-    schemas.filter((s) => (s.namespace || '').trim() === namespace && s.schema_name === schema_name).map((s) => s.entity_type).sort();
+    schemas.filter((s) => (s.namespace || '').trim() === namespace && s.schema_name === schema_name).map((s) => s.entity_type).sort((a, b) => a.localeCompare(b));
 
   const getAvailableActions = (namespace: string, schema_name: string, entity_type: string): string[] => {
     const schema = schemas.find((s) => (s.namespace || '').trim() === namespace && s.schema_name === schema_name && s.entity_type === entity_type);
@@ -105,7 +105,7 @@ export default function AuthorizationTestPage() {
     return [...(schema.atomic_actions || []), ...(schema.global_actions || [])];
   };
 
-  const allNamespaces = Array.from(new Set(schemas.map((s) => (s.namespace || '').trim()).filter(Boolean))).sort();
+  const allNamespaces = Array.from(new Set(schemas.map((s) => (s.namespace || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
   useEffect(() => { loadData(); }, []);
 

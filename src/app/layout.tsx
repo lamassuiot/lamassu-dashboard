@@ -11,7 +11,7 @@ import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { matchAndGetGlobalCapabilities, getPrincipal } from '@/lib/authz-api';
 import type { Principal } from '@/types/authz';
 import {
@@ -282,7 +282,6 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);

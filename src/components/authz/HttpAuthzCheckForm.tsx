@@ -170,7 +170,7 @@ function KeyValueRows({
           />
           <Input
             value={row.value}
-            placeholder={index === 0 ? 'value' : 'value'}
+            placeholder="value"
             onChange={(event) => onChange(updateKeyValueRow(rows, row.id, 'value', event.target.value))}
             className="font-mono text-sm"
           />
