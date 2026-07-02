@@ -24,8 +24,8 @@ import { SplitPanelLayout } from '@/components/shared/SplitPanelLayout';
 
 // This is the structure the UI component expects.
 export interface AlertEvent {
-  id: string; // Will be mapped from event_types
-  type: string; // Will be mapped from event_types
+  id: string; // Will be mapped from event_type
+  type: string; // Will be mapped from event_type
   lastSeen: string; // Will be mapped from seen_at
   eventCounter: number; // Will be mapped from counter
   activeSubscriptions: { id: string, display: string }[]; // Updated to include subscription ID
@@ -237,11 +237,11 @@ export default function AlertsPage() {
       }
 
       const uiEvents = apiEventsResponse.list.map((apiAlert): AlertEvent => ({
-        id: apiAlert.event_types,
-        type: apiAlert.event_types,
+        id: apiAlert.event_type,
+        type: apiAlert.event_type,
         lastSeen: apiAlert.seen_at,
         eventCounter: apiAlert.counter,
-        activeSubscriptions: subscriptionsMap.get(apiAlert.event_types) || [],
+        activeSubscriptions: subscriptionsMap.get(apiAlert.event_type) || [],
         payload: apiAlert.event,
       }));
 

@@ -21,7 +21,7 @@ describe('alerts-api', () => {
     it('should fetch latest alerts successfully', async () => {
       const mockAlerts: ApiAlertEvent[] = [
         {
-          event_types: 'certificate.expired',
+          event_type: 'certificate.expired',
           event: {
             specversion: '1.0',
             id: 'alert-1',
@@ -47,7 +47,7 @@ describe('alerts-api', () => {
 
       expect(result).toEqual(mockResponse)
       expect(result.list).toHaveLength(1)
-      expect(result.list[0].event_types).toBe('certificate.expired')
+      expect(result.list[0].event_type).toBe('certificate.expired')
     })
 
     it('should handle fetch alerts error', async () => {

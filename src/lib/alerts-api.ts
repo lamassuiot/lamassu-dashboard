@@ -16,7 +16,7 @@ export interface ApiAlertEventData {
 }
 
 export interface ApiAlertEvent {
-    event_types: string;
+    event_type: string;
     event: ApiAlertEventData;
     seen_at: string;
     counter: number;
@@ -68,10 +68,11 @@ export interface SubscriptionPayload {
 }
 
 
-export async function fetchLatestAlerts(): Promise<ApiAlertEvent[]> {
-  const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/events/latest`);
-  const data = await handleApiError<{ list: ApiAlertEvent[] }>(response, 'Failed to fetch alerts');
-  return data?.list ?? [];
+export async function fetchLatestAlerts(_token: string | undefined, params?: URLSearchParams): Promise<ApiPaginatedResponse<ApiAlertEvent>> {
+  const url = `${get_ALERTS_API_BASE_URL()}/events/latest${params ? `?${params}` : ''}`;
+  const response = await apiFetch(url);
+  const data = await handleApiError<ApiPaginatedResponse<ApiAlertEvent>>(response, 'Failed to fetch alerts');
+  return data ?? { list: [], next: null };
 }
 
 export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
