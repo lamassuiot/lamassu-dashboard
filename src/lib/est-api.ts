@@ -1,8 +1,7 @@
 'use client';
 
-import { get_EST_API_BASE_URL } from './api-domains';
+import { get_EST_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
-import { getStoredAccessToken } from './auth-session';
 
 /**
  * Fetches CA certificates from the EST endpoint for a given RA.
@@ -16,28 +15,12 @@ export async function fetchEstCaCerts(
 ): Promise<{ data: ArrayBuffer | string, contentType: string }> {
     const url = `${get_EST_API_BASE_URL()}/${raId}/cacerts`;
 
-    const headers: HeadersInit = {
-        'Accept': `application/${format}`,
-    };
-    const accessToken = getStoredAccessToken();
-
-    if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-
-    const response = await apiFetch(url, { auth: false, headers });
+    const response = await apiFetch(url, {
+        headers: { 'Accept': `application/${format}` },
+    });
 
     if (!response.ok) {
-        // Can't use handleApiError because it expects JSON, and this endpoint might not return it on error.
-        let errorJson;
-        let errorMessage = `Failed to fetch EST CA certs. Server responded with status ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `EST CA certs fetch failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for EST CA certs:", e);
-        }
-        throw new Error(errorMessage);
+        await handleApiError(response, 'Failed to fetch EST CA certs');
     }
 
     const contentType = response.headers.get('content-type') || `application/${format}`;

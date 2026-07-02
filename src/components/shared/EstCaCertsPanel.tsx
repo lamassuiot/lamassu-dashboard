@@ -9,6 +9,7 @@ import { CodeBlock } from '@/components/shared/CodeBlock';
 import { fetchEstCaCerts } from '@/lib/est-api';
 import { get_EST_API_BASE_URL } from '@/lib/api-domains';
 import { cn } from '@/lib/utils';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, FileText, Loader2 } from 'lucide-react';
 
 interface ApiRaItem {

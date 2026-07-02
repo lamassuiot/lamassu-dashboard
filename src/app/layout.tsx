@@ -11,7 +11,9 @@ import Script from 'next/script';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { matchAndGetGlobalCapabilities, getPrincipal } from '@/lib/authz-api';
+import type { Principal } from '@/types/authz';
 import {
   SidebarProvider,
   Sidebar,
@@ -30,7 +32,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Landmark, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -51,12 +53,9 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { BackendStatusDialog } from '@/components/shared/BackendStatusDialog';
 import { VersionInfoDialog } from '@/components/shared/VersionInfoDialog';
@@ -68,12 +67,17 @@ import { cn } from "@/lib/utils";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
+type DecodedClaims = Record<string, unknown>;
 
-interface DecodedAccessToken {
-  realm_access?: {
-    roles?: string[];
-  };
-}
+const decodeTokenClaims = (token?: string): DecodedClaims => {
+  if (!token) return {};
+
+  try {
+    return jwtDecode<DecodedClaims>(token);
+  } catch {
+    return {};
+  }
+};
 
 const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'certificates': "Certificates",
@@ -96,6 +100,10 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'job-manager': "Job Manager",
   'jobs': "Jobs",
   'workflows': "Workflows",
+  'authz': "Authorization",
+  'principals': "Principals",
+  'policies': "Policies",
+  'test': "Authorization Test",
 };
 
 interface NavItem {
@@ -103,6 +111,8 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   devOnly?: boolean;
+  /** If set, the item is only shown when the user has "ui" in global_actions for this capability key (e.g. "pki.ca.ca_certificate") */
+  uiAuthzCapabilities?: string;
 }
 
 interface NavGroup {
@@ -116,24 +126,24 @@ const navigationConfig: NavGroup[] = [
   {
     label: 'KMS',
     items: [
-      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false },
+      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false, uiAuthzCapabilities: 'pki.kms.kms_key' },
       { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
     ],
   },
   {
     label: 'PKI',
     items: [
-      { href: '/certificates', label: 'Certificates', icon: FileText },
-      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark },
-      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon },
-      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck },
+      { href: '/certificates', label: 'Certificates', icon: FileText, uiAuthzCapabilities: 'pki.ca.certificate' },
+      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark, uiAuthzCapabilities: 'pki.ca.ca_certificate' },
+      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, uiAuthzCapabilities: 'pki.ca.issuance_profile' },
+      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck, uiAuthzCapabilities: 'pki.dmsmanager.dms' },
     ],
   },
   {
     label: 'IoT',
     items: [
-      { href: '/devices', label: 'Devices', icon: Router },
-      { href: '/device-groups', label: 'Device Groups', icon: Layers },
+      { href: '/devices', label: 'Devices', icon: Router, uiAuthzCapabilities: 'pki.devicemanager.device' },
+      { href: '/device-groups', label: 'Device Groups', icon: Layers, uiAuthzCapabilities: 'pki.devicemanager.device_group' },
       { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
     ],
   },
@@ -145,8 +155,16 @@ const navigationConfig: NavGroup[] = [
     ],
   },
   {
+    label: 'AUTHZ & SECURITY',
+    items: [
+      { href: '/authz/principals', label: 'Principals', icon: UserCheck },
+      { href: '/authz/policies', label: 'Policies', icon: Lock },
+      { href: '/authz/test', label: 'Authorization Test', icon: TestTube2 },
+    ],
+  },
+  {
     label: 'NOTIFICATIONS',
-    items: [{ href: '/alerts', label: 'Alerts', icon: Info }],
+    items: [{ href: '/alerts', label: 'Alerts', icon: Info, uiAuthzCapabilities: 'pki.alerts.subscription' }],
   },
   {
     label: 'TOOLS',
@@ -264,22 +282,112 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const { user, logout } = useAuth();
   const { mode: identifierMode, toggleMode: toggleIdentifierMode, displayTime, toggleDisplayTime } = useIdentifierDisplay();
   const pathname = usePathname();
+  const router = useRouter();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [globalCapabilities, setGlobalCapabilities] = useState<Record<string, string[]> | null>(null);
+  const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false);
+  const [matchedPrincipalIds, setMatchedPrincipalIds] = useState<string[]>([]);
+  const [matchedPrincipals, setMatchedPrincipals] = useState<Principal[] | null>(null);
 
-  let userRoles: string[] = [];
-  if (user?.access_token) {
-    try {
-      const decodedToken = jwtDecode<DecodedAccessToken>(user.access_token);
-      if (decodedToken.realm_access && Array.isArray(decodedToken.realm_access.roles)) {
-        userRoles = decodedToken.realm_access.roles;
-      }
-    } catch (error) {
-      console.error("Error decoding access token:", error);
+  useEffect(() => {
+    if (!user?.access_token) {
+      setGlobalCapabilities(null);
+      setMatchedPrincipalIds([]);
+      setCapabilitiesLoaded(true);
+      return;
     }
-  }
+
+    matchAndGetGlobalCapabilities({ auth_type: 'oidc', auth_material: user.access_token })
+      .then(res => {
+        setGlobalCapabilities(res.global_actions);
+        setMatchedPrincipalIds(res.matched_principals ?? []);
+      })
+      .catch(() => {
+        setGlobalCapabilities(null);
+        setMatchedPrincipalIds([]);
+      })
+      .finally(() => setCapabilitiesLoaded(true));
+  }, [user?.access_token]);
+
+  // Fetch principal details when the profile modal opens
+  useEffect(() => {
+    if (!isProfileModalOpen || matchedPrincipalIds.length === 0) {
+      setMatchedPrincipals(matchedPrincipalIds.length === 0 ? [] : null);
+      return;
+    }
+    setMatchedPrincipals(null);
+    Promise.all(matchedPrincipalIds.map(id => getPrincipal(id).catch(() => null)))
+      .then(results => setMatchedPrincipals(results.filter((p): p is Principal => p !== null)));
+  }, [isProfileModalOpen, matchedPrincipalIds]);
+
+  const isNavItemVisible = useCallback((item: NavItem): boolean => {
+    if (!item.uiAuthzCapabilities) return true;
+    if (globalCapabilities === null) return true;
+    return (globalCapabilities[item.uiAuthzCapabilities] ?? []).includes('ui');
+  }, [globalCapabilities]);
+
+  // Redirect to home if the current route requires a capability the user lacks
+  useEffect(() => {
+    if (globalCapabilities === null) return;
+    const allItems = navigationConfig.flatMap(g => g.items);
+    const currentItem = allItems.find(item =>
+      item.href !== '/' && pathname.startsWith(item.href)
+    );
+    if (currentItem && !isNavItemVisible(currentItem)) {
+      router.replace('/');
+    }
+  }, [globalCapabilities, isNavItemVisible, pathname, router]);
+
+  const profileClaims = (user?.profile ?? {}) as Record<string, unknown>;
+  const idTokenClaims = decodeTokenClaims(user?.id_token);
+  const accessTokenClaims = decodeTokenClaims(user?.access_token);
+  const allClaims = { ...accessTokenClaims, ...idTokenClaims, ...profileClaims };
+  const nowSecs = Math.floor(Date.now() / 1000);
+  const tokenExp = typeof profileClaims.exp === 'number' ? profileClaims.exp : undefined;
+  const tokenIat = typeof profileClaims.iat === 'number' ? profileClaims.iat : undefined;
+  const sessionValid = tokenExp !== undefined ? nowSecs < tokenExp : true;
+  const expiresInSecs = tokenExp !== undefined ? Math.max(0, tokenExp - nowSecs) : null;
+  const expiresInMins = expiresInSecs !== null ? Math.floor(expiresInSecs / 60) : null;
+  const formatTs = (ts: number) =>
+    new Date(ts * 1000).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+  const claimLabels: Record<string, string> = {
+    sub: 'Subject', iss: 'Issuer', aud: 'Audience', iat: 'Issued At',
+    exp: 'Expires', auth_time: 'Auth Time', name: 'Name', email: 'Email',
+    preferred_username: 'Username', given_name: 'Given Name',
+    family_name: 'Family Name', email_verified: 'Email Verified',
+  };
+  const tsClaimFields = new Set(['iat', 'exp', 'auth_time']);
+  const primaryClaimKeys = ['name', 'email', 'preferred_username', 'given_name', 'family_name', 'sub', 'iss', 'aud', 'iat', 'exp', 'auth_time'];
+  const extraClaimKeys = Object.keys(allClaims).filter(k => !primaryClaimKeys.includes(k));
+  const renderClaimValue = (key: string, val: unknown): string => {
+    if (tsClaimFields.has(key) && typeof val === 'number') return formatTs(val);
+    if (val === null || val === undefined) return '';
+    if (Array.isArray(val)) {
+      return val.every(item => ['string', 'number', 'boolean'].includes(typeof item))
+        ? val.join(', ')
+        : JSON.stringify(val);
+    }
+    if (typeof val === 'object') return JSON.stringify(val);
+    return String(val);
+  };
+  const handleCopyToken = async () => {
+    if (!user?.access_token) return;
+
+    try {
+      await navigator.clipboard.writeText(user.access_token);
+      setTokenCopied(true);
+      window.setTimeout(() => setTokenCopied(false), 1500);
+    } catch {
+      setTokenCopied(false);
+    }
+  };
 
   const handleRunWizard = () => {
     if (typeof document !== 'undefined') {
@@ -290,6 +398,10 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       window.location.reload();
     }
   };
+
+  if (!capabilitiesLoaded) {
+    return <LoadingState />;
+  }
 
   return (
     <TooltipProvider>
@@ -447,7 +559,8 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                     }
 
                     const filteredItems = group.items.filter(item =>
-                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS))
+                      !(item.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) &&
+                      isNavItemVisible(item)
                     );
 
                     if (filteredItems.length === 0) {
@@ -499,39 +612,158 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       </div>
 
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent showCloseButton={false} className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>User Profile & Token Claims</DialogTitle>
-            <DialogDescription>
-              This is the decoded information from your ID and Access tokens.
-            </DialogDescription>
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle>User Profile & Token Claims</DialogTitle>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleCopyToken}
+                disabled={!user?.access_token}
+              >
+                {tokenCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                {tokenCopied ? 'Copied' : 'Copy token'}
+              </Button>
+            </div>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-4">
-            <div>
-              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Assigned Roles</h4>
-              <div className="flex flex-wrap gap-2">
-                {userRoles.length > 0 ? (
-                  userRoles.map(role => <Badge key={role} variant="secondary">{role}</Badge>)
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">No roles found in access token.</p>
+
+          <div className="space-y-4 py-1">
+            {/* Identity */}
+            <div className="flex items-center gap-3">
+              {user?.profile.picture && !avatarError ? (
+                <img
+                  src={user.profile.picture}
+                  alt={user.profile.name || ''}
+                  referrerPolicy="no-referrer"
+                  className="h-12 w-12 rounded-full object-cover ring-2 ring-border shrink-0"
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center ring-2 ring-border shrink-0">
+                  <User className="h-6 w-6 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm truncate">
+                    {user?.profile.name || profileClaims['preferred_username'] as string || user?.profile.email}
+                  </span>
+                  <Badge
+                    variant={sessionValid ? 'default' : 'destructive'}
+                    className="text-[10px] px-1.5 py-0 h-4 shrink-0"
+                  >
+                    {sessionValid ? 'Active' : 'Expired'}
+                  </Badge>
+                </div>
+                {user?.profile.email && (
+                  <p className="text-xs text-muted-foreground truncate">{user.profile.email}</p>
                 )}
+                <p className="text-[10px] text-muted-foreground/50 font-mono truncate mt-0.5">{user?.profile.sub}</p>
               </div>
             </div>
+
             <Separator />
+
+            {/* Session */}
+            {(tokenIat || tokenExp) && (
+              <div>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Session</p>
+                <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-xs">
+                  {tokenIat && (
+                    <>
+                      <span className="text-muted-foreground">Issued</span>
+                      <span className="font-mono">{formatTs(tokenIat)}</span>
+                    </>
+                  )}
+                  {tokenExp && (
+                    <>
+                      <span className="text-muted-foreground">Expires</span>
+                      <span className={cn(
+                        'font-mono',
+                        !sessionValid
+                          ? 'text-destructive'
+                          : expiresInMins !== null && expiresInMins < 10
+                            ? 'text-yellow-500 dark:text-yellow-400'
+                            : '',
+                      )}>
+                        {sessionValid && expiresInSecs !== null && expiresInSecs > 0
+                          ? `in ${expiresInMins}m ${expiresInSecs % 60}s  (${formatTs(tokenExp)})`
+                          : formatTs(tokenExp)}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Matched Principals */}
             <div>
-              <h4 className="text-sm font-semibold text-muted-foreground mb-2">ID Token Claims</h4>
-              <ScrollArea className="h-60 w-full rounded-md border p-4 bg-muted/30">
-                <pre className="text-xs whitespace-pre-wrap break-all">
-                  {user ? JSON.stringify(user.profile, null, 2) : "No user profile data available."}
-                </pre>
-              </ScrollArea>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Matched Principals</p>
+              {matchedPrincipals === null ? (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Loading…</span>
+                </div>
+              ) : matchedPrincipals.length === 0 ? (
+                <span className="text-xs text-muted-foreground italic">No principals matched</span>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {matchedPrincipals.map(p => (
+                    <Badge key={p.id} variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
+                      <span className="text-xs font-normal leading-tight">{p.name || p.id}</span>
+                      {p.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{p.id}</span>}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
+
+            <Separator />
+
+            {/* Claims table */}
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Primary Claims</p>
+              <div className="rounded-md border divide-y">
+                {primaryClaimKeys
+                  .filter(k => k in allClaims)
+                  .map(key => (
+                    <div key={key} className="flex items-baseline px-3 py-1.5 gap-3 text-xs">
+                      <span className="text-muted-foreground w-28 shrink-0">{claimLabels[key] || key}</span>
+                      <span className="font-mono break-all">{renderClaimValue(key, allClaims[key])}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {extraClaimKeys.length > 0 && (
+              <>
+                <Separator />
+
+                {/* Additional claims */}
+                <div>
+                  <details className="group">
+                    <summary className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none hover:text-foreground list-none py-1">
+                      <span className="inline-block transition-transform group-open:rotate-90">▶</span>
+                      Additional Claims ({extraClaimKeys.length})
+                    </summary>
+                    <div className="rounded-md border divide-y mt-1.5">
+                      {extraClaimKeys.map(key => (
+                        <div key={key} className="flex items-baseline px-3 py-1.5 gap-3 text-xs">
+                          <span className="text-muted-foreground/70 w-28 shrink-0 font-mono">{key}</span>
+                          <span className="font-mono break-all">{renderClaimValue(key, allClaims[key])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              </>
+            )}
           </div>
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setIsProfileModalOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
+
         </DialogContent>
       </Dialog>
       <BackendStatusDialog isOpen={isStatusModalOpen} onOpenChange={setIsStatusModalOpen} />

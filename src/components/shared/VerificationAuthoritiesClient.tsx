@@ -21,7 +21,6 @@ import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { downloadFile } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { VaSettingsCard } from '@/components/shared/VaSettingsCard';
 
@@ -436,7 +435,7 @@ export function VerificationAuthoritiesClient() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid From</p>
-                          <DateDisplay date={latestCrl.valid_from} formatString={getDisplayDateFormat()} showRelative={false} className="mt-1 text-sm font-medium" />
+                          <DateDisplay date={latestCrl.valid_from} showRelative={false} className="mt-1 text-sm font-medium" />
                         </div>
                       </div>
                     </div>
@@ -445,7 +444,7 @@ export function VerificationAuthoritiesClient() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid Until</p>
-                          <DateDisplay date={latestCrl.valid_until} formatString={getDisplayDateFormat()} showRelative={false} className="mt-1 text-sm font-medium" />
+                          <DateDisplay date={latestCrl.valid_until} showRelative={false} className="mt-1 text-sm font-medium" />
                         </div>
                       </div>
                     </div>

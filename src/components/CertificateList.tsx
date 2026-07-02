@@ -17,7 +17,6 @@ import {
 import { sileo } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import type { CA } from '@/lib/ca-data';
 import { findCaById } from '@/lib/ca-data';
@@ -78,7 +77,6 @@ export function CertificateList({
   const [isOcspModalOpen, setIsOcspModalOpen] = useState(false);
   const [certForOcsp, setCertForOcsp] = useState<CertificateData | null>(null);
   const [issuerForOcsp, setIssuerForOcsp] = useState<CA | null>(null);
-
 
   const SortableHeader: React.FC<{ column: SortableCertColumn; title: string; className?: string; center?: boolean; dateColumn?: boolean }> = ({ column, title, className, center = false, dateColumn = false }) => {
     const isSorted = sortConfig?.column === column;
@@ -302,7 +300,7 @@ export function CertificateList({
                       {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
                         <DateDisplay
                           date={cert.revocationTimestamp}
-                          formatString={getDisplayDateFormat()}
+                         
                           showRelative={true}
                           className='items-center'
                         />

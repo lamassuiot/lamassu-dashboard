@@ -115,9 +115,7 @@ export async function deleteDeviceGroup(
     }
   );
 
-  if (!response.ok) {
-    await handleApiError(response, 'Failed to delete device group');
-  }
+  await handleApiError(response, 'Failed to delete device group');
 }
 
 /**
