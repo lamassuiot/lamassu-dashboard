@@ -7,26 +7,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Loader2, AlertCircle, Info, Plus, Trash2, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { getPrincipal, updatePrincipal } from '@/lib/authz-api';
 
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
-import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { SubjectAttributesEditor } from '@/components/authz/SubjectAttributesEditor';
+import { OidcClaimsEditor } from '@/components/authz/OidcClaimsEditor';
+import { X509ConfigEditor } from '@/components/authz/X509ConfigEditor';
 import {
   newSubjectAttributeRow,
   subjectAttributeRowsFromRecord,
@@ -325,223 +319,6 @@ function EditPrincipalContent() {
     }
   };
 
-  const renderOidcForm = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
-          Define claim conditions used to match the JWT of an incoming authentication request.
-        </p>
-        <Button type="button" variant="outline" size="sm" onClick={handleAddClaim} className="shrink-0" disabled={submitting}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Add Claim
-        </Button>
-      </div>
-
-      {claims.length === 0 && (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleAddClaim}
-          disabled={submitting}
-          className="h-auto w-full flex-col gap-2 border-dashed py-6"
-        >
-          <Plus className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Add your first claim condition</span>
-          <span className="text-xs text-muted-foreground">At least one claim is required to identify this principal</span>
-        </Button>
-      )}
-
-      <div className="rounded-lg border divide-y">
-        {claims.map((claim, index) => (
-          <div key={index} className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium">Claim condition {index + 1}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                onClick={() => handleRemoveClaim(index)}
-                disabled={submitting}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">
-                  Claim Name <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  placeholder="sub, email, groups"
-                  value={claim.claim}
-                  onChange={(e) => handleUpdateClaim(index, 'claim', e.target.value)}
-                  required
-                  disabled={submitting}
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-sm">Operator</Label>
-                <Select
-                  value={claim.operator}
-                  onValueChange={(value: 'equals' | 'contains' | 'matches') =>
-                    handleUpdateClaim(index, 'operator', value)
-                  }
-                  disabled={submitting}
-                >
-                  <SelectTrigger className="text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="equals">Equals</SelectItem>
-                    <SelectItem value="contains">Contains</SelectItem>
-                    <SelectItem value="matches">Matches (Regex)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-sm">
-                  Value <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  placeholder={claim.operator === 'matches' ? '^[a-z]+@example\\.com$' : 'Claim value'}
-                  value={claim.value}
-                  onChange={(e) => handleUpdateClaim(index, 'value', e.target.value)}
-                  required
-                  disabled={submitting}
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-
-            {claim.operator === 'matches' && (
-              <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Info className="h-3.5 w-3.5 shrink-0" />
-                Regex pattern. Ensure it is valid before saving.
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderX509Form = () => (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label className="text-sm">
-          Certification Authority <span className="text-destructive">*</span>
-        </Label>
-        <button
-          type="button"
-          onClick={handleOpenCaSelector}
-          disabled={submitting}
-          className="flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <span className={selectedCa ? 'text-foreground' : 'text-muted-foreground'}>
-            {selectedCa ? selectedCa.name : caTrustValue ? 'CA configured' : 'Select a Certification Authority...'}
-          </span>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        </button>
-
-        {selectedCa ? (
-          <CaVisualizerCard ca={selectedCa} allCryptoEngines={allCryptoEngines} className="shadow-none border-border" />
-        ) : caTrustValue ? (
-          <p className="truncate font-mono text-xs text-muted-foreground">{caTrustValue}</p>
-        ) : null}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="caTrustIdentityType" className="text-sm">
-            CA Identity Type <span className="text-destructive">*</span>
-          </Label>
-          <Select
-            value={caTrustIdentityType}
-            onValueChange={(value: X509CaTrustIdentityType) => setCaTrustIdentityType(value)}
-            disabled={submitting}
-          >
-            <SelectTrigger id="caTrustIdentityType">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="fingerprint">Fingerprint (SHA-256)</SelectItem>
-              <SelectItem value="authority_key_id">Authority Key Identifier (AKI)</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">How the trusted CA is identified for certificate matching.</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="matchMode" className="text-sm">Match Mode</Label>
-          <Select
-            value={matchMode}
-            onValueChange={(value: X509AuthConfig['match_mode']) => setMatchMode(value)}
-            disabled={submitting}
-          >
-            <SelectTrigger id="matchMode">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any_from_ca">Any from CA</SelectItem>
-              <SelectItem value="serial_and_ca">Serial Number + CA</SelectItem>
-              <SelectItem value="cn_and_ca">Common Name (CN) + CA</SelectItem>
-              <SelectItem value="subject_cn">Subject Common Name</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            {matchMode === 'any_from_ca' && 'Trust any certificate issued by the specified CA.'}
-            {matchMode === 'serial_and_ca' && 'Match a specific certificate by serial number and issuing CA.'}
-            {matchMode === 'cn_and_ca' && 'Match certificates by Common Name pattern. Wildcards such as *.example.com are supported.'}
-            {matchMode === 'subject_cn' && 'Match certificates by Subject Common Name.'}
-          </p>
-        </div>
-      </div>
-
-      {matchMode === 'serial_and_ca' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="serialNumber" className="text-sm">
-            Serial Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="serialNumber"
-            placeholder="1A2B3C4D5E6FF7A8B9C0D1E2F3A4B5C6D"
-            value={serialNumber}
-            onChange={(e) => setSerialNumber(e.target.value)}
-            required
-            disabled={submitting}
-            className="font-mono text-sm"
-          />
-          <p className="text-xs text-muted-foreground">Certificate serial number.</p>
-        </div>
-      )}
-
-      {(matchMode === 'cn_and_ca' || matchMode === 'subject_cn') && (
-        <div className="space-y-1.5">
-          <Label htmlFor="subjectCn" className="text-sm">
-            Subject Common Name (CN) <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="subjectCn"
-            placeholder="device-*.example.com"
-            value={subjectCn}
-            onChange={(e) => setSubjectCn(e.target.value)}
-            required
-            disabled={submitting}
-            className="font-mono text-sm"
-          />
-          <p className="text-xs text-muted-foreground">
-            Use <code className="rounded bg-muted px-1 py-0.5 text-xs">*</code> for wildcard matching, e.g.{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">*.sensors.example.com</code>
-          </p>
-        </div>
-      )}
-    </div>
-  );
 
   const applyWfxDevicePreset = () => {
     setMatchMode('subject_cn');
@@ -671,8 +448,33 @@ function EditPrincipalContent() {
               </div>
 
               <div className="space-y-4 border-t pt-4">
-                {type === 'oidc' && renderOidcForm()}
-                {type === 'x509' && renderX509Form()}
+                {type === 'oidc' && (
+                  <OidcClaimsEditor
+                    claims={claims}
+                    disabled={submitting}
+                    onAdd={handleAddClaim}
+                    onRemove={handleRemoveClaim}
+                    onUpdate={handleUpdateClaim}
+                  />
+                )}
+                {type === 'x509' && (
+                  <X509ConfigEditor
+                    isNew={false}
+                    selectedCa={selectedCa}
+                    caTrustValue={caTrustValue}
+                    caTrustIdentityType={caTrustIdentityType}
+                    setCaTrustIdentityType={setCaTrustIdentityType}
+                    matchMode={matchMode}
+                    setMatchMode={setMatchMode}
+                    serialNumber={serialNumber}
+                    setSerialNumber={setSerialNumber}
+                    subjectCn={subjectCn}
+                    setSubjectCn={setSubjectCn}
+                    allCryptoEngines={allCryptoEngines}
+                    onOpenCaSelector={handleOpenCaSelector}
+                    disabled={submitting}
+                  />
+                )}
               </div>
             </div>
           </div>
