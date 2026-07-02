@@ -1,6 +1,6 @@
 // Authorization & Security API Client
-import { apiFetch } from './api-client';
-import { get_AUTHZ_API_BASE_URL, handleApiError } from './api-domains';
+import { apiFetch } from '@/lib/api-client';
+import { get_AUTHZ_API_BASE_URL, handleApiError } from '@/lib/api-domains';
 import type {
   Policy,
   Principal,
@@ -244,6 +244,7 @@ export async function getSchemas(): Promise<SchemaDefinition[]> {
   });
   const data = await handleApiError(response, 'Failed to get schemas');
 
+  if (!data) return [];
   if (Array.isArray(data)) return data;
 
   const entityData = extractEntityData(data);
@@ -264,6 +265,7 @@ export async function getGroupedSchemas(): Promise<{ [namespace: string]: Schema
   });
   const data = await handleApiError(response, 'Failed to get schemas');
 
+  if (!data) return {};
   const entityData = extractEntityData(data);
   const grouped: { [namespace: string]: SchemaDefinition[] } = {};
   Object.entries(entityData).forEach(([namespace, namespaceSchemas]) => {
@@ -283,7 +285,7 @@ export async function getHTTPSchemas(): Promise<Record<string, HTTPSchemaDefinit
   });
   const data = await handleApiError(response, 'Failed to get schemas');
 
-  if (!data || Array.isArray(data)) return {};
+  if (!data || Array.isArray(data) || typeof data !== 'object') return {};
   return (data.http && typeof data.http === 'object' ? data.http : {}) as Record<string, HTTPSchemaDefinition>;
 }
 
@@ -365,24 +367,6 @@ export async function matchAndCheckHTTPAuthorization(request: MatchHTTPAuthzChec
     body: JSON.stringify(request),
   });
   return handleApiError(response, 'Failed to match and check HTTP authorization');
-}
-
-export async function getCapabilities(request: GlobalCapabilitiesRequest): Promise<GlobalCapabilitiesResponse> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/authz/capabilities/global`, {
-    method: 'POST',
-    headers: getAuthzContextHeaders(),
-    body: JSON.stringify(request),
-  });
-  return handleApiError(response, 'Failed to get capabilities');
-}
-
-export async function matchAndGetCapabilities(request: MatchGlobalCapabilitiesRequest): Promise<MatchGlobalCapabilitiesResponse> {
-  const response = await apiFetch(`${get_AUTHZ_API_BASE_URL()}/authz/match/capabilities/global`, {
-    method: 'POST',
-    headers: getAuthzContextHeaders(),
-    body: JSON.stringify(request),
-  });
-  return handleApiError(response, 'Failed to match and get capabilities');
 }
 
 // ===========================

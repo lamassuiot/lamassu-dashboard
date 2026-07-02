@@ -269,6 +269,7 @@ export default function NewPrincipalPage() {
       router.push('/authz/principals');
     } catch (err: any) {
       setError(err.message || 'Failed to create principal');
+    } finally {
       setSubmitting(false);
     }
   };

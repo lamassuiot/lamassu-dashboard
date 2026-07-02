@@ -182,7 +182,7 @@ function PrincipalDetailsContent() {
       setGrantDrawerOpen(false);
       setSelectedPolicyId('');
       setPolicyResults([]);
-      loadPrincipalDetails();
+      await loadPrincipalDetails();
     } catch (err: any) {
       setError(err.message || 'Failed to grant policy');
     } finally {
@@ -260,7 +260,7 @@ function PrincipalDetailsContent() {
       await revokePolicy(principal_id, selectedPolicyToRevoke.policy_id);
       setRevokeDialogOpen(false);
       setSelectedPolicyToRevoke(null);
-      loadPrincipalDetails();
+      await loadPrincipalDetails();
     } catch (err: any) {
       setError(err.message || 'Failed to revoke policy');
     } finally {

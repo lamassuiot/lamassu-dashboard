@@ -21,21 +21,15 @@ export function PolicyBuilderJSON({ rules, onChange, error }: PolicyBuilderJSONP
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(true);
   const [editorHeight, setEditorHeight] = useState(DEFAULT_HEIGHT);
-  const isSyncingFromProps = useRef(false);
   const dragStartY = useRef<number | null>(null);
   const dragStartHeight = useRef(DEFAULT_HEIGHT);
   const monacoTheme = useMonacoTheme();
 
   useEffect(() => {
-    isSyncingFromProps.current = true;
     setJsonText(JSON.stringify(rules, null, 2));
   }, [rules]);
 
   const handleChange = (value: string | undefined) => {
-    if (isSyncingFromProps.current) {
-      isSyncingFromProps.current = false;
-      return;
-    }
     const text = value ?? '';
     setJsonText(text);
     try {

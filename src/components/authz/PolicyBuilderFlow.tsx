@@ -280,7 +280,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
     
     // Skip if we're currently syncing FROM Flow TO JSON (prevent circular updates)
     if (isSyncingFromFlow.current) {
-      console.log('[PolicyBuilderFlow] Skipping useEffect - currently syncing from Flow');
       return;
     }
 
@@ -317,10 +316,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       };
 
       const entitiesInTree = getEntitiesInPolicyTree();
-      
-      console.log('[PolicyBuilderFlow] Entities in policy tree:', Array.from(entitiesInTree));
-      console.log('[PolicyBuilderFlow] Selected rule:', selectedRule);
-      
+
       // Helper to find incoming relations: if A->B exists in schema, B should show nested rule for A
       const getIncomingRelations = (entity_type: string) => {
         const incomingRels: Array<{ name: string; sourceEntity: string }> = [];
@@ -374,10 +370,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
             // Find all incoming relations (relations pointing TO this entity)
             const incomingRelations = getIncomingRelations(entity_type);
             
-            if (incomingRelations.length > 0) {
-              console.log(`[PolicyBuilderFlow] Entity "${entity_type}" has ${incomingRelations.length} incoming relations:`, incomingRelations);
-            }
-            
             // For each incoming relation, check if it's enabled in the JSON rule
             incomingRelations.forEach((incomingRel) => {
               // Check if the source entity (the one that points to us) has this relation in JSON
@@ -392,7 +384,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                 );
                 
                 if (ruleRelation) {
-                  console.log(`[PolicyBuilderFlow] ✅ Found matching relation for ${entity_type} from ${incomingRel.sourceEntity}:`, ruleRelation);
                   nestedRules.push({
                     sourceEntity: incomingRel.sourceEntity,
                     target_entity: entity_type,
@@ -401,8 +392,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                     actions: ruleRelation.actions || [],
                   });
                 } else {
-                  console.log(`[PolicyBuilderFlow] ⚪ Relation exists in schema but not enabled: ${incomingRel.sourceEntity} -> ${entity_type} via ${incomingRel.name}`);
-                  // Relation exists in schema but not enabled in policy
                   nestedRules.push({
                     sourceEntity: incomingRel.sourceEntity,
                     target_entity: entity_type,
@@ -412,8 +401,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                   });
                 }
               } else {
-                console.log(`[PolicyBuilderFlow] ⚪ Source entity mismatch or no relations: ${incomingRel.sourceEntity} -> ${entity_type}`);
-                // Source entity is not the starting entity, show as disabled
                 nestedRules.push({
                   sourceEntity: incomingRel.sourceEntity,
                   target_entity: entity_type,
@@ -423,12 +410,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
                 });
               }
             });
-            
-            if (nestedRules.length > 0) {
-              console.log(`[PolicyBuilderFlow] Entity "${entity_type}" nestedRules:`, nestedRules);
-            }
-            
-            console.log(`[PolicyBuilderFlow] Entity "${entity_type}" nestedRules:`, nestedRules);
             
             return {
               ...node,
@@ -521,10 +502,7 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
     };
 
     const entitiesInTree = getEntitiesInPolicyTree();
-    
-    console.log('[PolicyBuilderFlow INIT] Entities in policy tree:', Array.from(entitiesInTree));
-    console.log('[PolicyBuilderFlow INIT] Selected rule:', selectedRule);
-    
+
     // Helper to find incoming relations
     const getIncomingRelations = (entity_type: string) => {
       const incomingRels: Array<{ name: string; sourceEntity: string }> = [];
@@ -572,10 +550,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       // Find all incoming relations
       const incomingRelations = getIncomingRelations(schema.entity_type);
       
-      if (incomingRelations.length > 0) {
-        console.log(`[PolicyBuilderFlow INIT] Entity "${schema.entity_type}" has ${incomingRelations.length} incoming relations:`, incomingRelations);
-      }
-      
       incomingRelations.forEach((incomingRel) => {
         const selectedRuleSourceEntity = selectedRule
           ? (findSchemaByEntityType(schemas, getRuleQualifiedEntityType(selectedRule))?.entity_type || selectedRule.entity_type)
@@ -588,7 +562,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
           );
           
           if (ruleRelation) {
-            console.log(`[PolicyBuilderFlow INIT] ✅ Found matching relation for ${schema.entity_type} from ${incomingRel.sourceEntity}:`, ruleRelation);
             nestedRules.push({
               sourceEntity: incomingRel.sourceEntity,
               target_entity: schema.entity_type,
@@ -597,7 +570,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
               actions: ruleRelation.actions || [],
             });
           } else {
-            console.log(`[PolicyBuilderFlow INIT] ⚪ Relation exists but not enabled: ${incomingRel.sourceEntity} -> ${schema.entity_type} via ${incomingRel.name}`);
             nestedRules.push({
               sourceEntity: incomingRel.sourceEntity,
               target_entity: schema.entity_type,
@@ -607,7 +579,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
             });
           }
         } else {
-          console.log(`[PolicyBuilderFlow INIT] ⚪ Source mismatch: ${incomingRel.sourceEntity} -> ${schema.entity_type}`);
           nestedRules.push({
             sourceEntity: incomingRel.sourceEntity,
             target_entity: schema.entity_type,
@@ -617,10 +588,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
           });
         }
       });
-      
-      if (nestedRules.length > 0) {
-        console.log(`[PolicyBuilderFlow INIT] Entity "${schema.entity_type}" nestedRules:`, nestedRules);
-      }
       
       newNodes.push({
         id: `schema-${schema.entity_type}`,
@@ -716,21 +683,21 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
   }, [schemas, loadingSchemas, ruleConfigs, rulesKey, isInitialized, selectedRuleIndex, isolateToRule, ruleTreeEntities, ruleTreeEdgeKeys]);
 
   const handlePolicyUpdate = (entity_type: string, data: any) => {
-    setNodes((nds) =>
-      nds.map((node) =>
+    let latestNodes: Node[] = nodes;
+    setNodes((nds) => {
+      latestNodes = nds.map((node) =>
         node.id === `schema-${entity_type}`
           ? { ...node, data: { ...node.data, ...data } }
           : node
-      )
-    );
-    syncRulesToParent();
+      );
+      return latestNodes;
+    });
+    syncRulesToParent(latestNodes);
   };
 
   const handleNestedRuleUpdate = (sourceEntity: string, target_entity: string, relationName: string, ruleData: { enabled: boolean; actions: string[] }) => {
-    console.log(`[PolicyBuilderFlow] handleNestedRuleUpdate called:`, { sourceEntity, target_entity, relationName, ruleData });
-    
+    let latestNodes: Node[] = nodes;
     setNodes((nds) => {
-      // Update the nested rule on the TARGET entity node (where the switch is displayed)
       const updatedNodes = nds.map((node) => {
         if (node.id === `schema-${target_entity}`) {
           const nestedRules = (node.data.nestedRules as any[]) || [];
@@ -739,9 +706,6 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
               ? { ...rule, ...ruleData }
               : rule
           );
-          
-          console.log(`[PolicyBuilderFlow] Updated nestedRules for ${target_entity}:`, updatedRules);
-          
           return {
             ...node,
             data: {
@@ -752,12 +716,10 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
         }
         return node;
       });
-
+      latestNodes = updatedNodes;
       return updatedNodes;
     });
-    
-    // Immediately sync to parent after state update
-    setTimeout(() => syncRulesToParent(), 0);
+    syncRulesToParent(latestNodes);
   };
 
   const onConnect = useCallback(
@@ -812,18 +774,15 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
     [nodes, schemas, setEdges]
   );
 
-  const syncRulesToParent = () => {
+  const syncRulesToParent = (currentNodes?: Node[]) => {
     if (selectedRuleIndex === null) return;
-    
-    console.log('[PolicyBuilderFlow] Starting sync from Flow to JSON');
-    
-    // Build the updated rules array immediately (not in setTimeout)
+
+    const activeNodes = currentNodes ?? nodes;
     const updatedRules = [...rules];
 
-    // Generate rule from policy node (starting entity) for selected rule only
     ruleConfigs.forEach((ruleConfig) => {
-      const policyNode = nodes.find((n) => n.id === `schema-${ruleConfig.startingEntity}`);
-      
+      const policyNode = activeNodes.find((n) => n.id === `schema-${ruleConfig.startingEntity}`);
+
       if (policyNode) {
         const policyData = policyNode.data as any;
         const existingRule = updatedRules[selectedRuleIndex] || {
@@ -834,22 +793,17 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
           relations: [],
         };
         const sourceSchema = schemas.find((schema) => schema.entity_type === ruleConfig.startingEntity);
-        
-        // Extract nested rules by looking at TARGET entities' nestedRules
-        // Since the target entity displays the switch, we need to scan all nodes for enabled nested rules
-        // where the sourceEntity matches our starting entity
+
         const nestedRules: RelationRule[] = [];
-        
-        nodes.forEach((node) => {
+
+        activeNodes.forEach((node) => {
           if (node.type === 'schemaEntity' && node.id !== policyNode.id) {
             const nodeData = node.data as any;
             const target_entity = node.id.replace('schema-', '');
-            
+
             if (nodeData.nestedRules && Array.isArray(nodeData.nestedRules)) {
               nodeData.nestedRules.forEach((nr: any) => {
-                // Check if this nested rule points back to our starting entity
                 if (nr.enabled && nr.sourceEntity === ruleConfig.startingEntity) {
-                  console.log(`[PolicyBuilderFlow] Found enabled nested rule: ${nr.sourceEntity} -> ${target_entity} via ${nr.relationName}`);
                   const targetSchema = schemas.find((schema) => schema.entity_type === target_entity);
                   nestedRules.push({
                     to: {
@@ -878,18 +832,10 @@ export function PolicyBuilderFlow({ rules, onChange, error }: PolicyBuilderFlowP
       }
     });
 
-    console.log('[PolicyBuilderFlow] Synced to JSON:', JSON.stringify(updatedRules[selectedRuleIndex], null, 2));
-    
-    // Set flag to prevent circular updates
     isSyncingFromFlow.current = true;
-    
-    // Call onChange immediately
     onChange(updatedRules);
-    
-    // Clear flag after a delay to allow re-syncing from external changes
     setTimeout(() => {
       isSyncingFromFlow.current = false;
-      console.log('[PolicyBuilderFlow] Sync complete, flag cleared');
     }, 200);
   };
 
