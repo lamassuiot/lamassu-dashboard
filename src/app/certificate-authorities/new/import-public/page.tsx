@@ -15,7 +15,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
-import { generateUUID } from '@/lib/utils';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
 interface DecodedImportedCertInfo {
   subject?: string;
