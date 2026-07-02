@@ -12,6 +12,7 @@ import { Loader2, AlertCircle, ArrowLeft, Save } from 'lucide-react';
 import { getPolicy, updatePolicy } from '@/lib/authz-api';
 import type { Rule, HTTPRule } from '@/types/authz';
 import { PolicyBuilder } from '@/components/authz/PolicyBuilder';
+import { HTTPRulesBuilder } from '@/components/authz/HTTPRulesBuilder';
 import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 
@@ -200,10 +201,26 @@ function EditPolicyContent() {
             <div className="lg:col-span-2">
               <PolicyBuilder
                 rules={formData.rules}
-                onChange={(rules) => setFormData((prev) => ({ ...prev, rules: normalizePolicyRules(rules) }))}
-                httpRules={formData.http_rules}
-                onHttpRulesChange={(http_rules) => setFormData((prev) => ({ ...prev, http_rules }))}
+                onChange={(rules) => setFormData({ ...formData, rules: normalizePolicyRules(rules) })}
                 error={error}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* ── HTTP Rules ── */}
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+            <div>
+              <p className="font-semibold">HTTP Rules</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Grant access to HTTP-based service endpoints such as workflow actions.
+              </p>
+            </div>
+            <div className="lg:col-span-2">
+              <HTTPRulesBuilder
+                httpRules={formData.http_rules}
+                onChange={(http_rules) => setFormData({ ...formData, http_rules })}
               />
             </div>
           </div>

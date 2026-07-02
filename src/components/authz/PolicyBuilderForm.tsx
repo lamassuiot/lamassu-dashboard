@@ -34,30 +34,20 @@ import {
   SlidersHorizontal,
   Search,
   Shield,
-  Globe,
 } from 'lucide-react';
 import type {
   EntityAddress,
   Rule,
-  HTTPRule,
   RelationRule,
   SchemaDefinition,
-  HTTPSchemaDefinition,
   ColumnFilter,
   FilterableField,
   FilterableFieldType,
   FilterOperator,
 } from '@/types/authz';
-import { getSchemas, getHTTPSchemas } from '@/lib/authz-api';
+import { getSchemas } from '@/lib/authz-api';
 import { findSchemaByAddress, normalizeEntityAddress, toQualifiedEntityType } from '@/lib/policy-format';
 import { cn } from '@/lib/utils';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Unified rule type — entity or HTTP, used internally throughout this file
-// ─────────────────────────────────────────────────────────────────────────────
-type AnyRule =
-  | { kind: 'entity'; data: Rule }
-  | { kind: 'http'; data: HTTPRule }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encoding helpers for the merged entity selector
@@ -430,14 +420,14 @@ function ActionSelector({
   const hasExtra = extraActions.length > 0;
 
   return (
-    <div className="space-y-2">
+    <div className="rounded-md border bg-muted/20 divide-y">
       {includeWildcard && (
-        <div>
+        <div className="p-2">
           {renderRow('*', true)}
         </div>
       )}
       {hasAtomic && (
-        <div className="space-y-0.5">
+        <div className="p-2 space-y-0.5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Atomic
           </p>
@@ -447,7 +437,7 @@ function ActionSelector({
         </div>
       )}
       {hasGlobal && (
-        <div className="space-y-0.5">
+        <div className="p-2 space-y-0.5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Global
           </p>
@@ -457,7 +447,7 @@ function ActionSelector({
         </div>
       )}
       {hasExtra && (
-        <div className="space-y-0.5">
+        <div className="p-2 space-y-0.5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 px-2.5 pb-1">
             Other
           </p>
@@ -677,52 +667,45 @@ function RuleSection({
 interface PolicyBuilderFormProps {
   rules: Rule[];
   onChange: (rules: Rule[]) => void;
-  httpRules: HTTPRule[];
-  onHttpRulesChange: (httpRules: HTTPRule[]) => void;
   error?: string | null;
 }
 
-export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChange, error }: PolicyBuilderFormProps) {
+export function PolicyBuilderForm({ rules, onChange, error }: PolicyBuilderFormProps) {
   const [schemas, setSchemas] = useState<SchemaDefinition[]>([]);
-  const [httpSchemas, setHTTPSchemas] = useState<Record<string, HTTPSchemaDefinition>>({});
   const [loadingSchemas, setLoadingSchemas] = useState(true);
   const [openAccordionValue, setOpenAccordionValue] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    Promise.all([getSchemas(), getHTTPSchemas()])
-      .then(([entitySchemas, httpSchemasData]) => {
-        setSchemas(entitySchemas);
-        setHTTPSchemas(httpSchemasData);
-      })
-      .catch((err) => console.error('Failed to fetch schemas:', err))
-      .finally(() => setLoadingSchemas(false));
+    const fetchSchemas = async () => {
+      try {
+        const data = await getSchemas();
+        setSchemas(data);
+      } catch (err) {
+        console.error('Failed to fetch schemas:', err);
+      } finally {
+        setLoadingSchemas(false);
+      }
+    };
+    fetchSchemas();
   }, []);
 
-  // Unified list — entity rules first, then HTTP rules. Derived from props; never stored in state.
-  const unifiedRules: AnyRule[] = [
-    ...rules.map((r): AnyRule => ({ kind: 'entity', data: r })),
-    ...httpRules.map((r): AnyRule => ({ kind: 'http', data: r })),
-  ];
-
-  const pushUnified = (next: AnyRule[]) => {
-    onChange(next.filter((r) => r.kind === 'entity').map((r) => (r as { kind: 'entity'; data: Rule }).data));
-    onHttpRulesChange(next.filter((r) => r.kind === 'http').map((r) => (r as { kind: 'http'; data: HTTPRule }).data));
-  };
-
   const addRule = () => {
-    const newIndex = unifiedRules.length;
-    pushUnified([...unifiedRules, { kind: 'entity', data: { namespace: '', schema_name: '', entity_type: '', actions: [], relations: [], direct_grants: [] } }]);
-    setOpenAccordionValue(`unified-${newIndex}`);
+    const newIndex = rules.length;
+    onChange([
+      ...rules,
+      { namespace: '', schema_name: '', entity_type: '', actions: [], relations: [], direct_grants: [] },
+    ]);
+    setOpenAccordionValue(`rule-${newIndex}`);
   };
 
-  const updateUnifiedRule = (index: number, updated: AnyRule) => {
-    const next = [...unifiedRules];
-    next[index] = updated;
-    pushUnified(next);
+  const updateRule = (index: number, updated: Rule) => {
+    const newRules = [...rules];
+    newRules[index] = updated;
+    onChange(newRules);
   };
 
-  const deleteUnifiedRule = (index: number) => {
-    pushUnified(unifiedRules.filter((_, i) => i !== index));
+  const deleteRule = (index: number) => {
+    onChange(rules.filter((_, i) => i !== index));
   };
 
   return (
@@ -734,7 +717,7 @@ export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChang
         </Alert>
       )}
 
-      {unifiedRules.length === 0 ? (
+      {rules.length === 0 ? (
         <div className="rounded-md border border-dashed px-4 py-6 text-center">
           <p className="text-sm text-muted-foreground">No access rules defined</p>
         </div>
@@ -746,32 +729,25 @@ export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChang
           value={openAccordionValue}
           onValueChange={setOpenAccordionValue}
         >
-          {unifiedRules.map((anyRule, index) => {
-            const isHTTP = anyRule.kind === 'http';
-            const entityRule = anyRule.kind === 'entity' ? anyRule.data : null;
-            const httpRule = anyRule.kind === 'http' ? anyRule.data : null;
+          {rules.map((rule, index) => {
+            const hasEntity = !!(rule.schema_name && rule.entity_type);
+            const hasActions = rule.actions.length > 0;
+            const hasRelations = rule.relations.length > 0;
+            const hasGrants = (rule.direct_grants?.length ?? 0) > 0;
+            const hasFilters = (rule.column_filters?.length ?? 0) > 0;
+            const schemaDisplay = rule.schema_name || '';
+            const entityDisplay = rule.entity_type || '';
 
-            const hasTarget = isHTTP
-              ? !!httpRule!.http_schema_name
-              : !!(entityRule!.schema_name && entityRule!.entity_type);
-            const hasActions = anyRule.data.actions.length > 0;
-            const hasRelations = !isHTTP && (entityRule!.relations.length > 0);
-            const hasGrants = !isHTTP && ((entityRule!.direct_grants?.length ?? 0) > 0);
-            const hasFilters = !isHTTP && ((entityRule!.column_filters?.length ?? 0) > 0);
-
-            const statusColor = !hasTarget
+            const statusColor = !hasEntity
               ? 'bg-muted-foreground/30'
               : !hasActions
                 ? 'bg-amber-400'
                 : 'bg-green-500';
-            const gradient = isHTTP
-              ? 'from-blue-500 to-cyan-400'
-              : 'from-primary to-[#39ff14]';
 
             return (
-              <div key={index} className={cn('rounded-lg p-[2px] bg-gradient-to-br', gradient)}>
+              <div key={index} className="rounded-lg p-[2px] bg-gradient-to-br from-primary to-[#39ff14]">
               <AccordionItem
-                value={`unified-${index}`}
+                value={`rule-${index}`}
                 className="rounded-md bg-card border-0 w-full data-open:bg-card"
               >
                 <AccordionTrigger className="hover:no-underline px-4 py-3 gap-3 [&>svg]:shrink-0 [&>svg]:size-3.5 [&>svg]:text-muted-foreground/40">
@@ -781,59 +757,49 @@ export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChang
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <span className="flex-1 min-w-0 font-mono text-xs">
-                      {isHTTP ? (
-                        !httpRule!.http_schema_name ? (
-                          <span className="font-sans text-sm italic text-muted-foreground font-normal">Unconfigured</span>
-                        ) : (
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            <span className="shrink-0 rounded border bg-blue-500/10 border-blue-500/30 px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-blue-600 dark:text-blue-400">
-                              HTTP
-                            </span>
-                            <span className="font-medium text-foreground">{httpRule!.http_schema_name}</span>
-                          </span>
-                        )
+                      {!hasEntity ? (
+                        <span className="font-sans text-sm italic text-muted-foreground font-normal">Unconfigured</span>
                       ) : (
-                        !hasTarget ? (
-                          <span className="font-sans text-sm italic text-muted-foreground font-normal">Unconfigured</span>
-                        ) : (
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            {entityRule!.namespace && (
-                              <span className="shrink-0 rounded border bg-muted px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-muted-foreground">
-                                {entityRule!.namespace}
-                              </span>
-                            )}
-                            <span className="truncate">
-                              <span className="text-muted-foreground/70">{entityRule!.schema_name}</span>
-                              <span className="mx-1 text-muted-foreground/30">/</span>
-                              <span className="font-medium text-foreground">{entityRule!.entity_type}</span>
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {rule.namespace && (
+                            <span className="shrink-0 rounded border bg-muted px-1.5 py-px font-sans text-[9px] uppercase tracking-widest text-muted-foreground">
+                              {rule.namespace}
                             </span>
+                          )}
+                          <span className="truncate">
+                            <span className="text-muted-foreground/70">{schemaDisplay}</span>
+                            <span className="mx-1 text-muted-foreground/30">/</span>
+                            <span className="font-medium text-foreground">{entityDisplay}</span>
                           </span>
-                        )
+                        </span>
                       )}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
                       {hasActions && (
-                        <Badge variant="default" className={cn('text-[10px] px-1.5 py-0 gap-1 rounded-sm', isHTTP ? 'bg-blue-600/90' : 'bg-primary/90')}>
+                        <Badge
+                          variant="default"
+                          className="text-[10px] px-1.5 py-0 bg-primary/90 gap-1 rounded-sm"
+                        >
                           <Zap className="h-2.5 w-2.5" />
-                          {isHTTP && httpRule!.actions.includes('*') ? '*' : anyRule.data.actions.length}
+                          {rule.actions.length}
                         </Badge>
                       )}
                       {hasRelations && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <Link2 className="h-2.5 w-2.5" />
-                          {entityRule!.relations.length}
+                          {rule.relations.length}
                         </Badge>
                       )}
                       {hasGrants && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <User className="h-2.5 w-2.5" />
-                          {entityRule!.direct_grants!.length}
+                          {rule.direct_grants!.length}
                         </Badge>
                       )}
                       {hasFilters && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1 rounded-sm">
                           <SlidersHorizontal className="h-2.5 w-2.5" />
-                          {entityRule!.column_filters!.length}
+                          {rule.column_filters!.length}
                         </Badge>
                       )}
                     </div>
@@ -841,30 +807,13 @@ export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChang
                 </AccordionTrigger>
 
                 <AccordionContent className="px-4 pb-0 border-t">
-                  {isHTTP ? (
-                    <HTTPRuleEditor
-                      rule={httpRule!}
-                      onChange={(updated) => updateUnifiedRule(index, { kind: 'http', data: updated })}
-                      onDelete={() => deleteUnifiedRule(index)}
-                      httpSchemas={httpSchemas}
-                      entitySchemas={schemas}
-                      onSwitchToEntity={(sn, et, ns) =>
-                        updateUnifiedRule(index, { kind: 'entity', data: { namespace: ns ?? '', schema_name: sn, entity_type: et, actions: [], relations: [], direct_grants: [] } })
-                      }
-                    />
-                  ) : (
-                    <RuleEditor
-                      rule={entityRule!}
-                      onChange={(updated) => updateUnifiedRule(index, { kind: 'entity', data: updated })}
-                      onDelete={() => deleteUnifiedRule(index)}
-                      schemas={schemas}
-                      httpSchemas={httpSchemas}
-                      loadingSchemas={loadingSchemas}
-                      onSwitchToHTTP={(schemaName, groupName) =>
-                        updateUnifiedRule(index, { kind: 'http', data: { http_schema_name: schemaName, http_group_name: groupName, actions: [] } })
-                      }
-                    />
-                  )}
+                  <RuleEditor
+                    rule={rule}
+                    onChange={(updated) => updateRule(index, updated)}
+                    onDelete={() => deleteRule(index)}
+                    schemas={schemas}
+                    loadingSchemas={loadingSchemas}
+                  />
                 </AccordionContent>
               </AccordionItem>
               </div>
@@ -874,7 +823,6 @@ export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChang
       )}
 
       <Button
-        type="button"
         onClick={addRule}
         className="w-full border-dashed"
         size="sm"
@@ -1262,12 +1210,10 @@ interface RuleEditorProps {
   onChange: (rule: Rule) => void;
   onDelete: () => void;
   schemas: SchemaDefinition[];
-  httpSchemas: Record<string, HTTPSchemaDefinition>;
-  onSwitchToHTTP: (schemaName: string, groupName?: string) => void;
   loadingSchemas?: boolean;
 }
 
-function RuleEditor({ rule, onChange, onDelete, schemas, httpSchemas, onSwitchToHTTP, loadingSchemas }: RuleEditorProps) {
+function RuleEditor({ rule, onChange, onDelete, schemas, loadingSchemas }: RuleEditorProps) {
   const selectedEntityAddress: EntityAddress = normalizeEntityAddress({
     schema_name: rule.schema_name,
     entity_type: rule.entity_type,
@@ -1354,20 +1300,26 @@ function RuleEditor({ rule, onChange, onDelete, schemas, httpSchemas, onSwitchTo
       {/* ── Target Entity ── */}
       <RuleSection
         icon={<Shield />}
-        title="Target"
-        description="Which entity or HTTP service this rule applies to."
+        title="Target Entity"
+        description="Which entity type this rule applies to. Use * to match all."
       >
-        <UnifiedEntitySelector
+        <EntitySelector
           schemas={schemas}
-          httpSchemas={httpSchemas}
-          currentRule={{ kind: 'entity', data: rule }}
+          schema_name={rule.schema_name}
+          entity_type={rule.entity_type}
+          namespace={rule.namespace}
           includeWildcard
-          loadingSchemas={loadingSchemas}
-          onSelectEntity={(sn, et, ns) => {
+          placeholder={loadingSchemas ? 'Loading schemas…' : 'Select entity type…'}
+          onSelect={(sn, et, ns) => {
             const schema = findSchemaByAddress(schemas, { schema_name: sn, entity_type: et });
-            onChange({ ...rule, schema_name: sn, entity_type: et, namespace: ns ?? schema?.namespace ?? rule.namespace, actions: [] });
+            onChange({
+              ...rule,
+              schema_name: sn,
+              entity_type: et,
+              namespace: ns ?? schema?.namespace ?? rule.namespace,
+              actions: [],
+            });
           }}
-          onSelectHTTP={onSwitchToHTTP}
           error={!rule.schema_name || !rule.entity_type ? 'Required' : undefined}
         />
       </RuleSection>
