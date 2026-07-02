@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, AlertCircle, Loader2, Workflow, Maximize2, Minimize2 } from 'lucide-react';
+import { AlertCircle, Loader2, Workflow, Maximize2, Minimize2 } from 'lucide-react';
 import type { Rule, RelationRule, SchemaDefinition } from '@/types/authz';
 import { SchemaEntityNode } from './flow-nodes/SchemaEntityNode';
 import { NestedRuleEdge } from './flow-nodes/NestedRuleEdge';

@@ -23,9 +23,6 @@ import {
   Info,
   ShieldCheck,
   UserCheck,
-  UserCog,
-  Lock,
-  Settings2,
   ChevronsUpDown,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';

@@ -15,7 +15,8 @@ interface RelationNodeData {
   onDelete: () => void;
 }
 
-export const RelationNode = memo(({ data }: NodeProps<RelationNodeData>) => {
+export const RelationNode = memo(({ data: rawData }: NodeProps) => {
+  const data = rawData as unknown as RelationNodeData;
   return (
     <Card className="min-w-[180px] shadow-lg border-dashed">
       <CardHeader className="pb-3">

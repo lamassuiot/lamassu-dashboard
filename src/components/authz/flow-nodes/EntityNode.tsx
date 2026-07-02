@@ -15,7 +15,8 @@ interface EntityNodeData {
   onDelete: () => void;
 }
 
-export const EntityNode = memo(({ data }: NodeProps<EntityNodeData>) => {
+export const EntityNode = memo(({ data: rawData }: NodeProps) => {
+  const data = rawData as unknown as EntityNodeData;
   return (
     <Card className="min-w-[200px] shadow-lg">
       <CardHeader className="pb-3">
