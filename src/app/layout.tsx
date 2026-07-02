@@ -32,7 +32,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -68,12 +67,17 @@ import { cn } from "@/lib/utils";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
+type DecodedClaims = Record<string, unknown>;
 
-interface DecodedAccessToken {
-  realm_access?: {
-    roles?: string[];
-  };
-}
+const decodeTokenClaims = (token?: string): DecodedClaims => {
+  if (!token) return {};
+
+  try {
+    return jwtDecode<DecodedClaims>(token);
+  } catch {
+    return {};
+  }
+};
 
 const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'certificates': "Certificates",
@@ -284,6 +288,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
   const [globalCapabilities, setGlobalCapabilities] = useState<Record<string, string[]> | null>(null);
   const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false);
   const [matchedPrincipalIds, setMatchedPrincipalIds] = useState<string[]>([]);
@@ -338,19 +343,10 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
     }
   }, [globalCapabilities, isNavItemVisible, pathname, router]);
 
-  let userRoles: string[] = [];
-  if (user?.access_token) {
-    try {
-      const decodedToken = jwtDecode<DecodedAccessToken>(user.access_token);
-      if (decodedToken.realm_access && Array.isArray(decodedToken.realm_access.roles)) {
-        userRoles = decodedToken.realm_access.roles;
-      }
-    } catch (error) {
-      console.error("Error decoding access token:", error);
-    }
-  }
-
   const profileClaims = (user?.profile ?? {}) as Record<string, unknown>;
+  const idTokenClaims = decodeTokenClaims(user?.id_token);
+  const accessTokenClaims = decodeTokenClaims(user?.access_token);
+  const allClaims = { ...accessTokenClaims, ...idTokenClaims, ...profileClaims };
   const nowSecs = Math.floor(Date.now() / 1000);
   const tokenExp = typeof profileClaims.exp === 'number' ? profileClaims.exp : undefined;
   const tokenIat = typeof profileClaims.iat === 'number' ? profileClaims.iat : undefined;
@@ -370,12 +366,28 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   };
   const tsClaimFields = new Set(['iat', 'exp', 'auth_time']);
   const primaryClaimKeys = ['name', 'email', 'preferred_username', 'given_name', 'family_name', 'sub', 'iss', 'aud', 'iat', 'exp', 'auth_time'];
-  const extraClaimKeys = Object.keys(profileClaims).filter(k => !primaryClaimKeys.includes(k) && k !== 'picture');
+  const extraClaimKeys = Object.keys(allClaims).filter(k => !primaryClaimKeys.includes(k));
   const renderClaimValue = (key: string, val: unknown): string => {
     if (tsClaimFields.has(key) && typeof val === 'number') return formatTs(val);
-    if (Array.isArray(val)) return val.join(', ');
     if (val === null || val === undefined) return '';
+    if (Array.isArray(val)) {
+      return val.every(item => ['string', 'number', 'boolean'].includes(typeof item))
+        ? val.join(', ')
+        : JSON.stringify(val);
+    }
+    if (typeof val === 'object') return JSON.stringify(val);
     return String(val);
+  };
+  const handleCopyToken = async () => {
+    if (!user?.access_token) return;
+
+    try {
+      await navigator.clipboard.writeText(user.access_token);
+      setTokenCopied(true);
+      window.setTimeout(() => setTokenCopied(false), 1500);
+    } catch {
+      setTokenCopied(false);
+    }
   };
 
   const handleRunWizard = () => {
@@ -601,9 +613,21 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       </div>
 
       <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent showCloseButton={false} className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>User Profile & Token Claims</DialogTitle>
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle>User Profile & Token Claims</DialogTitle>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleCopyToken}
+                disabled={!user?.access_token}
+              >
+                {tokenCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                {tokenCopied ? 'Copied' : 'Copy token'}
+              </Button>
+            </div>
           </DialogHeader>
 
           <div className="space-y-4 py-1">
@@ -677,23 +701,6 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
 
             <Separator />
 
-            {/* Roles */}
-            <div>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Assigned Roles</p>
-              <div className="flex flex-wrap gap-1.5">
-                {userRoles.length > 0
-                  ? userRoles.map(role => (
-                      <Badge key={role} variant="secondary" className="text-xs font-normal">
-                        {role}
-                      </Badge>
-                    ))
-                  : <span className="text-xs text-muted-foreground italic">No roles found in access token</span>
-                }
-              </div>
-            </div>
-
-            <Separator />
-
             {/* Matched Principals */}
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Matched Principals</p>
@@ -707,12 +714,10 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {matchedPrincipals.map(p => (
-                    <Link key={p.id} href={`/authz/principals/details?id=${p.id}`} onClick={() => setIsProfileModalOpen(false)}>
-                      <Badge variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
-                        <span className="text-xs font-normal leading-tight">{p.name || p.id}</span>
-                        {p.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{p.id}</span>}
-                      </Badge>
-                    </Link>
+                    <Badge key={p.id} variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
+                      <span className="text-xs font-normal leading-tight">{p.name || p.id}</span>
+                      {p.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{p.id}</span>}
+                    </Badge>
                   ))}
                 </div>
               )}
@@ -722,41 +727,44 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
 
             {/* Claims table */}
             <div>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">ID Token Claims</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Primary Claims</p>
               <div className="rounded-md border divide-y">
                 {primaryClaimKeys
-                  .filter(k => k in profileClaims)
+                  .filter(k => k in allClaims)
                   .map(key => (
                     <div key={key} className="flex items-baseline px-3 py-1.5 gap-3 text-xs">
                       <span className="text-muted-foreground w-28 shrink-0">{claimLabels[key] || key}</span>
-                      <span className="font-mono break-all">{renderClaimValue(key, profileClaims[key])}</span>
+                      <span className="font-mono break-all">{renderClaimValue(key, allClaims[key])}</span>
                     </div>
                   ))}
               </div>
-              {extraClaimKeys.length > 0 && (
-                <details className="mt-2 group">
-                  <summary className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none hover:text-foreground list-none py-1">
-                    <span className="inline-block transition-transform group-open:rotate-90">▶</span>
-                    {extraClaimKeys.length} additional {extraClaimKeys.length === 1 ? 'claim' : 'claims'}
-                  </summary>
-                  <div className="rounded-md border divide-y mt-1.5">
-                    {extraClaimKeys.map(key => (
-                      <div key={key} className="flex items-baseline px-3 py-1.5 gap-3 text-xs">
-                        <span className="text-muted-foreground/70 w-28 shrink-0 font-mono">{key}</span>
-                        <span className="font-mono break-all">{renderClaimValue(key, profileClaims[key])}</span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
             </div>
+
+            {extraClaimKeys.length > 0 && (
+              <>
+                <Separator />
+
+                {/* Additional claims */}
+                <div>
+                  <details className="group">
+                    <summary className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none hover:text-foreground list-none py-1">
+                      <span className="inline-block transition-transform group-open:rotate-90">▶</span>
+                      Additional Claims ({extraClaimKeys.length})
+                    </summary>
+                    <div className="rounded-md border divide-y mt-1.5">
+                      {extraClaimKeys.map(key => (
+                        <div key={key} className="flex items-baseline px-3 py-1.5 gap-3 text-xs">
+                          <span className="text-muted-foreground/70 w-28 shrink-0 font-mono">{key}</span>
+                          <span className="font-mono break-all">{renderClaimValue(key, allClaims[key])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              </>
+            )}
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setIsProfileModalOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
       <BackendStatusDialog isOpen={isStatusModalOpen} onOpenChange={setIsStatusModalOpen} />

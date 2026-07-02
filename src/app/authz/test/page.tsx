@@ -56,7 +56,7 @@ export default function AuthorizationTestPage() {
   const [httpInitialPrincipalId, setHttpInitialPrincipalId] = useState<string | null>(principalIdParam);
 
   const [matchMode, setMatchMode] = useState(false);
-  const [authCreds, setAuthCreds] = useState({ auth_type: 'x509' as 'oidc' | 'x509', value: '' });
+  const [authCreds, setAuthCreds] = useState({ auth_type: 'oidc' as 'oidc' | 'x509', value: '' });
 
   const [authorizeForm, setAuthorizeForm] = useState({ principal_id: '', namespace: '', schema_name: '', action: '', entity_type: '', entity_key: '' });
   const [authorizeResult, setAuthorizeResult] = useState<AuthorizeResponse | MatchAndAuthorizeResponse | null>(null);
@@ -253,8 +253,8 @@ export default function AuthorizationTestPage() {
             >
               <SelectTrigger id={`${idPrefix}-auth-type`} className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="x509">X.509 Certificate</SelectItem>
                 <SelectItem value="oidc">OIDC / JWT Token</SelectItem>
+                <SelectItem value="x509">X.509 Certificate</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -342,12 +342,20 @@ export default function AuthorizationTestPage() {
   );
 
   const MatchedPrincipals = ({ ids }: { ids: string[] }) => (
-    <div className="space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground">Matched principals</p>
+    <div>
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Matched Principals</p>
       <div className="flex flex-wrap gap-1.5">
         {ids.length > 0
-          ? ids.map((p) => <Badge key={p} variant="secondary" className="font-mono text-xs">{p}</Badge>)
-          : <span className="text-xs text-muted-foreground">None matched</span>}
+          ? ids.map((id) => {
+              const principal = principals.find((p) => p.id === id);
+              return (
+                <Badge key={id} variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
+                  <span className="text-xs font-normal leading-tight">{principal?.name || id}</span>
+                  {principal?.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{id}</span>}
+                </Badge>
+              );
+            })
+          : <span className="text-xs text-muted-foreground italic">No principals matched</span>}
       </div>
     </div>
   );
