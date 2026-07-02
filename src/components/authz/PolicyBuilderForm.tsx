@@ -34,6 +34,7 @@ import {
   SlidersHorizontal,
   Search,
   Shield,
+  Globe,
 } from 'lucide-react';
 import type {
   EntityAddress,
@@ -44,10 +45,16 @@ import type {
   FilterableField,
   FilterableFieldType,
   FilterOperator,
+  HTTPRule,
+  HTTPSchemaDefinition,
 } from '@/types/authz';
 import { getSchemas } from '@/lib/authz-api';
 import { findSchemaByAddress, normalizeEntityAddress, toQualifiedEntityType } from '@/lib/policy-format';
 import { cn } from '@/lib/utils';
+
+type AnyRule =
+  | { kind: 'entity'; data: { schema_name: string; entity_type: string; namespace?: string } }
+  | { kind: 'http'; data: HTTPRule };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Encoding helpers for the merged entity selector

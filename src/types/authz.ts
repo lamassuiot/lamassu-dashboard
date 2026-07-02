@@ -24,6 +24,7 @@ export interface RelationRule {
 
 export interface HTTPRule {
   http_schema_name: string;
+  http_group_name?: string;
   actions: string[];
 }
 
@@ -59,6 +60,9 @@ export interface HTTPSchemaGroup {
 
 
 export interface HTTPSchemaDefinition {
+  name: string;
+  description?: string;
+  groups: HTTPSchemaGroup[];
   all_actions: string[];
 }
 
