@@ -1,6 +1,6 @@
 // KMS (Key Management Service) API functions
 import { ApiCryptoEngine } from "@/types/crypto-engine";
-import { get_KMS_API_BASE_URL } from "./api-domains";
+import { get_KMS_API_BASE_URL, handleApiError } from "./api-domains";
 import { apiFetch } from "./api-client";
 
 // --- KMS Key Types and Interfaces ---
@@ -46,159 +46,62 @@ export interface ImportKmsKeyPayload {
 // --- KMS Key API Functions ---
 export async function fetchCryptoEngines(): Promise<ApiCryptoEngine[]> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/engines`);
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch crypto engines. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            if (errorJson && errorJson.err) {
-                errorMessage = `Failed to fetch crypto engines: ${errorJson.err}`;
-            } else if (errorJson && errorJson.message) {
-                errorMessage = `Failed to fetch crypto engines: ${errorJson.message}`;
-            }
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for crypto engines:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    const enginesData: ApiCryptoEngine[] = await response.json();
-    return enginesData;
+    return handleApiError(response, 'Failed to fetch crypto engines');
 }
 
 export async function fetchKmsKeys(params: URLSearchParams): Promise<ApiKmsKeyListResponse> {
     const url = new URL(`${get_KMS_API_BASE_URL()}/keys`);
     params.forEach((value, key) => url.searchParams.append(key, value));
-    
     const response = await apiFetch(url.toString());
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch KMS keys. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Failed to fetch keys: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) {
-            console.error("Failed to parse error response as JSON for KMS keys:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    return handleApiError(response, 'Failed to fetch KMS keys');
 }
 
 export async function fetchKmsKey(keyId: string): Promise<ApiKmsKey> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}`);
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch KMS key. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Failed to fetch key: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) {
-            console.error("Failed to parse error response as JSON for KMS key:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    return handleApiError(response, 'Failed to fetch KMS key');
 }
 
 export async function signWithKmsKey(keyId: string, payload: any): Promise<any> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/sign`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
-    const result = await response.json();
-    if (!response.ok) {
-        throw new Error(result.err || result.message || `Signing failed with status ${response.status}`);
-    }
-    return result;
+    return handleApiError(response, 'Signing failed');
 }
 
 export async function verifyWithKmsKey(keyId: string, payload: any): Promise<{ valid: boolean }> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/verify`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
-    
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Verification failed with status ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Verification failed: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) {
-            console.error("Failed to parse error response as JSON for key verification:", e);
-        }
-        throw new Error(errorMessage);
-    }
-
-    return response.json();
+    return handleApiError(response, 'Verification failed');
 }
 
 export async function createKmsKey(payload: CreateKmsKeyPayload): Promise<ApiKmsKey> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to create key. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Key creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for key creation:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    return handleApiError(response, 'Failed to create key');
 }
 
 export async function importKmsKey(payload: ImportKmsKeyPayload): Promise<ApiKmsKey> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/import`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to import key. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Key import failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for key import:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    return handleApiError(response, 'Failed to import key');
 }
 
 export async function deleteKmsKey(keyId: string): Promise<void> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}`, {
         method: 'DELETE',
     });
-
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to delete KMS key. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Key deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for key deletion:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to delete KMS key');
 }
 
 export interface PatchOperation {
@@ -210,62 +113,26 @@ export interface PatchOperation {
 export async function updateKeyAliases(keyId: string, patches: PatchOperation[]): Promise<void> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/alias`, {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ key_id: keyId, patches })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key_id: keyId, patches }),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to update key aliases. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Alias update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for alias update:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to update key aliases');
 }
 
 export async function updateKeyTags(keyId: string, tags: string[]): Promise<void> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/tags`, {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tags })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags }),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to update key tags. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Tag update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for tag update:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to update key tags');
 }
 
 export async function updateKeyMetadata(keyId: string, patchOperations: PatchOperation[]): Promise<void> {
     const response = await apiFetch(`${get_KMS_API_BASE_URL()}/keys/${encodeURIComponent(keyId)}/metadata`, {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patches: patchOperations }),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to update key metadata. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Metadata update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for key metadata update:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to update key metadata');
 }

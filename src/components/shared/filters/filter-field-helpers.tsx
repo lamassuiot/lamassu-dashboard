@@ -16,6 +16,7 @@ interface SearchTextFieldConfig<TValues extends GenericFilterValues> {
   label: string;
   placeholder: string;
   badgeKey: string;
+  inputClassName?: string;
   searchFieldKey?: Extract<keyof TValues, string>;
   searchFieldLabels?: Record<string, string>;
   visibility?: 'basic' | 'advanced';
@@ -71,6 +72,7 @@ export function createSearchTextField<TValues extends GenericFilterValues>({
   label,
   placeholder,
   badgeKey,
+  inputClassName,
   searchFieldKey,
   searchFieldLabels,
   visibility,
@@ -85,6 +87,7 @@ export function createSearchTextField<TValues extends GenericFilterValues>({
     placeholder,
     changeTiming,
     debounceMs,
+    inputClassName,
     getActiveBadges: (value, currentValues, helpers) => {
       const currentSearchTerm = typeof value === 'string' ? value.trim() : '';
       if (!currentSearchTerm) return [];

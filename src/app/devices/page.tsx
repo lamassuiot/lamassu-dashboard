@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { HelpCircle, Eye, PlusCircle, MoreVertical, Loader2, RefreshCw, ChevronRight, AlertCircle as AlertCircleIcon, ChevronLeft, ChevronsUpDown, ArrowUpZA, ArrowDownAZ, ArrowUp01, ArrowDown10, TerminalSquare, Router } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RegisterDeviceModal } from '@/components/devices/RegisterDeviceModal';
 import { getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
@@ -514,7 +513,7 @@ export default function DevicesPage() {
                         <TableCell>
                           <DateDisplay 
                             date={device.createdAt} 
-                            formatString={getDisplayDateFormat()}
+                           
                             className="text-xs"
                             relativeClassName="text-xs"
                           />
@@ -525,7 +524,7 @@ export default function DevicesPage() {
                           {device.expirationDate ? (
                             <DateDisplay 
                               date={device.expirationDate} 
-                              formatString={getDisplayDateFormat()}
+                             
                               className="text-xs"
                               relativeClassName="text-xs"
                             />

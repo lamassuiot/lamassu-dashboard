@@ -19,7 +19,6 @@ import { fetchIssuedCertificates } from '@/lib/issued-certificate-data';
 import { downloadFile } from '@/lib/utils';
 import { fetchVaConfig, updateVaConfig, downloadCrl, getDefaultVAConfig, type VAConfig, type LatestCrlInfo } from '@/lib/va-api';
 import { DateDisplay } from '@/components/shared/DateDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { get_VA_CORE_API_BASE_URL } from '@/lib/api-domains';
 import { VaSettingsCard } from '@/components/shared/VaSettingsCard';
@@ -396,11 +395,11 @@ export function ValidationAuthorityTab({ ca }: ValidationAuthorityTabProps) {
                   </div>
                   <div className="py-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid From</p>
-                    <DateDisplay date={latestCrl.valid_from} formatString={getDisplayDateFormat()} showRelative={true} className="mt-1 text-sm font-medium" />
+                    <DateDisplay date={latestCrl.valid_from} showRelative={true} className="mt-1 text-sm font-medium" />
                   </div>
                   <div className="py-3 last:pb-0">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valid Until</p>
-                    <DateDisplay date={latestCrl.valid_until} formatString={getDisplayDateFormat()} showRelative={true} className="mt-1 text-sm font-medium" />
+                    <DateDisplay date={latestCrl.valid_until} showRelative={true} className="mt-1 text-sm font-medium" />
                   </div>
                 </div>
               ) : (

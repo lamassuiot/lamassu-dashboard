@@ -2,12 +2,12 @@
 'use client';
 
 import React, { useState, useEffect, useId } from 'react';
-import { Input, type InputProps } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { AlertCircle } from 'lucide-react';
 
-interface DurationInputProps extends Omit<InputProps, 'onChange' | 'value'> {
+interface DurationInputProps extends Omit<React.ComponentProps<'input'>, 'onChange' | 'value'> {
   label: string;
   value: string;
   onChange: (value: string) => void;

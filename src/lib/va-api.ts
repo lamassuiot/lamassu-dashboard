@@ -78,10 +78,7 @@ export async function updateVaConfig(ski: string, payload: VaUpdatePayload): Pro
         body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-        // Use handleApiError to throw a formatted error
-        await handleApiError(response, 'Failed to update VA config');
-    }
+    await handleApiError(response, 'Failed to update VA config');
 }
 
 
@@ -97,17 +94,8 @@ export async function downloadCrl(ski: string): Promise<ArrayBuffer> {
     });
 
     if (!response.ok) {
-        // Can't use handleApiError because it expects JSON.
-        let errorJson;
-        let errorMessage = `Failed to download CRL. Server responded with status ${response.status}`;
-         try {
-            errorJson = await response.json();
-            errorMessage = `CRL download failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for CRL download:", e);
-        }
-        throw new Error(errorMessage);
+        await handleApiError(response, 'Failed to download CRL');
     }
-    
+
     return response.arrayBuffer();
 }

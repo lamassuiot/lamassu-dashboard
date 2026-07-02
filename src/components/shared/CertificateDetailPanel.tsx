@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
-import { getDisplayDateFormat } from '@/lib/config';
 import { Separator } from '@/components/ui/separator';
 
 interface Props {
@@ -21,8 +20,6 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 );
 
 export function CertificateDetailPanel({ certificate }: Props) {
-  const fmt = getDisplayDateFormat();
-
   return (
     <div className="grid grid-cols-1 gap-x-8 gap-y-0 px-6 py-4 lg:grid-cols-3">
       {/* ── Col 1: Identity ── */}
@@ -40,10 +37,10 @@ export function CertificateDetailPanel({ certificate }: Props) {
       {/* ── Col 2: Validity ── */}
       <div className="divide-y">
         <Row label="Valid From">
-          <DateDisplay date={certificate.validFrom} formatString={fmt} showRelative />
+          <DateDisplay date={certificate.validFrom} showRelative />
         </Row>
         <Row label="Valid To">
-          <DateDisplay date={certificate.validTo} formatString={fmt} showRelative highlightExpired />
+          <DateDisplay date={certificate.validTo} showRelative highlightExpired />
         </Row>
         {certificate.publicKeyAlgorithm && (
           <Row label="Algorithm">{certificate.publicKeyAlgorithm}</Row>
@@ -71,7 +68,7 @@ export function CertificateDetailPanel({ certificate }: Props) {
         )}
         {certificate.revocationTimestamp && (
           <Row label="Revoked On">
-            <DateDisplay date={certificate.revocationTimestamp} formatString={fmt} showRelative />
+            <DateDisplay date={certificate.revocationTimestamp} showRelative />
           </Row>
         )}
       </div>

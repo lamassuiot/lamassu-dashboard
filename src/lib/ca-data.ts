@@ -155,8 +155,8 @@ function transformApiCaToLocalCa(apiCa: ApiCaItem): Omit<CA, 'children'> {
   // 1. AKI equals SKI (both present and match), OR
   // 2. AKI is missing/empty (root CAs might not have AKI), OR
   // 3. Issuer metadata ID equals the CA's own ID
-  const isSelfSigned = 
-    (apiCa.certificate.authority_key_id && apiCa.certificate.subject_key_id && 
+  const isSelfSigned =
+    (apiCa.certificate.authority_key_id && apiCa.certificate.subject_key_id &&
      apiCa.certificate.authority_key_id === apiCa.certificate.subject_key_id) ||
     (!apiCa.certificate.authority_key_id || apiCa.certificate.authority_key_id === '') ||
     (apiCa.certificate.issuer_metadata.id === apiCa.id);
@@ -225,8 +225,7 @@ export async function fetchAndProcessCAs(apiQueryString?: string): Promise<CA[]>
     let allCAs: ApiCaItem[] = [];
     let nextBookmark: string | null = null;
     let hasNextPage = true;
-    
-    // Base URL setup
+
     const baseUrl = `${get_CA_API_BASE_URL()}/cas`;
     const initialParams = new URLSearchParams(apiQueryString);
     if (!initialParams.has('page_size')) {
@@ -236,8 +235,7 @@ export async function fetchAndProcessCAs(apiQueryString?: string): Promise<CA[]>
     while (hasNextPage) {
         const url = new URL(baseUrl);
         initialParams.forEach((value, key) => {
-            // Do not copy the bookmark from the initial string, we manage it ourselves.
-            if(key !== 'bookmark') url.searchParams.append(key, value);
+            if (key !== 'bookmark') url.searchParams.append(key, value);
         });
 
         if (nextBookmark) {
@@ -245,29 +243,16 @@ export async function fetchAndProcessCAs(apiQueryString?: string): Promise<CA[]>
         }
 
         const response = await apiFetch(url.toString());
+        const apiResponse = await handleApiError<ApiResponseList>(response, 'Failed to fetch CAs page');
 
-        if (!response.ok) {
-            let errorJson;
-            let errorMessage = `Failed to fetch CAs page. HTTP error ${response.status}`;
-            try {
-                errorJson = await response.json();
-                errorMessage += `: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-            } catch (e) {
-                console.error("Failed to parse error response as JSON for CAs fetch:", e);
-            }
-            throw new Error(errorMessage);
-        }
-
-        const apiResponse: ApiResponseList = await response.json();
-        
-        if (apiResponse.list) {
+        if (apiResponse?.list) {
             allCAs = allCAs.concat(apiResponse.list);
         }
-        
-        nextBookmark = apiResponse.next;
+
+        nextBookmark = apiResponse?.next ?? null;
         hasNextPage = !!nextBookmark;
     }
-    
+
     const transformedFlatList = allCAs.map(transformApiCaToLocalCa);
     return buildCaHierarchy(transformedFlatList);
 }
@@ -298,7 +283,6 @@ export function findCaById(id: string | undefined | null, cas: CA[]): CA | null 
 export function findCaByCommonName(commonName: string | undefined | null, cas: CA[]): CA | null {
   if (!commonName) return null;
   for (const ca of cas) {
-    // Ensure ca.name is used as it's the transformed common_name
     if (ca.name && ca.name.toLowerCase() === commonName.toLowerCase()) return ca;
     if (ca.children) {
       const found = findCaByCommonName(commonName, ca.children);
@@ -337,23 +321,10 @@ export interface CreateCaPayload {
 export async function createCa(payload: CreateCaPayload): Promise<void> {
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to create CA. Status: ${response.status}`;
-    try {
-      errorJson = await response.json();
-      errorMessage = `Failed to create CA: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for CA creation:", e);
-    }
-    throw new Error(errorMessage);
-  }
+  await handleApiError(response, 'Failed to create CA');
 }
 
 // Function and type for importing a CA
@@ -371,23 +342,10 @@ export interface ImportCaPayload {
 export async function importCa(payload: ImportCaPayload): Promise<void> {
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/import`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to import CA. Status: ${response.status}`;
-    try {
-      errorJson = await response.json();
-      errorMessage = `Failed to import CA: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for CA import:", e);
-    }
-    throw new Error(errorMessage);
-  }
+  await handleApiError(response, 'Failed to import CA');
 }
 
 export interface PatchOperation {
@@ -399,22 +357,10 @@ export interface PatchOperation {
 export async function updateCaMetadata(caId: string, patchOperations: PatchOperation[]): Promise<void> {
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/${caId}/metadata`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ patches: patchOperations }),
   });
-
-  if (!response.ok) {
-    let errorBody = 'Request failed.';
-    try {
-      const errJson = await response.json();
-      errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for CA metadata update:", e);
-    }
-    throw new Error(`Failed to update CA metadata: ${errorBody} (Status: ${response.status})`);
-  }
+  await handleApiError(response, 'Failed to update CA metadata');
 }
 
 interface CaStats {
@@ -424,17 +370,7 @@ interface CaStats {
 }
 export async function fetchCaStats(caId: string): Promise<CaStats> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/stats/${caId}`);
-    if (!response.ok) {
-        let errorBody = 'Request failed.';
-        try {
-            const errJson = await response.json();
-            errorBody = errJson.err || errJson.message || errorBody;
-        } catch(e) {
-            console.error("Failed to parse error response as JSON for CA stats:", e);
-        }
-        throw new Error(`Failed to fetch CA statistics: ${errorBody} (Status: ${response.status})`);
-    }
-    return response.json();
+    return handleApiError(response, 'Failed to fetch CA statistics');
 }
 
 export async function updateCaStatus(caId: string, status: 'ACTIVE' | 'REVOKED', reason?: string): Promise<void> {
@@ -444,44 +380,19 @@ export async function updateCaStatus(caId: string, status: 'ACTIVE' | 'REVOKED',
     }
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/${caId}/status`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to update CA status. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Status update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for CA status update:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to update CA status');
 }
 
 export async function revokeCa(caId: string, reason: string): Promise<void> {
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/${caId}/status`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: 'REVOKED', revocation_reason: reason }),
   });
-
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to revoke CA. Status: ${response.status}`;
-    try {
-      errorJson = await response.json();
-      errorMessage = `Revocation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for CA revocation:", e);
-    }
-    throw new Error(errorMessage);
-  }
+  await handleApiError(response, 'Failed to revoke CA');
 }
 
 
@@ -489,18 +400,7 @@ export async function deleteCa(caId: string): Promise<void> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/${caId}`, {
         method: 'DELETE',
     });
-
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to delete CA. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for CA deletion:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to delete CA');
 }
 
 export interface ReissueCAPayload {
@@ -511,60 +411,28 @@ export interface ReissueCAPayload {
 export async function reissueCa(caId: string, payload: ReissueCAPayload): Promise<ApiCaItem> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/${caId}/reissue`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
-
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to reissue CA. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Reissue failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for CA reissue:", e);
-        }
-        throw new Error(errorMessage);
-    }
-
-    return response.json();
+    return handleApiError(response, 'Failed to reissue CA');
 }
 
 export async function signCertificate(caId: string, payload: any): Promise<any> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/${caId}/certificates/sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
     });
-    const result = await response.json();
-    if (!response.ok) {
-        throw new Error(result.err || `Failed to issue certificate. Status: ${response.status}`);
-    }
-    return result;
+    return handleApiError(response, 'Failed to issue certificate');
 }
 
 export async function updateCaDefaultProfileId(caId: string, profileId: string | null): Promise<void> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas/${caId}/profile`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ profile_id: profileId })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: profileId }),
     });
-
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to update issuance profile. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for CA default profile update:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to update issuance profile');
 }
 
 export interface CaStatsSummaryResponse {
@@ -626,9 +494,7 @@ export async function fetchSigningProfiles(params?: URLSearchParams): Promise<Ap
     if (params) {
         params.forEach((value, key) => url.searchParams.append(key, value));
     }
-    
     const response = await apiFetch(url.toString());
-    
     return handleApiError(response, 'Failed to fetch signing profiles');
 }
 
@@ -667,77 +533,31 @@ export interface CreateSigningProfilePayload {
 export async function createSigningProfile(payload: CreateSigningProfilePayload): Promise<ApiSigningProfile> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/profiles`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to create signing profile. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Profile creation failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for signing profile creation:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    return handleApiError(response, 'Failed to create signing profile');
 }
 
 export async function fetchSigningProfileById(profileId: string): Promise<ApiSigningProfile> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/profiles/${profileId}`);
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to fetch signing profile. HTTP error ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Failed to fetch profile: ${errorJson.err || errorJson.message || 'Unknown API error'}`;
-        } catch(e) {
-            console.error("Failed to parse error response as JSON for signing profile fetch:", e);
-        }
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    return handleApiError(response, 'Failed to fetch signing profile');
 }
 
 export async function updateSigningProfile(profileId: string, payload: CreateSigningProfilePayload): Promise<void> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/profiles/${profileId}`, {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to update signing profile. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Profile update failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for signing profile update:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to update signing profile');
 }
 
 export async function deleteSigningProfile(profileId: string): Promise<void> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/profiles/${profileId}`, {
         method: 'DELETE',
     });
-    if (!response.ok) {
-        let errorJson;
-        let errorMessage = `Failed to delete signing profile. Status: ${response.status}`;
-        try {
-            errorJson = await response.json();
-            errorMessage = `Profile deletion failed: ${errorJson.err || errorJson.message || 'Unknown error'}`;
-        } catch (e) {
-            console.error("Failed to parse error response as JSON for signing profile deletion:", e);
-        }
-        throw new Error(errorMessage);
-    }
+    await handleApiError(response, 'Failed to delete signing profile');
 }
 
 // --- Create Certificate (server-side key generation or reuse) ---
@@ -807,9 +627,5 @@ export async function createCertificate(payload: CreateCertificatePayload, acces
         auth: false,
         body: JSON.stringify(payload),
     });
-    if (!response.ok) {
-        const errBody = await response.json().catch(() => null);
-        throw new Error(errBody?.err || errBody?.message || `Failed to create certificate. Status: ${response.status}`);
-    }
-    return response.json();
+    return handleApiError(response, 'Failed to create certificate');
 }

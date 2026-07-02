@@ -1,6 +1,6 @@
 
 import type { CertificateData } from '@/types/certificate';
-import { get_CA_API_BASE_URL } from './api-domains';
+import { get_CA_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
 import { parseCertificatePemDetails } from './ca-data';
 
@@ -122,17 +122,8 @@ async function transformApiIssuedCertificateToLocal(apiCert: ApiIssuedCertificat
 export async function fetchIssuedCertificate(serialNumber: string): Promise<CertificateData> {
   const apiSerial = serialNumber.replace(/:/g, '');
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${encodeURIComponent(apiSerial)}`);
-  if (!response.ok) {
-    let errorMessage = `Failed to fetch certificate. HTTP error ${response.status}`;
-    try {
-      const errorJson = await response.json();
-      if (errorJson?.err) errorMessage = `Failed to fetch certificate: ${errorJson.err}`;
-      else if (errorJson?.message) errorMessage = `Failed to fetch certificate: ${errorJson.message}`;
-    } catch { /* ignore */ }
-    throw new Error(errorMessage);
-  }
-  const apiCert: ApiIssuedCertificateItem = await response.json();
-  return transformApiIssuedCertificateToLocal(apiCert);
+  const apiCert = await handleApiError<ApiIssuedCertificateItem>(response, 'Failed to fetch certificate');
+  return transformApiIssuedCertificateToLocal(apiCert!);
 }
 
 interface FetchIssuedCertificatesParams {
@@ -152,25 +143,9 @@ export async function fetchIssuedCertificates(
   const finalQueryString = apiQueryString || 'sort_by=valid_from&sort_mode=desc&page_size=10';
 
   const response = await apiFetch(`${baseUrl}?${finalQueryString}`);
+  const apiResponse = await handleApiError<ApiIssuedCertificateListResponse>(response, 'Failed to fetch issued certificates');
 
-  if (!response.ok) {
-    let errorJson;
-    let errorMessage = `Failed to fetch issued certificates. HTTP error ${response.status}`;
-    try {
-      errorJson = await response.json();
-      if (errorJson && errorJson.err) {
-        errorMessage = `Failed to fetch issued certificates: ${errorJson.err}`;
-      } else if (errorJson && errorJson.message) {
-        errorMessage = `Failed to fetch issued certificates: ${errorJson.message}`;
-      }
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for fetchIssuedCertificates:", e);
-    }
-    throw new Error(errorMessage);
-  }
-
-  const apiResponse: ApiIssuedCertificateListResponse = await response.json();
-  if (!apiResponse.list) {
+  if (!apiResponse?.list) {
     console.warn("API response for issued certificates is missing 'list' property:", apiResponse);
     return { certificates: [], nextToken: null };
   }
@@ -204,27 +179,12 @@ export async function updateCertificateStatus({
   }
 
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
-
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/status`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-
-  if (!response.ok) {
-    let errorBody = 'Request failed.';
-    try {
-      const errJson = await response.json();
-      errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for certificate status update:", e);
-    }
-
-    const actionText = status === 'REVOKED' ? 'revoke' : 're-activate';
-    throw new Error(`Failed to ${actionText} certificate: ${errorBody} (Status: ${response.status})`);
-  }
+  await handleApiError(response, `Failed to ${status === 'REVOKED' ? 'revoke' : 're-activate'} certificate`);
 }
 
 export interface PatchOperation {
@@ -237,22 +197,10 @@ export async function updateCertificateMetadata(serialNumber: string, patchOpera
   const apiFormattedSerialNumber = serialNumber.replace(/:/g, '');
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}/metadata`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ patches: patchOperations }),
   });
-
-  if (!response.ok) {
-    let errorBody = 'Request failed.';
-    try {
-      const errJson = await response.json();
-      errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for certificate metadata update:", e);
-    }
-    throw new Error(`Failed to update certificate metadata: ${errorBody} (Status: ${response.status})`);
-  }
+  await handleApiError(response, 'Failed to update certificate metadata');
 }
 
 
@@ -265,22 +213,10 @@ export interface ImportCertificateBody {
 export async function importCertificate(payload: ImportCertificateBody): Promise<void> {
   const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/import`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    let errorBody = 'Request failed.';
-    try {
-      const errJson = await response.json();
-      errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for certificate import:", e);
-    }
-    throw new Error(`Failed to import certificate: ${errorBody} (Status: ${response.status})`);
-  }
+  await handleApiError(response, 'Failed to import certificate');
 }
 
 export async function deleteCertificate(serialNumber: string): Promise<void> {
@@ -288,15 +224,5 @@ export async function deleteCertificate(serialNumber: string): Promise<void> {
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates/${apiFormattedSerialNumber}`, {
         method: 'DELETE',
     });
-
-  if (!response.ok) {
-    let errorBody = 'Request failed.';
-    try {
-      const errJson = await response.json();
-      errorBody = errJson.err || errJson.message || errorBody;
-    } catch (e) {
-      console.error("Failed to parse error response as JSON for certificate deletion:", e);
-    }
-    throw new Error(`Failed to delete certificate: ${errorBody} (Status: ${response.status})`);
-  }
+    await handleApiError(response, 'Failed to delete certificate');
 }

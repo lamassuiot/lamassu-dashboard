@@ -21,7 +21,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
-import { getDisplayDateFormat } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
 
@@ -498,7 +497,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
                               {cert.apiStatus?.toUpperCase() === 'REVOKED' && cert.revocationTimestamp ? (
                                 <DateDisplay
                                   date={cert.revocationTimestamp}
-                                  formatString={getDisplayDateFormat()}
+                                 
                                   showRelative={true}
                                   className="items-center justify-center"
                                 />
