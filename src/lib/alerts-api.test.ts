@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from './test-utils/msw-server'
 import {
@@ -13,7 +13,6 @@ import {
   type SubscriptionPayload,
 } from './alerts-api'
 
-const MOCK_TOKEN = 'test-access-token'
 const ALERTS_API_BASE = 'https://api.test.lamassu.io/alerts/v1'
 
 describe('alerts-api', () => {
@@ -43,7 +42,7 @@ describe('alerts-api', () => {
         })
       )
 
-      const result = await fetchLatestAlerts(MOCK_TOKEN)
+      const result = await fetchLatestAlerts()
 
       expect(result).toEqual(mockResponse)
       expect(result.list).toHaveLength(1)
@@ -60,7 +59,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await expect(fetchLatestAlerts(MOCK_TOKEN)).rejects.toThrow(
+      await expect(fetchLatestAlerts()).rejects.toThrow(
         'Failed to fetch alerts'
       )
     })
@@ -72,7 +71,7 @@ describe('alerts-api', () => {
         })
       )
 
-      await expect(fetchLatestAlerts(MOCK_TOKEN)).rejects.toThrow()
+      await expect(fetchLatestAlerts()).rejects.toThrow()
     })
 
     it('should include authorization header', async () => {
@@ -85,9 +84,25 @@ describe('alerts-api', () => {
         })
       )
 
-      await fetchLatestAlerts(MOCK_TOKEN)
+      await fetchLatestAlerts()
 
-      expect(capturedHeaders?.get('Authorization')).toBe(`Bearer ${MOCK_TOKEN}`)
+      expect(capturedHeaders?.get('Authorization')).toBe('Bearer test-access-token')
+    })
+
+    it('should apply query params when provided', async () => {
+      let capturedUrl: URL | undefined
+
+      server.use(
+        http.get(`${ALERTS_API_BASE}/events/latest`, ({ request }) => {
+          capturedUrl = new URL(request.url)
+          return HttpResponse.json({ next: null, list: [] })
+        })
+      )
+
+      await fetchLatestAlerts(new URLSearchParams({ page_size: '25', bookmark: 'next-page' }))
+
+      expect(capturedUrl?.searchParams.get('page_size')).toBe('25')
+      expect(capturedUrl?.searchParams.get('bookmark')).toBe('next-page')
     })
   })
 
@@ -131,6 +146,16 @@ describe('alerts-api', () => {
       await expect(fetchSystemSubscriptions()).rejects.toThrow(
         'Failed to fetch subscriptions'
       )
+    })
+
+    it('should return an empty list when subscriptions response has no body', async () => {
+      server.use(
+        http.get(`${ALERTS_API_BASE}/user/_lms_system/subscriptions`, () => {
+          return new HttpResponse(null, { status: 204 })
+        })
+      )
+
+      await expect(fetchSystemSubscriptions()).resolves.toEqual([])
     })
   })
 
@@ -186,7 +211,7 @@ describe('alerts-api', () => {
 
       await expect(
         subscribeToAlert(mockPayload)
-      ).rejects.toThrow('Subscription failed')
+      ).rejects.toThrow('Failed to subscribe')
     })
   })
 

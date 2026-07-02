@@ -68,7 +68,7 @@ export interface SubscriptionPayload {
 }
 
 
-export async function fetchLatestAlerts(_token: string | undefined, params?: URLSearchParams): Promise<ApiPaginatedResponse<ApiAlertEvent>> {
+export async function fetchLatestAlerts(params?: URLSearchParams): Promise<ApiPaginatedResponse<ApiAlertEvent>> {
   const url = `${get_ALERTS_API_BASE_URL()}/events/latest${params ? `?${params}` : ''}`;
   const response = await apiFetch(url);
   const data = await handleApiError<ApiPaginatedResponse<ApiAlertEvent>>(response, 'Failed to fetch alerts');
@@ -77,7 +77,8 @@ export async function fetchLatestAlerts(_token: string | undefined, params?: URL
 
 export async function fetchSystemSubscriptions(): Promise<ApiSubscription[]> {
   const response = await apiFetch(`${get_ALERTS_API_BASE_URL()}/user/_lms_system/subscriptions`);
-  return handleApiError(response, 'Failed to fetch subscriptions');
+  const data = await handleApiError<ApiSubscription[]>(response, 'Failed to fetch subscriptions');
+  return data ?? [];
 }
 
 export async function subscribeToAlert(payload: SubscriptionPayload): Promise<void> {

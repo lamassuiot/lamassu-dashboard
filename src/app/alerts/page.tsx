@@ -55,7 +55,7 @@ const getEventCategory = (event: AlertEvent): EventCategoryFilter => {
 };
 
 export default function AlertsPage() {
-  const { user, isLoggedIn, isLoading: authLoading } = useAuth();
+  const { isLoggedIn, isLoading: authLoading } = useAuth();
   const [events, setEvents] = useState<AlertEvent[]>([]);
   const [allSubscriptions, setAllSubscriptions] = useState<ApiSubscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -192,7 +192,7 @@ export default function AlertsPage() {
 
 
   const loadAlertsData = useCallback(async () => {
-    if (authLoading || !isLoggedIn || !user) return;
+    if (authLoading || !isLoggedIn) return;
 
     setIsLoading(true);
     setError(null);
@@ -203,7 +203,7 @@ export default function AlertsPage() {
       }
 
       const [apiEventsResponse, apiSubscriptions] = await Promise.all([
-        fetchLatestAlerts(user.access_token, alertsQueryParams),
+        fetchLatestAlerts(alertsQueryParams),
         fetchSystemSubscriptions(),
       ]);
       
@@ -253,7 +253,7 @@ export default function AlertsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, isLoggedIn, authLoading, pageSize, currentBookmark]);
+  }, [isLoggedIn, authLoading, pageSize, currentBookmark]);
 
   useEffect(() => {
     loadAlertsData();
