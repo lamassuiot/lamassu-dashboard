@@ -1,9 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Loader2, Play, Upload, XCircle } from 'lucide-react';
+import { AlertCircle, Loader2, Play, Upload } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import {
   checkHTTPAuthorization,
@@ -34,7 +34,7 @@ import type {
   Principal,
   PrincipalType,
 } from '@/types/authz';
-import { cn } from '@/lib/utils';
+import { EmptyResult, FullResponse, DecisionBanner, ResultTable, MatchedPrincipals } from '@/components/authz/TestResultViews';
 
 type KeyValueRow = {
   id: string;
@@ -359,208 +359,195 @@ export function HttpAuthzCheckForm({
   };
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1fr)_320px] lg:divide-x">
-        <div className="space-y-5 lg:pr-8">
-          {loadingData && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading routes and principals
-            </div>
-          )}
+    <div className="grid gap-0 md:grid-cols-2 md:divide-x">
+      <div className="space-y-4 md:pr-8">
+        <div>
+          <p className="text-sm font-semibold">Parameters</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Simulate an inbound HTTP request against the authorization policies</p>
+        </div>
 
-          {!matchMode ? (
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label>Principal</Label>
-                <Select value={selectedPrincipalId} onValueChange={handlePrincipalChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select principal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {principals.map((principal) => (
-                      <SelectItem key={principal.id} value={principal.id}>
-                        {principal.name} ({principal.type})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={selectedPrincipalId}
-                  onChange={(event) => setSelectedPrincipalId(event.target.value)}
-                  placeholder="Principal ID"
-                  className="font-mono text-sm"
-                />
-              </div>
+        {loadingData && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading routes and principals
+          </div>
+        )}
 
-              <div className="space-y-1.5">
-                <Label>Subject attributes</Label>
-                <SubjectAttributeRows rows={subjectRows} onChange={setSubjectRows} />
-              </div>
-
-              {showWfxClientWarning && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>This route requires subject.client_id to match the request.</AlertDescription>
-                </Alert>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_1fr]">
-                <div className="space-y-1.5">
-                  <Label>Auth type</Label>
-                  <Select value={authType} onValueChange={onAuthTypeChange}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="x509">x509</SelectItem>
-                      <SelectItem value="oidc">oidc</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {authType === 'x509' && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="pem-upload">Certificate file</Label>
-                    <div className="flex items-center gap-2">
-                      <Input id="pem-upload" type="file" accept=".pem,.crt,.cer" onChange={handlePemUpload} />
-                      <Upload className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>{authType === 'x509' ? 'Certificate PEM' : 'JWT'}</Label>
-                <Textarea
-                  value={authMaterial}
-                  onChange={(event) => onAuthMaterialChange(event.target.value)}
-                  rows={authType === 'x509' ? 8 : 4}
-                  placeholder={authType === 'x509' ? '-----BEGIN CERTIFICATE-----' : 'Bearer eyJ...'}
-                  className="font-mono text-xs"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 border-t pt-5 md:grid-cols-[180px_1fr]">
-            <div className="space-y-1.5 md:col-span-2">
-              <Label>Route</Label>
-              <Select value={selectedRouteValue} onValueChange={handleRouteChange}>
+        {!matchMode ? (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Principal</Label>
+              <Select value={selectedPrincipalId} onValueChange={handlePrincipalChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select schema route" />
+                  <SelectValue placeholder="Select principal" />
                 </SelectTrigger>
                 <SelectContent>
-                  {routeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.schemaName} / {option.groupName} / {option.route.action}
+                  {principals.map((principal) => (
+                    <SelectItem key={principal.id} value={principal.id}>
+                      {principal.name} ({principal.type})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Method</Label>
-              <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {HTTP_METHODS.map((item) => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Path</Label>
-              <Input value={path} onChange={(event) => setPath(event.target.value)} className="font-mono text-sm" />
-            </div>
-
-            <div className="space-y-1.5 md:col-span-2">
-              <Label>Query</Label>
               <Input
-                value={rawQuery}
-                onChange={(event) => setRawQuery(event.target.value)}
-                placeholder="clientId=hub-6ece-0664"
+                value={selectedPrincipalId}
+                onChange={(event) => setSelectedPrincipalId(event.target.value)}
+                placeholder="Principal ID"
                 className="font-mono text-sm"
               />
             </div>
 
-            <div className="space-y-1.5 md:col-span-2">
-              <Label>Headers</Label>
-              <KeyValueRows rows={headerRows} onChange={setHeaderRows} />
+            <div className="space-y-1.5">
+              <Label>Subject attributes</Label>
+              <SubjectAttributeRows rows={subjectRows} onChange={setSubjectRows} />
             </div>
 
-            <div className="space-y-1.5 md:col-span-2">
-              <Label>Body</Label>
-              <Textarea value={body} onChange={(event) => setBody(event.target.value)} rows={5} className="font-mono text-xs" />
+            {showWfxClientWarning && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>This route requires subject.client_id to match the request.</AlertDescription>
+              </Alert>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_1fr]">
+              <div className="space-y-1.5">
+                <Label>Auth type</Label>
+                <Select value={authType} onValueChange={onAuthTypeChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="x509">x509</SelectItem>
+                    <SelectItem value="oidc">oidc</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {authType === 'x509' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="pem-upload">Certificate file</Label>
+                  <div className="flex items-center gap-2">
+                    <Input id="pem-upload" type="file" accept=".pem,.crt,.cer" onChange={handlePemUpload} />
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              )}
             </div>
+
+            <div className="space-y-1.5">
+              <Label>{authType === 'x509' ? 'Certificate PEM' : 'JWT'}</Label>
+              <Textarea
+                value={authMaterial}
+                onChange={(event) => onAuthMaterialChange(event.target.value)}
+                rows={authType === 'x509' ? 8 : 4}
+                placeholder={authType === 'x509' ? '-----BEGIN CERTIFICATE-----' : 'Bearer eyJ...'}
+                className="font-mono text-xs"
+              />
+            </div>
+          </div>
+        )}
+
+        <Separator />
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_1fr]">
+          <div className="space-y-1.5 md:col-span-2">
+            <Label>Route</Label>
+            <Select value={selectedRouteValue} onValueChange={handleRouteChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select schema route" />
+              </SelectTrigger>
+              <SelectContent>
+                {routeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.schemaName} / {option.groupName} / {option.route.action}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Method</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {HTTP_METHODS.map((item) => (
+                  <SelectItem key={item} value={item}>{item}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Path</Label>
+            <Input value={path} onChange={(event) => setPath(event.target.value)} className="font-mono text-sm" />
+          </div>
+
+          <div className="space-y-1.5 md:col-span-2">
+            <Label>Query</Label>
+            <Input
+              value={rawQuery}
+              onChange={(event) => setRawQuery(event.target.value)}
+              placeholder="clientId=hub-6ece-0664"
+              className="font-mono text-sm"
+            />
+          </div>
+
+          <div className="space-y-1.5 md:col-span-2">
+            <Label>Headers</Label>
+            <KeyValueRows rows={headerRows} onChange={setHeaderRows} />
+          </div>
+
+          <div className="space-y-1.5 md:col-span-2">
+            <Label>Body</Label>
+            <Textarea value={body} onChange={(event) => setBody(event.target.value)} rows={5} className="font-mono text-xs" />
           </div>
         </div>
 
-        <div className="border-t pt-5 lg:border-t-0 lg:pl-8">
-          <p className="text-sm font-medium">Result</p>
-          {!result && !error && (
-            <p className="mt-2 text-sm text-muted-foreground">Run a check to see the matched route decision.</p>
-          )}
-          {error && (
-            <Alert variant="destructive" className="mt-3">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          {result && (
-            <div className="mt-3 space-y-4">
-                <div className="flex items-center gap-2">
-                  {result.allowed ? (
-                    <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Allowed
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="gap-1">
-                      <XCircle className="h-3.5 w-3.5" /> Denied
-                    </Badge>
-                  )}
-                </div>
-                <dl className="space-y-3 text-sm">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Matched principal</dt>
-                    <dd className="mt-0.5 break-all font-mono text-xs">{result.matched_principal_id || result.matched_principals?.[0] || 'None'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Matched policy</dt>
-                    <dd className="mt-0.5 break-all font-mono text-xs">{result.matched_policy_id || 'None'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Matched HTTP action</dt>
-                    <dd className="mt-0.5 font-mono text-xs">{result.matched_action || 'None'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Reason</dt>
-                    <dd className="mt-0.5 text-xs">{result.reason || 'No reason returned.'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Resolved subject attributes</dt>
-                    <dd className="mt-1 rounded-md border bg-background p-2">
-                      <pre className={cn('whitespace-pre-wrap break-all font-mono text-xs')}>
-                        {JSON.stringify(result.subject_attributes ?? {}, null, 2)}
-                      </pre>
-                    </dd>
-                  </div>
-                </dl>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex justify-start border-t pt-5">
+        <Separator />
         <Button onClick={handleSubmit} disabled={loading}>
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-          Run Check
+          Test HTTP Route
         </Button>
+      </div>
+
+      <div className="space-y-4 md:pl-8 mt-8 md:mt-0">
+        <p className="text-sm font-semibold">Result</p>
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {!result ? (!error && <EmptyResult />) : (
+          <div className="space-y-4">
+            <DecisionBanner
+              allowed={result.allowed}
+              label={result.allowed ? 'Access Allowed' : 'Access Denied'}
+              detail={result.allowed ? 'The request matches an authorized HTTP route.' : 'The request does not match any authorized HTTP route.'}
+            />
+            {result.matched_principals && (
+              <MatchedPrincipals ids={result.matched_principals} principals={principals} />
+            )}
+            <ResultTable rows={[
+              ...(result.matched_principals ? [] : [{ label: 'Principal', value: <span className="font-mono">{result.matched_principal_id || 'None'}</span> }]),
+              { label: 'Policy', value: <span className="font-mono">{result.matched_policy_id || 'None'}</span> },
+              { label: 'Action', value: <span className="font-mono">{result.matched_action || 'None'}</span> },
+              { label: 'Reason', value: result.reason || 'No reason returned.' },
+              {
+                label: 'Subject Attrs',
+                value: (
+                  <pre className="rounded bg-muted/50 px-3 py-2 font-mono overflow-auto whitespace-pre-wrap break-all leading-relaxed">
+                    {JSON.stringify(result.subject_attributes ?? {}, null, 2)}
+                  </pre>
+                ),
+              },
+            ]} />
+            <FullResponse data={result} />
+          </div>
+        )}
       </div>
     </div>
   );

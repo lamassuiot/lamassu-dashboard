@@ -16,11 +16,14 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Loader2, AlertCircle, Info, Plus, Trash2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, Info, Plus, Trash2, ChevronsUpDown } from 'lucide-react';
 import { getPrincipal, updatePrincipal } from '@/lib/authz-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
+import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { fetchAndProcessCAs, parseCertificatePemDetails, type CA } from '@/lib/ca-data';
+import { fetchCryptoEngines } from '@/lib/kms-data';
+import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { normalizeX509AuthConfig } from '@/lib/x509-auth-config';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { SubjectAttributesEditor } from '@/components/authz/SubjectAttributesEditor';
@@ -64,6 +67,7 @@ function EditPrincipalContent() {
   const [allCAs, setAllCAs] = useState<CA[]>([]);
   const [isLoadingCAs, setIsLoadingCAs] = useState(false);
   const [errorCAs, setErrorCAs] = useState<string | null>(null);
+  const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
   const [isCaSelectorOpen, setIsCaSelectorOpen] = useState(false);
   const [matchMode, setMatchMode] = useState<X509AuthConfig['match_mode']>('any_from_ca');
   const [serialNumber, setSerialNumber] = useState('');
@@ -91,6 +95,13 @@ function EditPrincipalContent() {
 
   const handleOpenCaSelector = async () => {
     if (allCAs.length === 0) await loadCAs();
+    if (allCryptoEngines.length === 0) {
+      try {
+        setAllCryptoEngines(await fetchCryptoEngines());
+      } catch {
+        // Icons fall back to a generic indicator if engines fail to load.
+      }
+    }
     setIsCaSelectorOpen(true);
   };
 
@@ -98,6 +109,46 @@ function EditPrincipalContent() {
     setSelectedCa(ca);
     setIsCaSelectorOpen(false);
   };
+
+  // Eagerly load CAs and crypto engines for x509 principals so the configured CA can be preselected.
+  useEffect(() => {
+    if (type !== 'x509') return;
+    if (allCAs.length === 0 && !isLoadingCAs) loadCAs();
+    if (allCryptoEngines.length === 0) {
+      fetchCryptoEngines().then(setAllCryptoEngines).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
+
+  // Resolve the currently configured CA against the loaded CA list so it preselects on edit.
+  useEffect(() => {
+    if (type !== 'x509' || !caTrustValue || selectedCa || allCAs.length === 0) return;
+    let cancelled = false;
+
+    const resolveSelectedCa = async () => {
+      const normalizedTarget = caTrustValue.trim().toLowerCase();
+
+      if (caTrustIdentityType === 'authority_key_id') {
+        const match = allCAs.find((ca) => (ca.authorityKeyId || '').trim().toLowerCase() === normalizedTarget);
+        if (match && !cancelled) setSelectedCa(match);
+        return;
+      }
+
+      for (const ca of allCAs) {
+        if (!ca.pemData) continue;
+        const details = await parseCertificatePemDetails(ca.pemData);
+        const rawFingerprint = (details.fingerprintSha256 || '').replace(/:/g, '').toLowerCase();
+        const candidate = rawFingerprint ? `sha256:${rawFingerprint}` : '';
+        if (candidate === normalizedTarget) {
+          if (!cancelled) setSelectedCa(ca);
+          return;
+        }
+      }
+    };
+
+    resolveSelectedCa();
+    return () => { cancelled = true; };
+  }, [type, caTrustValue, caTrustIdentityType, allCAs, selectedCa]);
 
   useEffect(() => {
     const recalculateCaTrustValue = async () => {
@@ -305,81 +356,79 @@ function EditPrincipalContent() {
         </Button>
       )}
 
-      <div className="space-y-3">
+      <div className="rounded-lg border divide-y">
         {claims.map((claim, index) => (
-          <div key={index} className="rounded-lg border bg-card">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">Claim condition {index + 1}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                  onClick={() => handleRemoveClaim(index)}
+          <div key={index} className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium">Claim condition {index + 1}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={() => handleRemoveClaim(index)}
+                disabled={submitting}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  Claim Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  placeholder="sub, email, groups"
+                  value={claim.claim}
+                  onChange={(e) => handleUpdateClaim(index, 'claim', e.target.value)}
+                  required
+                  disabled={submitting}
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">Operator</Label>
+                <Select
+                  value={claim.operator}
+                  onValueChange={(value: 'equals' | 'contains' | 'matches') =>
+                    handleUpdateClaim(index, 'operator', value)
+                  }
                   disabled={submitting}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                  <SelectTrigger className="text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="equals">Equals</SelectItem>
+                    <SelectItem value="contains">Contains</SelectItem>
+                    <SelectItem value="matches">Matches (Regex)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm">
-                    Claim Name <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    placeholder="sub, email, groups"
-                    value={claim.claim}
-                    onChange={(e) => handleUpdateClaim(index, 'claim', e.target.value)}
-                    required
-                    disabled={submitting}
-                    className="font-mono text-sm"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Operator</Label>
-                  <Select
-                    value={claim.operator}
-                    onValueChange={(value: 'equals' | 'contains' | 'matches') =>
-                      handleUpdateClaim(index, 'operator', value)
-                    }
-                    disabled={submitting}
-                  >
-                    <SelectTrigger className="text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="equals">Equals</SelectItem>
-                      <SelectItem value="contains">Contains</SelectItem>
-                      <SelectItem value="matches">Matches (Regex)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-sm">
-                    Value <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    placeholder={claim.operator === 'matches' ? '^[a-z]+@example\\.com$' : 'Claim value'}
-                    value={claim.value}
-                    onChange={(e) => handleUpdateClaim(index, 'value', e.target.value)}
-                    required
-                    disabled={submitting}
-                    className="font-mono text-sm"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  Value <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  placeholder={claim.operator === 'matches' ? '^[a-z]+@example\\.com$' : 'Claim value'}
+                  value={claim.value}
+                  onChange={(e) => handleUpdateClaim(index, 'value', e.target.value)}
+                  required
+                  disabled={submitting}
+                  className="font-mono text-sm"
+                />
               </div>
-
-              {claim.operator === 'matches' && (
-                <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Info className="h-3.5 w-3.5 shrink-0" />
-                  Regex pattern. Ensure it is valid before saving.
-                </p>
-              )}
             </div>
+
+            {claim.operator === 'matches' && (
+              <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Info className="h-3.5 w-3.5 shrink-0" />
+                Regex pattern. Ensure it is valid before saving.
+              </p>
+            )}
           </div>
         ))}
       </div>
@@ -388,46 +437,27 @@ function EditPrincipalContent() {
 
   const renderX509Form = () => (
     <div className="space-y-4">
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label className="text-sm">
           Certification Authority <span className="text-destructive">*</span>
         </Label>
-        <Button
+        <button
           type="button"
-          variant="outline"
           onClick={handleOpenCaSelector}
-          className="h-auto w-full justify-start py-3 text-left font-normal"
           disabled={submitting}
+          className="flex h-9 w-full items-center justify-between gap-1.5 rounded-md border border-input bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {selectedCa ? (
-            <span className="flex min-w-0 items-center gap-3">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-              <span className="min-w-0">
-                <span className="block text-sm font-medium text-foreground">{selectedCa.name}</span>
-                {caTrustValue && (
-                  <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
-                    {caTrustValue}
-                  </span>
-                )}
-              </span>
-            </span>
-          ) : caTrustValue ? (
-            <span className="flex min-w-0 items-center gap-3">
-              <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0">
-                <span className="block text-sm font-medium text-foreground">CA configured</span>
-                <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
-                  {caTrustValue}
-                </span>
-              </span>
-            </span>
-          ) : (
-            <span className="flex items-center gap-3 text-muted-foreground">
-              <Plus className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-medium">Select a Certification Authority</span>
-            </span>
-          )}
-        </Button>
+          <span className={selectedCa ? 'text-foreground' : 'text-muted-foreground'}>
+            {selectedCa ? selectedCa.name : caTrustValue ? 'CA configured' : 'Select a Certification Authority...'}
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+
+        {selectedCa ? (
+          <CaVisualizerCard ca={selectedCa} allCryptoEngines={allCryptoEngines} className="shadow-none border-border" />
+        ) : caTrustValue ? (
+          <p className="truncate font-mono text-xs text-muted-foreground">{caTrustValue}</p>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -715,7 +745,7 @@ function EditPrincipalContent() {
       <CaSelectorModal
         isOpen={isCaSelectorOpen}
         onOpenChange={setIsCaSelectorOpen}
-        title="Select Certification Authority"
+        title="Select an Issuer"
         description="Choose the Certification Authority used to match X.509 client certificates."
         availableCAs={allCAs}
         isLoadingCAs={isLoadingCAs}
@@ -723,6 +753,8 @@ function EditPrincipalContent() {
         loadCAsAction={loadCAs}
         onCaSelected={handleCaSelected}
         currentSelectedCaId={selectedCa?.id}
+        allCryptoEngines={allCryptoEngines}
+        useSheet
       />
     </BreadcrumbPage>
   );

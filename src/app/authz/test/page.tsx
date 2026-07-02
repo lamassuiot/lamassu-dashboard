@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, AlertCircle, ShieldCheck, ShieldX, Play, Filter, Globe, Database, TestTube2, ChevronRight } from 'lucide-react';
+import { Loader2, AlertCircle, ShieldCheck, Play, Filter, Globe, Database, TestTube2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -43,6 +43,7 @@ import type {
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { cn } from '@/lib/utils';
 import { HttpAuthzCheckForm } from '@/components/authz/HttpAuthzCheckForm';
+import { EmptyResult, FullResponse, DecisionBanner, ResultTable, MatchedPrincipals } from '@/components/authz/TestResultViews';
 
 export default function AuthorizationTestPage() {
   const searchParams = useSearchParams();
@@ -291,75 +292,6 @@ export default function AuthorizationTestPage() {
     );
   };
 
-  const EmptyResult = () => (
-    <div className="flex flex-col items-center justify-center py-10 gap-2.5 text-muted-foreground">
-      <TestTube2 className="h-8 w-8 opacity-20" />
-      <span className="text-sm">Run a test to see results</span>
-    </div>
-  );
-
-  const FullResponse = ({ data }: { data: unknown }) => (
-    <details className="group rounded-md border overflow-hidden">
-      <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors [&::-webkit-details-marker]:hidden">
-        <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
-        View full response
-      </summary>
-      <pre className="border-t bg-muted/40 px-4 py-3 overflow-auto text-xs">{JSON.stringify(data, null, 2)}</pre>
-    </details>
-  );
-
-  const DecisionBanner = ({ allowed, label, detail }: { allowed: boolean; label: string; detail: string }) => (
-    <div className={cn(
-      'flex items-center gap-3 rounded-md border-l-4 px-4 py-3',
-      allowed
-        ? 'border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20'
-        : 'border-l-red-500 bg-red-50/50 dark:bg-red-950/20',
-    )}>
-      {allowed
-        ? <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-        : <ShieldX className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />}
-      <div>
-        <p className={cn(
-          'text-sm font-semibold leading-tight',
-          allowed ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300',
-        )}>{label}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{detail}</p>
-      </div>
-    </div>
-  );
-
-  const ResultTable = ({ rows }: { rows: { label: string; value: React.ReactNode }[] }) => (
-    <table className="w-full text-sm">
-      <tbody className="divide-y divide-border">
-        {rows.map(({ label, value }) => (
-          <tr key={label}>
-            <td className="py-2 pr-6 align-top text-xs font-medium text-muted-foreground w-28 whitespace-nowrap">{label}</td>
-            <td className="py-2 text-xs">{value}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-
-  const MatchedPrincipals = ({ ids }: { ids: string[] }) => (
-    <div>
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Matched Principals</p>
-      <div className="flex flex-wrap gap-1.5">
-        {ids.length > 0
-          ? ids.map((id) => {
-              const principal = principals.find((p) => p.id === id);
-              return (
-                <Badge key={id} variant="secondary" className="flex flex-col items-start gap-0 px-2 py-1 cursor-pointer hover:bg-secondary/80 h-auto">
-                  <span className="text-xs font-normal leading-tight">{principal?.name || id}</span>
-                  {principal?.name && <span className="text-[10px] font-mono text-muted-foreground leading-tight">{id}</span>}
-                </Badge>
-              );
-            })
-          : <span className="text-xs text-muted-foreground italic">No principals matched</span>}
-      </div>
-    </div>
-  );
-
   // ─── Render ───────────────────────────────────────────────────
 
   return (
@@ -471,7 +403,7 @@ export default function AuthorizationTestPage() {
                     detail={authorizeResult.allowed ? 'The principal is authorized to perform this action.' : 'The principal is not authorized to perform this action.'}
                   />
                   {'matched_principals' in authorizeResult && (
-                    <MatchedPrincipals ids={authorizeResult.matched_principals} />
+                    <MatchedPrincipals ids={authorizeResult.matched_principals} principals={principals} />
                   )}
                   <ResultTable rows={[
                     ...('matched_principals' in authorizeResult ? [] : [{ label: 'Principal', value: <span className="font-mono">{authorizeResult.principal_id}</span> }]),
@@ -531,7 +463,7 @@ export default function AuthorizationTestPage() {
               {!filterResult ? <EmptyResult /> : (
                 <div className="space-y-4">
                   {'matched_principals' in filterResult && (
-                    <MatchedPrincipals ids={filterResult.matched_principals} />
+                    <MatchedPrincipals ids={filterResult.matched_principals} principals={principals} />
                   )}
                   <ResultTable rows={[
                     { label: 'Namespace', value: <span className="font-mono">{filterResult.namespace}</span> },
@@ -576,7 +508,7 @@ export default function AuthorizationTestPage() {
               {!globalCapsResult ? <EmptyResult /> : (
                 <div className="space-y-4">
                   {'matched_principals' in globalCapsResult && (
-                    <MatchedPrincipals ids={globalCapsResult.matched_principals} />
+                    <MatchedPrincipals ids={globalCapsResult.matched_principals} principals={principals} />
                   )}
                   {Object.keys(globalCapsResult.global_actions).length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">No global actions granted</p>
@@ -656,7 +588,7 @@ export default function AuthorizationTestPage() {
                 return (
                   <div className="space-y-4">
                     {'matched_principals' in entityCapsResult && (
-                      <MatchedPrincipals ids={entityCapsResult.matched_principals} />
+                      <MatchedPrincipals ids={entityCapsResult.matched_principals} principals={principals} />
                     )}
                     {!r.error && (
                       <DecisionBanner
