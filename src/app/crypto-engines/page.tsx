@@ -23,6 +23,7 @@ import AWSKMSLogo from "@/components/shared/CryptoEngineIcons/AWS-KMS.png";
 import AWSSMLogo from "@/components/shared/CryptoEngineIcons/AWS-SM.png";
 import VaultLogo from "@/components/shared/CryptoEngineIcons/HASHICORP-VAULT.png";
 import PKCS11Logo from "@/components/shared/CryptoEngineIcons/PKCS11.png";
+import AzureKeyVaultLogo from "@/components/shared/CryptoEngineIcons/AZURE-KEYVAULT.png";
 
 const formatEngineType = (type: string) => type.replaceAll('_', ' ');
 
@@ -41,7 +42,7 @@ const EngineIcon: React.FC<{ type: string; name: string }> = ({ type, name }) =>
   else if (typeUpper === "AWS_SECRETS_MANAGER") imageSrc = AWSSMLogo;
   else if (typeUpper === "AWS_KMS") imageSrc = AWSKMSLogo;
   else if (typeUpper === "HASHICORP_VAULT") imageSrc = VaultLogo;
-
+  else if (typeUpper === "AZURE_KEY_VAULT" || typeUpper === "AZURE_KEY_VAULT_SECRETS") imageSrc = AzureKeyVaultLogo;
   if (imageSrc) {
     return (
       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-border bg-background">
