@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { Shield, HardDrive } from 'lucide-react';
+import { HardDrive, ShieldAlert } from 'lucide-react';
 import { isPast, parseISO, formatDistanceToNowStrict } from 'date-fns';
 import type { CA } from '@/lib/ca-data';
 import { cn } from '@/lib/utils';
@@ -35,13 +35,15 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
   const { label, expiryText, variant } = getStatus(ca);
 
   let icon: React.ReactNode;
-  if (ca.kmsKeyId) {
+  if (variant === 'expired' || variant === 'revoked') {
+    icon = <ShieldAlert className="h-4 w-4 text-destructive" />;
+  } else if (ca.kmsKeyId) {
     const engine = allCryptoEngines?.find(e => e.id === ca.kmsKeyId);
     icon = engine
-      ? <CryptoEngineViewer engine={engine} iconOnly className="h-5 w-5" />
-      : <HardDrive className="h-5 w-5 text-primary" />;
+      ? <CryptoEngineViewer engine={engine} iconOnly className="h-6 w-6" />
+      : <HardDrive className="h-6 w-6 text-primary" />;
   } else {
-    icon = <Shield className="h-5 w-5 text-muted-foreground" />;
+    icon = <HardDrive className="h-6 w-6 text-primary" />;
   }
 
   const Comp = onClick ? 'button' : 'div';
@@ -56,7 +58,7 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
         className
       )}
     >
-      <div className="mt-0.5 shrink-0">
+      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center">
         {icon}
       </div>
 

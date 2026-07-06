@@ -21,6 +21,7 @@ import { importCa, type ImportCaPayload, fetchSigningProfiles, type ApiSigningPr
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 
 interface DecodedImportedCertInfo {
   subject?: string;
@@ -232,14 +233,14 @@ export default function CreateCaImportFullPage() {
             <div className="space-y-4 lg:col-span-2">
               <div className="space-y-1.5">
                 <Label htmlFor="importedCaCertPem">Certification Authority Certificate (PEM)</Label>
-                <Textarea
+                <CertificatePemTextarea
                   id="importedCaCertPem"
                   placeholder="Paste the CA certificate PEM here..."
                   rows={6}
                   required
                   className="font-mono"
                   value={importedCaCertPem}
-                  onChange={(e) => handleImportedCertPemChange(e.target.value)}
+                  onValueChange={handleImportedCertPemChange}
                 />
                 <p className="text-xs text-muted-foreground">The public certificate of the Certification Authority you are importing.</p>
               </div>
@@ -282,13 +283,14 @@ export default function CreateCaImportFullPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="caChainPem">Certification Authority Certificate Chain (PEM, Optional)</Label>
-                <Textarea
+                <CertificatePemTextarea
                   id="caChainPem"
                   placeholder="Paste the PEM-encoded certificate chain (parent certs) here..."
                   rows={6}
                   className="font-mono"
                   value={caChainPem}
-                  onChange={(e) => setCaChainPem(e.target.value)}
+                  onValueChange={setCaChainPem}
+                  multipleFiles
                 />
                 <p className="text-xs text-muted-foreground">Concatenated PEM files of the issuing Certification Authorities, from immediate issuer to root.</p>
               </div>

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, PlusCircle, Loader2 } from "lucide-react";
 import { Separator } from '@/components/ui/separator';
 import { parseCertificatePemDetails } from "@/lib-crypto";
@@ -15,6 +14,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { importCa, type ImportCaPayload } from '@/lib/ca-data';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 
 interface DecodedImportedCertInfo {
   commonName?: string;
@@ -184,14 +184,14 @@ export default function CreateCaImportPublicPage() {
             <div className="space-y-4 lg:col-span-2">
               <div className="space-y-1.5">
                 <Label htmlFor="importedCaCertPem">Certification Authority Certificate (PEM)</Label>
-                <Textarea
+                <CertificatePemTextarea
                   id="importedCaCertPem"
                   placeholder="Paste the CA certificate PEM here..."
                   rows={8}
                   required
                   className="font-mono"
                   value={importedCaCertPem}
-                  onChange={(e) => handleImportedCertPemChange(e.target.value)}
+                  onValueChange={handleImportedCertPemChange}
                 />
               </div>
               {decodedImportedCertInfo?.error && (

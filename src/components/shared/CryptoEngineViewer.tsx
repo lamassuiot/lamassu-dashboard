@@ -27,8 +27,13 @@ const ENGINE_STYLES: Record<string, { border: string; bg: string }> = {
   HASHICORP_VAULT:     { border: 'border-amber-200/60 dark:border-amber-800/40',   bg: 'bg-white dark:bg-gray-950' },
 };
 
+const normalizeEngineType = (type?: string): string => {
+  const typeKey = type?.toUpperCase() ?? '';
+  return typeKey === 'GOLANG_CRYPTO' ? 'GOLANG' : typeKey;
+};
+
 export function getEngineIconStyle(type: string): { border: string; bg: string } {
-  return ENGINE_STYLES[type?.toUpperCase()] ?? { border: 'border-border/60', bg: 'bg-muted/30' };
+  return ENGINE_STYLES[normalizeEngineType(type)] ?? { border: 'border-border/60', bg: 'bg-muted/30' };
 }
 
 const SECURITY_LEVEL: Record<number, { label: string; cls: string }> = {
@@ -44,7 +49,7 @@ export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({
   iconOnly = false,
   plainIcon = false,
 }) => {
-  const typeKey = engine.type?.toUpperCase() ?? '';
+  const typeKey = normalizeEngineType(engine.type);
   const style = ENGINE_STYLES[typeKey];
   const containerBorder = style?.border ?? 'border-border/50';
   const containerBg    = style?.bg    ?? 'bg-muted/20';

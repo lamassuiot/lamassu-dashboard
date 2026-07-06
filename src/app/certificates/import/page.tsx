@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import { Loader2, AlertCircle, Upload, ShieldAlert } from 'lucide-react';
 import { sileo } from '@/lib/toast';
 import { importCertificate, type ImportCertificateBody } from '@/lib/issued-certificate-data';
@@ -264,13 +264,15 @@ export default function ImportCertificatePage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="certificatePem">PEM Content</Label>
-                <Textarea
+                <CertificatePemTextarea
                   id="certificatePem"
                   value={certificatePem}
-                  onChange={(e) => handlePemTextChange(e.target.value)}
+                  onValueChange={handlePemTextChange}
                   placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
                   rows={8}
                   disabled={isLoading}
+                  allowedExtensions={ALLOWED_EXTENSIONS}
+                  maxFileSize={MAX_FILE_SIZE}
                   className="font-mono text-sm"
                 />
               </div>
