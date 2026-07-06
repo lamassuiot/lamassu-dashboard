@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Binary, AlertTriangle, Loader2, CheckCircle, XCircle, Info, ShieldCheck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -26,6 +25,7 @@ import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Code2, Layers } from 'lucide-react';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
+import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 
 
 // --- Zlint Types and Interfaces ---
@@ -513,9 +513,9 @@ export default function CertificateViewerPage() {
                                             ) : null}
                                         </div>
 
-                                        <Textarea
+                                        <CertificatePemTextarea
                                             value={pem}
-                                            onChange={(e) => setPem(e.target.value)}
+                                            onValueChange={setPem}
                                             placeholder="-----BEGIN CERTIFICATE-----..."
                                             className="h-[30rem] rounded-none border-0 bg-muted/10 font-mono text-xs leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0"
                                         />

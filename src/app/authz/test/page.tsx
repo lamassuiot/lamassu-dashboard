@@ -26,6 +26,7 @@ import {
   pageTabsTriggerClass,
 } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import {
   authorize, getFilter, matchAndAuthorize, matchAndGetFilter,
   getGlobalCapabilities, matchAndGetGlobalCapabilities,
@@ -263,13 +264,23 @@ export default function AuthorizationTestPage() {
             <Label htmlFor={`${idPrefix}-auth-value`}>
               {authCreds.auth_type === 'x509' ? 'X.509 Certificate (PEM)' : 'JWT Token'}
             </Label>
-            <Textarea
-              id={`${idPrefix}-auth-value`}
-              placeholder={authCreds.auth_type === 'x509' ? '-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----' : 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'}
-              value={authCreds.value}
-              onChange={(e) => setAuthCreds({ ...authCreds, value: e.target.value })}
-              className="font-mono text-xs min-h-[120px]"
-            />
+            {authCreds.auth_type === 'x509' ? (
+              <CertificatePemTextarea
+                id={`${idPrefix}-auth-value`}
+                placeholder="-----BEGIN CERTIFICATE-----\nMIIC...\n-----END CERTIFICATE-----"
+                value={authCreds.value}
+                onValueChange={(value) => setAuthCreds({ ...authCreds, value })}
+                className="font-mono text-xs min-h-[120px]"
+              />
+            ) : (
+              <Textarea
+                id={`${idPrefix}-auth-value`}
+                placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                value={authCreds.value}
+                onChange={(e) => setAuthCreds({ ...authCreds, value: e.target.value })}
+                className="font-mono text-xs min-h-[120px]"
+              />
+            )}
           </div>
         </>
       );

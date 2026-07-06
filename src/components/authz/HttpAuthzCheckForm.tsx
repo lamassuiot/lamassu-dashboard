@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Loader2, Play, Upload } from 'lucide-react';
+import { AlertCircle, Loader2, Play } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { CertificatePemTextarea } from '@/components/shared/CertificatePemTextarea';
 import {
   checkHTTPAuthorization,
   getHTTPSchemas,
@@ -352,12 +353,6 @@ export function HttpAuthzCheckForm({
     }
   };
 
-  const handlePemUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    onAuthMaterialChange(await file.text());
-  };
-
   return (
     <div className="grid gap-0 md:grid-cols-2 md:divide-x">
       <div className="space-y-4 md:pr-8">
@@ -411,8 +406,7 @@ export function HttpAuthzCheckForm({
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_1fr]">
-              <div className="space-y-1.5">
+            <div className="max-w-[180px] space-y-1.5">
                 <Label>Auth type</Label>
                 <Select value={authType} onValueChange={onAuthTypeChange}>
                   <SelectTrigger>
@@ -423,27 +417,27 @@ export function HttpAuthzCheckForm({
                     <SelectItem value="oidc">oidc</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              {authType === 'x509' && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="pem-upload">Certificate file</Label>
-                  <div className="flex items-center gap-2">
-                    <Input id="pem-upload" type="file" accept=".pem,.crt,.cer" onChange={handlePemUpload} />
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="space-y-1.5">
               <Label>{authType === 'x509' ? 'Certificate PEM' : 'JWT'}</Label>
-              <Textarea
-                value={authMaterial}
-                onChange={(event) => onAuthMaterialChange(event.target.value)}
-                rows={authType === 'x509' ? 8 : 4}
-                placeholder={authType === 'x509' ? '-----BEGIN CERTIFICATE-----' : 'Bearer eyJ...'}
-                className="font-mono text-xs"
-              />
+              {authType === 'x509' ? (
+                <CertificatePemTextarea
+                  value={authMaterial}
+                  onValueChange={onAuthMaterialChange}
+                  rows={8}
+                  placeholder="-----BEGIN CERTIFICATE-----"
+                  className="font-mono text-xs"
+                />
+              ) : (
+                <Textarea
+                  value={authMaterial}
+                  onChange={(event) => onAuthMaterialChange(event.target.value)}
+                  rows={4}
+                  placeholder="Bearer eyJ..."
+                  className="font-mono text-xs"
+                />
+              )}
             </div>
           </div>
         )}
