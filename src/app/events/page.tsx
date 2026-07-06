@@ -7,7 +7,6 @@ import {
     AlertTriangle,
     ChevronLeft,
     ChevronRight,
-    Clock,
     Loader2,
     RefreshCw,
     Logs,
@@ -30,11 +29,11 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { sileo } from '@/lib/toast';
 import { EventLogsTable } from '@/components/events/EventLogsTable';
 import { AuditUserInfoPanel } from '@/components/alerts/AuditUserInfoPanel';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { DurationInput } from '@/components/shared/DurationInput';
 import { DatePickerButton } from '@/components/shared/filters/GenericFilterBar';
 import {
@@ -166,16 +165,29 @@ export default function EventLogsPage() {
 
     return (
         <>
-        <div className="w-full space-y-6 pb-8">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                    <Logs className="h-8 w-8 text-primary" />
-                    <h1 className="text-2xl font-headline font-semibold">Audit Logs</h1>
+        <BreadcrumbPage className="space-y-6 pb-8" items={[{ label: 'Home', href: '/' }, { label: 'Audit Logs' }]}>
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                    <div className="shrink-0 rounded-md bg-primary/10 p-1.5">
+                        <Logs className="h-8 w-8 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-headline font-semibold">Audit Logs</h1>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Audit logs for security and compliance teams to monitor information access.
+                        </p>
+                    </div>
                 </div>
+                <Button
+                    variant="secondary"
+                    onClick={() => loadEvents(bookmark)}
+                    disabled={isLoading}
+                    className="shrink-0"
+                >
+                    <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
+                    Refresh
+                </Button>
             </div>
-            <p className="text-sm text-muted-foreground">
-                Audit logs for security and compliance teams to monitor information access.
-            </p>
 
             <Tabs defaultValue="logs">
                 <TabsList>
@@ -189,14 +201,14 @@ export default function EventLogsPage() {
                 {/* ---- Logs Tab ---- */}
                 <TabsContent value="logs" className="space-y-4 mt-4">
                     {/* Filter bar */}
-                    <div className="flex flex-col lg:flex-row lg:items-end gap-3">
-                        <div className="flex-1 space-y-1.5">
-                            <Label>Event Type</Label>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.1fr)_minmax(220px,1.1fr)_180px_180px_auto] xl:items-end">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="event-type-filter">Event Type</Label>
                             <Select
                                 value={eventTypeFilter || '__all__'}
                                 onValueChange={(v) => setEventTypeFilter(v === '__all__' ? '' : v)}
                             >
-                                <SelectTrigger className="h-9 text-sm">
+                                <SelectTrigger id="event-type-filter" className="h-9 text-sm">
                                     <SelectValue placeholder="All event types" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -283,11 +295,12 @@ export default function EventLogsPage() {
                             </Select>
                         </div>
 
-                        <div className="flex-1 space-y-1.5">
-                            <Label>Source</Label>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="event-source-filter">Source</Label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
+                                    id="event-source-filter"
                                     placeholder="e.g., /lamassu/ca"
                                     value={sourceFilter}
                                     onChange={(e) => setSourceFilter(e.target.value)}
@@ -296,34 +309,27 @@ export default function EventLogsPage() {
                             </div>
                         </div>
 
-                        <div className="w-full lg:w-[200px] space-y-1.5">
-                            <Label>Start date</Label>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="event-start-date-filter">Start date</Label>
                             <DatePickerButton
+                                id="event-start-date-filter"
                                 value={startDate}
                                 onChange={setStartDate}
                                 placeholder="Pick start date"
                             />
                         </div>
 
-                        <div className="w-full lg:w-[200px] space-y-1.5">
-                            <Label>End date</Label>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="event-end-date-filter">End date</Label>
                             <DatePickerButton
+                                id="event-end-date-filter"
                                 value={endDate}
                                 onChange={setEndDate}
                                 placeholder="Pick end date"
                             />
                         </div>
 
-                        <div className="flex items-end gap-2">
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => loadEvents(bookmark)}
-                                disabled={isLoading}
-                            >
-                                <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
-                                Refresh
-                            </Button>
+                        <div className="flex items-end gap-2 md:col-span-2 xl:col-span-1">
                             {hasActiveFilters && (
                                 <Button variant="outline" size="sm" onClick={handleClearFilters}>
                                     <X className="mr-2 h-4 w-4" />
@@ -358,6 +364,9 @@ export default function EventLogsPage() {
                         <>
                             <EventLogsTable events={events} onViewUserInfo={handleViewUserInfo} />
                             <div className="flex items-center justify-end gap-2 mt-4">
+                                <span className="text-sm text-muted-foreground">
+                                    Page {bookmarkHistory.length + 1}
+                                </span>
                                 <Button
                                     onClick={handlePrevPage}
                                     disabled={isFirstPage}
@@ -394,32 +403,14 @@ export default function EventLogsPage() {
 
                 {/* ---- Settings Tab ---- */}
                 <TabsContent value="settings" className="mt-4">
-                    <Card className="overflow-hidden rounded-xl shadow-sm max-w-xl">
-                        <CardHeader className="border-b py-4">
-                            <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                    <CardTitle className="text-lg flex items-center">
-                                        <Clock className="mr-3 h-5 w-5 text-primary" />
-                                        Event Retention
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Configure how long event logs are retained before being deleted.
-                                    </CardDescription>
-                                </div>
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={loadRetentionConfig}
-                                    disabled={isLoadingConfig}
-                                >
-                                    <RefreshCw
-                                        className={cn('mr-2 h-4 w-4', isLoadingConfig && 'animate-spin')}
-                                    />
-                                    Refresh
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-6 pt-6">
+                    <div className="grid grid-cols-1 gap-10 py-6 lg:grid-cols-3">
+                        <div>
+                            <p className="font-semibold">Event Retention</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Configure how long audit logs are retained before being deleted.
+                            </p>
+                        </div>
+                        <div className="space-y-6 lg:col-span-2">
                             {isLoadingConfig ? (
                                 <div className="flex items-center gap-2 text-muted-foreground">
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -445,11 +436,11 @@ export default function EventLogsPage() {
                                     {isSavingConfig ? 'Saving...' : 'Save Settings'}
                                 </Button>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
                 </TabsContent>
             </Tabs>
-        </div>
+        </BreadcrumbPage>
 
         <AuditUserInfoPanel
             isOpen={isUserInfoOpen}

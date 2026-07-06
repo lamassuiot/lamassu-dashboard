@@ -120,11 +120,11 @@ export const EventLogsTable: React.FC<EventLogsTableProps> = ({ events, onViewUs
     };
 
     return (
-        <div className="rounded-lg">
+        <div className="overflow-hidden rounded-lg">
             <Table>
                 <TableHeader className="[&_tr]:border-0">
                     <TableRow className="border-0">
-                        <TableHead className="w-[10px]" />
+                        <TableHead className="w-[40px]" />
                         <TableHead className="w-[160px]">TIMESTAMP</TableHead>
                         <TableHead>EVENT</TableHead>
                         {onViewUserInfo && <TableHead className="w-[100px] text-right" />}
@@ -135,9 +135,9 @@ export const EventLogsTable: React.FC<EventLogsTableProps> = ({ events, onViewUs
                         <React.Fragment key={event.id}>
                             <TableRow
                                 onClick={() => toggleRow(event.id)}
-                                className="cursor-pointer border-0"
+                                className="cursor-pointer border-0 hover:bg-muted/50"
                             >
-                                <TableCell className="p-2">
+                                <TableCell>
                                     <ChevronDown
                                         className={cn(
                                             'h-4 w-4 text-muted-foreground transition-transform',
@@ -155,7 +155,8 @@ export const EventLogsTable: React.FC<EventLogsTableProps> = ({ events, onViewUs
                                     <TableCell className="text-right align-top pt-2">
                                         <Button
                                             size="sm"
-                                            variant="secondary"
+                                            variant="ghost"
+                                            className="h-8"
                                             onClick={(e) => { e.stopPropagation(); onViewUserInfo(event); }}
                                         >
                                             User Info
