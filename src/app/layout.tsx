@@ -127,6 +127,7 @@ const navigationConfig: NavGroup[] = [
     label: 'KMS',
     items: [
       { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false, uiAuthzCapabilities: 'pki.kms.kms_key' },
+      { href: '/kms/keys-v2', label: 'Keys V2', icon: KeyRound, devOnly: false, uiAuthzCapabilities: 'pki.kms.kms_key' },
       { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
     ],
   },
