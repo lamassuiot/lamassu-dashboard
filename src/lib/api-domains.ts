@@ -47,7 +47,9 @@ export const get_VA_CORE_API_BASE_URL = () => `${getApiBaseUrl()}/va`;
 export const get_VA_CORE_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/va`;
 
 export const get_VA_API_BASE_URL = () => `${get_VA_CORE_API_BASE_URL()}/v1`;
+
 export const get_WFX_API_BASE_URL = () => `${getApiBaseUrl()}/wfx/nbi/v1`;
+export const get_WFX_API_PUBLIC_URL = () => `${getPublicAPIUrl()}/wfx/nbi`;
 
 // These endpoints now use the potentially overridden base URL
 export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/est`;

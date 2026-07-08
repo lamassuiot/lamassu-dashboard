@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, AlertCircle, ArrowLeft, Save } from 'lucide-react';
 import { getPolicy, updatePolicy } from '@/lib/authz-api';
 import type { Rule, HTTPRule } from '@/types/authz';
-import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
+import { normalizePolicyRules, validateHTTPRuleParamConstraints, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { PolicyForm } from '@/components/authz/PolicyForm';
 
@@ -61,6 +61,12 @@ function EditPolicyContent() {
     const wildcardErrors = validatePolicyRelationWildcardRestrictions(formData.rules);
     if (wildcardErrors.length > 0) {
       setError(wildcardErrors[0].message);
+      return;
+    }
+
+    const httpParamConstraintErrors = validateHTTPRuleParamConstraints(formData.http_rules);
+    if (httpParamConstraintErrors.length > 0) {
+      setError(httpParamConstraintErrors[0].message);
       return;
     }
 

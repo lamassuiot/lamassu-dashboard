@@ -29,6 +29,7 @@ import { createCertificate, fetchAndProcessCAs, fetchSigningProfiles, type CA, t
 import { fetchCryptoEngines, fetchKmsKey } from '@/lib/kms-data';
 import { parseCertificatePemDetails } from '@/lib-crypto/cert-parser';
 import { useAuth } from '@/contexts/AuthContext';
+import { getAccessTokenForApiRequest } from '@/lib/auth-session';
 import { sileo } from '@/lib/toast';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import type { ApiKmsKey } from '@/lib/kms-data';
@@ -100,7 +101,7 @@ export default function CreateCertificateClient() {
     const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
 
     const loadPageData = useCallback(async () => {
-        if (!user?.access_token) return;
+        if (!getAccessTokenForApiRequest(user?.access_token)) return;
         setIsLoadingCAs(true);
         setErrorCAs(null);
         setIsLoadingProfiles(true);
@@ -204,7 +205,7 @@ export default function CreateCertificateClient() {
         setProcessingError(null);
 
         try {
-            const result = await createCertificate(payload, user!.access_token!);
+            const result = await createCertificate(payload, user?.access_token);
             const pem = result.certificate ? window.atob(result.certificate) : null;
             setIssuedCertPem(pem);
             setIssuedSerialNumber(result.serial_number ?? null);

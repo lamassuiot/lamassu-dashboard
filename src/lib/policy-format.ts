@@ -1,4 +1,4 @@
-import type { EntityAddress, RelationRule, Rule, SchemaDefinition } from '@/types/authz';
+import type { EntityAddress, HTTPRule, RelationRule, Rule, SchemaDefinition } from '@/types/authz';
 
 interface PolicyRelationWildcardError {
   path: string;
@@ -151,6 +151,67 @@ export const validatePolicyRelationWildcardRestrictions = (rules: Rule[]): Polic
     if (rule.relations && rule.relations.length > 0) {
       errors.push(...collectRelationWildcardErrors(rule.relations, `rules[${index}]`));
     }
+  });
+
+  return errors;
+};
+
+export const validateHTTPRuleParamConstraints = (httpRules: HTTPRule[]): PolicyRelationWildcardError[] => {
+  const errors: PolicyRelationWildcardError[] = [];
+
+  httpRules.forEach((rule, ruleIndex) => {
+    (rule.param_constraints ?? []).forEach((constraint, constraintIndex) => {
+      const path = `http_rules[${ruleIndex}].param_constraints[${constraintIndex}]`;
+      if (!constraint.action?.trim()) {
+        errors.push({ path: `${path}.action`, message: `HTTP rule param constraint action is required (${path}.action).` });
+      }
+
+      const actionGranted = rule.actions.includes('*') || rule.actions.includes(constraint.action);
+      if (constraint.action && !actionGranted) {
+        errors.push({
+          path: `${path}.action`,
+          message: `HTTP rule param constraint action must also be listed in actions (${path}.action).`,
+        });
+      }
+
+      if (!constraint.equals?.trim()) {
+        errors.push({ path: `${path}.equals`, message: `HTTP rule param constraint equals is required (${path}.equals).` });
+      }
+
+      const request = constraint.request ?? {};
+      switch (request.source) {
+        case 'path_regex_group':
+          if (!request.index || request.index <= 0) {
+            errors.push({
+              path: `${path}.request.index`,
+              message: `HTTP rule param constraint path_regex_group index must be greater than zero (${path}.request.index).`,
+            });
+          }
+          break;
+        case 'query':
+        case 'header':
+          if (!request.name?.trim()) {
+            errors.push({
+              path: `${path}.request.name`,
+              message: `HTTP rule param constraint ${request.source} name is required (${path}.request.name).`,
+            });
+          }
+          break;
+        case 'json_body':
+          if (!request.path?.trim()) {
+            errors.push({
+              path: `${path}.request.path`,
+              message: `HTTP rule param constraint json_body path is required (${path}.request.path).`,
+            });
+          }
+          break;
+        default:
+          errors.push({
+            path: `${path}.request.source`,
+            message: `HTTP rule param constraint request source is required (${path}.request.source).`,
+          });
+      }
+    });
   });
 
   return errors;

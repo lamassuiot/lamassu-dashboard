@@ -22,6 +22,7 @@ import {
   listPrincipals,
   matchAndCheckHTTPAuthorization,
 } from '@/lib/authz-api';
+import { getHTTPSchemaGroups } from '@/lib/http-authz-schema';
 import {
   newSubjectAttributeRow,
   subjectAttributeRowsFromRecord,
@@ -47,6 +48,7 @@ type RouteOption = {
   value: string;
   schemaName: string;
   groupName: string;
+  schema: HTTPSchemaDefinition;
   route: HTTPSchemaRoute;
 };
 
@@ -83,6 +85,7 @@ const routePathForCheck = (path: string) => {
   return placeholderPath
     .replace(/^\^/, '')
     .replace(/\$$/, '')
+    .replace(/\(\?P<([^>]+)>[^)]*\)/g, (_match, name) => String(name).toLowerCase().includes('id') ? 'e0e8' : 'sample')
     .replace(/\(\[\^\/\]\+\)|\[\^\/\]\+/g, 'e0e8')
     .replace(/\(\.\*\)|\.\*/g, 'sample')
     .replace(/\\\//g, '/');
@@ -96,11 +99,12 @@ const getClientId = (rows: SubjectAttributeRow[]) =>
 
 const buildRouteOptions = (schemas: Record<string, HTTPSchemaDefinition>): RouteOption[] =>
   Object.entries(schemas).flatMap(([schemaKey, schema]) =>
-    schema.groups.flatMap((group) =>
+    getHTTPSchemaGroups(schema).flatMap((group) =>
       group.routes.map((route) => ({
         value: [schema.name || schemaKey, group.name, route.action].join(OPTION_SEP),
         schemaName: schema.name || schemaKey,
         groupName: group.name,
+        schema,
         route,
       })),
     ),
@@ -209,7 +213,8 @@ export function HttpAuthzCheckForm({
   const [result, setResult] = useState<HTTPAuthzCheckResponse | null>(null);
 
   const routeOptions = useMemo(() => buildRouteOptions(httpSchemas), [httpSchemas]);
-  const selectedRoute = routeOptions.find((option) => option.value === selectedRouteValue)?.route ?? null;
+  const selectedRouteOption = routeOptions.find((option) => option.value === selectedRouteValue) ?? null;
+  const selectedRoute = selectedRouteOption?.route ?? null;
   const clientId = getClientId(subjectRows);
   const showWfxClientWarning = !matchMode && isWfxSbiRoute(selectedRoute) && !clientId;
 
@@ -459,6 +464,18 @@ export function HttpAuthzCheckForm({
                 ))}
               </SelectContent>
             </Select>
+            {selectedRouteOption && (
+              <div className="space-y-1 text-xs text-muted-foreground">
+                {selectedRoute?.skip_authz && (
+                  <p>Authorization is skipped for this route after authentication succeeds.</p>
+                )}
+                {selectedRouteOption.schema.base_paths?.length ? (
+                  <p className="font-mono">
+                    {selectedRouteOption.schema.base_paths.join(', ')} default {selectedRouteOption.schema.default_action || 'deny'}
+                  </p>
+                ) : null}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

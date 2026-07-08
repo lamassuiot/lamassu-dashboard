@@ -4,6 +4,7 @@
 import { parseCertificatePemDetails, type ParsedPemDetails, abToHex } from "@/lib-crypto";
 import { get_CA_API_BASE_URL, get_DEV_MANAGER_API_BASE_URL, handleApiError } from "./api-domains";
 import { apiFetch } from "./api-client";
+import { getAccessTokenForApiRequest } from "./auth-session";
 
 // API Response Structures
 interface ApiKeyMetadata {
@@ -617,12 +618,17 @@ export interface CreateCertificatePayload {
     metadata?: Record<string, any>;
 }
 
-export async function createCertificate(payload: CreateCertificatePayload, accessToken: string): Promise<any> {
+export async function createCertificate(payload: CreateCertificatePayload, accessToken?: string | null): Promise<any> {
+    const token = getAccessTokenForApiRequest(accessToken);
+    if (!token) {
+        throw new Error('User not authenticated.');
+    }
+
     const response = await apiFetch(`${get_CA_API_BASE_URL()}/certificates`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${token}`,
         },
         auth: false,
         body: JSON.stringify(payload),

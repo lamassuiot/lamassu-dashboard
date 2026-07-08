@@ -1,6 +1,6 @@
 'use client';
 
-import { getStoredAccessToken, isAuthEnabled } from './auth-session';
+import { getAccessTokenForApiRequest } from './auth-session';
 
 interface ApiFetchOptions extends RequestInit {
   auth?: boolean;
@@ -11,11 +11,7 @@ const resolveAccessTokenForRequest = (auth: boolean): string | null => {
     return null;
   }
 
-  if (!isAuthEnabled()) {
-    return null;
-  }
-
-  const accessToken = getStoredAccessToken();
+  const accessToken = getAccessTokenForApiRequest();
 
   if (!accessToken) {
     throw new Error('User not authenticated.');

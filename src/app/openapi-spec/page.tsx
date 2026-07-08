@@ -3,14 +3,16 @@
 import { ApiReferenceReact } from '@scalar/api-reference-react'
 import '@scalar/api-reference-react/style.css'
 import { useTheme } from '@/contexts/ThemeContext'
-import { get_KMS_API_PUBLIC_URL, get_CA_API_PUBLIC_URL, get_VA_CORE_API_PUBLIC_URL, get_DMS_MANAGER_API_PUBLIC_URL, get_DEV_MANAGER_API_PUBLIC_URL, get_ALERTS_API_PUBLIC_URL, get_AUTHZ_API_PUBLIC_URL } from '@/lib/api-domains';
+import { get_KMS_API_PUBLIC_URL, get_CA_API_PUBLIC_URL, get_VA_CORE_API_PUBLIC_URL, get_DMS_MANAGER_API_PUBLIC_URL, get_DEV_MANAGER_API_PUBLIC_URL, get_ALERTS_API_PUBLIC_URL, get_AUTHZ_API_PUBLIC_URL, get_WFX_API_PUBLIC_URL } from '@/lib/api-domains';
 import { useAuth } from '@/contexts/AuthContext';
+import { getAccessTokenForApiRequest } from '@/lib/auth-session';
 
 
 
 function App() {
   const { isDarkMode } = useTheme();
   const { user } = useAuth();
+  const accessToken = getAccessTokenForApiRequest(user?.access_token);
   const servicesToCheck = [
     { title: 'KMS Service', slug: 'kms', url: `${get_KMS_API_PUBLIC_URL()}/openapi` },
     { title: 'CA Service', slug: 'ca', url: `${get_CA_API_PUBLIC_URL()}/openapi` },
@@ -19,6 +21,7 @@ function App() {
     { title: 'Device Manager Service', slug: 'device', url: `${get_DEV_MANAGER_API_PUBLIC_URL()}/openapi` },
     { title: 'Alerts Service', slug: 'alerts', url: `${get_ALERTS_API_PUBLIC_URL()}/openapi` },
     { title: 'Authorization Service', slug: 'authz', url: `${get_AUTHZ_API_PUBLIC_URL()}/openapi` },
+    { title: 'Job Manager - WFX', slug: 'wfx', url: `${get_WFX_API_PUBLIC_URL()}/v1/openapi.json` },
   ];
 
   return (
@@ -32,14 +35,14 @@ function App() {
           hideDarkModeToggle: true,
           theme: "kepler",
           onBeforeRequest: ({ request }) => {
-            if (user?.access_token) {
-              request.headers.set('Authorization', `Bearer ${user.access_token}`);
+            if (accessToken) {
+              request.headers.set('Authorization', `Bearer ${accessToken}`);
             }
           },
           fetch: (input, init) => {
             const headers = new Headers((init as RequestInit | undefined)?.headers);
-            if (user?.access_token) {
-              headers.set('Authorization', `Bearer ${user.access_token}`);
+            if (accessToken) {
+              headers.set('Authorization', `Bearer ${accessToken}`);
             }
             return fetch(input, { ...init, headers });
           },

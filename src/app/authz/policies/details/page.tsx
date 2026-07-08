@@ -51,6 +51,11 @@ import {
   pageTabsTriggerClass,
 } from '@/components/ui/tabs';
 import { getPolicy, getPolicyStats, deletePolicy, getHTTPSchemas } from '@/lib/authz-api';
+import {
+  formatHTTPRuleParamConstraint,
+  getHTTPRuleParamConstraintsForAction,
+  getHTTPSchemaGroups,
+} from '@/lib/http-authz-schema';
 import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
 import type {
   Policy,
@@ -88,10 +93,12 @@ const getRouteConstraints = (route: HTTPSchemaRoute): HTTPRouteConstraint[] => {
 const formatRouteConstraint = (constraint: HTTPRouteConstraint): string => {
   if (constraint.description) return constraint.description;
 
-  const rawLocation = constraint.location ?? constraint.source ?? '';
+  const request = constraint.request ?? {};
+  const rawLocation = request.source ?? constraint.location ?? constraint.source ?? '';
   const normalizedLocation = rawLocation.toLowerCase();
-  const fieldPath = constraint.path ?? constraint.name ?? '';
-  const subjectAttribute = constraint.subject_attribute ?? constraint.subject ?? '';
+  const fieldPath = request.path ?? request.name ?? constraint.path ?? constraint.name ?? '';
+  const pathGroup = typeof request.index === 'number' && request.index > 0 ? `path group ${request.index}` : '';
+  const subjectAttribute = constraint.equals_subject_attribute ?? constraint.subject_attribute ?? constraint.subject ?? '';
   const subjectRef = subjectAttribute.startsWith('subject.')
     ? subjectAttribute
     : subjectAttribute
@@ -107,6 +114,10 @@ const formatRouteConstraint = (constraint: HTTPRouteConstraint): string => {
     return `requires JSON body ${fieldPath} ${operator} ${subjectRef}`;
   }
 
+  if (normalizedLocation.includes('path_regex_group')) {
+    return `requires ${pathGroup || 'path group'} ${operator} ${subjectRef}`;
+  }
+
   if (fieldPath && subjectRef) return `requires ${fieldPath} ${operator} ${subjectRef}`;
   return 'requires route constraint';
 };
@@ -119,8 +130,8 @@ const getRoutesForHttpRule = (
   if (!schema) return [];
 
   const groups = rule.http_group_name
-    ? schema.groups.filter((group) => group.name === rule.http_group_name)
-    : schema.groups;
+    ? getHTTPSchemaGroups(schema).filter((group) => group.name === rule.http_group_name)
+    : getHTTPSchemaGroups(schema);
   const routes = groups.flatMap((group) => group.routes);
 
   if (rule.actions.includes('*')) return routes;
@@ -509,6 +520,11 @@ function PolicyDetailsContent() {
                               {httpRule.http_group_name && (
                                 <p className="mt-0.5 font-mono text-xs text-muted-foreground">{httpRule.http_group_name}</p>
                               )}
+                              {httpSchemas[httpRule.http_schema_name]?.base_paths?.length ? (
+                                <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                                  {httpSchemas[httpRule.http_schema_name].base_paths!.join(', ')} default {httpSchemas[httpRule.http_schema_name].default_action || 'deny'}
+                                </p>
+                              ) : null}
                             </TableCell>
                             <TableCell className="py-3">
                               {httpRule.actions.length === 0 ? (
@@ -532,27 +548,61 @@ function PolicyDetailsContent() {
                                       {route.methods.map((method) => (
                                         <Badge key={method} variant="secondary" className="font-mono text-[10px]">{method}</Badge>
                                       ))}
+                                      {route.skip_authz && (
+                                        <Badge variant="outline" className="font-mono text-[10px]">skip authz</Badge>
+                                      )}
                                       <span>{route.path}</span>
                                     </div>
                                     <code className="text-[11px] text-muted-foreground">{route.action}</code>
                                   </div>
                                 </TableCell>
                                 <TableCell className="py-2">
-                                  {constraints.length === 0 ? (
-                                    <span className="text-xs text-muted-foreground/60">No route constraints</span>
-                                  ) : (
-                                    <div className="space-y-1">
-                                      {constraints.map((constraint, constraintIndex) => (
-                                        <p key={constraintIndex} className="font-mono text-xs text-muted-foreground">
-                                          {formatRouteConstraint(constraint)}
-                                        </p>
-                                      ))}
-                                    </div>
-                                  )}
+                                  {(() => {
+                                    const paramConstraints = getHTTPRuleParamConstraintsForAction(httpRule, route.action);
+                                    const hasConditions = constraints.length > 0 || paramConstraints.length > 0 || route.skip_authz;
+
+                                    if (!hasConditions) {
+                                      return <span className="text-xs text-muted-foreground/60">No route constraints</span>;
+                                    }
+
+                                    return (
+                                      <div className="space-y-1">
+                                        {route.skip_authz && (
+                                          <p className="font-mono text-xs text-muted-foreground">
+                                            authz skipped for authenticated subjects
+                                          </p>
+                                        )}
+                                        {constraints.map((constraint, constraintIndex) => (
+                                          <p key={`route-${constraintIndex}`} className="font-mono text-xs text-muted-foreground">
+                                            {formatRouteConstraint(constraint)}
+                                          </p>
+                                        ))}
+                                        {paramConstraints.map((constraint, constraintIndex) => (
+                                          <p key={`param-${constraintIndex}`} className="font-mono text-xs text-muted-foreground">
+                                            static check {formatHTTPRuleParamConstraint(constraint)}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
                                 </TableCell>
                               </TableRow>
                             );
                           })}
+                          {(httpRule.param_constraints ?? []).filter(
+                            (constraint) => !getRoutesForHttpRule(httpRule, httpSchemas).some((route) => route.action === constraint.action),
+                          ).map((constraint, constraintIndex) => (
+                            <TableRow key={`${index}-unmatched-param-${constraintIndex}`} className="hover:bg-transparent align-top bg-muted/20">
+                              <TableCell className="py-2 pl-6">
+                                <code className="text-[11px] text-muted-foreground">{constraint.action}</code>
+                              </TableCell>
+                              <TableCell className="py-2">
+                                <p className="font-mono text-xs text-muted-foreground">
+                                  static check {formatHTTPRuleParamConstraint(constraint)}
+                                </p>
+                              </TableCell>
+                            </TableRow>
+                          ))}
                         </Fragment>
                       ))}
                     </TableBody>

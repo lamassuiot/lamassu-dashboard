@@ -2,6 +2,7 @@
 // src/lib/devices-api.ts
 import { get_DEV_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
+import { getAccessTokenForApiRequest } from './auth-session';
 
 // Maps dot-notation SSE event types to the normalized REST API format
 const SSE_EVENT_TYPE_MAP: Record<string, string> = {
@@ -106,7 +107,7 @@ export async function fetchDeviceEventsPaginated({
   bookmark,
 }: {
   deviceId: string;
-  accessToken: string;
+  accessToken?: string | null;
   limit?: number;
   bookmark?: string;
 }): Promise<PaginatedDeviceEventsResponse> {
@@ -115,8 +116,13 @@ export async function fetchDeviceEventsPaginated({
   if (bookmark) params.set('bookmark', bookmark);
 
   const url = `${get_DEV_MANAGER_API_BASE_URL()}/devices/${deviceId}/events${params.toString() ? `?${params.toString()}` : ''}`;
+  const token = getAccessTokenForApiRequest(accessToken);
+  if (!token) {
+    throw new Error('User not authenticated.');
+  }
+
   const response = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${accessToken}` },
+    headers: { 'Authorization': `Bearer ${token}` },
   });
 
   const data = await handleApiError(response, `Failed to fetch events for device ${deviceId}`);
@@ -239,7 +245,7 @@ export function subscribeToDeviceEventsSSE({
 
     (async () => {
       try {
-        const token = getAccessToken();
+        const token = getAccessTokenForApiRequest(getAccessToken());
         if (!token) {
           // No valid token — retry after delay
           const nextDelay = Math.min(retryDelay * 1.5, 10000);

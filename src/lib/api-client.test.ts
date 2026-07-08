@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { apiFetch, createApiHeaders } from './api-client'
+import { AUTH_DISABLED_ACCESS_TOKEN } from './auth-session'
 
 describe('api-client', () => {
   const originalConfig = (window as any).lamassuConfig
@@ -15,7 +16,7 @@ describe('api-client', () => {
     expect(headers.get('Authorization')).toBe('Bearer test-access-token')
   })
 
-  it('omits the Authorization header when auth is disabled', () => {
+  it('uses the auth-disabled fallback token when auth is disabled', () => {
     window.localStorage.clear();
     (window as any).lamassuConfig = {
       ...originalConfig,
@@ -25,7 +26,7 @@ describe('api-client', () => {
     const headers = createApiHeaders({ 'Content-Type': 'application/json' })
 
     expect(headers.get('Content-Type')).toBe('application/json')
-    expect(headers.has('Authorization')).toBe(false)
+    expect(headers.get('Authorization')).toBe(`Bearer ${AUTH_DISABLED_ACCESS_TOKEN}`)
   })
 
   it('throws for auth-enabled requests when auth is enabled and no token is available', () => {
@@ -46,7 +47,7 @@ describe('api-client', () => {
     expect(headers.get('Authorization')).toBe('Bearer manual-token')
   })
 
-  it('removes an explicitly provided Authorization header when auth resolves to no token', async () => {
+  it('replaces an explicitly provided Authorization header with the fallback token when auth is disabled', async () => {
     window.localStorage.clear()
     ;(window as any).lamassuConfig = {
       ...originalConfig,
@@ -64,7 +65,7 @@ describe('api-client', () => {
     const [, init] = fetchSpy.mock.calls[0]
     const requestHeaders = new Headers(init?.headers)
 
-    expect(requestHeaders.has('Authorization')).toBe(false)
+    expect(requestHeaders.get('Authorization')).toBe(`Bearer ${AUTH_DISABLED_ACCESS_TOKEN}`)
 
     fetchSpy.mockRestore()
   })

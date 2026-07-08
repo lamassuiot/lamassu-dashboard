@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { Loader2 } from 'lucide-react';
 
 interface LamassuConfig {
-  LAMASSU_AUTH_ENABLED?: boolean;
+  LAMASSU_AUTH_ENABLED?: boolean | string;
   LAMASSU_AUTH_AUTHORITY?: string;
   LAMASSU_AUTH_CLIENT_ID?: string;
   LAMASSU_AUTH_MONITOR_SESSION?: boolean;

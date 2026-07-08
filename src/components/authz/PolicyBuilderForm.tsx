@@ -45,10 +45,16 @@ import type {
   FilterableFieldType,
   FilterOperator,
   HTTPRule,
+  HTTPRuleParamConstraint,
+  HTTPRequestValueRef,
   HTTPSchemaDefinition,
 } from '@/types/authz';
 import { getSchemas, getHTTPSchemas } from '@/lib/authz-api';
 import { findSchemaByAddress, normalizeEntityAddress, toQualifiedEntityType } from '@/lib/policy-format';
+import {
+  getHTTPSchemaGroups,
+  httpRuleGrantsAction,
+} from '@/lib/http-authz-schema';
 import { cn } from '@/lib/utils';
 
 type AnyRule =
@@ -100,12 +106,54 @@ const getRouteConstraints = (route: { constraint?: any; constraints?: any[]; rou
   return route.constraint ? [route.constraint] : [];
 };
 
+type HTTPConstraintSource = 'path_regex_group' | 'query' | 'header' | 'json_body';
+
+const HTTP_CONSTRAINT_SOURCES: HTTPConstraintSource[] = ['path_regex_group', 'query', 'header', 'json_body'];
+
+const HTTP_CONSTRAINT_SOURCE_LABELS: Record<HTTPConstraintSource, string> = {
+  path_regex_group: 'Path group',
+  query: 'Query',
+  header: 'Header',
+  json_body: 'JSON body',
+};
+
+const requestRefForSource = (
+  source: HTTPConstraintSource,
+  previous?: HTTPRequestValueRef
+): HTTPRequestValueRef => {
+  switch (source) {
+    case 'path_regex_group':
+      return {
+        source,
+        index: typeof previous?.index === 'number' && previous.index > 0 ? previous.index : 1,
+      };
+    case 'json_body':
+      return {
+        source,
+        path: previous?.path ?? '',
+      };
+    case 'query':
+    case 'header':
+      return {
+        source,
+        name: previous?.name ?? '',
+      };
+  }
+};
+
+const getRequestRefSource = (request?: HTTPRequestValueRef): HTTPConstraintSource =>
+  HTTP_CONSTRAINT_SOURCES.includes(request?.source as HTTPConstraintSource)
+    ? (request!.source as HTTPConstraintSource)
+    : 'path_regex_group';
+
 const formatRouteConstraint = (constraint: any): string => {
   if (constraint?.description) return String(constraint.description);
 
-  const location = String(constraint?.location ?? constraint?.source ?? '').toLowerCase();
-  const fieldPath = String(constraint?.path ?? constraint?.name ?? '');
-  const subjectAttribute = String(constraint?.subject_attribute ?? constraint?.subject ?? '');
+  const request = constraint?.request ?? {};
+  const location = String(request?.source ?? constraint?.location ?? constraint?.source ?? '').toLowerCase();
+  const fieldPath = String(request?.path ?? request?.name ?? constraint?.path ?? constraint?.name ?? '');
+  const pathGroup = typeof request?.index === 'number' && request.index > 0 ? `path group ${request.index}` : '';
+  const subjectAttribute = String(constraint?.equals_subject_attribute ?? constraint?.subject_attribute ?? constraint?.subject ?? '');
   const subjectRef = subjectAttribute.startsWith('subject.')
     ? subjectAttribute
     : subjectAttribute
@@ -115,6 +163,7 @@ const formatRouteConstraint = (constraint: any): string => {
 
   if (location.includes('query')) return `requires query ${fieldPath} ${operator} ${subjectRef}`;
   if (location.includes('json') || location.includes('body')) return `requires JSON body ${fieldPath} ${operator} ${subjectRef}`;
+  if (location.includes('path_regex_group')) return `requires ${pathGroup || 'path group'} ${operator} ${subjectRef}`;
   if (fieldPath && subjectRef) return `requires ${fieldPath} ${operator} ${subjectRef}`;
   return 'requires route constraint';
 };
@@ -825,6 +874,7 @@ export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChang
 
           {(httpRules ?? []).map((rule, index) => {
             const hasActions = rule.actions.length > 0;
+            const paramConstraintCount = rule.param_constraints?.length ?? 0;
 
             return (
               <AccordionItem
@@ -854,7 +904,9 @@ export function PolicyBuilderForm({ rules, onChange, httpRules, onHttpRulesChang
                     )}
                     {hasActions && (
                       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {countLabel(rule.actions.length, 'action')}
+                        {[countLabel(rule.actions.length, 'action'), paramConstraintCount > 0 && countLabel(paramConstraintCount, 'static check')]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </span>
                     )}
                   </div>
@@ -939,7 +991,7 @@ function UnifiedEntitySelector({
   const filteredHTTPEntries = Object.entries(httpSchemas).filter(([, schema]) => {
     if (!query) return true;
     const q = query.toLowerCase();
-    return schema.name.toLowerCase().includes(q) || schema.groups.some((g) => g.name.toLowerCase().includes(q));
+    return schema.name.toLowerCase().includes(q) || getHTTPSchemaGroups(schema).some((g) => g.name.toLowerCase().includes(q));
   });
 
   const selectedEntityValue = !isHTTP && entityData?.schema_name && entityData?.entity_type
@@ -1091,7 +1143,8 @@ function UnifiedEntitySelector({
 
             {/* HTTP schema groups */}
             {filteredHTTPEntries.map(([schemaKey, schema]) => {
-              const visibleGroups = schema.groups.filter((g) =>
+              const groups = getHTTPSchemaGroups(schema);
+              const visibleGroups = groups.filter((g) =>
                 !query || schema.name.toLowerCase().includes(query.toLowerCase()) || g.name.toLowerCase().includes(query.toLowerCase())
               );
               return (
@@ -1153,12 +1206,79 @@ interface HTTPRuleEditorProps {
 function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, onSwitchToEntity }: HTTPRuleEditorProps) {
   const schema = httpSchemas[rule.http_schema_name];
   const isWildcard = rule.actions.includes('*');
+  const groupsToShow = schema
+    ? rule.http_group_name
+      ? getHTTPSchemaGroups(schema).filter((group) => group.name === rule.http_group_name)
+      : getHTTPSchemaGroups(schema)
+    : [];
+  const schemaActions = groupsToShow
+    .flatMap((group) => group.routes)
+    .map((route) => route.action)
+    .filter(Boolean);
+  const grantableParamActions = Array.from(new Set([
+    ...schemaActions.filter((action) => httpRuleGrantsAction(rule, action)),
+    ...rule.actions.filter((action) => action !== '*'),
+  ])).filter((action) => action && httpRuleGrantsAction(rule, action));
+  const paramActionOptions = Array.from(new Set([
+    ...grantableParamActions,
+    ...(rule.param_constraints ?? []).map((constraint) => constraint.action).filter(Boolean),
+  ]));
 
   const toggleAction = (action: string) => {
     const next = rule.actions.includes(action)
       ? rule.actions.filter((a) => a !== action)
       : [...rule.actions, action];
-    onChange({ ...rule, actions: next });
+    const nextRule: HTTPRule = { ...rule, actions: next };
+    if (!next.includes('*') && !next.includes(action)) {
+      nextRule.param_constraints = (rule.param_constraints ?? []).filter((constraint) => constraint.action !== action);
+    }
+    if (nextRule.param_constraints?.length === 0) {
+      delete nextRule.param_constraints;
+    }
+    onChange(nextRule);
+  };
+
+  const findRouteForAction = (action: string) =>
+    groupsToShow.flatMap((group) => group.routes).find((route) => route.action === action);
+
+  const defaultRequestForAction = (action: string): HTTPRequestValueRef => {
+    const route = findRouteForAction(action);
+    return route?.match_type === 'regex'
+      ? { source: 'path_regex_group', index: 1 }
+      : { source: 'query', name: '' };
+  };
+
+  const addParamConstraint = () => {
+    const action = grantableParamActions[0] ?? '';
+    if (!action) return;
+    const next: HTTPRuleParamConstraint[] = [
+      ...(rule.param_constraints ?? []),
+      { action, request: defaultRequestForAction(action), equals: '' },
+    ];
+    onChange({ ...rule, param_constraints: next });
+  };
+
+  const updateParamConstraint = (index: number, patch: Partial<HTTPRuleParamConstraint>) => {
+    const next = [...(rule.param_constraints ?? [])];
+    const current = next[index] ?? {
+      action: grantableParamActions[0] ?? '',
+      request: requestRefForSource('path_regex_group'),
+      equals: '',
+    };
+    next[index] = { ...current, ...patch };
+    onChange({ ...rule, param_constraints: next });
+  };
+
+  const updateParamConstraintSource = (index: number, source: HTTPConstraintSource) => {
+    const constraint = rule.param_constraints?.[index];
+    updateParamConstraint(index, {
+      request: requestRefForSource(source, constraint?.request),
+    });
+  };
+
+  const removeParamConstraint = (index: number) => {
+    const next = (rule.param_constraints ?? []).filter((_, constraintIndex) => constraintIndex !== index);
+    onChange({ ...rule, param_constraints: next.length > 0 ? next : undefined });
   };
 
   const currentRule: AnyRule = { kind: 'http', data: rule };
@@ -1176,6 +1296,11 @@ function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, 
           error={!rule.http_schema_name ? 'Required' : undefined}
         />
         {schema?.description && <p className="text-xs text-muted-foreground mt-1.5">{schema.description}</p>}
+        {schema?.base_paths && schema.base_paths.length > 0 && (
+          <p className="font-mono text-[10px] text-muted-foreground/70">
+            {schema.base_paths.join(', ')} default {schema.default_action || 'deny'}
+          </p>
+        )}
       </RuleSection>
 
       {/* ── Actions ── */}
@@ -1186,24 +1311,33 @@ function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, 
               <Checkbox
                 id="http-rule-wildcard"
                 checked={isWildcard}
-                onCheckedChange={(checked) => onChange({ ...rule, actions: checked ? ['*'] : [] })}
+                onCheckedChange={(checked) => onChange({
+                  ...rule,
+                  actions: checked ? ['*'] : [],
+                  param_constraints: checked ? rule.param_constraints : undefined,
+                })}
                 className="size-3.5 shrink-0"
               />
               <span
                 className="font-mono text-xs cursor-pointer select-none text-foreground"
                 role="button"
                 tabIndex={0}
-                onClick={() => onChange({ ...rule, actions: isWildcard ? [] : ['*'] })}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onChange({ ...rule, actions: isWildcard ? [] : ['*'] })}
+                onClick={() => onChange({
+                  ...rule,
+                  actions: isWildcard ? [] : ['*'],
+                  param_constraints: isWildcard ? undefined : rule.param_constraints,
+                })}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onChange({
+                  ...rule,
+                  actions: isWildcard ? [] : ['*'],
+                  param_constraints: isWildcard ? undefined : rule.param_constraints,
+                })}
               >
                 *
               </span>
               <span className="text-xs text-muted-foreground/60">— grants all actions</span>
             </div>
             {!isWildcard && (() => {
-              const groupsToShow = rule.http_group_name
-                ? schema.groups.filter((g) => g.name === rule.http_group_name)
-                : schema.groups;
               return groupsToShow.map((group) => (
                 <div key={group.name}>
                   <div className="border-b bg-muted/50 px-3 py-1.5">
@@ -1230,6 +1364,9 @@ function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, 
                               title={`${route.methods.join(', ')} ${route.path}`}
                             >
                               {route.action}
+                              {route.skip_authz && (
+                                <span className="ml-1 font-sans text-[10px] text-muted-foreground/70">skip authz</span>
+                              )}
                             </span>
                             <span className="block truncate font-mono text-[10px] text-muted-foreground/70">
                               {route.methods.join(', ')} {route.path}
@@ -1248,6 +1385,140 @@ function HTTPRuleEditor({ rule, onChange, onDelete, httpSchemas, entitySchemas, 
               ));
             })()}
           </div>
+        </RuleSection>
+      )}
+
+      {schema && (grantableParamActions.length > 0 || (rule.param_constraints?.length ?? 0) > 0) && (
+        <RuleSection
+          icon={<SlidersHorizontal />}
+          title="Static request checks"
+          description="Pin a request value to a literal value for a selected action."
+        >
+          {(rule.param_constraints?.length ?? 0) === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              No static checks configured.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {rule.param_constraints!.map((constraint, index) => {
+                const source = getRequestRefSource(constraint.request);
+                return (
+                  <div key={index} className="rounded-md border bg-muted/10 p-2.5">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div className="min-w-0 space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Action</Label>
+                          <Select
+                            value={constraint.action || undefined}
+                            onValueChange={(action) => updateParamConstraint(index, {
+                              action,
+                              request: constraint.request?.source ? constraint.request : defaultRequestForAction(action),
+                            })}
+                          >
+                            <SelectTrigger className="h-8 w-full min-w-0 font-mono text-xs [&>span]:truncate">
+                              <SelectValue placeholder="Action" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {paramActionOptions.map((action) => (
+                                <SelectItem key={action} value={action}>
+                                  <span className="truncate font-mono">{action}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="min-w-0 space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Source</Label>
+                          <Select
+                            value={source}
+                            onValueChange={(value) => updateParamConstraintSource(index, value as HTTPConstraintSource)}
+                          >
+                            <SelectTrigger className="h-8 w-full min-w-0 text-xs [&>span]:truncate">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {HTTP_CONSTRAINT_SOURCES.map((requestSource) => (
+                                <SelectItem key={requestSource} value={requestSource}>
+                                  {HTTP_CONSTRAINT_SOURCE_LABELS[requestSource]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="min-w-0 space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">
+                            {source === 'path_regex_group' ? 'Group index' : source === 'json_body' ? 'JSON path' : 'Name'}
+                          </Label>
+                          {source === 'path_regex_group' ? (
+                            <Input
+                              type="number"
+                              min={1}
+                              value={constraint.request?.index ?? 1}
+                              onChange={(event) => updateParamConstraint(index, {
+                                request: { source, index: Number(event.target.value) },
+                              })}
+                              className="h-8 font-mono text-xs"
+                            />
+                          ) : source === 'json_body' ? (
+                            <Input
+                              value={constraint.request?.path ?? ''}
+                              onChange={(event) => updateParamConstraint(index, {
+                                request: { source, path: event.target.value },
+                              })}
+                              placeholder="$.id"
+                              className="h-8 font-mono text-xs"
+                            />
+                          ) : (
+                            <Input
+                              value={constraint.request?.name ?? ''}
+                              onChange={(event) => updateParamConstraint(index, {
+                                request: { source, name: event.target.value },
+                              })}
+                              placeholder={source === 'header' ? 'X-System-ID' : 'system_id'}
+                              className="h-8 font-mono text-xs"
+                            />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Equals</Label>
+                          <Input
+                            value={constraint.equals ?? ''}
+                            onChange={(event) => updateParamConstraint(index, { equals: event.target.value })}
+                            placeholder="Literal value"
+                            className="h-8 font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={() => removeParamConstraint(index)}
+                        variant="ghost"
+                        size="icon"
+                        className="mt-5 h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <Button
+            type="button"
+            onClick={addParamConstraint}
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs shrink-0"
+            disabled={grantableParamActions.length === 0}
+          >
+            <Plus className="mr-1 h-3 w-3" />
+            Add static check
+          </Button>
         </RuleSection>
       )}
 

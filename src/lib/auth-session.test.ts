@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { getStoredAccessToken, isAuthEnabled } from './auth-session'
+import { AUTH_DISABLED_ACCESS_TOKEN, getAccessTokenForApiRequest, getStoredAccessToken, isAuthEnabled } from './auth-session'
 
 describe('auth-session', () => {
   const originalConfig = (window as any).lamassuConfig
@@ -32,5 +32,16 @@ describe('auth-session', () => {
 
     expect(isAuthEnabled()).toBe(false)
     expect(getStoredAccessToken()).toBeNull()
+    expect(getAccessTokenForApiRequest()).toBe(AUTH_DISABLED_ACCESS_TOKEN)
+  })
+
+  it('treats string false as authentication disabled', () => {
+    ;(window as any).lamassuConfig = {
+      ...originalConfig,
+      LAMASSU_AUTH_ENABLED: 'FALSE',
+    }
+
+    expect(isAuthEnabled()).toBe(false)
+    expect(getAccessTokenForApiRequest()).toBe(AUTH_DISABLED_ACCESS_TOKEN)
   })
 })

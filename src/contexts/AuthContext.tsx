@@ -5,6 +5,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useMe
 import { User, UserManager, WebStorageStateStore, Log, UserProfile } from 'oidc-client-ts';
 import { useRouter } from 'next/navigation';
 import { useConfig } from './ConfigContext';
+import { isAuthEnabledValue } from '@/lib/auth-session';
 
 // Optional: Configure oidc-client-ts logging
 Log.setLogger(console);
@@ -13,7 +14,7 @@ Log.setLevel(Log.DEBUG);
 
 const createUserManager = (): UserManager | null => {
   // Check moved inside the function to be safe.
-  if (typeof window !== 'undefined' && (window as any).lamassuConfig?.LAMASSU_AUTH_ENABLED !== false) {
+  if (typeof window !== 'undefined' && isAuthEnabledValue((window as any).lamassuConfig?.LAMASSU_AUTH_ENABLED)) {
     const config = (window as any).lamassuConfig;
     const authority = config?.LAMASSU_AUTH_AUTHORITY;
     const clientId = config?.LAMASSU_AUTH_CLIENT_ID || 'frontend';
@@ -72,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Wait for config to be loaded before determining auth mode
     if (isConfigLoaded && config) {
-      const isEnabled = config.LAMASSU_AUTH_ENABLED !== false;
+      const isEnabled = isAuthEnabledValue(config.LAMASSU_AUTH_ENABLED);
       setAuthMode(isEnabled ? 'enabled' : 'disabled');
     }
   }, [config, isConfigLoaded]);
@@ -239,7 +240,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (authMode === 'disabled') {
         const mockUser = new User({
           id_token: 'mock_id_token',
-          access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiYXBwLWFkbWluIiwib2ZmbGluZV9hY2Nlc3MiXX0sIm5hbWUiOiJEZXYgVXNlciJ9.mockSignature',
+          access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZXZAbGFtYXNzdS5pbyIsImFkbWluIjp0cnVlLCJpYXQiOjE1MTYyMzkwMjJ9.EgdjNI3kDaDzVqNcPJcXyQ2xQgADTKnzlmdKc7MohYk',
           scope: 'openid profile email',
           token_type: 'Bearer',
           profile: {

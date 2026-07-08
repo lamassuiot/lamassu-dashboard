@@ -11,6 +11,7 @@ import { sileo } from '@/lib/toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchDeviceEventsPaginated, subscribeToDeviceEventsSSE, type ApiDeviceEventItem } from '@/lib/devices-api';
 import { fetchIssuedCertificates, updateCertificateStatus } from '@/lib/issued-certificate-data';
+import { getAccessTokenForApiRequest } from '@/lib/auth-session';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { formatDistanceToNowStrict, formatDistanceStrict, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -91,8 +92,8 @@ export default function TimelinePage() {
   const sseEventBufferRef = useRef<ApiDeviceEventItem[]>([]);
   const sseFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const accessTokenRef = useRef(user?.access_token);
-  accessTokenRef.current = user?.access_token;
+  const accessTokenRef = useRef<string | null>(getAccessTokenForApiRequest(user?.access_token));
+  accessTokenRef.current = getAccessTokenForApiRequest(user?.access_token);
 
   const handleTimelineModeChange = useCallback((mode: TimelineMode) => {
     setTimelineMode(mode);
@@ -116,11 +117,12 @@ export default function TimelinePage() {
   }, []);
 
   const fetchTimelinePage = useCallback(async (bookmark?: string) => {
-    if (!deviceId || !user?.access_token) return;
+    const accessToken = getAccessTokenForApiRequest(user?.access_token);
+    if (!deviceId || !accessToken) return;
     setIsTimelineLoading(true);
     try {
       const result = await fetchDeviceEventsPaginated({
-        deviceId, accessToken: user.access_token, limit: timelinePageSize, bookmark: bookmark || undefined,
+        deviceId, accessToken, limit: timelinePageSize, bookmark: bookmark || undefined,
       });
       setTimelineRawEvents(result.events);
       setTimelineNextBookmark(result.next);
@@ -135,13 +137,13 @@ export default function TimelinePage() {
   }, [deviceId, user?.access_token, timelinePageSize]);
 
   useEffect(() => {
-    if (!device || !deviceId || !user?.access_token || timelineMode === 'realtime') return;
+    if (!device || !deviceId || !getAccessTokenForApiRequest(user?.access_token) || timelineMode === 'realtime') return;
     fetchTimelinePage();
   }, [device, deviceId, user?.access_token, timelineMode, timelinePageSize, fetchTimelinePage]);
 
   useEffect(() => {
     if (pollingTimerRef.current) { clearInterval(pollingTimerRef.current); pollingTimerRef.current = null; }
-    if (timelineMode !== 'polling' || !device || !deviceId || !user?.access_token) return;
+    if (timelineMode !== 'polling' || !device || !deviceId || !getAccessTokenForApiRequest(user?.access_token)) return;
     pollingTimerRef.current = setInterval(() => fetchTimelinePage(), pollingInterval * 1000);
     return () => { if (pollingTimerRef.current) { clearInterval(pollingTimerRef.current); pollingTimerRef.current = null; } };
   }, [timelineMode, pollingInterval, device, deviceId, user?.access_token, fetchTimelinePage]);
@@ -185,7 +187,7 @@ export default function TimelinePage() {
 
       sseControllerRef.current = subscribeToDeviceEventsSSE({
         deviceId,
-        getAccessToken: () => accessTokenRef.current,
+        getAccessToken: () => accessTokenRef.current ?? undefined,
         onEvent: (event) => { sseEventBufferRef.current.push(event); },
         onConnectionChange: (connected) => { setIsSseConnected(connected); },
       });
@@ -204,7 +206,7 @@ export default function TimelinePage() {
   }, [timelineMode, deviceId]);
 
   useEffect(() => {
-    if (!device || !timelineRawEvents.length || !user?.access_token) { setTimelineEvents([]); return; }
+    if (!device || !timelineRawEvents.length || !getAccessTokenForApiRequest(user?.access_token)) { setTimelineEvents([]); return; }
 
     const processEvents = async () => {
       setIsTimelineLoading(true);
@@ -316,11 +318,12 @@ export default function TimelinePage() {
   }, [device, timelineRawEvents, user?.access_token, timelineFetchedCerts]);
 
   const handleLoadMore = useCallback(async () => {
-    if (!deviceId || !user?.access_token || isLoadingMoreTimelineEvents || !timelineNextBookmark) return;
+    const accessToken = getAccessTokenForApiRequest(user?.access_token);
+    if (!deviceId || !accessToken || isLoadingMoreTimelineEvents || !timelineNextBookmark) return;
     setIsLoadingMoreTimelineEvents(true);
     try {
       const result = await fetchDeviceEventsPaginated({
-        deviceId, accessToken: user.access_token, limit: timelinePageSize, bookmark: timelineNextBookmark,
+        deviceId, accessToken, limit: timelinePageSize, bookmark: timelineNextBookmark,
       });
       setTimelineRawEvents(prev => [...prev, ...result.events]);
       setTimelineNextBookmark(result.next);

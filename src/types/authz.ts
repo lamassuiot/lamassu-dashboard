@@ -26,21 +26,38 @@ export interface HTTPRule {
   http_schema_name: string;
   http_group_name?: string;
   actions: string[];
+  param_constraints?: HTTPRuleParamConstraint[];
+}
+
+export interface HTTPRuleParamConstraint {
+  action: string;
+  request: HTTPRequestValueRef;
+  equals: string;
 }
 
 export interface HTTPSchemaRoute {
   name: string;
   methods: string[];
   path: string;
-  match_type: 'exact' | 'regex';
+  match_type: 'exact' | 'prefix' | 'regex';
   action: string;
+  skip_authz?: boolean;
   constraint?: HTTPRouteConstraint;
   constraints?: HTTPRouteConstraint[];
   route_constraints?: HTTPRouteConstraint[];
   request_constraints?: HTTPRouteConstraint[];
 }
 
+export interface HTTPRequestValueRef {
+  source?: 'path_regex_group' | 'query' | 'header' | 'json_body' | string;
+  name?: string;
+  index?: number;
+  path?: string;
+}
+
 export interface HTTPRouteConstraint {
+  request?: HTTPRequestValueRef;
+  equals_subject_attribute?: string;
   location?: string;
   source?: string;
   path?: string;
@@ -55,15 +72,20 @@ export interface HTTPRouteConstraint {
 
 export interface HTTPSchemaGroup {
   name: string;
+  description?: string;
   routes: HTTPSchemaRoute[];
+  all_actions?: string[];
 }
 
 
 export interface HTTPSchemaDefinition {
   name: string;
   description?: string;
-  groups: HTTPSchemaGroup[];
-  all_actions: string[];
+  routes?: HTTPSchemaRoute[];
+  groups?: HTTPSchemaGroup[];
+  base_paths?: string[];
+  default_action?: 'allow' | 'deny';
+  all_actions?: string[];
 }
 
 export interface Policy {

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PlusCircle } from 'lucide-react';
 import { createPolicy } from '@/lib/authz-api';
 import type { Rule, HTTPRule } from '@/types/authz';
-import { normalizePolicyRules, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
+import { normalizePolicyRules, validateHTTPRuleParamConstraints, validatePolicyRelationWildcardRestrictions } from '@/lib/policy-format';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { PolicyForm } from '@/components/authz/PolicyForm';
 
@@ -30,6 +30,12 @@ export default function NewPolicyPage() {
     const wildcardErrors = validatePolicyRelationWildcardRestrictions(formData.rules);
     if (wildcardErrors.length > 0) {
       setError(wildcardErrors[0].message);
+      return;
+    }
+
+    const httpParamConstraintErrors = validateHTTPRuleParamConstraints(formData.http_rules);
+    if (httpParamConstraintErrors.length > 0) {
+      setError(httpParamConstraintErrors[0].message);
       return;
     }
 
