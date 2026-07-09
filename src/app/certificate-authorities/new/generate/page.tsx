@@ -19,6 +19,7 @@ import {
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { Switch } from '@/components/ui/switch';
+import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
 import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
