@@ -48,53 +48,9 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
     icon = <HardDrive className="h-6 w-6 text-primary" />;
   }
 
-  const { text: statusText, isCritical } = getStatusAndExpiryText(ca);
   const isChameleonCertificate = Boolean(ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']);
   const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm) || isChameleonCertificate;
-
-  const cardInnerContent = (
-    <div className={cn("flex items-center p-3")}>
-      <div className="p-2 flex-shrink-0 border-r border-border/50 pr-3 mr-3">
-        {IconComponent}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 truncate" title={ca.name}>
-            {ca.name}
-          </p>
-          {isPqcCertificate && (
-            <Badge className="text-[10px] h-5 px-1.5 gap-1">
-              <QuantumAlgorithmIcon variant="primaryBadge" className="h-3 w-3" />
-              PQC
-            </Badge>
-          )}
-          {isChameleonCertificate && (
-            <Badge className="text-[10px] h-5 px-1.5">HYBRID</Badge>
-          )}
-        </div>
-        <p className={cn("text-xs truncate", isCritical ? "text-destructive" : "text-muted-foreground")} title={statusText}>
-          {statusText}
-        </p>
-      </div>
-      <div className="flex-shrink-0 border-l border-border/50 pl-3 ml-3">
-        <StatusIcon status={ca.status} expires={ca.expires} />
-      </div>
-    </div>
-  );
-
-  if (onClick) {
-    return (
-      <button
-        data-ca-visualizer-card="true"
-        type="button"
-        onClick={() => onClick(ca)}
-        className={cn(cardBaseClasses, clickableClasses, className, "text-left")}
-        aria-label={`View details for ${ca.name}`}
-      >
-        {cardInnerContent}
-      </button>
-    );
-  }
+  const Comp = onClick ? 'button' : 'div';
 
   return (
     <Comp
@@ -112,7 +68,18 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className="truncate text-sm font-semibold leading-snug text-foreground">{ca.name}</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="truncate text-sm font-semibold leading-snug text-foreground">{ca.name}</p>
+            {isPqcCertificate && (
+              <Badge className="shrink-0 text-[10px] h-5 px-1.5 gap-1">
+                <QuantumAlgorithmIcon variant="primaryBadge" className="h-3 w-3" />
+                PQC
+              </Badge>
+            )}
+            {isChameleonCertificate && (
+              <Badge className="shrink-0 text-[10px] h-5 px-1.5">HYBRID</Badge>
+            )}
+          </div>
           <Badge className={cn('shrink-0 rounded-sm border px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide', statusBadgeClass[variant])}>
             {label}
           </Badge>
