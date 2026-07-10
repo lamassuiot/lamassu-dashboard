@@ -141,17 +141,17 @@ export default function HomePage() {
       <div className="flex flex-col gap-8 xl:flex-row xl:items-stretch">
         <div className="min-w-0 flex-1">
           {anyTimelineLoading && !anyTimelineError ? (
-            <Card className="flex h-full w-full flex-col">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">Certification Authority Expiry Timeline</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1">
-                <div className="flex h-[320px] items-center justify-center gap-3">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">Loading timeline data…</p>
-                </div>
-              </CardContent>
-            </Card>
+            <section className="flex h-full w-full flex-col space-y-1.5">
+              <div className="min-w-0 space-y-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Timeline</p>
+                <h2 className="text-sm font-semibold text-foreground">Certification Authority Expiry Timeline</h2>
+                <p className="text-[11px] text-muted-foreground">Visual timeline of CA expiry dates. Select an item to view details.</p>
+              </div>
+              <div className="flex h-[340px] items-center justify-center gap-3 border-y border-border/80 bg-background">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Loading timeline data…</p>
+              </div>
+            </section>
           ) : anyTimelineError ? (
             <Card className="flex h-full w-full flex-col">
               <CardHeader className="pb-3">
