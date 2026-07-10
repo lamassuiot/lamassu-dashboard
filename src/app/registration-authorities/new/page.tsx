@@ -29,6 +29,7 @@ import { DurationInput } from '@/components/shared/DurationInput';
 import { createOrUpdateRa, fetchRaById, type ApiRaEstSettings, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { CardSelector } from '@/components/shared/CardSelector';
 import { Form } from '@/components/ui/form';
 import {
   defaultFormValues,
@@ -52,6 +53,14 @@ import {
 const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];
 const serverKeygenRsaBits = [ { value: '2048', label: '2048 bit' }, { value: '3072', label: '3072 bit' }, { value: '4096', label: '4096 bit' }];
 const serverKeygenEcdsaCurves = [ { value: 'P-256', label: 'P-256' }, { value: 'P-384', label: 'P-384' }, { value: 'P-521', label: 'P-521' }];
+const protocolOptions = [
+  {
+    value: 'EST',
+    label: 'EST',
+    description: 'Enrollment over Secure Transport for certificate and renewal requests.',
+    icon: ShieldCheck,
+  },
+];
 const inlineProfileDefaultValues: SigningProfileFormValues = {
   ...defaultFormValues,
   profileName: 'Inline Profile',
@@ -615,6 +624,25 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         <Separator />
 
+        {/* ── Protocol ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Protocol</p>
+            <p className="text-sm text-muted-foreground mt-1">Choose the enrollment protocol used by this Registration Authority.</p>
+          </div>
+          <div className="lg:col-span-2">
+            <CardSelector
+              label="Protocol"
+              value={protocol}
+              onChange={setProtocol}
+              disabled={isSubmitting}
+              options={protocolOptions}
+            />
+          </div>
+        </div>
+
+        <Separator />
+
         {/* ── Enrollment Settings ── */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
           <div>
@@ -622,15 +650,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             <p className="text-sm text-muted-foreground mt-1">Control issuance policy, enrollment authentication, and CSR handling for new certificates.</p>
           </div>
           <div className="space-y-4 lg:col-span-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="protocol">Protocol</Label>
-              <Select value={protocol} onValueChange={setProtocol}>
-                <SelectTrigger id="protocol"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="EST">EST</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="enrollmentCa">Enrollment CA</Label>
               <button
