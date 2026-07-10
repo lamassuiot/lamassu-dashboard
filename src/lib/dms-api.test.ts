@@ -29,15 +29,33 @@ describe('dms-api', () => {
       enrollment_settings: {
         registration_mode: 'JITP',
         enrollment_ca: 'ca-1',
-        protocol: 'EST-RFC7030',
+        protocol: 'EST_RFC7030',
         enable_replaceable_enrollment: false,
+        verify_csr_signature: true,
+        est_rfc7030_settings: {
+          auth_mode: 'CLIENT_CERTIFICATE',
+          client_certificate_settings: {
+            chain_level_validation: -1,
+            validation_cas: ['ca-bootstrap'],
+            allow_expired: false,
+          },
+        },
         device_provisioning_profile: {
           icon: 'default',
           icon_color: '#000000',
+          metadata: {},
           tags: ['iot'],
         },
       },
       reenrollment_settings: {
+        est_rfc7030_settings: {
+          auth_mode: 'CLIENT_CERTIFICATE',
+          client_certificate_settings: {
+            chain_level_validation: -1,
+            validation_cas: [],
+            allow_expired: false,
+          },
+        },
         revoke_on_reenrollment: false,
         enable_expired_renewal: true,
         critical_delta: '30d',
@@ -235,7 +253,7 @@ describe('dms-api', () => {
       )
 
       await expect(createOrUpdateRa(payload, false)).rejects.toThrow(
-        'RA creation failed'
+        'Failed to create RA'
       )
     })
   })
@@ -290,7 +308,7 @@ describe('dms-api', () => {
 
       await expect(
         createOrUpdateRa(updatePayload, true, raId)
-      ).rejects.toThrow('RA update failed')
+      ).rejects.toThrow('Failed to update RA')
     })
   })
 
@@ -349,7 +367,7 @@ describe('dms-api', () => {
           enrollment_settings: {
             ...mockRa.settings.enrollment_settings,
             est_rfc7030_settings: {
-              auth_mode: 'client_certificate',
+              auth_mode: 'CLIENT_CERTIFICATE',
               client_certificate_settings: {
                 chain_level_validation: 1,
                 validation_cas: ['ca-1'],
@@ -370,7 +388,7 @@ describe('dms-api', () => {
 
       expect(result.settings.enrollment_settings.est_rfc7030_settings).toBeDefined()
       expect(result.settings.enrollment_settings.est_rfc7030_settings?.auth_mode).toBe(
-        'client_certificate'
+        'CLIENT_CERTIFICATE'
       )
     })
 
@@ -390,7 +408,7 @@ describe('dms-api', () => {
                 config: {
                   validate_server_cert: true,
                   log_level: 'Info',
-                  auth_mode: 'OIDC',
+                  auth_mode: 'jwt',
                   oidc: {
                     client_id: 'webhook-client',
                     client_secret: 'secret',
@@ -437,7 +455,7 @@ describe('dms-api', () => {
                 config: {
                   validate_server_cert: false,
                   log_level: 'Debug',
-                  auth_mode: 'API_KEY',
+                  auth_mode: 'apikey',
                   apikey: {
                     key: 'my-secret-key',
                     header: 'X-API-Key',
@@ -469,7 +487,7 @@ describe('dms-api', () => {
 
       const webhookSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings.external_webhook_settings
       expect(webhookSettings.method).toBe('POST')
-      expect(webhookSettings.config.auth_mode).toBe('API_KEY')
+      expect(webhookSettings.config.auth_mode).toBe('apikey')
       expect(webhookSettings.config.apikey.key).toBe('my-secret-key')
       expect(webhookSettings.config.apikey.header).toBe('X-API-Key')
       expect(webhookSettings.config.validate_server_cert).toBe(false)
@@ -487,11 +505,11 @@ describe('dms-api', () => {
               external_webhook_settings: {
                 name: 'open-webhook',
                 url: 'https://internal.example.com/validate',
-                method: 'GET',
+                method: 'POST',
                 config: {
                   validate_server_cert: true,
                   log_level: 'Warn',
-                  auth_mode: 'NO_AUTH',
+                  auth_mode: 'noauth',
                 },
               },
             },
@@ -509,8 +527,8 @@ describe('dms-api', () => {
 
       const webhookSettings = result.settings.enrollment_settings.est_rfc7030_settings?.external_webhook_settings
       expect(webhookSettings).toBeDefined()
-      expect(webhookSettings?.method).toBe('GET')
-      expect(webhookSettings?.config.auth_mode).toBe('NO_AUTH')
+      expect(webhookSettings?.method).toBe('POST')
+      expect(webhookSettings?.config.auth_mode).toBe('noauth')
       expect(webhookSettings?.config.validate_server_cert).toBe(true)
       expect(webhookSettings?.config.log_level).toBe('Warn')
     })
@@ -532,8 +550,12 @@ describe('dms-api', () => {
               external_webhook_settings: {
                 name: 'combined-webhook',
                 url: 'https://auth.example.com/validate',
-                log_level: 'Info',
-                auth_mode: 'NO_AUTH',
+                method: 'POST',
+                config: {
+                  validate_server_cert: true,
+                  log_level: 'info',
+                  auth_mode: 'noauth',
+                },
               },
             },
           },
@@ -585,10 +607,15 @@ describe('dms-api', () => {
               external_webhook_settings: {
                 name: 'my-webhook',
                 url: 'https://hooks.example.com/verify',
-                log_level: 'Info',
-                auth_mode: 'API_KEY',
-                api_key_auth: {
-                  key: 'super-secret-key',
+                method: 'POST',
+                config: {
+                  validate_server_cert: true,
+                  log_level: 'info',
+                  auth_mode: 'apikey',
+                  apikey: {
+                    key: 'super-secret-key',
+                    header: 'X-API-Key',
+                  },
                 },
               },
             },
@@ -603,8 +630,8 @@ describe('dms-api', () => {
       expect(estSettings.client_certificate_settings).toBeDefined()
       expect(estSettings.client_certificate_settings.validation_cas).toEqual(['ca-1'])
       expect(estSettings.external_webhook_settings).toBeDefined()
-      expect(estSettings.external_webhook_settings.auth_mode).toBe('API_KEY')
-      expect(estSettings.external_webhook_settings.api_key_auth.key).toBe('super-secret-key')
+      expect(estSettings.external_webhook_settings.config.auth_mode).toBe('apikey')
+      expect(estSettings.external_webhook_settings.config.apikey.key).toBe('super-secret-key')
     })
 
     it('should create RA with combined auth mode and OIDC webhook', async () => {
@@ -635,12 +662,16 @@ describe('dms-api', () => {
               external_webhook_settings: {
                 name: 'oidc-webhook',
                 url: 'https://hooks.example.com/verify',
-                log_level: 'Debug',
-                auth_mode: 'OIDC',
-                oidc_auth: {
-                  client_id: 'my-client',
-                  client_secret: 'my-secret',
-                  well_known_url: 'https://idp.example.com/.well-known/openid-configuration',
+                method: 'POST',
+                config: {
+                  validate_server_cert: true,
+                  log_level: 'debug',
+                  auth_mode: 'jwt',
+                  oidc: {
+                    client_id: 'my-client',
+                    client_secret: 'my-secret',
+                    well_known: 'https://idp.example.com/.well-known/openid-configuration',
+                  },
                 },
               },
             },
@@ -653,8 +684,8 @@ describe('dms-api', () => {
       const estSettings = capturedBody.settings.enrollment_settings.est_rfc7030_settings
       expect(estSettings.auth_mode).toBe('CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK')
       expect(estSettings.client_certificate_settings.chain_level_validation).toBe(1)
-      expect(estSettings.external_webhook_settings.auth_mode).toBe('OIDC')
-      expect(estSettings.external_webhook_settings.oidc_auth.client_id).toBe('my-client')
+      expect(estSettings.external_webhook_settings.config.auth_mode).toBe('jwt')
+      expect(estSettings.external_webhook_settings.config.oidc.client_id).toBe('my-client')
     })
 
     it('should handle createOrUpdateRa error without JSON response', async () => {
@@ -695,7 +726,7 @@ describe('dms-api', () => {
 
       await expect(
         createOrUpdateRa(payload, true, 'ra-123')
-      ).rejects.toThrow('RA update failed')
+      ).rejects.toThrow('Failed to update RA')
     })
 
     it('should handle createOrUpdateRa update mode without JSON response', async () => {

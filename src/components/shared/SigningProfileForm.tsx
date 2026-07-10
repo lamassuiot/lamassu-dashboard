@@ -49,8 +49,10 @@ export const signingProfileSchema = z.object({
   signAsCa: z.boolean().default(false),
 
   honorSubject: z.boolean().default(true),
+  overrideCommonName: z.string().optional(),
   overrideCountry: z.string().optional(),
   overrideState: z.string().optional(),
+  overrideLocality: z.string().optional(),
   overrideOrganization: z.string().optional(),
   overrideOrgUnit: z.string().optional(),
 
@@ -79,8 +81,10 @@ export const defaultFormValues: SigningProfileFormValues = {
   validity: { type: 'Duration', durationValue: '1y' },
   signAsCa: false,
   honorSubject: true,
+  overrideCommonName: '',
   overrideCountry: '',
   overrideState: '',
+  overrideLocality: '',
   overrideOrganization: '',
   overrideOrgUnit: '',
   cryptoEnforcement: {
@@ -344,6 +348,14 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
             {!watchHonorSubject && (
               <div className="space-y-3 border-t pt-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="overrideCommonName" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Common Name (CN)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., device.example.com" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )} />
                 <FormField control={form.control} name="overrideCountry" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Country (C)</FormLabel>
@@ -357,6 +369,14 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                     <FormLabel>State / Province (ST)</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., California" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="overrideLocality" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Locality (L)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Barcelona" {...field} />
                     </FormControl>
                   </FormItem>
                 )} />
@@ -380,8 +400,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
               <div className={cn("flex items-start space-x-2 text-muted-foreground", sectionAsCards && "rounded-md border bg-background p-3")}>
                 <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <p className="text-xs">
-                  The Common Name (CN) from the CSR's subject is always honored and used. 
-                  These fields will be appended to or replace other subject attributes.
+                  These values replace the corresponding Subject DN attributes from the CSR.
                 </p>
               </div>
               </div>

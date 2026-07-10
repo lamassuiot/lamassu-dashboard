@@ -3,6 +3,7 @@
 
 import { get_DMS_MANAGER_API_BASE_URL, handleApiError } from './api-domains';
 import { apiFetch } from './api-client';
+import type { ApiSigningProfile } from './ca-data';
 
 // --- Interfaces ---
 
@@ -14,7 +15,8 @@ export interface ApiRaOidcAuth {
 export interface ApiRaWebhookHttpClient {
     validate_server_cert: boolean;
     log_level: string;
-    auth_mode: string;
+    auth_mode: 'noauth' | 'jwt' | 'apikey' | 'mtls';
+    call_timeout?: string;
     oidc?: ApiRaOidcAuth;
     apikey?: {
         key: string;
@@ -26,7 +28,7 @@ export interface ApiRaWebhookHttpClient {
     };
 }
 export interface ApiRaEstSettings {
-    auth_mode: string;
+    auth_mode: 'CLIENT_CERTIFICATE' | 'EXTERNAL_WEBHOOK' | 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK' | 'NO_AUTH';
     client_certificate_settings?: {
         chain_level_validation: number;
         validation_cas: string[];
@@ -45,24 +47,26 @@ export interface ApiRaEnrollmentSettings {
     protocol: string;
     enable_replaceable_enrollment: boolean;
     verify_csr_signature?: boolean; // Optional field for backwards compatibility
-    issuance_profile_id?: string; // Newly added field
     est_rfc7030_settings?: ApiRaEstSettings;
     device_provisioning_profile: {
         icon: string;
         icon_color: string;
+        metadata?: Record<string, any> | null;
         tags: string[];
     };
 }
+export interface ApiRaReEnrollmentSettings {
+    est_rfc7030_settings?: ApiRaEstSettings;
+    revoke_on_reenrollment: boolean;
+    enable_expired_renewal: boolean;
+    critical_delta: string;
+    preventive_delta: string;
+    reenrollment_delta: string;
+    additional_validation_cas: string[];
+}
 export interface ApiRaSettings {
     enrollment_settings: ApiRaEnrollmentSettings;
-    reenrollment_settings: {
-        revoke_on_reenrollment: boolean;
-        enable_expired_renewal: boolean;
-        critical_delta: string;
-        preventive_delta: string;
-        reenrollment_delta: string;
-        additional_validation_cas: string[];
-    };
+    reenrollment_settings: ApiRaReEnrollmentSettings;
     server_keygen_settings: {
         enabled: boolean;
         key?: {
@@ -75,6 +79,8 @@ export interface ApiRaSettings {
         include_system_ca: boolean;
         managed_cas: string[];
     };
+    issuance_profile_id?: string;
+    issuance_profile?: ApiSigningProfile | null;
 }
 export interface ApiRaItem {
     id: string;

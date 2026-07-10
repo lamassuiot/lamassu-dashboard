@@ -468,8 +468,9 @@ export interface ApiSigningProfile {
 	extended_key_usages: string[];
 	honor_subject: boolean;
 	subject?: {
+		common_name?: string;
 		organization?: string;
-		organizational_unit?: string;
+		organization_unit?: string;
 		country?: string;
 		state?: string;
 		locality?: string;
@@ -514,8 +515,9 @@ export interface CreateSigningProfilePayload {
     extended_key_usages: string[];
     honor_subject: boolean;
     subject?: {
+        common_name?: string;
         organization?: string;
-        organizational_unit?: string;
+        organization_unit?: string;
         country?: string;
         state?: string;
         locality?: string;
