@@ -30,6 +30,7 @@ import { createOrUpdateRa, fetchRaById, type ApiRaEstSettings, type ApiRaItem, t
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CardSelector } from '@/components/shared/CardSelector';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Form } from '@/components/ui/form';
 import {
   defaultFormValues,
@@ -53,6 +54,13 @@ import {
 const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];
 const serverKeygenRsaBits = [ { value: '2048', label: '2048 bit' }, { value: '3072', label: '3072 bit' }, { value: '4096', label: '4096 bit' }];
 const serverKeygenEcdsaCurves = [ { value: 'P-256', label: 'P-256' }, { value: 'P-384', label: 'P-384' }, { value: 'P-521', label: 'P-521' }];
+type RaSettingsTab = 'enrollment' | 'reenrollment' | 'server-key-generation' | 'ca-distribution';
+const raSettingsTabs: Array<{ value: RaSettingsTab; label: string }> = [
+  { value: 'enrollment', label: 'Enrollment Settings' },
+  { value: 'reenrollment', label: 'Re-Enrollment Settings' },
+  { value: 'server-key-generation', label: 'Server Key Generation' },
+  { value: 'ca-distribution', label: 'CA Distribution' },
+];
 const protocolOptions = [
   {
     value: 'EST',
@@ -118,6 +126,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [selectedDeviceIconName, setSelectedDeviceIconName] = useState<string | null>('Router');
   const [selectedDeviceIconColor, setSelectedDeviceIconColor] = useState<string>('#0f67ff');
   const [selectedDeviceIconBgColor, setSelectedDeviceIconBgColor] = useState<string>('#F0F8FF');
+  const [activeRaSettingsTab, setActiveRaSettingsTab] = useState<RaSettingsTab>('enrollment');
   
   // Modal and Data Loading State
   const [isDeviceIconModalOpen, setIsDeviceIconModalOpen] = useState(false);
@@ -643,259 +652,269 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         <Separator />
 
-        {/* ── Enrollment Settings ── */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-          <div>
-            <p className="font-semibold">Enrollment Settings</p>
-            <p className="text-sm text-muted-foreground mt-1">Control issuance policy, enrollment authentication, and CSR handling for new certificates.</p>
+        <Tabs value={activeRaSettingsTab} onValueChange={(value) => setActiveRaSettingsTab(value as RaSettingsTab)} className="w-full">
+          <div className="border-b bg-primary/5 overflow-x-auto overflow-y-hidden">
+            <TabsList className={pageTabsListClass}>
+              {raSettingsTabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className={pageTabsTriggerClass}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
-          <div className="space-y-4 lg:col-span-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="enrollmentCa">Enrollment CA</Label>
-              <button
-                id="enrollmentCa"
-                type="button"
-                onClick={() => setIsEnrollmentCaModalOpen(true)}
-                disabled={isLoadingDependencies}
-                className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className={enrollmentCa ? "text-foreground" : "text-muted-foreground"}>
-                  {isLoadingDependencies ? <Loader2 className="h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
-                </span>
-                <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-              {enrollmentCa && (
-                <div className="space-y-3">
-                  <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
-                  <div className="space-y-3">
+
+          <TabsContent value="enrollment" className="mt-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+              <div>
+                <p className="font-semibold">Enrollment Settings</p>
+                <p className="text-sm text-muted-foreground mt-1">Control issuance policy, enrollment authentication, and CSR handling for new certificates.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="enrollmentCa">Enrollment CA</Label>
+                  <button
+                    id="enrollmentCa"
+                    type="button"
+                    onClick={() => setIsEnrollmentCaModalOpen(true)}
+                    disabled={isLoadingDependencies}
+                    className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className={enrollmentCa ? "text-foreground" : "text-muted-foreground"}>
+                      {isLoadingDependencies ? <Loader2 className="h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                  {enrollmentCa && (
+                    <div className="space-y-3">
+                      <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="issuanceProfileMode">Issuance Profile</Label>
+                          <Select
+                            value={issuanceProfileMode}
+                            onValueChange={(mode: 'default' | 'existing' | 'inline') => {
+                              setIssuanceProfileMode(mode);
+                              if (mode !== 'existing') setIssuanceProfileId(null);
+                            }}
+                          >
+                            <SelectTrigger id="issuanceProfileMode"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="default">Use Enrollment CA Default</SelectItem>
+                              <SelectItem value="existing">Use Existing Profile</SelectItem>
+                              <SelectItem value="inline">Define Inline Profile</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {issuanceProfileMode === 'existing' ? (
+                          <div className="space-y-3">
+                            <Select value={issuanceProfileId || ''} onValueChange={setIssuanceProfileId}>
+                              <SelectTrigger><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
+                              <SelectContent>
+                                {availableProfiles.map((profile) => (
+                                  <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {selectedProfileForDisplay ? <IssuanceProfileCard profile={selectedProfileForDisplay} /> : null}
+                          </div>
+                        ) : null}
+
+                        {issuanceProfileMode === 'default' ? (
+                          <div className="space-y-2">
+                            <Alert>
+                              <AlertTriangle className="h-4 w-4" />
+                              <AlertTitle>Enrollment CA default</AlertTitle>
+                              <AlertDescription>The RA will resolve the Enrollment CA&apos;s current default profile when issuing a certificate.</AlertDescription>
+                            </Alert>
+                            {enrollmentCaDefaultProfile ? <IssuanceProfileCard profile={enrollmentCaDefaultProfile} /> : (
+                              <p className="text-sm text-muted-foreground">The selected Enrollment CA does not currently have a default profile.</p>
+                            )}
+                          </div>
+                        ) : null}
+
+                        {issuanceProfileMode === 'inline' ? (
+                          <Form {...inlineProfileForm}>
+                            <div className="space-y-4 rounded-md border p-4">
+                              <div>
+                                <p className="text-sm font-medium">Inline profile</p>
+                                <p className="mt-1 text-xs text-muted-foreground">This profile is stored directly on the RA and is not added to the reusable profile list.</p>
+                              </div>
+                              <SigningProfileForm
+                                form={inlineProfileForm}
+                                compact
+                                hideBasicInformation
+                              />
+                            </div>
+                          </Form>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="allowOverrideEnrollment">Allow Replaceable Enrollment</Label>
+                    <p className="text-xs text-muted-foreground">Allow an already enrolled device to enroll again, replacing its active identity certificate.</p>
+                  </div>
+                  <Switch id="allowOverrideEnrollment" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="verifyCsrSignature">Verify CSR Signature</Label>
+                    <p className="text-xs text-muted-foreground">Verify the cryptographic signature of Certificate Signing Requests during enrollment.</p>
+                  </div>
+                  <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
+                </div>
+                <EstAuthSettingsEditor
+                  idPrefix="enrollment"
+                  value={enrollmentAuthSettings}
+                  onChange={setEnrollmentAuthSettings}
+                  availableCAs={availableCAsForSelection}
+                  allCryptoEngines={allCryptoEngines}
+                  isLoadingCAs={isLoadingDependencies}
+                  errorCAs={errorDependencies}
+                  loadCAsAction={loadDependencies}
+                  fallbackValidationCa={enrollmentCa}
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="reenrollment" className="mt-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+              <div>
+                <p className="font-semibold">Re-Enrollment Settings</p>
+                <p className="text-sm text-muted-foreground mt-1">Set certificate replacement, renewal windows, and additional trust requirements for re-enrollment.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <EstAuthSettingsEditor
+                  idPrefix="reenrollment"
+                  value={reenrollmentAuthSettings}
+                  onChange={setReenrollmentAuthSettings}
+                  availableCAs={availableCAsForSelection}
+                  allCryptoEngines={allCryptoEngines}
+                  isLoadingCAs={isLoadingDependencies}
+                  errorCAs={errorDependencies}
+                  loadCAsAction={loadDependencies}
+                />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="revokeOnReEnroll">Revoke On Re-Enroll</Label>
+                    <p className="text-xs text-muted-foreground">Automatically revoke the old certificate when a new one is issued during re-enrollment.</p>
+                  </div>
+                  <Switch id="revokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="allowExpiredRenewal">Allow Expired Renewal</Label>
+                    <p className="text-xs text-muted-foreground">Permit renewal of certificates that have already expired.</p>
+                  </div>
+                  <Switch id="allowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
+                </div>
+                <DurationInput id="allowedRenewalDelta" label="Re-Enrollment Window" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Time before certificate expiry when re-enrollment becomes available." />
+                <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
+                <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
+                <RenewalLifespanBar
+                  certificateValidity={effectiveIssuanceProfile?.validity ?? null}
+                  issuanceProfileName={effectiveIssuanceProfile?.name}
+                  reenrollmentWindow={allowedRenewalDelta}
+                  preventiveDelta={preventiveRenewalDelta}
+                  criticalDelta={criticalRenewalDelta}
+                />
+                <div className="space-y-1.5">
+                  <Label>Additional Validation CAs</Label>
+                  <div className="space-y-2">
+                    {additionalValidationCAs.length > 0 ? additionalValidationCAs.map(ca => (
+                      <div key={ca.id} className="flex items-center gap-2 group">
+                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={() => setIsAdditionalValidationCaModalOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="server-key-generation" className="mt-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+              <div>
+                <p className="font-semibold">Server Key Generation</p>
+                <p className="text-sm text-muted-foreground mt-1">Define whether the platform generates device keys and what algorithms are permitted.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="enableKeyGeneration">Enable Server-Side Key Generation</Label>
+                    <p className="text-xs text-muted-foreground">Generate cryptographic keys on the server instead of requiring client-side generation.</p>
+                  </div>
+                  <Switch id="enableKeyGeneration" checked={enableKeyGeneration} onCheckedChange={setEnableKeyGeneration} />
+                </div>
+                {enableKeyGeneration && (
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="issuanceProfileMode">Issuance Profile</Label>
-                      <Select
-                        value={issuanceProfileMode}
-                        onValueChange={(mode: 'default' | 'existing' | 'inline') => {
-                          setIssuanceProfileMode(mode);
-                          if (mode !== 'existing') setIssuanceProfileId(null);
-                        }}
-                      >
-                        <SelectTrigger id="issuanceProfileMode"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="default">Use Enrollment CA Default</SelectItem>
-                          <SelectItem value="existing">Use Existing Profile</SelectItem>
-                          <SelectItem value="inline">Define Inline Profile</SelectItem>
-                        </SelectContent>
+                      <Label htmlFor="serverKeygenType">Key Type</Label>
+                      <Select value={serverKeygenType} onValueChange={setServerKeygenType}>
+                        <SelectTrigger id="serverKeygenType"><SelectValue /></SelectTrigger>
+                        <SelectContent>{serverKeygenTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-
-                    {issuanceProfileMode === 'existing' ? (
-                      <div className="space-y-3">
-                        <Select value={issuanceProfileId || ''} onValueChange={setIssuanceProfileId}>
-                          <SelectTrigger><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
-                          <SelectContent>
-                            {availableProfiles.map((profile) => (
-                              <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {selectedProfileForDisplay ? <IssuanceProfileCard profile={selectedProfileForDisplay} /> : null}
-                      </div>
-                    ) : null}
-
-                    {issuanceProfileMode === 'default' ? (
-                      <div className="space-y-2">
-                        <Alert>
-                          <AlertTriangle className="h-4 w-4" />
-                          <AlertTitle>Enrollment CA default</AlertTitle>
-                          <AlertDescription>The RA will resolve the Enrollment CA&apos;s current default profile when issuing a certificate.</AlertDescription>
-                        </Alert>
-                        {enrollmentCaDefaultProfile ? <IssuanceProfileCard profile={enrollmentCaDefaultProfile} /> : (
-                          <p className="text-sm text-muted-foreground">The selected Enrollment CA does not currently have a default profile.</p>
-                        )}
-                      </div>
-                    ) : null}
-
-                    {issuanceProfileMode === 'inline' ? (
-                      <Form {...inlineProfileForm}>
-                        <div className="space-y-4 rounded-md border p-4">
-                          <div>
-                            <p className="text-sm font-medium">Inline profile</p>
-                            <p className="mt-1 text-xs text-muted-foreground">This profile is stored directly on the RA and is not added to the reusable profile list.</p>
-                          </div>
-                          <SigningProfileForm
-                            form={inlineProfileForm}
-                            compact
-                            hideBasicInformation
-                          />
-                        </div>
-                      </Form>
-                    ) : null}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="serverKeygenSpec">{serverKeygenType === 'RSA' ? 'Key Bits' : 'Curve'}</Label>
+                      <Select value={serverKeygenSpec} onValueChange={setServerKeygenSpec}>
+                        <SelectTrigger id="serverKeygenSpec"><SelectValue /></SelectTrigger>
+                        <SelectContent>{currentServerKeygenSpecOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
                   </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ca-distribution" className="mt-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+              <div>
+                <p className="font-semibold">CA Distribution</p>
+                <p className="text-sm text-muted-foreground mt-1">Choose which authorities and chains are distributed to clients through this RA.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="includeDownstreamCA">Include Downstream CA</Label>
+                    <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the distribution.</p>
+                  </div>
+                  <Switch id="includeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
                 </div>
-              )}
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5 flex-1">
-                <Label htmlFor="allowOverrideEnrollment">Allow Replaceable Enrollment</Label>
-                <p className="text-xs text-muted-foreground">Allow an already enrolled device to enroll again, replacing its active identity certificate.</p>
-              </div>
-              <Switch id="allowOverrideEnrollment" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5 flex-1">
-                <Label htmlFor="verifyCsrSignature">Verify CSR Signature</Label>
-                <p className="text-xs text-muted-foreground">Verify the cryptographic signature of Certificate Signing Requests during enrollment.</p>
-              </div>
-              <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
-            </div>
-            <EstAuthSettingsEditor
-              idPrefix="enrollment"
-              value={enrollmentAuthSettings}
-              onChange={setEnrollmentAuthSettings}
-              availableCAs={availableCAsForSelection}
-              allCryptoEngines={allCryptoEngines}
-              isLoadingCAs={isLoadingDependencies}
-              errorCAs={errorDependencies}
-              loadCAsAction={loadDependencies}
-              fallbackValidationCa={enrollmentCa}
-            />
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* ── Re-Enrollment Settings ── */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-          <div>
-            <p className="font-semibold">Re-Enrollment Settings</p>
-            <p className="text-sm text-muted-foreground mt-1">Set certificate replacement, renewal windows, and additional trust requirements for re-enrollment.</p>
-          </div>
-          <div className="space-y-4 lg:col-span-2">
-            <EstAuthSettingsEditor
-              idPrefix="reenrollment"
-              value={reenrollmentAuthSettings}
-              onChange={setReenrollmentAuthSettings}
-              availableCAs={availableCAsForSelection}
-              allCryptoEngines={allCryptoEngines}
-              isLoadingCAs={isLoadingDependencies}
-              errorCAs={errorDependencies}
-              loadCAsAction={loadDependencies}
-            />
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5 flex-1">
-                <Label htmlFor="revokeOnReEnroll">Revoke On Re-Enroll</Label>
-                <p className="text-xs text-muted-foreground">Automatically revoke the old certificate when a new one is issued during re-enrollment.</p>
-              </div>
-              <Switch id="revokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5 flex-1">
-                <Label htmlFor="allowExpiredRenewal">Allow Expired Renewal</Label>
-                <p className="text-xs text-muted-foreground">Permit renewal of certificates that have already expired.</p>
-              </div>
-              <Switch id="allowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
-            </div>
-            <DurationInput id="allowedRenewalDelta" label="Re-Enrollment Window" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Time before certificate expiry when re-enrollment becomes available." />
-            <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
-            <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
-            <RenewalLifespanBar
-              certificateValidity={effectiveIssuanceProfile?.validity ?? null}
-              issuanceProfileName={effectiveIssuanceProfile?.name}
-              reenrollmentWindow={allowedRenewalDelta}
-              preventiveDelta={preventiveRenewalDelta}
-              criticalDelta={criticalRenewalDelta}
-            />
-            <div className="space-y-1.5">
-              <Label>Additional Validation CAs</Label>
-              <div className="space-y-2">
-                {additionalValidationCAs.length > 0 ? additionalValidationCAs.map(ca => (
-                  <div key={ca.id} className="flex items-center gap-2 group">
-                    <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="includeEnrollmentCA">Include Enrollment CA</Label>
+                    <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the distribution.</p>
                   </div>
-                )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
-              </div>
-              <Button type="button" variant="secondary" onClick={() => setIsAdditionalValidationCaModalOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* ── Server Key Generation ── */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-          <div>
-            <p className="font-semibold">Server Key Generation</p>
-            <p className="text-sm text-muted-foreground mt-1">Define whether the platform generates device keys and what algorithms are permitted.</p>
-          </div>
-          <div className="space-y-4 lg:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5 flex-1">
-                <Label htmlFor="enableKeyGeneration">Enable Server-Side Key Generation</Label>
-                <p className="text-xs text-muted-foreground">Generate cryptographic keys on the server instead of requiring client-side generation.</p>
-              </div>
-              <Switch id="enableKeyGeneration" checked={enableKeyGeneration} onCheckedChange={setEnableKeyGeneration} />
-            </div>
-            {enableKeyGeneration && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="serverKeygenType">Key Type</Label>
-                  <Select value={serverKeygenType} onValueChange={setServerKeygenType}>
-                    <SelectTrigger id="serverKeygenType"><SelectValue /></SelectTrigger>
-                    <SelectContent>{serverKeygenTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="serverKeygenSpec">{serverKeygenType === 'RSA' ? 'Key Bits' : 'Curve'}</Label>
-                  <Select value={serverKeygenSpec} onValueChange={setServerKeygenSpec}>
-                    <SelectTrigger id="serverKeygenSpec"><SelectValue /></SelectTrigger>
-                    <SelectContent>{currentServerKeygenSpecOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Label>Managed CAs</Label>
+                  <div className="space-y-2">
+                    {managedCAs.length > 0 ? managedCAs.map(ca => (
+                      <div key={ca.id} className="flex items-center gap-2 group">
+                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={() => setIsManagedCaModalOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
+                  </Button>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* ── CA Distribution ── */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-          <div>
-            <p className="font-semibold">CA Distribution</p>
-            <p className="text-sm text-muted-foreground mt-1">Choose which authorities and chains are distributed to clients through this RA.</p>
-          </div>
-          <div className="space-y-4 lg:col-span-2">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5 flex-1">
-                <Label htmlFor="includeDownstreamCA">Include Downstream CA</Label>
-                <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the distribution.</p>
-              </div>
-              <Switch id="includeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5 flex-1">
-                <Label htmlFor="includeEnrollmentCA">Include Enrollment CA</Label>
-                <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the distribution.</p>
-              </div>
-              <Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Managed CAs</Label>
-              <div className="space-y-2">
-                {managedCAs.length > 0 ? managedCAs.map(ca => (
-                  <div key={ca.id} className="flex items-center gap-2 group">
-                    <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
-                  </div>
-                )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
-              </div>
-              <Button type="button" variant="secondary" onClick={() => setIsManagedCaModalOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
-              </Button>
-            </div>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
 
         <Separator />
 
