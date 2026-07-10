@@ -10,6 +10,7 @@ import AWSKMSLogo from "./CryptoEngineIcons/AWS-KMS.png"
 import AWSSMLogo from "./CryptoEngineIcons/AWS-SM.png"
 import PKCS11Logo from "./CryptoEngineIcons/PKCS11.png"
 import VaultLogo from "./CryptoEngineIcons/HASHICORP-VAULT.png"
+import AzureKeyVaultLogo from "./CryptoEngineIcons/AZURE-KEYVAULT.png"
 
 interface CryptoEngineViewerProps {
   engine: ApiCryptoEngine;
@@ -43,6 +44,10 @@ export const CryptoEngineViewer: React.FC<CryptoEngineViewerProps> = ({ engine, 
       break;
     case "HASHICORP_VAULT":
       imageSrc = VaultLogo;
+      break;
+    case "AZURE_KEY_VAULT":
+    case "AZURE_KEY_VAULT_SECRETS":
+      imageSrc = AzureKeyVaultLogo;
       break;
     default:
       IconComponent = ShieldQuestion;
