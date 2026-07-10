@@ -51,6 +51,10 @@ import {
 const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];
 const serverKeygenRsaBits = [ { value: '2048', label: '2048 bit' }, { value: '3072', label: '3072 bit' }, { value: '4096', label: '4096 bit' }];
 const serverKeygenEcdsaCurves = [ { value: 'P-256', label: 'P-256' }, { value: 'P-384', label: 'P-384' }, { value: 'P-521', label: 'P-521' }];
+const inlineProfileDefaultValues: SigningProfileFormValues = {
+  ...defaultFormValues,
+  profileName: 'Inline Profile',
+};
 
 
 function hslToHex(h: number, s: number, l: number) {
@@ -118,7 +122,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const inlineProfileForm = useForm<SigningProfileFormValues>({
     resolver: zodResolver(signingProfileSchema),
-    defaultValues: defaultFormValues,
+    defaultValues: inlineProfileDefaultValues,
   });
 
   // MOVED HOOKS TO TOP LEVEL
@@ -181,14 +185,20 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         if (settings.issuance_profile) {
           setIssuanceProfileMode('inline');
           setIssuanceProfileId(null);
-          inlineProfileForm.reset(mapIssuanceProfileToFormValues(settings.issuance_profile));
+          const inlineProfileValues = mapIssuanceProfileToFormValues(settings.issuance_profile);
+          inlineProfileForm.reset({
+            ...inlineProfileValues,
+            profileName: inlineProfileValues.profileName.trim().length >= 3
+              ? inlineProfileValues.profileName
+              : inlineProfileDefaultValues.profileName,
+          });
         } else if (settings.issuance_profile_id) {
           setIssuanceProfileMode('existing');
           setIssuanceProfileId(settings.issuance_profile_id);
         } else {
           setIssuanceProfileMode('default');
           setIssuanceProfileId(null);
-          inlineProfileForm.reset(defaultFormValues);
+          inlineProfileForm.reset(inlineProfileDefaultValues);
         }
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
         setAllowOverrideEnrollment(enrollment_settings.enable_replaceable_enrollment);
@@ -625,8 +635,15 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     {issuanceProfileMode === 'inline' ? (
                       <Form {...inlineProfileForm}>
                         <div className="space-y-4 rounded-md border p-4">
-                          <p className="text-sm text-muted-foreground">This profile is stored directly on the RA and is not added to the reusable profile list.</p>
-                          <SigningProfileForm form={inlineProfileForm} sectionAsCards />
+                          <div>
+                            <p className="text-sm font-medium">Inline profile</p>
+                            <p className="mt-1 text-xs text-muted-foreground">This profile is stored directly on the RA and is not added to the reusable profile list.</p>
+                          </div>
+                          <SigningProfileForm
+                            form={inlineProfileForm}
+                            compact
+                            hideBasicInformation
+                          />
                         </div>
                       </Form>
                     ) : null}
