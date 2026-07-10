@@ -30,9 +30,11 @@ import {
 } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { PageSearchMenu } from '@/components/shared/PageSearchMenu';
+import type { PageSearchAccent } from '@/lib/page-search-accents';
 import { useConfig } from '@/contexts/ConfigContext';
 import { IdentifierDisplayProvider, useIdentifierDisplay } from '@/contexts/IdentifierDisplayContext';
-import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check } from 'lucide-react';
+import { FileText, Users, Landmark, ShieldCheck, HomeIcon, ChevronsLeft, ChevronsRight, Router, KeyRound, ScrollTextIcon, LogIn, LogOut, Loader2, Cpu, Info, User, Blocks, Binary, GitCommit, PlaySquare, Layers, ClipboardCheck, ClipboardList, Workflow, BookOpen, Lock, UserCheck, Database, TestTube2, Network, Copy, Check, LayoutDashboard } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -106,71 +108,83 @@ const PATH_SEGMENT_TO_LABEL_MAP: Record<string, string> = {
   'test': "Authorization Test",
 };
 
-interface NavItem {
+export function isPathUnder(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
+  description?: string;
   devOnly?: boolean;
   /** If set, the item is only shown when the user has "ui" in global_actions for this capability key (e.g. "pki.ca.ca_certificate") */
   uiAuthzCapabilities?: string;
 }
 
-interface NavGroup {
+export interface NavGroup {
   label?: string;
   items: NavItem[];
   devOnly?: boolean;
+  accent?: PageSearchAccent;
 }
 
-const navigationConfig: NavGroup[] = [
-  { items: [{ href: '/', label: 'Home', icon: HomeIcon }] },
+export const navigationConfig: NavGroup[] = [
+  { items: [{ href: '/', label: 'Home', icon: HomeIcon, description: 'Launcher for all apps' }] },
   {
     label: 'KMS',
+    accent: 'kms',
     items: [
-      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false, uiAuthzCapabilities: 'pki.kms.kms_key' },
-      { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu },
+      { href: '/kms', label: 'Dashboard', icon: LayoutDashboard, description: 'Key management overview' },
+      { href: '/kms/keys', label: 'Keys', icon: KeyRound, devOnly: false, uiAuthzCapabilities: 'pki.kms.kms_key', description: 'Create, import & manage keys' },
+      { href: '/crypto-engines', label: 'Crypto Engines', icon: Cpu, description: 'Configured cryptographic engines' },
     ],
   },
   {
     label: 'PKI',
+    accent: 'pki',
     items: [
-      { href: '/certificates', label: 'Certificates', icon: FileText, uiAuthzCapabilities: 'pki.ca.certificate' },
-      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark, uiAuthzCapabilities: 'pki.ca.ca_certificate' },
-      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, uiAuthzCapabilities: 'pki.ca.issuance_profile' },
-      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck, uiAuthzCapabilities: 'pki.dmsmanager.dms' },
+      { href: '/pki', label: 'Dashboard', icon: LayoutDashboard, description: 'PKI overview & CA expiry timeline' },
+      { href: '/certificates', label: 'Certificates', icon: FileText, uiAuthzCapabilities: 'pki.ca.certificate', description: 'Issued certificates' },
+      { href: '/certificate-authorities', label: 'Certification Authorities', icon: Landmark, uiAuthzCapabilities: 'pki.ca.ca_certificate', description: 'Manage certification authorities' },
+      { href: '/signing-profiles', label: 'Issuance Profiles', icon: ScrollTextIcon, uiAuthzCapabilities: 'pki.ca.issuance_profile', description: 'Certificate issuance templates' },
+      { href: '/registration-authorities', label: 'Registration Authorities', icon: ClipboardCheck, uiAuthzCapabilities: 'pki.dmsmanager.dms', description: 'Manage registration authorities' },
     ],
   },
   {
     label: 'IoT',
+    accent: 'iot',
     items: [
-      { href: '/devices', label: 'Devices', icon: Router, uiAuthzCapabilities: 'pki.devicemanager.device' },
-      { href: '/device-groups', label: 'Device Groups', icon: Layers, uiAuthzCapabilities: 'pki.devicemanager.device_group' },
-      { href: '/integrations', label: 'Platform Integrations', icon: Blocks },
-    ],
-  },
-  {
-    label: 'JOB MANAGER',
-    items: [
-      { href: '/job-manager/jobs', label: 'Jobs', icon: ClipboardList },
-      { href: '/job-manager/workflows', label: 'Workflows', icon: Workflow },
+      { href: '/iot', label: 'Dashboard', icon: LayoutDashboard, description: 'IoT fleet overview' },
+      { href: '/devices', label: 'Devices', icon: Router, uiAuthzCapabilities: 'pki.devicemanager.device', description: 'Managed devices' },
+      { href: '/device-groups', label: 'Device Groups', icon: Layers, uiAuthzCapabilities: 'pki.devicemanager.device_group', description: 'Organize devices into groups' },
+      { href: '/integrations', label: 'Platform Integrations', icon: Blocks, description: 'Third-party platform integrations' },
+      { href: '/job-manager/jobs', label: 'Jobs', icon: ClipboardList, description: 'Bulk device operations' },
+      { href: '/job-manager/workflows', label: 'Workflows', icon: Workflow, description: 'Automated device workflows' },
     ],
   },
   {
     label: 'AUTHZ & SECURITY',
+    accent: 'security',
     items: [
-      { href: '/authz/principals', label: 'Principals', icon: UserCheck },
-      { href: '/authz/policies', label: 'Policies', icon: Lock },
-      { href: '/authz/test', label: 'Authorization Test', icon: TestTube2 },
+      { href: '/authz', label: 'Dashboard', icon: LayoutDashboard, description: 'Access control overview' },
+      { href: '/authz/principals', label: 'Principals', icon: UserCheck, description: 'Users, API keys & X.509 identities' },
+      { href: '/authz/policies', label: 'Policies', icon: Lock, description: 'Access control policies' },
+      { href: '/authz/test', label: 'Authorization Test', icon: TestTube2, description: 'Test access decisions' },
     ],
   },
   {
     label: 'NOTIFICATIONS',
-    items: [{ href: '/alerts', label: 'Alerts', icon: Info, uiAuthzCapabilities: 'pki.alerts.subscription' }],
+    accent: 'notifications',
+    items: [{ href: '/alerts', label: 'Alerts', icon: Info, uiAuthzCapabilities: 'pki.alerts.subscription', description: 'Manage alert subscriptions' }],
   },
   {
     label: 'TOOLS',
+    accent: 'tools',
     items: [
-      { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary },
-      { href: '/openapi-spec', label: 'OpenAPI Spec', icon: BookOpen },
+      { href: '/tools', label: 'Dashboard', icon: LayoutDashboard, description: 'Utilities overview' },
+      { href: '/tools/certificate-viewer', label: 'Certificate Viewer', icon: Binary, description: 'Inspect a certificate or CSR' },
+      { href: '/openapi-spec', label: 'OpenAPI Spec', icon: BookOpen, description: 'Explore the backend API' },
     ],
   },
 ];
@@ -292,6 +306,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false);
   const [matchedPrincipalIds, setMatchedPrincipalIds] = useState<string[]>([]);
   const [matchedPrincipals, setMatchedPrincipals] = useState<Principal[] | null>(null);
+  const isDeveloperMode = process.env.NODE_ENV == 'development' || Boolean(process.env.NEXT_FORCE_DEV_OPTIONS);
 
   useEffect(() => {
     if (!user?.access_token) {
@@ -324,6 +339,17 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       .then(results => setMatchedPrincipals(results.filter((p): p is Principal => p !== null)));
   }, [isProfileModalOpen, matchedPrincipalIds]);
 
+  const { activeHref, activeGroup } = React.useMemo(() => {
+    const allEntries = navigationConfig.flatMap(group => group.items.map(item => ({ item, group })));
+    const matches = allEntries.filter(({ item }) => item.href === '/' ? pathname === '/' : isPathUnder(pathname, item.href));
+    const best = matches.sort((a, b) => b.item.href.length - a.item.href.length)[0];
+    return { activeHref: best?.item.href, activeGroup: best?.group };
+  }, [pathname]);
+
+  const sidebarGroups = activeGroup?.label
+    ? [activeGroup]
+    : navigationConfig.filter(group => group.label);
+
   const isNavItemVisible = useCallback((item: NavItem): boolean => {
     if (!item.uiAuthzCapabilities) return true;
     if (globalCapabilities === null) return true;
@@ -334,9 +360,8 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
   useEffect(() => {
     if (globalCapabilities === null) return;
     const allItems = navigationConfig.flatMap(g => g.items);
-    const currentItem = allItems.find(item =>
-      item.href !== '/' && pathname.startsWith(item.href)
-    );
+    const matchingItems = allItems.filter(item => item.href !== '/' && isPathUnder(pathname, item.href));
+    const currentItem = matchingItems.sort((a, b) => b.href.length - a.href.length)[0];
     if (currentItem && !isNavItemVisible(currentItem)) {
       router.replace('/');
     }
@@ -409,7 +434,9 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
       <div className="flex flex-col h-screen bg-background text-foreground w-full">
         <header className="flex h-header items-center justify-between border-b border-header-foreground/30 bg-header text-header-foreground px-4 md:px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4 h-full py-2">
-            <SidebarTrigger className="md:hidden text-header-foreground hover:bg-header/80 hover:text-header-foreground" />
+            {pathname !== '/' && !isWizardMode && (
+              <SidebarTrigger className="md:hidden text-header-foreground hover:bg-header/80 hover:text-header-foreground" />
+            )}
             <div className="secondary-logo-container">
               <div
                 className="secondary-logo h-full w-auto aspect-[200/60]"
@@ -433,6 +460,20 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               alt="LamassuIoT Logo"
               className="block md:hidden h-full w-auto invert brightness-0"
             />
+          </div>
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-3 md:px-6">
+            <PageSearchMenu navGroups={navigationConfig} isDeveloperMode={isDeveloperMode} />
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-header-foreground hover:bg-header/80 hover:text-header-foreground"
+              aria-label="Home"
+            >
+              <Link href="/">
+                <HomeIcon className="h-5 w-5" />
+              </Link>
+            </Button>
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
@@ -516,7 +557,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
           </div>
         </header>
 
-        {isWizardMode ? (
+        {isWizardMode || pathname === '/' ? (
           <div className="flex-1 overflow-y-auto">
             {children}
           </div>
@@ -553,7 +594,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
               </SidebarHeader>
               <SidebarContent className="p-2">
                 <SidebarMenu>
-                  {navigationConfig.map((group, groupIndex) => {
+                  {sidebarGroups.map((group, groupIndex) => {
                     if (group.devOnly && !(process.env.NODE_ENV == 'development' || process.env.NEXT_FORCE_DEV_OPTIONS)) {
                       return null;
                     }
@@ -578,7 +619,7 @@ const MainLayoutContent = ({ children, isWizardMode }: { children: React.ReactNo
                           <SidebarMenuItem key={item.href}>
                             <SidebarMenuButton
                               asChild
-                              isActive={pathname.startsWith(item.href) && (item.href !== '/' || pathname === '/')}
+                              isActive={item.href === activeHref}
                               tooltip={{ children: item.label, side: 'right', align: 'center' }}
                             >
                               <Link href={item.href} className="flex items-center w-full justify-start">
