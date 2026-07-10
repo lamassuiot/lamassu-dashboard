@@ -37,6 +37,7 @@ import {
   type SigningProfileFormValues,
 } from '@/components/shared/SigningProfileForm';
 import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
+import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
 import {
   buildInlineIssuanceProfile,
   createDefaultEstAuthSettings,
@@ -124,6 +125,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     resolver: zodResolver(signingProfileSchema),
     defaultValues: inlineProfileDefaultValues,
   });
+  const inlineProfileValidity = inlineProfileForm.watch('validity');
 
   // MOVED HOOKS TO TOP LEVEL
   const selectedProfileForDisplay = useMemo(() => {
@@ -135,6 +137,66 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     if (!enrollmentCa?.defaultProfileId || !Array.isArray(availableProfiles)) return undefined;
     return availableProfiles.find(p => p.id === enrollmentCa.defaultProfileId);
   }, [enrollmentCa?.defaultProfileId, availableProfiles]);
+
+  const effectiveIssuanceProfile = useMemo<{
+    name: string;
+    validity: CertificateValidity;
+  } | null>(() => {
+    if (issuanceProfileMode === 'inline') {
+      if (inlineProfileValidity.type === 'Duration' && inlineProfileValidity.durationValue) {
+        return {
+          name: 'Inline profile',
+          validity: { type: 'Duration', value: inlineProfileValidity.durationValue },
+        };
+      }
+
+      if (inlineProfileValidity.type === 'Date' && inlineProfileValidity.dateValue) {
+        return {
+          name: 'Inline profile',
+          validity: { type: 'Date', value: inlineProfileValidity.dateValue.toISOString() },
+        };
+      }
+
+      if (inlineProfileValidity.type === 'Indefinite') {
+        return { name: 'Inline profile', validity: { type: 'Indefinite' } };
+      }
+
+      return null;
+    }
+
+    const profile = issuanceProfileMode === 'existing'
+      ? selectedProfileForDisplay
+      : enrollmentCaDefaultProfile;
+    if (!profile?.validity) return null;
+
+    if (profile.validity.type === 'Duration' && profile.validity.duration) {
+      return {
+        name: profile.name,
+        validity: { type: 'Duration', value: profile.validity.duration },
+      };
+    }
+
+    if (
+      profile.validity.type === 'Indefinite'
+      || profile.validity.time?.startsWith('9999-12-31')
+    ) {
+      return { name: profile.name, validity: { type: 'Indefinite' } };
+    }
+
+    if (profile.validity.time) {
+      return {
+        name: profile.name,
+        validity: { type: 'Date', value: profile.validity.time },
+      };
+    }
+
+    return null;
+  }, [
+    enrollmentCaDefaultProfile,
+    inlineProfileValidity,
+    issuanceProfileMode,
+    selectedProfileForDisplay,
+  ]);
 
   const loadDependencies = useCallback(async () => {
         setIsLoadingDependencies(true);
@@ -715,6 +777,13 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             <DurationInput id="allowedRenewalDelta" label="Re-Enrollment Window" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Time before certificate expiry when re-enrollment becomes available." />
             <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
             <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
+            <RenewalLifespanBar
+              certificateValidity={effectiveIssuanceProfile?.validity ?? null}
+              issuanceProfileName={effectiveIssuanceProfile?.name}
+              reenrollmentWindow={allowedRenewalDelta}
+              preventiveDelta={preventiveRenewalDelta}
+              criticalDelta={criticalRenewalDelta}
+            />
             <div className="space-y-1.5">
               <Label>Additional Validation CAs</Label>
               <div className="space-y-2">
