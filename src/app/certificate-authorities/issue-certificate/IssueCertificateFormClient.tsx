@@ -19,7 +19,7 @@ import { DetailItem } from '@/components/shared/DetailItem';
 import { cn } from '@/lib/utils';
 import { buildSelfSignedCsr, buildSignedCsr, initPkijsEngine, arrayBufferToBase64, formatAsPem, generateMlDsaKeyPair, generateSlhDsaKeyPair, type CsrSan } from "@/lib-crypto";
 import { parseCsr, type DecodedCsrInfo } from '@/lib-crypto';
-import { KEY_TYPE_OPTIONS_POST_QUANTUM, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS, SLHDSA_PARAM_SET_OPTIONS } from '@/lib/form-options';
+import { KEY_SPEC_OPTIONS, KEY_TYPE_OPTIONS_POST_QUANTUM, RSA_KEY_SIZE_OPTIONS, ECDSA_CURVE_OPTIONS, MLDSA_SECURITY_LEVEL_OPTIONS, SLHDSA_PARAM_SET_OPTIONS } from '@/lib/form-options';
 import { fetchAndProcessCAs, findCaById, signCertificate, type CA, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/shared/Stepper';
@@ -28,7 +28,11 @@ import { SigningProfileSelector } from '@/components/shared/SigningProfileSelect
 import type { ExpirationConfig } from '@/components/shared/ExpirationInput';
 import type { ProfileMode } from '@/components/shared/SigningProfileSelector';
 import { DEVICE_AUTH_EXTENDED_KEY_USAGES, TLS_KEY_USAGES, type ExtendedKeyUsageOption, type KeyUsageOption } from '@/lib/certificate-usage-options';
-
+import {
+  getKeySpecLabel,
+  getPreferredKeySpecValue,
+} from '@/lib/crypto-key-fields';
+import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
 
 // This specific date string is used to represent "indefinite validity" (no expiration) in the API.
 // The backend and API consumers interpret "9999-12-31T23:59:58.999Z" as a special value meaning the certificate does not expire.
@@ -103,6 +107,16 @@ export default function IssueCertificateFormClient() {
   const [currentSanType, setCurrentSanType] = useState<SanEntry['type']>('DNS');
   const [currentSanValue, setCurrentSanValue] = useState('');
 
+  const [keyType, setKeyType] = useState('RSA');
+  const [keySpec, setKeySpec] = useState('');
+  const supportedKeyTypes = KEY_TYPE_OPTIONS_POST_QUANTUM.map(k => k.value);
+  const keyTypeOptions = KEY_TYPE_OPTIONS_POST_QUANTUM;
+  const currentKeySpecOptions = useMemo(
+    () => KEY_SPEC_OPTIONS[keyType],
+    [keyType],
+  );
+  const keySpecLabel = useMemo(() => getKeySpecLabel(keyType), [keyType]);
+
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<string>('RSA');
   const [selectedRsaKeySize, setSelectedRsaKeySize] = useState<string>('2048');
   const [selectedEcdsaCurve, setSelectedEcdsaCurve] = useState<string>('P-256');
@@ -139,6 +153,23 @@ export default function IssueCertificateFormClient() {
   const [privateKeyCopied, setPrivateKeyCopied] = useState(false);
   const [issuedCertCopied, setIssuedCertCopied] = useState(false);
   const [certDisplayTab, setCertDisplayTab] = useState<'leaf' | 'chain'>('leaf');
+
+  // Effect to update keySpec when options change
+  useEffect(() => {
+    if (currentKeySpecOptions.length === 0) {
+      setKeySpec('');
+      return;
+    }
+
+    if (!currentKeySpecOptions.some((option) => option.value === keySpec)) {
+      setKeySpec(getPreferredKeySpecValue(keyType, currentKeySpecOptions));
+    }
+  }, [currentKeySpecOptions, keySpec, keyType]);
+
+  const handleKeyTypeChange = (value: string) => {
+    setKeyType(value);
+    // Key spec will be reset by the useEffect above
+  }; 
 
   const validityWarning = useMemo(() => {
     if (!issuerCa || !validity) return null;
@@ -854,51 +885,18 @@ export default function IssueCertificateFormClient() {
                       <p className="text-sm text-muted-foreground mt-1">Choose the cryptographic algorithm and parameters for the generated key pair.</p>
                     </div>
                     <div className="space-y-4 lg:col-span-2">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="keyAlgorithm">Algorithm</Label>
-                          <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
-                            <SelectTrigger id="keyAlgorithm"><SelectValue /></SelectTrigger>
-                            <SelectContent>{KEY_TYPE_OPTIONS_POST_QUANTUM.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">Cryptographic algorithm family.</p>
-                        </div>
-                        {selectedAlgorithm === 'RSA' ? (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="rsaKeySize">RSA Key Size</Label>
-                            <Select value={selectedRsaKeySize} onValueChange={setSelectedRsaKeySize}>
-                              <SelectTrigger id="rsaKeySize"><SelectValue /></SelectTrigger>
-                              <SelectContent>{RSA_KEY_SIZE_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">Bit length for the RSA key.</p>
-                          </div>
-                        ) : selectedAlgorithm === 'ECDSA' ? (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="ecdsaCurve">ECDSA Curve</Label>
-                            <Select value={selectedEcdsaCurve} onValueChange={setSelectedEcdsaCurve}>
-                              <SelectTrigger id="ecdsaCurve"><SelectValue /></SelectTrigger>
-                              <SelectContent>{ECDSA_CURVE_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">Curve for the ECDSA key.</p>
-                          </div>
-                        ) : selectedAlgorithm === 'ML-DSA' ? (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="mlDsaLevel">ML-DSA Security Level</Label>
-                            <Select value={selectedMlDsaLevel} onValueChange={setSelectedMlDsaLevel}>
-                              <SelectTrigger id="mlDsaLevel"><SelectValue /></SelectTrigger>
-                              <SelectContent>{MLDSA_SECURITY_LEVEL_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                        ) : selectedAlgorithm === 'SLH-DSA' ? (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="slhDsaParamSet">SLH-DSA Parameter Set</Label>
-                            <Select value={selectedSlhDsaParamSet} onValueChange={setSelectedSlhDsaParamSet}>
-                              <SelectTrigger id="slhDsaParamSet"><SelectValue /></SelectTrigger>
-                              <SelectContent>{SLHDSA_PARAM_SET_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </div>
-                        ) : null}
-                      </div>
+                        <CryptoKeyTypeSpecFields
+                          idPrefix="ca-outer-key"
+                          keyTypeValue={keyType}
+                          keyTypeOptions={KEY_TYPE_OPTIONS_POST_QUANTUM}
+                          onKeyTypeChange={handleKeyTypeChange}
+                          keySpecLabel={keySpecLabel}
+                          keySpecValue={keySpec}
+                          keySpecOptions={currentKeySpecOptions}
+                          onKeySpecChange={setKeySpec}
+                          disabled={isGenerating}
+                          keySpecDisabled={currentKeySpecOptions.length === 0 || isGenerating}
+                        />
                     </div>
                   </div>
                   <Separator />
