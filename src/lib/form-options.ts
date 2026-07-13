@@ -58,6 +58,16 @@ export const SLHDSA_PARAM_SET_OPTIONS = Object.entries(SLHDSA_PARAM_SET_INFO).ma
   label: `${id} - ${info.name} (${info.hash}, ${info.security}, ${info.speed})`,
 }));
 
+// --- Key Specs ---
+// Created for easy of reuse and convenience
+export const KEY_SPEC_OPTIONS: Record<string, { value: string, label: string }[]> = {
+    'RSA': RSA_KEY_SIZE_OPTIONS,
+    'ECDSA': ECDSA_CURVE_OPTIONS,
+    'Ed25519': [],
+    'ML-DSA': MLDSA_SECURITY_LEVEL_OPTIONS,
+    'SLH-DSA': SLHDSA_PARAM_SET_OPTIONS,
+};
+
 /**
  * Composite-ML-DSA-RSA (IETF composite-sigs draft) parameter set metadata.
  * Keys are the numeric IDs (1–8) returned by the KMS API as the key size.
