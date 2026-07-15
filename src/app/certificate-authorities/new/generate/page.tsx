@@ -6,22 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Settings, Info, Loader2, BookText, AlertTriangle } from "lucide-react";
+import { ArrowLeft, PlusCircle, Settings, Info, Loader2, Shield, BookText, AlertTriangle } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import {
   fetchAndProcessCAs,
   createCa,
   type CreateCaPayload,
-  type CreateHybridCaPayload,
   fetchSigningProfiles,
   type ApiSigningProfile,
   type CreateSigningProfilePayload,
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { Switch } from '@/components/ui/switch';
+import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { sileo } from '@/lib/toast';
 import { Separator } from '@/components/ui/separator';
-import { CryptoKeyTypeSpecFields } from '@/components/shared/CryptoKeyTypeSpecFields';
 import { CryptoEngineSelector } from '@/components/shared/CryptoEngineSelector';
 import { ExpirationInput, type ExpirationConfig } from '@/components/shared/ExpirationInput';
 import { formatISO, add, format } from 'date-fns';
@@ -93,7 +91,6 @@ export default function CreateCaGeneratePage() {
   const router = useRouter();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isHybridCa, setIsHybridCa] = useState(false);
 
   const [caType, setCaType] = useState('root');
   const [cryptoEngineId, setCryptoEngineId] = useState<string | undefined>(undefined);
@@ -103,8 +100,6 @@ export default function CreateCaGeneratePage() {
 
   const [keyType, setKeyType] = useState('RSA');
   const [keySpec, setKeySpec] = useState('');
-  const [innerKeyType, setInnerKeyType] = useState('RSA');
-  const [innerKeySpec, setInnerKeySpec] = useState('');
 
   const [country, setCountry] = useState('');
   const [stateProvince, setStateProvince] = useState('');
@@ -255,12 +250,7 @@ export default function CreateCaGeneratePage() {
     () => getKeySpecOptions(keyType, getKeyTypeDetails(selectedEngine, keyType)),
     [keyType, selectedEngine],
   );
-  const innerKeySpecOptions = useMemo(
-    () => getKeySpecOptions(innerKeyType, getKeyTypeDetails(selectedEngine, innerKeyType)),
-    [innerKeyType, selectedEngine],
-  );
   const keySpecLabel = useMemo(() => getKeySpecLabel(keyType), [keyType]);
-  const innerKeySpecLabel = useMemo(() => getKeySpecLabel(innerKeyType, 'Inner'), [innerKeyType]);
 
   useEffect(() => {
     if (supportedKeyTypes.length === 0) return;
@@ -268,13 +258,6 @@ export default function CreateCaGeneratePage() {
       setKeyType(supportedKeyTypes[0]);
     }
   }, [supportedKeyTypes, keyType]);
-
-  useEffect(() => {
-    if (supportedKeyTypes.length === 0) return;
-    if (!supportedKeyTypes.includes(innerKeyType)) {
-      setInnerKeyType(supportedKeyTypes[0]);
-    }
-  }, [supportedKeyTypes, innerKeyType]);
 
   // Effect to update keySpec when options change
   useEffect(() => {
@@ -287,18 +270,6 @@ export default function CreateCaGeneratePage() {
       setKeySpec(getPreferredKeySpecValue(keyType, currentKeySpecOptions));
     }
   }, [currentKeySpecOptions, keySpec, keyType]);
-
-  useEffect(() => {
-    if (innerKeySpecOptions.length === 0) {
-      setInnerKeySpec('');
-      return;
-    }
-
-    if (!innerKeySpecOptions.some((option) => option.value === innerKeySpec)) {
-      setInnerKeySpec(getPreferredKeySpecValue(innerKeyType, innerKeySpecOptions));
-    }
-  }, [innerKeySpecOptions, innerKeySpec, innerKeyType]);
-
 
   const handleCaTypeChange = (value: string) => {
     setCaType(value);
@@ -315,10 +286,6 @@ export default function CreateCaGeneratePage() {
     // Key spec will be reset by the useEffect above
   }; 
 
-  const handleInnerKeyTypeChange = (value: string) => {
-    setInnerKeyType(value)
-    // Key spec will be reset by the useEffect above
-  };
   const handleParentCaSelectFromModal = (ca: CA) => {
     if (ca.rawApiData?.certificate.type === 'EXTERNAL_PUBLIC' || ca.status !== 'active') {
       sileo.error({
@@ -372,11 +339,6 @@ export default function CreateCaGeneratePage() {
       setIsSubmitting(false);
       return;
     }
-    if (isHybridCa && !innerKeySpec) {
-      sileo.error({ title: "Validation Error", description: "Please select an Inner Key Specification." });
-      setIsSubmitting(false);
-      return;
-    }
     if (profileMode === 'reuse' && !selectedProfileId) {
       sileo.error({ title: "Validation Error", description: "An issuance profile must be selected." });
       setIsSubmitting(false);
@@ -398,7 +360,7 @@ export default function CreateCaGeneratePage() {
       }
     }
 
-    const basePayload = {
+    const payload: CreateCaPayload = {
       parent_id: caType === 'root' ? null : selectedParentCa?.id || null,
       id: caId,
       engine_id: cryptoEngineId,
@@ -413,27 +375,11 @@ export default function CreateCaGeneratePage() {
       ca_expiration: formatExpirationForApi(caExpiration),
       profile_id: selectedProfileId!,
       ca_type: 'MANAGED' as const,
+      key_metadata: {
+        type: keyType,
+        bits: parseKeyBits(keyType, keySpec),
+      },
     };
-    const payload: CreateCaPayload | CreateHybridCaPayload = isHybridCa
-      ? {
-          ...basePayload,
-          outer_key_metadata: {
-            type: keyType,
-            bits: parseKeyBits(keyType, keySpec),
-          },
-          inner_key_metadata: {
-            type: innerKeyType,
-            bits: parseKeyBits(innerKeyType, innerKeySpec),
-          },
-          hybrid_certificate_type: 'CHAMELEON',
-        }
-      : {
-          ...basePayload,
-          key_metadata: {
-            type: keyType,
-            bits: parseKeyBits(keyType, keySpec),
-          },
-        };
 
     if (caProfileMode === 'reuse' && selectedCaProfileId) {
         payload.ca_issuance_profile_id = selectedCaProfileId;
@@ -474,7 +420,7 @@ export default function CreateCaGeneratePage() {
     }
 
     try {
-      await createCa(payload, isHybridCa);
+      await createCa(payload);
 
       sileo.success({ title: "Certification Authority Creation Successful", description: `Certification Authority "${caName}" has been created.` });
       router.push('/certificate-authorities');
@@ -499,10 +445,6 @@ export default function CreateCaGeneratePage() {
     { label: 'New', href: '/certificate-authorities/new' },
     { label: 'Generate' },
   ];
-  const handleIsHybridCaChange = () => {
-    setIsHybridCa(!isHybridCa)
-  }
-
   return (
     <BreadcrumbPage items={breadcrumbItems} className="space-y-5 pb-8">
       <div className="w-[80%] mx-auto space-y-5 mb-8">
@@ -522,55 +464,6 @@ export default function CreateCaGeneratePage() {
           </p>
         </div>
 
-        {/* ── CA Identity ── */}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
-          <div>
-            <p className="font-semibold">CA Identity</p>
-            <p className="text-sm text-muted-foreground mt-1">Choose the CA type and define its basic identity.</p>
-          </div>
-          <div className="space-y-4 lg:col-span-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="caType">CA Type</Label>
-              <Select value={caType} onValueChange={handleCaTypeChange} disabled={isSubmitting}>
-                <SelectTrigger id="caType"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="root">Root CA</SelectItem>
-                  <SelectItem value="intermediate">Intermediate CA</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {caType === 'root' && (
-              <div className="space-y-1.5">
-                <Label htmlFor="issuerName">Issuer</Label>
-                <Input id="issuerName" value="Self-signed" disabled className="bg-muted/50" />
-                <p className="text-xs text-muted-foreground">Root CAs are self-signed.</p>
-              </div>
-            )}
-            {caType === 'intermediate' && (
-              <div className="space-y-1.5">
-                <Label>Parent CA</Label>
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" onClick={() => setIsParentCaModalOpen(true)} disabled={isLoadingDependencies || isSubmitting}>
-                    {selectedParentCa ? selectedParentCa.name : 'Select Parent CA...'}
-                  </Button>
-                </div>
-                {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="caId">CA ID (auto-generated)</Label>
-              <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="caName">CA Name (Common Name)</Label>
-              <Input id="caName" value={caName} onChange={(e) => setCaName(e.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
-              {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
         {/* ── Key Pair Generation ── */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
           <div>
@@ -583,37 +476,89 @@ export default function CreateCaGeneratePage() {
               <CryptoEngineSelector value={cryptoEngineId} onValueChange={setCryptoEngineId} disabled={isSubmitting} />
               <p className="text-xs text-muted-foreground">Hardware or software engine that will manage this key.</p>
             </div>
-            <CryptoKeyTypeSpecFields
-              idPrefix="ca-outer-key"
-              keyTypeValue={keyType}
-              keyTypeOptions={keyTypeOptions}
-              onKeyTypeChange={handleKeyTypeChange}
-              keySpecLabel={keySpecLabel}
-              keySpecValue={keySpec}
-              keySpecOptions={currentKeySpecOptions}
-              onKeySpecChange={setKeySpec}
-              disabled={!selectedEngine || isSubmitting}
-              keySpecDisabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}
-            />
-            <div className="flex items-center space-x-2">
-              <Switch id="hybridCA" checked={isHybridCa} onCheckedChange={handleIsHybridCaChange} />
-              <Label htmlFor="hybridCA">Hybrid CA</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="keyType">Key Type</Label>
+                <Select value={keyType} onValueChange={handleKeyTypeChange} disabled={!selectedEngine || isSubmitting}>
+                  <SelectTrigger id="keyType"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {keyTypeOptions.map((keyTypeOption) => (
+                      <SelectItem key={keyTypeOption.value} value={keyTypeOption.value}>{keyTypeOption.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Algorithm family for the new key.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="keySpec">{keySpecLabel}</Label>
+                <Select value={keySpec} onValueChange={setKeySpec} disabled={!selectedEngine || currentKeySpecOptions.length === 0 || isSubmitting}>
+                  <SelectTrigger id="keySpec"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {currentKeySpecOptions.map(keySpecOption => (
+                      <SelectItem key={keySpecOption.value} value={keySpecOption.value}>{keySpecOption.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Bit length, curve, or parameter set for the selected algorithm.</p>
+              </div>
             </div>
-            {isHybridCa && (
-              <CryptoKeyTypeSpecFields
-                idPrefix="ca-inner-key"
-                keyTypeLabel="Inner Key Type"
-                keyTypeValue={innerKeyType}
-                keyTypeOptions={keyTypeOptions}
-                onKeyTypeChange={handleInnerKeyTypeChange}
-                keySpecLabel={innerKeySpecLabel}
-                keySpecValue={innerKeySpec}
-                keySpecOptions={innerKeySpecOptions}
-                onKeySpecChange={setInnerKeySpec}
-                disabled={!selectedEngine || isSubmitting}
-                keySpecDisabled={!selectedEngine || innerKeySpecOptions.length === 0 || isSubmitting}
-              />
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── CA Settings ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">CA Settings</p>
+            <p className="text-sm text-muted-foreground mt-1">Define the CA type, identity, and chain relationship.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <CardSelector
+              label="CA Type"
+              value={caType}
+              onChange={handleCaTypeChange}
+              disabled={isSubmitting}
+              options={[
+                { value: 'root', label: 'Root CA', description: 'Self-signed trust anchor. Top of the certificate chain.', icon: Shield },
+                { value: 'intermediate', label: 'Intermediate CA', description: 'Signed by a parent CA. Issues end-entity certificates.', icon: BookText },
+              ]}
+            />
+            {caType === 'intermediate' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="parentCa">Parent Certification Authority</Label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsParentCaModalOpen(true)}
+                  className="w-full justify-start text-left font-normal"
+                  id="parentCa"
+                  disabled={isLoadingDependencies || isSubmitting}
+                >
+                  {isLoadingDependencies ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : selectedParentCa ? `Selected: ${selectedParentCa.name}` : 'Select Parent Certification Authority...'}
+                </Button>
+                {selectedParentCa && (
+                  <CaVisualizerCard ca={selectedParentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
+                )}
+                {!selectedParentCa && <p className="text-xs text-destructive">A parent CA must be selected for intermediate CAs.</p>}
+              </div>
             )}
+            {caType === 'root' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="issuerName">Issuer</Label>
+                <Input id="issuerName" value="Self-signed" disabled className="bg-muted/50" />
+                <p className="text-xs text-muted-foreground">Root CAs are self-signed.</p>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="caId">CA ID (auto-generated)</Label>
+              <Input id="caId" value={caId} readOnly className="bg-muted/50 font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="caName">CA Name (Common Name)</Label>
+              <Input id="caName" value={caName} onChange={(event) => setCaName(event.target.value)} placeholder="e.g., LamassuIoT Secure Services CA" required disabled={isSubmitting} />
+              {!caName.trim() && <p className="text-xs text-destructive">CA Name cannot be empty.</p>}
+            </div>
           </div>
         </div>
 
