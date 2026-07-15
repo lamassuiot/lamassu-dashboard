@@ -389,8 +389,7 @@ export default function CertificateAuthorityDetailsClient() {
   }
 
 
-  const isChameleonCertificate = Boolean(caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']);
-  const isPqcCertificate = isPqcAlgorithm(caDetails.keyAlgorithm) || isChameleonCertificate;
+  const isPqcCertificate = isPqcAlgorithm(caDetails.keyAlgorithm);
 
   const issuerCa = caDetails.issuer !== 'Self-signed'
     ? findCaById(caDetails.issuer, allCertificateAuthoritiesData)
@@ -455,7 +454,6 @@ export default function CertificateAuthorityDetailsClient() {
                 PQC
               </Badge>
             )}
-            {isChameleonCertificate && <Badge variant="info">HYBRID</Badge>}
             {caDetails.rawApiData?.certificate?.key_metadata && (
               <Badge variant="secondary" className="font-mono">
                 <KeyRound />

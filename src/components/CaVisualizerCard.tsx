@@ -96,8 +96,7 @@ const renderStatusIcon = (
 export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, className, onClick, allCryptoEngines, variant = 'default' }) => {
   const { label, expiryText, variant: statusVariant } = getStatus(ca);
   const sizes = variantClasses[variant];
-  const isChameleonCertificate = Boolean(ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']);
-  const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm) || isChameleonCertificate;
+  const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm);
   const Comp = onClick ? 'button' : 'div';
 
   return (
@@ -124,7 +123,6 @@ export const CaVisualizerCard: React.FC<CaVisualizerCardProps> = ({ ca, classNam
           </Badge>
         </div>
         {isPqcCertificate && <Badge variant="info" size={sizes.badgeSize}><QuantumAlgorithmIcon className="h-3 w-3" />PQC</Badge>}
-        {isChameleonCertificate && <Badge variant="info" size={sizes.badgeSize}>HYBRID</Badge>}
         <p className={cn('truncate text-muted-foreground', sizes.expiry)}>{expiryText}</p>
       </div>
     </Comp>
