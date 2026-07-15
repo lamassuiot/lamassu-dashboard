@@ -110,13 +110,12 @@ function CertificateRow({ ca, mutualSigner, onOpenCa }: Readonly<{ ca: CA; mutua
         : <FileBadge className="size-4 shrink-0 text-muted-foreground" />}
       <span className="min-w-0 flex-1 truncate text-sm">{ca.name}</span>
       {isSelfSigned(ca) && <Badge variant="secondary">Self-signed</Badge>}
-      {(isPqcAlgorithm(ca.keyAlgorithm) || ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']) && (
+      {isPqcAlgorithm(ca.keyAlgorithm) && (
         <Badge variant="info">
           <QuantumAlgorithmIcon className="h-3 w-3" />
           PQC
         </Badge>
       )}
-      {ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon'] && <Badge variant="info">HYBRID</Badge>}
       <ApiStatusBadge status={getEffectiveCaStatus(ca)} />
     </button>
   );

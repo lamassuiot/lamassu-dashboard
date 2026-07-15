@@ -318,40 +318,8 @@ export interface CreateCaPayload {
   ca_issuance_profile?: CreateSigningProfilePayload;
 }
 
-export interface CreateHybridCaPayload {
-  parent_id: string | null;
-  id: string;
-  engine_id: string;
-  subject: {
-    country?: string;
-    state_province?: string;
-    locality?: string;
-    organization?: string;
-    organization_unit?: string;
-    common_name: string;
-  };
-  inner_key_metadata: {
-    type: string;
-    bits: number;
-  };
-  outer_key_metadata: {
-    type: string;
-    bits: number;
-  };
-  ca_expiration: { type: "Duration" | "Date"; duration?: string; time?: string };
-  profile_id: string;
-  ca_type: "MANAGED";
-  hybrid_certificate_type: string;
-  // Optional: Profile for the CA's own certificate
-  ca_issuance_profile_id?: string;
-  ca_issuance_profile?: CreateSigningProfilePayload;
-}
-
-export async function createCa(
-  payload: CreateCaPayload | CreateHybridCaPayload,
-  isHybrid = false,
-): Promise<void> {
-  const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas${isHybrid ? '/pq' : ''}`, {
+export async function createCa(payload: CreateCaPayload): Promise<void> {
+  const response = await apiFetch(`${get_CA_API_BASE_URL()}/cas`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
