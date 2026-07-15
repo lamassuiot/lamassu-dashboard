@@ -208,8 +208,7 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
       );
       break;
   }
-  const isChameleonCertificate = Boolean(ca.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']);
-  const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm) || isChameleonCertificate;
+  const isPqcCertificate = isPqcAlgorithm(ca.keyAlgorithm);
 
   return (
     <div
@@ -268,9 +267,6 @@ const CaNode = ({ data }: { data: CaNodeData }) => {
               <QuantumAlgorithmIcon variant="primaryBadge" className="h-3 w-3" />
               PQC
             </Badge>
-          )}
-          {isChameleonCertificate && (
-            <Badge className="text-[10px] h-5 px-1.5">HYBRID</Badge>
           )}
         </div>
         {ca.issuer === 'Self-signed' ? (

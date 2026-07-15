@@ -391,8 +391,7 @@ export default function CertificateAuthorityDetailsClient() {
     : caDetails.status === 'revoked'
     ? 'bg-destructive'
     : 'bg-muted-foreground';
-  const isChameleonCertificate = Boolean(caDetails.rawApiData?.metadata?.['lamassu.io/certificate/chameleon']);
-  const isPqcCertificate = isPqcAlgorithm(caDetails.keyAlgorithm) || isChameleonCertificate;
+  const isPqcCertificate = isPqcAlgorithm(caDetails.keyAlgorithm);
   const statusPillClass = caIsActive
     ? 'border border-primary/20 bg-primary/10 text-primary'
     : caDetails.status === 'revoked'
@@ -508,11 +507,6 @@ export default function CertificateAuthorityDetailsClient() {
                 <Badge variant="outline" className="text-xs gap-1 border-primary/30 text-primary">
                   <QuantumAlgorithmIcon className="h-3 w-3" />
                   PQC
-                </Badge>
-              )}
-              {isChameleonCertificate && (
-                <Badge variant="outline" className="text-xs border-primary/30 text-primary">
-                  HYBRID
                 </Badge>
               )}
               {caDetails.rawApiData?.certificate?.key_metadata && (

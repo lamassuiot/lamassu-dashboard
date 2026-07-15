@@ -20,7 +20,7 @@ export const CaFilesystemView: React.FC<CaFilesystemViewProps> = ({ cas, router,
         <CaFilesystemViewItem
           key={ca.id}
           ca={ca}
-          level={0}
+          level={ca.level ?? 0}
           router={router}
           allCAs={allCAs}
           allCryptoEngines={allCryptoEngines}
