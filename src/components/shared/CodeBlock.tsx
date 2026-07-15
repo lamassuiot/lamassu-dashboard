@@ -85,7 +85,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
       {title && <Label className="text-sm font-semibold text-muted-foreground">{title}</Label>}
       <div className="flex items-start gap-2">
         <div
-          className="min-w-0 flex-1 overflow-hidden rounded-md border"
+          className="min-w-0 flex-1 overflow-hidden rounded-md border px-3"
           style={{ height: editorHeight }}
         >
           <MonacoEditor
@@ -104,7 +104,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
               lineDecorationsWidth: 0,
               lineNumbersMinChars: 0,
               renderLineHighlight: 'none',
-              wordWrap: 'off',
+              wordWrap: 'on',
               scrollbar: {
                 vertical: 'hidden',
                 horizontal: 'auto',
