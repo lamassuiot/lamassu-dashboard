@@ -100,6 +100,10 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [cmpChainValidationLevel, setCmpChainValidationLevel] = useState(0);
   const [cmpAllowExpiredAuth, setCmpAllowExpiredAuth] = useState(false);
   const [cmpEnforcePopo, setCmpEnforcePopo] = useState(true);
+  // Pre-shared RFC 4211 §6.2 Authenticator control answer; empty = accept unvalidated.
+  const [cmpExpectedAuthenticator, setCmpExpectedAuthenticator] = useState('');
+  // RFC 9483 §4.1.6 central key generation opt-in.
+  const [cmpServerKeyGenEnabled, setCmpServerKeyGenEnabled] = useState(false);
   const [cmpProtectionCertificate, setCmpProtectionCertificate] = useState<CertificateData | null>(null);
   const [cmpProtectionCertificateId, setCmpProtectionCertificateId] = useState<string | null>(null);
   const [cmpWorkflow, setCmpWorkflow] = useState('direct');
@@ -225,7 +229,10 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setRegistrationMode(enrollment_settings.registration_mode);
         const currentProtocol = enrollment_settings.protocol === 'CMP_RFC9483' ? 'CMP' : 'EST';
         setProtocol(currentProtocol);
-        setIssuanceProfileId(enrollment_settings.issuance_profile_id || null);
+        // The backend stores the issuance profile binding at settings level
+        // (DMSSettings.IssuanceProfileID); older payloads carried it under
+        // enrollment_settings, so keep that as a fallback.
+        setIssuanceProfileId(settings.issuance_profile_id || enrollment_settings.issuance_profile_id || null);
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
         setAllowOverrideEnrollment(enrollment_settings.enable_replaceable_enrollment);
         setVerifyCsrSignature(enrollment_settings.verify_csr_signature ?? true); // Default to true if not set
@@ -269,6 +276,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             setCmpApprovalTimeout(cmpSettings.approval_timeout || '');
             void hydrateProtectionCertificate(cmpSettings.protection_certificate);
             setCmpEnforcePopo(cmpSettings.enforce_popo ?? true);
+            setCmpExpectedAuthenticator(cmpSettings.expected_authenticator || '');
+            setCmpServerKeyGenEnabled(cmpSettings.server_key_gen_enabled ?? false);
             setCmpWorkflow(cmpSettings.workflow || 'direct');
 
             const cmpAuthModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth', 'NO_AUTH': 'No Auth' };
@@ -302,10 +311,14 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         const { device_provisioning_profile } = enrollment_settings;
         setTags(device_provisioning_profile.tags);
+        // icon_color is stored as "<fg>-<bg>", but externally-created RAs (e.g.
+        // sample data) may carry a plain color with no separator — keep the
+        // state defaults for any missing part instead of setting undefined,
+        // which would round-trip as the literal string "undefined" on save.
         const [iconColor, bgColor] = device_provisioning_profile.icon_color.split('-');
         setSelectedDeviceIconName(device_provisioning_profile.icon);
-        setSelectedDeviceIconColor(iconColor);
-        setSelectedDeviceIconBgColor(bgColor);
+        if (iconColor) setSelectedDeviceIconColor(iconColor);
+        if (bgColor) setSelectedDeviceIconBgColor(bgColor);
 
         setRevokeOnReEnroll(reenrollment_settings.revoke_on_reenrollment);
         setAllowExpiredRenewal(reenrollment_settings.enable_expired_renewal);
@@ -424,6 +437,12 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             auth_mode: authModeMapping[cmpAuthMode as keyof typeof authModeMapping],
             protection_certificate: cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '',
             enforce_popo: cmpEnforcePopo,
+            // Omit when empty so the backend's omitempty keeps the field absent
+            // (empty means "accept the Authenticator control unvalidated").
+            ...(cmpExpectedAuthenticator.trim()
+                ? { expected_authenticator: cmpExpectedAuthenticator.trim() }
+                : {}),
+            server_key_gen_enabled: cmpServerKeyGenEnabled,
             workflow: cmpWorkflow,
         };
         if (cmpAuthMode === 'Client Certificate') {
@@ -465,6 +484,10 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       id: isEditMode ? raIdFromQuery! : raId.trim(),
       metadata: raData?.metadata || {},
       settings: {
+        // The backend reads the issuance profile binding from settings level
+        // (DMSSettings.IssuanceProfileID) — emitting it only inside
+        // enrollment_settings silently unbinds the profile on every save.
+        issuance_profile_id: issuanceProfileId || '',
         enrollment_settings: {
           enrollment_ca: enrollmentCa.id,
           protocol: protocolMapping[protocol],
@@ -476,6 +499,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           device_provisioning_profile: {
             icon: selectedDeviceIconName!,
             icon_color: `${selectedDeviceIconColor}-${selectedDeviceIconBgColor}`,
+            // The form has no metadata editor; carry the fetched value through
+            // so editing an RA doesn't strip metadata set elsewhere.
+            metadata: raData?.settings?.enrollment_settings?.device_provisioning_profile?.metadata || {},
             tags: tags,
           },
           registration_mode: registrationMode,
@@ -577,8 +603,8 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     },
     {
       label: 'Validation CAs',
-      value: validationCAs.length.toString(),
-      hint: validationCAs.length === 1 ? 'Authority configured' : 'Authorities configured',
+      value: (protocol === 'CMP' ? cmpValidationCAs : validationCAs).length.toString(),
+      hint: (protocol === 'CMP' ? cmpValidationCAs : validationCAs).length === 1 ? 'Authority configured' : 'Authorities configured',
     },
     {
       label: 'Managed CAs',
@@ -895,6 +921,10 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                     onClearCmpProtectionCertificate={() => { setCmpProtectionCertificate(null); setCmpProtectionCertificateId(null); }}
                     cmpEnforcePopo={cmpEnforcePopo}
                     setCmpEnforcePopo={setCmpEnforcePopo}
+                    cmpExpectedAuthenticator={cmpExpectedAuthenticator}
+                    setCmpExpectedAuthenticator={setCmpExpectedAuthenticator}
+                    cmpServerKeyGenEnabled={cmpServerKeyGenEnabled}
+                    setCmpServerKeyGenEnabled={setCmpServerKeyGenEnabled}
                     cmpWorkflow={cmpWorkflow}
                     setCmpWorkflow={setCmpWorkflow}
                     cmpAuthMode={cmpAuthMode}

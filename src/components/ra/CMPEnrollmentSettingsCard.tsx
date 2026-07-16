@@ -50,6 +50,10 @@ interface CMPEnrollmentSettingsCardProps {
   onClearCmpProtectionCertificate: () => void;
   cmpEnforcePopo: boolean;
   setCmpEnforcePopo: (v: boolean) => void;
+  cmpExpectedAuthenticator: string;
+  setCmpExpectedAuthenticator: (v: string) => void;
+  cmpServerKeyGenEnabled: boolean;
+  setCmpServerKeyGenEnabled: (v: boolean) => void;
   cmpWorkflow: string;
   setCmpWorkflow: (v: string) => void;
   cmpAuthMode: string;
@@ -140,6 +144,10 @@ export function CMPEnrollmentSettingsCard({
   onClearCmpProtectionCertificate,
   cmpEnforcePopo,
   setCmpEnforcePopo,
+  cmpExpectedAuthenticator,
+  setCmpExpectedAuthenticator,
+  cmpServerKeyGenEnabled,
+  setCmpServerKeyGenEnabled,
   cmpWorkflow,
   setCmpWorkflow,
   cmpAuthMode,
@@ -365,6 +373,18 @@ export function CMPEnrollmentSettingsCard({
               </AlertDescription>
             </Alert>
           )}
+          <div className="flex items-center space-x-2">
+            <Switch id="cmpServerKeyGenEnabled" checked={cmpServerKeyGenEnabled} onCheckedChange={setCmpServerKeyGenEnabled} />
+            <Label htmlFor="cmpServerKeyGenEnabled">Allow Server Key Generation (CKG)</Label>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent className="max-w-xs"><p>RFC 9483 §4.1.6 central key generation: an enrollment request with an empty public key asks the server to generate the key pair and return it wrapped in the response. When disabled (default), such requests are rejected.</p></TooltipContent></Tooltip></TooltipProvider>
+          </div>
+          <div>
+            <Label htmlFor="cmpExpectedAuthenticator" className="flex items-center">
+              Expected Authenticator (Optional)
+              <TooltipProvider><Tooltip><TooltipTrigger asChild><HelpCircle className="ml-1 h-4 w-4 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent className="max-w-xs"><p>Pre-shared answer validated against the RFC 4211 §6.2 id-regCtrl-authenticator control (e.g. a security-question answer). Leave empty to accept the control unvalidated.</p></TooltipContent></Tooltip></TooltipProvider>
+            </Label>
+            <Input id="cmpExpectedAuthenticator" value={cmpExpectedAuthenticator} onChange={(e) => setCmpExpectedAuthenticator(e.target.value)} placeholder="Leave empty to skip validation" className="mt-1" />
+          </div>
         </div>
       </div>
 

@@ -199,7 +199,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
               )}
               {columnVisibility.authMode && (
                 <TableCell className="hidden lg:table-cell">
-                  <Badge variant="secondary">{ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode?.replace('_', ' ') || 'N/A'}</Badge>
+                  <Badge variant="secondary">{(ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode || ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode)?.replaceAll('_', ' ') || 'N/A'}</Badge>
                 </TableCell>
               )}
               {columnVisibility.createdAt && (
@@ -235,7 +235,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                         CMP-only DMS (or vice versa). The fallback `auth_mode`
                         presence check guards against older RAs that may have
                         been migrated without the top-level protocol field. */}
-                    {(ra.settings.enrollment_settings.protocol === 'EST'
+                    {(ra.settings.enrollment_settings.protocol === 'EST_RFC7030'
                         || !!ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode) && (
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
@@ -257,7 +257,7 @@ export const RegistrationAuthoritiesTable: React.FC<RegistrationAuthoritiesTable
                         </DropdownMenuPortal>
                       </DropdownMenuSub>
                     )}
-                    {(ra.settings.enrollment_settings.protocol === 'CMP'
+                    {(ra.settings.enrollment_settings.protocol === 'CMP_RFC9483'
                         || !!ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode) && (
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
