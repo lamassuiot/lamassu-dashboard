@@ -97,6 +97,13 @@ export interface ApiRaCmpSettings {
     };
     protection_certificate?: string;
     enforce_popo?: boolean;
+    // Pre-shared RFC 4211 §6.2 Authenticator control answer the CA validates
+    // when a CertRequest carries the id-regCtrl-authenticator control.
+    // Empty/absent = accept the control unvalidated.
+    expected_authenticator?: string;
+    // RFC 9483 §4.1.6 central key generation (CKG) opt-in: allows ir/cr with
+    // an empty public key to request a server-generated key pair.
+    server_key_gen_enabled?: boolean;
     // 'direct' (synchronous issuance) or 'phased' (admin-approved issuance).
     // Empty/absent is treated as 'direct'.
     workflow?: string;
@@ -113,10 +120,14 @@ export interface ApiRaEnrollmentSettings {
     device_provisioning_profile: {
         icon: string;
         icon_color: string;
+        metadata?: Record<string, any>;
         tags: string[];
     };
 }
 export interface ApiRaSettings {
+    // Issuance profile binding lives at settings level in the backend model
+    // (DMSSettings.IssuanceProfileID).
+    issuance_profile_id?: string;
     enrollment_settings: ApiRaEnrollmentSettings;
     reenrollment_settings: {
         revoke_on_reenrollment: boolean;
