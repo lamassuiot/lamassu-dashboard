@@ -498,7 +498,8 @@ export default function RegistrationAuthoritiesPage() {
               const profile = ra.settings.enrollment_settings.device_provisioning_profile;
               const IconComponent = getLucideIconByName(profile.icon);
               const [iconColor, bgColor] = (profile.icon_color || '#888888-#e0e0e0').split('-');
-              const authMode = ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode;
+              const authMode = ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode
+                || ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode;
               const tags = ra.settings.enrollment_settings.device_provisioning_profile.tags;
               const validationCas = ra.settings?.enrollment_settings?.est_rfc7030_settings?.client_certificate_settings?.validation_cas ?? [];
               const reEnrollCas = ra.settings.reenrollment_settings?.additional_validation_cas ?? [];
@@ -553,7 +554,7 @@ export default function RegistrationAuthoritiesPage() {
                             presence of the protocol-specific settings block to
                             stay tolerant of older RAs that may have one set but
                             not the other. */}
-                        {(ra.settings.enrollment_settings.protocol === 'EST'
+                        {(ra.settings.enrollment_settings.protocol === 'EST_RFC7030'
                             || !!ra.settings.enrollment_settings.est_rfc7030_settings?.auth_mode) && (
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
@@ -568,7 +569,7 @@ export default function RegistrationAuthoritiesPage() {
                             </DropdownMenuPortal>
                           </DropdownMenuSub>
                         )}
-                        {(ra.settings.enrollment_settings.protocol === 'CMP'
+                        {(ra.settings.enrollment_settings.protocol === 'CMP_RFC9483'
                             || !!ra.settings.enrollment_settings.lwc_rfc9483_settings?.auth_mode) && (
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
