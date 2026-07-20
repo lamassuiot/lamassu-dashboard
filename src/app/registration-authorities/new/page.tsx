@@ -119,6 +119,18 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [cmpOidcWellKnownUrl, setCmpOidcWellKnownUrl] = useState('');
 
 
+  // Re-enrollment auth mirrors the primary EST auth state, but is
+  // independent: it governs simplereenroll requests, not simpleenroll.
+  const [reenrollAuthMode, setReenrollAuthMode] = useState('Client Certificate');
+  const [reenrollWebhookName, setReenrollWebhookName] = useState('');
+  const [reenrollWebhookUrl, setReenrollWebhookUrl] = useState('');
+  const [reenrollWebhookLogLevel, setReenrollWebhookLogLevel] = useState('Info');
+  const [reenrollWebhookAuthMode, setReenrollWebhookAuthMode] = useState('No Auth');
+  const [reenrollWebhookApiKey, setReenrollWebhookApiKey] = useState('');
+  const [reenrollOidcClientId, setReenrollOidcClientId] = useState('');
+  const [reenrollOidcClientSecret, setReenrollOidcClientSecret] = useState('');
+  const [reenrollOidcWellKnownUrl, setReenrollOidcWellKnownUrl] = useState('');
+
   const [revokeOnReEnroll, setRevokeOnReEnroll] = useState(true);
   const [allowExpiredRenewal, setAllowExpiredRenewal] = useState(true);
   const [allowedRenewalDelta, setAllowedRenewalDelta] = useState('100d');
@@ -327,6 +339,32 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setCriticalRenewalDelta(reenrollment_settings.critical_delta);
         setAdditionalValidationCAs(resolveSelectedCas(reenrollment_settings.additional_validation_cas, availableCAsForSelection));
 
+        const reenrollAuthSettings = reenrollment_settings.est_rfc7030_settings;
+        const reenrollAuthModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth', 'NO_AUTH': 'No Auth' };
+        const currentReenrollAuthMode = reenrollAuthModeMap[reenrollAuthSettings?.auth_mode || ''] || 'Client Certificate';
+        setReenrollAuthMode(currentReenrollAuthMode);
+
+        if (currentReenrollAuthMode === 'External Webhook' && reenrollAuthSettings?.external_webhook_settings) {
+            const webhookSettings = reenrollAuthSettings.external_webhook_settings;
+            setReenrollWebhookName(webhookSettings.name || '');
+            setReenrollWebhookUrl(webhookSettings.url || '');
+            setReenrollWebhookLogLevel(webhookSettings.log_level || 'Info');
+
+            const apiWebhookAuthMode = webhookSettings.auth_mode;
+            let uiWebhookAuthMode = 'No Auth';
+            if (apiWebhookAuthMode === 'OIDC') uiWebhookAuthMode = 'OIDC';
+            if (apiWebhookAuthMode === 'API_KEY') uiWebhookAuthMode = 'API Key';
+            setReenrollWebhookAuthMode(uiWebhookAuthMode);
+
+            if (uiWebhookAuthMode === 'API Key' && webhookSettings.api_key_auth) {
+                setReenrollWebhookApiKey(webhookSettings.api_key_auth.key || '');
+            } else if (uiWebhookAuthMode === 'OIDC' && webhookSettings.oidc_auth) {
+                setReenrollOidcClientId(webhookSettings.oidc_auth.client_id || '');
+                setReenrollOidcClientSecret(webhookSettings.oidc_auth.client_secret || '');
+                setReenrollOidcWellKnownUrl(webhookSettings.oidc_auth.well_known_url || '');
+            }
+        }
+
         setEnableKeyGeneration(server_keygen_settings.enabled);
         if (server_keygen_settings.enabled && server_keygen_settings.key) {
             setServerKeygenType(server_keygen_settings.key.type);
@@ -472,6 +510,32 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     }
 
 
+    // Re-enrollment auth mirrors the primary EST auth_mode/webhook payload
+    // shape, but is built independently from `estSettings` above since it's
+    // always emitted regardless of `protocol` — re-enrollment auth applies
+    // whenever the ESTReEnrollmentSettingsCard is rendered (EST DMSs only).
+    const reenrollEstSettings: any = {
+        auth_mode: authModeMapping[reenrollAuthMode as keyof typeof authModeMapping],
+    };
+    if (reenrollAuthMode === 'External Webhook') {
+        const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
+        reenrollEstSettings.external_webhook_settings = {
+            name: reenrollWebhookName,
+            url: reenrollWebhookUrl,
+            log_level: reenrollWebhookLogLevel,
+            auth_mode: webhookAuthModeMapping[reenrollWebhookAuthMode],
+        };
+        if (reenrollWebhookAuthMode === 'API Key') {
+            reenrollEstSettings.external_webhook_settings.api_key_auth = { key: reenrollWebhookApiKey };
+        } else if (reenrollWebhookAuthMode === 'OIDC') {
+            reenrollEstSettings.external_webhook_settings.oidc_auth = {
+                client_id: reenrollOidcClientId,
+                client_secret: reenrollOidcClientSecret,
+                well_known_url: reenrollOidcWellKnownUrl,
+            };
+        }
+    }
+
     let keySettings;
     if (enableKeyGeneration) {
         const bits = serverKeygenType === 'ECDSA' 
@@ -513,6 +577,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           preventive_delta: preventiveRenewalDelta,
           reenrollment_delta: allowedRenewalDelta,
           additional_validation_cas: additionalValidationCAs.map(ca => ca.id),
+          est_rfc7030_settings: reenrollEstSettings,
         },
         server_keygen_settings: {
           enabled: enableKeyGeneration,
@@ -849,6 +914,24 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               />
 
               <ESTReEnrollmentSettingsCard
+                authMode={reenrollAuthMode}
+                setAuthMode={setReenrollAuthMode}
+                webhookName={reenrollWebhookName}
+                setWebhookName={setReenrollWebhookName}
+                webhookUrl={reenrollWebhookUrl}
+                setWebhookUrl={setReenrollWebhookUrl}
+                webhookLogLevel={reenrollWebhookLogLevel}
+                setWebhookLogLevel={setReenrollWebhookLogLevel}
+                webhookAuthMode={reenrollWebhookAuthMode}
+                setWebhookAuthMode={setReenrollWebhookAuthMode}
+                webhookApiKey={reenrollWebhookApiKey}
+                setWebhookApiKey={setReenrollWebhookApiKey}
+                oidcClientId={reenrollOidcClientId}
+                setOidcClientId={setReenrollOidcClientId}
+                oidcClientSecret={reenrollOidcClientSecret}
+                setOidcClientSecret={setReenrollOidcClientSecret}
+                oidcWellKnownUrl={reenrollOidcWellKnownUrl}
+                setOidcWellKnownUrl={setReenrollOidcWellKnownUrl}
                 revokeOnReEnroll={revokeOnReEnroll}
                 setRevokeOnReEnroll={setRevokeOnReEnroll}
                 allowExpiredRenewal={allowExpiredRenewal}
