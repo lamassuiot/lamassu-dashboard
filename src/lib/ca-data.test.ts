@@ -437,7 +437,9 @@ describe('ca-data', () => {
 
       await expect(
         updateCaStatus(caId, 'ACTIVE', undefined)
-      ).rejects.toThrow('Status update failed')
+      ).rejects.toThrow(
+        'Failed to update CA status: Invalid status (HTTP 400)'
+      )
     })
   })
 
@@ -495,7 +497,7 @@ describe('ca-data', () => {
       )
 
       await expect(deleteCa(caId)).rejects.toThrow(
-        'Deletion failed'
+        'Failed to delete CA: CA has active certificates (HTTP 400)'
       )
     })
   })
@@ -709,7 +711,9 @@ describe('ca-data', () => {
 
       await expect(
         createSigningProfile(payload)
-      ).rejects.toThrow('Profile creation failed')
+      ).rejects.toThrow(
+        'Failed to create signing profile: Invalid profile configuration (HTTP 400)'
+      )
     })
   })
 
@@ -743,7 +747,9 @@ describe('ca-data', () => {
 
       await expect(
         fetchSigningProfileById(profileId)
-      ).rejects.toThrow('Failed to fetch profile')
+      ).rejects.toThrow(
+        'Failed to fetch signing profile: Profile not found (HTTP 404)'
+      )
     })
   })
 
@@ -778,7 +784,9 @@ describe('ca-data', () => {
 
       await expect(
         updateSigningProfile(profileId, payload)
-      ).rejects.toThrow('Profile update failed')
+      ).rejects.toThrow(
+        'Failed to update signing profile: Invalid configuration (HTTP 400)'
+      )
     })
   })
 
@@ -809,7 +817,9 @@ describe('ca-data', () => {
 
       await expect(
         deleteSigningProfile(profileId)
-      ).rejects.toThrow('Profile deletion failed')
+      ).rejects.toThrow(
+        'Failed to delete signing profile: Profile in use (HTTP 400)'
+      )
     })
 
     it('should handle deletion error without JSON response', async () => {
@@ -1362,7 +1372,9 @@ XQGdcNTVHA==
         })
       )
 
-      await expect(fetchAndProcessCAs()).rejects.toThrow('HTTP error 500')
+      await expect(fetchAndProcessCAs()).rejects.toThrow(
+        'Failed to fetch CAs page: Internal Server Error (HTTP 500)'
+      )
     })
 
     it('should handle expired certificates', async () => {

@@ -113,7 +113,7 @@ describe('kms-data', () => {
       )
 
       await expect(fetchCryptoEngines()).rejects.toThrow(
-        'Failed to fetch crypto engines. HTTP error 500'
+        'Failed to fetch crypto engines: Server Error (HTTP 500)'
       )
     })
   })
@@ -519,7 +519,7 @@ describe('kms-data', () => {
       )
 
       await expect(signWithKmsKey(keyId, signPayload)).rejects.toThrow(
-        'Signing failed with status 500'
+        'Signing failed (HTTP 500)'
       )
     })
   })
@@ -610,7 +610,7 @@ describe('kms-data', () => {
       )
 
       await expect(verifyWithKmsKey(keyId, verifyPayload)).rejects.toThrow(
-        'Verification failed with status 500'
+        'Verification failed: Internal Server Error (HTTP 500)'
       )
     })
   })
