@@ -340,7 +340,7 @@ describe('va-api', () => {
       )
 
       await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow(
-        'Server responded with status 503'
+        'Failed to download CRL: Service Unavailable (HTTP 503)'
       )
     })
 
@@ -426,7 +426,9 @@ describe('va-api', () => {
         })
       )
 
-      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow('CRL download failed')
+      await expect(downloadCrl(testSki, MOCK_TOKEN)).rejects.toThrow(
+        'Failed to download CRL: CRL not found (HTTP 404)'
+      )
     })
 
     it('should handle CRL download failure with non-JSON response', async () => {
@@ -636,4 +638,3 @@ MIIBkTCB+wIJAKHHCgVZU1JTMA0GCSqGSIb3DQEBCwUA
     })
   })
 })
-

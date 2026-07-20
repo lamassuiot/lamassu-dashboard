@@ -137,10 +137,12 @@ export const SigningProfileSelector: React.FC<SigningProfileSelectorProps> = ({
     
     if (!data.honorSubject) {
         payload.subject = {
+            common_name: data.overrideCommonName,
             country: data.overrideCountry,
             state: data.overrideState,
+            locality: data.overrideLocality,
             organization: data.overrideOrganization,
-            organizational_unit: data.overrideOrgUnit,
+            organization_unit: data.overrideOrgUnit,
         }
     }
 

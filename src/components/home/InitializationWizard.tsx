@@ -21,6 +21,7 @@ import {
   fetchSigningProfiles,
   signCertificate,
   fetchCaStatsSummary,
+  type CreateSigningProfilePayload,
 } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
 import { sileo } from '@/lib/toast';
@@ -197,9 +198,9 @@ export const InitializationWizard: React.FC = () => {
                     const createdCaList = await fetchAndProcessCAs(`filter=id[equal]${testCaId}`);
                     if (createdCaList.length > 0 && createdCaList[0].pemData) {
                         const caCert = createdCaList[0];
-                        testCaCertSerialNumber = caCert.serialNumber; // Store the CA's own certificate serial
+                        testCaCertSerialNumber = caCert.serialNumber || ''; // Store the CA's own certificate serial
                         addLog("Found CA cert with serial number.", 'info', testCaCertSerialNumber);
-                        const parsedDetails = await parseCertificatePemDetails(caCert.pemData);
+                        const parsedDetails = await parseCertificatePemDetails(caCert.pemData!);
                         addLog("OCSP URLs found:", 'success', parsedDetails.ocspUrls?.join(', ') || 'None');
                         addLog("CRL URLs found:", 'success', parsedDetails.crlDistributionPoints?.join(', ') || 'None');
                     } else {
@@ -318,9 +319,11 @@ export const InitializationWizard: React.FC = () => {
                         enrollment_settings: {
                             enrollment_ca: testCaId, protocol: "EST_RFC7030", registration_mode: "JITP",
                             enable_replaceable_enrollment: true,
-                            device_provisioning_profile: { icon: "Cpu", icon_color: "#888888-#e0e0e0", tags: ["test-device"] },
+                            verify_csr_signature: true,
+                            est_rfc7030_settings: { auth_mode: "NO_AUTH" },
+                            device_provisioning_profile: { icon: "Cpu", icon_color: "#888888-#e0e0e0", metadata: {}, tags: ["test-device"] },
                         },
-                        reenrollment_settings: { revoke_on_reenrollment: true, enable_expired_renewal: true, reenrollment_delta: "30d", preventive_delta: "7d", critical_delta: "1d", additional_validation_cas: [] },
+                        reenrollment_settings: { est_rfc7030_settings: { auth_mode: "NO_AUTH" }, revoke_on_reenrollment: true, enable_expired_renewal: true, reenrollment_delta: "30d", preventive_delta: "7d", critical_delta: "1d", additional_validation_cas: [] },
                         server_keygen_settings: { enabled: false },
                         ca_distribution_settings: { include_enrollment_ca: true, include_system_ca: true, managed_cas: [] }
                     }
@@ -454,7 +457,7 @@ export const InitializationWizard: React.FC = () => {
         setIsCreatingProfile(true);
         try {
             const templateData: Partial<SigningProfileFormValues> = templateDefaults['device-auth'] || {};
-            const payload = {
+            const payload: CreateSigningProfilePayload = {
                 name: 'Default Profile',
                 description: 'Default profile for general device authentication.',
                 validity: { type: "Duration", duration: "5y" },
