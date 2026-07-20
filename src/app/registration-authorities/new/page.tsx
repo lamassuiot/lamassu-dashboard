@@ -360,8 +360,9 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     }
 
     const effectiveEnrollmentAuthSettings = withDefaultValidationCa(enrollmentAuthSettings, enrollmentCa.id);
+    const effectiveReenrollmentAuthSettings = withDefaultValidationCa(reenrollmentAuthSettings, enrollmentCa.id);
     const enrollmentAuthError = validateEstAuthSettings('Enrollment authentication', effectiveEnrollmentAuthSettings, true);
-    const reenrollmentAuthError = validateEstAuthSettings('Re-enrollment authentication', reenrollmentAuthSettings);
+    const reenrollmentAuthError = validateEstAuthSettings('Re-enrollment authentication', effectiveReenrollmentAuthSettings, true);
     if (enrollmentAuthError || reenrollmentAuthError) {
       sileo.error({ title: "Validation Error", description: enrollmentAuthError || reenrollmentAuthError! });
       return;
@@ -406,7 +407,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
           registration_mode: registrationMode,
         },
         reenrollment_settings: {
-          est_rfc7030_settings: reenrollmentAuthSettings,
+          est_rfc7030_settings: effectiveReenrollmentAuthSettings,
           revoke_on_reenrollment: revokeOnReEnroll,
           enable_expired_renewal: allowExpiredRenewal,
           critical_delta: criticalRenewalDelta,
