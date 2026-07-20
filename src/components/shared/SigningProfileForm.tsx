@@ -5,15 +5,14 @@ import React from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings2, KeyRound, ListChecks, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from "@/components/ui/textarea";
 import { ExpirationInput } from '@/components/shared/ExpirationInput';
-import { cn, formatCertificateUsageLabel } from '@/lib/utils';
+import { formatCertificateUsageLabel } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import {
   CA_KEY_USAGES,
@@ -49,8 +48,10 @@ export const signingProfileSchema = z.object({
   signAsCa: z.boolean().default(false),
 
   honorSubject: z.boolean().default(true),
+  overrideCommonName: z.string().optional(),
   overrideCountry: z.string().optional(),
   overrideState: z.string().optional(),
+  overrideLocality: z.string().optional(),
   overrideOrganization: z.string().optional(),
   overrideOrgUnit: z.string().optional(),
 
@@ -79,8 +80,10 @@ export const defaultFormValues: SigningProfileFormValues = {
   validity: { type: 'Duration', durationValue: '1y' },
   signAsCa: false,
   honorSubject: true,
+  overrideCommonName: '',
   overrideCountry: '',
   overrideState: '',
+  overrideLocality: '',
   overrideOrganization: '',
   overrideOrgUnit: '',
   cryptoEnforcement: {
@@ -158,34 +161,32 @@ const mapEcdsaCurveToBitSize = (curve: string): number => {
 interface SigningProfileFormProps {
   form: UseFormReturn<SigningProfileFormValues>;
   enforceSignAsCa?: boolean;
-  sectionAsCards?: boolean;
+  compact?: boolean;
+  hideBasicInformation?: boolean;
 }
 
 const FormSection = ({
-  icon: Icon,
   title,
   description,
-  cardMode,
+  compact,
   children,
 }: {
-  icon: React.ElementType;
   title: string;
   description?: string;
-  cardMode: boolean;
+  compact: boolean;
   children: React.ReactNode;
 }) => {
-  if (cardMode) {
+  if (compact) {
     return (
-      <Card className="overflow-hidden rounded-xl shadow-sm">
-        <CardHeader className="border-b py-4">
-          <CardTitle className="flex items-center text-lg">
-            <Icon className="mr-3 h-5 w-5 text-primary" />
-            {title}
-          </CardTitle>
-          {description ? <CardDescription>{description}</CardDescription> : null}
-        </CardHeader>
-        <CardContent className="space-y-6">{children}</CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div>
+          <p className="text-sm font-medium">{title}</p>
+          {description ? (
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+        <div className="space-y-4">{children}</div>
+      </div>
     );
   }
 
@@ -243,68 +244,65 @@ const InlineSwitchField = ({
 export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
   form,
   enforceSignAsCa = false,
-  sectionAsCards = false,
+  compact = false,
+  hideBasicInformation = false,
 }) => {
   // Watch form values for conditional rendering
   const watchCryptoEnforcement = form.watch("cryptoEnforcement");
   const watchHonorSubject = form.watch("honorSubject");
   const watchHonorKeyUsage = form.watch("honorKeyUsage");
   const watchHonorExtendedKeyUsages = form.watch("honorExtendedKeyUsages");
-  const sectionSpacing = sectionAsCards ? "space-y-6" : "space-y-0";
-  const sectionSurfaceClassName = sectionAsCards
-    ? "space-y-3 rounded-md border bg-muted/30 p-4"
-    : "space-y-3";
-  const nestedSurfaceClassName = sectionAsCards
-    ? "rounded-md border bg-background p-3"
-    : "";
+  const sectionSpacing = compact ? "space-y-4" : "space-y-0";
 
   return (
     <div className={sectionSpacing}>
-      {/* Basic Information Section */}
-      <FormSection
-        icon={Info}
-        title="Basic Information"
-        description="Core naming and descriptive metadata for this issuance profile."
-        cardMode={sectionAsCards}
-      >
-        <div className="space-y-4">
-          <FormField
-            control={form.control}
-            name="profileName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Profile Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., Standard IoT Device Profile" {...field} />
-                </FormControl>
-                <FormDescription>A unique and descriptive name for this profile.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="description"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Description</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Describe the purpose and typical use case for this profile." {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-      </FormSection>
-      {!sectionAsCards ? <Separator /> : null}
+      {!hideBasicInformation ? (
+        <>
+          {/* Basic Information Section */}
+          <FormSection
+            title="Basic Information"
+            description="Core naming and descriptive metadata for this issuance profile."
+            compact={compact}
+          >
+            <div className="space-y-4">
+              <FormField
+                control={form.control}
+                name="profileName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Profile Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Standard IoT Device Profile" {...field} />
+                    </FormControl>
+                    <FormDescription>A unique and descriptive name for this profile.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Describe the purpose and typical use case for this profile." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </FormSection>
+          <Separator />
+        </>
+      ) : null}
 
       {/* Policy Configuration Section */}
       <FormSection
-        icon={Settings2}
         title="Policy Configuration"
         description="Control validity, CA scope, and subject handling for issued certificates."
-        cardMode={sectionAsCards}
+        compact={compact}
       >
         <FormField
             control={form.control}
@@ -333,7 +331,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
             disabled={enforceSignAsCa}
           />
           
-          <div className={sectionSurfaceClassName}>
+          <div className="space-y-3">
             <InlineSwitchField
               control={form.control}
               name="honorSubject"
@@ -344,6 +342,14 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
             {!watchHonorSubject && (
               <div className="space-y-3 border-t pt-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="overrideCommonName" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Common Name (CN)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., device.example.com" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )} />
                 <FormField control={form.control} name="overrideCountry" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Country (C)</FormLabel>
@@ -357,6 +363,14 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                     <FormLabel>State / Province (ST)</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., California" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="overrideLocality" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Locality (L)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Barcelona" {...field} />
                     </FormControl>
                   </FormItem>
                 )} />
@@ -377,27 +391,25 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                   </FormItem>
                 )} />
               </div>
-              <div className={cn("flex items-start space-x-2 text-muted-foreground", sectionAsCards && "rounded-md border bg-background p-3")}>
+              <div className="flex items-start space-x-2 text-muted-foreground">
                 <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <p className="text-xs">
-                  The Common Name (CN) from the CSR's subject is always honored and used. 
-                  These fields will be appended to or replace other subject attributes.
+                  These values replace the corresponding Subject DN attributes from the CSR.
                 </p>
               </div>
               </div>
             )}
           </div>
       </FormSection>
-      {!sectionAsCards ? <Separator /> : null}
+      <Separator />
 
       {/* Cryptographic Settings Section */}
       <FormSection
-        icon={KeyRound}
         title="Cryptographic Settings"
         description="Enforce allowed key algorithms and strength requirements for certificates issued by this profile."
-        cardMode={sectionAsCards}
+        compact={compact}
       >
-        <div className={sectionSurfaceClassName}>
+        <div className="space-y-3">
           <InlineSwitchField
             control={form.control}
             name="cryptoEnforcement.enabled"
@@ -406,7 +418,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
           />
             {watchCryptoEnforcement && watchCryptoEnforcement.enabled && (
               <div className="space-y-4 border-t pt-3">
-              <div className={nestedSurfaceClassName}>
+              <div>
                 <InlineSwitchField
                   control={form.control}
                   name="cryptoEnforcement.allowRsa"
@@ -416,7 +428,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
               </div>
               {watchCryptoEnforcement.allowRsa && (
                 <FormField control={form.control} name="cryptoEnforcement.allowedRsaKeySizes" render={() => (
-                  <FormItem className={cn("ml-4", sectionAsCards && "rounded-md border bg-background p-3")}>
+                  <FormItem className="ml-4">
                     <FormLabel>Allowed RSA Key Size</FormLabel>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 pt-2">
                       {rsaKeyStrengths.map((item) => (
@@ -434,7 +446,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                   </FormItem>
                 )} />
               )}
-              <div className={nestedSurfaceClassName}>
+              <div>
                 <InlineSwitchField
                   control={form.control}
                   name="cryptoEnforcement.allowEcdsa"
@@ -444,7 +456,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
               </div>
               {watchCryptoEnforcement.allowEcdsa && (
                 <FormField control={form.control} name="cryptoEnforcement.allowedEcdsaCurves" render={() => (
-                  <FormItem className={cn("ml-4", sectionAsCards && "rounded-md border bg-background p-3")}>
+                  <FormItem className="ml-4">
                     <FormLabel>Allowed ECDSA Curves</FormLabel>
                     <div className="grid grid-cols-1 gap-x-4 gap-y-2 pt-2">
                       {ecdsaCurves.map((item) => (
@@ -466,16 +478,15 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
           )}
         </div>
       </FormSection>
-      {!sectionAsCards ? <Separator /> : null}
+      <Separator />
 
       {/* Certificate Usage Policies Section */}
       <FormSection
-        icon={ListChecks}
         title="Certificate Usage Policies"
         description="Define whether KU, EKU, and supported CSR extensions are honored or overridden."
-        cardMode={sectionAsCards}
+        compact={compact}
       >
-        <div className={sectionSurfaceClassName}>
+        <div className="space-y-3">
           <InlineSwitchField
             control={form.control}
             name="honorKeyUsage"
@@ -492,7 +503,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                   <FormItem>
                     <FormLabel>Key Usage</FormLabel>
                     <FormDescription>Select the allowed key usages for certificates signed with this profile.</FormDescription>
-                    <div className={cn("mt-2 grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-3", sectionAsCards && "rounded-md border bg-background p-3")}>
+                    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-3">
                       {keyUsageOptions.map((item) => (
                         <FormField 
                           key={item} 
@@ -527,7 +538,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
           )}
         </div>
           
-        <div className={sectionSurfaceClassName}>
+        <div className="space-y-3">
           <InlineSwitchField
             control={form.control}
             name="honorExtendedKeyUsages"
@@ -544,7 +555,7 @@ export const SigningProfileForm: React.FC<SigningProfileFormProps> = ({
                   <FormItem>
                     <FormLabel>Extended Key Usage</FormLabel>
                     <FormDescription>Select the allowed extended key usages (EKUs).</FormDescription>
-                    <div className={cn("mt-2 grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-3", sectionAsCards && "rounded-md border bg-background p-3")}>
+                    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-3">
                       {extendedKeyUsageOptions.map((item) => (
                         <FormField 
                           key={item} 

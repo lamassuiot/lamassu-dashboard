@@ -4,37 +4,76 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, PlusCircle, Cpu, Settings, Loader2, Tag as TagIconLucide, Edit, Globe, ShieldCheck } from "lucide-react";
-import { cn } from '@/lib/utils';
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowLeft, ChevronsUpDown, PlusCircle, Settings, Server, AlertTriangle, Loader2, X, ShieldCheck } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
 import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
-import { useAuth } from '@/contexts/AuthContext';
+import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal'; 
-import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 import { TagInput } from '@/components/shared/TagInput';
 import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/shared/DeviceIconSelectorModal';
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
-import { createOrUpdateRa, fetchRaById, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
-import { DetailBreadcrumbRow } from '@/components/shared/DetailBreadcrumbRow';
-import { SettingsCard } from '@/components/ra/SettingsCard';
-import { ESTEnrollmentSettingsCard } from '@/components/ra/ESTEnrollmentSettingsCard';
-import { ESTReEnrollmentSettingsCard } from '@/components/ra/ESTReEnrollmentSettingsCard';
-import { ESTServerKeyGenCard } from '@/components/ra/ESTServerKeyGenCard';
-import { ESTCaDistributionCard } from '@/components/ra/ESTCaDistributionCard';
-import { CMPEnrollmentSettingsCard } from '@/components/ra/CMPEnrollmentSettingsCard';
-import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
-import type { CertificateData } from '@/types/certificate';
+import { DurationInput } from '@/components/shared/DurationInput';
+import { createOrUpdateRa, fetchRaById, type ApiRaEstSettings, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
+import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
+import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
+import { CardSelector } from '@/components/shared/CardSelector';
+import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
+import { Form } from '@/components/ui/form';
+import {
+  defaultFormValues,
+  SigningProfileForm,
+  signingProfileSchema,
+  type SigningProfileFormValues,
+} from '@/components/shared/SigningProfileForm';
+import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
+import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
+import {
+  buildInlineIssuanceProfile,
+  createDefaultEstAuthSettings,
+  mapIssuanceProfileToFormValues,
+  normalizeEstAuthSettings,
+  parseJsonObject,
+  validateEstAuthSettings,
+  withDefaultValidationCa,
+} from '@/lib/dms-form';
 
 
+const serverKeygenTypes = [ { value: 'RSA', label: 'RSA' }, { value: 'ECDSA', label: 'ECDSA' }];
 const serverKeygenRsaBits = [ { value: '2048', label: '2048 bit' }, { value: '3072', label: '3072 bit' }, { value: '4096', label: '4096 bit' }];
 const serverKeygenEcdsaCurves = [ { value: 'P-256', label: 'P-256' }, { value: 'P-384', label: 'P-384' }, { value: 'P-521', label: 'P-521' }];
+type RaSettingsTab = 'enrollment' | 'reenrollment' | 'server-key-generation' | 'ca-distribution';
+const raSettingsTabs: Array<{ value: RaSettingsTab; label: string }> = [
+  { value: 'enrollment', label: 'Enrollment Settings' },
+  { value: 'reenrollment', label: 'Re-Enrollment Settings' },
+  { value: 'server-key-generation', label: 'Server Key Generation' },
+  { value: 'ca-distribution', label: 'CA Distribution' },
+];
+const protocolOptions = [
+  {
+    value: 'EST',
+    label: 'EST',
+    description: 'Enrollment over Secure Transport for certificate and renewal requests.',
+    icon: ShieldCheck,
+  },
+];
+const inlineProfileDefaultValues: SigningProfileFormValues = {
+  ...defaultFormValues,
+  profileName: 'Inline Profile',
+};
+
 
 function hslToHex(h: number, s: number, l: number) {
   l /= 100;
@@ -47,16 +86,9 @@ function hslToHex(h: number, s: number, l: number) {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
-function resolveSelectedCas(caIds: string[] | null | undefined, availableCAs: CA[]): CA[] {
-  return (caIds ?? [])
-    .map((id) => findCaById(id, availableCAs))
-    .filter(Boolean) as CA[];
-}
-
 export default function CreateOrEditRegistrationAuthorityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoading: authLoading } = useAuth();
   
   const raIdFromQuery = searchParams.get('raId');
   const isEditMode = !!raIdFromQuery;
@@ -69,68 +101,16 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [raId, setRaId] = useState('');
   const [registrationMode, setRegistrationMode] = useState('JITP');
   const [tags, setTags] = useState<string[]>(['iot']);
+  const [deviceMetadataJson, setDeviceMetadataJson] = useState('{}');
+  const [deviceMetadataError, setDeviceMetadataError] = useState<string | null>(null);
   const [protocol, setProtocol] = useState('EST');
+  const [issuanceProfileMode, setIssuanceProfileMode] = useState<'default' | 'existing' | 'inline'>('default');
   const [issuanceProfileId, setIssuanceProfileId] = useState<string | null>(null);
   const [enrollmentCa, setEnrollmentCa] = useState<CA | null>(null);
   const [allowOverrideEnrollment, setAllowOverrideEnrollment] = useState(true);
   const [verifyCsrSignature, setVerifyCsrSignature] = useState(true);
-  const [authMode, setAuthMode] = useState('Client Certificate');
-  const [validationCAs, setValidationCAs] = useState<CA[]>([]);
-  const [allowExpiredAuth, setAllowExpiredAuth] = useState(true);
-  const [chainValidationLevel, setChainValidationLevel] = useState(-1);
-  
-  // Webhook state
-  const [webhookName, setWebhookName] = useState('');
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [webhookLogLevel, setWebhookLogLevel] = useState('Info');
-  const [webhookAuthMode, setWebhookAuthMode] = useState('No Auth');
-  const [webhookApiKey, setWebhookApiKey] = useState('');
-  
-  // OIDC Webhook state
-  const [oidcClientId, setOidcClientId] = useState('');
-  const [oidcClientSecret, setOidcClientSecret] = useState('');
-  const [oidcWellKnownUrl, setOidcWellKnownUrl] = useState('');
-
-  // CMP (RFC 9483) state
-  const [cmpConfirmationMode, setCmpConfirmationMode] = useState('EXPLICIT');
-  const [cmpConfirmationTimeout, setCmpConfirmationTimeout] = useState('30s');
-  // Only meaningful when workflow=phased; empty defers to the server default.
-  const [cmpApprovalTimeout, setCmpApprovalTimeout] = useState('');
-  const [cmpValidationCAs, setCmpValidationCAs] = useState<CA[]>([]);
-  const [cmpChainValidationLevel, setCmpChainValidationLevel] = useState(0);
-  const [cmpAllowExpiredAuth, setCmpAllowExpiredAuth] = useState(false);
-  const [cmpEnforcePopo, setCmpEnforcePopo] = useState(true);
-  // Pre-shared RFC 4211 §6.2 Authenticator control answer; empty = accept unvalidated.
-  const [cmpExpectedAuthenticator, setCmpExpectedAuthenticator] = useState('');
-  // RFC 9483 §4.1.6 central key generation opt-in.
-  const [cmpServerKeyGenEnabled, setCmpServerKeyGenEnabled] = useState(false);
-  const [cmpProtectionCertificate, setCmpProtectionCertificate] = useState<CertificateData | null>(null);
-  const [cmpProtectionCertificateId, setCmpProtectionCertificateId] = useState<string | null>(null);
-  const [cmpWorkflow, setCmpWorkflow] = useState('direct');
-  // CMP auth (mirrors EST): mode + webhook config
-  const [cmpAuthMode, setCmpAuthMode] = useState('Client Certificate');
-  const [cmpWebhookName, setCmpWebhookName] = useState('');
-  const [cmpWebhookUrl, setCmpWebhookUrl] = useState('');
-  const [cmpWebhookLogLevel, setCmpWebhookLogLevel] = useState('Info');
-  const [cmpWebhookAuthMode, setCmpWebhookAuthMode] = useState('No Auth');
-  const [cmpWebhookApiKey, setCmpWebhookApiKey] = useState('');
-  const [cmpOidcClientId, setCmpOidcClientId] = useState('');
-  const [cmpOidcClientSecret, setCmpOidcClientSecret] = useState('');
-  const [cmpOidcWellKnownUrl, setCmpOidcWellKnownUrl] = useState('');
-
-
-  // Re-enrollment auth mirrors the primary EST auth state, but is
-  // independent: it governs simplereenroll requests, not simpleenroll.
-  const [reenrollAuthMode, setReenrollAuthMode] = useState('Client Certificate');
-  const [reenrollWebhookName, setReenrollWebhookName] = useState('');
-  const [reenrollWebhookUrl, setReenrollWebhookUrl] = useState('');
-  const [reenrollWebhookLogLevel, setReenrollWebhookLogLevel] = useState('Info');
-  const [reenrollWebhookAuthMode, setReenrollWebhookAuthMode] = useState('No Auth');
-  const [reenrollWebhookApiKey, setReenrollWebhookApiKey] = useState('');
-  const [reenrollOidcClientId, setReenrollOidcClientId] = useState('');
-  const [reenrollOidcClientSecret, setReenrollOidcClientSecret] = useState('');
-  const [reenrollOidcWellKnownUrl, setReenrollOidcWellKnownUrl] = useState('');
-
+  const [enrollmentAuthSettings, setEnrollmentAuthSettings] = useState<ApiRaEstSettings>(() => createDefaultEstAuthSettings(true));
+  const [reenrollmentAuthSettings, setReenrollmentAuthSettings] = useState<ApiRaEstSettings>(() => createDefaultEstAuthSettings(false));
   const [revokeOnReEnroll, setRevokeOnReEnroll] = useState(true);
   const [allowExpiredRenewal, setAllowExpiredRenewal] = useState(true);
   const [allowedRenewalDelta, setAllowedRenewalDelta] = useState('100d');
@@ -146,20 +126,24 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [selectedDeviceIconName, setSelectedDeviceIconName] = useState<string | null>('Router');
   const [selectedDeviceIconColor, setSelectedDeviceIconColor] = useState<string>('#0f67ff');
   const [selectedDeviceIconBgColor, setSelectedDeviceIconBgColor] = useState<string>('#F0F8FF');
+  const [activeRaSettingsTab, setActiveRaSettingsTab] = useState<RaSettingsTab>('enrollment');
   
   // Modal and Data Loading State
   const [isDeviceIconModalOpen, setIsDeviceIconModalOpen] = useState(false);
   const [isEnrollmentCaModalOpen, setIsEnrollmentCaModalOpen] = useState(false);
-  const [isValidationCaModalOpen, setIsValidationCaModalOpen] = useState(false);
   const [isAdditionalValidationCaModalOpen, setIsAdditionalValidationCaModalOpen] = useState(false);
   const [isManagedCaModalOpen, setIsManagedCaModalOpen] = useState(false);
-  const [isCmpValidationCaModalOpen, setIsCmpValidationCaModalOpen] = useState(false);
-  const [isCmpProtectionCertificateModalOpen, setIsCmpProtectionCertificateModalOpen] = useState(false);
   const [availableCAsForSelection, setAvailableCAsForSelection] = useState<CA[]>([]);
   const [availableProfiles, setAvailableProfiles] = useState<ApiSigningProfile[]>([]);
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
   const [errorDependencies, setErrorDependencies] = useState<string | null>(null);
   const [allCryptoEngines, setAllCryptoEngines] = useState<ApiCryptoEngine[]>([]);
+
+  const inlineProfileForm = useForm<SigningProfileFormValues>({
+    resolver: zodResolver(signingProfileSchema),
+    defaultValues: inlineProfileDefaultValues,
+  });
+  const inlineProfileValidity = inlineProfileForm.watch('validity');
 
   // MOVED HOOKS TO TOP LEVEL
   const selectedProfileForDisplay = useMemo(() => {
@@ -171,6 +155,66 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     if (!enrollmentCa?.defaultProfileId || !Array.isArray(availableProfiles)) return undefined;
     return availableProfiles.find(p => p.id === enrollmentCa.defaultProfileId);
   }, [enrollmentCa?.defaultProfileId, availableProfiles]);
+
+  const effectiveIssuanceProfile = useMemo<{
+    name: string;
+    validity: CertificateValidity;
+  } | null>(() => {
+    if (issuanceProfileMode === 'inline') {
+      if (inlineProfileValidity.type === 'Duration' && inlineProfileValidity.durationValue) {
+        return {
+          name: 'Inline profile',
+          validity: { type: 'Duration', value: inlineProfileValidity.durationValue },
+        };
+      }
+
+      if (inlineProfileValidity.type === 'Date' && inlineProfileValidity.dateValue) {
+        return {
+          name: 'Inline profile',
+          validity: { type: 'Date', value: inlineProfileValidity.dateValue.toISOString() },
+        };
+      }
+
+      if (inlineProfileValidity.type === 'Indefinite') {
+        return { name: 'Inline profile', validity: { type: 'Indefinite' } };
+      }
+
+      return null;
+    }
+
+    const profile = issuanceProfileMode === 'existing'
+      ? selectedProfileForDisplay
+      : enrollmentCaDefaultProfile;
+    if (!profile?.validity) return null;
+
+    if (profile.validity.type === 'Duration' && profile.validity.duration) {
+      return {
+        name: profile.name,
+        validity: { type: 'Duration', value: profile.validity.duration },
+      };
+    }
+
+    if (
+      profile.validity.type === 'Indefinite'
+      || profile.validity.time?.startsWith('9999-12-31')
+    ) {
+      return { name: profile.name, validity: { type: 'Indefinite' } };
+    }
+
+    if (profile.validity.time) {
+      return {
+        name: profile.name,
+        validity: { type: 'Date', value: profile.validity.time },
+      };
+    }
+
+    return null;
+  }, [
+    enrollmentCaDefaultProfile,
+    inlineProfileValidity,
+    issuanceProfileMode,
+    selectedProfileForDisplay,
+  ]);
 
   const loadDependencies = useCallback(async () => {
         setIsLoadingDependencies(true);
@@ -211,159 +255,51 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   // Effect to populate form once RA data and CA list are available (for edit mode)
   useEffect(() => {
     if (isEditMode && raData && availableCAsForSelection.length > 0) {
-        let isCancelled = false;
-
-        const hydrateProtectionCertificate = async (certificateId?: string) => {
-            setCmpProtectionCertificateId(certificateId || null);
-            if (!certificateId) {
-                setCmpProtectionCertificate(null);
-                return;
-            }
-
-            try {
-                const certificate = await fetchIssuedCertificate(certificateId);
-                if (!isCancelled) {
-                    setCmpProtectionCertificate(certificate);
-                }
-            } catch (err: any) {
-                if (!isCancelled) {
-                    setCmpProtectionCertificate(null);
-                    sileo.error({ title: "Protection Certificate Unavailable", description: err.message || "Failed to load the selected protection certificate." });
-                }
-            }
-        };
-
         const { settings } = raData;
         setRaName(raData.name);
         setRaId(raData.id);
         
         const { enrollment_settings, reenrollment_settings, server_keygen_settings, ca_distribution_settings } = settings;
-        setRegistrationMode(enrollment_settings.registration_mode);
-        const currentProtocol = enrollment_settings.protocol === 'CMP_RFC9483' ? 'CMP' : 'EST';
-        setProtocol(currentProtocol);
-        // The backend stores the issuance profile binding at settings level
-        // (DMSSettings.IssuanceProfileID); older payloads carried it under
-        // enrollment_settings, so keep that as a fallback.
-        setIssuanceProfileId(settings.issuance_profile_id || enrollment_settings.issuance_profile_id || null);
+        setRegistrationMode(enrollment_settings.registration_mode === 'PRE_REGISTRATION' ? 'PRE_REGISTRATION' : 'JITP');
+        setProtocol('EST');
+        if (settings.issuance_profile) {
+          setIssuanceProfileMode('inline');
+          setIssuanceProfileId(null);
+          const inlineProfileValues = mapIssuanceProfileToFormValues(settings.issuance_profile);
+          inlineProfileForm.reset({
+            ...inlineProfileValues,
+            profileName: inlineProfileValues.profileName.trim().length >= 3
+              ? inlineProfileValues.profileName
+              : inlineProfileDefaultValues.profileName,
+          });
+        } else if (settings.issuance_profile_id) {
+          setIssuanceProfileMode('existing');
+          setIssuanceProfileId(settings.issuance_profile_id);
+        } else {
+          setIssuanceProfileMode('default');
+          setIssuanceProfileId(null);
+          inlineProfileForm.reset(inlineProfileDefaultValues);
+        }
         setEnrollmentCa(findCaById(enrollment_settings.enrollment_ca, availableCAsForSelection));
         setAllowOverrideEnrollment(enrollment_settings.enable_replaceable_enrollment);
         setVerifyCsrSignature(enrollment_settings.verify_csr_signature ?? true); // Default to true if not set
-
-        const authSettings = enrollment_settings.est_rfc7030_settings;
-        if (authSettings && currentProtocol === 'EST') {
-            const authModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth' };
-            const currentAuthMode = authModeMap[authSettings.auth_mode] || 'Client Certificate';
-            setAuthMode(currentAuthMode);
-            
-            if (currentAuthMode === 'Client Certificate' && authSettings.client_certificate_settings) {
-                setChainValidationLevel(authSettings.client_certificate_settings.chain_level_validation);
-                setAllowExpiredAuth(authSettings.client_certificate_settings.allow_expired);
-                setValidationCAs(resolveSelectedCas(authSettings.client_certificate_settings.validation_cas, availableCAsForSelection));
-            } else if (currentAuthMode === 'External Webhook' && authSettings.external_webhook_settings) {
-                const webhookSettings = authSettings.external_webhook_settings;
-                setWebhookName(webhookSettings.name || '');
-                setWebhookUrl(webhookSettings.url || '');
-                setWebhookLogLevel(webhookSettings.log_level || 'Info');
-                
-                const apiWebhookAuthMode = webhookSettings.auth_mode;
-                let uiWebhookAuthMode = 'No Auth';
-                if (apiWebhookAuthMode === 'OIDC') uiWebhookAuthMode = 'OIDC';
-                if (apiWebhookAuthMode === 'API_KEY') uiWebhookAuthMode = 'API Key';
-                setWebhookAuthMode(uiWebhookAuthMode);
-
-                if (uiWebhookAuthMode === 'API Key' && webhookSettings.api_key_auth) {
-                    setWebhookApiKey(webhookSettings.api_key_auth.key || '');
-                } else if (uiWebhookAuthMode === 'OIDC' && webhookSettings.oidc_auth) {
-                    setOidcClientId(webhookSettings.oidc_auth.client_id || '');
-                    setOidcClientSecret(webhookSettings.oidc_auth.client_secret || '');
-                    setOidcWellKnownUrl(webhookSettings.oidc_auth.well_known_url || '');
-                }
-            }
-        }
-
-        const cmpSettings = enrollment_settings.lwc_rfc9483_settings;
-        if (cmpSettings) {
-            setCmpConfirmationMode(cmpSettings.accept_implicit ? 'IMPLICIT' : 'EXPLICIT');
-            setCmpConfirmationTimeout(cmpSettings.confirmation_timeout || '30s');
-            setCmpApprovalTimeout(cmpSettings.approval_timeout || '');
-            void hydrateProtectionCertificate(cmpSettings.protection_certificate);
-            setCmpEnforcePopo(cmpSettings.enforce_popo ?? true);
-            setCmpExpectedAuthenticator(cmpSettings.expected_authenticator || '');
-            setCmpServerKeyGenEnabled(cmpSettings.server_key_gen_enabled ?? false);
-            setCmpWorkflow(cmpSettings.workflow || 'direct');
-
-            const cmpAuthModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth', 'NO_AUTH': 'No Auth' };
-            const uiCmpAuthMode = cmpAuthModeMap[cmpSettings.auth_mode] || 'Client Certificate';
-            setCmpAuthMode(uiCmpAuthMode);
-
-            if (cmpSettings.client_certificate_settings) {
-                setCmpChainValidationLevel(cmpSettings.client_certificate_settings.chain_level_validation);
-                setCmpAllowExpiredAuth(cmpSettings.client_certificate_settings.allow_expired);
-                setCmpValidationCAs(resolveSelectedCas(cmpSettings.client_certificate_settings.validation_cas, availableCAsForSelection));
-            }
-            if (uiCmpAuthMode === 'External Webhook' && cmpSettings.external_webhook_settings) {
-                const wh = cmpSettings.external_webhook_settings;
-                setCmpWebhookName(wh.name || '');
-                setCmpWebhookUrl(wh.url || '');
-                setCmpWebhookLogLevel(wh.log_level || 'Info');
-                const whAuthMap: { [key: string]: string } = { 'NO_AUTH': 'No Auth', 'OIDC': 'OIDC', 'API_KEY': 'API Key' };
-                const uiWhAuthMode = whAuthMap[wh.auth_mode] || 'No Auth';
-                setCmpWebhookAuthMode(uiWhAuthMode);
-                if (uiWhAuthMode === 'API Key' && wh.api_key_auth) {
-                    setCmpWebhookApiKey(wh.api_key_auth.key || '');
-                } else if (uiWhAuthMode === 'OIDC' && wh.oidc_auth) {
-                    setCmpOidcClientId(wh.oidc_auth.client_id || '');
-                    setCmpOidcClientSecret(wh.oidc_auth.client_secret || '');
-                    setCmpOidcWellKnownUrl(wh.oidc_auth.well_known_url || '');
-                }
-            }
-        } else {
-            void hydrateProtectionCertificate(undefined);
-        }
+        setEnrollmentAuthSettings(normalizeEstAuthSettings(enrollment_settings.est_rfc7030_settings, true));
+        setReenrollmentAuthSettings(normalizeEstAuthSettings(reenrollment_settings.est_rfc7030_settings, false));
 
         const { device_provisioning_profile } = enrollment_settings;
         setTags(device_provisioning_profile.tags);
-        // icon_color is stored as "<fg>-<bg>", but externally-created RAs (e.g.
-        // sample data) may carry a plain color with no separator — keep the
-        // state defaults for any missing part instead of setting undefined,
-        // which would round-trip as the literal string "undefined" on save.
+        setDeviceMetadataJson(JSON.stringify(device_provisioning_profile.metadata || {}, null, 2));
         const [iconColor, bgColor] = device_provisioning_profile.icon_color.split('-');
         setSelectedDeviceIconName(device_provisioning_profile.icon);
-        if (iconColor) setSelectedDeviceIconColor(iconColor);
-        if (bgColor) setSelectedDeviceIconBgColor(bgColor);
+        setSelectedDeviceIconColor(iconColor);
+        setSelectedDeviceIconBgColor(bgColor);
 
         setRevokeOnReEnroll(reenrollment_settings.revoke_on_reenrollment);
         setAllowExpiredRenewal(reenrollment_settings.enable_expired_renewal);
         setAllowedRenewalDelta(reenrollment_settings.reenrollment_delta);
         setPreventiveRenewalDelta(reenrollment_settings.preventive_delta);
         setCriticalRenewalDelta(reenrollment_settings.critical_delta);
-        setAdditionalValidationCAs(resolveSelectedCas(reenrollment_settings.additional_validation_cas, availableCAsForSelection));
-
-        const reenrollAuthSettings = reenrollment_settings.est_rfc7030_settings;
-        const reenrollAuthModeMap: { [key: string]: string } = { 'CLIENT_CERTIFICATE': 'Client Certificate', 'EXTERNAL_WEBHOOK': 'External Webhook', 'NONE': 'No Auth', 'NO_AUTH': 'No Auth' };
-        const currentReenrollAuthMode = reenrollAuthModeMap[reenrollAuthSettings?.auth_mode || ''] || 'Client Certificate';
-        setReenrollAuthMode(currentReenrollAuthMode);
-
-        if (currentReenrollAuthMode === 'External Webhook' && reenrollAuthSettings?.external_webhook_settings) {
-            const webhookSettings = reenrollAuthSettings.external_webhook_settings;
-            setReenrollWebhookName(webhookSettings.name || '');
-            setReenrollWebhookUrl(webhookSettings.url || '');
-            setReenrollWebhookLogLevel(webhookSettings.log_level || 'Info');
-
-            const apiWebhookAuthMode = webhookSettings.auth_mode;
-            let uiWebhookAuthMode = 'No Auth';
-            if (apiWebhookAuthMode === 'OIDC') uiWebhookAuthMode = 'OIDC';
-            if (apiWebhookAuthMode === 'API_KEY') uiWebhookAuthMode = 'API Key';
-            setReenrollWebhookAuthMode(uiWebhookAuthMode);
-
-            if (uiWebhookAuthMode === 'API Key' && webhookSettings.api_key_auth) {
-                setReenrollWebhookApiKey(webhookSettings.api_key_auth.key || '');
-            } else if (uiWebhookAuthMode === 'OIDC' && webhookSettings.oidc_auth) {
-                setReenrollOidcClientId(webhookSettings.oidc_auth.client_id || '');
-                setReenrollOidcClientSecret(webhookSettings.oidc_auth.client_secret || '');
-                setReenrollOidcWellKnownUrl(webhookSettings.oidc_auth.well_known_url || '');
-            }
-        }
+        setAdditionalValidationCAs(reenrollment_settings.additional_validation_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
 
         setEnableKeyGeneration(server_keygen_settings.enabled);
         if (server_keygen_settings.enabled && server_keygen_settings.key) {
@@ -376,11 +312,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         setIncludeEnrollmentCA(ca_distribution_settings.include_enrollment_ca);
         setIncludeDownstreamCA(ca_distribution_settings.include_system_ca);
-        setManagedCAs(resolveSelectedCas(ca_distribution_settings.managed_cas, availableCAsForSelection));
-
-        return () => {
-            isCancelled = true;
-        };
+        setManagedCAs(ca_distribution_settings.managed_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
     }
   }, [isEditMode, raData, availableCAsForSelection]);
   
@@ -402,140 +334,46 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setIsSubmitting(true);
 
     if (!raName.trim() || (!isEditMode && !raId.trim())) {
         sileo.error({ title: "Validation Error", description: "RA Name and RA ID are required." });
-        setIsSubmitting(false);
         return;
     }
     if (!enrollmentCa) {
         sileo.error({ title: "Validation Error", description: "An Enrollment CA must be selected." });
-        setIsSubmitting(false);
         return;
     }
-    if (!user?.access_token) {
-        sileo.error({ title: "Authentication Error", description: "User not authenticated." });
-        setIsSubmitting(false);
+    if (issuanceProfileMode === 'existing' && !issuanceProfileId) {
+        sileo.error({ title: "Validation Error", description: "Select an issuance profile or use the Enrollment CA default." });
         return;
     }
 
-    const protocolMapping: { [key: string]: string } = { 'EST': 'EST_RFC7030', 'CMP': 'CMP_RFC9483' };
-    const authModeMapping = { 'Client Certificate': 'CLIENT_CERTIFICATE', 'External Webhook': 'EXTERNAL_WEBHOOK', 'No Auth': 'NONE' };
-
-    // Only build settings for the selected protocol. The backend additionally
-    // zeroes the unused protocol's settings on persist, but we drop them
-    // client-side so the over-the-wire payload reflects the user intent.
-    let estSettings: any = undefined;
-    if (protocol === 'EST') {
-        estSettings = {
-            auth_mode: authModeMapping[authMode as keyof typeof authModeMapping],
-        };
-
-        if (authMode === 'Client Certificate') {
-            estSettings.client_certificate_settings = {
-                chain_level_validation: chainValidationLevel,
-                validation_cas: validationCAs.map(ca => ca.id),
-                allow_expired: allowExpiredAuth,
-            };
-        } else if (authMode === 'External Webhook') {
-            const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
-            estSettings.external_webhook_settings = {
-                name: webhookName,
-                url: webhookUrl,
-                log_level: webhookLogLevel,
-                auth_mode: webhookAuthModeMapping[webhookAuthMode],
-            };
-            if (webhookAuthMode === 'API Key') {
-                estSettings.external_webhook_settings.api_key_auth = {
-                    key: webhookApiKey
-                };
-            } else if (webhookAuthMode === 'OIDC') {
-                estSettings.external_webhook_settings.oidc_auth = {
-                    client_id: oidcClientId,
-                    client_secret: oidcClientSecret,
-                    well_known_url: oidcWellKnownUrl,
-                };
-            }
-        }
+    let deviceMetadata: Record<string, any>;
+    try {
+      deviceMetadata = parseJsonObject(deviceMetadataJson);
+      setDeviceMetadataError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Metadata must be valid JSON.';
+      setDeviceMetadataError(message);
+      sileo.error({ title: "Validation Error", description: message });
+      return;
     }
 
-    // CMP auth mirrors EST verbatim (same auth_mode/webhook payload shape).
-    let cmpLwcSettings: any = undefined;
-    if (protocol === 'CMP') {
-        cmpLwcSettings = {
-            accept_implicit: cmpConfirmationMode === 'IMPLICIT',
-            confirmation_timeout: cmpConfirmationTimeout,
-            // Only emit approval_timeout when phased; the backend ignores it
-            // for direct workflows and an empty value defers to the 7-day
-            // server default.
-            ...(cmpWorkflow === 'phased' && cmpApprovalTimeout.trim()
-                ? { approval_timeout: cmpApprovalTimeout.trim() }
-                : {}),
-            auth_mode: authModeMapping[cmpAuthMode as keyof typeof authModeMapping],
-            protection_certificate: cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId || '',
-            enforce_popo: cmpEnforcePopo,
-            // Omit when empty so the backend's omitempty keeps the field absent
-            // (empty means "accept the Authenticator control unvalidated").
-            ...(cmpExpectedAuthenticator.trim()
-                ? { expected_authenticator: cmpExpectedAuthenticator.trim() }
-                : {}),
-            server_key_gen_enabled: cmpServerKeyGenEnabled,
-            workflow: cmpWorkflow,
-        };
-        if (cmpAuthMode === 'Client Certificate') {
-            cmpLwcSettings.client_certificate_settings = {
-                validation_cas: cmpValidationCAs.map(ca => ca.id),
-                chain_level_validation: cmpChainValidationLevel,
-                allow_expired: cmpAllowExpiredAuth,
-            };
-        } else if (cmpAuthMode === 'External Webhook') {
-            const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
-            cmpLwcSettings.external_webhook_settings = {
-                name: cmpWebhookName,
-                url: cmpWebhookUrl,
-                log_level: cmpWebhookLogLevel,
-                auth_mode: webhookAuthModeMapping[cmpWebhookAuthMode],
-            };
-            if (cmpWebhookAuthMode === 'API Key') {
-                cmpLwcSettings.external_webhook_settings.api_key_auth = { key: cmpWebhookApiKey };
-            } else if (cmpWebhookAuthMode === 'OIDC') {
-                cmpLwcSettings.external_webhook_settings.oidc_auth = {
-                    client_id: cmpOidcClientId,
-                    client_secret: cmpOidcClientSecret,
-                    well_known_url: cmpOidcWellKnownUrl,
-                };
-            }
-        }
+    const effectiveEnrollmentAuthSettings = withDefaultValidationCa(enrollmentAuthSettings, enrollmentCa.id);
+    const effectiveReenrollmentAuthSettings = withDefaultValidationCa(reenrollmentAuthSettings, enrollmentCa.id);
+    const enrollmentAuthError = validateEstAuthSettings('Enrollment authentication', effectiveEnrollmentAuthSettings, true);
+    const reenrollmentAuthError = validateEstAuthSettings('Re-enrollment authentication', effectiveReenrollmentAuthSettings, true);
+    if (enrollmentAuthError || reenrollmentAuthError) {
+      sileo.error({ title: "Validation Error", description: enrollmentAuthError || reenrollmentAuthError! });
+      return;
     }
 
-
-    // Re-enrollment auth mirrors the primary EST auth_mode/webhook payload
-    // shape, but is built independently from `estSettings` above since it's
-    // always emitted regardless of `protocol` — re-enrollment auth applies
-    // whenever the ESTReEnrollmentSettingsCard is rendered (EST DMSs only).
-    const reenrollEstSettings: any = {
-        auth_mode: authModeMapping[reenrollAuthMode as keyof typeof authModeMapping],
-    };
-    if (reenrollAuthMode === 'External Webhook') {
-        const webhookAuthModeMapping: { [key: string]: string } = { 'No Auth': 'NO_AUTH', 'OIDC': 'OIDC', 'API Key': 'API_KEY' };
-        reenrollEstSettings.external_webhook_settings = {
-            name: reenrollWebhookName,
-            url: reenrollWebhookUrl,
-            log_level: reenrollWebhookLogLevel,
-            auth_mode: webhookAuthModeMapping[reenrollWebhookAuthMode],
-        };
-        if (reenrollWebhookAuthMode === 'API Key') {
-            reenrollEstSettings.external_webhook_settings.api_key_auth = { key: reenrollWebhookApiKey };
-        } else if (reenrollWebhookAuthMode === 'OIDC') {
-            reenrollEstSettings.external_webhook_settings.oidc_auth = {
-                client_id: reenrollOidcClientId,
-                client_secret: reenrollOidcClientSecret,
-                well_known_url: reenrollOidcWellKnownUrl,
-            };
-        }
+    if (issuanceProfileMode === 'inline' && !await inlineProfileForm.trigger()) {
+      sileo.error({ title: "Validation Error", description: "Complete the inline issuance profile before saving." });
+      return;
     }
 
+    setIsSubmitting(true);
     let keySettings;
     if (enableKeyGeneration) {
         const bits = serverKeygenType === 'ECDSA' 
@@ -548,36 +386,34 @@ export default function CreateOrEditRegistrationAuthorityPage() {
       id: isEditMode ? raIdFromQuery! : raId.trim(),
       metadata: raData?.metadata || {},
       settings: {
-        // The backend reads the issuance profile binding from settings level
-        // (DMSSettings.IssuanceProfileID) — emitting it only inside
-        // enrollment_settings silently unbinds the profile on every save.
-        issuance_profile_id: issuanceProfileId || '',
+        ...(issuanceProfileMode === 'existing' && issuanceProfileId
+          ? { issuance_profile_id: issuanceProfileId }
+          : {}),
+        ...(issuanceProfileMode === 'inline'
+          ? { issuance_profile: buildInlineIssuanceProfile(inlineProfileForm.getValues()) }
+          : {}),
         enrollment_settings: {
           enrollment_ca: enrollmentCa.id,
-          protocol: protocolMapping[protocol],
+          protocol: 'EST_RFC7030',
           enable_replaceable_enrollment: allowOverrideEnrollment,
           verify_csr_signature: verifyCsrSignature,
-          issuance_profile_id: issuanceProfileId || undefined,
-          ...(protocol === 'EST' && { est_rfc7030_settings: estSettings }),
-          ...(protocol === 'CMP' && { lwc_rfc9483_settings: cmpLwcSettings }),
+          est_rfc7030_settings: effectiveEnrollmentAuthSettings,
           device_provisioning_profile: {
             icon: selectedDeviceIconName!,
             icon_color: `${selectedDeviceIconColor}-${selectedDeviceIconBgColor}`,
-            // The form has no metadata editor; carry the fetched value through
-            // so editing an RA doesn't strip metadata set elsewhere.
-            metadata: raData?.settings?.enrollment_settings?.device_provisioning_profile?.metadata || {},
+            metadata: deviceMetadata,
             tags: tags,
           },
           registration_mode: registrationMode,
         },
         reenrollment_settings: {
+          est_rfc7030_settings: effectiveReenrollmentAuthSettings,
           revoke_on_reenrollment: revokeOnReEnroll,
           enable_expired_renewal: allowExpiredRenewal,
           critical_delta: criticalRenewalDelta,
           preventive_delta: preventiveRenewalDelta,
           reenrollment_delta: allowedRenewalDelta,
           additional_validation_cas: additionalValidationCAs.map(ca => ca.id),
-          est_rfc7030_settings: reenrollEstSettings,
         },
         server_keygen_settings: {
           enabled: enableKeyGeneration,
@@ -606,17 +442,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     }
   };
 
-  const handleAddValidationCa = (ca: CA) => {
-    if (!validationCAs.some(vca => vca.id === ca.id)) {
-        setValidationCAs(prev => [...prev, ca]);
-    }
-    setIsValidationCaModalOpen(false);
-  }
-
-  const handleRemoveValidationCa = (caId: string) => {
-    setValidationCAs(prev => prev.filter(vca => vca.id !== caId));
-  }
-
   const handleAddAdditionalValidationCa = (ca: CA) => {
     if (!additionalValidationCAs.some(vca => vca.id === ca.id)) {
         setAdditionalValidationCAs(prev => [...prev, ca]);
@@ -639,423 +464,469 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     setManagedCAs(prev => prev.filter(mca => mca.id !== caId));
   };
 
-  const handleAddCmpValidationCa = (ca: CA) => {
-    if (!cmpValidationCAs.some(vca => vca.id === ca.id)) {
-      setCmpValidationCAs(prev => [...prev, ca]);
-    }
-    setIsCmpValidationCaModalOpen(false);
-  };
-
-  const handleRemoveCmpValidationCa = (caId: string) => {
-    setCmpValidationCAs(prev => prev.filter(vca => vca.id !== caId));
-  };
 
   const currentServerKeygenSpecOptions = serverKeygenType === 'RSA' ? serverKeygenRsaBits : serverKeygenEcdsaCurves;
 
 
-  const PageIcon = isEditMode ? Edit : PlusCircle;
+  const enrollmentValidationCaCount = enrollmentAuthSettings.client_certificate_settings?.validation_cas.length || 0;
+  const authModeLabels: Record<ApiRaEstSettings['auth_mode'], string> = {
+    CLIENT_CERTIFICATE: 'Client Certificate',
+    EXTERNAL_WEBHOOK: 'External Webhook',
+    CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK: 'Client Certificate + Webhook',
+    NO_AUTH: 'No Authentication',
+  };
   const heroBadges = [
     registrationMode,
     protocol,
-    authMode,
-  ];
-  const summaryCards = [
-    {
-      label: 'Enrollment CA',
-      value: enrollmentCa?.name || 'Unassigned',
-      hint: enrollmentCa ? 'Certificate issuer' : 'Selection required',
-      emphasized: true,
-    },
-    {
-      label: 'Validation CAs',
-      value: (protocol === 'CMP' ? cmpValidationCAs : validationCAs).length.toString(),
-      hint: (protocol === 'CMP' ? cmpValidationCAs : validationCAs).length === 1 ? 'Authority configured' : 'Authorities configured',
-    },
-    {
-      label: 'Managed CAs',
-      value: managedCAs.length.toString(),
-      hint: managedCAs.length === 1 ? 'Distributed authority' : 'Distributed authorities',
-    },
-    {
-      label: 'Renewal Delta',
-      value: allowedRenewalDelta,
-      hint: 'Max renewal grace period',
-    },
+    authModeLabels[enrollmentAuthSettings.auth_mode],
   ];
   const SelectedDeviceIcon = getLucideIconByName(selectedDeviceIconName);
 
-  return (
-    <div className="mb-8 w-full space-y-6">
-      {isEditMode ? (
-        <DetailBreadcrumbRow
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Registration Authorities', href: '/registration-authorities' },
-            {
-              label: (
-                <Badge variant="default" className="text-xs">
-                  {raName || raId || 'Edit'}
-                </Badge>
-              ),
-            },
-          ]}
-          actions={
-            <Button variant="outline" onClick={() => router.back()}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs
-            </Button>
-          }
-        />
-      ) : (
-        <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" /> Back to RAs</Button>
-      )}
-
-      {isEditMode ? (
-        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-          <div className="h-1 w-full bg-primary" />
-          <div className="p-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex items-start gap-4">
-                <div
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: selectedDeviceIconBgColor }}
-                >
-                  {SelectedDeviceIcon ? (
-                    <SelectedDeviceIcon className="h-6 w-6" style={{ color: selectedDeviceIconColor }} />
-                  ) : (
-                    <Settings className="h-6 w-6 text-primary" />
-                  )}
-                </div>
-
-                <div className="min-w-0 space-y-2">
-                  <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">{raName || 'Edit Registration Authority'}</h1>
-                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                      Modify settings for the Registration Authority.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <code className="rounded border bg-muted px-2 py-0.5 font-mono text-xs">{raId || raIdFromQuery}</code>
-                    {heroBadges.map((badge) => (
-                      <Badge key={badge} variant="outline" className="text-xs">
-                        {badge}
-                      </Badge>
-                    ))}
-                    {enableKeyGeneration ? <Badge variant="secondary" className="text-xs">Server Keygen</Badge> : null}
-                  </div>
+  const formContent = (
+    <>
+      {/* ── Edit hero ── */}
+      {isEditMode && (
+        <div className="pb-6 mb-6 border-b">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: selectedDeviceIconBgColor }}>
+              {SelectedDeviceIcon
+                ? <SelectedDeviceIcon className="h-6 w-6" style={{ color: selectedDeviceIconColor }} />
+                : <Settings className="h-6 w-6 text-primary" />}
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">{raName || 'Edit Registration Authority'}</h1>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">ID</span>
+                  <code className="text-xs bg-muted px-2 py-0.5 rounded border font-mono">{raId || raIdFromQuery}</code>
                 </div>
               </div>
-
-              <div className="grid gap-4 md:grid-cols-4 xl:min-w-[640px]">
-                {summaryCards.map((item) => (
-                  <div key={item.label} className={item.emphasized ? '' : 'text-center'}>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                    {item.emphasized ? (
-                      <div className="mt-1">
-                        <span className="inline-flex max-w-full rounded-md border bg-muted px-2.5 py-1 text-sm font-medium">
-                          <span className="truncate">{item.value}</span>
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-2xl font-semibold tracking-tight">{item.value}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">{item.hint}</p>
-                  </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {heroBadges.filter(Boolean).map((badge) => (
+                  <span key={badge} className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">{badge}</span>
                 ))}
+                {enableKeyGeneration && (
+                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    <Server className="h-3 w-3 shrink-0" /> Server Keygen
+                  </span>
+                )}
+                {enrollmentCa && (
+                  <span className="inline-flex h-6 items-center gap-1 rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    <ShieldCheck className="h-3 w-3 shrink-0" /> {enrollmentCa.name}
+                  </span>
+                )}
+                {enrollmentValidationCaCount > 0 && (
+                  <span className="inline-flex h-6 items-center rounded-md bg-muted/80 px-2 text-xs text-muted-foreground">
+                    {enrollmentValidationCaCount} validation {enrollmentValidationCaCount === 1 ? 'CA' : 'CAs'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
         </div>
-      ) : (
-        <div className="space-y-1">
-          <h1 className="flex items-center text-2xl font-semibold tracking-tight">
-            <PageIcon className="mr-2 h-6 w-6 text-primary" /> Create New Registration Authority
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Configure all settings for the new Registration Authority below.
-          </p>
-        </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-              <SettingsCard
-                icon={Settings}
-                title="General RA Settings"
-                description="Define the primary identity used to reference and manage this Registration Authority."
-              >
-                  <div><Label htmlFor="raName">RA Name</Label><Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required className="mt-1" />{!raName.trim() && <p className="text-xs text-destructive mt-1">RA Name is required.</p>}</div>
-                  <div><Label htmlFor="raId">RA ID</Label><Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} className="mt-1" />{!raId.trim() && !isEditMode && <p className="text-xs text-destructive mt-1">RA ID is required.</p>}</div>
-              </SettingsCard>
+      <form onSubmit={handleSubmit} className="space-y-0">
 
-              <SettingsCard
-                icon={Cpu}
-                title="Enrollment Device Registration"
-                description="Configure how devices are classified and presented when they register through this authority."
-              >
-                  <div>
-                  <Label htmlFor="registrationMode">Registration Mode</Label>
-                  <Select value={registrationMode} onValueChange={setRegistrationMode}>
-                      <SelectTrigger id="registrationMode" className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                      <SelectItem value="JITP">JITP (Just-In-Time Provisioning)</SelectItem>
-                      <SelectItem value="Pre registration">Pre-registration</SelectItem>
-                      </SelectContent>
-                  </Select>
-                  </div>
-                  <div>
-                  <Label htmlFor="raTags"><TagIconLucide className="inline mr-1 h-4 w-4 text-muted-foreground"/>Tags</Label>
-                  <TagInput id="raTags" value={tags} onChange={setTags} placeholder="Add tags..." className="mt-1" />
-                  </div>
-                  <div className="pt-2">
-                  <Label htmlFor="deviceIconButton">Device Icon</Label>
-                  <Button id="deviceIconButton" type="button" variant="outline" onClick={() => setIsDeviceIconModalOpen(true)} className="w-full justify-start text-left font-normal flex items-center gap-2 mt-1">
-                      {getLucideIconByName(selectedDeviceIconName) ? (
-                      <div className="flex items-center gap-2">
-                          <div className="p-1 rounded-sm flex items-center justify-center" style={{ backgroundColor: selectedDeviceIconBgColor }}>
-                          {React.createElement(getLucideIconByName(selectedDeviceIconName)!, { className: "h-5 w-5", style: { color: selectedDeviceIconColor } })}
-                          </div>
-                          {selectedDeviceIconName}
-                      </div>
-                      ) : "Select Device Icon..."}
-                  </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Default icon and colors for devices registered through this RA.</p>
-              </SettingsCard>
+        {/* ── Page header (create mode only) ── */}
+        {!isEditMode && (
+          <div className="pb-8 border-b">
+            <h1 className="text-2xl font-bold">Create New Registration Authority</h1>
+            <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+              Configure all settings for the new Registration Authority below.
+            </p>
+          </div>
+        )}
 
-              <SettingsCard
-                icon={Globe}
-                title="Enrollment Protocol"
-                description="Select the protocol devices will use to enroll. A DMS uses exactly one protocol; all sections below are configured specifically for this choice."
-              >
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { value: 'EST',  label: 'EST',  sub: 'RFC 7030',        icon: Globe         },
-                    { value: 'CMP',  label: 'CMP',  sub: 'RFC 9483 / LWC',  icon: ShieldCheck   },
-                  ] as const).map(({ value, label, sub, icon: Icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setProtocol(value)}
-                      className={cn(
-                        "flex flex-col items-center gap-1.5 rounded-lg border p-3 text-sm transition-all cursor-pointer",
-                        protocol === value
-                          ? "border-primary bg-primary/5 text-primary shadow-sm"
-                          : "border-border bg-background text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground"
-                      )}
-                    >
-                      <Icon className="h-5 w-5" />
-                      <span className="font-semibold">{label}</span>
-                      <span className="text-xs font-normal opacity-80">{sub}</span>
-                    </button>
-                  ))}
-                </div>
-              </SettingsCard>
+        {/* ── General Settings ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">General Settings</p>
+            <p className="text-sm text-muted-foreground mt-1">Define the primary identity used to reference and manage this RA.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="raName">RA Name</Label>
+              <Input id="raName" value={raName} onChange={(e) => setRaName(e.target.value)} placeholder="e.g., Main IoT Enrollment Service" required />
+              {!raName.trim() && <p className="text-xs text-destructive">RA Name is required.</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="raId">RA ID</Label>
+              <Input id="raId" value={raId} onChange={(e) => setRaId(e.target.value)} placeholder="e.g., main-iot-ra" required disabled={isEditMode} />
+              {!raId.trim() && !isEditMode && <p className="text-xs text-destructive">RA ID is required.</p>}
+            </div>
+          </div>
+        </div>
 
-              {/* ── Protocol-dependent sections ─────────────────────────────────── */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-border" />
-                  <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground whitespace-nowrap">
-                    {protocol === 'EST'
-                      ? <Globe className="h-3.5 w-3.5 text-primary" />
-                      : <ShieldCheck className="h-3.5 w-3.5 text-primary" />}
-                    <span>Following sections configured for</span>
-                    <span className="font-semibold text-foreground">
-                      {protocol === 'EST' ? 'EST — RFC 7030' : 'CMP — RFC 9483'}
+        <Separator />
+
+        {/* ── Device Registration ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Device Registration</p>
+            <p className="text-sm text-muted-foreground mt-1">Configure how devices are classified and presented when they register through this authority.</p>
+          </div>
+          <div className="space-y-4 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="registrationMode">Registration Mode</Label>
+              <Select value={registrationMode} onValueChange={setRegistrationMode}>
+                <SelectTrigger id="registrationMode"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="JITP">JITP (Just-In-Time Provisioning)</SelectItem>
+                  <SelectItem value="PRE_REGISTRATION">Pre-registration</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="raTags">Tags</Label>
+              <TagInput id="raTags" value={tags} onChange={setTags} placeholder="Add tags..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="deviceMetadata">Device Metadata</Label>
+              <Textarea
+                id="deviceMetadata"
+                value={deviceMetadataJson}
+                onChange={(event) => {
+                  setDeviceMetadataJson(event.target.value);
+                  setDeviceMetadataError(null);
+                }}
+                className="min-h-32 font-mono text-xs"
+                aria-invalid={!!deviceMetadataError}
+                placeholder={'{\n  "location": "factory-a"\n}'}
+              />
+              <p className={deviceMetadataError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
+                {deviceMetadataError || 'JSON metadata assigned to devices created through just-in-time provisioning.'}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="deviceIconButton">Device Icon</Label>
+              <button
+                id="deviceIconButton"
+                type="button"
+                onClick={() => setIsDeviceIconModalOpen(true)}
+                className="flex h-auto w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                    style={{ backgroundColor: selectedDeviceIconBgColor }}
+                  >
+                    {React.createElement(getLucideIconByName(selectedDeviceIconName)!, {
+                      className: "h-4 w-4",
+                      style: { color: selectedDeviceIconColor },
+                    })}
+                  </span>
+                  <span className="min-w-0 text-left">
+                    <span className="block truncate text-sm text-foreground">
+                      {selectedDeviceIconName || 'Select device icon'}
                     </span>
-                  </div>
-                  <div className="h-px flex-1 bg-border" />
+                    <span className="block truncate text-xs text-muted-foreground">
+                      Icon and colors used for new devices
+                    </span>
+                  </span>
+                </span>
+                <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+              <p className="text-xs text-muted-foreground">Default icon and colors for devices registered through this RA.</p>
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* ── Protocol ── */}
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+          <div>
+            <p className="font-semibold">Protocol</p>
+            <p className="text-sm text-muted-foreground mt-1">Choose the enrollment protocol used by this Registration Authority.</p>
+          </div>
+          <div className="lg:col-span-2">
+            <CardSelector
+              label="Protocol"
+              value={protocol}
+              onChange={setProtocol}
+              disabled={isSubmitting}
+              options={protocolOptions}
+            />
+          </div>
+        </div>
+
+        <Separator />
+
+        <Tabs value={activeRaSettingsTab} onValueChange={(value) => setActiveRaSettingsTab(value as RaSettingsTab)} className="w-full">
+          <div className="border-b bg-primary/5 overflow-x-auto overflow-y-hidden">
+            <TabsList className={pageTabsListClass}>
+              {raSettingsTabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className={pageTabsTriggerClass}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+
+          <TabsContent value="enrollment" className="mt-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+              <div>
+                <p className="font-semibold">Enrollment Settings</p>
+                <p className="text-sm text-muted-foreground mt-1">Control issuance policy, enrollment authentication, and CSR handling for new certificates.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="enrollmentCa">Enrollment CA</Label>
+                  <button
+                    id="enrollmentCa"
+                    type="button"
+                    onClick={() => setIsEnrollmentCaModalOpen(true)}
+                    disabled={isLoadingDependencies}
+                    className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className={enrollmentCa ? "text-foreground" : "text-muted-foreground"}>
+                      {isLoadingDependencies ? <Loader2 className="h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                  {enrollmentCa && (
+                    <div className="space-y-3">
+                      <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="issuanceProfileMode">Issuance Profile</Label>
+                          <Select
+                            value={issuanceProfileMode}
+                            onValueChange={(mode: 'default' | 'existing' | 'inline') => {
+                              setIssuanceProfileMode(mode);
+                              if (mode !== 'existing') setIssuanceProfileId(null);
+                            }}
+                          >
+                            <SelectTrigger id="issuanceProfileMode"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="default">Use Enrollment CA Default</SelectItem>
+                              <SelectItem value="existing">Use Existing Profile</SelectItem>
+                              <SelectItem value="inline">Define Inline Profile</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {issuanceProfileMode === 'existing' ? (
+                          <div className="space-y-3">
+                            <Select value={issuanceProfileId || ''} onValueChange={setIssuanceProfileId}>
+                              <SelectTrigger><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
+                              <SelectContent>
+                                {availableProfiles.map((profile) => (
+                                  <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {selectedProfileForDisplay ? <IssuanceProfileCard profile={selectedProfileForDisplay} /> : null}
+                          </div>
+                        ) : null}
+
+                        {issuanceProfileMode === 'default' ? (
+                          <div className="space-y-2">
+                            <Alert>
+                              <AlertTriangle className="h-4 w-4" />
+                              <AlertTitle>Enrollment CA default</AlertTitle>
+                              <AlertDescription>The RA will resolve the Enrollment CA&apos;s current default profile when issuing a certificate.</AlertDescription>
+                            </Alert>
+                            {enrollmentCaDefaultProfile ? <IssuanceProfileCard profile={enrollmentCaDefaultProfile} /> : (
+                              <p className="text-sm text-muted-foreground">The selected Enrollment CA does not currently have a default profile.</p>
+                            )}
+                          </div>
+                        ) : null}
+
+                        {issuanceProfileMode === 'inline' ? (
+                          <Form {...inlineProfileForm}>
+                            <div className="space-y-4 rounded-md border p-4">
+                              <div>
+                                <p className="text-sm font-medium">Inline profile</p>
+                                <p className="mt-1 text-xs text-muted-foreground">This profile is stored directly on the RA and is not added to the reusable profile list.</p>
+                              </div>
+                              <SigningProfileForm
+                                form={inlineProfileForm}
+                                compact
+                                hideBasicInformation
+                              />
+                            </div>
+                          </Form>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-6">
-
-                {/* ── EST sections ───────────────────────────────────────────────── */}
-                {protocol === 'EST' && (<>
-
-              <ESTEnrollmentSettingsCard
-                enrollmentCa={enrollmentCa}
-                onSelectEnrollmentCa={() => setIsEnrollmentCaModalOpen(true)}
-                isLoadingDependencies={isLoadingDependencies}
-                authLoading={authLoading}
-                allCryptoEngines={allCryptoEngines}
-                availableProfiles={availableProfiles}
-                issuanceProfileId={issuanceProfileId}
-                setIssuanceProfileId={setIssuanceProfileId}
-                selectedProfileForDisplay={selectedProfileForDisplay}
-                enrollmentCaDefaultProfile={enrollmentCaDefaultProfile}
-                allowOverrideEnrollment={allowOverrideEnrollment}
-                setAllowOverrideEnrollment={setAllowOverrideEnrollment}
-                verifyCsrSignature={verifyCsrSignature}
-                setVerifyCsrSignature={setVerifyCsrSignature}
-                authMode={authMode}
-                setAuthMode={setAuthMode}
-                validationCAs={validationCAs}
-                onRemoveValidationCa={handleRemoveValidationCa}
-                onAddValidationCa={() => setIsValidationCaModalOpen(true)}
-                allowExpiredAuth={allowExpiredAuth}
-                setAllowExpiredAuth={setAllowExpiredAuth}
-                chainValidationLevel={chainValidationLevel}
-                setChainValidationLevel={setChainValidationLevel}
-                webhookName={webhookName}
-                setWebhookName={setWebhookName}
-                webhookUrl={webhookUrl}
-                setWebhookUrl={setWebhookUrl}
-                webhookLogLevel={webhookLogLevel}
-                setWebhookLogLevel={setWebhookLogLevel}
-                webhookAuthMode={webhookAuthMode}
-                setWebhookAuthMode={setWebhookAuthMode}
-                webhookApiKey={webhookApiKey}
-                setWebhookApiKey={setWebhookApiKey}
-                oidcClientId={oidcClientId}
-                setOidcClientId={setOidcClientId}
-                oidcClientSecret={oidcClientSecret}
-                setOidcClientSecret={setOidcClientSecret}
-                oidcWellKnownUrl={oidcWellKnownUrl}
-                setOidcWellKnownUrl={setOidcWellKnownUrl}
-              />
-
-              <ESTReEnrollmentSettingsCard
-                authMode={reenrollAuthMode}
-                setAuthMode={setReenrollAuthMode}
-                webhookName={reenrollWebhookName}
-                setWebhookName={setReenrollWebhookName}
-                webhookUrl={reenrollWebhookUrl}
-                setWebhookUrl={setReenrollWebhookUrl}
-                webhookLogLevel={reenrollWebhookLogLevel}
-                setWebhookLogLevel={setReenrollWebhookLogLevel}
-                webhookAuthMode={reenrollWebhookAuthMode}
-                setWebhookAuthMode={setReenrollWebhookAuthMode}
-                webhookApiKey={reenrollWebhookApiKey}
-                setWebhookApiKey={setReenrollWebhookApiKey}
-                oidcClientId={reenrollOidcClientId}
-                setOidcClientId={setReenrollOidcClientId}
-                oidcClientSecret={reenrollOidcClientSecret}
-                setOidcClientSecret={setReenrollOidcClientSecret}
-                oidcWellKnownUrl={reenrollOidcWellKnownUrl}
-                setOidcWellKnownUrl={setReenrollOidcWellKnownUrl}
-                revokeOnReEnroll={revokeOnReEnroll}
-                setRevokeOnReEnroll={setRevokeOnReEnroll}
-                allowExpiredRenewal={allowExpiredRenewal}
-                setAllowExpiredRenewal={setAllowExpiredRenewal}
-                allowedRenewalDelta={allowedRenewalDelta}
-                setAllowedRenewalDelta={setAllowedRenewalDelta}
-                preventiveRenewalDelta={preventiveRenewalDelta}
-                setPreventiveRenewalDelta={setPreventiveRenewalDelta}
-                criticalRenewalDelta={criticalRenewalDelta}
-                setCriticalRenewalDelta={setCriticalRenewalDelta}
-                additionalValidationCAs={additionalValidationCAs}
-                onRemoveAdditionalValidationCa={handleRemoveAdditionalValidationCa}
-                onAddAdditionalValidationCa={() => setIsAdditionalValidationCaModalOpen(true)}
-                allCryptoEngines={allCryptoEngines}
-              />
-
-              <ESTServerKeyGenCard
-                enableKeyGeneration={enableKeyGeneration}
-                setEnableKeyGeneration={setEnableKeyGeneration}
-                serverKeygenType={serverKeygenType}
-                setServerKeygenType={setServerKeygenType}
-                serverKeygenSpec={serverKeygenSpec}
-                setServerKeygenSpec={setServerKeygenSpec}
-                currentServerKeygenSpecOptions={currentServerKeygenSpecOptions}
-              />
-
-              <ESTCaDistributionCard
-                includeDownstreamCA={includeDownstreamCA}
-                setIncludeDownstreamCA={setIncludeDownstreamCA}
-                includeEnrollmentCA={includeEnrollmentCA}
-                setIncludeEnrollmentCA={setIncludeEnrollmentCA}
-                managedCAs={managedCAs}
-                onRemoveManagedCa={handleRemoveManagedCa}
-                onAddManagedCa={() => setIsManagedCaModalOpen(true)}
-                allCryptoEngines={allCryptoEngines}
-              />
-
-                </>)}{/* end EST sections */}
-
-                {/* ── CMP sections ────────────────────────────────────────────────── */}
-                {protocol === 'CMP' && (<>
-
-                  <CMPEnrollmentSettingsCard
-                    enrollmentCa={enrollmentCa}
-                    onSelectEnrollmentCa={() => setIsEnrollmentCaModalOpen(true)}
-                    isLoadingDependencies={isLoadingDependencies}
-                    authLoading={authLoading}
-                    allCryptoEngines={allCryptoEngines}
-                    availableProfiles={availableProfiles}
-                    issuanceProfileId={issuanceProfileId}
-                    setIssuanceProfileId={setIssuanceProfileId}
-                    selectedProfileForDisplay={selectedProfileForDisplay}
-                    enrollmentCaDefaultProfile={enrollmentCaDefaultProfile}
-                    cmpConfirmationMode={cmpConfirmationMode}
-                    setCmpConfirmationMode={setCmpConfirmationMode}
-                    cmpConfirmationTimeout={cmpConfirmationTimeout}
-                    setCmpConfirmationTimeout={setCmpConfirmationTimeout}
-                    cmpApprovalTimeout={cmpApprovalTimeout}
-                    setCmpApprovalTimeout={setCmpApprovalTimeout}
-                    cmpValidationCAs={cmpValidationCAs}
-                    onRemoveCmpValidationCa={handleRemoveCmpValidationCa}
-                    onAddCmpValidationCa={() => setIsCmpValidationCaModalOpen(true)}
-                    cmpAllowExpiredAuth={cmpAllowExpiredAuth}
-                    setCmpAllowExpiredAuth={setCmpAllowExpiredAuth}
-                    cmpChainValidationLevel={cmpChainValidationLevel}
-                    setCmpChainValidationLevel={setCmpChainValidationLevel}
-                    cmpProtectionCertificate={cmpProtectionCertificate}
-                    cmpProtectionCertificateId={cmpProtectionCertificateId}
-                    onSelectCmpProtectionCertificate={() => setIsCmpProtectionCertificateModalOpen(true)}
-                    onClearCmpProtectionCertificate={() => { setCmpProtectionCertificate(null); setCmpProtectionCertificateId(null); }}
-                    cmpEnforcePopo={cmpEnforcePopo}
-                    setCmpEnforcePopo={setCmpEnforcePopo}
-                    cmpExpectedAuthenticator={cmpExpectedAuthenticator}
-                    setCmpExpectedAuthenticator={setCmpExpectedAuthenticator}
-                    cmpServerKeyGenEnabled={cmpServerKeyGenEnabled}
-                    setCmpServerKeyGenEnabled={setCmpServerKeyGenEnabled}
-                    cmpWorkflow={cmpWorkflow}
-                    setCmpWorkflow={setCmpWorkflow}
-                    cmpAuthMode={cmpAuthMode}
-                    setCmpAuthMode={setCmpAuthMode}
-                    cmpWebhookName={cmpWebhookName}
-                    setCmpWebhookName={setCmpWebhookName}
-                    cmpWebhookUrl={cmpWebhookUrl}
-                    setCmpWebhookUrl={setCmpWebhookUrl}
-                    cmpWebhookLogLevel={cmpWebhookLogLevel}
-                    setCmpWebhookLogLevel={setCmpWebhookLogLevel}
-                    cmpWebhookAuthMode={cmpWebhookAuthMode}
-                    setCmpWebhookAuthMode={setCmpWebhookAuthMode}
-                    cmpWebhookApiKey={cmpWebhookApiKey}
-                    setCmpWebhookApiKey={setCmpWebhookApiKey}
-                    cmpOidcClientId={cmpOidcClientId}
-                    setCmpOidcClientId={setCmpOidcClientId}
-                    cmpOidcClientSecret={cmpOidcClientSecret}
-                    setCmpOidcClientSecret={setCmpOidcClientSecret}
-                    cmpOidcWellKnownUrl={cmpOidcWellKnownUrl}
-                    setCmpOidcWellKnownUrl={setCmpOidcWellKnownUrl}
-                  />
-
-                </>)}{/* end CMP sections */}
-
-                </div>{/* end border-l bracket */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="allowOverrideEnrollment">Allow Replaceable Enrollment</Label>
+                    <p className="text-xs text-muted-foreground">Allow an already enrolled device to enroll again, replacing its active identity certificate.</p>
+                  </div>
+                  <Switch id="allowOverrideEnrollment" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="verifyCsrSignature">Verify CSR Signature</Label>
+                    <p className="text-xs text-muted-foreground">Verify the cryptographic signature of Certificate Signing Requests during enrollment.</p>
+                  </div>
+                  <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
+                </div>
+                <EstAuthSettingsEditor
+                  idPrefix="enrollment"
+                  value={enrollmentAuthSettings}
+                  onChange={setEnrollmentAuthSettings}
+                  availableCAs={availableCAsForSelection}
+                  allCryptoEngines={allCryptoEngines}
+                  isLoadingCAs={isLoadingDependencies}
+                  errorCAs={errorDependencies}
+                  loadCAsAction={loadDependencies}
+                  fallbackValidationCa={enrollmentCa}
+                />
               </div>
-              {/* end protocol-dependent sections */}
+            </div>
+          </TabsContent>
 
-              <div className="flex justify-end space-x-2 pt-8">
-                  <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4" />}
-                      {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
+          <TabsContent value="reenrollment" className="mt-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+              <div>
+                <p className="font-semibold">Re-Enrollment Settings</p>
+                <p className="text-sm text-muted-foreground mt-1">Set certificate replacement, renewal windows, and additional trust requirements for re-enrollment.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <EstAuthSettingsEditor
+                  idPrefix="reenrollment"
+                  value={reenrollmentAuthSettings}
+                  onChange={setReenrollmentAuthSettings}
+                  availableCAs={availableCAsForSelection}
+                  allCryptoEngines={allCryptoEngines}
+                  isLoadingCAs={isLoadingDependencies}
+                  errorCAs={errorDependencies}
+                  loadCAsAction={loadDependencies}
+                />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="revokeOnReEnroll">Revoke On Re-Enroll</Label>
+                    <p className="text-xs text-muted-foreground">Automatically revoke the old certificate when a new one is issued during re-enrollment.</p>
+                  </div>
+                  <Switch id="revokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="allowExpiredRenewal">Allow Expired Renewal</Label>
+                    <p className="text-xs text-muted-foreground">Permit renewal of certificates that have already expired.</p>
+                  </div>
+                  <Switch id="allowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
+                </div>
+                <DurationInput id="allowedRenewalDelta" label="Re-Enrollment Window" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Time before certificate expiry when re-enrollment becomes available." />
+                <DurationInput id="preventiveRenewalDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
+                <DurationInput id="criticalRenewalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
+                <RenewalLifespanBar
+                  certificateValidity={effectiveIssuanceProfile?.validity ?? null}
+                  issuanceProfileName={effectiveIssuanceProfile?.name}
+                  reenrollmentWindow={allowedRenewalDelta}
+                  preventiveDelta={preventiveRenewalDelta}
+                  criticalDelta={criticalRenewalDelta}
+                />
+                <div className="space-y-1.5">
+                  <Label>Additional Validation CAs</Label>
+                  <div className="space-y-2">
+                    {additionalValidationCAs.length > 0 ? additionalValidationCAs.map(ca => (
+                      <div key={ca.id} className="flex items-center gap-2 group">
+                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={() => setIsAdditionalValidationCaModalOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
                   </Button>
+                </div>
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="server-key-generation" className="mt-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+              <div>
+                <p className="font-semibold">Server Key Generation</p>
+                <p className="text-sm text-muted-foreground mt-1">Define whether the platform generates device keys and what algorithms are permitted.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="enableKeyGeneration">Enable Server-Side Key Generation</Label>
+                    <p className="text-xs text-muted-foreground">Generate cryptographic keys on the server instead of requiring client-side generation.</p>
+                  </div>
+                  <Switch id="enableKeyGeneration" checked={enableKeyGeneration} onCheckedChange={setEnableKeyGeneration} />
+                </div>
+                {enableKeyGeneration && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="serverKeygenType">Key Type</Label>
+                      <Select value={serverKeygenType} onValueChange={setServerKeygenType}>
+                        <SelectTrigger id="serverKeygenType"><SelectValue /></SelectTrigger>
+                        <SelectContent>{serverKeygenTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="serverKeygenSpec">{serverKeygenType === 'RSA' ? 'Key Bits' : 'Curve'}</Label>
+                      <Select value={serverKeygenSpec} onValueChange={setServerKeygenSpec}>
+                        <SelectTrigger id="serverKeygenSpec"><SelectValue /></SelectTrigger>
+                        <SelectContent>{currentServerKeygenSpecOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ca-distribution" className="mt-6">
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-3 py-8">
+              <div>
+                <p className="font-semibold">CA Distribution</p>
+                <p className="text-sm text-muted-foreground mt-1">Choose which authorities and chains are distributed to clients through this RA.</p>
+              </div>
+              <div className="space-y-4 lg:col-span-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="includeDownstreamCA">Include Downstream CA</Label>
+                    <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the distribution.</p>
+                  </div>
+                  <Switch id="includeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="includeEnrollmentCA">Include Enrollment CA</Label>
+                    <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the distribution.</p>
+                  </div>
+                  <Switch id="includeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Managed CAs</Label>
+                  <div className="space-y-2">
+                    {managedCAs.length > 0 ? managedCAs.map(ca => (
+                      <div key={ca.id} className="flex items-center gap-2 group">
+                        <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
+                  </div>
+                  <Button type="button" variant="secondary" onClick={() => setIsManagedCaModalOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <Separator />
+
+        <div className="flex justify-end gap-2 pt-6">
+          <Button type="button" variant="secondary" onClick={() => router.back()}>Cancel</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+            {isSubmitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create RA'}
+          </Button>
+        </div>
       </form>
-      <CaSelectorModal
-        isOpen={isValidationCaModalOpen} 
-        onOpenChange={setIsValidationCaModalOpen} 
-        title="Add Validation CA" 
-        description="Select a CA to add to the validation list." 
-        availableCAs={availableCAsForSelection} 
-        isLoadingCAs={isLoadingDependencies} 
-        errorCAs={errorDependencies} 
-        loadCAsAction={loadDependencies} 
-        onCaSelected={handleAddValidationCa}
-        allCryptoEngines={allCryptoEngines}
-      />
       <CaSelectorModal
         isOpen={isAdditionalValidationCaModalOpen}
         onOpenChange={setIsAdditionalValidationCaModalOpen}
@@ -1081,31 +952,6 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         allCryptoEngines={allCryptoEngines}
       />
       <CaSelectorModal isOpen={isEnrollmentCaModalOpen} onOpenChange={setIsEnrollmentCaModalOpen} title="Select Enrollment CA" description="Choose the CA that will issue certificates." availableCAs={availableCAsForSelection} isLoadingCAs={isLoadingDependencies} errorCAs={errorDependencies} loadCAsAction={loadDependencies} onCaSelected={(ca) => { setEnrollmentCa(ca); setIsEnrollmentCaModalOpen(false); }} currentSelectedCaId={enrollmentCa?.id} allCryptoEngines={allCryptoEngines} />
-      <CertificateSelectorModal
-        isOpen={isCmpProtectionCertificateModalOpen}
-        onOpenChange={setIsCmpProtectionCertificateModalOpen}
-        title="Select CMP Protection Certificate"
-        description="Choose the certificate that will sign CMP response messages."
-        includeCaCertificates={true}
-        onCertificateSelected={(certificate) => {
-          setCmpProtectionCertificate(certificate);
-          setCmpProtectionCertificateId(certificate.serialNumber);
-          setIsCmpProtectionCertificateModalOpen(false);
-        }}
-        currentSelectedCertificateId={cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId}
-      />
-      <CaSelectorModal
-        isOpen={isCmpValidationCaModalOpen}
-        onOpenChange={setIsCmpValidationCaModalOpen}
-        title="Add CMP Validation CA"
-        description="Select a CA to validate client certificates for CMP authentication."
-        availableCAs={availableCAsForSelection}
-        isLoadingCAs={isLoadingDependencies}
-        errorCAs={errorDependencies}
-        loadCAsAction={loadDependencies}
-        onCaSelected={handleAddCmpValidationCa}
-        allCryptoEngines={allCryptoEngines}
-      />
       <DeviceIconSelectorModal
         isOpen={isDeviceIconModalOpen}
         onOpenChange={setIsDeviceIconModalOpen}
@@ -1115,6 +961,39 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         initialBgColor={selectedDeviceIconBgColor}
         onColorsChange={({ iconColor, bgColor }) => { setSelectedDeviceIconColor(iconColor); setSelectedDeviceIconBgColor(bgColor); }}
       />
+    </>
+  );
+
+  if (isEditMode) {
+    return (
+      <BreadcrumbPage
+        items={[
+          { label: 'Home', href: '/' },
+          { label: 'Registration Authorities', href: '/registration-authorities' },
+          { label: <Badge variant="default" className="text-xs">{raName || raId || 'Edit'}</Badge> },
+        ]}
+        actions={
+          <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
+          </Button>
+        }
+        className="space-y-5"
+      >
+        <div className="w-[80%] mx-auto mb-8">
+          {formContent}
+        </div>
+      </BreadcrumbPage>
+    );
+  }
+
+  return (
+    <div className="w-[80%] mx-auto mb-8">
+      <div className="flex justify-end mb-4">
+        <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back to RAs
+        </Button>
+      </div>
+      {formContent}
     </div>
   );
 }

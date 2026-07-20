@@ -74,10 +74,12 @@ export default function EditSigningProfilePage() {
       validity: validityConfig,
       signAsCa: profile.sign_as_ca || false,
       honorSubject: profile.honor_subject,
+      overrideCommonName: profile.subject?.common_name || '',
       overrideCountry: profile.subject?.country || '',
       overrideState: profile.subject?.state || '',
+      overrideLocality: profile.subject?.locality || '',
       overrideOrganization: profile.subject?.organization || '',
-      overrideOrgUnit: profile.subject?.organizational_unit || '',
+      overrideOrgUnit: profile.subject?.organization_unit || '',
       cryptoEnforcement: {
         enabled: crypto.enabled || false,
         allowRsa: crypto.allow_rsa_keys || false,
@@ -124,7 +126,7 @@ export default function EditSigningProfilePage() {
     }
     setIsSubmitting(true);
 
-    let validityPayload: { type: string; duration?: string; time?: string } = { type: 'Duration', duration: '1y' };
+    let validityPayload: CreateSigningProfilePayload['validity'] = { type: 'Duration', duration: '1y' };
     if (data.validity.type === 'Duration' && data.validity.durationValue) {
       validityPayload = { type: 'Duration', duration: data.validity.durationValue };
     } else if (data.validity.type === 'Date' && data.validity.dateValue) {
@@ -155,10 +157,12 @@ export default function EditSigningProfilePage() {
 
     if (!data.honorSubject) {
       payload.subject = {
+        common_name: data.overrideCommonName,
         country: data.overrideCountry,
         state: data.overrideState,
+        locality: data.overrideLocality,
         organization: data.overrideOrganization,
-        organizational_unit: data.overrideOrgUnit,
+        organization_unit: data.overrideOrgUnit,
       };
     }
 

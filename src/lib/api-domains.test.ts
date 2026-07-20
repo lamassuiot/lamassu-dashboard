@@ -110,67 +110,56 @@ describe('api-domains', () => {
     })
 
     it('should throw error with default message for failed response without JSON body', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 500,
-        json: async () => {
-          throw new Error('Not JSON')
-        },
-      } as unknown as Response
+      const mockResponse = new Response(null, { status: 500 })
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
-      ).rejects.toThrow('Test operation failed. HTTP error 500')
+      ).rejects.toThrow('Test operation failed (HTTP 500)')
     })
 
     it('should throw error with API error message when available', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 400,
-        json: async () => ({ err: 'Invalid request parameters' }),
-      } as unknown as Response
+      const mockResponse = Response.json(
+        { err: 'Invalid request parameters' },
+        { status: 400 }
+      )
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
-      ).rejects.toThrow('Test operation failed: Invalid request parameters')
+      ).rejects.toThrow(
+        'Test operation failed: Invalid request parameters (HTTP 400)'
+      )
     })
 
     it('should handle error with "message" field instead of "err"', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 403,
-        json: async () => ({ message: 'Forbidden access' }),
-      } as unknown as Response
+      const mockResponse = Response.json(
+        { message: 'Forbidden access' },
+        { status: 403 }
+      )
 
       await expect(
         handleApiError(mockResponse, 'Test operation failed')
-      ).rejects.toThrow('Test operation failed: Forbidden access')
+      ).rejects.toThrow('Test operation failed: Forbidden access (HTTP 403)')
     })
 
     it('should handle 404 errors', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 404,
-        json: async () => ({ err: 'Resource not found' }),
-      } as unknown as Response
+      const mockResponse = Response.json(
+        { err: 'Resource not found' },
+        { status: 404 }
+      )
 
       await expect(
         handleApiError(mockResponse, 'Fetch resource failed')
-      ).rejects.toThrow('Fetch resource failed: Resource not found')
+      ).rejects.toThrow(
+        'Fetch resource failed: Resource not found (HTTP 404)'
+      )
     })
 
     it('should handle network errors without JSON response', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 0,
-        json: async () => {
-          throw new Error('Network error')
-        },
-      } as unknown as Response
+      const mockResponse = Response.error()
 
       await expect(
         handleApiError(mockResponse, 'Network request failed')
-      ).rejects.toThrow('Network request failed. HTTP error 0')
+      ).rejects.toThrow('Network request failed (HTTP 0)')
     })
   })
 

@@ -42,21 +42,12 @@ describe('est-api', () => {
         expect(capturedHeaders?.get('Accept')).toBe('application/pkcs7-mime')
       })
 
-      it('should not send Authorization header when no token provided', async () => {
-        let capturedHeaders: Headers | undefined
-
+      it('should reject when no access token is available', async () => {
         window.localStorage.clear()
 
-        server.use(
-          http.get(`${EST_API_BASE}/${raId}/cacerts`, ({ request }) => {
-            capturedHeaders = request.headers
-            return HttpResponse.arrayBuffer(new ArrayBuffer(100))
-          })
+        await expect(fetchEstCaCerts(raId, 'pkcs7-mime')).rejects.toThrow(
+          'User not authenticated.'
         )
-
-        await fetchEstCaCerts(raId, 'pkcs7-mime')
-
-        expect(capturedHeaders?.has('Authorization')).toBe(false)
       })
 
       it('should send Authorization header when token is in storage', async () => {
@@ -153,7 +144,7 @@ GEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yNDEyMDEwMDAwMDBaFw0yNTEy
         )
 
         await expect(fetchEstCaCerts(raId, 'x-pem-file')).rejects.toThrow(
-          'EST CA certs fetch failed'
+          'Failed to fetch EST CA certs: Unauthorized (HTTP 401)'
         )
       })
 
@@ -195,7 +186,7 @@ GEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yNDEyMDEwMDAwMDBaFw0yNTEy
         )
 
         await expect(fetchEstCaCerts(raId, 'pkcs7-mime')).rejects.toThrow(
-          'Server responded with status 500'
+          'Failed to fetch EST CA certs: Internal Server Error (HTTP 500)'
         )
       })
 
