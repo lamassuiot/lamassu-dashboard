@@ -4,9 +4,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
-import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal, ClipboardList } from 'lucide-react';
+import { ArrowLeft, PlusCircle, RefreshCw, History, SlidersHorizontal, Info, Clock, AlertTriangle, Copy, Check, MoreHorizontal, KeyRound, Workflow, Layers, Rocket, ClipboardList } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/page';
+import { DeviceIcon, mapApiIconToIconType } from '@/app/devices/device-icon';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,7 @@ import { AssignIdentityModal } from '@/components/shared/AssignIdentityModal';
 import { DecommissionDeviceModal } from '@/components/shared/DecommissionDeviceModal';
 import { DeleteDeviceModal } from '@/components/shared/DeleteDeviceModal';
 import { ForceUpdateModal } from '@/components/shared/ForceUpdateModal';
+import { LaunchDeviceVersionDialog, type LaunchTarget } from '@/components/devices/LaunchDeviceVersionDialog';
 import { sileo } from '@/lib/toast';
 import { DeviceDetailsContext } from './DeviceContext';
 
@@ -26,6 +27,9 @@ const TAB_TO_SLUG: Record<string, string> = {
   information: 'information',
   certificatesHistory: 'certificates-history',
   timeline: 'timeline',
+  keyInventory: 'key-inventory',
+  updateStatus: 'update-status',
+  updatePacks: 'package-inventory',
   metadata: 'metadata',
   jobs: 'jobs',
 };
@@ -34,6 +38,9 @@ const SLUG_TO_TAB: Record<string, string> = {
   information: 'information',
   'certificates-history': 'certificatesHistory',
   timeline: 'timeline',
+  'key-inventory': 'keyInventory',
+  'update-status': 'updateStatus',
+  'package-inventory': 'updatePacks',
   metadata: 'metadata',
   jobs: 'jobs',
 };
@@ -64,6 +71,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
   const [isDeleting, setIsDeleting] = useState(false);
   const [isForceUpdateModalOpen, setIsForceUpdateModalOpen] = useState(false);
   const [isForcingUpdate, setIsForcingUpdate] = useState(false);
+  const [launchTarget, setLaunchTarget] = useState<LaunchTarget | null>(null);
 
   const fetchIntegrationData = useCallback(async (dmsOwnerId: string) => {
     try {
@@ -290,6 +298,10 @@ export default function DeviceDetailsShell({ children }: { children: React.React
                 <Button variant="secondary" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setLaunchTarget({ deviceId: device.id, groupId: device.dms_owner })}>
+                  <Rocket className="mr-2 h-4 w-4" /> Launch Update...
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {availableIntegrations.length > 0 && (
                   <>
                     <DropdownMenuItem onClick={() => setIsForceUpdateModalOpen(true)}>Force Update</DropdownMenuItem>
@@ -327,9 +339,12 @@ export default function DeviceDetailsShell({ children }: { children: React.React
           <div className="border-b overflow-x-auto overflow-y-hidden">
             <TabsList className={cn(pageTabsListClass, 'min-w-max')}>
               {([
-                { value: 'information',        icon: Info,             label: 'Information' },
+                { value: 'information',        icon: Info,              label: 'Information' },
                 { value: 'certificatesHistory', icon: History,          label: 'Certificates History' },
                 { value: 'timeline',            icon: Clock,            label: 'Timeline' },
+                { value: 'keyInventory',        icon: KeyRound,         label: 'Key Inventory' },
+                { value: 'updateStatus',        icon: Workflow,         label: 'Update Status' },
+                { value: 'updatePacks',         icon: Layers,           label: 'Package Inventory' },
                 { value: 'metadata',            icon: SlidersHorizontal, label: 'Metadata' },
                 { value: 'jobs',                icon: ClipboardList,    label: 'Jobs' },
               ] as { value: string; icon: React.ElementType; label: string }[]).map(({ value, icon: Icon, label }) => (
@@ -378,6 +393,7 @@ export default function DeviceDetailsShell({ children }: { children: React.React
           setActiveIntegration={setActiveIntegration}
           isUpdating={isForcingUpdate}
         />
+        <LaunchDeviceVersionDialog target={launchTarget} onClose={() => setLaunchTarget(null)} />
       </BreadcrumbPage>
     </DeviceDetailsContext.Provider>
   );
