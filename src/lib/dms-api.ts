@@ -41,6 +41,44 @@ export interface ApiRaEstSettings {
         config: ApiRaWebhookHttpClient;
     };
 }
+export interface ApiRaCmpClientCertSettings {
+    validation_cas: string[];
+    chain_level_validation: number;
+    allow_expired: boolean;
+}
+export interface ApiRaCmpSettings {
+    // When true, the server skips the certConf round-trip if the EE asks for
+    // implicit confirmation (id-it-implicitConfirm in generalInfo). When false
+    // (default), the EE must send an explicit certConf within
+    // confirmation_timeout. Backend field: EnrollmentOptionsLWCRFC9483.AcceptImplicit.
+    accept_implicit: boolean;
+    confirmation_timeout: string;
+    // How long a phased-workflow transaction waits in PENDING for admin
+    // approve/reject before being swept. Empty/omitted uses the server
+    // default (7d). Only meaningful when workflow=phased.
+    approval_timeout?: string;
+    // CMP's own wire convention for "no auth" is the literal string NONE, not
+    // EST's NO_AUTH — kept distinct rather than unified so this type stays a
+    // faithful mirror of the backend's CMPAuthMode enum.
+    auth_mode: 'CLIENT_CERTIFICATE' | 'EXTERNAL_WEBHOOK' | 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK' | 'NONE';
+    client_certificate_settings?: ApiRaCmpClientCertSettings;
+    // Same nested shape EST uses (name/url/method/config), matching the Go
+    // backend's WebhookCall struct that both protocols share.
+    external_webhook_settings?: {
+        name: string;
+        url: string;
+        method: string;
+        config: ApiRaWebhookHttpClient;
+    };
+    protection_certificate?: string;
+    enforce_popo?: boolean;
+    // RFC 9483 §4.1.6 central key generation (CKG) opt-in: allows ir/cr with
+    // an empty public key to request a server-generated key pair.
+    server_key_gen_enabled?: boolean;
+    // 'direct' (synchronous issuance) or 'phased' (admin-approved issuance).
+    // Empty/absent is treated as 'direct'.
+    workflow?: string;
+}
 export interface ApiRaEnrollmentSettings {
     registration_mode: string;
     enrollment_ca: string;
@@ -48,6 +86,7 @@ export interface ApiRaEnrollmentSettings {
     enable_replaceable_enrollment: boolean;
     verify_csr_signature?: boolean; // Optional field for backwards compatibility
     est_rfc7030_settings?: ApiRaEstSettings;
+    lwc_rfc9483_settings?: ApiRaCmpSettings;
     device_provisioning_profile: {
         icon: string;
         icon_color: string;
@@ -144,6 +183,62 @@ export async function fetchRaById(raId: string): Promise<ApiRaItem> {
     return handleApiError(response, 'Failed to fetch RA details');
 }
 
+// CMP transactions surface the full lifecycle of every CMP enrollment
+// processed for an RA. States are:
+//   PENDING       - enrollment accepted, cert not yet issued (async mode)
+//   ISSUED        - cert issued, awaiting certConf from the EE
+//   ISSUE_FAILED  - async worker failed to issue
+//   CONFIRMED     - EE sent valid certConf; enrollment complete
+//   REVOKED       - the enrolled certificate was subsequently revoked
+//
+// The endpoint mirrors the standard list contract (page_size, bookmark,
+// sort_by, filter) and projects out the raw CertDER/CSRDER blobs.
+export interface CmpTransactionItem {
+    transaction_id: string;
+    dms_id: string;
+    state: 'PENDING' | 'ISSUED' | 'ISSUE_FAILED' | 'CONFIRMED' | 'REVOKED' | string;
+    is_reenrollment: boolean;
+    // request_type is the CMP body tag that started the transaction:
+    // "ir" (Initialization Request), "cr" (Certification Request), or
+    // "kur" (Key Update Request). Older rows persisted before the field
+    // existed return an empty string; the UI falls back to is_reenrollment.
+    request_type?: 'ir' | 'cr' | 'kur' | string;
+    // subject_common_name is the CN from the enrollment request's CertTemplate
+    // (the device ID). May be empty for legacy rows.
+    subject_common_name?: string;
+    // wfx_job_id is the UUID of the WFX job mirroring this transaction's
+    // lifecycle. Used to deep-link the management UI to the corresponding
+    // workflow detail page. Empty when WFX integration is disabled or the
+    // job could not be created.
+    wfx_job_id?: string;
+    created_at: string;
+    expires_at: string;
+    confirmed_at?: string;
+    error_message?: string;
+    certificate_serial_number?: string;
+    has_certificate: boolean;
+}
+
+export interface CmpTransactionsResponse {
+    next: string;
+    list: CmpTransactionItem[];
+}
+
+export async function fetchCmpTransactions(
+    raId: string,
+    params?: URLSearchParams,
+): Promise<CmpTransactionsResponse> {
+    const url = new URL(`${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}/cmp/transactions`);
+    if (params) {
+        params.forEach((value, key) => url.searchParams.append(key, value));
+    }
+    if (!url.searchParams.has('page_size')) {
+        url.searchParams.set('page_size', '25');
+    }
+    const response = await apiFetch(url.toString());
+    return handleApiError(response, 'Failed to fetch CMP transactions');
+}
+
 export async function createOrUpdateRa(
     payload: RaCreationPayload,
     isEditMode: boolean,
@@ -161,6 +256,36 @@ export async function createOrUpdateRa(
     });
 
     await handleApiError(response, `Failed to ${isEditMode ? 'update' : 'create'} RA`);
+}
+
+// approveCmpTransaction releases a PENDING phased-workflow CMP transaction so
+// the backend issues the certificate. The EE then retrieves it via pollReq.
+export async function approveCmpTransaction(raId: string, transactionId: string): Promise<CmpTransactionItem> {
+    const response = await apiFetch(
+        `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}/cmp/transactions/${transactionId}/approve`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        },
+    );
+    return handleApiError(response, 'Failed to approve CMP transaction');
+}
+
+// rejectCmpTransaction denies a PENDING phased-workflow CMP transaction. The
+// row transitions to ISSUE_FAILED carrying the reason; pollReq later surfaces
+// it to the EE as an error PKIMessage. Reason is optional (empty falls back
+// to a generic server message).
+export async function rejectCmpTransaction(raId: string, transactionId: string, reason?: string): Promise<CmpTransactionItem> {
+    const response = await apiFetch(
+        `${get_DMS_MANAGER_API_BASE_URL()}/dms/${raId}/cmp/transactions/${transactionId}/reject`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reason ? { reason } : {}),
+        },
+    );
+    return handleApiError(response, 'Failed to reject CMP transaction');
 }
 
 
