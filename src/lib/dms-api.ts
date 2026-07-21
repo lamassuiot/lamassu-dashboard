@@ -57,21 +57,18 @@ export interface ApiRaCmpSettings {
     // approve/reject before being swept. Empty/omitted uses the server
     // default (7d). Only meaningful when workflow=phased.
     approval_timeout?: string;
-    auth_mode: string;
+    // CMP uses NONE for no authentication, unlike EST's NO_AUTH.
+    auth_mode: 'CLIENT_CERTIFICATE' | 'EXTERNAL_WEBHOOK' | 'CLIENT_CERTIFICATE_AND_EXTERNAL_WEBHOOK' | 'NONE';
     client_certificate_settings?: ApiRaCmpClientCertSettings;
-    // Mirrors the EST webhook shape so the same auth UI drives both protocols.
     external_webhook_settings?: {
         name: string;
         url: string;
-        log_level: string;
-        auth_mode: string;
-        api_key_auth?: {
-            key: string;
-        };
-        oidc_auth?: ApiRaOidcAuth;
+        method: string;
+        config: ApiRaWebhookHttpClient;
     };
     protection_certificate?: string;
     enforce_popo?: boolean;
+    server_key_gen_enabled?: boolean;
     // 'direct' (synchronous issuance) or 'phased' (admin-approved issuance).
     // Empty/absent is treated as 'direct'.
     workflow?: string;
