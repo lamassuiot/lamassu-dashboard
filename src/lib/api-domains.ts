@@ -51,10 +51,9 @@ export const get_WFX_API_BASE_URL = () => `${getApiBaseUrl()}/wfx/nbi/v1`;
 
 // These endpoints now use the potentially overridden base URL
 export const get_EST_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/est`;
-// CMP (RFC 9483 Lightweight CMP) is served from a sibling well-known path:
-//   /dmsmanager/.well-known/cmp/p/:dmsID
-// `openssl cmp` resolves the trailing :dmsID via -path, so consumers compose
-// the final URL as `${get_CMP_API_BASE_URL()}/p/${dmsID}`.
+// RFC 9483 (Lightweight CMP) enrollment endpoint. Per-DMS requests are sent to
+// `${get_CMP_API_BASE_URL()}/p/{dms-id}` (mirrors the reference cmp-*.sh scripts:
+// {API}/dmsmanager/.well-known/cmp/p/{DMS_ID}).
 export const get_CMP_API_BASE_URL = () => `${getPublicAPIUrl()}/dmsmanager/.well-known/cmp`;
 
 export const handleApiError = async <T = unknown>(

@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateData } from '@/types/certificate';
@@ -17,7 +18,6 @@ import { appendCertificateQueryFilters } from '@/lib/certificate-filter-query';
 import { CertificatePaginationControls } from '@/components/shared/CertificatePaginationControls';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '../ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { ScrollArea } from '../ui/scroll-area';
 import { DateDisplay } from '@/components/shared/DateDisplay';
 import { IdentifierDisplay } from '@/components/shared/IdentifierDisplay';
 import { ApiStatusBadge } from '@/components/shared/ApiStatusBadge';
@@ -42,7 +42,13 @@ const defaultDateFilterValue: CertificateDateFilterValue = {
   date: undefined,
 };
 
-const emptyRequiredKeyUsages: readonly KeyUsageOption[] = [];
+// A destructuring default (`= []`) is re-evaluated on every render, unlike a
+// useMemo-guarded fallback — when a caller omits requiredKeyUsages, that would
+// hand effectiveSelectedKeyUsages a new array identity every render, which
+// keeps the pagination-reset effect below perpetually "dirty" and loops
+// setState calls into "Maximum update depth exceeded". A stable module-level
+// reference fixes it for any caller that doesn't pass the prop.
+const EMPTY_KEY_USAGES: readonly KeyUsageOption[] = [];
 
 function flattenCaOptions(cas: CA[]): CA[] {
   const options: CA[] = [];
@@ -135,7 +141,7 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   onCertificateSelected,
   currentSelectedCertificateId,
   limitToCAs,
-  requiredKeyUsages = emptyRequiredKeyUsages,
+  requiredKeyUsages = EMPTY_KEY_USAGES,
   includeCaCertificates = false,
 }) => {
   const [availableCerts, setAvailableCerts] = useState<CertificateData[]>([]);
@@ -188,10 +194,8 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
   // Reset pagination when filters or page size change, or when modal opens
   useEffect(() => {
     if (isOpen) { // Only reset if modal is opening or filters change while open
-      setCurrentPageIndex((currentIndex) => currentIndex === 0 ? currentIndex : 0);
-      setBookmarkStack((currentStack) => (
-        currentStack.length === 1 && currentStack[0] === null ? currentStack : [null]
-      ));
+      setCurrentPageIndex(0);
+      setBookmarkStack([null]);
     }
   }, [
     pageSize,
@@ -291,7 +295,6 @@ export const CertificateSelectorModal: React.FC<CertificateSelectorModalProps> =
     selectedCa,
     selectedCaId,
     caOptions.length,
-    includeCaCertificates,
   ]);
 
   useEffect(() => {

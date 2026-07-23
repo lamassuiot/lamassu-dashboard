@@ -46,6 +46,131 @@ export interface ApiRaCmpClientCertSettings {
     chain_level_validation: number;
     allow_expired: boolean;
 }
+// --- CMP per-operation settings (RFC 9483) ---
+// Mirrors core/pkg/models/dms_cmp_operations.go 1:1 (field names, enum values,
+// nesting). The backend's own ResolveCMPSettings normalizes/defaults these on
+// create/update; see that file's doc comments for exactly which fields are
+// LIVE (enforced) vs persisted-only. As of this schema landing, only two
+// bridges are live: server_key_gen_enabled (OR'd with ir/cr central_key_
+// generation.enabled) and the four kur fields already covered by
+// ApiRaReEnrollmentSettings (renewal_window/allow_expired_certificate/
+// additional_validation_ca_ids/revoke_superseded_certificate). Everything
+// else here persists and round-trips but is not yet read by the CMP protocol
+// handlers.
+export type CmpOpRegistrationMode = 'inherit' | 'jitp' | 'pre_registration';
+export type CmpExistingDevicePolicy = 'reject' | 'replace';
+export type CmpIdentitySource = 'subject_only' | 'subject_or_san';
+export type CmpPopoMethod = 'signature' | 'trusted_ra' | 'challenge_response' | 'encrypted_certificate';
+export type CmpCkgRecipientMethod = 'rsa_key_transport' | 'ecdh_key_agreement';
+export type CmpControlMode = 'disabled' | 'optional' | 'required';
+export type CmpCertificateBehavior = 'additional' | 'replace';
+export type CmpKeyPolicy = 'require_new_key' | 'permit_reuse';
+export type CmpIdentityChangePolicy = 'forbid' | 'san_only' | 'subject_and_san';
+export type CmpRevocationAuthorization = 'self_only' | 'self_and_trusted_ra';
+export type CmpRevocationReason = 'unspecified' | 'key_compromise' | 'ca_compromise' | 'affiliation_changed' | 'superseded' | 'cessation_of_operation';
+export type CmpGenmAccessPolicy = 'public_discovery' | 'require_signed';
+export type CmpCcrWorkflow = 'direct' | 'administrator_approval';
+export type CmpInheritableWorkflow = 'inherit' | 'direct' | 'phased';
+export type CmpInheritableConfirmation = 'inherit' | 'implicit' | 'explicit';
+
+export interface CmpProofOfPossession {
+    required: boolean;
+    allowed_methods: CmpPopoMethod[];
+}
+export interface CmpCentralKeyGeneration {
+    enabled: boolean;
+    allowed_recipient_methods: CmpCkgRecipientMethod[];
+}
+export interface CmpControl {
+    mode: CmpControlMode;
+}
+export interface CmpPolicyOverrides {
+    workflow: CmpInheritableWorkflow;
+    confirmation: CmpInheritableConfirmation;
+    issuance_profile_id: string | null;
+}
+export interface CmpSubjectConstraints {
+    allowed_dn_patterns: string[];
+    allowed_dns_suffixes: string[];
+}
+export interface CmpTrustedRa {
+    validation_ca_ids: string[];
+    require_cmc_ra_eku: boolean;
+}
+export interface CmpIrSettings {
+    enabled: boolean;
+    registration_mode: CmpOpRegistrationMode;
+    existing_device_policy: CmpExistingDevicePolicy;
+    identity_source: CmpIdentitySource;
+    proof_of_possession: CmpProofOfPossession;
+    registration_token: CmpControl;
+    authenticator_control: CmpControl;
+    central_key_generation: CmpCentralKeyGeneration;
+    policy_overrides: CmpPolicyOverrides;
+}
+export interface CmpCrSettings {
+    enabled: boolean;
+    require_existing_device: boolean;
+    certificate_behavior: CmpCertificateBehavior;
+    maximum_active_certificates: number;
+    allowed_profile_ids: string[];
+    proof_of_possession: CmpProofOfPossession;
+    central_key_generation: CmpCentralKeyGeneration;
+    policy_overrides: CmpPolicyOverrides;
+}
+export interface CmpP10crSettings {
+    enabled: boolean;
+    registration_mode: CmpOpRegistrationMode;
+    existing_device_policy: CmpExistingDevicePolicy;
+    allowed_profile_ids: string[];
+    policy_overrides: CmpPolicyOverrides;
+}
+export interface CmpKurSettings {
+    enabled: boolean;
+    renewal_window: string;
+    allow_expired_certificate: boolean;
+    additional_validation_ca_ids: string[];
+    key_policy: CmpKeyPolicy;
+    identity_change_policy: CmpIdentityChangePolicy;
+    revoke_superseded_certificate: boolean;
+    policy_overrides: CmpPolicyOverrides;
+}
+export interface CmpRrSettings {
+    enabled: boolean;
+    authorization: CmpRevocationAuthorization;
+    allow_revival: boolean;
+    allow_expired_target: boolean;
+    allowed_reasons: CmpRevocationReason[];
+    trusted_ra: CmpTrustedRa;
+}
+export interface CmpGenmInformationTypes {
+    ca_certificates: boolean;
+    signing_key_types: boolean;
+    encryption_key_types: boolean;
+    preferred_symmetric_algorithm: boolean;
+    supported_languages: boolean;
+    root_ca_update: boolean;
+    certificate_request_template: boolean;
+    current_crl: boolean;
+    crl_update: boolean;
+    protocol_encryption_certificate: boolean;
+}
+export interface CmpGenmSettings {
+    enabled: boolean;
+    access_policy: CmpGenmAccessPolicy;
+    information_types: CmpGenmInformationTypes;
+}
+export interface CmpCcrSettings {
+    enabled: boolean;
+    trusted_requester_ca_ids: string[];
+    require_ca_certificate: boolean;
+    require_proof_of_possession: boolean;
+    issuance_profile_id: string;
+    maximum_validity: string;
+    subject_constraints: CmpSubjectConstraints;
+    workflow: CmpCcrWorkflow;
+}
+
 export interface ApiRaCmpSettings {
     // When true, the server skips the certConf round-trip if the EE asks for
     // implicit confirmation (id-it-implicitConfirm in generalInfo). When false
@@ -78,6 +203,17 @@ export interface ApiRaCmpSettings {
     // 'direct' (synchronous issuance) or 'phased' (admin-approved issuance).
     // Empty/absent is treated as 'direct'.
     workflow?: string;
+    // Per-operation settings (RFC 9483 message types). See the block above —
+    // mostly persisted-only today; ir/cr central_key_generation.enabled bridges
+    // to server_key_gen_enabled above, and kur's renewal fields bridge to
+    // ApiRaReEnrollmentSettings.
+    ir?: CmpIrSettings;
+    cr?: CmpCrSettings;
+    p10cr?: CmpP10crSettings;
+    kur?: CmpKurSettings;
+    rr?: CmpRrSettings;
+    genm?: CmpGenmSettings;
+    ccr?: CmpCcrSettings;
 }
 export interface ApiRaEnrollmentSettings {
     registration_mode: string;
