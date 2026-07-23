@@ -16,18 +16,29 @@ import { RfcLink } from '@/components/shared/RfcLink';
 import type {
   CmpIrSettings, CmpCrSettings, CmpP10crSettings, CmpRrSettings, CmpCcrSettings,
   CmpKeyPolicy, CmpIdentityChangePolicy, CmpGenmAccessPolicy, CmpGenmInformationTypes,
-  CmpPopoMethod, CmpRevocationReason,
+  CmpPopoMethod, CmpRevocationReason, CmpPolicyOverrides,
 } from '@/lib/dms-api';
 
 // Phase 2 of the CMP settings redesign: the backend now has a nested
 // per-operation schema (core/pkg/models/dms_cmp_operations.go) that persists
 // and round-trips through the DMS API 1:1 with these controls — so every
-// field here is bound to real state and actually saved. What is NOT yet true
-// is enforcement: per the backend's own doc comments, only two bridges are
-// live (central_key_generation.enabled, and kur's renewal/expiry/validation-CA/
-// revoke-on-supersede fields). Every other control below is saved but not yet
-// read by the CMP protocol handlers — the "Planned" marker now specifically
-// means "enforcement is planned", not "this isn't saved".
+// field here is bound to real state and actually saved.
+//
+// CORRECTION (post manual protocol-conformance audit, openssl cmp against a
+// live server): the "Planned" badge below was originally meant to flag fields
+// the backend saves but doesn't yet enforce. That premise turned out to be
+// wrong for most of this file — registration_mode, existing_device_policy,
+// proof_of_possession.allowed_methods/required, cr's require_existing_device/
+// certificate_behavior/maximum_active_certificates, kur's key_policy/
+// identity_change_policy, rr's authorization/allow_revival/allow_expired_target/
+// allowed_reasons/trusted_ra.require_cmc_ra_eku, and nearly all of ccr are ALL
+// live-enforced (see the backend model file's header for the current, accurate
+// exception list). The "Planned" badges throughout this file are therefore
+// stale and should be removed in a dedicated follow-up pass — deliberately not
+// done here since it's a user-visible copy change across many fields, not a
+// single bug fix. Only central_key_generation.enabled and the
+// "Workflow & confirmation overrides" section (policy_overrides.*) were
+// already un-badged, correctly.
 
 function PlannedBadge() {
   return (
@@ -228,6 +239,13 @@ function OperationHeader({ eyebrow, title, description }: { eyebrow: string; tit
   );
 }
 
+// Minimal shape the issuance-profile override picker needs. ApiSigningProfile
+// (what the RA form loads) is structurally assignable to this.
+interface ProfileOption {
+  id: string;
+  name: string;
+}
+
 interface CmpPlannedOperationTabsProps {
   ir: CmpIrSettings;
   onIrChange: (patch: Partial<CmpIrSettings>) => void;
@@ -239,23 +257,31 @@ interface CmpPlannedOperationTabsProps {
   onRrChange: (patch: Partial<CmpRrSettings>) => void;
   ccr: CmpCcrSettings;
   onCcrChange: (patch: Partial<CmpCcrSettings>) => void;
+  // Issuance profiles selectable as a per-operation profile pin. Empty is fine
+  // — the picker still offers "Inherit DMS default".
+  availableProfiles?: ProfileOption[];
 }
 
 export function CmpPlannedOperationTabs({
   ir, onIrChange, cr, onCrChange, p10cr, onP10crChange, rr, onRrChange, ccr, onCcrChange,
+  availableProfiles = [],
 }: CmpPlannedOperationTabsProps) {
+  // These three overrides are LIVE (enforced by the backend for ir/cr):
+  // workflow → EffectiveWorkflow, confirmation → EffectiveAcceptImplicit, and
+  // issuance profile → resolveCMPIssuanceProfile. Hence no "Planned" badge.
   const policyOverrides = (
-    workflow: CmpIrSettings['policy_overrides']['workflow'],
-    confirmation: CmpIrSettings['policy_overrides']['confirmation'],
-    onChange: (patch: Partial<CmpIrSettings['policy_overrides']>) => void,
+    workflow: CmpPolicyOverrides['workflow'],
+    confirmation: CmpPolicyOverrides['confirmation'],
+    issuanceProfileId: CmpPolicyOverrides['issuance_profile_id'],
+    onChange: (patch: Partial<CmpPolicyOverrides>) => void,
   ) => (
-    <div className="space-y-4 rounded-md border border-dashed p-4">
-      <SectionHeader title="Workflow & confirmation overrides">
+    <div className="space-y-4 rounded-md border p-4">
+      <SectionHeader title="Workflow & confirmation overrides" badge={false}>
         Override the DMS-wide defaults from the General tab for just this operation.
       </SectionHeader>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <PlannedRow label="Workflow">
-          <Select value={workflow} onValueChange={(v: CmpIrSettings['policy_overrides']['workflow']) => onChange({ workflow: v })}>
+          <Select value={workflow} onValueChange={(v: CmpPolicyOverrides['workflow']) => onChange({ workflow: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="inherit">Inherit DMS default</SelectItem>
@@ -265,12 +291,26 @@ export function CmpPlannedOperationTabs({
           </Select>
         </PlannedRow>
         <PlannedRow label="Confirmation">
-          <Select value={confirmation} onValueChange={(v: CmpIrSettings['policy_overrides']['confirmation']) => onChange({ confirmation: v })}>
+          <Select value={confirmation} onValueChange={(v: CmpPolicyOverrides['confirmation']) => onChange({ confirmation: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="inherit">Inherit DMS default</SelectItem>
               <SelectItem value="explicit">Explicit</SelectItem>
               <SelectItem value="implicit">Implicit</SelectItem>
+            </SelectContent>
+          </Select>
+        </PlannedRow>
+        <PlannedRow label="Issuance profile" description="Pin a specific issuance profile for this operation instead of the DMS enrollment CA's default.">
+          <Select
+            value={issuanceProfileId ?? 'inherit'}
+            onValueChange={(v) => onChange({ issuance_profile_id: v === 'inherit' ? null : v })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">Inherit DMS default</SelectItem>
+              {availableProfiles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </PlannedRow>
@@ -359,7 +399,7 @@ export function CmpPlannedOperationTabs({
                       configuration — this control governs whether the CA <em>requires</em> one, not the token values themselves.
                     </AlertDescription>
                   </Alert>
-                  {policyOverrides(ir.policy_overrides.workflow, ir.policy_overrides.confirmation, (patch) => onIrChange({ policy_overrides: { ...ir.policy_overrides, ...patch } }))}
+                  {policyOverrides(ir.policy_overrides.workflow, ir.policy_overrides.confirmation, ir.policy_overrides.issuance_profile_id, (patch) => onIrChange({ policy_overrides: { ...ir.policy_overrides, ...patch } }))}
                 </>
               ),
             },
@@ -397,7 +437,7 @@ export function CmpPlannedOperationTabs({
                       onToggle={(v) => onCrChange({ proof_of_possession: { ...cr.proof_of_possession, allowed_methods: toggleValue(cr.proof_of_possession.allowed_methods, v) } })}
                     />
                   </PlannedRow>
-                  {policyOverrides(cr.policy_overrides.workflow, cr.policy_overrides.confirmation, (patch) => onCrChange({ policy_overrides: { ...cr.policy_overrides, ...patch } }))}
+                  {policyOverrides(cr.policy_overrides.workflow, cr.policy_overrides.confirmation, cr.policy_overrides.issuance_profile_id, (patch) => onCrChange({ policy_overrides: { ...cr.policy_overrides, ...patch } }))}
                 </>
               ),
             },
