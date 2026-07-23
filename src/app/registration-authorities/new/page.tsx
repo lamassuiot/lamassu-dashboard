@@ -15,11 +15,16 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, ChevronsUpDown, PlusCircle, Settings, Server, AlertTriangle, Loader2, X, ShieldCheck, FileText } from "lucide-react";
 import type { CA } from '@/lib/ca-data';
-import { fetchAndProcessCAs, findCaById, fetchSigningProfiles, type ApiSigningProfile } from '@/lib/ca-data';
+import {
+  fetchAndProcessCAs, findCaById, fetchSigningProfiles, createCertificate,
+  type ApiSigningProfile, type CreateCertificateKeySpec, type CreateCertificatePayload,
+} from '@/lib/ca-data';
 import { fetchCryptoEngines } from '@/lib/kms-data';
+import { useAuth } from '@/contexts/AuthContext';
 import { CaVisualizerCard } from '@/components/CaVisualizerCard';
 import { CaSelectorModal } from '@/components/shared/CaSelectorModal';
 import { CertificateSelectorModal } from '@/components/shared/CertificateSelectorModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { TagInput } from '@/components/shared/TagInput';
@@ -27,12 +32,19 @@ import { DeviceIconSelectorModal, getLucideIconByName } from '@/components/share
 import type { ApiCryptoEngine } from '@/types/crypto-engine';
 import { sileo } from '@/lib/toast';
 import { DurationInput } from '@/components/shared/DurationInput';
-import { createOrUpdateRa, fetchRaById, type ApiRaCmpSettings, type ApiRaEstSettings, type ApiRaItem, type RaCreationPayload } from '@/lib/dms-api';
+import {
+  createOrUpdateRa, fetchRaById,
+  type ApiRaCmpSettings, type ApiRaEstSettings, type ApiRaItem, type RaCreationPayload,
+  type CmpIrSettings, type CmpCrSettings, type CmpP10crSettings, type CmpRrSettings, type CmpCcrSettings,
+  type CmpKeyPolicy, type CmpIdentityChangePolicy, type CmpGenmAccessPolicy, type CmpGenmInformationTypes,
+} from '@/lib/dms-api';
 import { fetchIssuedCertificate } from '@/lib/issued-certificate-data';
 import type { CertificateData } from '@/types/certificate';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CardSelector } from '@/components/shared/CardSelector';
+import { LateralSectionTabs } from '@/components/shared/LateralSectionTabs';
+import { RfcLink } from '@/components/shared/RfcLink';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Form } from '@/components/ui/form';
 import {
@@ -43,6 +55,7 @@ import {
 } from '@/components/shared/SigningProfileForm';
 import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
 import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
+import { CmpPlannedOperationTabs, CmpKurPlannedPolicy, CmpGenmPlannedCapabilities } from '@/components/ra/CmpPlannedOperationTabs';
 import {
   buildInlineIssuanceProfile,
   createDefaultEstAuthSettings,
@@ -63,6 +76,21 @@ const raSettingsTabs: Array<{ value: RaSettingsTab; label: string }> = [
   { value: 'reenrollment', label: 'Re-Enrollment Settings' },
   { value: 'server-key-generation', label: 'Server Key Generation' },
   { value: 'ca-distribution', label: 'CA Distribution' },
+];
+// CMP exposes configuration per RFC 9483 message type rather than EST's four
+// generic sections. Each tab maps to a CMP request/response operation. IR, CR,
+// and P10CR share the "Enrollment" tab as clickable subsections (see
+// CmpPlannedOperationTabs) since all three answer "how does a device get a
+// certificate?", each with its own independent settings.
+type CmpSettingsTab = 'general' | 'ckg' | 'enrollment' | 'kur' | 'rr' | 'genm' | 'ccr';
+const cmpSettingsTabs: Array<{ value: CmpSettingsTab; label: string }> = [
+  { value: 'general', label: 'General' },
+  { value: 'ckg', label: 'Central Key Generation' },
+  { value: 'enrollment', label: 'Enrollment (IR / CR / P10CR)' },
+  { value: 'kur', label: 'Key Update (KUR/KUP)' },
+  { value: 'rr', label: 'Revocation (RR/RP)' },
+  { value: 'genm', label: 'General Messages (GENM/GENP)' },
+  { value: 'ccr', label: 'Cross-Certification (CCR/CCP)' },
 ];
 const protocolOptions = [
   {
@@ -116,6 +144,81 @@ const inlineProfileDefaultValues: SigningProfileFormValues = {
   profileName: 'Inline Profile',
 };
 
+// Default factories for the CMP per-operation schema, mirroring the backend's
+// own defaulting (core/pkg/models/dms_cmp_settings.go resolveIR/resolveCR/...)
+// so a brand-new CMP RA starts pre-populated exactly as ResolveCMPSettings
+// would leave it after its first save.
+function createDefaultCmpIr(): CmpIrSettings {
+  return {
+    enabled: true,
+    registration_mode: 'inherit',
+    existing_device_policy: 'reject',
+    identity_source: 'subject_or_san',
+    proof_of_possession: { required: true, allowed_methods: ['signature', 'trusted_ra'] },
+    registration_token: { mode: 'disabled' },
+    authenticator_control: { mode: 'disabled' },
+    central_key_generation: { enabled: false, allowed_recipient_methods: ['rsa_key_transport', 'ecdh_key_agreement'] },
+    policy_overrides: { workflow: 'inherit', confirmation: 'inherit', issuance_profile_id: null },
+  };
+}
+function createDefaultCmpCr(): CmpCrSettings {
+  return {
+    enabled: true,
+    require_existing_device: true,
+    certificate_behavior: 'additional',
+    maximum_active_certificates: 2,
+    allowed_profile_ids: [],
+    proof_of_possession: { required: true, allowed_methods: ['signature', 'trusted_ra'] },
+    central_key_generation: { enabled: false, allowed_recipient_methods: ['rsa_key_transport', 'ecdh_key_agreement'] },
+    policy_overrides: { workflow: 'inherit', confirmation: 'inherit', issuance_profile_id: null },
+  };
+}
+function createDefaultCmpP10cr(): CmpP10crSettings {
+  return {
+    enabled: false,
+    registration_mode: 'inherit',
+    existing_device_policy: 'reject',
+    allowed_profile_ids: [],
+    policy_overrides: { workflow: 'inherit', confirmation: 'inherit', issuance_profile_id: null },
+  };
+}
+function createDefaultCmpRr(): CmpRrSettings {
+  return {
+    enabled: true,
+    authorization: 'self_only',
+    allow_revival: false,
+    allow_expired_target: true,
+    allowed_reasons: ['unspecified', 'key_compromise', 'cessation_of_operation', 'superseded'],
+    trusted_ra: { validation_ca_ids: [], require_cmc_ra_eku: true },
+  };
+}
+function createDefaultCmpGenmInformationTypes(): CmpGenmInformationTypes {
+  return {
+    ca_certificates: true,
+    signing_key_types: true,
+    encryption_key_types: true,
+    preferred_symmetric_algorithm: true,
+    supported_languages: true,
+    root_ca_update: false,
+    certificate_request_template: false,
+    current_crl: false,
+    crl_update: false,
+    protocol_encryption_certificate: false,
+  };
+}
+function createDefaultCmpCcr(): CmpCcrSettings {
+  return {
+    enabled: false,
+    trusted_requester_ca_ids: [],
+    require_ca_certificate: true,
+    require_proof_of_possession: true,
+    issuance_profile_id: '',
+    maximum_validity: '8760h',
+    subject_constraints: { allowed_dn_patterns: [], allowed_dns_suffixes: [] },
+    workflow: 'administrator_approval',
+  };
+}
+
 
 function hslToHex(h: number, s: number, l: number) {
   l /= 100;
@@ -131,6 +234,7 @@ function hslToHex(h: number, s: number, l: number) {
 export default function CreateOrEditRegistrationAuthorityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   
   const raIdFromQuery = searchParams.get('raId');
   const isEditMode = !!raIdFromQuery;
@@ -170,6 +274,32 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [cmpWorkflow, setCmpWorkflow] = useState('direct');
   const [isCmpProtectionCertificateModalOpen, setIsCmpProtectionCertificateModalOpen] = useState(false);
 
+  // "Issue a new one" shortcut for the protection certificate — a
+  // protection_certificate's key must live in the KMS (the DMS signs
+  // responses with it), so this generates the key server-side via
+  // createCertificate's key_spec, not a client-side CSR like the CMP
+  // enroll modal's bootstrap signer.
+  const [isIssueProtectionCertDialogOpen, setIsIssueProtectionCertDialogOpen] = useState(false);
+  const [protectionCertCn, setProtectionCertCn] = useState('');
+  const [protectionCertKeyType, setProtectionCertKeyType] = useState('RSA');
+  const [protectionCertKeySpec, setProtectionCertKeySpec] = useState('2048');
+  const [isIssuingProtectionCert, setIsIssuingProtectionCert] = useState(false);
+
+  // CMP per-operation settings (RFC 9483 message types). The backend's nested
+  // schema (core/pkg/models/dms_cmp_operations.go) persists and round-trips
+  // these; kur's renewal fields and genm's CA-distribution are covered by
+  // already-existing state below (reenrollment_settings / ca_distribution_settings)
+  // and only bridge into ir/cr/kur.central_key_generation and kur.* at submit time.
+  const [cmpIr, setCmpIr] = useState<CmpIrSettings>(createDefaultCmpIr);
+  const [cmpCr, setCmpCr] = useState<CmpCrSettings>(createDefaultCmpCr);
+  const [cmpP10cr, setCmpP10cr] = useState<CmpP10crSettings>(createDefaultCmpP10cr);
+  const [cmpKurKeyPolicy, setCmpKurKeyPolicy] = useState<CmpKeyPolicy>('require_new_key');
+  const [cmpKurIdentityChangePolicy, setCmpKurIdentityChangePolicy] = useState<CmpIdentityChangePolicy>('forbid');
+  const [cmpRr, setCmpRr] = useState<CmpRrSettings>(createDefaultCmpRr);
+  const [cmpGenmAccessPolicy, setCmpGenmAccessPolicy] = useState<CmpGenmAccessPolicy>('public_discovery');
+  const [cmpGenmInformationTypes, setCmpGenmInformationTypes] = useState<CmpGenmInformationTypes>(createDefaultCmpGenmInformationTypes);
+  const [cmpCcr, setCmpCcr] = useState<CmpCcrSettings>(createDefaultCmpCcr);
+
   const [revokeOnReEnroll, setRevokeOnReEnroll] = useState(true);
   const [allowExpiredRenewal, setAllowExpiredRenewal] = useState(true);
   const [allowedRenewalDelta, setAllowedRenewalDelta] = useState('100d');
@@ -186,6 +316,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
   const [selectedDeviceIconColor, setSelectedDeviceIconColor] = useState<string>('#0f67ff');
   const [selectedDeviceIconBgColor, setSelectedDeviceIconBgColor] = useState<string>('#F0F8FF');
   const [activeRaSettingsTab, setActiveRaSettingsTab] = useState<RaSettingsTab>('enrollment');
+  const [activeCmpTab, setActiveCmpTab] = useState<CmpSettingsTab>('general');
   
   // Modal and Data Loading State
   const [isDeviceIconModalOpen, setIsDeviceIconModalOpen] = useState(false);
@@ -351,6 +482,18 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             setCmpServerKeyGenEnabled(cmpSettings.server_key_gen_enabled ?? false);
             setCmpWorkflow(cmpSettings.workflow || 'direct');
             void hydrateProtectionCertificate(cmpSettings.protection_certificate);
+
+            // Per-operation settings — fall back to defaults for RAs saved
+            // before this schema existed (fields absent from the response).
+            setCmpIr(cmpSettings.ir ?? createDefaultCmpIr());
+            setCmpCr(cmpSettings.cr ?? createDefaultCmpCr());
+            setCmpP10cr(cmpSettings.p10cr ?? createDefaultCmpP10cr());
+            setCmpKurKeyPolicy(cmpSettings.kur?.key_policy ?? 'require_new_key');
+            setCmpKurIdentityChangePolicy(cmpSettings.kur?.identity_change_policy ?? 'forbid');
+            setCmpRr(cmpSettings.rr ?? createDefaultCmpRr());
+            setCmpGenmAccessPolicy(cmpSettings.genm?.access_policy ?? 'public_discovery');
+            setCmpGenmInformationTypes(cmpSettings.genm?.information_types ?? createDefaultCmpGenmInformationTypes());
+            setCmpCcr(cmpSettings.ccr ?? createDefaultCmpCcr());
         } else {
             void hydrateProtectionCertificate(undefined);
         }
@@ -392,7 +535,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         setAllowedRenewalDelta(reenrollment_settings.reenrollment_delta);
         setPreventiveRenewalDelta(reenrollment_settings.preventive_delta);
         setCriticalRenewalDelta(reenrollment_settings.critical_delta);
-        setAdditionalValidationCAs(reenrollment_settings.additional_validation_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
+        setAdditionalValidationCAs((reenrollment_settings.additional_validation_cas ?? []).map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
 
         setEnableKeyGeneration(server_keygen_settings.enabled);
         if (server_keygen_settings.enabled && server_keygen_settings.key) {
@@ -405,7 +548,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         setIncludeEnrollmentCA(ca_distribution_settings.include_enrollment_ca);
         setIncludeDownstreamCA(ca_distribution_settings.include_system_ca);
-        setManagedCAs(ca_distribution_settings.managed_cas.map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
+        setManagedCAs((ca_distribution_settings.managed_cas ?? []).map(id => findCaById(id, availableCAsForSelection)).filter(Boolean) as CA[]);
 
         return () => {
             isCancelled = true;
@@ -496,6 +639,30 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             enforce_popo: cmpEnforcePopo,
             server_key_gen_enabled: cmpServerKeyGenEnabled,
             workflow: cmpWorkflow,
+            ir: cmpIr,
+            cr: cmpCr,
+            p10cr: cmpP10cr,
+            // renewal_window/allow_expired_certificate/additional_validation_ca_ids/
+            // revoke_superseded_certificate mirror the already-live reenrollment_settings
+            // fields below — the backend's ResolveCMPSettings bridges the two, but we
+            // send them consistent from the start rather than relying on that alone.
+            kur: {
+              enabled: true,
+              renewal_window: allowedRenewalDelta,
+              allow_expired_certificate: allowExpiredRenewal,
+              additional_validation_ca_ids: additionalValidationCAs.map(ca => ca.id),
+              key_policy: cmpKurKeyPolicy,
+              identity_change_policy: cmpKurIdentityChangePolicy,
+              revoke_superseded_certificate: revokeOnReEnroll,
+              policy_overrides: { workflow: 'inherit', confirmation: 'inherit', issuance_profile_id: null },
+            },
+            rr: cmpRr,
+            genm: {
+              enabled: true,
+              access_policy: cmpGenmAccessPolicy,
+              information_types: cmpGenmInformationTypes,
+            },
+            ccr: cmpCcr,
           },
           effectiveCmpAuthSettings,
         )
@@ -586,6 +753,64 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     setManagedCAs(prev => prev.filter(mca => mca.id !== caId));
   };
 
+  const handleOpenIssueProtectionCertDialog = () => {
+    setProtectionCertCn(`${raId.trim() || 'dms'}-cmp-protection`);
+    setProtectionCertKeyType('RSA');
+    setProtectionCertKeySpec('2048');
+    setIsIssueProtectionCertDialogOpen(true);
+  };
+
+  const handleIssueProtectionCertificate = async () => {
+    if (!enrollmentCa) {
+      sileo.error({ title: "Validation Error", description: "Select an Enrollment CA first." });
+      return;
+    }
+    if (!protectionCertCn.trim()) {
+      sileo.error({ title: "Common Name Required" });
+      return;
+    }
+    const accessToken = user?.access_token;
+    if (!accessToken) {
+      sileo.error({ title: "Not Authenticated", description: "Sign in again to issue a certificate." });
+      return;
+    }
+
+    setIsIssuingProtectionCert(true);
+    try {
+      const keySpec: CreateCertificateKeySpec = protectionCertKeyType === 'RSA'
+        ? { type: 'RSA', bits: Number.parseInt(protectionCertKeySpec, 10) }
+        : { type: 'ECDSA', bits: { 'P-256': 256, 'P-384': 384, 'P-521': 521 }[protectionCertKeySpec] || 256 };
+      const payload: CreateCertificatePayload = {
+        ca_id: enrollmentCa.id,
+        key_spec: keySpec,
+        subject: { common_name: protectionCertCn.trim() },
+        issuance_profile: {
+          validity: { type: 'Duration', duration: '5y' },
+          sign_as_ca: false,
+          honor_key_usage: false,
+          key_usage: ['DigitalSignature'],
+          honor_extended_key_usages: false,
+          extended_key_usages: [],
+        },
+      };
+      const result = await createCertificate(payload, accessToken);
+      const serial: string | undefined = result.serial_number;
+      if (!serial) throw new Error('Certificate issued but no serial number was returned.');
+
+      setCmpProtectionCertificateId(serial);
+      try {
+        setCmpProtectionCertificate(await fetchIssuedCertificate(serial));
+      } catch {
+        setCmpProtectionCertificate(null);
+      }
+      setIsIssueProtectionCertDialogOpen(false);
+      sileo.success({ title: "Protection Certificate Issued" });
+    } catch (err: any) {
+      sileo.error({ title: "Failed to Issue Certificate", description: err.message });
+    } finally {
+      setIsIssuingProtectionCert(false);
+    }
+  };
 
   const currentServerKeygenSpecOptions = serverKeygenType === 'RSA' ? serverKeygenRsaBits : serverKeygenEcdsaCurves;
 
@@ -604,6 +829,95 @@ export default function CreateOrEditRegistrationAuthorityPage() {
     authModeLabels[activeEnrollmentAuthSettings.auth_mode],
   ];
   const SelectedDeviceIcon = getLucideIconByName(selectedDeviceIconName);
+
+  // Shared by EST's "Enrollment Settings" tab and CMP's "General" tab: the
+  // enrollment CA picker plus the default/existing/inline issuance profile
+  // selector. Hoisted to avoid duplicating this intricate block across the two
+  // protocol-specific tab sets.
+  const enrollmentCaProfileSection = (
+    <div className="space-y-1.5">
+      <Label htmlFor="enrollmentCa">Enrollment CA</Label>
+      <button
+        id="enrollmentCa"
+        type="button"
+        onClick={() => setIsEnrollmentCaModalOpen(true)}
+        disabled={isLoadingDependencies}
+        className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className={enrollmentCa ? "text-foreground" : "text-muted-foreground"}>
+          {isLoadingDependencies ? <Loader2 className="h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
+        </span>
+        <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+      {enrollmentCa && (
+        <div className="space-y-3">
+          <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="issuanceProfileMode">Issuance Profile</Label>
+              <Select
+                value={issuanceProfileMode}
+                onValueChange={(mode: 'default' | 'existing' | 'inline') => {
+                  setIssuanceProfileMode(mode);
+                  if (mode !== 'existing') setIssuanceProfileId(null);
+                }}
+              >
+                <SelectTrigger id="issuanceProfileMode"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Use Enrollment CA Default</SelectItem>
+                  <SelectItem value="existing">Use Existing Profile</SelectItem>
+                  <SelectItem value="inline">Define Inline Profile</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {issuanceProfileMode === 'existing' ? (
+              <div className="space-y-3">
+                <Select value={issuanceProfileId || ''} onValueChange={setIssuanceProfileId}>
+                  <SelectTrigger><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
+                  <SelectContent>
+                    {availableProfiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedProfileForDisplay ? <IssuanceProfileCard profile={selectedProfileForDisplay} /> : null}
+              </div>
+            ) : null}
+
+            {issuanceProfileMode === 'default' ? (
+              <div className="space-y-2">
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Enrollment CA default</AlertTitle>
+                  <AlertDescription>The RA will resolve the Enrollment CA&apos;s current default profile when issuing a certificate.</AlertDescription>
+                </Alert>
+                {enrollmentCaDefaultProfile ? <IssuanceProfileCard profile={enrollmentCaDefaultProfile} /> : (
+                  <p className="text-sm text-muted-foreground">The selected Enrollment CA does not currently have a default profile.</p>
+                )}
+              </div>
+            ) : null}
+
+            {issuanceProfileMode === 'inline' ? (
+              <Form {...inlineProfileForm}>
+                <div className="space-y-4 rounded-md border p-4">
+                  <div>
+                    <p className="text-sm font-medium">Inline profile</p>
+                    <p className="mt-1 text-xs text-muted-foreground">This profile is stored directly on the RA and is not added to the reusable profile list.</p>
+                  </div>
+                  <SigningProfileForm
+                    form={inlineProfileForm}
+                    compact
+                    hideBasicInformation
+                  />
+                </div>
+              </Form>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const formContent = (
     <>
@@ -776,6 +1090,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
         <Separator />
 
+        {protocol === 'EST' && (
         <Tabs value={activeRaSettingsTab} onValueChange={(value) => setActiveRaSettingsTab(value as RaSettingsTab)} className="w-full">
           <div className="border-b bg-primary/5 overflow-x-auto overflow-y-hidden">
             <TabsList className={pageTabsListClass}>
@@ -794,88 +1109,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                 <p className="text-sm text-muted-foreground mt-1">Control issuance policy, enrollment authentication, and CSR handling for new certificates.</p>
               </div>
               <div className="space-y-4 lg:col-span-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="enrollmentCa">Enrollment CA</Label>
-                  <button
-                    id="enrollmentCa"
-                    type="button"
-                    onClick={() => setIsEnrollmentCaModalOpen(true)}
-                    disabled={isLoadingDependencies}
-                    className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span className={enrollmentCa ? "text-foreground" : "text-muted-foreground"}>
-                      {isLoadingDependencies ? <Loader2 className="h-4 w-4 animate-spin" /> : enrollmentCa ? enrollmentCa.name : "Select Enrollment CA..."}
-                    </span>
-                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </button>
-                  {enrollmentCa && (
-                    <div className="space-y-3">
-                      <CaVisualizerCard ca={enrollmentCa} className="shadow-none border-border" allCryptoEngines={allCryptoEngines} />
-                      <div className="space-y-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="issuanceProfileMode">Issuance Profile</Label>
-                          <Select
-                            value={issuanceProfileMode}
-                            onValueChange={(mode: 'default' | 'existing' | 'inline') => {
-                              setIssuanceProfileMode(mode);
-                              if (mode !== 'existing') setIssuanceProfileId(null);
-                            }}
-                          >
-                            <SelectTrigger id="issuanceProfileMode"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="default">Use Enrollment CA Default</SelectItem>
-                              <SelectItem value="existing">Use Existing Profile</SelectItem>
-                              <SelectItem value="inline">Define Inline Profile</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {issuanceProfileMode === 'existing' ? (
-                          <div className="space-y-3">
-                            <Select value={issuanceProfileId || ''} onValueChange={setIssuanceProfileId}>
-                              <SelectTrigger><SelectValue placeholder="Select an issuance profile..." /></SelectTrigger>
-                              <SelectContent>
-                                {availableProfiles.map((profile) => (
-                                  <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {selectedProfileForDisplay ? <IssuanceProfileCard profile={selectedProfileForDisplay} /> : null}
-                          </div>
-                        ) : null}
-
-                        {issuanceProfileMode === 'default' ? (
-                          <div className="space-y-2">
-                            <Alert>
-                              <AlertTriangle className="h-4 w-4" />
-                              <AlertTitle>Enrollment CA default</AlertTitle>
-                              <AlertDescription>The RA will resolve the Enrollment CA&apos;s current default profile when issuing a certificate.</AlertDescription>
-                            </Alert>
-                            {enrollmentCaDefaultProfile ? <IssuanceProfileCard profile={enrollmentCaDefaultProfile} /> : (
-                              <p className="text-sm text-muted-foreground">The selected Enrollment CA does not currently have a default profile.</p>
-                            )}
-                          </div>
-                        ) : null}
-
-                        {issuanceProfileMode === 'inline' ? (
-                          <Form {...inlineProfileForm}>
-                            <div className="space-y-4 rounded-md border p-4">
-                              <div>
-                                <p className="text-sm font-medium">Inline profile</p>
-                                <p className="mt-1 text-xs text-muted-foreground">This profile is stored directly on the RA and is not added to the reusable profile list.</p>
-                              </div>
-                              <SigningProfileForm
-                                form={inlineProfileForm}
-                                compact
-                                hideBasicInformation
-                              />
-                            </div>
-                          </Form>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {enrollmentCaProfileSection}
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5 flex-1">
                     <Label htmlFor="allowOverrideEnrollment">Allow Replaceable Enrollment</Label>
@@ -883,96 +1117,18 @@ export default function CreateOrEditRegistrationAuthorityPage() {
                   </div>
                   <Switch id="allowOverrideEnrollment" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
                 </div>
-                {protocol === 'EST' ? (
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5 flex-1">
-                      <Label htmlFor="verifyCsrSignature">Verify CSR Signature</Label>
-                      <p className="text-xs text-muted-foreground">Verify the cryptographic signature of Certificate Signing Requests during enrollment.</p>
-                    </div>
-                    <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5 flex-1">
+                    <Label htmlFor="verifyCsrSignature">Verify CSR Signature</Label>
+                    <p className="text-xs text-muted-foreground">Verify the cryptographic signature of Certificate Signing Requests during enrollment.</p>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5 flex-1">
-                      <Label htmlFor="cmpEnforcePopo">Enforce Proof-of-Possession (POPO)</Label>
-                      <p className="text-xs text-muted-foreground">Require the CRMF CertReqMsg to carry a valid POPO signature proving private key ownership (RFC 9483 §4.1).</p>
-                    </div>
-                    <Switch id="cmpEnforcePopo" checked={cmpEnforcePopo} onCheckedChange={setCmpEnforcePopo} />
-                  </div>
-                )}
-
-                {protocol === 'CMP' && (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="cmpWorkflow">Enrollment Workflow</Label>
-                      <p className="text-xs text-muted-foreground">Controls whether certificates are issued automatically or only after administrator approval.</p>
-                      <Select value={cmpWorkflow} onValueChange={setCmpWorkflow}>
-                        <SelectTrigger id="cmpWorkflow"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {cmpWorkflowOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {cmpWorkflow === 'phased' && (
-                      <DurationInput
-                        id="cmpApprovalTimeout"
-                        label="Approval Timeout"
-                        value={cmpApprovalTimeout}
-                        onChange={setCmpApprovalTimeout}
-                        placeholder="e.g., 7d, 24h"
-                        description="How long a PENDING transaction waits for an administrator to approve or reject it. Leave empty to use the server default (7 days)."
-                      />
-                    )}
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="cmpProtectionCertificate">Protection Certificate</Label>
-                      <p className="text-xs text-muted-foreground">Certificate used to sign CMP response messages. Leave empty to send responses unprotected.</p>
-                      <button
-                        id="cmpProtectionCertificate"
-                        type="button"
-                        onClick={() => setIsCmpProtectionCertificateModalOpen(true)}
-                        className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-                      >
-                        <span className={cmpProtectionCertificate || cmpProtectionCertificateId ? "flex items-center gap-1.5 text-foreground" : "text-muted-foreground"}>
-                          {(cmpProtectionCertificate || cmpProtectionCertificateId) && <FileText className="h-4 w-4 shrink-0" />}
-                          {cmpProtectionCertificate?.subject || cmpProtectionCertificateId || "Select Protection Certificate..."}
-                        </span>
-                        <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="cmpConfirmationMode">Confirmation Mode</Label>
-                        <Select value={cmpConfirmationMode} onValueChange={setCmpConfirmationMode}>
-                          <SelectTrigger id="cmpConfirmationMode"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {cmpConfirmationModeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {cmpConfirmationMode === 'EXPLICIT' && (
-                        <div className="space-y-1.5">
-                          <Label htmlFor="cmpConfirmationTimeout">Confirmation Timeout</Label>
-                          <Input id="cmpConfirmationTimeout" value={cmpConfirmationTimeout} onChange={(e) => setCmpConfirmationTimeout(e.target.value)} placeholder="e.g., 30s, 2m" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-0.5 flex-1">
-                        <Label htmlFor="cmpServerKeyGenEnabled">Allow Server Key Generation (CKG)</Label>
-                        <p className="text-xs text-muted-foreground">RFC 9483 §4.1.6 central key generation: an enrollment request with an empty public key asks the server to generate the key pair and return it. When disabled (default), such requests are rejected.</p>
-                      </div>
-                      <Switch id="cmpServerKeyGenEnabled" checked={cmpServerKeyGenEnabled} onCheckedChange={setCmpServerKeyGenEnabled} />
-                    </div>
-                  </>
-                )}
+                  <Switch id="verifyCsrSignature" checked={verifyCsrSignature} onCheckedChange={setVerifyCsrSignature} />
+                </div>
 
                 <EstAuthSettingsEditor
-                  idPrefix={protocol === 'CMP' ? 'cmp-enrollment' : 'enrollment'}
-                  value={protocol === 'CMP' ? cmpAuthSettings : enrollmentAuthSettings}
-                  onChange={protocol === 'CMP' ? setCmpAuthSettings : setEnrollmentAuthSettings}
+                  idPrefix="enrollment"
+                  value={enrollmentAuthSettings}
+                  onChange={setEnrollmentAuthSettings}
                   availableCAs={availableCAsForSelection}
                   allCryptoEngines={allCryptoEngines}
                   isLoadingCAs={isLoadingDependencies}
@@ -989,24 +1145,20 @@ export default function CreateOrEditRegistrationAuthorityPage() {
               <div>
                 <p className="font-semibold">Re-Enrollment Settings</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {protocol === 'CMP'
-                    ? 'Set certificate replacement and renewal windows for CMP re-enrollment (kur). Requests are authenticated by the message protection signed with the certificate being renewed.'
-                    : 'Set certificate replacement, renewal windows, and additional trust requirements for re-enrollment.'}
+                  Set certificate replacement, renewal windows, and additional trust requirements for re-enrollment.
                 </p>
               </div>
               <div className="space-y-4 lg:col-span-2">
-                {protocol === 'EST' && (
-                  <EstAuthSettingsEditor
-                    idPrefix="reenrollment"
-                    value={reenrollmentAuthSettings}
-                    onChange={setReenrollmentAuthSettings}
-                    availableCAs={availableCAsForSelection}
-                    allCryptoEngines={allCryptoEngines}
-                    isLoadingCAs={isLoadingDependencies}
-                    errorCAs={errorDependencies}
-                    loadCAsAction={loadDependencies}
-                  />
-                )}
+                <EstAuthSettingsEditor
+                  idPrefix="reenrollment"
+                  value={reenrollmentAuthSettings}
+                  onChange={setReenrollmentAuthSettings}
+                  availableCAs={availableCAsForSelection}
+                  allCryptoEngines={allCryptoEngines}
+                  isLoadingCAs={isLoadingDependencies}
+                  errorCAs={errorDependencies}
+                  loadCAsAction={loadDependencies}
+                />
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5 flex-1">
                     <Label htmlFor="revokeOnReEnroll">Revoke On Re-Enroll</Label>
@@ -1124,6 +1276,371 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             </div>
           </TabsContent>
         </Tabs>
+        )}
+
+        {protocol === 'CMP' && (
+        <Tabs value={activeCmpTab} onValueChange={(value) => setActiveCmpTab(value as CmpSettingsTab)} className="w-full">
+          <div className="border-b bg-primary/5 overflow-x-auto overflow-y-hidden">
+            <TabsList className={pageTabsListClass}>
+              {cmpSettingsTabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className={pageTabsTriggerClass}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+
+          {/* ── General ── */}
+          <TabsContent value="general" className="mt-6">
+            <LateralSectionTabs
+              sections={[
+                {
+                  value: 'ca-profile',
+                  label: 'Enrollment CA & Profile',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">Enrollment CA & Profile</p>
+                        <p className="text-sm text-muted-foreground mt-1">The CA that signs issued certificates, and the issuance profile CMP operations use.</p>
+                      </div>
+                      {enrollmentCaProfileSection}
+                    </>
+                  ),
+                },
+                {
+                  value: 'device-policy',
+                  label: 'Device Policy',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">Device Policy</p>
+                        <p className="text-sm text-muted-foreground mt-1">DMS-wide defaults for re-enrolling an existing device and proving key possession.</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5 flex-1">
+                          <Label htmlFor="cmpAllowOverride">Allow Replaceable Enrollment</Label>
+                          <p className="text-xs text-muted-foreground">Allow an already enrolled device to enroll again, replacing its active identity certificate.</p>
+                        </div>
+                        <Switch id="cmpAllowOverride" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5 flex-1">
+                          <Label htmlFor="cmpEnforcePopoGeneral">Enforce Proof-of-Possession (POPO)</Label>
+                          <p className="text-xs text-muted-foreground">Require the CRMF CertReqMsg to carry a valid POPO signature proving private key ownership (<RfcLink rfc={9483} section="4.1" />).</p>
+                        </div>
+                        <Switch id="cmpEnforcePopoGeneral" checked={cmpEnforcePopo} onCheckedChange={setCmpEnforcePopo} />
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  value: 'auth-protection',
+                  label: 'Authentication & Protection',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">Authentication & Protection</p>
+                        <p className="text-sm text-muted-foreground mt-1">How incoming requests are authenticated, and which certificate signs outgoing CMP responses.</p>
+                      </div>
+                      <EstAuthSettingsEditor
+                        idPrefix="cmp-enrollment"
+                        value={cmpAuthSettings}
+                        onChange={setCmpAuthSettings}
+                        availableCAs={availableCAsForSelection}
+                        allCryptoEngines={allCryptoEngines}
+                        isLoadingCAs={isLoadingDependencies}
+                        errorCAs={errorDependencies}
+                        loadCAsAction={loadDependencies}
+                        fallbackValidationCa={enrollmentCa}
+                      />
+                      <div className="space-y-1.5">
+                        <Label htmlFor="cmpProtectionCertificateGeneral">Protection Certificate</Label>
+                        <p className="text-xs text-muted-foreground">Certificate whose KMS-stored key signs CMP response messages. Leave empty to send responses unprotected.</p>
+                        <button
+                          id="cmpProtectionCertificateGeneral"
+                          type="button"
+                          onClick={() => setIsCmpProtectionCertificateModalOpen(true)}
+                          className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                        >
+                          <span className={cmpProtectionCertificate || cmpProtectionCertificateId ? "flex items-center gap-1.5 text-foreground" : "text-muted-foreground"}>
+                            {(cmpProtectionCertificate || cmpProtectionCertificateId) && <FileText className="h-4 w-4 shrink-0" />}
+                            {cmpProtectionCertificate?.subject || cmpProtectionCertificateId || "Select Protection Certificate..."}
+                          </span>
+                          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                        <p className="text-xs text-muted-foreground">
+                          No eligible certificate to pick from? {' '}
+                          <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={handleOpenIssueProtectionCertDialog} disabled={!enrollmentCa}>
+                            Issue a new one signed by the Enrollment CA
+                          </Button>.
+                        </p>
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  value: 'workflow-confirmation',
+                  label: 'Workflow & Confirmation',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">Workflow & Confirmation</p>
+                        <p className="text-sm text-muted-foreground mt-1">Default issuance workflow and certificate-confirmation behavior CMP operations inherit.</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="cmpWorkflowGeneral">Default Issuance Workflow</Label>
+                        <p className="text-xs text-muted-foreground">Whether certificates are issued automatically or only after administrator approval.</p>
+                        <Select value={cmpWorkflow} onValueChange={setCmpWorkflow}>
+                          <SelectTrigger id="cmpWorkflowGeneral"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {cmpWorkflowOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {cmpWorkflow === 'phased' && (
+                        <DurationInput
+                          id="cmpApprovalTimeoutGeneral"
+                          label="Approval Timeout"
+                          value={cmpApprovalTimeout}
+                          onChange={setCmpApprovalTimeout}
+                          placeholder="e.g., 7d, 24h"
+                          description="How long a PENDING transaction waits for an administrator to approve or reject it. Leave empty to use the server default (7 days)."
+                        />
+                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="cmpConfirmationModeGeneral">Confirmation Mode</Label>
+                          <Select value={cmpConfirmationMode} onValueChange={setCmpConfirmationMode}>
+                            <SelectTrigger id="cmpConfirmationModeGeneral"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {cmpConfirmationModeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {cmpConfirmationMode === 'EXPLICIT' && (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="cmpConfirmationTimeoutGeneral">Confirmation Timeout</Label>
+                            <Input id="cmpConfirmationTimeoutGeneral" value={cmpConfirmationTimeout} onChange={(e) => setCmpConfirmationTimeout(e.target.value)} placeholder="e.g., 30s, 2m" />
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </TabsContent>
+
+          {/* ── Central Key Generation ── */}
+          <TabsContent value="ckg" className="mt-6">
+            <LateralSectionTabs
+              sections={[
+                {
+                  value: 'enable',
+                  label: 'Enable',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">Central Key Generation</p>
+                        <p className="text-sm text-muted-foreground mt-1"><RfcLink rfc={9483} section="4.1.6" />. Lets a device ask the server to generate its key pair and return it, instead of generating locally.</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5 flex-1">
+                          <Label htmlFor="cmpCkgEnabled">Enable central key generation</Label>
+                          <p className="text-xs text-muted-foreground">An ir/cr with an empty public key asks the server to generate and return the key pair. When disabled (default), such requests are rejected.</p>
+                        </div>
+                        <Switch id="cmpCkgEnabled" checked={cmpServerKeyGenEnabled} onCheckedChange={setCmpServerKeyGenEnabled} />
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  value: 'recipients',
+                  label: 'Recipient Mechanisms',
+                  content: (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">Allowed recipient mechanisms</p>
+                        <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[10px] font-medium text-amber-600 dark:text-amber-400">Planned</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">The mechanism that wraps the generated key is currently chosen automatically from the recipient certificate's key type. Per-DMS control is not yet enforced.</p>
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between rounded-md border p-2 opacity-70">
+                          <span className="text-sm">RSA key transport (KTRI)</span><Switch checked disabled />
+                        </div>
+                        <div className="flex items-center justify-between rounded-md border p-2 opacity-70">
+                          <span className="text-sm">ECDH key agreement (KARI)</span><Switch checked disabled />
+                        </div>
+                      </div>
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </TabsContent>
+
+          {/* ── Enrollment (IR/CR, with P10CR nested under CR) / RR / CCR ── */}
+          <CmpPlannedOperationTabs
+            ir={cmpIr}
+            onIrChange={(patch) => setCmpIr((prev) => ({ ...prev, ...patch }))}
+            cr={cmpCr}
+            onCrChange={(patch) => setCmpCr((prev) => ({ ...prev, ...patch }))}
+            p10cr={cmpP10cr}
+            onP10crChange={(patch) => setCmpP10cr((prev) => ({ ...prev, ...patch }))}
+            rr={cmpRr}
+            onRrChange={(patch) => setCmpRr((prev) => ({ ...prev, ...patch }))}
+            ccr={cmpCcr}
+            onCcrChange={(patch) => setCmpCcr((prev) => ({ ...prev, ...patch }))}
+          />
+
+          {/* ── Key Update (KUR/KUP) ── */}
+          <TabsContent value="kur" className="mt-6">
+            <LateralSectionTabs
+              sections={[
+                {
+                  value: 'renewal-window',
+                  label: 'Renewal Window',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">Key Update (KUR/KUP)</p>
+                        <p className="text-sm text-muted-foreground mt-1">Certificate renewal. Per <RfcLink rfc={9483} section="4.1.3" /> the request is protected with the certificate being updated, so no separate authentication mode applies.</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5 flex-1">
+                          <Label htmlFor="cmpRevokeOnReEnroll">Revoke superseded certificate</Label>
+                          <p className="text-xs text-muted-foreground">Automatically revoke the old certificate when a new one is issued.</p>
+                        </div>
+                        <Switch id="cmpRevokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} />
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5 flex-1">
+                          <Label htmlFor="cmpAllowExpiredRenewal">Allow renewal using an expired certificate</Label>
+                        </div>
+                        <Switch id="cmpAllowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
+                      </div>
+                      <DurationInput id="cmpRenewalWindow" label="Renewal window before expiration" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Time before certificate expiry when key update becomes available." />
+                      <DurationInput id="cmpPreventiveDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
+                      <DurationInput id="cmpCriticalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
+                      <RenewalLifespanBar
+                        certificateValidity={effectiveIssuanceProfile?.validity ?? null}
+                        issuanceProfileName={effectiveIssuanceProfile?.name}
+                        reenrollmentWindow={allowedRenewalDelta}
+                        preventiveDelta={preventiveRenewalDelta}
+                        criticalDelta={criticalRenewalDelta}
+                      />
+                    </>
+                  ),
+                },
+                {
+                  value: 'trust-migration',
+                  label: 'Trust & Migration',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">Trust & Migration</p>
+                        <p className="text-sm text-muted-foreground mt-1">Extra CAs to accept as the signer of the certificate being renewed, beyond the current enrollment CA — useful when migrating between CA hierarchies.</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Additional trusted CAs for migration</Label>
+                        <div className="space-y-2">
+                          {additionalValidationCAs.length > 0 ? additionalValidationCAs.map(ca => (
+                            <div key={ca.id} className="flex items-center gap-2 group">
+                              <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
+                            </div>
+                          )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
+                        </div>
+                        <Button type="button" variant="secondary" onClick={() => setIsAdditionalValidationCaModalOpen(true)}>
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
+                        </Button>
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  value: 'key-identity-policy',
+                  label: 'Key & Identity Policy',
+                  content: (
+                    <CmpKurPlannedPolicy
+                      keyPolicy={cmpKurKeyPolicy}
+                      onKeyPolicyChange={setCmpKurKeyPolicy}
+                      identityChangePolicy={cmpKurIdentityChangePolicy}
+                      onIdentityChangePolicyChange={setCmpKurIdentityChangePolicy}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </TabsContent>
+
+          {/* ── General Messages (GENM/GENP) ── */}
+          <TabsContent value="genm" className="mt-6">
+            <LateralSectionTabs
+              sections={[
+                {
+                  value: 'ca-distribution',
+                  label: 'CA Distribution',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">CA Distribution</p>
+                        <p className="text-sm text-muted-foreground mt-1">Which CA certificates the caCerts response includes. Live today.</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5 flex-1">
+                          <Label htmlFor="cmpIncludeDownstreamCA">Include Downstream CA</Label>
+                          <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the caCerts response.</p>
+                        </div>
+                        <Switch id="cmpIncludeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5 flex-1">
+                          <Label htmlFor="cmpIncludeEnrollmentCA">Include Enrollment CA</Label>
+                          <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the caCerts response.</p>
+                        </div>
+                        <Switch id="cmpIncludeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Managed CAs</Label>
+                        <div className="space-y-2">
+                          {managedCAs.length > 0 ? managedCAs.map(ca => (
+                            <div key={ca.id} className="flex items-center gap-2 group">
+                              <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
+                            </div>
+                          )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
+                        </div>
+                        <Button type="button" variant="secondary" onClick={() => setIsManagedCaModalOpen(true)}>
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
+                        </Button>
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  value: 'information-types',
+                  label: 'Information Types & Access',
+                  content: (
+                    <>
+                      <div>
+                        <p className="font-semibold">Information Types & Access</p>
+                        <p className="text-sm text-muted-foreground mt-1">Informational CMP queries (GENM/GENP). Which id-it information types this DMS answers, and who may ask.</p>
+                      </div>
+                      <CmpGenmPlannedCapabilities
+                        accessPolicy={cmpGenmAccessPolicy}
+                        onAccessPolicyChange={setCmpGenmAccessPolicy}
+                        informationTypes={cmpGenmInformationTypes}
+                        onInformationTypesChange={setCmpGenmInformationTypes}
+                      />
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </TabsContent>
+        </Tabs>
+        )}
 
         <Separator />
 
@@ -1164,8 +1681,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         isOpen={isCmpProtectionCertificateModalOpen}
         onOpenChange={setIsCmpProtectionCertificateModalOpen}
         title="Select CMP Protection Certificate"
-        description="Choose the certificate that will sign CMP response messages."
-        includeCaCertificates={true}
+        description="Choose the end-entity certificate that will sign CMP response messages. Its key must live in the KMS."
         onCertificateSelected={(certificate) => {
           setCmpProtectionCertificate(certificate);
           setCmpProtectionCertificateId(certificate.serialNumber);
@@ -1173,6 +1689,56 @@ export default function CreateOrEditRegistrationAuthorityPage() {
         }}
         currentSelectedCertificateId={cmpProtectionCertificate?.serialNumber || cmpProtectionCertificateId}
       />
+      <Dialog open={isIssueProtectionCertDialogOpen} onOpenChange={setIsIssueProtectionCertDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Issue Protection Certificate</DialogTitle>
+            <DialogDescription>
+              Generates a new key in the KMS and issues a certificate for it, signed by the Enrollment
+              CA{enrollmentCa ? ` (${enrollmentCa.name})` : ''}. The DMS uses this certificate's key to
+              sign every outgoing CMP response.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="protectionCertCn">Common Name (CN)</Label>
+              <Input id="protectionCertCn" value={protectionCertCn} onChange={(e) => setProtectionCertCn(e.target.value)} placeholder="e.g., cmp-protection" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="protectionCertKeyType">Key Type</Label>
+                <Select
+                  value={protectionCertKeyType}
+                  onValueChange={(t) => { setProtectionCertKeyType(t); setProtectionCertKeySpec(t === 'RSA' ? '2048' : 'P-256'); }}
+                >
+                  <SelectTrigger id="protectionCertKeyType"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {serverKeygenTypes.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="protectionCertKeySpec">{protectionCertKeyType === 'RSA' ? 'Key Bits' : 'Curve'}</Label>
+                <Select value={protectionCertKeySpec} onValueChange={setProtectionCertKeySpec}>
+                  <SelectTrigger id="protectionCertKeySpec"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(protectionCertKeyType === 'RSA' ? serverKeygenRsaBits : serverKeygenEcdsaCurves).map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setIsIssueProtectionCertDialogOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={handleIssueProtectionCertificate} disabled={isIssuingProtectionCert}>
+              {isIssuingProtectionCert && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Issue Certificate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <DeviceIconSelectorModal
         isOpen={isDeviceIconModalOpen}
         onOpenChange={setIsDeviceIconModalOpen}
