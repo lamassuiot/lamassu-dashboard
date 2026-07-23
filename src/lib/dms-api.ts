@@ -49,14 +49,19 @@ export interface ApiRaCmpClientCertSettings {
 // --- CMP per-operation settings (RFC 9483) ---
 // Mirrors core/pkg/models/dms_cmp_operations.go 1:1 (field names, enum values,
 // nesting). The backend's own ResolveCMPSettings normalizes/defaults these on
-// create/update; see that file's doc comments for exactly which fields are
-// LIVE (enforced) vs persisted-only. As of this schema landing, only two
-// bridges are live: server_key_gen_enabled (OR'd with ir/cr central_key_
-// generation.enabled) and the four kur fields already covered by
-// ApiRaReEnrollmentSettings (renewal_window/allow_expired_certificate/
-// additional_validation_ca_ids/revoke_superseded_certificate). Everything
-// else here persists and round-trips but is not yet read by the CMP protocol
-// handlers.
+// create/update.
+//
+// A manual protocol-conformance audit (openssl cmp against a live server,
+// cross-referenced with the backend code) found that essentially every field
+// below IS enforced — see the backend file's header comment for the current,
+// accurate list of the few NAMED exceptions (CentralKeyGeneration.
+// allowed_recipient_methods, TrustedRA.validation_ca_ids, CCR.issuance_profile_id,
+// IR.identity_source, and KUR.policy_overrides.issuance_profile_id). Do not
+// trust older comments here or in CmpPlannedOperationTabs.tsx claiming a
+// narrower "live" set — they predate that audit and were wrong in several
+// places (server-side doc fixed in the same pass; the dashboard's "Planned"
+// UI badges were deliberately left untouched pending a dedicated pass, since
+// removing them is a user-visible copy change, not a bug fix).
 export type CmpOpRegistrationMode = 'inherit' | 'jitp' | 'pre_registration';
 export type CmpExistingDevicePolicy = 'reject' | 'replace';
 export type CmpIdentitySource = 'subject_only' | 'subject_or_san';

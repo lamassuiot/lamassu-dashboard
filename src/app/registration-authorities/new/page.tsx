@@ -639,8 +639,12 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             enforce_popo: cmpEnforcePopo,
             server_key_gen_enabled: cmpServerKeyGenEnabled,
             workflow: cmpWorkflow,
-            ir: cmpIr,
-            cr: cmpCr,
+            // Bridge the single CKG switch into ir/cr's own central_key_generation.enabled
+            // (see the comment above cmpIr/cmpCr's declaration). The backend unifies all
+            // three fields via OR, so leaving ir/cr's nested flag stale at `true` would
+            // silently defeat turning this switch off.
+            ir: { ...cmpIr, central_key_generation: { ...cmpIr.central_key_generation, enabled: cmpServerKeyGenEnabled } },
+            cr: { ...cmpCr, central_key_generation: { ...cmpCr.central_key_generation, enabled: cmpServerKeyGenEnabled } },
             p10cr: cmpP10cr,
             // renewal_window/allow_expired_certificate/additional_validation_ca_ids/
             // revoke_superseded_certificate mirror the already-live reenrollment_settings
@@ -1491,6 +1495,7 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             onRrChange={(patch) => setCmpRr((prev) => ({ ...prev, ...patch }))}
             ccr={cmpCcr}
             onCcrChange={(patch) => setCmpCcr((prev) => ({ ...prev, ...patch }))}
+            availableProfiles={availableProfiles}
           />
 
           {/* ── Key Update (KUR/KUP) ── */}
