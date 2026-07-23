@@ -78,7 +78,7 @@ interface SortConfig {
 const GRID_PAGE_SIZES = ['6', '9', '15', '30'];
 const LIST_PAGE_SIZES = ['10', '25', '50', '100'];
 
-type EstPanelMode = 'enroll' | 'reenroll' | 'cacerts' | 'cmpenroll' | null;
+type EnrollPanelMode = 'enroll' | 'reenroll' | 'cacerts' | 'cmpEnroll' | null;
 
 export default function RegistrationAuthoritiesPage() {
   const router = useRouter();
@@ -106,8 +106,8 @@ export default function RegistrationAuthoritiesPage() {
   // Sorting State
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ column: 'name', direction: 'asc' });
 
-  const [estPanelMode, setEstPanelMode] = useState<EstPanelMode>(null);
-  const [selectedRaForEstAction, setSelectedRaForEstAction] = useState<ApiRaItem | null>(null);
+  const [enrollPanelMode, setEnrollPanelMode] = useState<EnrollPanelMode>(null);
+  const [selectedRaForEnrollAction, setSelectedRaForEnrollAction] = useState<ApiRaItem | null>(null);
 
   const [isMetadataModalOpen, setIsMetadataModalOpen] = useState(false);
   const [selectedRaForMetadata, setSelectedRaForMetadata] = useState<ApiRaItem | null>(null);
@@ -273,30 +273,30 @@ export default function RegistrationAuthoritiesPage() {
   };
   
   const handleOpenEnrollModal = (ra: ApiRaItem) => {
-    setSelectedRaForEstAction(ra);
-    setEstPanelMode('enroll');
+    setSelectedRaForEnrollAction(ra);
+    setEnrollPanelMode('enroll');
   };
 
-  const handleEstPanelOpenChange = (isOpen: boolean) => {
+  const handleEnrollPanelOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
-      setEstPanelMode(null);
-      setSelectedRaForEstAction(null);
+      setEnrollPanelMode(null);
+      setSelectedRaForEnrollAction(null);
     }
   };
 
   const handleOpenReEnrollModal = (ra: ApiRaItem) => {
-    setSelectedRaForEstAction(ra);
-    setEstPanelMode('reenroll');
+    setSelectedRaForEnrollAction(ra);
+    setEnrollPanelMode('reenroll');
   };
 
   const handleOpenCaCertsPanel = (ra: ApiRaItem) => {
-    setSelectedRaForEstAction(ra);
-    setEstPanelMode('cacerts');
+    setSelectedRaForEnrollAction(ra);
+    setEnrollPanelMode('cacerts');
   };
 
   const handleOpenCmpEnrollModal = (ra: ApiRaItem) => {
-    setSelectedRaForEstAction(ra);
-    setEstPanelMode('cmpenroll');
+    setSelectedRaForEnrollAction(ra);
+    setEnrollPanelMode('cmpEnroll');
   };
 
   const handleShowMetadata = (ra: ApiRaItem) => {
@@ -419,39 +419,39 @@ export default function RegistrationAuthoritiesPage() {
       </div>
 
         <SplitPanelLayout
-          isPanelOpen={estPanelMode !== null}
-          onPanelOpenChange={handleEstPanelOpenChange}
+          isPanelOpen={enrollPanelMode !== null}
+          onPanelOpenChange={handleEnrollPanelOpenChange}
           mobilePanelAsDialog
           panelWidthClassName="xl:grid-cols-[minmax(0,1fr)_720px]"
         panel={
-            estPanelMode === 'enroll' ? (
+            enrollPanelMode === 'enroll' ? (
               <EstEnrollModal
-                isOpen={estPanelMode === 'enroll' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
+                isOpen={enrollPanelMode === 'enroll' && !!selectedRaForEnrollAction}
+                onOpenChange={handleEnrollPanelOpenChange}
+                ra={selectedRaForEnrollAction}
                 className="p-4"
                 presentation="inline"
               />
-            ) : estPanelMode === 'reenroll' ? (
+            ) : enrollPanelMode === 'reenroll' ? (
               <EstReEnrollModal
-                isOpen={estPanelMode === 'reenroll' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
+                isOpen={enrollPanelMode === 'reenroll' && !!selectedRaForEnrollAction}
+                onOpenChange={handleEnrollPanelOpenChange}
+                ra={selectedRaForEnrollAction}
                 className="p-4"
                 presentation="inline"
               />
-            ) : estPanelMode === 'cacerts' ? (
+            ) : enrollPanelMode === 'cacerts' ? (
               <EstCaCertsPanel
-                isOpen={estPanelMode === 'cacerts' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction}
+                isOpen={enrollPanelMode === 'cacerts' && !!selectedRaForEnrollAction}
+                onOpenChange={handleEnrollPanelOpenChange}
+                ra={selectedRaForEnrollAction}
                 className="p-4"
               />
-            ) : estPanelMode === 'cmpenroll' ? (
+            ) : enrollPanelMode === 'cmpEnroll' ? (
               <CmpEnrollModal
-                isOpen={estPanelMode === 'cmpenroll' && !!selectedRaForEstAction}
-                onOpenChange={handleEstPanelOpenChange}
-                ra={selectedRaForEstAction as any}
+                isOpen={enrollPanelMode === 'cmpEnroll' && !!selectedRaForEnrollAction}
+                onOpenChange={handleEnrollPanelOpenChange}
+                ra={selectedRaForEnrollAction}
                 className="p-4"
                 presentation="inline"
               />
