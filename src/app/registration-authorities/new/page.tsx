@@ -43,7 +43,7 @@ import type { CertificateData } from '@/types/certificate';
 import { IssuanceProfileCard } from '@/components/shared/IssuanceProfileCard';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { CardSelector } from '@/components/shared/CardSelector';
-import { LateralSectionTabs } from '@/components/shared/LateralSectionTabs';
+import { SettingsSection } from '@/components/shared/SettingsSection';
 import { RfcLink } from '@/components/shared/RfcLink';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { Form } from '@/components/ui/form';
@@ -55,7 +55,7 @@ import {
 } from '@/components/shared/SigningProfileForm';
 import { EstAuthSettingsEditor } from '@/components/ra/EstAuthSettingsEditor';
 import { RenewalLifespanBar, type CertificateValidity } from '@/components/ra/RenewalLifespanBar';
-import { CmpPlannedOperationTabs, CmpKurPlannedPolicy, CmpGenmPlannedCapabilities } from '@/components/ra/CmpPlannedOperationTabs';
+import { CmpPlannedOperationTabs, CmpGenmPlannedCapabilities } from '@/components/ra/CmpPlannedOperationTabs';
 import {
   buildInlineIssuanceProfile,
   createDefaultEstAuthSettings,
@@ -79,15 +79,14 @@ const raSettingsTabs: Array<{ value: RaSettingsTab; label: string }> = [
 ];
 // CMP exposes configuration per RFC 9483 message type rather than EST's four
 // generic sections. Each tab maps to a CMP request/response operation. IR, CR,
-// and P10CR share the "Enrollment" tab as clickable subsections (see
-// CmpPlannedOperationTabs) since all three answer "how does a device get a
-// certificate?", each with its own independent settings.
-type CmpSettingsTab = 'general' | 'ckg' | 'enrollment' | 'kur' | 'rr' | 'genm' | 'ccr';
+// P10CR, KUR, and central key generation share the "Enrollment" tab as
+// clickable subsections (see CmpPlannedOperationTabs) since they all answer
+// "how does a device get a certificate?", each with its own independent
+// settings.
+type CmpSettingsTab = 'general' | 'enrollment' | 'rr' | 'genm' | 'ccr';
 const cmpSettingsTabs: Array<{ value: CmpSettingsTab; label: string }> = [
   { value: 'general', label: 'General' },
-  { value: 'ckg', label: 'Central Key Generation' },
-  { value: 'enrollment', label: 'Enrollment (IR / CR / P10CR)' },
-  { value: 'kur', label: 'Key Update (KUR/KUP)' },
+  { value: 'enrollment', label: 'Enrollment (IR / CR / P10CR / KUR / CKG)' },
   { value: 'rr', label: 'Revocation (RR/RP)' },
   { value: 'genm', label: 'General Messages (GENM/GENP)' },
   { value: 'ccr', label: 'Cross-Certification (CCR/CCP)' },
@@ -1296,194 +1295,111 @@ export default function CreateOrEditRegistrationAuthorityPage() {
 
           {/* ── General ── */}
           <TabsContent value="general" className="mt-6">
-            <LateralSectionTabs
-              sections={[
-                {
-                  value: 'ca-profile',
-                  label: 'Enrollment CA & Profile',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">Enrollment CA & Profile</p>
-                        <p className="text-sm text-muted-foreground mt-1">The CA that signs issued certificates, and the issuance profile CMP operations use.</p>
-                      </div>
-                      {enrollmentCaProfileSection}
-                    </>
-                  ),
-                },
-                {
-                  value: 'device-policy',
-                  label: 'Device Policy',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">Device Policy</p>
-                        <p className="text-sm text-muted-foreground mt-1">DMS-wide defaults for re-enrolling an existing device and proving key possession.</p>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-0.5 flex-1">
-                          <Label htmlFor="cmpAllowOverride">Allow Replaceable Enrollment</Label>
-                          <p className="text-xs text-muted-foreground">Allow an already enrolled device to enroll again, replacing its active identity certificate.</p>
-                        </div>
-                        <Switch id="cmpAllowOverride" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-0.5 flex-1">
-                          <Label htmlFor="cmpEnforcePopoGeneral">Enforce Proof-of-Possession (POPO)</Label>
-                          <p className="text-xs text-muted-foreground">Require the CRMF CertReqMsg to carry a valid POPO signature proving private key ownership (<RfcLink rfc={9483} section="4.1" />).</p>
-                        </div>
-                        <Switch id="cmpEnforcePopoGeneral" checked={cmpEnforcePopo} onCheckedChange={setCmpEnforcePopo} />
-                      </div>
-                    </>
-                  ),
-                },
-                {
-                  value: 'auth-protection',
-                  label: 'Authentication & Protection',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">Authentication & Protection</p>
-                        <p className="text-sm text-muted-foreground mt-1">How incoming requests are authenticated, and which certificate signs outgoing CMP responses.</p>
-                      </div>
-                      <EstAuthSettingsEditor
-                        idPrefix="cmp-enrollment"
-                        value={cmpAuthSettings}
-                        onChange={setCmpAuthSettings}
-                        availableCAs={availableCAsForSelection}
-                        allCryptoEngines={allCryptoEngines}
-                        isLoadingCAs={isLoadingDependencies}
-                        errorCAs={errorDependencies}
-                        loadCAsAction={loadDependencies}
-                        fallbackValidationCa={enrollmentCa}
-                      />
-                      <div className="space-y-1.5">
-                        <Label htmlFor="cmpProtectionCertificateGeneral">Protection Certificate</Label>
-                        <p className="text-xs text-muted-foreground">Certificate whose KMS-stored key signs CMP response messages. Leave empty to send responses unprotected.</p>
-                        <button
-                          id="cmpProtectionCertificateGeneral"
-                          type="button"
-                          onClick={() => setIsCmpProtectionCertificateModalOpen(true)}
-                          className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
-                        >
-                          <span className={cmpProtectionCertificate || cmpProtectionCertificateId ? "flex items-center gap-1.5 text-foreground" : "text-muted-foreground"}>
-                            {(cmpProtectionCertificate || cmpProtectionCertificateId) && <FileText className="h-4 w-4 shrink-0" />}
-                            {cmpProtectionCertificate?.subject || cmpProtectionCertificateId || "Select Protection Certificate..."}
-                          </span>
-                          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        </button>
-                        <p className="text-xs text-muted-foreground">
-                          No eligible certificate to pick from? {' '}
-                          <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={handleOpenIssueProtectionCertDialog} disabled={!enrollmentCa}>
-                            Issue a new one signed by the Enrollment CA
-                          </Button>.
-                        </p>
-                      </div>
-                    </>
-                  ),
-                },
-                {
-                  value: 'workflow-confirmation',
-                  label: 'Workflow & Confirmation',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">Workflow & Confirmation</p>
-                        <p className="text-sm text-muted-foreground mt-1">Default issuance workflow and certificate-confirmation behavior CMP operations inherit.</p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="cmpWorkflowGeneral">Default Issuance Workflow</Label>
-                        <p className="text-xs text-muted-foreground">Whether certificates are issued automatically or only after administrator approval.</p>
-                        <Select value={cmpWorkflow} onValueChange={setCmpWorkflow}>
-                          <SelectTrigger id="cmpWorkflowGeneral"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {cmpWorkflowOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {cmpWorkflow === 'phased' && (
-                        <DurationInput
-                          id="cmpApprovalTimeoutGeneral"
-                          label="Approval Timeout"
-                          value={cmpApprovalTimeout}
-                          onChange={setCmpApprovalTimeout}
-                          placeholder="e.g., 7d, 24h"
-                          description="How long a PENDING transaction waits for an administrator to approve or reject it. Leave empty to use the server default (7 days)."
-                        />
-                      )}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="cmpConfirmationModeGeneral">Confirmation Mode</Label>
-                          <Select value={cmpConfirmationMode} onValueChange={setCmpConfirmationMode}>
-                            <SelectTrigger id="cmpConfirmationModeGeneral"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {cmpConfirmationModeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {cmpConfirmationMode === 'EXPLICIT' && (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="cmpConfirmationTimeoutGeneral">Confirmation Timeout</Label>
-                            <Input id="cmpConfirmationTimeoutGeneral" value={cmpConfirmationTimeout} onChange={(e) => setCmpConfirmationTimeout(e.target.value)} placeholder="e.g., 30s, 2m" />
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  ),
-                },
-              ]}
-            />
+            <SettingsSection title="Enrollment CA & Profile" description="The CA that signs issued certificates, and the issuance profile CMP operations use.">
+              {enrollmentCaProfileSection}
+            </SettingsSection>
+
+            <Separator />
+
+            <SettingsSection title="Device Policy" description="DMS-wide defaults for re-enrolling an existing device and proving key possession.">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="cmpAllowOverride">Allow Replaceable Enrollment</Label>
+                  <p className="text-xs text-muted-foreground">Allow an already enrolled device to enroll again, replacing its active identity certificate.</p>
+                </div>
+                <Switch id="cmpAllowOverride" checked={allowOverrideEnrollment} onCheckedChange={setAllowOverrideEnrollment} />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="cmpEnforcePopoGeneral">Enforce Proof-of-Possession (POPO)</Label>
+                  <p className="text-xs text-muted-foreground">Require the CRMF CertReqMsg to carry a valid POPO signature proving private key ownership (<RfcLink rfc={9483} section="4.1" />).</p>
+                </div>
+                <Switch id="cmpEnforcePopoGeneral" checked={cmpEnforcePopo} onCheckedChange={setCmpEnforcePopo} />
+              </div>
+            </SettingsSection>
+
+            <Separator />
+
+            <SettingsSection title="Authentication & Protection" description="How incoming requests are authenticated, and which certificate signs outgoing CMP responses.">
+              <EstAuthSettingsEditor
+                idPrefix="cmp-enrollment"
+                value={cmpAuthSettings}
+                onChange={setCmpAuthSettings}
+                availableCAs={availableCAsForSelection}
+                allCryptoEngines={allCryptoEngines}
+                isLoadingCAs={isLoadingDependencies}
+                errorCAs={errorDependencies}
+                loadCAsAction={loadDependencies}
+                fallbackValidationCa={enrollmentCa}
+              />
+              <div className="space-y-1.5">
+                <Label htmlFor="cmpProtectionCertificateGeneral">Protection Certificate</Label>
+                <p className="text-xs text-muted-foreground">Certificate whose KMS-stored key signs CMP response messages. Leave empty to send responses unprotected.</p>
+                <button
+                  id="cmpProtectionCertificateGeneral"
+                  type="button"
+                  onClick={() => setIsCmpProtectionCertificateModalOpen(true)}
+                  className="flex h-8 w-full items-center justify-between gap-1.5 rounded-2xl border border-transparent bg-input/50 px-3 text-sm whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                >
+                  <span className={cmpProtectionCertificate || cmpProtectionCertificateId ? "flex items-center gap-1.5 text-foreground" : "text-muted-foreground"}>
+                    {(cmpProtectionCertificate || cmpProtectionCertificateId) && <FileText className="h-4 w-4 shrink-0" />}
+                    {cmpProtectionCertificate?.subject || cmpProtectionCertificateId || "Select Protection Certificate..."}
+                  </span>
+                  <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  No eligible certificate to pick from? {' '}
+                  <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={handleOpenIssueProtectionCertDialog} disabled={!enrollmentCa}>
+                    Issue a new one signed by the Enrollment CA
+                  </Button>.
+                </p>
+              </div>
+            </SettingsSection>
+
+            <Separator />
+
+            <SettingsSection title="Workflow & Confirmation" description="Default issuance workflow and certificate-confirmation behavior CMP operations inherit.">
+              <div className="space-y-1.5">
+                <Label htmlFor="cmpWorkflowGeneral">Default Issuance Workflow</Label>
+                <p className="text-xs text-muted-foreground">Whether certificates are issued automatically or only after administrator approval.</p>
+                <Select value={cmpWorkflow} onValueChange={setCmpWorkflow}>
+                  <SelectTrigger id="cmpWorkflowGeneral"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {cmpWorkflowOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {cmpWorkflow === 'phased' && (
+                <DurationInput
+                  id="cmpApprovalTimeoutGeneral"
+                  label="Approval Timeout"
+                  value={cmpApprovalTimeout}
+                  onChange={setCmpApprovalTimeout}
+                  placeholder="e.g., 7d, 24h"
+                  description="How long a PENDING transaction waits for an administrator to approve or reject it. Leave empty to use the server default (7 days)."
+                />
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="cmpConfirmationModeGeneral">Confirmation Mode</Label>
+                  <Select value={cmpConfirmationMode} onValueChange={setCmpConfirmationMode}>
+                    <SelectTrigger id="cmpConfirmationModeGeneral"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {cmpConfirmationModeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {cmpConfirmationMode === 'EXPLICIT' && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cmpConfirmationTimeoutGeneral">Confirmation Timeout</Label>
+                    <Input id="cmpConfirmationTimeoutGeneral" value={cmpConfirmationTimeout} onChange={(e) => setCmpConfirmationTimeout(e.target.value)} placeholder="e.g., 30s, 2m" />
+                  </div>
+                )}
+              </div>
+            </SettingsSection>
           </TabsContent>
 
-          {/* ── Central Key Generation ── */}
-          <TabsContent value="ckg" className="mt-6">
-            <LateralSectionTabs
-              sections={[
-                {
-                  value: 'enable',
-                  label: 'Enable',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">Central Key Generation</p>
-                        <p className="text-sm text-muted-foreground mt-1"><RfcLink rfc={9483} section="4.1.6" />. Lets a device ask the server to generate its key pair and return it, instead of generating locally.</p>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-0.5 flex-1">
-                          <Label htmlFor="cmpCkgEnabled">Enable central key generation</Label>
-                          <p className="text-xs text-muted-foreground">An ir/cr with an empty public key asks the server to generate and return the key pair. When disabled (default), such requests are rejected.</p>
-                        </div>
-                        <Switch id="cmpCkgEnabled" checked={cmpServerKeyGenEnabled} onCheckedChange={setCmpServerKeyGenEnabled} />
-                      </div>
-                    </>
-                  ),
-                },
-                {
-                  value: 'recipients',
-                  label: 'Recipient Mechanisms',
-                  content: (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold">Allowed recipient mechanisms</p>
-                        <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[10px] font-medium text-amber-600 dark:text-amber-400">Planned</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">The mechanism that wraps the generated key is currently chosen automatically from the recipient certificate's key type. Per-DMS control is not yet enforced.</p>
-                      <div className="space-y-2 pt-1">
-                        <div className="flex items-center justify-between rounded-md border p-2 opacity-70">
-                          <span className="text-sm">RSA key transport (KTRI)</span><Switch checked disabled />
-                        </div>
-                        <div className="flex items-center justify-between rounded-md border p-2 opacity-70">
-                          <span className="text-sm">ECDH key agreement (KARI)</span><Switch checked disabled />
-                        </div>
-                      </div>
-                    </>
-                  ),
-                },
-              ]}
-            />
-          </TabsContent>
-
-          {/* ── Enrollment (IR/CR, with P10CR nested under CR) / RR / CCR ── */}
+          {/* ── Enrollment (IR/CR/P10CR/KUR/CKG) / RR / CCR ── */}
           <CmpPlannedOperationTabs
             ir={cmpIr}
             onIrChange={(patch) => setCmpIr((prev) => ({ ...prev, ...patch }))}
@@ -1491,6 +1407,20 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             onCrChange={(patch) => setCmpCr((prev) => ({ ...prev, ...patch }))}
             p10cr={cmpP10cr}
             onP10crChange={(patch) => setCmpP10cr((prev) => ({ ...prev, ...patch }))}
+            kur={{
+              revokeOnReEnroll, onRevokeOnReEnrollChange: setRevokeOnReEnroll,
+              allowExpiredRenewal, onAllowExpiredRenewalChange: setAllowExpiredRenewal,
+              allowedRenewalDelta, onAllowedRenewalDeltaChange: setAllowedRenewalDelta,
+              preventiveRenewalDelta, onPreventiveRenewalDeltaChange: setPreventiveRenewalDelta,
+              criticalRenewalDelta, onCriticalRenewalDeltaChange: setCriticalRenewalDelta,
+              effectiveIssuanceProfile,
+              additionalValidationCAs, onRemoveAdditionalValidationCa: handleRemoveAdditionalValidationCa,
+              onAddAdditionalValidationCa: () => setIsAdditionalValidationCaModalOpen(true),
+              allCryptoEngines,
+              keyPolicy: cmpKurKeyPolicy, onKeyPolicyChange: setCmpKurKeyPolicy,
+              identityChangePolicy: cmpKurIdentityChangePolicy, onIdentityChangePolicyChange: setCmpKurIdentityChangePolicy,
+            }}
+            ckg={{ enabled: cmpServerKeyGenEnabled, onEnabledChange: setCmpServerKeyGenEnabled }}
             rr={cmpRr}
             onRrChange={(patch) => setCmpRr((prev) => ({ ...prev, ...patch }))}
             ccr={cmpCcr}
@@ -1498,151 +1428,49 @@ export default function CreateOrEditRegistrationAuthorityPage() {
             availableProfiles={availableProfiles}
           />
 
-          {/* ── Key Update (KUR/KUP) ── */}
-          <TabsContent value="kur" className="mt-6">
-            <LateralSectionTabs
-              sections={[
-                {
-                  value: 'renewal-window',
-                  label: 'Renewal Window',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">Key Update (KUR/KUP)</p>
-                        <p className="text-sm text-muted-foreground mt-1">Certificate renewal. Per <RfcLink rfc={9483} section="4.1.3" /> the request is protected with the certificate being updated, so no separate authentication mode applies.</p>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-0.5 flex-1">
-                          <Label htmlFor="cmpRevokeOnReEnroll">Revoke superseded certificate</Label>
-                          <p className="text-xs text-muted-foreground">Automatically revoke the old certificate when a new one is issued.</p>
-                        </div>
-                        <Switch id="cmpRevokeOnReEnroll" checked={revokeOnReEnroll} onCheckedChange={setRevokeOnReEnroll} />
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-0.5 flex-1">
-                          <Label htmlFor="cmpAllowExpiredRenewal">Allow renewal using an expired certificate</Label>
-                        </div>
-                        <Switch id="cmpAllowExpiredRenewal" checked={allowExpiredRenewal} onCheckedChange={setAllowExpiredRenewal} />
-                      </div>
-                      <DurationInput id="cmpRenewalWindow" label="Renewal window before expiration" value={allowedRenewalDelta} onChange={setAllowedRenewalDelta} placeholder="e.g., 100d" description="Time before certificate expiry when key update becomes available." />
-                      <DurationInput id="cmpPreventiveDelta" label="Preventive Renewal Delta" value={preventiveRenewalDelta} onChange={setPreventiveRenewalDelta} placeholder="e.g., 31d" description="Time before expiry when the preventive re-enrollment event is emitted." />
-                      <DurationInput id="cmpCriticalDelta" label="Critical Renewal Delta" value={criticalRenewalDelta} onChange={setCriticalRenewalDelta} placeholder="e.g., 7d" description="Time before expiry when the critical re-enrollment event is emitted." />
-                      <RenewalLifespanBar
-                        certificateValidity={effectiveIssuanceProfile?.validity ?? null}
-                        issuanceProfileName={effectiveIssuanceProfile?.name}
-                        reenrollmentWindow={allowedRenewalDelta}
-                        preventiveDelta={preventiveRenewalDelta}
-                        criticalDelta={criticalRenewalDelta}
-                      />
-                    </>
-                  ),
-                },
-                {
-                  value: 'trust-migration',
-                  label: 'Trust & Migration',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">Trust & Migration</p>
-                        <p className="text-sm text-muted-foreground mt-1">Extra CAs to accept as the signer of the certificate being renewed, beyond the current enrollment CA — useful when migrating between CA hierarchies.</p>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Additional trusted CAs for migration</Label>
-                        <div className="space-y-2">
-                          {additionalValidationCAs.length > 0 ? additionalValidationCAs.map(ca => (
-                            <div key={ca.id} className="flex items-center gap-2 group">
-                              <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveAdditionalValidationCa(ca.id)}><X className="h-4 w-4" /></Button>
-                            </div>
-                          )) : <p className="text-sm text-muted-foreground italic">No additional validation CAs selected.</p>}
-                        </div>
-                        <Button type="button" variant="secondary" onClick={() => setIsAdditionalValidationCaModalOpen(true)}>
-                          <PlusCircle className="mr-2 h-4 w-4" /> Add Additional Validation CA
-                        </Button>
-                      </div>
-                    </>
-                  ),
-                },
-                {
-                  value: 'key-identity-policy',
-                  label: 'Key & Identity Policy',
-                  content: (
-                    <CmpKurPlannedPolicy
-                      keyPolicy={cmpKurKeyPolicy}
-                      onKeyPolicyChange={setCmpKurKeyPolicy}
-                      identityChangePolicy={cmpKurIdentityChangePolicy}
-                      onIdentityChangePolicyChange={setCmpKurIdentityChangePolicy}
-                    />
-                  ),
-                },
-              ]}
-            />
-          </TabsContent>
-
           {/* ── General Messages (GENM/GENP) ── */}
           <TabsContent value="genm" className="mt-6">
-            <LateralSectionTabs
-              sections={[
-                {
-                  value: 'ca-distribution',
-                  label: 'CA Distribution',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">CA Distribution</p>
-                        <p className="text-sm text-muted-foreground mt-1">Which CA certificates the caCerts response includes. Live today.</p>
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-0.5 flex-1">
-                          <Label htmlFor="cmpIncludeDownstreamCA">Include Downstream CA</Label>
-                          <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the caCerts response.</p>
-                        </div>
-                        <Switch id="cmpIncludeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="space-y-0.5 flex-1">
-                          <Label htmlFor="cmpIncludeEnrollmentCA">Include Enrollment CA</Label>
-                          <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the caCerts response.</p>
-                        </div>
-                        <Switch id="cmpIncludeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Managed CAs</Label>
-                        <div className="space-y-2">
-                          {managedCAs.length > 0 ? managedCAs.map(ca => (
-                            <div key={ca.id} className="flex items-center gap-2 group">
-                              <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
-                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
-                            </div>
-                          )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
-                        </div>
-                        <Button type="button" variant="secondary" onClick={() => setIsManagedCaModalOpen(true)}>
-                          <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
-                        </Button>
-                      </div>
-                    </>
-                  ),
-                },
-                {
-                  value: 'information-types',
-                  label: 'Information Types & Access',
-                  content: (
-                    <>
-                      <div>
-                        <p className="font-semibold">Information Types & Access</p>
-                        <p className="text-sm text-muted-foreground mt-1">Informational CMP queries (GENM/GENP). Which id-it information types this DMS answers, and who may ask.</p>
-                      </div>
-                      <CmpGenmPlannedCapabilities
-                        accessPolicy={cmpGenmAccessPolicy}
-                        onAccessPolicyChange={setCmpGenmAccessPolicy}
-                        informationTypes={cmpGenmInformationTypes}
-                        onInformationTypesChange={setCmpGenmInformationTypes}
-                      />
-                    </>
-                  ),
-                },
-              ]}
-            />
+            <SettingsSection title="CA Distribution" description="Which CA certificates the caCerts response includes. Live today.">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="cmpIncludeDownstreamCA">Include Downstream CA</Label>
+                  <p className="text-xs text-muted-foreground">Include downstream Certificate Authorities in the caCerts response.</p>
+                </div>
+                <Switch id="cmpIncludeDownstreamCA" checked={includeDownstreamCA} onCheckedChange={setIncludeDownstreamCA} />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label htmlFor="cmpIncludeEnrollmentCA">Include Enrollment CA</Label>
+                  <p className="text-xs text-muted-foreground">Include the enrollment Certificate Authority in the caCerts response.</p>
+                </div>
+                <Switch id="cmpIncludeEnrollmentCA" checked={includeEnrollmentCA} onCheckedChange={setIncludeEnrollmentCA} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Managed CAs</Label>
+                <div className="space-y-2">
+                  {managedCAs.length > 0 ? managedCAs.map(ca => (
+                    <div key={ca.id} className="flex items-center gap-2 group">
+                      <CaVisualizerCard ca={ca} allCryptoEngines={allCryptoEngines} className="flex-grow shadow-none border-border" />
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-50 group-hover:opacity-100" onClick={() => handleRemoveManagedCa(ca.id)}><X className="h-4 w-4" /></Button>
+                    </div>
+                  )) : <p className="text-sm text-muted-foreground italic">No managed CAs selected.</p>}
+                </div>
+                <Button type="button" variant="secondary" onClick={() => setIsManagedCaModalOpen(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Managed CA
+                </Button>
+              </div>
+            </SettingsSection>
+
+            <Separator />
+
+            <SettingsSection title="Information Types & Access" description="Informational CMP queries (GENM/GENP). Which id-it information types this DMS answers, and who may ask.">
+              <CmpGenmPlannedCapabilities
+                accessPolicy={cmpGenmAccessPolicy}
+                onAccessPolicyChange={setCmpGenmAccessPolicy}
+                informationTypes={cmpGenmInformationTypes}
+                onInformationTypesChange={setCmpGenmInformationTypes}
+              />
+            </SettingsSection>
           </TabsContent>
         </Tabs>
         )}
