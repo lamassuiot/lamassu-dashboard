@@ -23,12 +23,16 @@ import { ColumnSelector, type ColumnConfig } from '@/components/ui/column-select
 import { cn } from '@/lib/utils';
 import {
   CBOMItem,
+  deleteCBOM,
   fetchRecentCBOMs,
   startCBOMWebSocketScan,
   storeCBOM,
 } from '@/lib/cbom-api';
 import { useToast } from '@/hooks/use-toast';
-import { CBOM_TYPES, getCBOMType, type CBOMType } from '@/lib/cbom-type';
+import { CBOM_TYPES, getCBOMType, getFilesystemScanInfo, type CBOMType } from '@/lib/cbom-type';
+import Image from 'next/image';
+import DockerLogoBlue from '@/app/docker_blue.svg';
+import DockerLogoWhite from '@/app/docker_white.svg';
 import {
   AlertCircle,
   ArrowRight,
@@ -36,14 +40,18 @@ import {
   CircleHelp,
   ClipboardList,
   Download,
+  EthernetPort,
   ExternalLink,
   Eye,
   EyeOff,
   FileUp,
+  FolderOpen,
+  GitGraph,
   Loader2,
   MoreVertical,
   Search,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -72,6 +80,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const resolveProjectIdentifier = (cbomData: unknown): string => {
@@ -228,6 +246,9 @@ export default function CBOMPage() {
   // always invokes the most up-to-date version without capturing stale state.
   const finishScanRef = useRef<(hasError: boolean) => void>(() => {});
 
+  const [cbomToDelete, setCbomToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const loadRecentScans = useCallback(async () => {
     if (!user?.access_token) {
       setRecentCboms([]);
@@ -247,6 +268,29 @@ export default function CBOMPage() {
       setIsLoadingTable(false);
     }
   }, [tableLimit, user?.access_token]);
+
+  const handleDeleteCbom = useCallback(async () => {
+    if (!cbomToDelete || !user?.access_token) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteCBOM(cbomToDelete, user.access_token);
+      toast({
+        title: 'CBOM Deleted',
+        description: `Deleted CBOM for ${cbomToDelete}`,
+      });
+      setCbomToDelete(null);
+      loadRecentScans();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete CBOM',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [cbomToDelete, user?.access_token, toast, loadRecentScans]);
 
   useEffect(() => {
     if (user) {
@@ -936,19 +980,58 @@ export default function CBOMPage() {
                     const findingsCount = getTotalFindings(item);
                     const scanDate = item.createdAt ?? item.timestamp;
                     const cbomType = getCBOMType(item);
+                    const filesystemScanInfo = getFilesystemScanInfo(item);
+                    const isDockerImageScan = filesystemScanInfo?.scanType === 'image';
+                    const rowDisplayName = filesystemScanInfo?.target ?? item.projectIdentifier;
+                    const rowSubtitle = filesystemScanInfo?.urn;
                     return (
                       <TableRow key={`${item.projectIdentifier}-${index}`} className="group">
                         {columnVisibility.project && (
                           <TableCell>
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              <Link
-                                href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}
-                                className="truncate text-sm font-medium hover:underline"
-                                title={item.projectIdentifier}
-                              >
-                                {item.projectIdentifier}
-                              </Link>
-                              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60" />
+                            <div className="flex min-w-0 items-center gap-2">
+                              {isDockerImageScan ? (
+                                <>
+                                  <Image
+                                    src={DockerLogoBlue}
+                                    width={20}
+                                    height={20}
+                                    alt=""
+                                    aria-hidden="true"
+                                    className="shrink-0 dark:hidden"
+                                  />
+                                  <Image
+                                    src={DockerLogoWhite}
+                                    width={20}
+                                    height={20}
+                                    alt=""
+                                    aria-hidden="true"
+                                    className="hidden shrink-0 dark:block"
+                                  />
+                                </>
+                              ) : cbomType === 'filesystem' ? (
+                                <FolderOpen className="h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
+                              ) : cbomType === 'realtime' ? (
+                                <EthernetPort className="h-5 w-5 shrink-0 text-purple-500" aria-hidden="true" />
+                              ) : (
+                                <GitGraph className="h-5 w-5 shrink-0 text-blue-500" aria-hidden="true" />
+                              )}
+                              <div className="flex min-w-0 flex-col">
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  <Link
+                                    href={`/cbom/details?projectId=${encodeURIComponent(item.projectIdentifier)}`}
+                                    className="truncate text-sm font-medium hover:underline"
+                                    title={rowDisplayName}
+                                  >
+                                    {rowDisplayName}
+                                  </Link>
+                                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60" />
+                                </div>
+                                {rowSubtitle && (
+                                  <span className="truncate text-xs text-muted-foreground" title={rowSubtitle}>
+                                    {rowSubtitle}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
                         )}
@@ -1033,6 +1116,12 @@ export default function CBOMPage() {
                                 >
                                   <Download className="mr-2 h-4 w-4" /> Download JSON
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setCbomToDelete(item.projectIdentifier)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -1062,6 +1151,37 @@ export default function CBOMPage() {
           </div>
         )}
       </section>
+
+      <AlertDialog open={cbomToDelete !== null} onOpenChange={(open) => { if (!open) setCbomToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete CBOM?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the CBOM for{' '}
+              <span className="font-medium text-foreground">{cbomToDelete}</span>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                handleDeleteCbom();
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -50,30 +50,26 @@ import { StatGauge } from '@/components/shared/StatGauge';
 import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import { DetailInfoRow, DetailInfoRows } from '@/components/shared/DetailInfoRows';
 import { Separator } from '@/components/ui/separator';
-import chiperInfo from '../../../../chiper_info.json';
 import { Tabs, TabsContent, TabsList, TabsTrigger, pageTabsListClass, pageTabsTriggerClass } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { BreadcrumbPage } from '@/components/shared/BreadcrumbPage';
 import { useMonacoTheme } from '@/hooks/useMonacoTheme';
 import { getCBOMType } from '@/lib/cbom-type';
-
-type CipherStrength = 'recommended' | 'secure' | 'weak' | 'insecure' | 'unknown';
-
-function getCipherStrength(cs: string): CipherStrength {
-  if ((chiperInfo.recommended as string[]).includes(cs)) return 'recommended';
-  if ((chiperInfo.secure as string[]).includes(cs)) return 'secure';
-  if ((chiperInfo.weak as string[]).includes(cs)) return 'weak';
-  if ((chiperInfo.insecure as string[]).includes(cs)) return 'insecure';
-  return 'unknown';
-}
-
-const cipherStrengthBadge: Record<CipherStrength, { label: string; className: string; short: string; compactClass: string }> = {
-  recommended: { label: 'Recommended', className: 'bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30',   short: 'R', compactClass: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' },
-  secure:      { label: 'Secure',      className: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30',      short: 'S', compactClass: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' },
-  weak:        { label: 'Weak',        className: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border border-yellow-500/30', short: 'W', compactClass: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300' },
-  insecure:    { label: 'Insecure',    className: 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30',        short: 'I', compactClass: 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300' },
-  unknown:     { label: 'Unknown',     className: 'bg-muted text-muted-foreground border border-border',                           short: '?', compactClass: 'bg-muted text-muted-foreground' },
-};
+import {
+  cipherStrengthBadge,
+  getCipherStrength,
+  type CipherStrength,
+} from '@/lib/cbom-network-colors';
+import {
+  TLSWorkflowInspector,
+  type TLSWorkflowConnection,
+} from '@/components/cbom/TLSWorkflowInspector';
+import { TLSWorkflowSheet } from '@/components/cbom/TLSWorkflowSheet';
+import { groupCBOMAssets } from '@/lib/cbom-assets';
+import {
+  buildCertificateHierarchy,
+  type CertificateHierarchyStatus,
+} from '@/lib/cbom-certificate-hierarchy';
 
 const chip = 'inline-flex items-center rounded border px-2 py-0.5 text-xs';
 const networkDetailChipClass = `${chip} border-border/70 bg-muted/40 font-mono text-foreground`;
@@ -477,6 +473,38 @@ const capitalizeFirstLetter = (value: string): string => {
   return value.charAt(0).toUpperCase() + value.slice(1);
 };
 
+const formatAssetType = (value: string): string => {
+  if (value === 'related-crypto-material') {
+    return 'Key material';
+  }
+
+  return value
+    .split('-')
+    .filter(Boolean)
+    .map(capitalizeFirstLetter)
+    .join(' ');
+};
+
+const getHierarchyStatusLabel = (
+  status: CertificateHierarchyStatus,
+  issuerCandidateCount: number,
+): string => {
+  switch (status) {
+    case 'root':
+      return 'Self-issued';
+    case 'ambiguous':
+      return `${issuerCandidateCount} issuer candidates`;
+    case 'gap':
+      return 'Issuer missing';
+    case 'unnamed':
+      return 'No subject name';
+    case 'cycle':
+      return 'Cycle detected';
+    default:
+      return 'Candidate';
+  }
+};
+
 const getAssetFilterValue = (asset: CBOMAsset, column: FilterColumn): string => {
   if (column === 'name') {
     return asset.name || '-';
@@ -511,16 +539,21 @@ function CBOMDetailsContent() {
     primitive: [],
     location: [],
   });
-  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'raw'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'workflow' | 'assets' | 'raw'>('overview');
   const [assetViewMode, setAssetViewMode] = useState<AssetViewMode>('table');
   const [selectedNetworkNode, setSelectedNetworkNode] = useState<GraphNode | null>(null);
+  const [networkInspectorMode, setNetworkInspectorMode] = useState<'overview' | 'workflow'>('overview');
+  const [workflowSheetConnection, setWorkflowSheetConnection] =
+    useState<TLSWorkflowConnection | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<CBOMAsset | null>(null);
   const [assetDetailOpen, setAssetDetailOpen] = useState(false);
   const [complianceResult, setComplianceResult] = useState<QuantumSafeComplianceResult | null>(null);
   const [compliancePolicyId, setCompliancePolicyId] = useState('quantum_safe');
   const [isCheckingCompliance, setIsCheckingCompliance] = useState(false);
   const [groupByRef, setGroupByRef] = useState(false);
+  const [hierarchyMode, setHierarchyMode] = useState(false);
   const [expandedRefs, setExpandedRefs] = useState<Set<string>>(new Set());
+  const [collapsedHierarchyRows, setCollapsedHierarchyRows] = useState<Set<string>>(new Set());
   const [expandedSuites, setExpandedSuites] = useState<Set<string>>(new Set());
 
   const projectId = searchParams.get('projectId');
@@ -609,11 +642,15 @@ function CBOMDetailsContent() {
     }
   };
 
-  const assets = (detailsData?.bom?.components || []).filter(
-    (component) => component.type === 'cryptographic-asset',
+  const allComponents = React.useMemo(
+    () => detailsData?.bom?.components || [],
+    [detailsData?.bom?.components],
+  );
+  const assets = React.useMemo(
+    () => allComponents.filter((component) => component.type === 'cryptographic-asset'),
+    [allComponents],
   );
 
-  const allComponents = detailsData?.bom?.components || [];
   const totalAssets = allComponents.length;
   const uniqueAssetTypesCount = new Set(assets.map((asset) => (asset.name || '').trim()).filter(Boolean)).size;
   const assetsWithOid = assets.filter((asset) => Boolean(asset.cryptoProperties?.oid)).length;
@@ -623,30 +660,36 @@ function CBOMDetailsContent() {
     0,
   );
 
-  const filterOptionsByColumn: Record<FilterColumn, string[]> = {
-    name: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'name')))).sort((left, right) =>
-      left.localeCompare(right),
-    ),
-    type: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'type')))).sort((left, right) =>
-      left.localeCompare(right),
-    ),
-    primitive: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'primitive')))).sort(
-      (left, right) => left.localeCompare(right),
-    ),
-    location: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'location')))).sort(
-      (left, right) => left.localeCompare(right),
-    ),
-  };
-
-  const filteredAssets = assets.filter((asset) =>
-    (Object.keys(selectedFilters) as FilterColumn[]).every((column) => {
-      const selectedValues = selectedFilters[column];
-      if (selectedValues.length === 0) {
-        return true;
-      }
-
-      return selectedValues.includes(getAssetFilterValue(asset, column));
+  const filterOptionsByColumn = React.useMemo<Record<FilterColumn, string[]>>(
+    () => ({
+      name: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'name')))).sort((left, right) =>
+        left.localeCompare(right),
+      ),
+      type: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'type')))).sort((left, right) =>
+        left.localeCompare(right),
+      ),
+      primitive: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'primitive')))).sort(
+        (left, right) => left.localeCompare(right),
+      ),
+      location: Array.from(new Set(assets.map((asset) => getAssetFilterValue(asset, 'location')))).sort(
+        (left, right) => left.localeCompare(right),
+      ),
     }),
+    [assets],
+  );
+
+  const filteredAssets = React.useMemo(
+    () => assets.filter((asset) =>
+      (Object.keys(selectedFilters) as FilterColumn[]).every((column) => {
+        const selectedValues = selectedFilters[column];
+        if (selectedValues.length === 0) {
+          return true;
+        }
+
+        return selectedValues.includes(getAssetFilterValue(asset, column));
+      }),
+    ),
+    [assets, selectedFilters],
   );
 
   const filterSelectors: Array<{ key: FilterColumn; label: string; placeholder: string }> = [
@@ -667,56 +710,84 @@ function CBOMDetailsContent() {
     return map;
   }, [complianceResult]);
 
-  // Group filteredAssets by bom-ref, merging ALL occurrences across duplicates
-  const groupedAssets = React.useMemo(() => {
-    type GroupedAsset = CBOMAsset & { _allOccurrences: NonNullable<CBOMAsset['evidence']>['occurrences'] };
-    const map = new Map<string, GroupedAsset>();
-    for (const asset of filteredAssets) {
-      const key = asset['bom-ref'] || asset.name || '';
-      const occurrences = asset.evidence?.occurrences ?? [];
-      const existing = map.get(key);
-      if (existing) {
-        existing._allOccurrences = [...(existing._allOccurrences ?? []), ...occurrences];
-      } else {
-        map.set(key, { ...asset, _allOccurrences: [...occurrences] });
-      }
+  const groupedAssets = React.useMemo(
+    () => groupCBOMAssets(filteredAssets, detailsData?.bom?.dependencies, assets),
+    [assets, detailsData?.bom?.dependencies, filteredAssets],
+  );
+  const certificateHierarchy = React.useMemo(
+    () => buildCertificateHierarchy(assets),
+    [assets],
+  );
+  const hasSelectedFilters = React.useMemo(
+    () => Object.values(selectedFilters).some((filter) => filter.length > 0),
+    [selectedFilters],
+  );
+  const hierarchyRows = React.useMemo(() => {
+    if (!hasSelectedFilters) {
+      return certificateHierarchy.rows;
     }
-    return Array.from(map.values());
-  }, [filteredAssets]);
+
+    const filteredAssetSet = new Set(filteredAssets);
+    const includedRowKeys = new Set<string>();
+    certificateHierarchy.rows.forEach((row) => {
+      if (row.node.assets.some((asset) => filteredAssetSet.has(asset))) {
+        includedRowKeys.add(row.key);
+        row.ancestorRowKeys.forEach((ancestorKey) => includedRowKeys.add(ancestorKey));
+      }
+    });
+
+    return certificateHierarchy.rows.filter((row) => includedRowKeys.has(row.key));
+  }, [certificateHierarchy.rows, filteredAssets, hasSelectedFilters]);
+  const hierarchyChildrenByParent = React.useMemo(() => {
+    const children = new Map<string, string[]>();
+    hierarchyRows.forEach((row) => {
+      if (!row.parentRowKey) return;
+      const childKeys = children.get(row.parentRowKey) ?? [];
+      childKeys.push(row.key);
+      children.set(row.parentRowKey, childKeys);
+    });
+    return children;
+  }, [hierarchyRows]);
+  const visibleHierarchyRows = React.useMemo(
+    () => hierarchyRows.filter(
+      (row) => !row.ancestorRowKeys.some((ancestorKey) => collapsedHierarchyRows.has(ancestorKey)),
+    ),
+    [collapsedHierarchyRows, hierarchyRows],
+  );
 
   // Build a file-path tree from grouped assets for the File Tree view
   const fileTree = React.useMemo((): FileTreeNode => {
     const root: FileTreeNode = { name: '', path: '', children: new Map(), entries: [] };
-    for (const asset of groupedAssets) {
-      const allOccurrences = (asset as any)._allOccurrences as
-        | NonNullable<CBOMAsset['evidence']>['occurrences']
-        | undefined;
-      for (const occ of allOccurrences ?? []) {
-        if (!occ?.location) continue;
-        const parts = occ.location.split('/');
-        let node = root;
-        for (let i = 0; i < parts.length; i++) {
-          const part = parts[i];
-          const nodePath = parts.slice(0, i + 1).join('/');
-          const isLast = i === parts.length - 1;
-          if (!node.children.has(part)) {
-            node.children.set(part, {
-              name: part,
-              path: nodePath,
-              children: new Map(),
-              entries: [],
-            });
-          }
-          node = node.children.get(part)!;
-          if (isLast) {
-            node.entries.push({
-              assetName: asset.name || '-',
-              assetRef: asset['bom-ref'],
-              primitive: asset.cryptoProperties?.algorithmProperties?.primitive,
-              line: occ.line ?? undefined,
-              offset: occ.offset ?? undefined,
-              context: occ.additionalContext ?? undefined,
-            });
+    for (const group of groupedAssets) {
+      for (const reference of group.references) {
+        const asset = reference.asset;
+        for (const occ of reference.occurrences) {
+          if (!occ?.location) continue;
+          const parts = occ.location.split('/');
+          let node = root;
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            const nodePath = parts.slice(0, i + 1).join('/');
+            const isLast = i === parts.length - 1;
+            if (!node.children.has(part)) {
+              node.children.set(part, {
+                name: part,
+                path: nodePath,
+                children: new Map(),
+                entries: [],
+              });
+            }
+            node = node.children.get(part)!;
+            if (isLast) {
+              node.entries.push({
+                assetName: asset.name || '-',
+                assetRef: reference.bomRef,
+                primitive: asset.cryptoProperties?.algorithmProperties?.primitive,
+                line: occ.line ?? undefined,
+                offset: occ.offset ?? undefined,
+                context: occ.additionalContext ?? undefined,
+              });
+            }
           }
         }
       }
@@ -726,6 +797,12 @@ function CBOMDetailsContent() {
 
   const cbomType = React.useMemo(() => getCBOMType(detailsData), [detailsData]);
   const isRealtimeCBOM = cbomType === 'realtime';
+
+  useEffect(() => {
+    if (!isRealtimeCBOM && activeTab === 'workflow') {
+      setActiveTab('overview');
+    }
+  }, [activeTab, isRealtimeCBOM]);
 
   const networkGraphData = React.useMemo((): { nodes: GraphNode[]; edges: GraphEdge[] } => {
     if (!isRealtimeCBOM || !detailsData) return { nodes: [], edges: [] };
@@ -773,7 +850,11 @@ function CBOMDetailsContent() {
       const protocolProperties = proto.cryptoProperties?.protocolProperties as Record<string, unknown> | undefined;
 
       const snis = getPropertyStringList(props, ['live-cbom:tls.sni']);
-      const sniLabel = snis[0] ?? ref;
+      const serverName =
+        props.find((property) => property.name === 'live-cbom:tls.serverName')?.value ?? '';
+      const componentEndpoint =
+        props.find((property) => property.name === 'live-cbom:tls.endpoint')?.value ?? '';
+      const sniLabel = snis[0] || serverName || componentEndpoint || ref;
 
       const version: string = typeof protocolProperties?.version === 'string' ? protocolProperties.version : '';
       // Support both the new decomposed names and the old flat names for backward compatibility
@@ -842,7 +923,7 @@ function CBOMDetailsContent() {
       }));
 
       const warning = props.find((p: any) => p.name === 'live-cbom:warning')?.value ?? '';
-      const endpoint = serviceMap.get(ref) ?? '';
+      const endpoint = serviceMap.get(ref) ?? componentEndpoint;
 
       // Certificate details — only present for TLS ≤ 1.2. Use rawCryptoRefs (not the fallback
       // dependsOn list) because old CBOMs never include cert refs in their dependency entries.
@@ -901,6 +982,34 @@ function CBOMDetailsContent() {
 
     return { nodes, edges };
   }, [isRealtimeCBOM, detailsData]);
+  const tlsWorkflowConnections = React.useMemo<TLSWorkflowConnection[]>(
+    () => networkGraphData.nodes
+      .filter((node) => !node.data?.isAgent)
+      .map((node) => ({
+        id: node.id,
+        label: node.label ?? node.id,
+        endpoint: node.data?.endpoint as string | undefined,
+        version: node.data?.tlsVersion as string | undefined,
+        supportedVersions: node.data?.supportedVersions as string[] | undefined,
+        negotiatedCipherSuite: node.data?.negotiatedCipherSuite as string | undefined,
+        offeredCipherSuites: node.data?.offeredCipherSuites as OfferedCipherSuiteObj[] | undefined,
+        negotiatedGroup: node.data?.negotiatedGroup as string | undefined,
+        offeredGroups: node.data?.offeredGroups as string[] | undefined,
+        offeredSignatureAlgorithms:
+          node.data?.offeredSignatureAlgorithms as string[] | undefined,
+        negotiatedAlgorithms: node.data?.negotiatedAlgorithms as NegotiatedAlg[] | undefined,
+        certificates: node.data?.certificates as CertificateInfo[] | undefined,
+        authVisibility: node.data?.authVisibility as string | undefined,
+      })),
+    [networkGraphData],
+  );
+  const tlsWorkflowConnectionMap = React.useMemo(
+    () => new Map(tlsWorkflowConnections.map((connection) => [connection.id, connection])),
+    [tlsWorkflowConnections],
+  );
+  const selectedNetworkWorkflowConnection = selectedNetworkNode
+    ? tlsWorkflowConnectionMap.get(selectedNetworkNode.id)
+    : undefined;
 
   const cbomTypeLabel = cbomType === 'realtime'
     ? 'Realtime capture'
@@ -1130,13 +1239,14 @@ function CBOMDetailsContent() {
 
       <Tabs
         value={activeTab}
-        onValueChange={(value) => setActiveTab(value as 'overview' | 'assets' | 'raw')}
+        onValueChange={(value) => setActiveTab(value as 'overview' | 'workflow' | 'assets' | 'raw')}
         className="w-full"
       >
         <div className="border-b overflow-x-auto overflow-y-hidden">
           <TabsList className={cn(pageTabsListClass, "min-w-max")}>
             {[
               { value: 'overview', label: 'Overview' },
+              ...(isRealtimeCBOM ? [{ value: 'workflow', label: 'TLS Workflow' }] : []),
               { value: 'assets', label: 'Assets' },
               { value: 'raw', label: 'Raw' },
             ].map(({ value, label }) => (
@@ -1227,6 +1337,12 @@ function CBOMDetailsContent() {
 
           </TabsContent>
 
+          {isRealtimeCBOM ? (
+            <TabsContent value="workflow" className="mt-0">
+              <TLSWorkflowInspector connections={tlsWorkflowConnections} />
+            </TabsContent>
+          ) : null}
+
           <TabsContent value="assets" className="mt-0">
             <div className="space-y-4">
 
@@ -1239,7 +1355,7 @@ function CBOMDetailsContent() {
                       Cryptographic Assets
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {Object.values(selectedFilters).some((f) => f.length > 0)
+                      {hasSelectedFilters
                         ? `${filteredAssets.length} of ${totalAssets} assets currently visible`
                         : `${totalAssets} assets available in this CBOM`}
                     </p>
@@ -1269,15 +1385,42 @@ function CBOMDetailsContent() {
                     </Button>
 
                     {assetViewMode === 'table' && (
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id="group-by-ref"
-                          checked={groupByRef}
-                          onCheckedChange={setGroupByRef}
-                        />
-                        <Label htmlFor="group-by-ref" className="cursor-pointer select-none text-xs">
-                          Group by ref
-                        </Label>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="group-by-ref"
+                            checked={groupByRef}
+                            onCheckedChange={(checked) => {
+                              setGroupByRef(checked);
+                              if (checked) setHierarchyMode(false);
+                            }}
+                          />
+                          <Label htmlFor="group-by-ref" className="cursor-pointer select-none text-xs">
+                            Group by ref
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="certificate-hierarchy"
+                            checked={hierarchyMode}
+                            disabled={certificateHierarchy.nodes.length === 0}
+                            onCheckedChange={(checked) => {
+                              setHierarchyMode(checked);
+                              if (checked) setGroupByRef(false);
+                            }}
+                          />
+                          <Label
+                            htmlFor="certificate-hierarchy"
+                            className={cn(
+                              'select-none text-xs',
+                              certificateHierarchy.nodes.length > 0
+                                ? 'cursor-pointer'
+                                : 'cursor-not-allowed text-muted-foreground',
+                            )}
+                          >
+                            Hierarchy
+                          </Label>
+                        </div>
                       </div>
                     )}
                     <div className="flex items-center rounded-md border p-0.5 bg-muted/40">
@@ -1369,6 +1512,7 @@ function CBOMDetailsContent() {
                     onNodeClick={(internalNode) => {
                       const found = networkGraphData.nodes.find((n) => n.id === internalNode.id) ?? null;
                       setSelectedNetworkNode((prev) => (prev?.id === found?.id ? null : found));
+                      setNetworkInspectorMode('overview');
                     }}
                     renderNode={({ node, ...rest }: NodeRendererProps) => {
                       const negotiated = node.data?.negotiatedCipherSuite as string | undefined;
@@ -1432,7 +1576,12 @@ function CBOMDetailsContent() {
                 </div>
 
                 {selectedNetworkNode && !selectedNetworkNode.data?.isAgent && (
-                  <div className="w-1/3 shrink-0 overflow-y-auto max-h-[420px] pl-4 border-l">
+                  <div
+                    className={cn(
+                      'shrink-0 overflow-y-auto max-h-[420px] pl-4 border-l',
+                      networkInspectorMode === 'workflow' ? 'w-1/2' : 'w-1/3',
+                    )}
+                  >
 
                     {/* Header */}
                     <div className="flex items-center justify-between pb-3">
@@ -1448,17 +1597,38 @@ function CBOMDetailsContent() {
                       </button>
                     </div>
 
-                    {/* Warning */}
-                    {(selectedNetworkNode.data?.warning as string | undefined) && (
-                      <div className="mb-3 flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                        <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400">⚠</span>
-                        <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
-                          {selectedNetworkNode.data.warning as string}
-                        </p>
-                      </div>
-                    )}
+                    <div className="mb-3 flex items-center rounded-md border p-0.5">
+                      <Button
+                        variant={networkInspectorMode === 'overview' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 flex-1 rounded-sm px-3 text-xs"
+                        onClick={() => setNetworkInspectorMode('overview')}
+                      >
+                        Overview
+                      </Button>
+                      <Button
+                        variant={networkInspectorMode === 'workflow' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        className="h-7 flex-1 rounded-sm px-3 text-xs"
+                        onClick={() => setNetworkInspectorMode('workflow')}
+                      >
+                        TLS Workflow
+                      </Button>
+                    </div>
 
-                    <div className="divide-y text-sm">
+                    {networkInspectorMode === 'overview' ? (
+                      <>
+                        {/* Warning */}
+                        {(selectedNetworkNode.data?.warning as string | undefined) && (
+                          <div className="mb-3 flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                            <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400">⚠</span>
+                            <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                              {selectedNetworkNode.data.warning as string}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="divide-y text-sm">
 
                       {/* Endpoint */}
                       {(selectedNetworkNode.data?.endpoint as string | undefined) && (
@@ -1749,7 +1919,19 @@ function CBOMDetailsContent() {
                         </div>
                       ) : null}
 
-                    </div>
+                        </div>
+                      </>
+                    ) : selectedNetworkWorkflowConnection ? (
+                      <TLSWorkflowInspector
+                        connections={[selectedNetworkWorkflowConnection]}
+                        compact
+                        showConnectionSelector={false}
+                      />
+                    ) : (
+                      <p className="py-4 text-sm text-muted-foreground">
+                        No TLS workflow data is available for this connection.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1790,6 +1972,7 @@ function CBOMDetailsContent() {
                           </Tooltip>
                         </TableHead>
                       ))}
+                      <TableHead className="whitespace-nowrap text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1809,6 +1992,7 @@ function CBOMDetailsContent() {
                         const warning = n.data?.warning as string | undefined;
                         const endpoint = n.data?.endpoint as string | undefined;
                         const certificates = n.data?.certificates as CertificateInfo[] | undefined;
+                        const workflowConnection = tlsWorkflowConnectionMap.get(n.id);
                         const cipherStrength = negotiatedCipherSuite ? getCipherStrength(negotiatedCipherSuite) : 'unknown';
                         const csBadge = cipherStrengthBadge[cipherStrength];
 
@@ -1942,6 +2126,22 @@ function CBOMDetailsContent() {
                               )}
                             </TableCell>
 
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 whitespace-nowrap"
+                                disabled={!workflowConnection}
+                                onClick={() => {
+                                  if (workflowConnection) {
+                                    setWorkflowSheetConnection(workflowConnection);
+                                  }
+                                }}
+                              >
+                                TLS Workflow
+                              </Button>
+                            </TableCell>
+
                           </TableRow>
                         );
                       })}
@@ -1984,7 +2184,7 @@ function CBOMDetailsContent() {
                     />
                   </div>
                 ))}
-                {Object.values(selectedFilters).some((f) => f.length > 0) && (
+                {hasSelectedFilters && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -2009,111 +2209,389 @@ function CBOMDetailsContent() {
                 </div>
               )}
 
+              {hierarchyMode && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border bg-muted/20 px-3 py-2 text-xs">
+                  <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                    <Info className="h-4 w-4 shrink-0" />
+                    <span>
+                      Candidate hierarchy from issuer and subject names only. Paths are not cryptographically validated.
+                    </span>
+                  </div>
+                  <div className="ml-auto flex flex-wrap items-center gap-3 text-muted-foreground">
+                    <span>{certificateHierarchy.nodes.length} unique certificates</span>
+                    <span>{certificateHierarchy.selfIssuedRootCount} self-issued roots</span>
+                    {certificateHierarchy.deduplicatedCount > 0 && (
+                      <span>{certificateHierarchy.deduplicatedCount} duplicate files merged</span>
+                    )}
+                    {certificateHierarchy.gapCount > 0 && (
+                      <span>{certificateHierarchy.gapCount} issuer gap{certificateHierarchy.gapCount === 1 ? '' : 's'}</span>
+                    )}
+                    {certificateHierarchy.ambiguousCount > 0 && (
+                      <span>{certificateHierarchy.ambiguousCount} ambiguous path{certificateHierarchy.ambiguousCount === 1 ? '' : 's'}</span>
+                    )}
+                    {certificateHierarchy.unnamedCount > 0 && (
+                      <span>{certificateHierarchy.unnamedCount} unnamed</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {hierarchyMode && filteredAssets.length > 0 && hierarchyRows.length === 0 && (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  No certificate hierarchy entries match the selected filters.
+                </div>
+              )}
+
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {groupByRef && <TableHead className="w-8" />}
-                      <TableHead>Cryptographic asset</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Primitive</TableHead>
-                      {groupByRef ? (
-                        <TableHead className="text-right">Occurrences</TableHead>
+                      {hierarchyMode ? (
+                        <>
+                          <TableHead className="w-10" />
+                          <TableHead>Certificate</TableHead>
+                          <TableHead>Issuer</TableHead>
+                          <TableHead className="w-44">Path status</TableHead>
+                          <TableHead className="w-40 text-right">Files / refs</TableHead>
+                          <TableHead>Compliance</TableHead>
+                        </>
                       ) : (
-                        <TableHead>Location</TableHead>
+                        <>
+                          {groupByRef && <TableHead className="w-8" />}
+                          <TableHead>Cryptographic asset</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Primitive</TableHead>
+                          {groupByRef ? (
+                            <TableHead className="text-right">References</TableHead>
+                          ) : (
+                            <TableHead>Location</TableHead>
+                          )}
+                          <TableHead>Compliance</TableHead>
+                        </>
                       )}
-                      <TableHead>Compliance</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {groupByRef
-                      ? groupedAssets.map((asset, index) => {
-                        const typeLabel = capitalizeFirstLetter(asset.cryptoProperties?.assetType || asset.type || '-');
-                        const allOccurrences = (asset as any)._allOccurrences as NonNullable<CBOMAsset['evidence']>['occurrences'];
-                        const occurrenceCount = allOccurrences?.length ?? 0;
-                        const bomRef = asset['bom-ref'];
-                        const rowKey = bomRef || asset.name || `grouped-${index}`;
+                    {hierarchyMode
+                      ? visibleHierarchyRows.map((row) => {
+                        const asset = row.node.representative;
+                        const rowKey = row.key;
+                        const childCount = hierarchyChildrenByParent.get(rowKey)?.length ?? 0;
+                        const hasChildren = childCount > 0;
+                        const isCollapsed = collapsedHierarchyRows.has(rowKey);
+                        const displayName = asset.name || row.node.subjectName || 'Unnamed certificate';
+                        const showSubjectName =
+                          Boolean(row.node.subjectName)
+                          && row.node.subjectName !== displayName;
+                        const hierarchyLevels = complianceResult
+                          ? Array.from(
+                            new Set(
+                              row.node.bomRefs
+                                .map((bomRef) => complianceFindingsMap.get(bomRef))
+                                .filter((levelId): levelId is number => levelId !== undefined),
+                            ),
+                          )
+                            .map((levelId) =>
+                              complianceResult.complianceLevels.find((level) => level.id === levelId),
+                            )
+                            .filter((level): level is NonNullable<typeof level> => Boolean(level))
+                          : [];
+                        const toggleCollapsed = () => {
+                          if (!hasChildren) return;
+                          setCollapsedHierarchyRows((previous) => {
+                            const next = new Set(previous);
+                            if (next.has(rowKey)) next.delete(rowKey);
+                            else next.add(rowKey);
+                            return next;
+                          });
+                        };
+
+                        return (
+                          <TableRow
+                            key={rowKey}
+                            aria-expanded={hasChildren ? !isCollapsed : undefined}
+                            className="cursor-pointer"
+                            onClick={() => {
+                              setSelectedAsset(asset);
+                              setAssetDetailOpen(true);
+                            }}
+                          >
+                            <TableCell className="w-10 px-1">
+                              {hasChildren ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground"
+                                  aria-label={
+                                    isCollapsed
+                                      ? `Expand children of ${displayName}`
+                                      : `Collapse children of ${displayName}`
+                                  }
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleCollapsed();
+                                  }}
+                                >
+                                  {isCollapsed
+                                    ? <ChevronRight className="h-4 w-4" />
+                                    : <ChevronDown className="h-4 w-4" />}
+                                </Button>
+                              ) : (
+                                <span className="block h-7 w-7" aria-hidden="true" />
+                              )}
+                            </TableCell>
+                            <TableCell className="max-w-md">
+                              <div className="flex min-w-0 items-stretch">
+                                {Array.from({ length: Math.min(row.depth, 6) }).map((_, depthIndex) => (
+                                  <span
+                                    key={`${rowKey}-depth-${depthIndex}`}
+                                    className="mr-3 w-3 shrink-0 border-l border-border/70"
+                                    aria-hidden="true"
+                                  />
+                                ))}
+                                <div className="min-w-0">
+                                  <span className="block truncate font-medium text-foreground" title={displayName}>
+                                    {displayName}
+                                  </span>
+                                  {showSubjectName && (
+                                    <span
+                                      className="block truncate text-xs text-muted-foreground"
+                                      title={row.node.subjectName}
+                                    >
+                                      {row.node.subjectName}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-md text-muted-foreground">
+                              <span className="block truncate" title={row.node.issuerName || undefined}>
+                                {row.node.issuerName || '-'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  row.status === 'gap' || row.status === 'cycle'
+                                    ? 'destructive'
+                                    : row.status === 'ambiguous'
+                                      ? 'secondary'
+                                      : 'outline'
+                                }
+                                className="rounded-md font-normal"
+                              >
+                                {getHierarchyStatusLabel(row.status, row.node.parentIds.length)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              <span className="text-foreground">
+                                {row.node.assets.length} file{row.node.assets.length === 1 ? '' : 's'}
+                              </span>
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                {row.node.bomRefs.length} ref{row.node.bomRefs.length === 1 ? '' : 's'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {!complianceResult || hierarchyLevels.length === 0 ? (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {hierarchyLevels.map((level) => (
+                                    <span
+                                      key={level.id}
+                                      className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                                      style={{
+                                        borderColor: `${level.colorHex}88`,
+                                        color: level.colorHex,
+                                        background: `${level.colorHex}18`,
+                                      }}
+                                    >
+                                      {level.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                      : groupByRef
+                        ? groupedAssets.map((group) => {
+                        const asset = group.representative;
+                        const typeLabel = formatAssetType(asset.cryptoProperties?.assetType || asset.type || '-');
+                        const rowKey = group.key;
                         const isExpanded = expandedRefs.has(rowKey);
-                        const levelId = bomRef ? complianceFindingsMap.get(bomRef) : undefined;
-                        const level = levelId !== undefined
-                          ? complianceResult?.complianceLevels.find((l) => l.id === levelId)
-                          : undefined;
+                        const referenceRows = group.references.flatMap((reference, referenceIndex) => {
+                          const occurrences = reference.occurrences.length > 0
+                            ? reference.occurrences
+                            : [undefined];
+
+                          return occurrences.map((occurrence, occurrenceIndex) => ({
+                            key: `${reference.bomRef ?? referenceIndex}-${occurrenceIndex}`,
+                            reference,
+                            occurrence,
+                          }));
+                        });
+                        const showLine = referenceRows.some(({ occurrence }) => occurrence?.line != null);
+                        const showOffset = referenceRows.some(({ occurrence }) => occurrence?.offset != null);
+                        const showContext = referenceRows.some(({ occurrence }) => Boolean(occurrence?.additionalContext));
+                        const toggleExpanded = () => {
+                          setExpandedRefs((previous) => {
+                            const next = new Set(previous);
+                            if (next.has(rowKey)) next.delete(rowKey);
+                            else next.add(rowKey);
+                            return next;
+                          });
+                        };
+                        const groupLevels = complianceResult
+                          ? Array.from(
+                            new Set(
+                              group.bomRefs
+                                .map((bomRef) => complianceFindingsMap.get(bomRef))
+                                .filter((levelId): levelId is number => levelId !== undefined),
+                            ),
+                          )
+                            .map((levelId) =>
+                              complianceResult.complianceLevels.find((level) => level.id === levelId),
+                            )
+                            .filter((level): level is NonNullable<typeof level> => Boolean(level))
+                          : [];
 
                           return (
                             <React.Fragment key={rowKey}>
                               <TableRow
+                                aria-expanded={isExpanded}
                                 className="cursor-pointer"
-                                onClick={() =>
-                                  setExpandedRefs((prev) => {
-                                    const next = new Set(prev);
-                                    if (next.has(rowKey)) next.delete(rowKey);
-                                    else next.add(rowKey);
-                                    return next;
-                                  })
-                                }
+                                onClick={toggleExpanded}
                               >
-                                <TableCell className="w-8 pr-0">
-                                  {isExpanded
-                                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                                    : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                                <TableCell className="w-10 px-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground"
+                                    aria-label={isExpanded ? `Collapse ${asset.name || 'asset'}` : `Expand ${asset.name || 'asset'}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      toggleExpanded();
+                                    }}
+                                  >
+                                    {isExpanded
+                                      ? <ChevronDown className="h-4 w-4" />
+                                      : <ChevronRight className="h-4 w-4" />}
+                                  </Button>
                                 </TableCell>
-                                <TableCell className="font-medium">{asset.name || '-'}</TableCell>
-                                <TableCell>{typeLabel}</TableCell>
-                                <TableCell>{asset.cryptoProperties?.algorithmProperties?.primitive || '-'}</TableCell>
+                                <TableCell className="font-medium text-foreground">{asset.name || '-'}</TableCell>
+                                <TableCell className="text-muted-foreground">{typeLabel}</TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {asset.cryptoProperties?.algorithmProperties?.primitive || '-'}
+                                </TableCell>
                                 <TableCell className="text-right">
-                                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
-                                    {occurrenceCount}
-                                  </span>
+                                  <Badge variant="secondary" className="rounded-md font-normal tabular-nums">
+                                    {group.references.length} ref{group.references.length === 1 ? '' : 's'}
+                                  </Badge>
+                                  {group.occurrenceCount !== group.references.length && (
+                                    <span className="ml-2 text-xs tabular-nums text-muted-foreground">
+                                      {group.occurrenceCount} occurrence{group.occurrenceCount === 1 ? '' : 's'}
+                                    </span>
+                                  )}
                                 </TableCell>
                                 <TableCell>
-                                  {!complianceResult || !level ? (
+                                  {!complianceResult || groupLevels.length === 0 ? (
                                     <span className="text-muted-foreground text-xs">-</span>
                                   ) : (
-                                    <span
-                                      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border"
-                                      style={{ borderColor: `${level.colorHex}88`, color: level.colorHex, background: `${level.colorHex}18` }}
-                                    >
-                                      {level.label}
-                                    </span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {groupLevels.map((level) => (
+                                        <span
+                                          key={level.id}
+                                          className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border"
+                                          style={{ borderColor: `${level.colorHex}88`, color: level.colorHex, background: `${level.colorHex}18` }}
+                                        >
+                                          {level.label}
+                                        </span>
+                                      ))}
+                                    </div>
                                   )}
                                 </TableCell>
                               </TableRow>
                               {isExpanded && (
-                                <TableRow key={`${rowKey}-occurrences`}>
-                                  <TableCell />
-                                  <TableCell colSpan={5} className="py-0 pb-2">
-                                    <div className="rounded-md border bg-muted/30 text-xs">
-                                      <table className="w-full">
-                                        <thead>
-                                          <tr className="border-b">
-                                            <th className="text-left px-3 py-1.5 font-medium text-muted-foreground">Location</th>
-                                            <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-16">Line</th>
-                                            <th className="text-right px-3 py-1.5 font-medium text-muted-foreground w-16">Offset</th>
-                                            <th className="text-left px-3 py-1.5 font-medium text-muted-foreground w-32">Context</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {(allOccurrences ?? []).map((occ, i) => (
-                                            <tr key={i} className="border-b last:border-0">
-                                              <td className="px-3 py-1.5 font-mono text-primary">
-                                                <span className="inline-flex items-center gap-1">
-                                                  {occ?.location || '-'}
-                                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                <TableRow key={`${rowKey}-occurrences`} className="hover:bg-transparent">
+                                  <TableCell colSpan={6} className="bg-muted/20 px-10 pb-3 pt-0">
+                                    <div className="mt-2 overflow-hidden rounded-md border bg-background">
+                                      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
+                                        <div className="flex items-baseline gap-2">
+                                          <span className="text-xs font-medium text-foreground">Linked assets</span>
+                                          <span className="text-xs text-muted-foreground">
+                                            Complete bidirectional reference group
+                                          </span>
+                                        </div>
+                                        <span className="text-xs tabular-nums text-muted-foreground">
+                                          {group.references.length} asset{group.references.length === 1 ? '' : 's'}
+                                        </span>
+                                      </div>
+                                      <Table className="text-xs">
+                                        <TableHeader className="bg-muted/30">
+                                          <TableRow className="hover:bg-transparent">
+                                            <TableHead className="h-8 px-3">Asset</TableHead>
+                                            <TableHead className="h-8 w-36 px-3">Type</TableHead>
+                                            <TableHead className="h-8 w-64 px-3">Reference</TableHead>
+                                            <TableHead className="h-8 px-3">Location</TableHead>
+                                            {showLine && <TableHead className="h-8 w-16 px-3 text-right">Line</TableHead>}
+                                            {showOffset && <TableHead className="h-8 w-16 px-3 text-right">Offset</TableHead>}
+                                            {showContext && <TableHead className="h-8 w-48 px-3">Context</TableHead>}
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {referenceRows.map(({ key, reference, occurrence }) => (
+                                            <TableRow key={key}>
+                                              <TableCell className="max-w-64 px-3 py-2 font-medium text-foreground">
+                                                <span className="block truncate" title={reference.asset.name}>
+                                                  {reference.asset.name || '-'}
                                                 </span>
-                                              </td>
-                                              <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                                                {occ?.line ?? '-'}
-                                              </td>
-                                              <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                                                {occ?.offset ?? '-'}
-                                              </td>
-                                              <td className="px-3 py-1.5 text-muted-foreground">
-                                                {occ?.additionalContext || '-'}
-                                              </td>
-                                            </tr>
+                                              </TableCell>
+                                              <TableCell className="px-3 py-2 text-muted-foreground">
+                                                {formatAssetType(
+                                                  reference.asset.cryptoProperties?.assetType
+                                                  || reference.asset.type
+                                                  || '-',
+                                                )}
+                                              </TableCell>
+                                              <TableCell className="max-w-64 px-3 py-2">
+                                                <code
+                                                  className="block truncate font-mono text-xs text-muted-foreground"
+                                                  title={reference.bomRef}
+                                                >
+                                                  {reference.bomRef || '-'}
+                                                </code>
+                                              </TableCell>
+                                              <TableCell className="max-w-96 px-3 py-2">
+                                                <span
+                                                  className="block truncate font-mono text-xs text-foreground"
+                                                  title={occurrence?.location}
+                                                >
+                                                  {occurrence?.location || '-'}
+                                                </span>
+                                              </TableCell>
+                                              {showLine && (
+                                                <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                                                  {occurrence?.line ?? '-'}
+                                                </TableCell>
+                                              )}
+                                              {showOffset && (
+                                                <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                                                  {occurrence?.offset ?? '-'}
+                                                </TableCell>
+                                              )}
+                                              {showContext && (
+                                                <TableCell className="max-w-48 px-3 py-2 text-muted-foreground">
+                                                  <span className="block truncate" title={occurrence?.additionalContext}>
+                                                    {occurrence?.additionalContext || '-'}
+                                                  </span>
+                                                </TableCell>
+                                              )}
+                                            </TableRow>
                                           ))}
-                                        </tbody>
-                                      </table>
+                                        </TableBody>
+                                      </Table>
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -2209,6 +2687,16 @@ function CBOMDetailsContent() {
       </Tabs>
 
       </div>{/* end Hero + Tabs wrapper */}
+
+      <TLSWorkflowSheet
+        connection={workflowSheetConnection}
+        open={workflowSheetConnection !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWorkflowSheetConnection(null);
+          }
+        }}
+      />
 
       <CBOMAssetDetailDialog
         asset={selectedAsset}

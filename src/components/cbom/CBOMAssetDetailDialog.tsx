@@ -42,6 +42,19 @@ export interface CBOMAssetDetail {
             parameterSetIdentifier?: string;
             cryptoFunctions?: string[];
         };
+        certificateProperties?: {
+            issuerName?: string;
+            subjectName?: string;
+            subjectPublicKeyRef?: string;
+            signatureAlgorithmRef?: string;
+        };
+        relatedCryptoMaterialProperties?: {
+            value?: string;
+            size?: number;
+            type?: string;
+            format?: string;
+            algorithmRef?: string;
+        };
     };
 }
 
